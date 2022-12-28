@@ -1,6 +1,8 @@
 # %%
 # import libs
-from aioambient.api import API
+# from aioambient.api import API
+from ambient_api.ambientapi import AmbientAPI
+import time
 import asyncio
 from dateutil import parser
 import pandas as pd
@@ -8,6 +10,7 @@ import plotly.express as px
 import streamlit as st
 import logging
 import storj_df_s3 as sj
+
 # import numpy as np
 # import plotly as pt
 # import plotly.graph_objects as go
@@ -18,7 +21,15 @@ AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
 AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
-api = API(AMBIENT_APPLICATION_KEY, AMBIENT_API_KEY)
+# todo: delete aioambient:
+# api = API(AMBIENT_APPLICATION_KEY, AMBIENT_API_KEY)
+# api = AmbientAPI()
+api = AmbientAPI(
+    log_level="INFO",
+    AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
+    AMBIENT_API_KEY=AMBIENT_API_KEY,
+    AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
+)
 
 # %%
 # define variables
@@ -69,7 +80,11 @@ async def get_device_history_to_date(macAddress, end_date=None, limit=288):
         except TimeoutError:
             logging.info("TimeoutError: get_device_history_to_date")
 
-    return history if history else None
+    if history:
+        return history
+    else:
+        st.write("someting broke")
+        return history
 
 
 async def get_all_history_for_device(macAddress, days_to_get=15):
@@ -128,25 +143,39 @@ async def find_earliest_date_in_history(device_history, date_key):
 
 async def main():
     devices = []
-    # devices = await get_devices()
-    devices = await api.get_devices()
+    devices = await get_devices()
+    # devices = await api.get_devices()
 
     if len(devices) == 1:
         device = devices[0]
         device_menu = device["macAddress"]
         st.write(f"One device found:  {device['info']['name']}")
+        print(f"One device found:  {device['info']['name']}")
     else:
         device_menu = st.sidebar.selectbox(
             "Select a device:", [device["macAddress"] for device in devices]
         )
-    device_mac = device_menu
+    # device_mac = device_menu
+    device_mac = "98:CD:AC:22:0D:E5"
+    st.write(device_mac)
+    hist_file = device_mac + ".json"
+    # lookout/98:CD:AC:22:0D:E5.json
 
-    history = await get_all_history_for_device(device_mac, days_to_get=4)
+    device_history = sj.get_dataframe_from_s3_json(bucket, hist_file)
+    if type(device_history) == pd.DataFrame:
+        st.write(device_history[:1])
+        st.write(device_history.describe(datetime_is_numeric=True, include="all"))
+        st.write(device_history["date"].min(axis=0))
+        st.write(device_history["date"].max(axis=0))
+    else:
+        st.write("no history found")
+
+    # history = await get_all_history_for_device(device_mac, days_to_get=2)
     # st.write(history)
     # st.write(history[0].keys())
-    history_df = pd.json_normalize(history)
-    fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
-    st.plotly_chart(fig)
+    # history_df = pd.json_normalize(history)
+    # fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
+    # st.plotly_chart(fig)
 
     # candlestick_tmp = history_df.groupby(history_df["date"].dt.date).agg(
     #     {"temp": {"open": "first", "high": "max", "low": "min", "close": "last"}}
@@ -193,4 +222,6 @@ async def main():
     # ]
 
 
-asyncio.run(main())
+# asyncio.run(main())
+
+# %%
