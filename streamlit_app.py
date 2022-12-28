@@ -2,20 +2,16 @@
 # import libs
 from aioambient.api import API
 import asyncio
-
+from dateutil import parser
 import pandas as pd
-
-# import numpy as np
-# import plotly as pt
-
-# import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
-
-# from datetime import datetime
-from dateutil import parser
 import logging
-
+import storj_df_s3 as sj
+# import numpy as np
+# import plotly as pt
+# import plotly.graph_objects as go
+# from datetime import datetime
 # from datetime import date, datetime,
 
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
@@ -25,7 +21,8 @@ AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 api = API(AMBIENT_APPLICATION_KEY, AMBIENT_API_KEY)
 
 # %%
-# define functions
+# define variables
+bucket = "lookout"
 
 # load data
 
