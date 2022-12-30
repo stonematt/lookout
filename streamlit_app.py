@@ -3,7 +3,6 @@
 # from aioambient.api import API
 from ambient_api.ambientapi import AmbientAPI
 import time
-import asyncio
 from dateutil import parser
 import pandas as pd
 import plotly.express as px
@@ -50,33 +49,19 @@ def to_date(date_string: str):
         raise e
 
 
-# from aiocache import Cache
-# from aiocache import cached
-
-# @cached(ttl=None, cache=Cache.MEMORY)
-async def get_devices():
-    try:
-        devices = await api.get_devices()
-    except TimeoutError:
-        logging.info("TimeoutError: get_devices")
-    else:
-        return devices
-
-
-async def get_device_history_to_date(macAddress, end_date=None, limit=288):
+# %%
+def get_device_history_to_date(device, end_date=None, limit=288):
     history = []
     if end_date:
         # st.write(f"end date: {end_date} for history page")
         try:
-            history = await api.get_device_details(
-                macAddress, end_date=end_date, limit=limit
-            )
+            history = device.get_data(end_date=end_date, limit=limit)
         except TimeoutError:
             logging.info("TimeoutError: get_device_history_to_date")
     else:
         # st.write("no end date submitted")
         try:
-            history = await api.get_device_details(macAddress, limit=limit)
+            history = device.get_data(limit=limit)
         except TimeoutError:
             logging.info("TimeoutError: get_device_history_to_date")
 
@@ -87,31 +72,34 @@ async def get_device_history_to_date(macAddress, end_date=None, limit=288):
         return history
 
 
-async def get_all_history_for_device(macAddress, days_to_get=15):
+# %%
+# def get_all_history_for_device(device, end_date=pd.Timestamp.utcnow(), start_date=None):
+def get_all_history_for_device(device, days_to_get=5):
     all_history = []
     last_min_date = ""
     progress_count = st.empty()
     progress_bar = st.progress(0)
     progress = 0
 
-    last_history_retreived = await get_device_history_to_date(macAddress)
+    last_history_retreived = get_device_history_to_date(device)
     all_history.extend(last_history_retreived)
 
-    last_min_date = await find_earliest_date_in_history(last_history_retreived, "date")
-    # last_min_date = to_date(last_min_date)
+    # last_min_date = find_earliest_date_in_history(last_history_retreived, "dateutc")
+    # find date of last record
+    # todo: maybe delete find earliest date function
+    last_min_date = last_history_retreived[-1]["dateutc"]
 
     while progress < days_to_get:
         progress += 1
         progress_count.text(f"Getting page {progress}")
         progress_bar.progress(progress / days_to_get)
+        time.sleep(0.8)
         try:
-            next_history_page = await get_device_history_to_date(
-                macAddress, end_date=last_min_date
+            next_history_page = get_device_history_to_date(
+                device, end_date=last_min_date
             )
-            next_history_min_date = await find_earliest_date_in_history(
-                next_history_page, "date"
-            )
-        except TimeoutError:
+            next_history_min_date = next_history_page[-1]["dateutc"]
+        except TimeoutError:  # this was for asyncio - probably won't see this now.
             logging.info("TimeoutError: get_device_history_to_date")
         else:
             # to do make sure we don't add the last page twice
@@ -124,10 +112,11 @@ async def get_all_history_for_device(macAddress, days_to_get=15):
     return all_history
 
 
+# %%
 st.cache(show_spinner=True)
 
 
-async def find_earliest_date_in_history(device_history, date_key):
+def find_earliest_date_in_history(device_history, date_key):
     # Initialize smallest_value with the first dictionary's key value
     smallest_value = device_history[0][date_key]
 
@@ -141,87 +130,76 @@ async def find_earliest_date_in_history(device_history, date_key):
     return smallest_value
 
 
-async def main():
-    devices = []
-    devices = await get_devices()
-    # devices = await api.get_devices()
+# %%
+devices = api.get_devices()
+# devices = await api.get_devices()
 
-    if len(devices) == 1:
-        device = devices[0]
-        device_menu = device["macAddress"]
-        st.write(f"One device found:  {device['info']['name']}")
-        print(f"One device found:  {device['info']['name']}")
-    else:
-        device_menu = st.sidebar.selectbox(
-            "Select a device:", [device["macAddress"] for device in devices]
-        )
-    # device_mac = device_menu
-    device_mac = "98:CD:AC:22:0D:E5"
-    st.write(device_mac)
-    hist_file = device_mac + ".json"
-    # lookout/98:CD:AC:22:0D:E5.json
+if len(devices) == 1:
+    device = devices[0]
+    device_menu = device.mac_address
+    st.write(f"One device found:  {device.info['name']}")
+    print(f"One device found:  {device.info['name']}")
+# else:
+#     device_menu = st.sidebar.selectbox(
+#         "Select a device:", [device["macAddress"] for device in devices]
+#     )
+device_mac = device_menu
+# device_mac = "98:CD:AC:22:0D:E5"
+st.write(device_mac)
+hist_file = device_mac + ".json"
+# lookout/98:CD:AC:22:0D:E5.json
 
-    device_history = sj.get_dataframe_from_s3_json(bucket, hist_file)
-    if type(device_history) == pd.DataFrame:
-        st.write(device_history[:1])
-        st.write(device_history.describe(datetime_is_numeric=True, include="all"))
-        st.write(device_history["date"].min(axis=0))
-        st.write(device_history["date"].max(axis=0))
-    else:
-        st.write("no history found")
+# pause for ambient.
+time.sleep(1)
 
-    # history = await get_all_history_for_device(device_mac, days_to_get=2)
-    # st.write(history)
-    # st.write(history[0].keys())
-    # history_df = pd.json_normalize(history)
-    # fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
-    # st.plotly_chart(fig)
+# %%
+device_history = "i"  # sj.get_dataframe_from_s3_json(bucket, hist_file)
+if type(device_history) == pd.DataFrame:
+    st.write(device_history[:1])
+    # st.write(device_history.describe(datetime_is_numeric=True, include="all"))
+    st.write(
+        f"min: {device_history['date'].min(axis=0)} max: {device_history['date'].max(axis=0)}"
+    )
+else:
+    st.write("turn this on later")
 
-    # candlestick_tmp = history_df.groupby(history_df["date"].dt.date).agg(
-    #     {"temp": {"open": "first", "high": "max", "low": "min", "close": "last"}}
-    # )
-    # st.write(candlestick_tmp)
+history = get_all_history_for_device(device, days_to_get=6)
 
-    # st.dataframe(history_df)
+# col1, col2 = st.columns(2)
+# with col1:
+st.write(len(history))
+st.write(history[0].keys())
+history_df = pd.json_normalize(history)
+history_df.set_index("dateutc", inplace=True)
 
-    # keys = [
-    #     "dateutc",
-    #     "tempinf",
-    #     "humidityin",
-    #     "baromrelin",
-    #     "baromabsin",
-    #     "tempf",
-    #     "humidity",
-    #     "winddir",
-    #     "winddir_avg10m",
-    #     "windspeedmph",
-    #     "windspdmph_avg10m",
-    #     "windgustmph",
-    #     "maxdailygust",
-    #     "hourlyrainin",
-    #     "eventrainin",
-    #     "dailyrainin",
-    #     "weeklyrainin",
-    #     "monthlyrainin",
-    #     "yearlyrainin",
-    #     "solarradiation",
-    #     "uv",
-    #     "temp1f",
-    #     "humidity1",
-    #     "batt1",
-    #     "batt_25",
-    #     "batt_co2",
-    #     "feelsLike",
-    #     "dewPoint",
-    #     "feelsLike1",
-    #     "dewPoint1",
-    #     "feelsLikein",
-    #     "dewPointin",
-    #     "lastRain",
-    #     "date",
-    # ]
+# # with col2:
+#     history_from_df = history_df.to_dict("index")
+#     st.write(history_from_df)
+#     st.write(history_from_df[0].keys())
 
+fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
+st.plotly_chart(fig)
 
-# asyncio.run(main())
+fig = px.line(
+    history_df,
+    x="date",
+    y=["eventrainin", "dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"],
+    title="rain",
+)
+st.plotly_chart(fig)
+# candlestick_tmp = history_df.groupby(history_df["date"].dt.date).agg(
+#     {"temp": {"open": "first", "high": "max", "low": "min", "close": "last"}}
+# )
+# st.write(candlestick_tmp)
+
+# st.dataframe(history_df)
+
+# keys = [ #     "dateutc", #     "tempinf", #     "humidityin", #     "baromrelin", #     "baromabsin",
+#     "tempf", #     "humidity", #     "winddir", #     "winddir_avg10m", #     "windspeedmph", #     "windspdmph_avg10m", #     "windgustmph", #     "maxdailygust",
+#     "hourlyrainin", #     "eventrainin", #     "dailyrainin", #     "weeklyrainin", #     "monthlyrainin", #     "yearlyrainin", #     "solarradiation",
+#     "uv", #     "temp1f", #     "humidity1", #     "batt1", #     "batt_25", #     "batt_co2",
+#     "feelsLike", #     "dewPoint", #     "feelsLike1", #     "dewPoint1", #     "feelsLikein", #     "dewPointin",
+#     "lastRain", #     "date", # ]
+
 
 # %%
