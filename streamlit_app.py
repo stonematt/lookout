@@ -7,7 +7,8 @@ from dateutil import parser
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import logging
+
+# import logging
 import storj_df_s3 as sj
 
 # import numpy as np
@@ -24,7 +25,7 @@ AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 # api = API(AMBIENT_APPLICATION_KEY, AMBIENT_API_KEY)
 # api = AmbientAPI()
 api = AmbientAPI(
-    log_level="INFO",
+    # log_level="INFO",
     AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
     AMBIENT_API_KEY=AMBIENT_API_KEY,
     AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
@@ -54,16 +55,10 @@ def get_device_history_to_date(device, end_date=None, limit=288):
     history = []
     if end_date:
         # st.write(f"end date: {end_date} for history page")
-        try:
-            history = device.get_data(end_date=end_date, limit=limit)
-        except TimeoutError:
-            logging.info("TimeoutError: get_device_history_to_date")
+        history = device.get_data(end_date=end_date, limit=limit)
     else:
         # st.write("no end date submitted")
-        try:
-            history = device.get_data(limit=limit)
-        except TimeoutError:
-            logging.info("TimeoutError: get_device_history_to_date")
+        history = device.get_data(limit=limit)
 
     if history:
         return history
@@ -74,6 +69,7 @@ def get_device_history_to_date(device, end_date=None, limit=288):
 
 # %%
 # def get_all_history_for_device(device, end_date=pd.Timestamp.utcnow(), start_date=None):
+# todo: chage to date range
 def get_all_history_for_device(device, days_to_get=5):
     all_history = []
     last_min_date = ""
@@ -86,30 +82,29 @@ def get_all_history_for_device(device, days_to_get=5):
 
     # last_min_date = find_earliest_date_in_history(last_history_retreived, "dateutc")
     # find date of last record
-    # todo: maybe delete find earliest date function
     last_min_date = last_history_retreived[-1]["dateutc"]
 
     while progress < days_to_get:
         progress += 1
         progress_count.text(f"Getting page {progress}")
         progress_bar.progress(progress / days_to_get)
-        time.sleep(0.8)
-        try:
-            next_history_page = get_device_history_to_date(
-                device, end_date=last_min_date
-            )
-            next_history_min_date = next_history_page[-1]["dateutc"]
-        except TimeoutError:  # this was for asyncio - probably won't see this now.
-            logging.info("TimeoutError: get_device_history_to_date")
-        else:
-            # to do make sure we don't add the last page twice
-            if next_history_min_date != last_min_date:
-                last_min_date = next_history_min_date
-                all_history.extend(next_history_page)
+        time.sleep(1)
+        next_history_page = get_device_history_to_date(device, end_date=last_min_date)
+        next_history_min_date = next_history_page[-1]["dateutc"]
+
+        # to do make sure we don't add the last page twice
+        if next_history_min_date != last_min_date:
+            last_min_date = next_history_min_date
+            for data_point in next_history_page:
+                if data_point not in all_history:
+                    all_history.append(data_point)
+
+    all_history_df = pd.json_normalize(all_history)
+    all_history_df.set_index("dateutc", inplace=True)
 
     progress_count.empty()
     progress_bar.empty()
-    return all_history
+    return all_history_df, all_history
 
 
 # %%
@@ -132,7 +127,6 @@ def find_earliest_date_in_history(device_history, date_key):
 
 # %%
 devices = api.get_devices()
-# devices = await api.get_devices()
 
 if len(devices) == 1:
     device = devices[0]
@@ -146,36 +140,23 @@ if len(devices) == 1:
 device_mac = device_menu
 # device_mac = "98:CD:AC:22:0D:E5"
 st.write(device_mac)
-hist_file = device_mac + ".json"
+hist_file = bucket + "/" + device_mac + ".json"
 # lookout/98:CD:AC:22:0D:E5.json
 
 # pause for ambient.
 time.sleep(1)
 
 # %%
-device_history = "i"  # sj.get_dataframe_from_s3_json(bucket, hist_file)
-if type(device_history) == pd.DataFrame:
-    st.write(device_history[:1])
-    # st.write(device_history.describe(datetime_is_numeric=True, include="all"))
-    st.write(
-        f"min: {device_history['date'].min(axis=0)} max: {device_history['date'].max(axis=0)}"
-    )
-else:
-    st.write("turn this on later")
+device_history = sj.get_file_as_dict(hist_file)
+st.write(len(device_history))
+st.write(device_history[1])
 
-history = get_all_history_for_device(device, days_to_get=6)
+history_df, history_json = get_all_history_for_device(device, days_to_get=4)
+history_df[:1]
 
-# col1, col2 = st.columns(2)
-# with col1:
-st.write(len(history))
-st.write(history[0].keys())
-history_df = pd.json_normalize(history)
-history_df.set_index("dateutc", inplace=True)
+# todo: add history_json to device_history
+sj.save_dict_to_fs(history_json, hist_file)
 
-# # with col2:
-#     history_from_df = history_df.to_dict("index")
-#     st.write(history_from_df)
-#     st.write(history_from_df[0].keys())
 
 fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
 st.plotly_chart(fig)
@@ -201,5 +182,8 @@ st.plotly_chart(fig)
 #     "feelsLike", #     "dewPoint", #     "feelsLike1", #     "dewPoint1", #     "feelsLikein", #     "dewPointin",
 #     "lastRain", #     "date", # ]
 
+
+# %%
+# pd.merge(h1_df,h2_df, on=h1_df.keys().to_list(), how='outer')
 
 # %%
