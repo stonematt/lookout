@@ -30,13 +30,44 @@ fs = s3fs.S3FileSystem(
 f = "s3://lookout/98:CD:AC:22:0D:E5.json"
 
 
-def get_file_as_dict(file_path, fs):
+def get_file_as_dict(file_path):
+    """Return a json dict from an s3 filepath
+
+    Args:
+        file_path (str): path to save like: bucket/path/to/file
+
+    Returns:
+        dict: json dict from contents of file or empty dict
+    """
+    file_path = "s3://" + file_path
     try:
         with fs.open(file_path, "rb") as f:
             file_contents = f.read()
         return json.loads(file_contents)
     except FileNotFoundError:
         return {}
+
+
+# %%
+def save_dict_to_fs(dict_data, file_path):
+    """save a dict to an s3 file
+
+    Args:
+        dict_data (dict): dictionary
+        file_path (str): path like: bucket/path/to/file
+
+    Returns:
+        bool: success
+    """
+    try:
+        # data = json.dumps(dict_data)
+        data = json.dumps(dict_data).encode("utf-8")  # convert string to bytes
+        with fs.open(file_path, "wb") as f:
+            f.write(data)
+        return True
+    except PermissionError:
+        print("Permission denied: Unable to save dictionary to specified file")
+        return False
 
 
 # %%
