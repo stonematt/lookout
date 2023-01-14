@@ -10,6 +10,8 @@ import streamlit as st
 import logging
 import storj_df_s3 as sj
 from datetime import datetime
+# import pytz
+from collections import defaultdict
 
 # import numpy as np
 # import plotly as pt
@@ -33,6 +35,18 @@ api = AmbientAPI(
 
 # %%
 # define variables
+# get data (save history_json and history_df for this session?)
+if "history_json" not in st.session_state:
+    st.session_state["history_json"] = defaultdict(lambda: defaultdict(dict))
+
+history_json = st.session_state["history_json"]
+
+if "history_df" not in st.session_state:
+    st.session_state["history_df"] = pd.DataFrame
+
+history_df = st.session_state["history_df"]
+
+sec_in_hour = 3600 * 1000
 bucket = "lookout"
 
 keys = {
@@ -75,9 +89,6 @@ keys = {
         "uv",
         "temp1f",
         "humidity1",
-        "batt1",
-        "batt_25",
-        "batt_co2",
         "feelsLike",
         "dewPoint",
         "feelsLike1",
@@ -122,13 +133,17 @@ def get_device_history_to_date(device, end_date=None, limit=288):
 
 # %%
 # todo: chage to date range
-def get_all_history_for_device(device, days_to_get=5, end_date=None):
+def get_all_history_for_device(
+    device, days_to_get=5, end_date=None, progress_message=st.empty()
+):
     all_history = []
     last_min_date = ""
     progress_count = st.empty()
     progress_bar = st.progress(0)
     progress = 0
 
+    min_date = datetime.fromtimestamp(end_date / 1000.0) if end_date else datetime.now()
+    progress_message.text(f"Get data from Ambient to {min_date}")
     logging.warning(
         f"get_all_history_for_device days_to_get: {days_to_get}, end_date: {end_date}"
     )
@@ -158,12 +173,13 @@ def get_all_history_for_device(device, days_to_get=5, end_date=None):
         if next_history_min_date != last_min_date:
             last_min_date = next_history_min_date
             all_history = merge_distinct_items(all_history, next_history_page)
-
-    # all_history_df = pd.json_normalize(all_history)
-    # all_history_df.set_index("dateutc", inplace=True)
+        else:
+            # if the last two pages are the same, stop.
+            break
 
     progress_count.empty()
     progress_bar.empty()
+    progress_message = st.empty()
     # return all_history_df, all_history
     return all_history
 
@@ -182,7 +198,6 @@ def merge_distinct_items(old_list, new_data_list):
     merged_list = {}
 
     if old_list and new_data_list:
-        print("have both")
         for data_point in new_data_list:
             if data_point not in old_list:
                 old_list.append(data_point)
@@ -220,57 +235,99 @@ def heatmap(df, metric):
     st.plotly_chart(fig)
 
 
+def make_history_df(history_json, tz):
+    history_df = pd.json_normalize(history_json)
+    history_df.sort_values(by="dateutc", inplace=True)
+
+    # Convert 'date' column to local time
+    history_df["date"] = pd.to_datetime(history_df["date"])
+    history_df["date"] = history_df["date"].dt.tz_convert(tz)
+
+    return history_df
+
+
 # %%
-def get_data(device, hist_file):
-    progress_message = st.empty()
+def process_historical_data(hist_file, progress_message=st.empty()):
+    """download historical data from storj,
+    if successfull, return dict and min/max dates
+
+    Args:
+        hist_file (str): path to history file
+
+    Returns:
+        dict: device history from the backup
+        datetime: device history minimun date
+        datetime: device history maximum date
+    """
     progress_message.text("Getting History from stroj.io")
+    device_history = []
+
     device_history = sj.get_file_as_dict(hist_file)
     if device_history:
         device_history_min_date, device_history_max_date = find_extreme_value_in_json(
             device_history, "dateutc"
         )
         min_date = datetime.fromtimestamp(device_history_min_date / 1000.0)
-        st.write(f"min: {min_date}, max: {device_history_max_date}")
-        logging.warning(f"min: {min_date}, max: {device_history_max_date}")
+        max_date = datetime.fromtimestamp(device_history_max_date / 1000.0)
+        st.write(f"range in history form storj: min: {min_date}, max: {max_date}")
+        logging.warning(
+            f"range in history form storj: min: {min_date}, max: {max_date}"
+        )
     else:
         logging.warning(f"no device history at {hist_file}")
-        min_date = datetime.now()
+        min_date = datetime.now() * 1000
         device_history_min_date = time.time() * 1000
         device_history_max_date = time.time() * 1000
 
-    progress_message.text(f"Get historical data from Ambient to {min_date}")
-    history_json = get_all_history_for_device(
-        device, days_to_get=0
-    )  # , end_date=device_history_min_date
-    # )
-    #
-    progress_message.text("Geting recent data from Ambient")
-    sec_in_hour = 3600 * 1000
-    missing_hours = (time.time() * 1000 - device_history_max_date) / sec_in_hour
-    st.write(f"Missing {round(missing_hours, 2)} hours of recent history")
-    pages_to_get = int(missing_hours / 24)
-    progress_message.text(f"Missing {missing_hours} hours of recent history")
-    time.sleep(1)
-    new_history = get_all_history_for_device(device, days_to_get=pages_to_get)
-    # st.write(f"before merge: new json count: {len(new_history)}")
-    history_json = merge_distinct_items(history_json, new_history)
+    return device_history, device_history_min_date, device_history_max_date
 
-    # st.write(f"before merge: history json count: {len(history_json)}")
-    # st.write(f"before merge: device json count: {len(device_history)}")
-    # st.write(history_json)
+
+# %%
+def get_data(device, hist_file):
+    tz = device.last_data.get("tz")
+    progress_message = st.empty()
+
+    # Retreive historical data from backup drive on Storj
+    (
+        device_history,
+        device_history_min_date,
+        device_history_max_date,
+    ) = process_historical_data(hist_file, progress_message)
+
+    # Get a few more days of historical data
+    # todo: this could be optional...
+    history_json = get_all_history_for_device(
+        device,
+        days_to_get=3,
+        end_date=device_history_min_date,
+        progress_message=progress_message,
+    )
+
+    # get data since the last time we ran the script.
+    missing_hours = (time.time() * 1000 - device_history_max_date) / sec_in_hour
+    progress_message.text(
+        f"Missing {missing_hours} hours of recent history. Getting it now"
+    )
+    time.sleep(1)
+    new_history = get_all_history_for_device(
+        device, days_to_get=int(missing_hours / 24), progress_message=progress_message
+    )
+
+    # add new dataa to history
     progress_message.text("Combining datasets")
+    history_json = merge_distinct_items(history_json, new_history)
     history_json = merge_distinct_items(device_history, history_json)
-    # st.write(f"after merge: history json count: {len(history_json)}")
 
     progress_message.text("Making dataframe")
-    history_df = pd.json_normalize(history_json)
+    history_df = make_history_df(history_json, tz)
 
+    # todo: might be good to make this optional.
     progress_message.text("Saving history to storj.io")
     sj.save_dict_to_fs(history_json, hist_file)
 
     progress_message.empty()
-    history_df.sort_values(by="dateutc", inplace=True)
-    return history_df
+
+    return history_df, history_json
 
 
 # %%
@@ -292,7 +349,7 @@ if len(devices) == 1:
 
 # if we dont' get a device from ambient. blow up.
 if not device:
-    st.write("No connection to Ambient Networko")
+    st.write("No connection to Ambient Network")
     exit()
 
 
@@ -308,7 +365,7 @@ time.sleep(1)
 # start dashboard
 
 history_df = pd.DataFrame
-history_df = get_data(device, hist_file)
+history_df, history_json = get_data(device, hist_file)
 
 
 # %%
