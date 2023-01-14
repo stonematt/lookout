@@ -79,12 +79,7 @@ keys = {
     ],
 }
 
-# load data
 
-
-# engineer data
-
-# build dashboard
 def to_date(date_string: str):
     try:
         date = parser.parse(date_string)
