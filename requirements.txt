@@ -13,10 +13,10 @@ argon2-cffi-bindings
 asttokens
 async-timeout
 attrs
-aws-c-common
-aws-c-event-stream
-aws-checksums
-aws-sdk-cpp
+# aws-c-common
+# aws-c-event-stream
+# aws-checksums
+# aws-sdk-cpp
 backcall
 beautifulsoup4
 black
