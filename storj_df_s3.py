@@ -26,7 +26,7 @@ fs = s3fs.S3FileSystem(
         "aws_secret_access_key": SECRET_ACCESS_KEY,
     }
 )
-
+# type: ignore
 f = "s3://lookout/98:CD:AC:22:0D:E5.json"
 
 
@@ -60,10 +60,8 @@ def save_dict_to_fs(dict_data, file_path):
         bool: success
     """
     try:
-        # data = json.dumps(dict_data)
-        data = json.dumps(dict_data).encode("utf-8")  # convert string to bytes
-        with fs.open(file_path, "wb") as f:
-            f.write(data)
+        with fs.open(file_path, "w") as f:
+            json.dump(dict_data, f)
         return True
     except PermissionError:
         print("Permission denied: Unable to save dictionary to specified file")
