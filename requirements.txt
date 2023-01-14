@@ -1,0 +1,6 @@
+ambient_api
+pandas
+streamlit
+plotly
+s3fs
+json
