@@ -10,23 +10,18 @@ import streamlit as st
 import logging
 import storj_df_s3 as sj
 from datetime import datetime
-
-# import pytz
-from collections import defaultdict
+import awn_controller as awn
 
 # import numpy as np
 # import plotly as pt
 # import plotly.graph_objects as go
-# from datetime import datetime
 # from datetime import date, datetime,
 
+# todo: move to module
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
 AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
-# todo: delete aioambient:
-# api = API(AMBIENT_APPLICATION_KEY, AMBIENT_API_KEY)
-# api = AmbientAPI()
 api = AmbientAPI(
     # log_level="INFO",
     AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
@@ -105,7 +100,8 @@ def to_date(date_string: str):
 
 
 # %%
-def get_device_history_to_date(device, end_date=None, limit=288):
+# todo: move to module
+def xget_device_history_to_date(device, end_date=None, limit=288):
     history = []
     if end_date:
         # st.write(f"end date: {end_date} for history page")
@@ -139,9 +135,11 @@ def get_all_history_for_device(
     )
 
     if end_date:
-        last_history_retreived = get_device_history_to_date(device, end_date=end_date)
+        last_history_retreived = awn.get_device_history_to_date(
+            device, end_date=end_date
+        )
     else:
-        last_history_retreived = get_device_history_to_date(device)
+        last_history_retreived = awn.get_device_history_to_date(device)
     all_history.extend(last_history_retreived)
 
     if last_history_retreived:
@@ -153,7 +151,9 @@ def get_all_history_for_device(
         logging.warning(f"Getting page {progress}")
         progress_bar.progress(progress / days_to_get)
         time.sleep(1)
-        next_history_page = get_device_history_to_date(device, end_date=last_min_date)
+        next_history_page = awn.get_device_history_to_date(
+            device, end_date=last_min_date
+        )
         next_history_min_date = next_history_page[-1]["dateutc"]
         logging.warning(
             f"next page len: {len(next_history_page)} for {next_history_min_date}"
@@ -312,7 +312,7 @@ def get_data(device, hist_file):
     history_df = make_history_df(history_json, tz)
 
     # todo: might be good to make this optional.
-    progress_message.text("Saving history to storj.io")
+    # progress_message.text("Saving history to storj.io")
     # sj.save_dict_to_fs(history_json, hist_file)
 
     progress_message.empty()
@@ -351,29 +351,40 @@ hist_file = bucket + "/" + device_mac + ".json"
 # pause for ambient.
 time.sleep(1)
 
+
+def update_session_data(device, hist_file):
+    st.session_state["history_df"], st.session_state["history_json"] = get_data(
+        device, hist_file
+    )
+    st.session_state["session_counter"] = 0
+
+
 # %%
 # start dashboard
 # get data (save history_json and history_df for this session?)
 if "history_json" not in st.session_state:
     st.write("no hist in session")
+    update_session_data(device, hist_file)
 
-    st.session_state["history_df"], st.session_state["history_json"] = get_data(
-        device, hist_file
-    )
-    st.session_state['session_counter'] = 0
 
 history_json = st.session_state["history_json"]
 history_df = st.session_state["history_df"]
 
-st.session_state['session_counter'] += 1
-if st.session_state['session_counter'] == 5:
+st.session_state["session_counter"] += 1
+if st.session_state["session_counter"] >= 3:
+    update_message = st.empty()
+    update_message.text("Updating and refreshing...")
     progress_message = st.empty()
+    update_session_data(device, hist_file)
+
     progress_message.text("Saving history to storj.io")
     sj.save_dict_to_fs(history_json, hist_file)
 
-    st.session_state['session_counter'] = 0
+    st.session_state["session_counter"] = 0
 
-    progress = st.empty()
+    progress_message.empty()
+    update_message.empty()
+
 
 # %%
 
