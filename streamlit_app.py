@@ -10,6 +10,7 @@ import streamlit as st
 import logging
 import storj_df_s3 as sj
 from datetime import datetime
+
 # import pytz
 from collections import defaultdict
 
@@ -35,17 +36,6 @@ api = AmbientAPI(
 
 # %%
 # define variables
-# get data (save history_json and history_df for this session?)
-if "history_json" not in st.session_state:
-    st.session_state["history_json"] = defaultdict(lambda: defaultdict(dict))
-
-history_json = st.session_state["history_json"]
-
-if "history_df" not in st.session_state:
-    st.session_state["history_df"] = pd.DataFrame
-
-history_df = st.session_state["history_df"]
-
 sec_in_hour = 3600 * 1000
 bucket = "lookout"
 
@@ -323,7 +313,7 @@ def get_data(device, hist_file):
 
     # todo: might be good to make this optional.
     progress_message.text("Saving history to storj.io")
-    sj.save_dict_to_fs(history_json, hist_file)
+    # sj.save_dict_to_fs(history_json, hist_file)
 
     progress_message.empty()
 
@@ -340,7 +330,7 @@ device_menu = "98:CD:AC:22:0D:E5"
 if len(devices) == 1:
     device = devices[0]
     device_menu = device.mac_address
-    st.write(f"One device found:  {device.info['name']}")
+    st.header(f"Weather Station:  {device.info['name']}")
     print(f"One device found:  {device.info['name']}")
 # else:
 #     device_menu = st.sidebar.selectbox(
@@ -363,10 +353,27 @@ time.sleep(1)
 
 # %%
 # start dashboard
+# get data (save history_json and history_df for this session?)
+if "history_json" not in st.session_state:
+    st.write("no hist in session")
 
-history_df = pd.DataFrame
-history_df, history_json = get_data(device, hist_file)
+    st.session_state["history_df"], st.session_state["history_json"] = get_data(
+        device, hist_file
+    )
+    st.session_state['session_counter'] = 0
 
+history_json = st.session_state["history_json"]
+history_df = st.session_state["history_df"]
+
+st.session_state['session_counter'] += 1
+if st.session_state['session_counter'] == 5:
+    progress_message = st.empty()
+    progress_message.text("Saving history to storj.io")
+    sj.save_dict_to_fs(history_json, hist_file)
+
+    st.session_state['session_counter'] = 0
+
+    progress = st.empty()
 
 # %%
 
