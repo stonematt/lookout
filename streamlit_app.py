@@ -7,10 +7,11 @@ from dateutil import parser
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import logging
 import storj_df_s3 as sj
-from datetime import datetime
 import awn_controller as awn
+
+# from datetime import datetime
+# import logging
 
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
@@ -206,7 +207,6 @@ heatmap_df = create_heatmap_date_hour_df(history_df, heatmap_data_column)
 grouped_df = heatmap_df.groupby(by=["date", "hour"]).max().reset_index()
 
 # Pivot the dataframe
-# pivot_df = grouped_df.pivot(columns="hour", index="date", values=grouped_df.columns[2])
 pivot_df = pd.pivot_table(
     heatmap_df,
     values=grouped_df.columns[2],
@@ -228,14 +228,6 @@ st.subheader(f"Heat Map of Maximum Values by Day and Hour for {heatmap_data_colu
 st.write(fig)
 
 
-#  keys = [      "dateutc",      "tempinf",      "humidityin",      "baromrelin",      "baromabsin",
-#      "tempf",      "humidity",      "winddir",      "winddir_avg10m",
-#      "windspeedmph",      "windspdmph_avg10m",      "windgustmph",      "maxdailygust",
-#      "hourlyrainin",      "eventrainin",      "dailyrainin",      "weeklyrainin",
-#      "monthlyrainin",      "yearlyrainin",      "solarradiation",
-#      "uv",      "temp1f",      "humidity1",      "batt1",      "batt_25",      "batt_co2",
-#      "feelsLike",      "dewPoint",      "feelsLike1",      "dewPoint1",      "feelsLikein",      "dewPointin",
-#      "lastRain",      "date",  ]
 st.write(history_df.describe())
 st.write(history_df)
 # %%

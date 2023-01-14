@@ -1,9 +1,7 @@
 # %%
 from ambient_api.ambientapi import AmbientAPI
 import time
-from dateutil import parser
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 import logging
 import storj_df_s3 as sj
@@ -23,6 +21,7 @@ api = AmbientAPI(
 )
 
 sec_in_hour = 3600 * 1000
+
 
 # %%
 def get_device_history_to_date(device, end_date=None, limit=288):
@@ -162,7 +161,7 @@ def process_historical_data(hist_file, progress_message=st.empty()):
         )
     else:
         logging.warning(f"no device history at {hist_file}")
-        min_date = datetime.now() * 1000
+        min_date = datetime.now().timestamp() * 1000
         device_history_min_date = time.time() * 1000
         device_history_max_date = time.time() * 1000
 
