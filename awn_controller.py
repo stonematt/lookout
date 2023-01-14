@@ -155,7 +155,6 @@ def process_historical_data(hist_file, progress_message=st.empty()):
         )
         min_date = datetime.fromtimestamp(device_history_min_date / 1000.0)
         max_date = datetime.fromtimestamp(device_history_max_date / 1000.0)
-        st.write(f"range in history form storj: min: {min_date}, max: {max_date}")
         logging.warning(
             f"range in history form storj: min: {min_date}, max: {max_date}"
         )

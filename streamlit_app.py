@@ -139,7 +139,6 @@ def update_session_data(device, hist_file):
 # start dashboard
 # get data (save history_json and history_df for this session?)
 if "history_json" not in st.session_state:
-    st.write("no hist in session")
     update_session_data(device, hist_file)
 
 
