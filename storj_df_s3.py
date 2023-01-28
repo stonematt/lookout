@@ -30,6 +30,16 @@ fs = s3fs.S3FileSystem(
 f = "s3://lookout/98:CD:AC:22:0D:E5.json"
 
 
+def get_local_file_as_dict(file_path):
+    file_path = file_path
+    try:
+        with open(file_path, "rb") as f:
+            file_contents = f.read()
+        return json.loads(file_contents)
+    except FileNotFoundError:
+        return {}
+
+
 def get_file_as_dict(file_path):
     """Return a json dict from an s3 filepath
 
@@ -105,3 +115,12 @@ def save_df_to_s3_json(df, bucket, key):
 
     logging.info(f"Saving {f}")
     df.to_json(f"s3://{f}", storage_options=storage_options)
+
+
+# %%
+def main():
+    return True
+
+
+if __name__ == "__main__":
+    main()

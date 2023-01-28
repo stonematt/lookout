@@ -133,7 +133,7 @@ def find_extreme_value_in_json(device_history, d_key):
     return min_value, max_value
 
 
-def process_historical_data(hist_file, progress_message=st.empty()):
+def process_historical_data(hist_file, progress_message=st.empty(), local=True):
     """download historical data from storj,
     if successfull, return dict and min/max dates
 
@@ -145,10 +145,13 @@ def process_historical_data(hist_file, progress_message=st.empty()):
         datetime: device history minimun date
         datetime: device history maximum date
     """
-    progress_message.text("Getting History from stroj.io")
+    progress_message.text("Getting History from repo")
     device_history = []
+    if local:
+        device_history = sj.get_local_file_as_dict("./data/" + hist_file)
+    else:
+        device_history = sj.get_file_as_dict(hist_file)
 
-    device_history = sj.get_file_as_dict(hist_file)
     if device_history:
         device_history_min_date, device_history_max_date = find_extreme_value_in_json(
             device_history, "dateutc"
@@ -190,15 +193,17 @@ def get_data(device, hist_file):
         device_history_max_date,
     ) = process_historical_data(hist_file, progress_message)
 
+    # Get local archive:
+    # history_json = sj.get_local_file_as_dict("./data/" + hist_file)
+
     # Get a few more days of historical data
-    # todo: this could be optional...
+    history_json = {}
     # history_json = get_all_history_for_device(
-    history_json = get_all_history_for_device(
-        device,
-        days_to_get=3,
-        end_date=device_history_min_date,
-        progress_message=progress_message,
-    )
+    #     device,
+    #     days_to_get=3,
+    #     end_date=device_history_min_date,
+    #     progress_message=progress_message,
+    # )
 
     # get data since the last time we ran the script.
     missing_hours = (time.time() * 1000 - device_history_max_date) / sec_in_hour

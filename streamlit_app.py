@@ -152,8 +152,8 @@ if st.session_state["session_counter"] >= 3:
     progress_message = st.empty()
     update_session_data(device, hist_file)
 
-    progress_message.text("Saving history to storj.io")
-    sj.save_dict_to_fs(history_json, hist_file)
+    # progress_message.text("Saving history to storj.io")
+    # sj.save_dict_to_fs(history_json, hist_file)
 
     st.session_state["session_counter"] = 0
 
