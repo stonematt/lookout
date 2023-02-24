@@ -80,6 +80,13 @@ keys = {
 }
 
 
+def update_session_data(device, hist_df):
+    # todo: convert this to just get interim data.
+
+    st.session_state["history_df"] = awn.get_intermin_data(device, hist_df)
+    st.session_state["session_counter"] = 0
+
+
 def to_date(date_string: str):
     try:
         date = parser.parse(date_string)
@@ -119,73 +126,77 @@ if not device:
     exit()
 
 
+file_type = "parquet"
 device_mac = device_menu
 # device_mac = "98:CD:AC:22:0D:E5"
-hist_file = bucket + "/" + device_mac + ".json"
+hist_file = bucket + "/" + device_mac + file_type
+# archive_file = './data/' + bucket + "/" + device_mac + ".parquet"
 # lookout/98:CD:AC:22:0D:E5.json
 
 # pause for ambient.
 time.sleep(1)
 
 
-def update_session_data(device, hist_file):
-    st.session_state["history_df"], st.session_state["history_json"] = awn.get_data(
-        device, hist_file
+def initial_load_device_history(device, bucket, file_type):
+    """load archive file from s3 resource an update data to now()"""
+    update_message = st.empty()
+    update_message.text("Getting archive data")
+
+    # get archive
+    st.session_state["history_df"] = awn.load_archive_for_device(
+        device, bucket, file_type
+    )
+    df = st.session_state["history_df"]
+
+    df_stats = st.empty()
+    df_stats.text(f"archive date range: {df.date.min()} to {df.date.max()}")
+
+    update_message.text("Getting data since last archive")
+    st.session_state["history_df"] = awn.get_interim_data_for_device(
+        device, st.session_state["history_df"], sleep=True
     )
     st.session_state["session_counter"] = 0
+    df_stats.empty()
+    update_message.empty()
 
 
 # %%
 # start dashboard
-# get data (save history_json and history_df for this session?)
-if "history_json" not in st.session_state:
-    update_session_data(device, hist_file)
+if "history_df" not in st.session_state:
+    initial_load_device_history(device, bucket, file_type)
 
-
-history_json = st.session_state["history_json"]
 history_df = st.session_state["history_df"]
 
-st.session_state["session_counter"] += 1
-if st.session_state["session_counter"] >= 3:
-    update_message = st.empty()
-    update_message.text("Updating and refreshing...")
-    progress_message = st.empty()
-    update_session_data(device, hist_file)
-
-    # progress_message.text("Saving history to storj.io")
-    # sj.save_dict_to_fs(history_json, hist_file)
-
-    st.session_state["session_counter"] = 0
-
-    progress_message.empty()
-    update_message.empty()
+# if st.session_state["session_counter"] >= 1:
+# todo:
+# if now - hist_df.date.max() > 5m then get interim
+st.session_state["history_df"] = awn.get_interim_data_for_device(device, history_df)
+history_df = st.session_state["history_df"]
 
 
 # %%
 
 # heatmap_metric = st.selectbox("pick a metric", history_df.keys())
-# heatmap(history_df, heatmap_metric )
 
 fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
 st.plotly_chart(fig)
 
-fig = px.line(
-    history_df,
-    x="date",
-    y=["eventrainin", "dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"],
-    title="rain",
-)
-st.plotly_chart(fig)
+# fig = px.line(
+#     history_df,
+#     x="date",
+#     y=["eventrainin", "dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"],
+#     title="rain",
+# )
+# st.plotly_chart(fig)
 # candlestick_tmp = history_df.groupby(history_df["date"].dt.date).agg(
 #     {"temp": {"open": "first", "high": "max", "low": "min", "close": "last"}}
 # )
 # st.write(candlestick_tmp)
 
 # %%
-
-
 def create_heatmap_date_hour_df(df, data_column):
-    heatmap_df = df[["date", data_column]]
+    heatmap_df = df.loc[:, ["date", data_column]].copy()
+    heatmap_df = heatmap_df[["date", data_column]]
     heatmap_df["datetime"] = pd.to_datetime(heatmap_df["date"])
     heatmap_df["date"] = heatmap_df["datetime"].dt.date
     heatmap_df["hour"] = heatmap_df["datetime"].dt.hour

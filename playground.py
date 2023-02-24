@@ -5,6 +5,9 @@ from datetime import datetime
 import streamlit as st
 import storj_df_s3 as sj
 import logging
+import awn_controller as awn
+import pandas as pd
+import socketio
 
 # %%
 # open Ambient Weather Network
@@ -20,16 +23,60 @@ api = AmbientAPI(
     AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
 )
 # %%
-
 devices = api.get_devices()
 
 device = devices[0]
+
+bucket = "lookout"
+device_mac = device.mac_address
+file_type = 'parquet'
+hist_file = f"{bucket}/{device.mac_address}.{file_type}"
 
 # %%
 time.sleep(1)  # pause for a second to avoid API limits
 
 data = device.get_data()
 tz = device.last_data.get("tz")
+
+
+# %%
+def heatmap(df, metric, aggfunc, interval):
+    """
+    Create a pivot table of aggregate values for a given metric, with the row index
+    as a time stamp for every `interval`-second interval and the column index as the unique dates in the "date" column.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The input DataFrame containing a "date" column and a column with the desired `metric`.
+    metric : str
+        The name of the column in `df` containing the desired metric.
+    aggfunc : str or function
+        The aggregation function to use when computing the pivot table. Can be a string
+        representing a built-in function (e.g., "mean", "sum", "count"), or a custom function.
+    interval : int
+        The number of seconds for each interval. For example, `interval=15` would create an
+        interval of 15 seconds.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A pivot table where the row index is a time stamp for every `interval`-second interval,
+        and the column index is the unique dates in the "date" column. The values are the
+        aggregate value of the `metric` column for each interval and each date.
+    """
+
+    df["date"] = pd.to_datetime(df["date"])
+    df["day"] = df["date"].dt.date
+    df["interval"] = df["date"].dt.floor(f"{interval}s").dt.strftime("%H:%M:%S")
+    table = df.pivot_table(
+        index= ["interval"],
+        columns=["day"],
+        values=metric,
+        aggfunc=aggfunc,
+    )
+
+    return table
 
 
 # %%
@@ -105,14 +152,41 @@ def get_all_data(device):
 
 
 # %%
+# import socketio
+
+# sio = socketio.Client()
+
+# @sio.on('connect')
+# def on_connect():
+#     print('Connected to websocket server')
+
+# @sio.on('subscribe')
+# def on_message(data):
+#     print('Received event:', data)
+
+# @sio.on('event')
+# def on_message(data):
+#     print('Received event:', data)
+
+# @sio.on('disconnect')
+# def on_disconnect():
+#     print('Disconnected from websocket server')
+
+# sio.connect(f'https://rt2.ambientweather.net/?api=1&applicationKey={AMBIENT_APPLICATION_KEY}&apiKey={AMBIENT_API_KEY}')
+# sio.wait()
+
+
+# %%
 bucket = "lookout"
-hist_file = bucket + "/" + device.mac_address + "-2.json"
+file_type = 'parquet'
+hist_file = f"{bucket}/{device.mac_address}.{file_type}"
+
 
 
 # %%
 time.sleep(1)
-history_json = get_all_data(device)
+# history_json = get_all_data(device)
 
 # %%
-sj.save_dict_to_fs(history_json, hist_file)
+# sj.save_dict_to_fs(history_json, hist_file)
 # %%
