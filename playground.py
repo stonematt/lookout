@@ -17,7 +17,7 @@ AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
 # api = AmbientAPI()
 api = AmbientAPI(
-    log_level="INFO",
+    # log_level="WARNING",
     AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
     AMBIENT_API_KEY=AMBIENT_API_KEY,
     AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
@@ -29,14 +29,59 @@ device = devices[0]
 
 bucket = "lookout"
 device_mac = device.mac_address
-file_type = 'parquet'
+file_type = "parquet"
 hist_file = f"{bucket}/{device.mac_address}.{file_type}"
 
 # %%
 time.sleep(1)  # pause for a second to avoid API limits
 
-data = device.get_data()
+# data = device.get_data()
 tz = device.last_data.get("tz")
+
+
+# %% combine DFs
+def combine_df(df1, df2):
+    df1 = (
+        pd.concat([df1, df2], ignore_index=True)
+        .drop_duplicates()
+        .sort_values(by="dateutc", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return df1
+
+
+# %%
+def load_archive_for_device(device):
+    key = f"{device.mac_address}.{file_type}"
+    device_archive = sj.get_df_from_s3(bucket, key, file_type=file_type)
+    return device_archive
+
+
+# %%
+def save_archive_for_device(df, device):
+    key = f"{device.mac_address}.{file_type}"
+    sj.save_df_to_s3(df, bucket, key, file_type=file_type)
+
+
+# %%
+# better check on these.
+col_types = {
+    "tempinf": "float32",
+    "tempf": "float32",
+    "temp1f": "float32",
+    "humidityin": "float32",
+    "humidity": "float32",
+    "humidity1": "float32",
+}
+
+
+def set_df_data_types(df, types):
+    df_copy = df.copy()
+    for col in df.columns:
+        if col in types:
+            df_copy[col] = df_copy[col].astype(types[col])
+    return df_copy
 
 
 # %%
@@ -70,7 +115,7 @@ def heatmap(df, metric, aggfunc, interval):
     df["day"] = df["date"].dt.date
     df["interval"] = df["date"].dt.floor(f"{interval}s").dt.strftime("%H:%M:%S")
     table = df.pivot_table(
-        index= ["interval"],
+        index=["interval"],
         columns=["day"],
         values=metric,
         aggfunc=aggfunc,
@@ -96,8 +141,6 @@ def timestamp_generator(start, end, interval=12):
 
 
 # %%
-
-
 def merge_distinct(old_list, new_data_list):
     logging.warning(f"Merging {len(old_list)} and {len(new_data_list)}")
     for data_point in new_data_list:
@@ -152,35 +195,19 @@ def get_all_data(device):
 
 
 # %%
-# import socketio
-
-# sio = socketio.Client()
-
-# @sio.on('connect')
-# def on_connect():
-#     print('Connected to websocket server')
-
-# @sio.on('subscribe')
-# def on_message(data):
-#     print('Received event:', data)
-
-# @sio.on('event')
-# def on_message(data):
-#     print('Received event:', data)
-
-# @sio.on('disconnect')
-# def on_disconnect():
-#     print('Disconnected from websocket server')
-
-# sio.connect(f'https://rt2.ambientweather.net/?api=1&applicationKey={AMBIENT_APPLICATION_KEY}&apiKey={AMBIENT_API_KEY}')
-# sio.wait()
+bucket = "lookout"
+file_type = "parquet"
+hist_file = f"{bucket}/{device.mac_address}.{file_type}"
 
 
 # %%
-bucket = "lookout"
-file_type = 'parquet'
-hist_file = f"{bucket}/{device.mac_address}.{file_type}"
+def init(device):
+    df = load_archive_for_device(device)
 
+    return df
+
+
+# %%
 
 
 # %%
