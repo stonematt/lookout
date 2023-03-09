@@ -116,7 +116,7 @@ def get_df_from_s3(bucket, key, file_type="json"):
 
 
 # %%
-def save_df_to_s3(df, bucket, key, file_type="json"):
+def save_df_to_s3(df, bucket, key, file_type="parquet"):
     """Save a datafram to an storj.io bucket with 3fs
 
     Args:

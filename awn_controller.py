@@ -49,7 +49,6 @@ def _df_column_to_datetime(df, column, tz):
 def get_device_history_to_date(device, end_date=None, limit=288):
     """returns a tz converted df for a device a date"""
     df = pd.DataFrame()
-    print("making df")
     try:
         if end_date:
             # st.write(f"end date: {end_date} for history page")
@@ -60,6 +59,9 @@ def get_device_history_to_date(device, end_date=None, limit=288):
     except e:
         raise e
     else:
+        logging.info(
+            f"sorting df in get_device_history_to_date {len(df)} records found"
+        )
         df.sort_values(by="dateutc", inplace=True)
 
         # Convert 'date' column to local time
@@ -108,13 +110,14 @@ def get_interim_data_for_device(device, archive_df, limit=288, sleep=False):
         )
         new_data = get_device_history_to_date(device, end_date=end_date, limit=limit)
 
+        # Append the new data to the interim dataframe
+        logging.info(f"adding interim_df {len(interim_df)} to new_data {len(new_data)}")
+        interim_df = combine_df(interim_df, new_data)
+        page += 1
+
         # Stop if we've reached the end of the data
         if new_data.empty or new_data["dateutc"].min() < max_archive_date:
             break
-
-        # Append the new data to the interim dataframe
-        interim_df = combine_df(interim_df, new_data)
-        page += 1
 
     # Combine the archive and interim dataframes
     full_history_df = combine_df(archive_df, interim_df)
@@ -141,7 +144,7 @@ def combine_df(df1, df2):
 # %%
 def main():
     api = AmbientAPI(
-        log_level="INFO",
+        log_level="WARN",
         AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
         AMBIENT_API_KEY=AMBIENT_API_KEY,
         AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
