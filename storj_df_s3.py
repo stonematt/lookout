@@ -30,6 +30,16 @@ fs = s3fs.S3FileSystem(
 f = "s3://lookout/98:CD:AC:22:0D:E5.json"
 
 
+def get_local_file_as_dict(file_path):
+    file_path = file_path
+    try:
+        with open(file_path, "rb") as f:
+            file_contents = f.read()
+        return json.loads(file_contents)
+    except FileNotFoundError:
+        return {}
+
+
 def get_file_as_dict(file_path):
     """Return a json dict from an s3 filepath
 
@@ -68,8 +78,19 @@ def save_dict_to_fs(dict_data, file_path):
         return False
 
 
+def save_dict_to_local(dict_data, file_path):
+    file_path = file_path
+    try:
+        with open(file_path, "rb") as f:
+            json.dump(dict_data, f)
+        return True
+    except PermissionError:
+        print("Permission denied: Unable to save dictionary to specified file")
+        return False
+
+
 # %%
-def get_dataframe_from_s3_json(bucket, key):
+def get_df_from_s3(bucket, key, file_type="json"):
     """
     Returns a pandas DataFrame from a JSON file stored in an S3 bucket.
 
@@ -84,8 +105,10 @@ def get_dataframe_from_s3_json(bucket, key):
 
     try:
         logging.info(f"Getting {f}")
-        # df = pd.read_json(f"s3://{bucket}/{key}", storage_options=storage_options)
-        df = pd.read_json(f"s3://{f}", storage_options=storage_options)
+        if file_type == "parquet":
+            df = pd.read_parquet(f"s3://{f}", storage_options=storage_options)
+        else:
+            df = pd.read_json(f"s3://{f}", storage_options=storage_options)
     except FileNotFoundError:
         logging.info(f"File not found: {f}")
     else:
@@ -93,7 +116,7 @@ def get_dataframe_from_s3_json(bucket, key):
 
 
 # %%
-def save_df_to_s3_json(df, bucket, key):
+def save_df_to_s3(df, bucket, key, file_type="parquet"):
     """Save a datafram to an storj.io bucket with 3fs
 
     Args:
@@ -104,4 +127,16 @@ def save_df_to_s3_json(df, bucket, key):
     f = bucket + "/" + key
 
     logging.info(f"Saving {f}")
-    df.to_json(f"s3://{f}", storage_options=storage_options)
+    if file_type == "parquet":
+        df.to_parquet(f"s3://{f}", storage_options=storage_options)
+    else:
+        df.to_json(f"s3://{f}", storage_options=storage_options)
+
+
+# %%
+def main():
+    return True
+
+
+if __name__ == "__main__":
+    main()

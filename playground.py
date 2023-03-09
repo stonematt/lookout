@@ -5,6 +5,9 @@ from datetime import datetime
 import streamlit as st
 import storj_df_s3 as sj
 import logging
+import awn_controller as awn
+import pandas as pd
+import socketio
 
 # %%
 # open Ambient Weather Network
@@ -14,22 +17,111 @@ AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
 # api = AmbientAPI()
 api = AmbientAPI(
-    log_level="INFO",
+    # log_level="WARNING",
     AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
     AMBIENT_API_KEY=AMBIENT_API_KEY,
     AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
 )
 # %%
-
 devices = api.get_devices()
 
 device = devices[0]
 
+bucket = "lookout"
+device_mac = device.mac_address
+file_type = "parquet"
+hist_file = f"{bucket}/{device.mac_address}.{file_type}"
+
 # %%
 time.sleep(1)  # pause for a second to avoid API limits
 
-data = device.get_data()
+# data = device.get_data()
 tz = device.last_data.get("tz")
+
+
+# %% combine DFs
+def combine_df(df1, df2):
+    df1 = (
+        pd.concat([df1, df2], ignore_index=True)
+        .drop_duplicates()
+        .sort_values(by="dateutc", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return df1
+
+
+# %%
+def load_archive_for_device(device):
+    key = f"{device.mac_address}.{file_type}"
+    device_archive = sj.get_df_from_s3(bucket, key, file_type=file_type)
+    return device_archive
+
+
+# %%
+def save_archive_for_device(df, device):
+    key = f"{device.mac_address}.{file_type}"
+    sj.save_df_to_s3(df, bucket, key, file_type=file_type)
+
+
+# %%
+# better check on these.
+col_types = {
+    "tempinf": "float32",
+    "tempf": "float32",
+    "temp1f": "float32",
+    "humidityin": "float32",
+    "humidity": "float32",
+    "humidity1": "float32",
+}
+
+
+def set_df_data_types(df, types):
+    df_copy = df.copy()
+    for col in df.columns:
+        if col in types:
+            df_copy[col] = df_copy[col].astype(types[col])
+    return df_copy
+
+
+# %%
+def heatmap(df, metric, aggfunc, interval):
+    """
+    Create a pivot table of aggregate values for a given metric, with the row index
+    as a time stamp for every `interval`-second interval and the column index as the unique dates in the "date" column.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The input DataFrame containing a "date" column and a column with the desired `metric`.
+    metric : str
+        The name of the column in `df` containing the desired metric.
+    aggfunc : str or function
+        The aggregation function to use when computing the pivot table. Can be a string
+        representing a built-in function (e.g., "mean", "sum", "count"), or a custom function.
+    interval : int
+        The number of seconds for each interval. For example, `interval=15` would create an
+        interval of 15 seconds.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A pivot table where the row index is a time stamp for every `interval`-second interval,
+        and the column index is the unique dates in the "date" column. The values are the
+        aggregate value of the `metric` column for each interval and each date.
+    """
+
+    df["date"] = pd.to_datetime(df["date"])
+    df["day"] = df["date"].dt.date
+    df["interval"] = df["date"].dt.floor(f"{interval}s").dt.strftime("%H:%M:%S")
+    table = df.pivot_table(
+        index=["interval"],
+        columns=["day"],
+        values=metric,
+        aggfunc=aggfunc,
+    )
+
+    return table
 
 
 # %%
@@ -49,8 +141,6 @@ def timestamp_generator(start, end, interval=12):
 
 
 # %%
-
-
 def merge_distinct(old_list, new_data_list):
     logging.warning(f"Merging {len(old_list)} and {len(new_data_list)}")
     for data_point in new_data_list:
@@ -106,13 +196,24 @@ def get_all_data(device):
 
 # %%
 bucket = "lookout"
-hist_file = bucket + "/" + device.mac_address + "-2.json"
+file_type = "parquet"
+hist_file = f"{bucket}/{device.mac_address}.{file_type}"
+
+
+# %%
+def init(device):
+    df = load_archive_for_device(device)
+
+    return df
+
+
+# %%
 
 
 # %%
 time.sleep(1)
-history_json = get_all_data(device)
+# history_json = get_all_data(device)
 
 # %%
-sj.save_dict_to_fs(history_json, hist_file)
+# sj.save_dict_to_fs(history_json, hist_file)
 # %%
