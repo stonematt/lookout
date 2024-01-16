@@ -85,7 +85,7 @@ def set_df_data_types(df, types):
 
 
 # %%
-def heatmap(df, metric, aggfunc, interval):
+def heatmap(df, metric, aggfunc="max", interval="day"):
     """
     Create a pivot table of aggregate values for a given metric, with the row index
     as a time stamp for every `interval`-second interval and the column index as the unique dates in the "date" column.
