@@ -1,24 +1,25 @@
-# %%
 import pandas as pd
 import streamlit as st
 import s3fs
 import json
 import logging
 
+# Setting up logging
 logging.basicConfig(level=logging.INFO)
 
-
+# Retrieving secrets for S3 access
 ACCESS_KEY_ID = st.secrets["lookout_storage_options"]["ACCESS_KEY_ID"]
 SECRET_ACCESS_KEY = st.secrets["lookout_storage_options"]["SECRET_ACCESS_KEY"]
 ENDPOINT_URL = st.secrets["lookout_storage_options"]["ENDPOINT_URL"]
 
-
+# Storage options for pandas direct S3 access
 storage_options = {
     "key": ACCESS_KEY_ID,
     "secret": SECRET_ACCESS_KEY,
     "client_kwargs": {"endpoint_url": ENDPOINT_URL},
 }
 
+# Initializing S3 file system for s3fs
 fs = s3fs.S3FileSystem(
     client_kwargs={
         "endpoint_url": ENDPOINT_URL,
@@ -26,116 +27,127 @@ fs = s3fs.S3FileSystem(
         "aws_secret_access_key": SECRET_ACCESS_KEY,
     }
 )
-# type: ignore
-f = "s3://lookout/98:CD:AC:22:0D:E5.json"
 
 
-def get_local_file_as_dict(file_path):
-    file_path = file_path
+def read_json_from_path(file_path: str, local: bool = False) -> dict:
+    """
+    Reads a JSON file from a given path and returns its content as a dictionary.
+
+    :param file_path: File path to read from.
+    :param local: Flag to indicate if the file is local or in S3.
+    :return: Dictionary containing the JSON file content.
+    """
+    if local:
+        read_function = open
+    else:
+        read_function = fs.open
+        file_path = "s3://" + file_path
+
     try:
-        with open(file_path, "rb") as f:
-            file_contents = f.read()
-        return json.loads(file_contents)
+        with read_function(file_path, "rb") as file:
+            return json.load(file)
     except FileNotFoundError:
+        logging.error(f"File not found: {file_path}")
         return {}
 
 
-def get_file_as_dict(file_path):
-    """Return a json dict from an s3 filepath
-
-    Args:
-        file_path (str): path to save like: bucket/path/to/file
-
-    Returns:
-        dict: json dict from contents of file or empty dict
+def save_json_to_path(dict_data: dict, file_path: str, local: bool = False) -> bool:
     """
-    file_path = "s3://" + file_path
-    try:
-        with fs.open(file_path, "rb") as f:
-            file_contents = f.read()
-        return json.loads(file_contents)
-    except FileNotFoundError:
-        return {}
+    Saves a dictionary as a JSON file to a specified path.
 
-
-# %%
-def save_dict_to_fs(dict_data, file_path):
-    """save a dict to an s3 file
-
-    Args:
-        dict_data (dict): dictionary
-        file_path (str): path like: bucket/path/to/file
-
-    Returns:
-        bool: success
+    :param dict_data: Dictionary to save.
+    :param file_path: File path to save the dictionary to.
+    :param local: Flag to indicate if the file should be saved locally or in S3.
+    :return: True if the save operation was successful, False otherwise.
     """
+    if local:
+        write_function = open
+    else:
+        write_function = fs.open
+        file_path = "s3://" + file_path
+
     try:
-        with fs.open(file_path, "w") as f:
-            json.dump(dict_data, f)
-        return True
+        with write_function(file_path, "w") as file:
+            json.dump(dict_data, file)
+            return True
     except PermissionError:
-        print("Permission denied: Unable to save dictionary to specified file")
+        logging.error(f"Permission denied: Unable to save dictionary to {file_path}")
         return False
 
 
-def save_dict_to_local(dict_data, file_path):
-    file_path = file_path
-    try:
-        with open(file_path, "rb") as f:
-            json.dump(dict_data, f)
-        return True
-    except PermissionError:
-        print("Permission denied: Unable to save dictionary to specified file")
-        return False
-
-
-# %%
-def get_df_from_s3(bucket, key, file_type="json"):
+def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFrame:
     """
-    Returns a pandas DataFrame from a JSON file stored in an S3 bucket.
+    Retrieves a pandas DataFrame from a JSON or Parquet file stored in an S3 bucket.
 
-    Parameters:
-        bucket (str): The name of the S3 bucket.
-        key (str): The key of the JSON file in the S3 bucket.
-
-    Returns:
-        pandas.DataFrame: The DataFrame created from the JSON file.
+    :param bucket: The name of the S3 bucket.
+    :param key: The key of the file in the S3 bucket.
+    :param file_type: The type of the file ('json' or 'parquet').
+    :return: DataFrame obtained from the file.
     """
-    f = bucket + "/" + key
+    file_path = f"s3://{bucket}/{key}"
 
     try:
-        logging.info(f"Getting {f}")
+        logging.info(f"Getting {file_path}")
         if file_type == "parquet":
-            df = pd.read_parquet(f"s3://{f}", storage_options=storage_options)
+            return pd.read_parquet(file_path, storage_options=storage_options)
         else:
-            df = pd.read_json(f"s3://{f}", storage_options=storage_options)
+            return pd.read_json(file_path, storage_options=storage_options)
     except FileNotFoundError:
-        logging.info(f"File not found: {f}")
-    else:
-        return df
+        logging.error(f"File not found: {file_path}")
+        return pd.DataFrame()
 
 
-# %%
-def save_df_to_s3(df, bucket, key, file_type="parquet"):
-    """Save a datafram to an storj.io bucket with 3fs
-
-    Args:
-        df (dataframe): pandas data frame
-        bucket (str): bucket name
-        key (str): path and filename to save
+def save_df_to_s3(
+    df: pd.DataFrame, bucket: str, key: str, file_type: str = "parquet"
+) -> None:
     """
-    f = bucket + "/" + key
+    Saves a pandas DataFrame to an S3 bucket in JSON or Parquet format.
 
-    logging.info(f"Saving {f}")
+    :param df: DataFrame to save.
+    :param bucket: Bucket name to save the DataFrame to.
+    :param key: Path and filename for the saved DataFrame.
+    :param file_type: The type of file to save ('json' or 'parquet').
+    """
+    file_path = f"s3://{bucket}/{key}"
+
+    logging.info(f"Saving {file_path}")
     if file_type == "parquet":
-        df.to_parquet(f"s3://{f}", storage_options=storage_options)
+        df.to_parquet(file_path, storage_options=storage_options)
     else:
-        df.to_json(f"s3://{f}", storage_options=storage_options)
+        df.to_json(file_path, storage_options=storage_options)
 
 
-# %%
-def main():
-    return True
+def list_bucket_items(bucket_name: str) -> list:
+    """
+    List all items in a specified S3 bucket.
+
+    :param bucket_name: The name of the bucket to list items from.
+    :return: A list of file paths in the specified bucket.
+    """
+    try:
+        # Constructing the bucket path
+        bucket_path = f"{bucket_name}/"
+
+        # Listing items in the bucket
+        items = fs.ls(bucket_path)
+        logging.info(f"Items in bucket '{bucket_name}': {items}")
+
+        return items
+    except Exception as e:
+        logging.error(f"Error listing items in bucket '{bucket_name}': {e}")
+        return []
+
+
+# Example usage
+def main() -> None:
+    """
+    Main function to execute module logic.
+    """
+    # Implement module logic here
+    bucket_items = list_bucket_items("lookout")
+    print(bucket_items)
+
+    pass
 
 
 if __name__ == "__main__":
