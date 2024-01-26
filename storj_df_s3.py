@@ -3,9 +3,30 @@ import streamlit as st
 import s3fs
 import json
 import logging
+import datetime
+import os
 
 # Setting up logging
 logging.basicConfig(level=logging.INFO)
+
+# Configure backup logger
+backup_logger = logging.getLogger("backup_logger")
+backup_logger.setLevel(logging.INFO)  # Set the logging level
+backup_logger.propagate = (
+    True  # Ensure messages are propagated to the parent (root) logger
+)
+
+# Create a file handler which logs even debug messages
+log_file = "backup.log"
+fh = logging.FileHandler(log_file)
+fh.setLevel(logging.INFO)
+
+# Create a formatter and add it to the handler
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+fh.setFormatter(formatter)
+
+# Add the handler to the backup logger
+backup_logger.addHandler(fh)
 
 # Retrieving secrets for S3 access
 ACCESS_KEY_ID = st.secrets["lookout_storage_options"]["ACCESS_KEY_ID"]
@@ -138,15 +159,93 @@ def list_bucket_items(bucket_name: str) -> list:
         return []
 
 
+def backup_data(
+    bucket: str,
+    prefix: str,
+    force_backup: bool = False,
+    dry_run: bool = False,
+    backup_root: str = ".backups",
+):
+    """
+    Backs up all files with a given prefix in an S3 bucket to a specified backup folder,
+    if the backup folder does not exist or if force_backup is True. If dry_run is True,
+    performs all steps except the actual file copy.
+
+    :param bucket: Name of the S3 bucket.
+    :param prefix: Prefix of the files to back up.
+    :param force_backup: Boolean flag to force backup even if the folder exists.
+    :param dry_run: Boolean flag for a dry run without actual file copying.
+    :param backup_root: Root directory for backups, default to '.backups'.
+    """
+    today = datetime.datetime.now().strftime("%Y%m%d")
+    # backup_folder = f"{backup_root}/{today}_{prefix}/"
+    backup_folder = f"{backup_root}/{prefix}/{today}/"
+    backup_logger.info(f"Starting Backup of {backup_folder}")
+
+    # Check if backup folder already exists
+    backup_folder_exists = fs.exists(f"{bucket}/{backup_folder}")
+    if backup_folder_exists and not force_backup:
+        backup_logger.info(
+            f"Backup folder {backup_folder} already exists. Backup skipped."
+        )
+        return
+
+    # List all files with the device ID using a glob pattern
+    glob_pattern = f"{bucket}/{prefix}*"
+    files_to_backup = fs.glob(glob_pattern)
+
+    # Create the backup folder and copy files (or simulate if dry run)
+    for file_path in files_to_backup:
+        file_name = os.path.basename(file_path)
+        backup_path = f"{bucket}/{backup_folder}{file_name}"
+        # Get file size and modified date for logging
+        file_info = fs.info(file_path)
+        file_size = file_info.get("Size") or file_info.get("size", "Unknown size")
+
+        modified_date = file_info.get("LastModified", "Unknown date")
+        backup_logger.debug(file_info)
+
+        if not dry_run:
+            try:
+                fs.copy(file_path, backup_path)
+
+                # Log file backup details on successful copy
+                backup_logger.info(
+                    f"SUCCESS: {file_name} ({file_size} bytes, Last Modified: {modified_date})"
+                )
+            except Exception as e:
+                backup_logger.error(f"Failed to back up {file_name}: {e}")
+                continue
+        else:
+            # Log dry run details
+            backup_logger.info(
+                f"DRY RUN: {file_name} ({file_size} bytes, Last Modified: {modified_date})"
+            )
+
+    if dry_run:
+        backup_logger.info(f"Dry run completed for folder {backup_folder}")
+    else:
+        backup_logger.info(f"Backup completed to folder {backup_folder}")
+
+
 # Example usage
 def main() -> None:
     """
     Main function to execute module logic.
     """
     # Implement module logic here
-    bucket_items = list_bucket_items("lookout")
-    print(bucket_items)
+    # Bucket name
+    bucket_name = "lookout"
+    # Device ID (used as the prefix)
+    device_id = "98:CD:AC:22:0D:E5"
 
+    bucket_items = list_bucket_items(bucket_name)
+    # print(bucket_items)
+
+    # Perform a dry run of the backup
+    backup_data(bucket=bucket_name, prefix=device_id)
+
+    # print(bucket_items)
     pass
 
 
