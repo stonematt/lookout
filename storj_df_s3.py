@@ -1,3 +1,13 @@
+"""
+storj_df_s3.py: This module provides functionalities to interact with S3 storage, specifically for handling dataframes (pandas) and JSON objects. It includes utilities for reading and writing data to/from S3 buckets using s3fs and pandas. It also features logging setup for monitoring file operations and a backup mechanism for S3 data. The module integrates with Streamlit for secret management, enhancing the security aspect of S3 access. Designed for applications where S3 storage interaction is crucial, this module streamlines tasks like data backup, retrieval, and storage of structured data.
+
+Functions:
+- Read and write JSON files to/from S3.
+- Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
+- List items in an S3 bucket.
+- Backup data from S3 to a designated backup directory.
+"""
+
 import pandas as pd
 import streamlit as st
 import s3fs
@@ -231,7 +241,7 @@ def backup_data(
 # Example usage
 def main() -> None:
     """
-    Main function to execute module logic.
+    Main function to execute various tests..
     """
     # Implement module logic here
     # Bucket name
