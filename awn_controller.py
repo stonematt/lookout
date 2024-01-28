@@ -107,6 +107,7 @@ def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
         logging.error(f"Column not found: '{column}'")
     except Exception as e:
         logging.error(f"Conversion error: {e}")
+        raise e
 
 
 # todo: keep this one
@@ -220,7 +221,6 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error combining DataFrames: {e}")
         raise Exception(f"Failed to combine DataFrames: {e}")
-
 
 
 # %%
