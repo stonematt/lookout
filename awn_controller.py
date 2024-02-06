@@ -1,22 +1,21 @@
 """
-awn_controller.py: Manages the integration of weather data from the Ambient Weather
-Network (AWN) with S3-compatible storage, using AmbientAPI for data retrieval and
-storj_df_s3.py for data persistence. This module focuses on retrieving, updating,
-and maintaining historical weather data. It ensures seamless data flow and consistency
-across local and cloud storage, crucial for the backend operations of a Streamlit-based
-weather application.
+awn_controller.py: Integrates weather data from the Ambient Weather Network (AWN)
+with S3-compatible storage. Utilizes AmbientAPI for data retrieval and storj_df_s3.py
+for data persistence. This module focuses on retrieving, updating, and maintaining
+historical weather data, ensuring seamless data flow and consistency across storage
+solutions, crucial for the backend operations of a Streamlit-based weather application.
 
 Functions:
 - get_archive: Retrieves weather data archives from the local filesystem.
-- load_archive_for_device: Loads archived weather data from S3 storage.
-- get_device_history_to_date: Fetches historical data up to a specified date.
-- get_history_since_last_archive: Combine archived and recent to provide a full history.
-- combine_df: Merges two dataframes, removing duplicates and sorting by date.
+- load_archive_for_device: Loads device-specific archived data from S3 storage.
+- get_device_history_to_date: Fetches historical data for a device with end_date
+- get_device_history_from_date: Fetches historical data for a device with start_date
+- get_history_since_last_archive: Add new data to archive forward by n pages
+- combine_df: Merges two DataFrames, removing duplicates and sorting by 'dateutc'.
 
 Example Usage:
-In a Streamlit app, this module can be used to load historical weather data for a
-specific device, update it with the latest data from AWN, and then store the updated
-data back to S3 storage.
+This module is utilized in a Streamlit app to load, update, and store historical
+weather data for devices, leveraging data from AWN and persisting updates to S3.
 """
 
 # %%
