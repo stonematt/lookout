@@ -23,9 +23,14 @@ from ambient_api.ambientapi import AmbientAPI
 import time
 import pandas as pd
 import streamlit as st
-import logging
 import storj_df_s3 as sj
 from datetime import timedelta
+from log_util import app_logger
+
+logger = app_logger(__name__)
+
+# Use the logger with concise messages
+logger.info("Archiving data for device: {device_mac}")
 
 
 # %%
@@ -43,14 +48,6 @@ api = AmbientAPI(
 sec_in_hour = 3600 * 1000
 
 
-# Module-level logger configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-
 def get_archive(archive_file: str) -> pd.DataFrame:
     """
     Retrieves a DataFrame from a Parquet file stored in the local filesystem.
@@ -58,14 +55,14 @@ def get_archive(archive_file: str) -> pd.DataFrame:
     :param archive_file: str - The file path of the Parquet file to be read.
     :return: DataFrame - The DataFrame containing the archived weather data.
     """
-    logging.info(f"Load archive: {archive_file}")
+    logger.info(f"Load archive: {archive_file}")
     try:
         return pd.read_parquet(archive_file)
     except FileNotFoundError:
-        logging.error(f"File not found: {archive_file}")
+        logger.error(f"File not found: {archive_file}")
         return pd.DataFrame()
     except Exception as e:
-        logging.error(f"Read error: {archive_file}, {e}")
+        logger.error(f"Read error: {archive_file}, {e}")
         return pd.DataFrame()
 
 
@@ -83,11 +80,11 @@ def load_archive_for_device(
     :return: DataFrame containing the device's archived data.
     """
     key = f"{device.mac_address}.{file_type}"
-    logging.info(f"Load from S3: {bucket}/{key}")
+    logger.info(f"Load from S3: {bucket}/{key}")
     try:
         return sj.get_df_from_s3(bucket, key, file_type=file_type)
     except Exception as e:
-        logging.error(f"S3 load error: {bucket}/{key}, {e}")
+        logger.error(f"S3 load error: {bucket}/{key}, {e}")
         return pd.DataFrame()
 
 
@@ -101,11 +98,11 @@ def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
     """
     try:
         df[column] = pd.to_datetime(df[column]).dt.tz_convert(tz)
-        logging.debug(f"Converted '{column}' to '{tz}'")
+        logger.debug(f"Converted '{column}' to '{tz}'")
     except KeyError:
-        logging.error(f"Column not found: '{column}'")
+        logger.error(f"Column not found: '{column}'")
     except Exception as e:
-        logging.error(f"Conversion error: {e}")
+        logger.error(f"Conversion error: {e}")
         raise e
 
 
@@ -124,7 +121,7 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
         params = (
             {"limit": limit, "end_date": end_date} if end_date else {"limit": limit}
         )
-        logging.info(f"Fetch history: {device.mac_address}, Params: {params}")
+        logger.info(f"Fetch history: {device.mac_address}, Params: {params}")
         df = pd.json_normalize(device.get_data(**params))
         df.sort_values(by="dateutc", inplace=True)
 
@@ -135,7 +132,7 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
 
         return df
     except Exception as e:
-        logging.error(f"Fetch error: {e}")
+        logger.error(f"Fetch error: {e}")
         return pd.DataFrame()
 
 
@@ -186,9 +183,9 @@ def get_device_history_from_date(device, start_date, limit=288):
     )
 
     if new_data.empty:
-        logging.info("No more data to fetch.")
+        logger.info("No more data to fetch.")
     else:
-        logging.info(
+        logger.info(
             f"Retrieved {len(new_data)} records. "
             f"Range: {new_data['dateutc'].min()} - {new_data['dateutc'].max()}"
         )
@@ -220,25 +217,25 @@ def get_history_since_last_archive(
                 time.sleep(1)
 
             new_data = get_device_history_from_date(device, last_date, limit)
-            logging.info(f"Page {page}: {len(new_data)} new records found")
+            logger.info(f"Page {page}: {len(new_data)} new records found")
 
             # In the loop where you fetch and process data:
             if not _is_data_new(interim_df, new_data):
                 gap_attempts += 1
-                logging.info(f"Seeking ahead: {gap_attempts}/3")
+                logger.info(f"Seeking ahead: {gap_attempts}/3")
                 if gap_attempts < 3:  # Try skipping ahead only if under the limit
                     last_date = _calculate_next_start_date(
                         last_date, gap_attempts, limit
                     )
                     continue
                 else:
-                    logging.info("Maximum gap attempts reached. Exiting.")
+                    logger.info("Maximum gap attempts reached. Exiting.")
                     break
 
             # Reset gap attempts after finding new data
             gap_attempts = 0
             interim_df = combine_df(interim_df, new_data)
-            logging.info(
+            logger.info(
                 f"Interim Page: {page}/{pages} "
                 f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
                 f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
@@ -247,7 +244,7 @@ def get_history_since_last_archive(
             last_date = pd.to_datetime(new_data["dateutc"].max(), unit="ms")
 
         full_history_df = combine_df(archive_df, interim_df)
-        logging.info(
+        logger.info(
             f"Full History Range: "
             f"({full_history_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
             f"({full_history_df['date'].max().strftime('%y-%m-%d %H:%M')})"
@@ -255,7 +252,7 @@ def get_history_since_last_archive(
         return full_history_df
 
     except Exception as e:
-        logging.error(f"Error in get_history_since_last_archive: {e}")
+        logger.error(f"Error in get_history_since_last_archive: {e}")
         return archive_df
 
 
@@ -278,10 +275,10 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
             .sort_values(by="dateutc", ascending=False)
             .reset_index(drop=True)
         )
-        logging.info(f"DataFrames combined: {result_df.shape[0]} records")
+        logger.info(f"DataFrames combined: {result_df.shape[0]} records")
         return result_df
     except Exception as e:
-        logging.error(f"Error combining DataFrames: {e}")
+        logger.error(f"Error combining DataFrames: {e}")
         raise Exception(f"Failed to combine DataFrames: {e}")
 
 

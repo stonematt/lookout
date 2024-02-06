@@ -1,6 +1,5 @@
 # %%
 from ambient_api.ambientapi import AmbientAPI
-import logging
 import time
 from dateutil import parser
 import pandas as pd
@@ -11,7 +10,10 @@ import streamlit as st
 import storj_df_s3 as sj
 import awn_controller as awn
 
-logging.basicConfig(level=logging.INFO)
+from log_util import app_logger
+
+logger = app_logger(__name__)
+
 
 st.set_page_config(
     page_title="Weather Station Dashboard",
@@ -111,7 +113,7 @@ def to_date(date_string: str):
     try:
         return parser.parse(date_string)
     except Exception as e:
-        logging.error(f"Error parsing date string: {e}", exc_info=True)
+        logger.error(f"Error parsing date string: {e}", exc_info=True)
         raise
 
 
