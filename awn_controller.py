@@ -8,9 +8,9 @@ weather application.
 
 Functions:
 - get_archive: Retrieves weather data archives from the local filesystem.
-- load_archive_for_device: Loads archived weather data for a  device from S3 storage.
-- get_device_history_to_date: Fetches historical data for a device up to a specified date.
-- get_history_since_last_archive: Combines archived data with recent data to provide a full history.
+- load_archive_for_device: Loads archived weather data from S3 storage.
+- get_device_history_to_date: Fetches historical data up to a specified date.
+- get_history_since_last_archive: Combines archived with recent to provide a full history.
 - combine_df: Merges two dataframes, removing duplicates and sorting by date.
 
 Example Usage:
@@ -26,7 +26,7 @@ import pandas as pd
 import streamlit as st
 import logging
 import storj_df_s3 as sj
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 # %%
@@ -141,60 +141,86 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
 
 
 # %%
-# todo: keep this one
-def get_history_since_last_archive(device, archive_df, limit=288, sleep=False):
+# todo: keep this one (forward)
+def get_device_history_from_date(device, start_date, limit=288):
     """
-    Retrieves full device history by combining archived and recent data.
+    Fetches a page of data for the device starting from the specified date.
+
+    :param device: The device object to fetch data for.
+    :param start_date: The datetime to start fetching data from.
+    :param limit: The number of records to fetch.
+    :return: A DataFrame with the fetched data.
+    """
+    # Calculate end_date considering the service returns data points before this date
+    # and ensuring overlap by subtracting 15 minutes from the calculated end date
+    # to get (limit-3) new data points and 3 overlapping points.
+    end_date = start_date + timedelta(minutes=(limit - 3) * 5)
+    end_date_timestamp = int(end_date.timestamp() * 1000)  # Convert to milliseconds
+
+    new_data = get_device_history_to_date(
+        device, end_date=end_date_timestamp, limit=limit
+    )
+
+    if new_data.empty:
+        logging.info("No more data to fetch.")
+    else:
+        logging.info(
+            f"Retrieved {len(new_data)} records. "
+            f"Range: {new_data['dateutc'].min()} - {new_data['dateutc'].max()}"
+        )
+
+    return new_data
+
+
+def get_history_since_last_archive(
+    device, archive_df, limit=250, pages=10, sleep=False
+):
+    """
+    Sequentially retrieves device history from the last archive date forward in time,
+    stopping after a specified number of pages or when no more data is available.
 
     :param device: Device object for fetching data.
     :param archive_df: DataFrame of archived data.
-    :param limit: int - Max records to fetch per call, defaults to 288.
-    :param sleep: bool - Enables delay between API calls if True.
-    :return: DataFrame with combined device history.
+    :param limit: int - Max records to fetch per call.
+    :param pages: int - Number of pages to fetch moving forward in time.
+    :param sleep: bool - Enables delay between API calls if True, default False.
+    :return: DataFrame with updated device history.
     """
     try:
-        update_message = st.empty()
-        update_message.text("Updating and refreshing...")
-        progress_message = st.empty()
-
-        # approach:
-        # - Make an interim_df of data between last archive and now
-        # - add interim_df to archive and return full history df
-
-        max_archive_date = archive_df["dateutc"].max()
         interim_df = pd.DataFrame()
-        page = 0
 
-        while True:
-            progress_message.text(f"Getting page {page}")
+        # Initialize the start date from the last date in the archive
+        last_date = pd.to_datetime(archive_df["dateutc"].max(), unit="ms")
+
+        for page in range(pages):
             if sleep:
-                time.sleep(1)
+                time.sleep(1)  # Optional sleep between fetches if enabled
 
-            end_date = (
-                interim_df["dateutc"].min()
-                if not interim_df.empty
-                else int(datetime.now().timestamp() * 1000)
-            )
-            new_data = get_device_history_to_date(
-                device, end_date=end_date, limit=limit
-            )
+            # Fetch data using the helper function
+            new_data = get_device_history_from_date(device, last_date, limit)
 
-            logging.info(f"Page {page}: {len(new_data)} new records")
+            if new_data.empty:
+                logging.info(f"No more data to fetch after page {page + 1}.")
+                break  # Exit if no data was returned
+
+            # Update interim_df with new_data
             interim_df = combine_df(interim_df, new_data)
-            page += 1
+            logging.info(
+                f"Page: {page + 1} "
+                f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
+                f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
+            )
 
-            if new_data.empty or new_data["dateutc"].min() < max_archive_date:
-                break
+            # Update last_date for the next fetch
+            last_date = pd.to_datetime(new_data["dateutc"].max(), unit="ms")
 
+        # Combine the archived data with the newly fetched data
         full_history_df = combine_df(archive_df, interim_df)
         return full_history_df
 
     except Exception as e:
-        logging.error(f"Error in get_history_since_last_archive: {e}")
+        logging.error(f"Error in get_history_since_last_archive_modified: {e}")
         return archive_df
-    finally:
-        update_message.empty()
-        progress_message.empty()
 
 
 # todo: keep this one
@@ -241,7 +267,7 @@ def main():
     print(df.date.min())
     print(df.date.max())
 
-    df = get_history_since_last_archive(device, df)
+    # df = get_history_since_last_archive(device, df)
     print(df.date.min())
     print(df.date.max())
 
