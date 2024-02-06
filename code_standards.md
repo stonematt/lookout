@@ -1,78 +1,77 @@
-# Coding Standards for Lookout - Weather Dashboard Development
+# Updated Coding Standards for Lookout - Weather Dashboard Development
 
 ## Introduction
 
-This document establishes coding standards for the Lookout project, tailored for developers and designers working on weather dashboards. It focuses on using Python with Pandas, NumPy, Streamlit.io, Storj.io for distributed storage, and the Ambient Weather Network via the AmbientAPI.
+This document outlines the revised coding standards for the Lookout project, focusing on Python development for weather dashboards with an emphasis on Pandas, NumPy, Streamlit.io, Storj.io for distributed storage, and Ambient Weather Network via AmbientAPI.
 
 ## Code Style and Quality
 
-- **Flake8 Compliance**: All code must adhere to flake8 standards.
-- **Black Formatter**: Use Black for uniform code formatting.
+- **Flake8 Compliance**: All code must follow flake8 standards.
+- **Black Formatter**: Use Black for consistent code formatting.
 
 ## Python Libraries
 
-- **Pandas and NumPy**: For data manipulation and numerical calculations.
-- **Streamlit Integration**: For building interactive dashboards.
+- **Pandas and NumPy**: For data manipulation and numerical analysis.
+- **Streamlit Integration**: For creating interactive dashboards.
 
 ## Data Handling and Storage
 
-- **AmbientAPI**: For retrieving weather data.
-- **Storj.io Storage**: Utilize Storj.io as a decentralized, S3-compatible storage solution.
+- **AmbientAPI**: For fetching weather data.
+- **Storj.io Storage**: Use Storj.io as a decentralized, S3-compatible storage system.
 
 ## Code Structure and Organization
 
-- **Modularity**: Maintain a modular and organized codebase.
-- **Documentation**: Clear, concise comments and docstrings for all code segments.
+- **Modularity**: Ensure a modular and well-organized codebase.
+- **Documentation**: Provide clear, concise comments and docstrings. Keep line lengths under 88 characters.
 
 ## Module Documentation
 
-- **Purpose and Functionality**: Each module must begin with a docstring explaining its purpose and main functionalities.
-- **Integration Points**: Mention how the module integrates with other parts of the system (e.g., Streamlit, S3 storage).
-- **List of Functions**: Briefly list and describe each function or class within the module.
-- **Example Usage**: Provide a simple example or reference to demonstrate how the module or its key functions are used in the broader application.
+- **Purpose and Functionality**: Begin each module with a docstring detailing its purpose and key functionalities.
+- **Integration Points**: Highlight integration with other system parts (e.g., Streamlit, S3 storage).
+- **List of Functions**: Concisely list and describe each function or class.
+- **Example Usage**: Include examples or references for using the module or key functions.
 
 ### Example Format
 
 ```python
 """
-storj_df_s3.py: this module provides functionalities to interact with s3 storage,
-specifically for handling dataframes (pandas) and json objects.  It includes utilities
-for reading and writing data to/from s3 buckets using s3fs and pandas.  It also
-features logging setup for monitoring file operations and a backup mechanism for s3
-data.  The module integrates with streamlit for secret management, enhancing the
-security aspect of s3 access.  Designed for applications where s3 storage interaction
-is crucial, this module streamlines tasks like data backup, retrieval, and storage
-of structured data.
+storj_df_s3.py: This module interacts with S3 storage, focusing on dataframe (pandas) and JSON object handling. It provides functionalities for reading and writing to S3 buckets, using s3fs and pandas. It integrates with Streamlit for secure access to S3. The module is essential for tasks like data backup, retrieval, and storage.
 
 Functions:
-- Read and write JSON files to/from S3.
-- Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
-- List items in an S3 bucket.
-- Backup data from S3 to a designated backup directory.
+- Manage JSON files with S3.
+- Handle pandas DataFrames for S3 storage.
+- Enumerate S3 bucket items.
+- Backup S3 data.
 """
 ```
 
 ## Error Handling and Logging
 
-- **Comprehensive Error Handling**: Implement robust error handling.
-- **Logging**: Effective use of logging for debugging and tracking.
+- **Comprehensive Error Handling**: Implement thorough error handling.
+- **Logging**: Use logging information for debugging rather than print statements.
 
 ## Environment and Tools
 
-- **Conda Environment**: Use Conda for managing dependencies.
-- **VS Code on Mac**: Develop using Visual Studio Code on macOS.
+- **Conda Environment**: Manage dependencies with Conda.
+- **VS Code on Mac**: Develop with Visual Studio Code on macOS.
 
-## Docstring Format
+## Docstring and Commenting
 
-Use the following format for docstrings:
+- **Docstring Format**: Use concise docstrings with type hinting for function declarations.
 
-```python
-def function_name(param1, param2):
-    """
-    A brief description of the function.
+    ```python
+    def function_name(param1: type, param2: type) -> return_type:
+        """
+        Briefly describe the function.
 
-    :param param1: type - Description of param1.
-    :param param2: type - Description of param2.
-    :return: return_type - Description of the return value.
-    """
-    # Function implementation
+        :param param1: Description of param1.
+        :param param2: Description of param2.
+        :return: Description of the return value.
+        """
+        # Inline comments for context
+        # Function implementation
+    ```
+
+- **Inline Comments**: Include inline comments to maintain context and process understanding. Keep them concise and within the 88-character limit.
+
+These updated standards aim to enhance the readability, maintainability, and efficiency of the Lookout project's codebase.
