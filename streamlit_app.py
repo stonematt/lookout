@@ -1,6 +1,6 @@
 # %%
-# import libs
 from ambient_api.ambientapi import AmbientAPI
+import logging
 import time
 from dateutil import parser
 import pandas as pd
@@ -10,6 +10,8 @@ import streamlit as st
 # my modules
 import storj_df_s3 as sj
 import awn_controller as awn
+
+logging.basicConfig(level=logging.INFO)
 
 st.set_page_config(
     page_title="Weather Station Dashboard",
@@ -86,44 +88,59 @@ keys = {
 
 def update_session_data(device, hist_df):
     # todo: convert this to just get interim data.
+    """
+    Update session with latest historical data and reset session counter.
 
-    st.session_state["history_df"] = awn.get_intermin_data(device, hist_df)
+    :param device: Object representing the device.
+    :param hist_df: DataFrame of current historical data.
+    :return: None.
+    """
+
+    st.session_state["history_df"] = awn.get_history_since_last_archive(device, hist_df)
     st.session_state["session_counter"] = 0
 
 
 def to_date(date_string: str):
+    """
+    Convert a date string to a datetime object.
+
+    :param date_string: str - The date string to parse.
+    :return: datetime - Parsed datetime object.
+    :raises: Exception if date string parsing fails.
+    """
     try:
-        date = parser.parse(date_string)
-        return date
+        return parser.parse(date_string)
     except Exception as e:
-        print(f"Error parsing date string: {e}")
-        raise e
+        logging.error(f"Error parsing date string: {e}", exc_info=True)
+        raise
 
 
 def better_heatmap_table(df, metric, aggfunc="max", interval=1800):
     """
     Create a pivot table of aggregate values for a given metric, with the row index
-    as a time stamp for every `interval`-second interval and the column index as the unique dates in the "date" column.
+    as a time stamp for every `interval`-second interval and the column index as
+    the unique dates in the "date" column.
 
     Parameters
     ----------
     df : pandas.DataFrame
-        The input DataFrame containing a "date" column and a column with the desired `metric`.
+        The input DataFrame with a "date" column and a column with the desired `metric`.
     metric : str
         The name of the column in `df` containing the desired metric.
     aggfunc : str or function
         The aggregation function to use when computing the pivot table. Can be a string
-        representing a built-in function (e.g., "mean", "sum", "count"), or a custom function.
+        of a built-in function (e.g., "mean", "sum", "count"), or a custom function.
     interval : int
-        The number of seconds for each interval. For example, `interval=15` would create an
-        interval of 15 seconds.
+        The number of seconds for each interval. For example, `interval=15` would
+        create an interval of 15 seconds.
 
     Returns
     -------
     pandas.DataFrame
-        A pivot table where the row index is a time stamp for every `interval`-second interval,
-        and the column index is the unique dates in the "date" column. The values are the
-        aggregate value of the `metric` column for each interval and each date.
+        A pivot table where the row index is a time stamp for every `interval`-second
+        interval, and the column index is the unique dates in the "date" column.
+        The values are the aggregate value of the `metric` column for each interval
+        and each date.
     """
 
     df["date"] = pd.to_datetime(df["date"])
@@ -144,27 +161,37 @@ def heatmap_chart(heatmap_table):
     st.plotly_chart(fig)
 
 
-def initial_load_device_history(device, bucket, file_type):
-    """load archive file from s3 resource an update data to now()"""
+def initial_load_device_history(device, bucket, file_type, auto_update):
+    """
+    Load archive file from s3 resource and optionally update data to the current time.
+
+    :param device: The device object to load history for.
+    :param bucket: The name of the S3 bucket where the archive is stored.
+    :param file_type: The file type of the archive.
+    :param auto_update: Boolean flag to control whether to fetch interim data.
+    """
     update_message = st.empty()
     update_message.text("Getting archive data")
 
-    # get archive
+    # Get archive
     st.session_state["history_df"] = awn.load_archive_for_device(
         device, bucket, file_type
     )
     df = st.session_state["history_df"]
 
     df_stats = st.empty()
-    df_stats.text(f"archive date range: {df.date.min()} to {df.date.max()}")
+    df_stats.text(f"Archive date range: {df.date.min()} to {df.date.max()}")
 
-    update_message.text("Getting data since last archive")
-    st.session_state["history_df"] = awn.get_interim_data_for_device(
-        device, st.session_state["history_df"], sleep=True
-    )
-    # ambient throttle - grr
-    time.sleep(1)
-    st.session_state["session_counter"] = 0
+    # Fetch interim data if auto-update is enabled
+    if auto_update:
+        update_message.text("Getting data since last archive")
+        st.session_state["history_df"] = awn.get_history_since_last_archive(
+            device, st.session_state["history_df"], sleep=True
+        )
+        # Throttling due to Ambient API limitations
+        time.sleep(1)
+        st.session_state["session_counter"] = 0
+
     df_stats.empty()
     update_message.empty()
 
@@ -202,15 +229,23 @@ time.sleep(1)
 
 
 # %%
+# Streamlit sidebar for auto-update toggle
+auto_update = st.sidebar.checkbox("Auto-Update", value=False)
+
 # start dashboard
 if "history_df" not in st.session_state:
-    initial_load_device_history(device, bucket, file_type)
+    initial_load_device_history(device, bucket, file_type, auto_update)
 
 history_df = st.session_state["history_df"]
 
-# if st.session_state["session_counter"] >= 1:
-st.session_state["history_df"] = awn.get_interim_data_for_device(device, history_df)
-history_df = st.session_state["history_df"]
+# Only fetch interim data if 'auto_update' is True
+# might have to rethink the session counter logic for first run after auto_update
+if auto_update and st.session_state["session_counter"] >= 1:
+    st.session_state["history_df"] = awn.get_history_since_last_archive(
+        device, history_df
+    )
+    history_df = st.session_state["history_df"]
+
 
 save_df = st.sidebar.button("Save Archive")
 if save_df:
