@@ -51,10 +51,6 @@ def main(bucket_name, dry_run):
             device, archive_df, sleep=True, pages=20
         )
         logging.info(f"Total records after update: {len(new_archive_df)}")
-        logging.info(
-                f"Range: ({new_archive_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
-                f"({new_archive_df['date'].max().strftime('%y-%m-%d %H:%M')})"
-            )
 
         # Save back to S3
         key = f"{device.mac_address}.parquet"
