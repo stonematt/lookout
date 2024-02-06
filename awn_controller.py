@@ -1,3 +1,23 @@
+"""
+awn_controller.py: Integrates weather data from the Ambient Weather Network (AWN)
+with S3-compatible storage. Utilizes AmbientAPI for data retrieval and storj_df_s3.py
+for data persistence. This module focuses on retrieving, updating, and maintaining
+historical weather data, ensuring seamless data flow and consistency across storage
+solutions, crucial for the backend operations of a Streamlit-based weather application.
+
+Functions:
+- get_archive: Retrieves weather data archives from the local filesystem.
+- load_archive_for_device: Loads device-specific archived data from S3 storage.
+- get_device_history_to_date: Fetches historical data for a device with end_date
+- get_device_history_from_date: Fetches historical data for a device with start_date
+- get_history_since_last_archive: Add new data to archive forward by n pages
+- combine_df: Merges two DataFrames, removing duplicates and sorting by 'dateutc'.
+
+Example Usage:
+This module is utilized in a Streamlit app to load, update, and store historical
+weather data for devices, leveraging data from AWN and persisting updates to S3.
+"""
+
 # %%
 from ambient_api.ambientapi import AmbientAPI
 import time
@@ -5,7 +25,7 @@ import pandas as pd
 import streamlit as st
 import logging
 import storj_df_s3 as sj
-from datetime import datetime
+from datetime import timedelta
 
 
 # %%
@@ -23,45 +43,89 @@ api = AmbientAPI(
 sec_in_hour = 3600 * 1000
 
 
-def get_archive(archive_file):
-    """get archive from local fs
-    return df"""
-    archive_df = pd.read_parquet(archive_file)
+# Module-level logger configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
-    return archive_df
+
+def get_archive(archive_file: str) -> pd.DataFrame:
+    """
+    Retrieves a DataFrame from a Parquet file stored in the local filesystem.
+
+    :param archive_file: str - The file path of the Parquet file to be read.
+    :return: DataFrame - The DataFrame containing the archived weather data.
+    """
+    logging.info(f"Load archive: {archive_file}")
+    try:
+        return pd.read_parquet(archive_file)
+    except FileNotFoundError:
+        logging.error(f"File not found: {archive_file}")
+        return pd.DataFrame()
+    except Exception as e:
+        logging.error(f"Read error: {archive_file}, {e}")
+        return pd.DataFrame()
 
 
 # todo: keep this one
 # %% Load archive from s3
-def load_archive_for_device(device, bucket, file_type="parquet"):
-    """return df of device archive"""
+def load_archive_for_device(
+    device, bucket: str, file_type: str = "parquet"
+) -> pd.DataFrame:
+    """
+    Loads device-specific weather data from S3 into a DataFrame.
+
+    :param device: Device object for data identification.
+    :param bucket: str - Name of the S3 bucket.
+    :param file_type: str - File type ('json' or 'parquet').
+    :return: DataFrame containing the device's archived data.
+    """
     key = f"{device.mac_address}.{file_type}"
-    device_archive = sj.get_df_from_s3(bucket, key, file_type=file_type)
-    return device_archive
+    logging.info(f"Load from S3: {bucket}/{key}")
+    try:
+        return sj.get_df_from_s3(bucket, key, file_type=file_type)
+    except Exception as e:
+        logging.error(f"S3 load error: {bucket}/{key}, {e}")
+        return pd.DataFrame()
 
 
-def _df_column_to_datetime(df, column, tz):
-    df[column] = pd.to_datetime(df[column]).dt.tz_convert(tz)
+def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
+    """
+    Converts and adjusts a DataFrame column to a specified timezone.
+
+    :param df: DataFrame with the column.
+    :param column: Column name for datetime conversion.
+    :param tz: Target timezone for conversion.
+    """
+    try:
+        df[column] = pd.to_datetime(df[column]).dt.tz_convert(tz)
+        logging.debug(f"Converted '{column}' to '{tz}'")
+    except KeyError:
+        logging.error(f"Column not found: '{column}'")
+    except Exception as e:
+        logging.error(f"Conversion error: {e}")
+        raise e
 
 
 # todo: keep this one
 # %%
-def get_device_history_to_date(device, end_date=None, limit=288):
-    """returns a tz converted df for a device a date"""
-    df = pd.DataFrame()
+def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame:
+    """
+    Fetches historical data for a device up to a specified date.
+
+    :param device: The device to fetch data for.
+    :param end_date: End date for data retrieval, defaults to None.
+    :param limit: Max records to retrieve, defaults to 288.
+    :return: DataFrame of device history data.
+    """
     try:
-        if end_date:
-            # st.write(f"end date: {end_date} for history page")
-            df = pd.json_normalize(device.get_data(end_date=end_date, limit=limit))
-        else:
-            # st.write("no end date submitted")
-            df = pd.json_normalize(device.get_data(limit=limit))
-    except e:
-        raise e
-    else:
-        logging.info(
-            f"sorting df in get_device_history_to_date {len(df)} records found"
+        params = (
+            {"limit": limit, "end_date": end_date} if end_date else {"limit": limit}
         )
+        logging.info(f"Fetch history: {device.mac_address}, Params: {params}")
+        df = pd.json_normalize(device.get_data(**params))
         df.sort_values(by="dateutc", inplace=True)
 
         # Convert 'date' column to local time
@@ -70,75 +134,155 @@ def get_device_history_to_date(device, end_date=None, limit=288):
             _df_column_to_datetime(df, c, device.last_data.get("tz"))
 
         return df
+    except Exception as e:
+        logging.error(f"Fetch error: {e}")
+        return pd.DataFrame()
 
 
-# todo: delete this
+def _calculate_next_start_date(current_max_date, gap_attempts, limit):
+    """
+    Internally calculates the next start date for fetching, considering gap attempts.
+
+    :param current_max_date: The maximum date in the current dataset.
+    :param gap_attempts: The number of consecutive gap attempts made.
+    :param limit: The number of records per fetch.
+    :return: The next start date for data fetching.
+    """
+    return current_max_date + timedelta(minutes=5 * limit * gap_attempts)
+
+
+def _is_data_new(interim_df, new_data):
+    """
+    Internally determines if the fetched data contains new information.
+
+    :param interim_df: The current interim dataframe with previously fetched data.
+    :param new_data: The newly fetched data to compare.
+    :return: Boolean indicating whether the new data contains new information.
+    """
+    if interim_df.empty:
+        return True  # If there's no interim data, new data is always considered new
+    return new_data["dateutc"].max() > interim_df["dateutc"].max()
+
+
 # %%
-# todo: keep this one
-def get_interim_data_for_device(device, archive_df, limit=288, sleep=False):
-    """Returns a dataframe with the full history of a device, combining archived data with interim data"""
+# todo: keep this one (forward)
+def get_device_history_from_date(device, start_date, limit=288):
+    """
+    Fetches a page of data for the device starting from the specified date.
 
-    update_message = st.empty()
-    update_message.text("Updating and refreshing...")
-    progress_message = st.empty()
-    # Find the most recent date in the archive
-    max_archive_date = archive_df["dateutc"].max()
-    page = 0
-    #     # get data since the last time we ran the script.
-    #     missing_hours = (time.time() * 1000 - history_max_date) / sec_in_hour
-    #     progress_message.text(
-    #         f"Missing {missing_hours} hours of recent history. Getting it now"
-    #     )
+    :param device: The device object to fetch data for.
+    :param start_date: The datetime to start fetching data from.
+    :param limit: The number of records to fetch.
+    :return: A DataFrame with the fetched data.
+    """
+    # Calculate end_date considering the service returns data points before this date
+    # and ensuring overlap by subtracting 15 minutes from the calculated end date
+    # to get (limit-3) new data points and 3 overlapping points.
+    end_date = start_date + timedelta(minutes=(limit - 3) * 5)
+    end_date_timestamp = int(end_date.timestamp() * 1000)  # Convert to milliseconds
 
-    # Call get_device_history_to_date() until we have all data up to the archive's max date
-    interim_df = pd.DataFrame()
-    while True:
-        progress_message.text(f"getting page {page}")
-        #         progress += 1
-        #         progress_count.text(f"Getting page {progress}")
-        #         logging.warning(f"Getting page {progress}")
-        #         progress_bar.progress(progress / days_to_get)
-        # throttle subsequent api calls
-        if sleep:
-            print(f"sleep: {sleep}, page: {page}")
-            time.sleep(1)
-        # Get the next page of history
-        end_date = (
-            interim_df["dateutc"].min()
-            if not interim_df.empty
-            else int(datetime.now().timestamp() * 1000)
+    new_data = get_device_history_to_date(
+        device, end_date=end_date_timestamp, limit=limit
+    )
+
+    if new_data.empty:
+        logging.info("No more data to fetch.")
+    else:
+        logging.info(
+            f"Retrieved {len(new_data)} records. "
+            f"Range: {new_data['dateutc'].min()} - {new_data['dateutc'].max()}"
         )
-        new_data = get_device_history_to_date(device, end_date=end_date, limit=limit)
 
-        # Append the new data to the interim dataframe
-        logging.info(f"adding interim_df {len(interim_df)} to new_data {len(new_data)}")
-        interim_df = combine_df(interim_df, new_data)
-        page += 1
+    return new_data
 
-        # Stop if we've reached the end of the data
-        if new_data.empty or new_data["dateutc"].min() < max_archive_date:
-            break
 
-    # Combine the archive and interim dataframes
-    full_history_df = combine_df(archive_df, interim_df)
+def get_history_since_last_archive(
+    device, archive_df, limit=250, pages=10, sleep=False
+):
+    """
+    Sequentially retrieves device history from the last archive date forward in time,
+    handling data gaps and ensuring only new data is added.
 
-    update_message.empty()
-    progress_message.empty()
+    :param device: Device object for fetching data.
+    :param archive_df: DataFrame of archived data.
+    :param limit: int - Max records to fetch per call.
+    :param pages: int - Number of pages to fetch moving forward in time.
+    :param sleep: bool - Enables delay between API calls if True, default False.
+    :return: DataFrame with updated device history.
+    """
+    try:
+        interim_df = pd.DataFrame()
+        last_date = pd.to_datetime(archive_df["dateutc"].max(), unit="ms")
+        gap_attempts = 0  # Counter for forward seeking due to gaps
 
-    return full_history_df
+        for page in range(pages):
+            if sleep:
+                time.sleep(1)
+
+            new_data = get_device_history_from_date(device, last_date, limit)
+            logging.info(f"Page {page}: {len(new_data)} new records found")
+
+            # In the loop where you fetch and process data:
+            if not _is_data_new(interim_df, new_data):
+                gap_attempts += 1
+                logging.info(f"Seeking ahead: {gap_attempts}/3")
+                if gap_attempts < 3:  # Try skipping ahead only if under the limit
+                    last_date = _calculate_next_start_date(
+                        last_date, gap_attempts, limit
+                    )
+                    continue
+                else:
+                    logging.info("Maximum gap attempts reached. Exiting.")
+                    break
+
+            # Reset gap attempts after finding new data
+            gap_attempts = 0
+            interim_df = combine_df(interim_df, new_data)
+            logging.info(
+                f"Interim Page: {page}/{pages} "
+                f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
+                f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
+            )
+            # Update last_date for the next fetch based on the new data's max date
+            last_date = pd.to_datetime(new_data["dateutc"].max(), unit="ms")
+
+        full_history_df = combine_df(archive_df, interim_df)
+        logging.info(
+            f"Full History Range: "
+            f"({full_history_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
+            f"({full_history_df['date'].max().strftime('%y-%m-%d %H:%M')})"
+        )
+        return full_history_df
+
+    except Exception as e:
+        logging.error(f"Error in get_history_since_last_archive: {e}")
+        return archive_df
 
 
 # todo: keep this one
 # %% combine DFs
-def combine_df(df1, df2):
-    df1 = (
-        pd.concat([df1, df2], ignore_index=True)
-        .drop_duplicates()
-        .sort_values(by="dateutc", ascending=False)
-        .reset_index(drop=True)
-    )
+def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merges two DataFrames, removes duplicates, and sorts by 'dateutc'.
+    Raises an exception if the merge fails.
 
-    return df1
+    :param df1: First DataFrame to merge.
+    :param df2: Second DataFrame to merge.
+    :return: Merged and sorted DataFrame.
+    :raises: Exception if DataFrames cannot be merged.
+    """
+    try:
+        result_df = (
+            pd.concat([df1, df2], ignore_index=True)
+            .drop_duplicates()
+            .sort_values(by="dateutc", ascending=False)
+            .reset_index(drop=True)
+        )
+        logging.info(f"DataFrames combined: {result_df.shape[0]} records")
+        return result_df
+    except Exception as e:
+        logging.error(f"Error combining DataFrames: {e}")
+        raise Exception(f"Failed to combine DataFrames: {e}")
 
 
 # %%
@@ -159,7 +303,7 @@ def main():
     print(df.date.min())
     print(df.date.max())
 
-    df = get_interim_data_for_device(device, df)
+    # df = get_history_since_last_archive(device, df)
     print(df.date.min())
     print(df.date.max())
 
