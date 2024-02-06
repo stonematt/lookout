@@ -10,7 +10,7 @@ Functions:
 - get_archive: Retrieves weather data archives from the local filesystem.
 - load_archive_for_device: Loads archived weather data from S3 storage.
 - get_device_history_to_date: Fetches historical data up to a specified date.
-- get_history_since_last_archive: Combines archived with recent to provide a full history.
+- get_history_since_last_archive: Combine archived and recent to provide a full history.
 - combine_df: Merges two dataframes, removing duplicates and sorting by date.
 
 Example Usage:
@@ -26,7 +26,7 @@ import pandas as pd
 import streamlit as st
 import logging
 import storj_df_s3 as sj
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 
 # %%
@@ -140,6 +140,31 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
         return pd.DataFrame()
 
 
+def _calculate_next_start_date(current_max_date, gap_attempts, limit):
+    """
+    Internally calculates the next start date for fetching, considering gap attempts.
+
+    :param current_max_date: The maximum date in the current dataset.
+    :param gap_attempts: The number of consecutive gap attempts made.
+    :param limit: The number of records per fetch.
+    :return: The next start date for data fetching.
+    """
+    return current_max_date + timedelta(minutes=5 * limit * gap_attempts)
+
+
+def _is_data_new(interim_df, new_data):
+    """
+    Internally determines if the fetched data contains new information.
+
+    :param interim_df: The current interim dataframe with previously fetched data.
+    :param new_data: The newly fetched data to compare.
+    :return: Boolean indicating whether the new data contains new information.
+    """
+    if interim_df.empty:
+        return True  # If there's no interim data, new data is always considered new
+    return new_data["dateutc"].max() > interim_df["dateutc"].max()
+
+
 # %%
 # todo: keep this one (forward)
 def get_device_history_from_date(device, start_date, limit=288):
@@ -177,7 +202,7 @@ def get_history_since_last_archive(
 ):
     """
     Sequentially retrieves device history from the last archive date forward in time,
-    stopping after a specified number of pages or when no more data is available.
+    handling data gaps and ensuring only new data is added.
 
     :param device: Device object for fetching data.
     :param archive_df: DataFrame of archived data.
@@ -188,38 +213,50 @@ def get_history_since_last_archive(
     """
     try:
         interim_df = pd.DataFrame()
-
-        # Initialize the start date from the last date in the archive
         last_date = pd.to_datetime(archive_df["dateutc"].max(), unit="ms")
+        gap_attempts = 0  # Counter for forward seeking due to gaps
 
         for page in range(pages):
             if sleep:
-                time.sleep(1)  # Optional sleep between fetches if enabled
+                time.sleep(1)
 
-            # Fetch data using the helper function
             new_data = get_device_history_from_date(device, last_date, limit)
+            logging.info(f"Page {page}: {len(new_data)} new records found")
 
-            if new_data.empty:
-                logging.info(f"No more data to fetch after page {page + 1}.")
-                break  # Exit if no data was returned
+            # In the loop where you fetch and process data:
+            if not _is_data_new(interim_df, new_data):
+                gap_attempts += 1
+                logging.info(f"Seeking ahead: {gap_attempts}/3")
+                if gap_attempts < 3:  # Try skipping ahead only if under the limit
+                    last_date = _calculate_next_start_date(
+                        last_date, gap_attempts, limit
+                    )
+                    continue
+                else:
+                    logging.info("Maximum gap attempts reached. Exiting.")
+                    break
 
-            # Update interim_df with new_data
+            # Reset gap attempts after finding new data
+            gap_attempts = 0
             interim_df = combine_df(interim_df, new_data)
             logging.info(
-                f"Page: {page + 1} "
+                f"Interim Page: {page}/{pages} "
                 f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
                 f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
             )
-
-            # Update last_date for the next fetch
+            # Update last_date for the next fetch based on the new data's max date
             last_date = pd.to_datetime(new_data["dateutc"].max(), unit="ms")
 
-        # Combine the archived data with the newly fetched data
         full_history_df = combine_df(archive_df, interim_df)
+        logging.info(
+            f"Full History Range: "
+            f"({full_history_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
+            f"({full_history_df['date'].max().strftime('%y-%m-%d %H:%M')})"
+        )
         return full_history_df
 
     except Exception as e:
-        logging.error(f"Error in get_history_since_last_archive_modified: {e}")
+        logging.error(f"Error in get_history_since_last_archive: {e}")
         return archive_df
 
 
