@@ -266,20 +266,12 @@ guages = [
     {"tempinf": "Temp Inside"},
     {"temp1f": "Temp Bedroom"},
 ]
-# st.columns(len(guages))
 st.write(device.last_data)
 # heatmap_metric = st.selectbox("pick a metric", history_df.keys())
 st.subheader("History")
 fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
 st.plotly_chart(fig)
 
-# fig = px.line(
-#     history_df,
-#     x="date",
-#     y=["eventrainin", "dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"],
-#     title="rain",
-# )
-# st.plotly_chart(fig)
 
 
 # %%
@@ -320,11 +312,3 @@ fig.update_layout(
 )
 st.subheader(f"Heat Map of Maximum Values by Day and Hour for {heatmap_data_column}")
 st.write(fig)
-
-
-st.write(history_df.describe())
-st.write(history_df)
-# %%
-# pd.merge(h1_df,h2_df, on=h1_df.keys().to_list(), how='outer')
-
-# %%
