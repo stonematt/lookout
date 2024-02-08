@@ -29,21 +29,18 @@ from log_util import app_logger
 
 logger = app_logger(__name__)
 
-# Use the logger with concise messages
-logger.info("Archiving data for device: {device_mac}")
-
 
 # %%
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
 AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
-api = AmbientAPI(
-    # log_level="INFO",
-    AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
-    AMBIENT_API_KEY=AMBIENT_API_KEY,
-    AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
-)
+# api = AmbientAPI(
+#     # log_level="INFO",
+#     AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
+#     AMBIENT_API_KEY=AMBIENT_API_KEY,
+#     AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
+# )
 
 sec_in_hour = 3600 * 1000
 
@@ -290,7 +287,6 @@ def main():
         AMBIENT_API_KEY=AMBIENT_API_KEY,
         AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
     )
-    # %%
 
     devices = api.get_devices()
 
