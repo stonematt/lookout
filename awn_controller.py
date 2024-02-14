@@ -24,7 +24,7 @@ import time
 import pandas as pd
 import streamlit as st
 import storj_df_s3 as sj
-from datetime import timedelta
+from datetime import datetime, timedelta
 from log_util import app_logger
 
 logger = app_logger(__name__)
@@ -169,10 +169,17 @@ def get_device_history_from_date(device, start_date, limit=288):
     :param limit: The number of records to fetch.
     :return: A DataFrame with the fetched data.
     """
+
+    current_time = datetime.now()
     # Calculate end_date considering the service returns data points before this date
     # and ensuring overlap by subtracting 15 minutes from the calculated end date
     # to get (limit-3) new data points and 3 overlapping points.
     end_date = start_date + timedelta(minutes=(limit - 3) * 5)
+
+    # Ensure end_date does not exceed the current time
+    if end_date > current_time:
+        end_date = current_time  # Adjust end_date to now if it exceeds
+
     end_date_timestamp = int(end_date.timestamp() * 1000)  # Convert to milliseconds
 
     new_data = get_device_history_to_date(

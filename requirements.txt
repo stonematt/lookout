@@ -1,10 +1,24 @@
+ambient-api
+charset-normalizer
+colour
+numpy
+pandas
+pip
+plotly
+python-dateutil
+python-socketio
+pytz
+requests
+s3fs
+setuptools
+streamlit
+wheel
 # abseil-cpp
 # aiobotocore
 # aiohttp
 # aioitertools
 # aiosignal
 # altair
-ambient-api
 # anyio
 # appnope
 # argon2-cffi
@@ -35,7 +49,6 @@ ambient-api
 # cachetools
 # certifi
 # cffi
-charset-normalizer
 # click
 # comm
 # commonmark
@@ -123,21 +136,17 @@ charset-normalizer
 # notebook
 # notebook-shim
 # numexpr
-numpy
 # numpy-base
 # openssl
 # orc
 # packaging
-pandas
 # pandocfilters
 # parso
 # pathspec
 # pexpect
 # pickleshare
 # pillow
-pip
 # platformdirs
-plotly
 # prometheus_client
 # prompt-toolkit
 # protobuf
@@ -157,17 +166,13 @@ plotly
 # python
 # python-dateutil
 # python-fastjsonschema
-pytz
 # pytz-deprecation-shim
 # pyzmq
 # re2
 # readline
-requests
 # rich
-s3fs
 # semver
 # send2trash
-setuptools
 # six
 # smmap
 # snappy
@@ -175,7 +180,6 @@ setuptools
 # soupsieve
 # sqlite
 # stack_data
-streamlit
 # tenacity
 # terminado
 # tinycss2
@@ -195,7 +199,6 @@ streamlit
 # wcwidth
 # webencodings
 # websocket-client
-wheel
 # widgetsnbextension
 # wrapt
 # xz
