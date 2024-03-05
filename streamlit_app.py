@@ -257,8 +257,8 @@ rain_guages = [
     {"metric": "eventrainin", "title": "Event Rain", "metric_type": "rain"},
     {"metric": "dailyrainin", "title": "Daily Rain", "metric_type": "rain"},
     {"metric": "weeklyrainin", "title": "Weekly Rain", "metric_type": "rain"},
-    {"metric": "monthlyrainin", "title": "Mounthlh Rain", "metric_type": "rain"},
-    {"metric": "yearlyrainin", "title": "Yerly Rain", "metric_type": "rain"},
+    {"metric": "monthlyrainin", "title": "Monthly Rain", "metric_type": "rain"},
+    {"metric": "yearlyrainin", "title": "Yearly Rain", "metric_type": "rain"},
 ]
 
 
