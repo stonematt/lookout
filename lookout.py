@@ -17,3 +17,5 @@ api = AmbientAPI(
 )
 
 devices = api.get_devices()
+
+# %%
