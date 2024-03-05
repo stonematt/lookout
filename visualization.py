@@ -32,6 +32,22 @@ gauge_defaults = {
         "max_val": 1050,
         "title": "Barometric Pressure (hPa)",
     },
+    "rain": {
+        "start_color": "#ADD8E6",  # Light blue, representing light rain
+        "end_color": "#00008B",  # Dark blue, representing heavy rainfall
+        "steps": 100,
+        "min_val": 0,
+        "max_val": 30,
+        "title": "Rainfall (inches)",
+    },
+    "rain_rate": {
+        "start_color": "#ADD8E6",  # Light blue, representing light rain
+        "end_color": "#00008B",  # Dark blue, representing heavy rainfall
+        "steps": 100,
+        "min_val": 0,
+        "max_val": 10,
+        "title": "Rainfall (inches)",
+    },
 }
 
 
@@ -58,14 +74,16 @@ def generate_gradient_steps(start_color, end_color, steps):
 
 
 def create_gauge_chart(
-    value, metric_type, title="Gauge", gauge_defaults=gauge_defaults
+    value, metric_type, title="Gauge", gauge_defaults=gauge_defaults, chart_height=450
 ):
     """
-    Create a Plotly gauge chart with gradient steps.
+    Create a Plotly gauge chart with gradient steps and a specified chart height.
 
     :param value: The value to display on the gauge.
+    :param metric_type: The type of metric, which determines the gauge defaults.
     :param title: Title for the gauge chart.
-    :param gauge_defaults: Default and preference by metric
+    :param gauge_defaults: Default settings and preferences by metric type.
+    :param chart_height: The height of the chart in pixels.
     :return: Plotly figure object for the gauge chart.
     """
     defaults = gauge_defaults[metric_type]
@@ -99,6 +117,9 @@ def create_gauge_chart(
             },
         )
     )
+
+    # Update the layout to set the chart height
+    fig.update_layout(height=chart_height)
 
     return fig
 
