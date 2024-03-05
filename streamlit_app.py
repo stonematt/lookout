@@ -311,13 +311,14 @@ box_plot = [
 
 
 # Display the header
-st.subheader("Current Temps")
+st.subheader("Current")
 
 if last_data:
     make_column_gauges(temp_gauges)
     make_column_gauges(rain_guages)
 
 
+st.subheader("Temps Plots")
 # Let the user select multiple metrics for comparison
 metric_titles = [metric["title"] for metric in box_plot]
 selected_titles = st.multiselect(
