@@ -1,9 +1,11 @@
 import argparse
-import logging
 from ambient_api.ambientapi import AmbientAPI
 import streamlit as st
 import storj_df_s3 as sj
 import awn_controller as awn
+from log_util import app_logger
+
+logger = app_logger(__name__)
 
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
@@ -19,19 +21,18 @@ api = AmbientAPI(
 
 
 def main(bucket_name, dry_run):
-    logging.basicConfig(level=logging.INFO)
 
     devices = api.get_devices()
 
     if not devices:
-        logging.error("No devices found.")
+        logger.error("No devices found.")
         return
 
     device = devices[0]
-    logging.info(f"Selected device: {device.mac_address}")
+    logger.info(f"Selected device: {device.mac_address}")
 
     if dry_run:
-        logging.info("Running in dry-run mode.")
+        logger.info("Running in dry-run mode.")
         # Here, you would add logic to simulate actions without making changes
     else:
         # Backup process
@@ -40,17 +41,17 @@ def main(bucket_name, dry_run):
         # Get historical archive from S3
         archive_df = awn.load_archive_for_device(device, bucket_name)
 
-        logging.info(
+        logger.info(
             f"Range: ({archive_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
             f"({archive_df['date'].max().strftime('%y-%m-%d %H:%M')})"
         )
-        logging.info(f"Total records in archive: {len(archive_df)}")
+        logger.info(f"Total records in archive: {len(archive_df)}")
 
         # Update process
         new_archive_df = awn.get_history_since_last_archive(
             device, archive_df, sleep=True, pages=20
         )
-        logging.info(f"Total records after update: {len(new_archive_df)}")
+        logger.info(f"Total records after update: {len(new_archive_df)}")
 
         # Save back to S3
         key = f"{device.mac_address}.parquet"

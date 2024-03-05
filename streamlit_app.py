@@ -1,17 +1,20 @@
-# %%
-from ambient_api.ambientapi import AmbientAPI
-import logging
 import time
-from dateutil import parser
+
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from ambient_api.ambientapi import AmbientAPI
+from dateutil import parser
 
 # my modules
-import storj_df_s3 as sj
+# import storj_df_s3 as sj
 import awn_controller as awn
+import visualization as lo_viz
+from log_util import app_logger
 
-logging.basicConfig(level=logging.INFO)
+logger = app_logger(__name__)
+
 
 st.set_page_config(
     page_title="Weather Station Dashboard",
@@ -111,7 +114,7 @@ def to_date(date_string: str):
     try:
         return parser.parse(date_string)
     except Exception as e:
-        logging.error(f"Error parsing date string: {e}", exc_info=True)
+        logger.error(f"Error parsing date string: {e}", exc_info=True)
         raise
 
 
@@ -185,10 +188,6 @@ def initial_load_device_history(device, bucket, file_type, auto_update):
     # Fetch interim data if auto-update is enabled
     if auto_update:
         update_message.text("Getting data since last archive")
-        st.session_state["history_df"] = awn.get_history_since_last_archive(
-            device, st.session_state["history_df"], sleep=True
-        )
-        # Throttling due to Ambient API limitations
         time.sleep(1)
         st.session_state["session_counter"] = 0
 
@@ -206,12 +205,9 @@ if len(devices) == 1:
     device = devices[0]
     device_menu = device.mac_address
     device_name = device.info["name"]
+    last_data = device.last_data
     st.header(f"Weather Station:  {device_name}")
-    print(f"One device found:  {device.info['name']}")
-# else:
-#     device_menu = st.sidebar.selectbox(
-#         "Select a device:", [device["macAddress"] for device in devices]
-#     )
+    logger.info(f"One device found:  {device.info['name']}")
 
 # if we dont' get a device from ambient. blow up.
 if not device:
@@ -247,82 +243,133 @@ if auto_update and st.session_state["session_counter"] >= 1:
     history_df = st.session_state["history_df"]
 
 
-save_df = st.sidebar.button("Save Archive")
-if save_df:
-    sj.save_df_to_s3(
-        df=st.session_state["history_df"],
-        bucket=bucket,
-        key=hist_file,
-        file_type=file_type,
-    )
-    save_df = False
 # %%
 
-st.subheader("Current")
-guages = [
-    {"tempf": "Temp Outside"},
-    {"tempinf": "Temp Inside"},
-    {"temp1f": "Temp Bedroom"},
+# Your gauge configurations
+temp_gauges = [
+    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
+    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
+    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
 ]
-# st.columns(len(guages))
-st.write(device.last_data)
-# heatmap_metric = st.selectbox("pick a metric", history_df.keys())
-st.subheader("History")
-fig = px.line(history_df, x="date", y=["tempinf", "tempf", "temp1f"], title="temp")
-st.plotly_chart(fig)
 
-# fig = px.line(
-#     history_df,
-#     x="date",
-#     y=["eventrainin", "dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"],
-#     title="rain",
-# )
-# st.plotly_chart(fig)
+rain_guages = [
+    {"metric": "hourlyrainin", "title": "Hourly Rain", "metric_type": "rain_rate"},
+    {"metric": "eventrainin", "title": "Event Rain", "metric_type": "rain"},
+    {"metric": "dailyrainin", "title": "Daily Rain", "metric_type": "rain"},
+    {"metric": "weeklyrainin", "title": "Weekly Rain", "metric_type": "rain"},
+    {"metric": "monthlyrainin", "title": "Monthly Rain", "metric_type": "rain"},
+    {"metric": "yearlyrainin", "title": "Yearly Rain", "metric_type": "rain"},
+]
 
 
-# %%
-def create_heatmap_date_hour_df(df, data_column):
-    heatmap_df = df.loc[:, ["date", data_column]].copy()
-    heatmap_df = heatmap_df[["date", data_column]]
-    heatmap_df["datetime"] = pd.to_datetime(heatmap_df["date"])
-    heatmap_df["date"] = heatmap_df["datetime"].dt.date
-    heatmap_df["hour"] = heatmap_df["datetime"].dt.hour
+def make_column_gauges(gauge_list, chart_height=300):
+    """
+    Take a list of metrics and produce a row of gauges, with min, median, and max values displayed below each gauge.
 
-    return heatmap_df
+    :param gauge_list: list of dicts with metrics, titles to render as gauges, and their types.
+    :param chart_height: height of the charts in the row
+    """
+    # Create columns for gauges
+    cols = st.columns(len(gauge_list))
+
+    for i, gauge in enumerate(gauge_list):
+        metric = gauge["metric"]
+        title = gauge["title"]
+        metric_type = gauge["metric_type"]
+
+        # Retrieve the last value for the metric
+        value = last_data.get(metric, 0)
+
+        # Calculate min, median, max for the current metric from history_df
+        min_val = history_df[metric].min()
+        median_val = history_df[metric].median()
+        max_val = history_df[metric].max()
+
+        # Create the gauge chart for the current metric
+        gauge_fig = lo_viz.create_gauge_chart(
+            value=value, metric_type=metric_type, title=title, chart_height=chart_height
+        )
+
+        # Plot the gauge in the respective column, fitting it to the column width
+        with cols[i]:
+            st.plotly_chart(gauge_fig, use_container_width=True)
+
+            # Use markdown to display min, median, and max values below the gauge with less vertical space
+            stats_md = f"""<small>
+            <b>Min:</b> {min_val:.2f} <br>
+            <b>Median:</b> {median_val:.2f} <br>
+            <b>Max:</b> {max_val:.2f}
+            </small>"""
+            st.markdown(stats_md, unsafe_allow_html=True)
 
 
-# heatmap_data_column = "eventrainin"
-heatmap_data_column = st.selectbox("Heatmap data column", keys["all_keys"])
-heatmap_df = create_heatmap_date_hour_df(history_df, heatmap_data_column)
+box_plot = [
+    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
+    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
+    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
+]
 
-# %%
-grouped_df = heatmap_df.groupby(by=["date", "hour"]).max().reset_index()
 
-# Pivot the dataframe
-pivot_df = pd.pivot_table(
-    heatmap_df,
-    values=grouped_df.columns[2],
-    index="date",
-    columns="hour",
-    aggfunc="max",
+# Display the header
+st.subheader("Current Temps")
+
+if last_data:
+    make_column_gauges(temp_gauges)
+    make_column_gauges(rain_guages)
+
+
+# Let the user select multiple metrics for comparison
+metric_titles = [metric["title"] for metric in box_plot]
+selected_titles = st.multiselect(
+    "Select metrics for the box plot:", metric_titles, default=metric_titles[0]
 )
 
+# Find the selected metrics based on the titles
+selected_metrics = [metric for metric in box_plot if metric["title"] in selected_titles]
 
-# %%
-# Create a heat map using Ploty
-fig = px.imshow(pivot_df)
-fig.update_layout(
-    title="Heat Map of Maximum Values by Day and Hour",
-    xaxis_title="Hour",
-    yaxis_title="Day",
-)
-st.subheader(f"Heat Map of Maximum Values by Day and Hour for {heatmap_data_column}")
-st.write(fig)
+# User selects a box width
+box_width_option = st.selectbox("Select box width:", ["hour", "day", "week", "month"])
 
+if selected_metrics and "date" in history_df.columns:
+    # Convert 'date' column to datetime if it's not already
+    history_df["date"] = pd.to_datetime(history_df["date"])
 
-st.write(history_df.describe())
-st.write(history_df)
-# %%
-# pd.merge(h1_df,h2_df, on=h1_df.keys().to_list(), how='outer')
+    # Group by the selected box width option
+    if box_width_option == "hour":
+        history_df["hour"] = history_df["date"].dt.hour
+        group_column = "hour"
+    elif box_width_option == "day":
+        history_df["day"] = history_df["date"].dt.dayofyear
+        group_column = "day"
+    elif box_width_option == "week":
+        history_df["week"] = history_df["date"].dt.isocalendar().week
+        group_column = "week"
+    elif box_width_option == "month":
+        history_df["month"] = history_df["date"].dt.month
+        group_column = "month"
 
-# %%
+    # Create and render the box plot for each selected metric
+    fig = go.Figure()
+    for metric in selected_metrics:
+        # Filter the DataFrame for the selected metric
+        df_filtered = history_df[["date", group_column, metric["metric"]]].dropna()
+
+        # Create a box plot for the current metric
+        fig.add_trace(
+            go.Box(
+                x=df_filtered[group_column],
+                y=df_filtered[metric["metric"]],
+                name=metric["title"],
+            )
+        )
+
+    # Update plot layout
+    fig.update_layout(
+        title=f"Comparison of Selected Metrics by {box_width_option.capitalize()}",
+        xaxis_title=box_width_option.capitalize(),
+        yaxis_title="Value",
+    )
+
+    st.plotly_chart(fig)
+
+    st.write(device.last_data)

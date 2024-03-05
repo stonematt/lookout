@@ -2,7 +2,7 @@
 storj_df_s3.py: This module provides functionalities to interact with S3 storage,
 specifically for handling dataframes (pandas) and JSON objects. It includes utilities
 for reading and writing data to/from S3 buckets using s3fs and pandas. It also features
-logging setup for monitoring file operations and a backup mechanism for S3 data. The
+logger setup for monitoring file operations and a backup mechanism for S3 data. The
 module integrates with Streamlit for secret management, enhancing the security aspect
 of S3 access. Designed for applications where S3 storage interaction is crucial,
 this module streamlines tasks like data backup, retrieval, and storage
@@ -19,31 +19,16 @@ import pandas as pd
 import streamlit as st
 import s3fs
 import json
-import logging
 import datetime
 import os
+from log_util import app_logger
 
-# Setting up logging
-logging.basicConfig(level=logging.INFO)
+# For general logging with console output
+logger = app_logger(__name__)
 
-# Configure backup logger
-backup_logger = logging.getLogger("backup_logger")
-backup_logger.setLevel(logging.INFO)  # Set the logging level
-backup_logger.propagate = (
-    True  # Ensure messages are propagated to the parent (root) logger
-)
+# For logging with both console and file output
+backup_logger = app_logger("backup_logger", log_file="backup.log")
 
-# Create a file handler which logs even debug messages
-log_file = "backup.log"
-fh = logging.FileHandler(log_file)
-fh.setLevel(logging.INFO)
-
-# Create a formatter and add it to the handler
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-fh.setFormatter(formatter)
-
-# Add the handler to the backup logger
-backup_logger.addHandler(fh)
 
 # Retrieving secrets for S3 access
 ACCESS_KEY_ID = st.secrets["lookout_storage_options"]["ACCESS_KEY_ID"]
@@ -85,7 +70,7 @@ def read_json_from_path(file_path: str, local: bool = False) -> dict:
         with read_function(file_path, "rb") as file:
             return json.load(file)
     except FileNotFoundError:
-        logging.error(f"File not found: {file_path}")
+        logger.error(f"File not found: {file_path}")
         return {}
 
 
@@ -109,7 +94,7 @@ def save_json_to_path(dict_data: dict, file_path: str, local: bool = False) -> b
             json.dump(dict_data, file)
             return True
     except PermissionError:
-        logging.error(f"Permission denied: Unable to save dictionary to {file_path}")
+        logger.error(f"Permission denied: Unable to save dictionary to {file_path}")
         return False
 
 
@@ -125,13 +110,13 @@ def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFra
     file_path = f"s3://{bucket}/{key}"
 
     try:
-        logging.info(f"Getting {file_path}")
+        logger.info(f"Getting {file_path}")
         if file_type == "parquet":
             return pd.read_parquet(file_path, storage_options=storage_options)
         else:
             return pd.read_json(file_path, storage_options=storage_options)
     except FileNotFoundError:
-        logging.error(f"File not found: {file_path}")
+        logger.error(f"File not found: {file_path}")
         return pd.DataFrame()
 
 
@@ -148,7 +133,7 @@ def save_df_to_s3(
     """
     file_path = f"s3://{bucket}/{key}"
 
-    logging.info(f"Saving {file_path}")
+    logger.info(f"Saving {file_path}")
     if file_type == "parquet":
         df.to_parquet(file_path, storage_options=storage_options)
     else:
@@ -168,11 +153,11 @@ def list_bucket_items(bucket_name: str) -> list:
 
         # Listing items in the bucket
         items = fs.ls(bucket_path)
-        logging.info(f"Items in bucket '{bucket_name}': {items}")
+        logger.info(f"Items in bucket '{bucket_name}': {items}")
 
         return items
     except Exception as e:
-        logging.error(f"Error listing items in bucket '{bucket_name}': {e}")
+        logger.error(f"Error listing items in bucket '{bucket_name}': {e}")
         return []
 
 
@@ -215,7 +200,7 @@ def backup_data(
     for file_path in files_to_backup:
         file_name = os.path.basename(file_path)
         backup_path = f"{bucket}/{backup_folder}{file_name}"
-        # Get file size and modified date for logging
+        # Get file size and modified date for logger
         file_info = fs.info(file_path)
         file_size = file_info.get("Size") or file_info.get("size", "Unknown size")
 
@@ -228,7 +213,8 @@ def backup_data(
 
                 # Log file backup details on successful copy
                 backup_logger.info(
-                    f"SUCCESS: {file_name} ({file_size} bytes, Last Modified: {modified_date})"
+                    f"SUCCESS: {file_name} ({file_size} bytes, "
+                    f"Last Modified: {modified_date})"
                 )
             except Exception as e:
                 backup_logger.error(f"Failed to back up {file_name}: {e}")
@@ -236,7 +222,8 @@ def backup_data(
         else:
             # Log dry run details
             backup_logger.info(
-                f"DRY RUN: {file_name} ({file_size} bytes, Last Modified: {modified_date})"
+                f"DRY RUN: {file_name} ({file_size} bytes, "
+                f"Last Modified: {modified_date})"
             )
 
     if dry_run:
