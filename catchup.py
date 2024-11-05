@@ -5,7 +5,7 @@ import storj_df_s3 as sj
 import awn_controller as awn
 from log_util import app_logger
 
-logger = app_logger(__name__)
+logger = app_logger(__name__, log_file="catchup.log")
 
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
