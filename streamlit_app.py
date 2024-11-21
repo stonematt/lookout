@@ -228,6 +228,39 @@ time.sleep(1)
 # Streamlit sidebar for auto-update toggle
 auto_update = st.sidebar.checkbox("Auto-Update", value=False)
 
+# Archive Stats Section
+if "history_df" in st.session_state:
+    history_df = st.session_state["history_df"]
+
+    # Calculate the date range and count of data points
+    date_range_start = history_df["date"].min()
+    date_range_end = history_df["date"].max()
+    data_point_count = len(history_df)
+
+    # Calculate intervals between data points
+    history_df = history_df.sort_values("date")  # Ensure data is sorted by date
+    time_deltas = history_df["date"].diff().dropna()  # Calculate time differences
+
+    # Convert time deltas to seconds for easier interpretation
+    time_intervals = time_deltas.dt.total_seconds()
+
+    # Calculate min, max, and median interval in seconds
+    min_interval = time_intervals.min()
+    max_interval = time_intervals.max()
+    median_interval = time_intervals.median()
+
+    # Display the stats in a new section
+    st.sidebar.subheader("Archive Stats")
+    st.sidebar.markdown(f"**Start**: {date_range_start}")
+    st.sidebar.markdown(f"**End**: {date_range_end}")
+    st.sidebar.markdown(f"{data_point_count} entries")
+    st.sidebar.markdown(f"**Min Interval**: {min_interval:.2f} seconds")
+    st.sidebar.markdown(f"**Max Interval**: {max_interval:.2f} seconds")
+    st.sidebar.markdown(f"**Median Interval**: {median_interval:.2f} seconds")
+else:
+    st.warning("Archive data not loaded. Please check your connection to the archive.")
+
+
 # start dashboard
 if "history_df" not in st.session_state:
     initial_load_device_history(device, bucket, file_type, auto_update)
@@ -373,3 +406,4 @@ if selected_metrics and "date" in history_df.columns:
     st.plotly_chart(fig)
 
     st.write(device.last_data)
+
