@@ -303,10 +303,12 @@ def make_column_gauges(gauge_list, chart_height=300):
             st.markdown(stats_md, unsafe_allow_html=True)
 
 
+# the "metric" that may be boxplotted
 box_plot = [
     {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
     {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
     {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
+    {"metric": "solarradiation", "title": "Solar Radiation", "metric_type": "temps"},
 ]
 
 
