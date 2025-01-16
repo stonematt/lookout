@@ -11,6 +11,7 @@ from dateutil import parser
 # import storj_df_s3 as sj
 import awn_controller as awn
 import visualization as lo_viz
+import data_processing as lo_dp
 from log_util import app_logger
 
 logger = app_logger(__name__)
@@ -311,6 +312,10 @@ box_plot = [
     {"metric": "solarradiation", "title": "Solar Radiation", "metric_type": "temps"},
 ]
 
+temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
+lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
+
+# rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
 
 # Display the header
 st.subheader("Current")
