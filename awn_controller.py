@@ -212,6 +212,10 @@ def get_history_since_last_archive(
     :return: DataFrame with updated device history.
     """
     try:
+        if archive_df.empty or "dateutc" not in archive_df.columns:
+            logger.error("archive_df is empty or missing 'dateutc'.")
+            return archive_df
+
         interim_df = pd.DataFrame()
         last_date = pd.to_datetime(archive_df["dateutc"].max(), unit="ms")
         gap_attempts = 0  # Counter for forward seeking due to gaps
@@ -220,34 +224,57 @@ def get_history_since_last_archive(
             if sleep:
                 time.sleep(1)
 
-            new_data = get_device_history_from_date(device, last_date, limit)
-            logger.info(f"Page {page}: {len(new_data)} new records found")
+            # Fetch new data
+            logger.debug(f"Fetching history from: {last_date}, limit: {limit}")
+            try:
+                new_data = get_device_history_from_date(device, last_date, limit)
+            except Exception as e:
+                logger.error(f"Error fetching data: {e}")
+                break
 
-            # In the loop where you fetch and process data:
+            if new_data.empty:
+                logger.info("No new data fetched.")
+                break
+
+            if "dateutc" not in new_data.columns:
+                logger.error("New data is missing 'dateutc'.")
+                break
+
+            # Check if new data contains fresh records
             if not _is_data_new(interim_df, new_data):
                 gap_attempts += 1
                 logger.info(f"Seeking ahead: {gap_attempts}/3")
-                if gap_attempts < 3:  # Try skipping ahead only if under the limit
-                    last_date = _calculate_next_start_date(
-                        last_date, gap_attempts, limit
-                    )
-                    continue
-                else:
+                if gap_attempts >= 3:
                     logger.info("Maximum gap attempts reached. Exiting.")
                     break
+                last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
+                continue
 
             # Reset gap attempts after finding new data
+            # Combine interim data
             gap_attempts = 0
+            logger.debug(
+                f"Combining DataFrames: interim_df={interim_df.shape}, new_data={new_data.shape}"
+            )
             interim_df = combine_df(interim_df, new_data)
+
+            # Log interim range
             logger.info(
                 f"Interim Page: {page}/{pages} "
                 f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
                 f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
             )
-            # Update last_date for the next fetch based on the new data's max date
+
+            # Update last_date for the next fetch
             last_date = pd.to_datetime(new_data["dateutc"].max(), unit="ms")
 
+        # Combine with archive
+        logger.debug(
+            f"Combining with archive: archive_df={archive_df.shape}, interim_df={interim_df.shape}"
+        )
         full_history_df = combine_df(archive_df, interim_df)
+
+        # Log full range
         logger.info(
             f"Full History Range: "
             f"({full_history_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
