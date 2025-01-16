@@ -196,7 +196,47 @@ def initial_load_device_history(device, bucket, file_type, auto_update):
     update_message.empty()
 
 
-# %%
+def make_column_gauges(gauge_list, chart_height=300):
+    """
+    Take a list of metrics and produce a row of gauges, with min, median, and max values displayed below each gauge.
+
+    :param gauge_list: list of dicts with metrics, titles to render as gauges, and their types.
+    :param chart_height: height of the charts in the row
+    """
+    # Create columns for gauges
+    cols = st.columns(len(gauge_list))
+
+    for i, gauge in enumerate(gauge_list):
+        metric = gauge["metric"]
+        title = gauge["title"]
+        metric_type = gauge["metric_type"]
+
+        # Retrieve the last value for the metric
+        value = last_data.get(metric, 0)
+
+        # Calculate min, median, max for the current metric from history_df
+        min_val = history_df[metric].min()
+        median_val = history_df[metric].median()
+        max_val = history_df[metric].max()
+
+        # Create the gauge chart for the current metric
+        gauge_fig = lo_viz.create_gauge_chart(
+            value=value, metric_type=metric_type, title=title, chart_height=chart_height
+        )
+
+        # Plot the gauge in the respective column, fitting it to the column width
+        with cols[i]:
+            st.plotly_chart(gauge_fig, use_container_width=True)
+
+            # Use markdown to display min, median, and max values below the gauge with less vertical space
+            stats_md = f"""<small>
+            <b>Min:</b> {min_val:.2f} <br>
+            <b>Median:</b> {median_val:.2f} <br>
+            <b>Max:</b> {max_val:.2f}
+            </small>"""
+            st.markdown(stats_md, unsafe_allow_html=True)
+
+
 # Present the dashboard ########################
 devices = api.get_devices()
 device = False
@@ -246,7 +286,8 @@ if auto_update and st.session_state["session_counter"] >= 1:
 
 # %%
 
-# Your gauge configurations
+
+# Gauge configurations
 temp_gauges = [
     {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
     {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
@@ -261,47 +302,6 @@ rain_guages = [
     {"metric": "monthlyrainin", "title": "Monthly Rain", "metric_type": "rain"},
     {"metric": "yearlyrainin", "title": "Yearly Rain", "metric_type": "rain"},
 ]
-
-
-def make_column_gauges(gauge_list, chart_height=300):
-    """
-    Take a list of metrics and produce a row of gauges, with min, median, and max values displayed below each gauge.
-
-    :param gauge_list: list of dicts with metrics, titles to render as gauges, and their types.
-    :param chart_height: height of the charts in the row
-    """
-    # Create columns for gauges
-    cols = st.columns(len(gauge_list))
-
-    for i, gauge in enumerate(gauge_list):
-        metric = gauge["metric"]
-        title = gauge["title"]
-        metric_type = gauge["metric_type"]
-
-        # Retrieve the last value for the metric
-        value = last_data.get(metric, 0)
-
-        # Calculate min, median, max for the current metric from history_df
-        min_val = history_df[metric].min()
-        median_val = history_df[metric].median()
-        max_val = history_df[metric].max()
-
-        # Create the gauge chart for the current metric
-        gauge_fig = lo_viz.create_gauge_chart(
-            value=value, metric_type=metric_type, title=title, chart_height=chart_height
-        )
-
-        # Plot the gauge in the respective column, fitting it to the column width
-        with cols[i]:
-            st.plotly_chart(gauge_fig, use_container_width=True)
-
-            # Use markdown to display min, median, and max values below the gauge with less vertical space
-            stats_md = f"""<small>
-            <b>Min:</b> {min_val:.2f} <br>
-            <b>Median:</b> {median_val:.2f} <br>
-            <b>Max:</b> {max_val:.2f}
-            </small>"""
-            st.markdown(stats_md, unsafe_allow_html=True)
 
 
 # the "metric" that may be boxplotted
