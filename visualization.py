@@ -158,3 +158,107 @@ def display_line_chart(df, metrics):
     """
     fig = px.line(df, x="date", y=metrics, title="Historical Data")
     st.plotly_chart(fig, use_container_width=True)
+
+
+def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
+    """
+    Draws a horizontal bar plot with markers for a range (min-max) and a current value.
+
+    :param data_dict: dict - Data in the format:
+                          {
+                              "category": {"min": value, "max": value, "current": value},
+                              ...
+                          }
+    :param label: str - Label for the x-axis and chart title.
+    :param xaxis_range: tuple or None - Custom x-axis range (min, max). If None, defaults
+                       to ±10% of the lowest min and highest max in data.
+    """
+    # Muted color palette
+    muted_palette = {
+        "line": "#1f77b4",  # Muted blue for the range line
+        "marker": "#aec7e8",  # Light blue for end markers
+        "current": "#2ca02c",  # Muted green for the current value
+    }
+
+    # Convert dictionary to a list of dictionaries for easier processing
+    categories = list(data_dict.keys())
+    plots = []
+
+    # Prepare data for plotting
+    for category in categories:
+        values = data_dict[category]
+        if values["min"] is not None and values["max"] is not None:
+            plots.append(
+                {
+                    "Category": category,
+                    "Min": values["min"],
+                    "Max": values["max"],
+                    "Current": values["current"],
+                }
+            )
+
+    # Determine x-axis range if not provided
+    if xaxis_range is None:
+        min_values = [p["Min"] for p in plots]
+        max_values = [p["Max"] for p in plots]
+        min_range = min(min_values) - 0.1 * abs(min(min_values))
+        max_range = max(max_values) + 0.1 * abs(max(max_values))
+        xaxis_range = (min_range, max_range)
+
+    # Create Plotly figure
+    fig = go.Figure()
+
+    # Add horizontal bars and current markers for each category
+    for plot in plots:
+        # Add the horizontal bar for the range
+        fig.add_trace(
+            go.Scatter(
+                x=[plot["Min"], plot["Max"]],
+                y=[plot["Category"], plot["Category"]],
+                mode="lines+markers",
+                line=dict(color=muted_palette["line"], width=8),
+                marker=dict(color=muted_palette["marker"], size=12),
+                name=plot["Category"],
+                text=[  # Tooltip for the line
+                    f"min: {plot['Min']}<br>max: {plot['Max']}<br>current: {plot['Current']}",
+                    f"min: {plot['Min']}<br>max: {plot['Max']}<br>current: {plot['Current']}",
+                ],
+                hoverinfo="text",
+            )
+        )
+        # Add a marker for the current value
+        if plot["Current"] is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=[plot["Current"]],
+                    y=[plot["Category"]],
+                    mode="markers",
+                    marker=dict(
+                        symbol="diamond-tall",
+                        line=dict(width=2, color="DarkSlateGrey"),
+                        color=muted_palette["current"],
+                        size=14,
+                    ),
+                    name=f"{plot['Category']} Current",
+                    text=[  # Tooltip for the marker
+                        f"current: {plot['Current']}",
+                    ],
+                    hoverinfo="text",
+                )
+            )
+
+    # Customize layout
+    fig.update_layout(
+        title=f"{label} Overview",
+        xaxis=dict(
+            range=xaxis_range,
+            showgrid=True,
+        ),
+        yaxis=dict(title="", showgrid=False),
+        showlegend=False,
+        font=dict(family="Arial", size=18),  # Use a clean font
+        # plot_bgcolor="#f9f9f9",  # Light background for consistency with Streamlit
+    )
+
+    # Render the plot in Streamlit
+    st.plotly_chart(fig)
