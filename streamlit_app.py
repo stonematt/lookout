@@ -20,7 +20,7 @@ logger = app_logger(__name__)
 st.set_page_config(
     page_title="Weather Station Dashboard",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
