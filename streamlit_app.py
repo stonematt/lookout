@@ -20,7 +20,7 @@ logger = app_logger(__name__)
 st.set_page_config(
     page_title="Weather Station Dashboard",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
@@ -188,35 +188,60 @@ def heatmap_chart(heatmap_table):
     st.plotly_chart(fig)
 
 
-def initial_load_device_history(device, bucket, file_type, auto_update):
+def load_or_update_data(
+    device, bucket, file_type, auto_update, short_minutes, long_minutes
+):
     """
-    Load archive file from s3 resource and optionally update data to the current time.
+    Wrapper function to load or update historical data with status messages.
 
-    :param device: The device object to load history for.
-    :param bucket: The name of the S3 bucket where the archive is stored.
-    :param file_type: The file type of the archive.
-    :param auto_update: Boolean flag to control whether to fetch interim data.
+    :param device: Object representing the device.
+    :param bucket: str - The S3 bucket name for archive storage.
+    :param file_type: str - The file type for archive storage (e.g., 'parquet').
+    :param auto_update: bool - Whether to perform updates automatically.
+    :param short_minutes: int - Minimum age threshold for updates (in minutes).
+    :param long_minutes: int - Maximum age threshold for updates (in minutes).
+    :return: None - Updates Streamlit session state directly.
     """
     update_message = st.empty()
-    update_message.text("Getting archive data")
 
-    # Get archive
-    st.session_state["history_df"] = awn.load_archive_for_device(
-        device, bucket, file_type
-    )
-    df = st.session_state["history_df"]
+    # Initial load
+    if "history_df" not in st.session_state:
+        update_message.text("Getting archive data...")
+        st.session_state["history_df"] = awn.load_archive_for_device(
+            device, bucket, file_type
+        )
 
-    df_stats = st.empty()
-    df_stats.text(f"Archive date range: {df.date.min()} to {df.date.max()}")
-
-    # Fetch interim data if auto-update is enabled
-    if auto_update:
-        update_message.text("Getting data since last archive")
-        time.sleep(1)
+        # Initialize session state variables
+        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+            "dateutc"
+        ].max()
+        st.session_state["cloud_max_dateutc"] = st.session_state["history_df"][
+            "dateutc"
+        ].max()
         st.session_state["session_counter"] = 0
 
-    df_stats.empty()
-    update_message.empty()
+        logger.info("Initial archive load completed.")
+        update_message.empty()
+
+    # Fetch interim data if conditions are met
+    history_df = st.session_state["history_df"]
+    history_max_dateutc = st.session_state["history_max_dateutc"]
+
+    if should_update_history(
+        device_last_dateutc=device.last_data["dateutc"],
+        history_max_dateutc=history_max_dateutc,
+        short_minutes=short_minutes,
+        long_minutes=long_minutes,
+        auto_update=auto_update,
+    ):
+        update_message.text("Updating historical data...")
+        update_session_data(device, history_df)
+        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+            "dateutc"
+        ].max()
+
+        logger.info("Historical data updated successfully.")
+        update_message.empty()
 
 
 def should_update_history(
@@ -318,48 +343,25 @@ time.sleep(1)
 # %%
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
-# start dashboard
-if "history_df" not in st.session_state:
-    # Load the archive from S3 and init session counter for auto-update
-    st.session_state["history_df"] = awn.load_archive_for_device(
-        device, bucket, file_type
-    )
-    # Get max dateutc from history_df for refresh logic
-    st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-        "dateutc"
-    ].max()
-    # save max dateutc from cloud, so we can save to cloud hourly.
-    st.session_state["cloud_max_dateutc"] = st.session_state["history_df"][
-        "dateutc"
-    ].max()
 
-
-history_df = st.session_state["history_df"]
-history_max_dateutc = st.session_state.get("history_max_dateutc", 0)
-
-
-# Fetch interim data if 'auto_update' is True and history is more than 5m old but less than 3 days
-if should_update_history(
-    device_last_dateutc=device_last_dateutc,
-    history_max_dateutc=history_max_dateutc,
+# Call the wrapper to load or update the weather station data
+load_or_update_data(
+    device=device,
+    bucket=bucket,
+    file_type=file_type,
+    auto_update=auto_update,
     short_minutes=auto_refresh_min,
     long_minutes=auto_refresh_max,
-    auto_update=auto_update,
-):
-    logger.info("Auto-update triggered: History is outdated.")
-    update_session_data(device, st.session_state["history_df"])
-    history_df = st.session_state["history_df"]
-    # Update the session state with the new max dateutc
-    st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-        "dateutc"
-    ].max()
-    history_max_dateutc = st.session_state.get("history_max_dateutc", 0)
+)
+
+# Access the updated history_df and max_dateutc
+history_df = st.session_state["history_df"]
+history_max_dateutc = st.session_state["history_max_dateutc"]
 
 st.sidebar.write(
     f"Last date: {to_date(device.last_data['date'])}\n"
     f"Archive date: {history_df.date.max()}"
 )
-
 
 history_age_h = lo_dp.get_human_readable_duration(
     device_last_dateutc, history_max_dateutc
