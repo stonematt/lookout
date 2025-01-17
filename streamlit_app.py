@@ -261,6 +261,8 @@ def make_column_gauges(gauge_list, chart_height=300):
 
 devices = api.get_devices()
 device = False
+device_last_dateutc = 0
+last_data = {}
 
 device_menu = "98:CD:AC:22:0D:E5"
 if len(devices) == 1:
@@ -269,7 +271,10 @@ if len(devices) == 1:
     device_name = device.info["name"]
     last_data = device.last_data
     st.header(f"Weather Station:  {device_name}")
-    logger.info(f"One device found:  {device.info['name']}")
+    logger.debug(f"One device found:  {device.info['name']}")
+    
+    # Compare device's last data UTC with the archive max dateutc
+    device_last_dateutc = device.last_data.get("dateutc")
 
 # if we dont' get a device from ambient. blow up.
 if not device:
@@ -298,18 +303,24 @@ if "history_df" not in st.session_state:
     # Load the archive from S3 and init session counter for auto-update
     st.session_state["history_df"] = awn.load_archive_for_device(device, bucket, file_type)
     st.session_state["session_counter"] = 0
+    # Get max dateutc from history_df for refresh logic
+    st.session_state["history_max_dateutc"] = st.session_state["history_df"]["dateutc"].max()
 
     # Update session data only if auto-update is enabled
     if auto_update:
         update_session_data(device, st.session_state["history_df"])
 
 history_df = st.session_state["history_df"]
+history_max_dateutc = st.session_state.get("history_max_dateutc", 0)
+
 
 # Only fetch interim data if 'auto_update' is True
 # might have to rethink the session counter logic for first run after auto_update
-if auto_update and st.session_state["session_counter"] >= st.session_state['reload_interval']:
-    logger.info("Updating session data")
-    update_session_data(device)
+if auto_update and (device_last_dateutc - history_max_dateutc > 5 * 60 * 1000):  # 5 minutes in milliseconds
+    logger.info("Auto-update triggered: Last data is more than 5 minutes ahead of archive.")
+    update_session_data(device, history_df)
+    # Update the session state with the new max dateutc
+    st.session_state["history_max_dateutc"] = st.session_state["history_df"]["dateutc"].max()
 
 st.sidebar.write(f"Last date: {to_date(device.last_data["date"])}")
 st.sidebar.write(f"Archive date: {history_df.date.max()}")
@@ -371,6 +382,7 @@ box_width_option = st.selectbox("Select box width:", ["hour", "day", "week", "mo
 if selected_metrics and "date" in history_df.columns:
     # Convert 'date' column to datetime if it's not already
     history_df["date"] = pd.to_datetime(history_df["date"])
+    group_column = ""
 
     # Group by the selected box width option
     if box_width_option == "hour":
