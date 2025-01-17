@@ -38,6 +38,8 @@ api = AmbientAPI(
 # define variables
 sec_in_hour = 3600 * 1000
 bucket = "lookout"
+auto_refresh_min = 6  # minutes to wait for auto update
+auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
 
 keys = {
     "temp_keys": [
@@ -215,6 +217,29 @@ def initial_load_device_history(device, bucket, file_type, auto_update):
     update_message.empty()
 
 
+def should_update_history(
+    device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
+):
+    """
+    Determines if the historical data should be updated based on age thresholds.
+
+    :param device_last_dateutc: int - Last data timestamp from the device (in milliseconds).
+    :param history_max_dateutc: int - Maximum data timestamp in the archive (in milliseconds).
+    :param short_minutes: int - Minimum age (in minutes) required to trigger an update.
+    :param long_minutes: int - Maximum age (in minutes) for which updates are valid.
+    :param auto_update: bool - Whether auto-update is enabled.
+    :return: bool - True if history should be updated, False otherwise.
+    """
+    if not auto_update:
+        return False
+
+    delta_ms = device_last_dateutc - history_max_dateutc
+    short_ms = short_minutes * 60 * 1000  # Convert minutes to milliseconds
+    long_ms = long_minutes * 60 * 1000  # Convert minutes to milliseconds
+
+    return short_ms < delta_ms < long_ms
+
+
 def make_column_gauges(gauge_list, chart_height=300):
     """
     Take a list of metrics and produce a row of gauges, with min, median, and max values displayed below each gauge.
@@ -272,7 +297,7 @@ if len(devices) == 1:
     last_data = device.last_data
     st.header(f"Weather Station:  {device_name}")
     logger.debug(f"One device found:  {device.info['name']}")
-    
+
     # Compare device's last data UTC with the archive max dateutc
     device_last_dateutc = device.last_data.get("dateutc")
 
@@ -289,42 +314,55 @@ hist_file = f"{device_mac}.{file_type}"
 # pause for ambient.
 time.sleep(1)
 
-st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
-st.session_state['reload_interval'] = st.session_state.get("reload_interval", 2)
-
 # %%
-# Streamlit sidebar for auto-update toggle
-st.sidebar.write(f"Reload Interval: {st.session_state.get('reload_interval')}")
-st.sidebar.write(f"Current Counter: {st.session_state.get('session_counter')}")
-auto_update = st.sidebar.checkbox("Auto-Update", value=False)
+auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
 # start dashboard
 if "history_df" not in st.session_state:
     # Load the archive from S3 and init session counter for auto-update
-    st.session_state["history_df"] = awn.load_archive_for_device(device, bucket, file_type)
-    st.session_state["session_counter"] = 0
+    st.session_state["history_df"] = awn.load_archive_for_device(
+        device, bucket, file_type
+    )
     # Get max dateutc from history_df for refresh logic
-    st.session_state["history_max_dateutc"] = st.session_state["history_df"]["dateutc"].max()
+    st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+        "dateutc"
+    ].max()
+    # save max dateutc from cloud, so we can save to cloud hourly.
+    st.session_state["cloud_max_dateutc"] = st.session_state["history_df"][
+        "dateutc"
+    ].max()
 
-    # Update session data only if auto-update is enabled
-    if auto_update:
-        update_session_data(device, st.session_state["history_df"])
 
 history_df = st.session_state["history_df"]
 history_max_dateutc = st.session_state.get("history_max_dateutc", 0)
 
 
-# Only fetch interim data if 'auto_update' is True
-# might have to rethink the session counter logic for first run after auto_update
-if auto_update and (device_last_dateutc - history_max_dateutc > 5 * 60 * 1000):  # 5 minutes in milliseconds
-    logger.info("Auto-update triggered: Last data is more than 5 minutes ahead of archive.")
-    update_session_data(device, history_df)
+# Only fetch interim data if 'auto_update' is True and history is more than 5m old but less than 3 days
+# Check if the history should be updated
+if should_update_history(
+    device_last_dateutc=device_last_dateutc,
+    history_max_dateutc=history_max_dateutc,
+    short_minutes=auto_refresh_min,
+    long_minutes=auto_refresh_max,
+    auto_update=auto_update,
+):
+    logger.info("Auto-update triggered: History is outdated.")
+    update_session_data(device, st.session_state["history_df"])
     # Update the session state with the new max dateutc
-    st.session_state["history_max_dateutc"] = st.session_state["history_df"]["dateutc"].max()
+    st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+        "dateutc"
+    ].max()
 
-st.sidebar.write(f"Last date: {to_date(device.last_data["date"])}")
-st.sidebar.write(f"Archive date: {history_df.date.max()}")
+st.sidebar.write(
+    f"Last date: {to_date(device.last_data['date'])}\n"
+    f"Archive date: {history_df.date.max()}"
+)
 
+# Calculate history age in minutes
+history_age_minutes = (device_last_dateutc - history_max_dateutc) / (60 * 1000)
+
+# Display in the sidebar
+st.sidebar.write(f"Archive is {history_age_minutes:.2f} minutes old.")
 # %%
 
 
