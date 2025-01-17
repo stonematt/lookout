@@ -9,6 +9,27 @@ from log_util import app_logger  # Ensure you have this module set up for loggin
 logger = app_logger(__name__)
 
 
+def get_human_readable_duration(recent_dateutc, history_dateutc):
+    """
+    Returns a human-centric duration in minutes, hours, or days.
+
+    Parameters:
+    recent_dateutc (int): The last date in UTC from the device.
+    history_dateutc (int): The maximum date in UTC from the history.
+
+    Returns:
+    str: A human-readable duration.
+    """
+    history_age_minutes = (recent_dateutc - history_dateutc) / 60000
+
+    if history_age_minutes < 60:
+        return f"{history_age_minutes:.0f} minutes"
+    elif history_age_minutes < 1440:
+        return f"{history_age_minutes / 60:.1f} hours"
+    else:
+        return f"{history_age_minutes / 1440:.1f} days"
+
+
 def get_history_min_max(df, date_column="date", data_column="tempf", data_label="temp"):
     """
     Calculate the minimum and maximum values of a data column for specific time periods.
