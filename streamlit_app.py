@@ -11,6 +11,7 @@ from dateutil import parser
 # import storj_df_s3 as sj
 import awn_controller as awn
 import visualization as lo_viz
+import data_processing as lo_dp
 from log_util import app_logger
 
 logger = app_logger(__name__)
@@ -89,18 +90,37 @@ keys = {
 }
 
 
-def update_session_data(device, hist_df):
-    # todo: convert this to just get interim data.
+def update_session_data(device, hist_df=None, limit=250, pages=10):
     """
     Update session with latest historical data and reset session counter.
 
     :param device: Object representing the device.
-    :param hist_df: DataFrame of current historical data.
+    :param hist_df: DataFrame of current historical data, defaults to session state history.
+    :param limit: int - Max records to fetch per call, default 250.
+    :param pages: int - Number of pages to fetch, default 10.
     :return: None.
     """
+    try:
+        # Use provided or session state history
+        current_df = (
+            hist_df
+            if hist_df is not None
+            else st.session_state.get("history_df", pd.DataFrame())
+        )
 
-    st.session_state["history_df"] = awn.get_history_since_last_archive(device, hist_df)
-    st.session_state["session_counter"] = 0
+        # Fetch updated history
+        updated_df = awn.get_history_since_last_archive(
+            device, current_df, limit=limit, pages=pages
+        )
+
+        # Update session state
+        st.session_state["history_df"] = updated_df
+        st.session_state["session_counter"] = 0
+
+        logger.info("Session data updated successfully.")
+    except Exception as e:
+        logger.error(f"Failed to update session data: {e}")
+        st.error("An error occurred while updating session data. Please try again.")
 
 
 def to_date(date_string: str):
@@ -336,21 +356,106 @@ def make_column_gauges(gauge_list, chart_height=300):
             st.markdown(stats_md, unsafe_allow_html=True)
 
 
-box_plot = [
+# Present the dashboard ########################
+
+
+devices = api.get_devices()
+device = False
+
+device_menu = "98:CD:AC:22:0D:E5"
+if len(devices) == 1:
+    device = devices[0]
+    device_menu = device.mac_address
+    device_name = device.info["name"]
+    last_data = device.last_data
+    st.header(f"Weather Station:  {device_name}")
+    logger.info(f"One device found:  {device.info['name']}")
+
+# if we dont' get a device from ambient. blow up.
+if not device:
+    st.write("No connection to Ambient Network")
+    exit()
+
+file_type = "parquet"
+device_mac = device_menu
+hist_file = f"{device_mac}.{file_type}"
+# lookout/98:CD:AC:22:0D:E5.json
+
+# pause for ambient.
+time.sleep(1)
+
+st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
+st.session_state['reload_interval'] = st.session_state.get("reload_interval", 2)
+
+# %%
+# Streamlit sidebar for auto-update toggle
+st.sidebar.write(f"Reload Interval: {st.session_state.get('reload_interval')}")
+st.sidebar.write(f"Current Counter: {st.session_state.get('session_counter')}")
+auto_update = st.sidebar.checkbox("Auto-Update", value=False)
+
+# start dashboard
+if "history_df" not in st.session_state:
+    # Load the archive from S3 and init session counter for auto-update
+    st.session_state["history_df"] = awn.load_archive_for_device(device, bucket, file_type)
+    st.session_state["session_counter"] = 0
+
+    # Update session data only if auto-update is enabled
+    if auto_update:
+        update_session_data(device, st.session_state["history_df"])
+
+history_df = st.session_state["history_df"]
+
+# Only fetch interim data if 'auto_update' is True
+# might have to rethink the session counter logic for first run after auto_update
+if auto_update and st.session_state["session_counter"] >= st.session_state['reload_interval']:
+    logger.info("Updating session data")
+    update_session_data(device)
+
+st.sidebar.write(f"Last date: {to_date(device.last_data["date"])}")
+st.sidebar.write(f"Archive date: {history_df.date.max()}")
+
+# %%
+
+
+# Gauge configurations
+temp_gauges = [
     {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
     {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
     {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
 ]
 
+rain_guages = [
+    {"metric": "hourlyrainin", "title": "Hourly Rain", "metric_type": "rain_rate"},
+    {"metric": "eventrainin", "title": "Event Rain", "metric_type": "rain"},
+    {"metric": "dailyrainin", "title": "Daily Rain", "metric_type": "rain"},
+    {"metric": "weeklyrainin", "title": "Weekly Rain", "metric_type": "rain"},
+    {"metric": "monthlyrainin", "title": "Monthly Rain", "metric_type": "rain"},
+    {"metric": "yearlyrainin", "title": "Yearly Rain", "metric_type": "rain"},
+]
+
+
+# the "metric" that may be boxplotted
+box_plot = [
+    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
+    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
+    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
+    {"metric": "solarradiation", "title": "Solar Radiation", "metric_type": "temps"},
+]
+
+temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
+lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
+
+# rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
 
 # Display the header
-st.subheader("Current Temps")
+st.subheader("Current")
 
 if last_data:
     make_column_gauges(temp_gauges)
     make_column_gauges(rain_guages)
 
 
+st.subheader("Temps Plots")
 # Let the user select multiple metrics for comparison
 metric_titles = [metric["title"] for metric in box_plot]
 selected_titles = st.multiselect(
