@@ -117,7 +117,9 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
 
         # Update session state
         st.session_state["history_df"] = updated_df
-        st.session_state["session_counter"] = 0
+        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+            "dateutc"
+        ].max()
 
         logger.info("Session data updated successfully.")
     except Exception as e:
@@ -237,7 +239,7 @@ def should_update_history(
     short_ms = short_minutes * 60 * 1000  # Convert minutes to milliseconds
     long_ms = long_minutes * 60 * 1000  # Convert minutes to milliseconds
 
-    return short_ms < delta_ms < long_ms
+    return short_ms <= delta_ms < long_ms
 
 
 def make_column_gauges(gauge_list, chart_height=300):
@@ -281,8 +283,7 @@ def make_column_gauges(gauge_list, chart_height=300):
             st.markdown(stats_md, unsafe_allow_html=True)
 
 
-# Present the dashboard ########################
-
+# Setup and get data ########################
 
 devices = api.get_devices()
 device = False
@@ -337,8 +338,7 @@ history_df = st.session_state["history_df"]
 history_max_dateutc = st.session_state.get("history_max_dateutc", 0)
 
 
-# Only fetch interim data if 'auto_update' is True and history is more than 5m old but less than 3 days
-# Check if the history should be updated
+# Fetch interim data if 'auto_update' is True and history is more than 5m old but less than 3 days
 if should_update_history(
     device_last_dateutc=device_last_dateutc,
     history_max_dateutc=history_max_dateutc,
@@ -348,21 +348,25 @@ if should_update_history(
 ):
     logger.info("Auto-update triggered: History is outdated.")
     update_session_data(device, st.session_state["history_df"])
+    history_df = st.session_state["history_df"]
     # Update the session state with the new max dateutc
     st.session_state["history_max_dateutc"] = st.session_state["history_df"][
         "dateutc"
     ].max()
+    history_max_dateutc = st.session_state.get("history_max_dateutc", 0)
 
 st.sidebar.write(
     f"Last date: {to_date(device.last_data['date'])}\n"
     f"Archive date: {history_df.date.max()}"
 )
 
-# Calculate history age in minutes
-history_age_minutes = (device_last_dateutc - history_max_dateutc) / (60 * 1000)
+
+history_age_h = lo_dp.get_human_readable_duration(
+    device_last_dateutc, history_max_dateutc
+)
 
 # Display in the sidebar
-st.sidebar.write(f"Archive is {history_age_minutes:.2f} minutes old.")
+st.sidebar.write(f"Archive is {history_age_h} old.")
 # %%
 
 
@@ -390,6 +394,8 @@ box_plot = [
     {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
     {"metric": "solarradiation", "title": "Solar Radiation", "metric_type": "temps"},
 ]
+
+# Present the dashboard ########################
 
 temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
 lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
