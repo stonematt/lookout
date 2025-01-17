@@ -94,6 +94,12 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
         )
         logger.info(f"Fetch history: {device.mac_address}, Params: {params}")
         df = pd.json_normalize(device.get_data(**params))
+
+        if df.empty:
+            logger.debug("Empty response, no new data")
+            return pd.DataFrame()
+
+        # Sort the data by 'dateutc'
         df.sort_values(by="dateutc", inplace=True)
 
         # Convert 'date' column to local time
@@ -188,7 +194,7 @@ def fetch_device_data(device, last_date, limit):
     try:
         new_data = get_device_history_from_date(device, last_date, limit)
         if new_data.empty:
-            logger.info("No new data fetched.")
+            logger.debug("No new data fetched.")
             return pd.DataFrame(), False
         return new_data, True
     except Exception as e:
