@@ -8,6 +8,14 @@ import numpy as np
 from colour import Color
 
 gauge_defaults = {
+    "default": {
+        "start_color": "#33CCFF",
+        "end_color": "#FF3300",
+        "steps": 100,
+        "min_val": 0,
+        "max_val": 120,
+        "title": "Temperature (°F)",
+    },
     "temps": {
         "start_color": "#33CCFF",
         "end_color": "#FF3300",
@@ -71,6 +79,68 @@ def generate_gradient_steps(start_color, end_color, steps):
     hex_colors = [color.get_hex() for color in gradient_colors]
 
     return hex_colors
+
+
+def create_windrose_chart(
+    grouped_data,
+    value_labels,
+    title="Windrose",
+    sector_size=30,
+    color_palette="default",
+):
+    """
+    Generates a polar chart using Plotly, with customizable sectors and color palettes.
+
+    :param grouped_data: pd.DataFrame - DataFrame with percentage data.
+    :param value_labels: list - Bin labels for the values.
+    :param sector_size: int - Size of directional sectors (e.g., 30°).
+    :param color_palette: string - Key for the color palette in gauge_defaults.
+    :return: go.Figure - Plotly figure object.
+    """
+    # Generate gradient colors
+    chart_config = gauge_defaults[color_palette]
+    colors = generate_gradient_steps(
+        start_color=chart_config["start_color"],
+        end_color=chart_config["end_color"],
+        steps=len(value_labels),
+    )
+
+    # Create Plotly figure
+    fig = go.Figure()
+
+    for i, value_label in enumerate(value_labels):
+        bin_data = grouped_data[grouped_data["value_bin"] == value_label]
+        fig.add_trace(
+            go.Barpolar(
+                r=bin_data["percentage"],
+                theta=[int(label.split("-")[0]) for label in bin_data["direction_bin"]],
+                width=sector_size,
+                name=value_label,
+                marker_color=colors[i],
+                marker_line=dict(color="black", width=1.5),
+            )
+        )
+
+    # Customize layout
+    fig.update_layout(
+        title=title,
+        polar=dict(
+            angularaxis=dict(
+                tickmode="array",
+                tickvals=np.arange(0, 360, sector_size),
+                ticktext=[f"{int(val)}°" for val in np.arange(0, 360, sector_size)],
+                rotation=90,
+                direction="clockwise",
+            ),
+            radialaxis=dict(
+                visible=True,
+                ticksuffix="%",
+            ),
+        ),
+        legend=dict(title="Categories", orientation="h", y=-0.2),
+    )
+
+    return fig
 
 
 def create_gauge_chart(
