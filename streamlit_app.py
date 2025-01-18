@@ -399,8 +399,33 @@ box_plot = [
 
 # Present the dashboard ########################
 
-temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
-lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
+row1 = st.columns(2)
+
+with row1[0]:
+
+    temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
+    lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
+
+with row1[1]:
+
+    # Parameters for the polar chart
+    value_col = "windspeedmph"
+    direction_col = "winddir"
+
+    # Use the wrapper function to prepare data
+    grouped_data, value_labels, direction_labels = lo_dp.prepare_polar_chart_data(
+        history_df,
+        value_col,
+        direction_col,
+    )
+
+    # Create and display the chart
+    fig = lo_viz.create_windrose_chart(
+        grouped_data, value_labels, color_palette="wind", title=value_col
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
 
 # rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
 
@@ -409,7 +434,7 @@ st.subheader("Current")
 
 if last_data:
     make_column_gauges(temp_gauges)
-    make_column_gauges(rain_guages)
+    # make_column_gauges(rain_guages)
 
 
 st.subheader("Temps Plots")
