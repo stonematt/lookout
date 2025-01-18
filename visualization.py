@@ -89,16 +89,18 @@ def create_windrose_chart(
     color_palette="default",
 ):
     """
-    Generates a polar chart using Plotly, with customizable sectors and color palettes.
+    Generates a windrose chart using Plotly, with customizable sectors and color palettes.
+    Includes enhanced hover text with category, direction, and percentage details.
 
     :param grouped_data: pd.DataFrame - DataFrame with percentage data.
     :param value_labels: list - Bin labels for the values.
-    :param sector_size: int - Size of directional sectors (e.g., 30°).
-    :param color_palette: string - Key for the color palette in gauge_defaults.
+    :param title: str - Title for the chart. Defaults to "Windrose".
+    :param sector_size: int - Size of directional sectors (degrees). Defaults to 30°.
+    :param color_palette: str - Key for the color palette in gauge_defaults.
     :return: go.Figure - Plotly figure object.
     """
     # Generate gradient colors
-    chart_config = gauge_defaults[color_palette]
+    chart_config = gauge_defaults.get(color_palette, gauge_defaults["default"])
     colors = generate_gradient_steps(
         start_color=chart_config["start_color"],
         end_color=chart_config["end_color"],
@@ -108,36 +110,55 @@ def create_windrose_chart(
     # Create Plotly figure
     fig = go.Figure()
 
+    # Add data to the windrose chart
     for i, value_label in enumerate(value_labels):
         bin_data = grouped_data[grouped_data["value_bin"] == value_label]
+
+        # Create the barpolar trace with enhanced hover text
         fig.add_trace(
             go.Barpolar(
                 r=bin_data["percentage"],
                 theta=[int(label.split("-")[0]) for label in bin_data["direction_bin"]],
-                width=sector_size,
-                name=value_label,
+                width=np.full(len(bin_data), sector_size),  # Width of the bars
+                name=value_label,  # Legend entry
                 marker_color=colors[i],
                 marker_line=dict(color="black", width=1.5),
+                hoverinfo="text",  # Custom hover info
+                text=[  # Detailed hover text
+                    f"<b>Category:</b> {value_label}<br>"
+                    f"<b>Direction:</b> {label}<br>"
+                    f"<b>Percentage:</b> {percentage:.2f}%"
+                    for label, percentage in zip(
+                        bin_data["direction_bin"], bin_data["percentage"]
+                    )
+                ],
             )
         )
 
-    # Customize layout
+    # Customize chart layout
     fig.update_layout(
-        title=title,
+        title=dict(text=title),
         polar=dict(
             angularaxis=dict(
                 tickmode="array",
                 tickvals=np.arange(0, 360, sector_size),
                 ticktext=[f"{int(val)}°" for val in np.arange(0, 360, sector_size)],
-                rotation=90,
-                direction="clockwise",
+                rotation=90,  # North is up
+                direction="clockwise",  # Angles increase clockwise
             ),
             radialaxis=dict(
                 visible=True,
-                ticksuffix="%",
+                ticksuffix="%",  # Append "%" to radial labels
             ),
         ),
-        legend=dict(title="Categories", orientation="h", y=-0.2),
+        legend=dict(
+            title="Categories",
+            orientation="h",
+            yanchor="top",
+            y=-0.15,  # Move legend below chart
+            xanchor="center",
+            x=0.5,  # Center the legend horizontally
+        ),
     )
 
     return fig
