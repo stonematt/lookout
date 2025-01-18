@@ -358,10 +358,7 @@ load_or_update_data(
 history_df = st.session_state["history_df"]
 history_max_dateutc = st.session_state["history_max_dateutc"]
 
-st.sidebar.write(
-    f"Last date: {to_date(device.last_data['date'])}\n"
-    f"Archive date: {history_df.date.max()}"
-)
+st.sidebar.write(f"History as of: {history_df.date.max()}")
 
 history_age_h = lo_dp.get_human_readable_duration(
     device_last_dateutc, history_max_dateutc
@@ -409,8 +406,19 @@ with row1[0]:
 with row1[1]:
 
     # Parameters for the polar chart
-    value_col = "windspeedmph"
-    direction_col = "winddir"
+    # value_col = "windspeedmph"
+    # direction_col = "winddir"
+    # Define valid column pairs for the polar chart
+    valid_pairs = [
+        ("windspeedmph", "winddir"),
+        ("windspdmph_avg10m", "winddir_avg10m"),
+        ("windgustmph", "winddir"),
+        ("maxdailygust", "winddir_avg10m"),
+    ]
+
+    # Unpack selected pair (defaults to the first pair in the list)
+    selected_pair = valid_pairs[0]
+    value_col, direction_col = selected_pair
 
     # Use the wrapper function to prepare data
     grouped_data, value_labels, direction_labels = lo_dp.prepare_polar_chart_data(
@@ -425,6 +433,16 @@ with row1[1]:
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+    # Streamlit selector for column pairs
+    selected_pair = st.selectbox(
+        "Wind Metric:",
+        valid_pairs,
+        format_func=lambda pair: pair[0],
+    )
+
+    # Unpack selected pair
+    value_col, direction_col = selected_pair
 
 
 # rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
