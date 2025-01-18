@@ -410,15 +410,18 @@ with row1[1]:
     # direction_col = "winddir"
     # Define valid column pairs for the polar chart
     valid_pairs = [
-        ("windspeedmph", "winddir"),
-        ("windspdmph_avg10m", "winddir_avg10m"),
-        ("windgustmph", "winddir"),
-        ("maxdailygust", "winddir_avg10m"),
+        ("windspeedmph", "winddir", "Wind Speed"),
+        ("windspdmph_avg10m", "winddir_avg10m", "10m Average Wind"),
+        ("windgustmph", "winddir", "Wind Gust"),
+        ("maxdailygust", "winddir_avg10m", "Max Daily Gust"),
     ]
 
-    # Unpack selected pair (defaults to the first pair in the list)
-    selected_pair = valid_pairs[0]
-    value_col, direction_col = selected_pair
+    # Initialize session state for the selected pair
+    if "selected_pair" not in st.session_state:
+        st.session_state["selected_pair"] = valid_pairs[0]  # Default to the first pair
+
+    # Unpack the selected pair from session state
+    value_col, direction_col, wind_description = st.session_state["selected_pair"]
 
     # Use the wrapper function to prepare data
     grouped_data, value_labels, direction_labels = lo_dp.prepare_polar_chart_data(
@@ -434,15 +437,20 @@ with row1[1]:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Streamlit selector for column pairs
+    # Dropdown for selecting the pair (below the chart)
     selected_pair = st.selectbox(
         "Wind Metric:",
         valid_pairs,
-        format_func=lambda pair: pair[0],
+        format_func=lambda pair: pair[2],
+        index=valid_pairs.index(
+            st.session_state["selected_pair"]
+        ),  # Set current session value
     )
 
-    # Unpack selected pair
-    value_col, direction_col = selected_pair
+    # Update session state if the user changes the dropdown value
+    if selected_pair != st.session_state["selected_pair"]:
+        st.session_state["selected_pair"] = selected_pair
+        st.rerun()
 
 
 # rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
