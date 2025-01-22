@@ -1,3 +1,7 @@
+"""
+Main streamlit.io application
+"""
+
 import time
 
 import pandas as pd

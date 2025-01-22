@@ -1,4 +1,7 @@
-# data_processing.py
+""" data_processing.py
+Collection of functions to manipulate data frames for a streamlit dashboard
+"""
+
 import pandas as pd
 import numpy as np
 
