@@ -96,6 +96,28 @@ def load_archive_for_device(device: dict, bucket: str) -> pd.DataFrame:
     return sj.get_df_from_s3(bucket, key, file_type="parquet")
 
 
+def normalize_history_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize types for date fields in the weather history DataFrame.
+
+    :param df: DataFrame containing historical weather records.
+    :return: DataFrame with standardized datetime fields.
+    """
+    df["dateutc"] = pd.to_numeric(df["dateutc"], errors="coerce")
+
+    if "lastRain" in df.columns:
+        # Always coerce to UTC first, then convert to archive TZ
+        df["lastRain"] = pd.to_datetime(
+            df["lastRain"], errors="coerce", utc=True
+        ).dt.tz_convert("America/Los_Angeles")
+
+    df["date"] = pd.to_datetime(
+        df["dateutc"], unit="ms", errors="coerce", utc=True
+    ).dt.tz_convert("America/Los_Angeles")
+
+    return df
+
+
 def get_history_since_last_archive(
     device: dict, archive_df: pd.DataFrame, pages: int = 20, sleep: bool = True
 ) -> pd.DataFrame:
@@ -130,13 +152,7 @@ def get_history_since_last_archive(
         interim_df = pd.concat(
             [interim_df, new_data], ignore_index=True
         ).drop_duplicates()
-
-        # Normalize types to avoid Timestamp/string comparison issues
-        interim_df["dateutc"] = pd.to_numeric(interim_df["dateutc"], errors="coerce")
-        interim_df["date"] = pd.to_datetime(
-            interim_df["dateutc"], unit="ms", errors="coerce"
-        )
-
+        interim_df = normalize_history_df(interim_df)
         log_interim_progress(page, pages, interim_df)
 
     interim_df.sort_values(by="dateutc", inplace=True)
