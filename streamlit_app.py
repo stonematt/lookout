@@ -14,8 +14,8 @@ from dateutil import parser
 # my modules
 # import storj_df_s3 as sj
 import awn_controller as awn
-import visualization as lo_viz
 import data_processing as lo_dp
+import visualization as lo_viz
 from log_util import app_logger
 
 logger = app_logger(__name__)
