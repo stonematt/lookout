@@ -22,12 +22,14 @@ Helper Functions:
 - log_interim_progress: Logs progress during data fetching.
 """
 
-from ambient_api.ambientapi import AmbientAPI
-from datetime import datetime, timedelta
-import pandas as pd
 import time
+from datetime import datetime, timedelta
+
+import pandas as pd
 import streamlit as st
+
 import storj_df_s3 as sj
+from ambient_client import get_device_by_mac, get_device_history, get_devices
 from log_util import app_logger
 
 logger = app_logger(__name__)
@@ -93,7 +95,7 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
             {"limit": limit, "end_date": end_date} if end_date else {"limit": limit}
         )
         logger.info(f"Fetch history: {device.mac_address}, Params: {params}")
-        df = pd.json_normalize(device.get_data(**params))
+        df = pd.json_normalize(get_device_history(device, **params))
 
         if df.empty:
             logger.debug("Empty response, no new data")
@@ -309,14 +311,7 @@ def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
 
 
 def main():
-    api = AmbientAPI(
-        log_level="WARN",
-        AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
-        AMBIENT_API_KEY=AMBIENT_API_KEY,
-        AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
-    )
-
-    devices = api.get_devices()
+        devices = api.get_devices()
     device = devices[0]
 
     df = load_archive_for_device(device, "lookout", "parquet")
