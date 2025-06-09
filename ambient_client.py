@@ -12,7 +12,7 @@ Requires:
 - Streamlit secrets: AMBIENT_API_KEY, AMBIENT_APPLICATION_KEY
 """
 
-from datetime import datetime
+import time
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -24,6 +24,7 @@ from log_util import app_logger
 logger = app_logger(__name__)
 
 # Secrets
+# BASE_URL = "https://rt.ambientweather.net/v1"
 BASE_URL = st.secrets["AMBIENT_ENDPOINT"].rstrip("/")
 API_KEY = st.secrets["AMBIENT_API_KEY"]
 APP_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
@@ -40,6 +41,7 @@ def get_devices() -> List[Dict]:
         "apiKey": API_KEY,
         "applicationKey": APP_KEY,
     }
+    time.sleep(1)
     resp = requests.get(url, params=params)
     if resp.status_code != 200:
         logger.error(f"Device list failed: {resp.status_code} {resp.text}")
@@ -65,33 +67,45 @@ def get_device_history(
     mac: str, limit: int = 288, end_date: Optional[int] = None
 ) -> pd.DataFrame:
     """
-    Fetch historical weather data for a device.
+    Fetch historical weather data for a specific device using Ambient's real-time endpoint.
 
-    :param mac: MAC address of the device.
-    :param limit: Number of records to retrieve.
-    :param end_date: Optional end timestamp in milliseconds.
-    :return: DataFrame of weather data.
+    :param mac: MAC address of the device to fetch data for.
+    :param limit: Max number of records to return (default: 288).
+    :param end_date: Optional UNIX timestamp in milliseconds for the end of the time range.
+                     If omitted, the latest data will be returned.
+    :return: A DataFrame of weather data or empty DataFrame on failure.
     """
-    url = f"{BASE_URL}/devices/{mac}/historic"
+    url = f"{BASE_URL}/devices/{mac}"
     params = {
         "apiKey": API_KEY,
         "applicationKey": APP_KEY,
         "limit": limit,
     }
     if end_date:
-        params["end_date"] = end_date
+        params["endDate"] = end_date  # match ambient_api parameter exactly
 
-    logger.info(f"Fetching history: {mac}, Params: {params}")
+    logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date}")
+    time.sleep(1)  # Global Ambient API rate limit: 1 request/second
+
     resp = requests.get(url, params=params)
     if resp.status_code != 200:
         logger.error(f"History fetch failed: {resp.status_code} {resp.text}")
         return pd.DataFrame()
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception as e:
+        logger.error(f"JSON decode error: {e}")
+        return pd.DataFrame()
+
     if not data:
         logger.debug("No data returned from device history.")
         return pd.DataFrame()
 
-    df = pd.json_normalize(data)
-    df.sort_values(by="dateutc", inplace=True)
-    return df
+    try:
+        df = pd.json_normalize(data)
+        df.sort_values(by="dateutc", inplace=True)
+        return df
+    except Exception as e:
+        logger.error(f"Data normalization error: {e}")
+        return pd.DataFrame()
