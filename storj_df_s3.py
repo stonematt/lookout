@@ -18,7 +18,9 @@ Functions:
 import datetime
 import json
 import os
+import tempfile
 
+import fsspec
 import pandas as pd
 import s3fs
 import streamlit as st
@@ -134,30 +136,53 @@ def save_df_to_s3(
     :param file_type: The type of file to save ('json' or 'parquet').
     """
     file_path = f"s3://{bucket}/{key}"
-
     logger.info(f"Saving {file_path}")
-    if file_type == "parquet":
-        df.to_parquet(file_path, storage_options=storage_options)
-    else:
-        df.to_json(file_path, storage_options=storage_options)
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=f".{file_type}", delete=False
+        ) as tmp_file:
+            temp_name = tmp_file.name
+            if file_type == "parquet":
+                df.to_parquet(temp_name, engine="pyarrow", compression="snappy")
+            elif file_type == "json":
+                df.to_json(temp_name, orient="records", lines=True)
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+
+        fs.put(temp_name, file_path)
+        os.remove(temp_name)
+
+    except Exception as e:
+        logger.error(f"❌ Failed to save {key} to bucket {bucket}: {e}")
 
 
 def list_bucket_items(bucket_name: str) -> list:
     """
-    List all items in a specified S3 bucket.
+    List top-level items in a specified S3 bucket with their sizes.
 
     :param bucket_name: The name of the bucket to list items from.
-    :return: A list of file paths in the specified bucket.
+    :return: A list of dictionaries with keys 'path' and 'size'.
     """
     try:
-        # Constructing the bucket path
         bucket_path = f"{bucket_name}/"
-
-        # Listing items in the bucket
         items = fs.ls(bucket_path)
-        logger.info(f"Items in bucket '{bucket_name}': {items}")
 
-        return items
+        result = []
+        for item in items:
+            info = fs.info(item)
+            result.append(
+                {
+                    "path": item,
+                    "size": info.get("size", "Unknown"),
+                }
+            )
+
+        for entry in result:
+            print(f"{entry['path']} - {entry['size']} bytes")
+
+        return result
+
     except Exception as e:
         logger.error(f"Error listing items in bucket '{bucket_name}': {e}")
         return []
@@ -237,22 +262,28 @@ def backup_data(
 # Example usage
 def main() -> None:
     """
-    Main function to execute various tests..
+    Main function to execute various tests.
     """
-    # Implement module logic here
-    # Bucket name
     bucket_name = "lookout"
-    # Device ID (used as the prefix)
     device_id = "98:CD:AC:22:0D:E5"
 
+    # List bucket contents
     bucket_items = list_bucket_items(bucket_name)
-    # print(bucket_items)
+    print("Bucket items:", bucket_items)
 
-    # Perform a dry run of the backup
+    # Perform dry run backup for the device
     backup_data(bucket=bucket_name, prefix=device_id)
 
-    print(bucket_items)
-    pass
+    # Test saving a dummy DataFrame to S3
+    test_df = pd.DataFrame(
+        {
+            "sensor": ["temp", "humid"],
+            "value": [72.5, 38.2],
+            "timestamp": [pd.Timestamp.now(), pd.Timestamp.now()],
+        }
+    )
+    test_key = f"{device_id}/test_upload.parquet"
+    save_df_to_s3(test_df, bucket_name, test_key)
 
 
 if __name__ == "__main__":
