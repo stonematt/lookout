@@ -1,0 +1,18 @@
+name: lookout-new
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pandas
+  - numpy
+  - streamlit
+  - plotly
+  - python-dateutil
+  - boto3=1.35.99
+  - colour
+  - pip
+  - pip:
+      - watchdog
+      - black
+      - pytest
