@@ -1,33 +1,44 @@
 """
-awn_controller.py: Integrates weather data from the Ambient Weather Network (AWN)
-with S3-compatible storage. Utilizes AmbientAPI for data retrieval and storj_df_s3.py
-for data persistence. This module focuses on retrieving, updating, and maintaining
-historical weather data, ensuring seamless data flow and consistency across storage
-solutions, crucial for the backend operations of a Streamlit-based weather application.
+awn_controller.py: Orchestrates historical weather data integration from the Ambient Weather Network (AWN)
+with S3-compatible object storage. Replaces legacy AmbientAPI with ambient_client for improved modularity.
+
+Relies on:
+- `ambient_client` for fetching AWN data via HTTP.
+- `storj_df_s3.py` for S3-compatible persistence.
+- Streamlit for secrets management.
+- Logging for operational observability.
+
+This module ensures reliable, incremental retrieval and synchronization of weather data archives,
+including deduplication, paging, and gap detection—supporting consistent backend storage for
+a Streamlit-based weather dashboard.
 
 Functions:
-- get_archive: Retrieves weather data archives from the local filesystem.
-- load_archive_for_device: Loads device-specific archived data from S3 storage.
-- get_device_history_to_date: Fetches historical data for a device with end_date.
-- get_device_history_from_date: Fetches historical data for a device with start_date.
-- get_history_since_last_archive: Add new data to archive forward by n pages.
-- combine_df: Merges two DataFrames, removing duplicates and sorting by 'dateutc'.
+- get_archive: Load local Parquet archive.
+- load_archive_for_device: Load archived device data from S3.
+- get_device_history_to_date: Fetch records ending at a given timestamp.
+- get_device_history_from_date: Fetch records starting from a timestamp.
+- get_history_since_last_archive: Incrementally extend archive forward.
+- combine_df: Merge and deduplicate DataFrames by 'dateutc'.
 
 Helper Functions:
-- validate_archive: Validates if the archive DataFrame is usable.
-- fetch_device_data: Fetches historical data for a device.
-- validate_new_data: Validates new data fetched for completeness and freshness.
-- combine_interim_data: Combines interim DataFrame with new data.
-- update_last_date: Updates the `last_date` for the next fetch.
-- log_interim_progress: Logs progress during data fetching.
+- validate_archive: Ensure archive is non-empty and valid.
+- fetch_device_data: Page data from AWN from a starting point.
+- validate_new_data: Sanity check newly fetched data.
+- combine_interim_data: Accumulate paged results.
+- update_last_date: Move forward in time for next fetch.
+- log_interim_progress: Log fetch progress in paged loop.
+- combine_full_history: Final merge of archive and updates.
 """
 
-from ambient_api.ambientapi import AmbientAPI
-from datetime import datetime, timedelta
-import pandas as pd
+import json
 import time
+from datetime import datetime, timedelta
+
+import pandas as pd
 import streamlit as st
+
 import storj_df_s3 as sj
+from ambient_client import get_device_history, get_devices
 from log_util import app_logger
 
 logger = app_logger(__name__)
@@ -60,17 +71,18 @@ def get_archive(archive_file: str) -> pd.DataFrame:
 
 
 def load_archive_for_device(
-    device, bucket: str, file_type: str = "parquet"
+    device: dict, bucket: str, file_type: str = "parquet"
 ) -> pd.DataFrame:
     """
     Loads device-specific weather data from S3 into a DataFrame.
 
-    :param device: Device object for data identification.
-    :param bucket: str - Name of the S3 bucket.
-    :param file_type: str - File type ('json' or 'parquet').
+    :param device: Device dictionary with MAC address and metadata.
+    :param bucket: Name of the S3 bucket.
+    :param file_type: File type ('json' or 'parquet').
     :return: DataFrame containing the device's archived data.
     """
-    key = f"{device.mac_address}.{file_type}"
+    mac = device.get("macAddress")
+    key = f"{mac}.{file_type}"
     logger.info(f"Load from S3: {bucket}/{key}")
     try:
         return sj.get_df_from_s3(bucket, key, file_type=file_type)
@@ -88,70 +100,82 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
     :param limit: Max records to retrieve, defaults to 288.
     :return: DataFrame of device history data.
     """
+    mac = device.get("macAddress")
+    if not isinstance(mac, str):
+        logger.error("Device is missing a valid 'macAddress'")
+        return pd.DataFrame()
+
     try:
-        params = (
-            {"limit": limit, "end_date": end_date} if end_date else {"limit": limit}
-        )
-        logger.info(f"Fetch history: {device.mac_address}, Params: {params}")
-        df = pd.json_normalize(device.get_data(**params))
+        params = {"limit": limit}
+        if end_date:
+            params["end_date"] = end_date
+
+        logger.info(f"Fetch history: {mac}, Params: {params}")
+        df = get_device_history(mac, **params)
 
         if df.empty:
             logger.debug("Empty response, no new data")
             return pd.DataFrame()
 
-        # Sort the data by 'dateutc'
         df.sort_values(by="dateutc", inplace=True)
 
-        # Convert 'date' column to local time
-        dt_columns = ["date", "lastRain"]
-        for c in dt_columns:
-            _df_column_to_datetime(df, c, device.last_data.get("tz"))
+        for col in ["date", "lastRain"]:
+            _df_column_to_datetime(df, col, device.get("lastData", {}).get("tz"))
 
         return df
+
     except Exception as e:
         logger.error(f"Fetch error: {e}")
         return pd.DataFrame()
 
 
-def get_device_history_from_date(device, start_date, limit=288):
+def get_device_history_from_date(device, start_date, limit=288) -> pd.DataFrame:
     """
     Fetches a page of data for the device starting from the specified date.
 
-    :param device: The device object to fetch data for.
+    :param device: The device dictionary to fetch data for.
     :param start_date: The datetime to start fetching data from.
     :param limit: The number of records to fetch.
     :return: A DataFrame with the fetched data.
     """
+    mac = device.get("macAddress")
+    if not isinstance(mac, str):
+        logger.error("Device is missing a valid 'macAddress'")
+        return pd.DataFrame()
+
     current_time = datetime.now()
     end_date = start_date + timedelta(minutes=(limit - 3) * 5)
 
     if end_date > current_time:
         end_date = current_time
 
-    end_date_timestamp = int(end_date.timestamp() * 1000)
-
-    return get_device_history_to_date(device, end_date=end_date_timestamp, limit=limit)
+    end_date_ts = int(end_date.timestamp() * 1000)
+    return get_device_history_to_date(device, end_date=end_date_ts, limit=limit)
 
 
 def get_history_since_last_archive(
-    device, archive_df, limit=250, pages=10, sleep=False
-):
+    device: dict,
+    archive_df: pd.DataFrame,
+    limit: int = 250,
+    pages: int = 10,
+    sleep: bool = False,
+) -> pd.DataFrame:
     """
     Sequentially retrieves device history from the last archive date forward in time,
     handling data gaps and ensuring only new data is added.
 
-    :param device: Device object for fetching data.
+    :param device: Device dictionary for fetching data.
     :param archive_df: DataFrame of archived data.
-    :param limit: int - Max records to fetch per call.
-    :param pages: int - Number of pages to fetch moving forward in time.
-    :param sleep: bool - Enables delay between API calls if True, default False.
-    :return: DataFrame with updated device history.
+    :param limit: Max records to fetch per call.
+    :param pages: Number of pages to fetch moving forward in time.
+    :param sleep: Enables delay between API calls if True.
+    :return: Combined DataFrame with updated device history.
     """
     if not validate_archive(archive_df):
         return archive_df
 
     interim_df = pd.DataFrame()
-    last_date = pd.to_datetime(archive_df["dateutc"].max(), unit="ms")
+    last_date = pd.to_datetime(archive_df["dateutc"].to_numpy().max(), unit="ms")
     gap_attempts = 0
 
     for page in range(pages):
@@ -159,21 +183,33 @@ def get_history_since_last_archive(
             time.sleep(1)
 
         new_data, fetch_successful = fetch_device_data(device, last_date, limit)
-        if not fetch_successful:
-            break
 
-        if not validate_new_data(new_data, interim_df, gap_attempts, last_date, limit):
+        if not fetch_successful or new_data.empty:
+            logger.debug("No new data fetched.")
             gap_attempts += 1
             if gap_attempts >= 3:
                 logger.info("Maximum gap attempts reached. Exiting.")
                 break
+            logger.info(f"Seeking ahead: {gap_attempts}/3")
+            last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
+            continue
+
+        is_valid, last_date = validate_new_data(
+            new_data, interim_df, gap_attempts, last_date, limit
+        )
+        if not is_valid:
+            gap_attempts += 1
+            if gap_attempts >= 3:
+                logger.info("Maximum gap attempts reached. Exiting.")
+                break
+            logger.info(f"Seeking ahead: {gap_attempts}/3")
+            last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
             continue
 
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
         last_date = update_last_date(new_data)
-
-        log_interim_progress(page, pages, interim_df)
+        log_interim_progress(page + 1, pages, interim_df)
 
     return combine_full_history(archive_df, interim_df)
 
@@ -194,7 +230,6 @@ def fetch_device_data(device, last_date, limit):
     try:
         new_data = get_device_history_from_date(device, last_date, limit)
         if new_data.empty:
-            logger.debug("No new data fetched.")
             return pd.DataFrame(), False
         return new_data, True
     except Exception as e:
@@ -202,17 +237,33 @@ def fetch_device_data(device, last_date, limit):
         return pd.DataFrame(), False
 
 
-def validate_new_data(new_data, interim_df, gap_attempts, last_date, limit):
-    """Validate new data fetched for completeness and freshness."""
+def validate_new_data(
+    new_data: pd.DataFrame,
+    interim_df: pd.DataFrame,
+    gap_attempts: int,
+    last_date: datetime,
+    limit: int,
+) -> tuple[bool, datetime]:
+    """
+    Validate new data fetched for completeness and freshness.
+
+    :param new_data: Newly fetched DataFrame.
+    :param interim_df: Current interim DataFrame of accumulated data.
+    :param gap_attempts: Number of consecutive fetches that failed to advance time.
+    :param last_date: The most recent timestamp seen so far.
+    :param limit: Number of records per fetch.
+    :return: Tuple of (is_valid: bool, new_last_date: datetime).
+    """
     if "dateutc" not in new_data.columns:
         logger.error("New data is missing 'dateutc'.")
-        return False
+        return False, last_date
 
     if not _is_data_new(interim_df, new_data):
         logger.info(f"Seeking ahead: {gap_attempts + 1}/3")
-        last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
-        return False
-    return True
+        next_start = _calculate_next_start_date(last_date, gap_attempts + 1, limit)
+        return False, next_start
+
+    return True, last_date
 
 
 def combine_interim_data(interim_df, new_data):
@@ -220,9 +271,14 @@ def combine_interim_data(interim_df, new_data):
     return combine_df(interim_df, new_data)
 
 
-def update_last_date(new_data):
-    """Update the last_date for the next fetch."""
-    return pd.to_datetime(new_data["dateutc"].max(), unit="ms")
+def update_last_date(new_data: pd.DataFrame) -> datetime:
+    """
+    Update the last_date for the next fetch.
+
+    :param new_data: DataFrame containing the new data.
+    :return: The max 'dateutc' as a datetime object.
+    """
+    return pd.to_datetime(new_data["dateutc"].max(), unit="ms").to_pydatetime()
 
 
 def log_interim_progress(page, pages, interim_df):
@@ -247,47 +303,79 @@ def combine_full_history(archive_df, interim_df):
 
 def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
-    Merges two DataFrames, removes duplicates, and sorts by 'dateutc'.
-
-    :param df1: First DataFrame to merge.
-    :param df2: Second DataFrame to merge.
-    :return: Merged and sorted DataFrame.
+    Merge two DataFrames on 'dateutc', keeping the last entry for each timestamp.
     """
     try:
+        df = pd.concat([df1, df2], ignore_index=True)
+        df["dateutc"] = pd.to_datetime(df["dateutc"], unit="ms", errors="coerce")
+        df = df.dropna(subset=["dateutc"])
+        df.sort_values("dateutc", ascending=True, inplace=True)
         return (
-            pd.concat([df1, df2], ignore_index=True)
-            .drop_duplicates()
-            .sort_values(by="dateutc", ascending=False)
+            df.drop_duplicates(subset="dateutc", keep="last")
+            .sort_values("dateutc", ascending=False)
             .reset_index(drop=True)
         )
     except Exception as e:
         logger.error(f"Error combining DataFrames: {e}")
-        raise Exception(f"Failed to combine DataFrames: {e}")
+        raise
 
 
-def _calculate_next_start_date(current_max_date, gap_attempts, limit):
+def _calculate_next_start_date(
+    current_max_date: datetime, gap_attempts: int, limit: int
+) -> datetime:
     """
-    Internally calculates the next start date for fetching, considering gap attempts.
+    Calculates the next start date for fetching, offset by paging attempt.
 
-    :param current_max_date: The maximum date in the current dataset.
-    :param gap_attempts: The number of consecutive gap attempts made.
-    :param limit: The number of records per fetch.
-    :return: The next start date for data fetching.
+    :param current_max_date: The last known good datetime to start from.
+    :param gap_attempts: Number of consecutive non-advancing fetches.
+    :param limit: Number of records to fetch per page.
+    :return: New datetime for the next fetch attempt.
     """
     return current_max_date + timedelta(minutes=5 * limit * gap_attempts)
 
 
 def _is_data_new(interim_df, new_data):
     """
-    Internally determines if the fetched data contains new information.
+    Determines if the newly fetched data is truly new.
 
-    :param interim_df: The current interim DataFrame with previously fetched data.
-    :param new_data: The newly fetched data to compare.
-    :return: Boolean indicating whether the new data contains new information.
+    :param interim_df: Existing fetched data (interim).
+    :param new_data: Just-fetched data to check.
+    :return: bool - Whether the new data is considered "new".
     """
+    logger.debug("=== _IS_DATA_NEW ===")
+
     if interim_df.empty:
+        logger.debug("Interim is empty. Data considered new.")
         return True
-    return new_data["dateutc"].max() > interim_df["dateutc"].max()
+
+    if new_data.empty:
+        logger.debug("New data is empty. Not considered new.")
+        return False
+
+    if "dateutc" not in new_data.columns or "dateutc" not in interim_df.columns:
+        logger.error("Missing 'dateutc' column in data.")
+        return False
+
+    try:
+        new_max = pd.to_datetime(new_data["dateutc"].values.max(), unit="ms", utc=True)
+        interim_max = pd.to_datetime(
+            interim_df["dateutc"].values.max(), unit="ms", utc=True
+        )
+
+        logger.debug(
+            f"new_max={new_max}, interim_max={interim_max}, delta={new_max - interim_max}"
+        )
+        is_newer = new_max > interim_max
+
+        if not is_newer:
+            overlap = set(new_data["dateutc"]).intersection(interim_df["dateutc"])
+            logger.debug(f"Overlapping timestamps: {len(overlap)}")
+
+        return is_newer
+
+    except Exception as e:
+        logger.error(f"Error in _is_data_new: {e}")
+        return False
 
 
 def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
@@ -308,24 +396,62 @@ def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
         raise e
 
 
-def main():
-    api = AmbientAPI(
-        log_level="WARN",
-        AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
-        AMBIENT_API_KEY=AMBIENT_API_KEY,
-        AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
-    )
+def main() -> None:
+    """
+    Diagnostic routine:
+    - Verifies connectivity to Ambient Weather Network.
+    - Lists available devices and their names.
+    - Loads existing archive from S3.
+    - Prints archive date range (if available).
+    - Fetches a 10-record sample using ambient_client.
+    - Prints one raw sample record directly from device JSON.
+    """
+    logger = app_logger("awn_main")
 
-    devices = api.get_devices()
-    device = devices[0]
+    try:
+        devices = get_devices()
+        if not devices:
+            logger.error("❌ No devices found or no connection to Ambient Network.")
+            return
 
-    df = load_archive_for_device(device, "lookout", "parquet")
-    print(df.date.min())
-    print(df.date.max())
+        logger.info(f"✅ Connected. Found {len(devices)} device(s).")
 
-    df = get_history_since_last_archive(device, df)
-    print(df.date.min())
-    print(df.date.max())
+        for device in devices:
+            name = device.get("info", {}).get("name", "Unnamed Device")
+            mac = device.get("macAddress")
+
+            if not isinstance(mac, str):
+                logger.warning(f"⚠️  Skipping device '{name}' — missing MAC address.")
+                continue
+
+            logger.info(f"📡 Device: {name} ({mac})")
+
+            archive_df = load_archive_for_device(device, "lookout", "parquet")
+            if archive_df.empty:
+                logger.info("  📂 Archive: empty")
+            else:
+                logger.info(
+                    f"  📂 Archive Range: {archive_df.date.min()} to {archive_df.date.max()}"
+                )
+
+            df = get_device_history(mac, limit=10)
+            if df.empty:
+                logger.warning("  ⚠️  No recent data retrieved.")
+            else:
+                latest = df["dateutc"].max()
+                logger.info(
+                    f"  ✅ Retrieved {len(df)} records. Latest timestamp: {latest}"
+                )
+
+            # Direct raw access
+            raw = device.get("data", [])[:1]
+            if raw:
+                print("  🧾 Raw sample:\n", json.dumps(raw[0], indent=2))
+
+            break  # Remove to check all devices
+
+    except Exception as e:
+        logger.exception(f"❌ Exception during diagnostic: {e}")
 
 
 if __name__ == "__main__":
