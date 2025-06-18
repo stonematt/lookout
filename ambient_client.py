@@ -13,6 +13,7 @@ Requires:
 """
 
 import time
+from datetime import datetime, timezone
 from pprint import pprint
 from typing import Dict, List, Optional
 
@@ -29,6 +30,18 @@ logger = app_logger(__name__)
 BASE_URL = st.secrets["AMBIENT_ENDPOINT"].rstrip("/")
 API_KEY = st.secrets["AMBIENT_API_KEY"]
 APP_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
+
+
+def format_ts_utc(ms_ts: Optional[int]) -> str:
+    """Convert a UNIX timestamp in ms to a human-readable UTC string."""
+    if ms_ts is None:
+        return "latest"
+    try:
+        return datetime.fromtimestamp(ms_ts / 1000, tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )
+    except Exception:
+        return "Invalid timestamp"
 
 
 def get_devices() -> List[Dict]:
@@ -78,8 +91,9 @@ def get_device_history(
     :return: A DataFrame of weather data or empty DataFrame on failure.
     """
     try:
-        logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date}")
         time.sleep(1)  # Ambient API rate limit: 1 request/second
+        human = format_ts_utc(end_date) if end_date else "latest"
+        # logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})")
 
         raw = get_device_history_raw(mac, limit=limit, end_date=end_date)
         if not raw:
@@ -119,7 +133,11 @@ def get_device_history_raw(
     if end_date is not None:
         params["endDate"] = end_date
 
-    logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date}")
+    human = format_ts_utc(end_date) if end_date else "latest"
+    logger.info(
+        f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})"
+    )
+
     try:
         resp = requests.get(url, params=params)
         if resp.status_code != 200:
