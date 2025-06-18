@@ -30,6 +30,7 @@ Helper Functions:
 - combine_full_history: Final merge of archive and updates.
 """
 
+import json
 import time
 from datetime import datetime, timedelta
 
@@ -336,9 +337,8 @@ def main() -> None:
     - Lists available devices and their names.
     - Loads existing archive from S3.
     - Prints archive date range (if available).
-    - Fetches a 10-record sample from the device.
-
-    Use this for validating API connectivity and S3 integration.
+    - Fetches a 10-record sample using ambient_client.
+    - Prints one raw sample record directly from device JSON.
     """
     logger = app_logger("awn_main")
 
@@ -376,6 +376,11 @@ def main() -> None:
                 logger.info(
                     f"  ✅ Retrieved {len(df)} records. Latest timestamp: {latest}"
                 )
+
+            # Direct raw access
+            raw = device.get("data", [])[:1]
+            if raw:
+                print("  🧾 Raw sample:\n", json.dumps(raw[0], indent=2))
 
             break  # Remove to check all devices
 
