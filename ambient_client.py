@@ -13,6 +13,7 @@ Requires:
 """
 
 import time
+from pprint import pprint
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -128,3 +129,31 @@ def get_device_history_raw(
     except Exception as e:
         logger.error(f"Request error while fetching raw history: {e}")
         return []
+
+
+def main():
+    devices = get_devices()
+    if not devices:
+        print("❌ No devices found.")
+        return
+
+    device = devices[0]
+    print("✅ First device:")
+    pprint(device)
+
+    mac = device.get("macAddress")
+    if not mac:
+        print("❌ No MAC address in device data.")
+        return
+
+    print(f"\n📡 Pulling latest data for {mac}")
+    raw = get_device_history_raw(mac, limit=1)
+    if raw:
+        print("✅ Sample Record:")
+        pprint(raw[0])
+    else:
+        print("❌ No data returned.")
+
+
+if __name__ == "__main__":
+    main()
