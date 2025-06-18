@@ -225,17 +225,33 @@ def fetch_device_data(device, last_date, limit):
         return pd.DataFrame(), False
 
 
-def validate_new_data(new_data, interim_df, gap_attempts, last_date, limit):
-    """Validate new data fetched for completeness and freshness."""
+def validate_new_data(
+    new_data: pd.DataFrame,
+    interim_df: pd.DataFrame,
+    gap_attempts: int,
+    last_date: datetime,
+    limit: int,
+) -> tuple[bool, datetime]:
+    """
+    Validate new data fetched for completeness and freshness.
+
+    :param new_data: Newly fetched DataFrame.
+    :param interim_df: Current interim DataFrame of accumulated data.
+    :param gap_attempts: Number of consecutive fetches that failed to advance time.
+    :param last_date: The most recent timestamp seen so far.
+    :param limit: Number of records per fetch.
+    :return: Tuple of (is_valid: bool, new_last_date: datetime).
+    """
     if "dateutc" not in new_data.columns:
         logger.error("New data is missing 'dateutc'.")
-        return False
+        return False, last_date
 
     if not _is_data_new(interim_df, new_data):
         logger.info(f"Seeking ahead: {gap_attempts + 1}/3")
-        last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
-        return False
-    return True
+        next_start = _calculate_next_start_date(last_date, gap_attempts + 1, limit)
+        return False, next_start
+
+    return True, last_date
 
 
 def combine_interim_data(interim_df, new_data):
@@ -287,14 +303,16 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
         raise
 
 
-def _calculate_next_start_date(current_max_date, gap_attempts, limit):
+def _calculate_next_start_date(
+    current_max_date: datetime, gap_attempts: int, limit: int
+) -> datetime:
     """
-    Internally calculates the next start date for fetching, considering gap attempts.
+    Calculates the next start date for fetching, offset by paging attempt.
 
-    :param current_max_date: The maximum date in the current dataset.
-    :param gap_attempts: The number of consecutive gap attempts made.
-    :param limit: The number of records per fetch.
-    :return: The next start date for data fetching.
+    :param current_max_date: The last known good datetime to start from.
+    :param gap_attempts: Number of consecutive non-advancing fetches.
+    :param limit: Number of records to fetch per page.
+    :return: New datetime for the next fetch attempt.
     """
     return current_max_date + timedelta(minutes=5 * limit * gap_attempts)
 

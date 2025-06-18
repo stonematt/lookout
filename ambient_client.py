@@ -91,7 +91,6 @@ def get_device_history(
     :return: A DataFrame of weather data or empty DataFrame on failure.
     """
     try:
-        time.sleep(1)  # Ambient API rate limit: 1 request/second
         human = format_ts_utc(end_date) if end_date else "latest"
         # logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})")
 
@@ -139,6 +138,7 @@ def get_device_history_raw(
     )
 
     try:
+        time.sleep(1)  # Ambient API rate limit: 1 request/second
         resp = requests.get(url, params=params)
         if resp.status_code != 200:
             logger.error(f"History fetch failed: {resp.status_code} {resp.text}")
@@ -165,6 +165,8 @@ def main():
         return
 
     print(f"\n📡 Pulling latest data for {mac}")
+
+    time.sleep(1)
     raw = get_device_history_raw(mac, limit=1)
     if raw:
         print("✅ Sample Record:")
