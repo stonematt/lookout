@@ -270,29 +270,23 @@ def fetch_device_data(device, last_date, limit):
 def validate_new_data(
     new_data: pd.DataFrame,
     interim_df: pd.DataFrame,
-    gap_attempts: int,
-    last_date: datetime,
-    limit: int,
-) -> tuple[bool, datetime]:
+) -> bool:
     """
-    Validate new data fetched for completeness and freshness.
+    Validates the new data is structurally complete and non-overlapping.
 
     :param new_data: Newly fetched DataFrame.
-    :param interim_df: Current interim DataFrame of accumulated data.
-    :param gap_attempts: Number of consecutive fetches that failed to advance time.
-    :param last_date: The most recent timestamp seen so far.
-    :param limit: Number of records per fetch.
-    :return: Tuple of (is_valid: bool, new_last_date: datetime).
+    :param interim_df: Accumulated interim data.
+    :return: True if data is fresh and non-duplicate; False otherwise.
     """
     if "dateutc" not in new_data.columns:
         logger.error("New data is missing 'dateutc'.")
-        return False, last_date
+        return False
 
     if not _is_data_new(interim_df, new_data):
-        next_start = _calculate_next_start_date(last_date, gap_attempts + 1, limit)
-        return False, next_start
+        logger.debug("Fetched data is not new or overlaps with interim.")
+        return False
 
-    return True, last_date
+    return True
 
 
 def combine_interim_data(interim_df, new_data):
