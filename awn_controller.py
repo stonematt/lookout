@@ -309,7 +309,12 @@ def _is_data_new(interim_df, new_data):
     """
     if interim_df.empty:
         return True
-    return new_data["dateutc"].max() > interim_df["dateutc"].max()
+
+    # Ensure both sides are datetime for safe comparison
+    new_max = pd.to_datetime(new_data["dateutc"].max(), unit="ms", utc=True)
+    interim_max = pd.to_datetime(interim_df["dateutc"].max(), unit="ms", utc=True)
+
+    return new_max > interim_max
 
 
 def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
