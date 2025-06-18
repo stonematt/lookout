@@ -23,7 +23,7 @@ Functions:
 Helper Functions:
 - validate_archive: Ensure archive is non-empty and valid.
 - fetch_device_data: Page data from AWN from a starting point.
-- validate_new_data: Sanity check newly fetched data.
+- is_fresh_data: Check if new data is structurally sound and non-overlapping.
 - combine_interim_data: Accumulate paged results.
 - update_last_date: Move forward in time for next fetch.
 - log_interim_progress: Log fetch progress in paged loop.
@@ -32,7 +32,7 @@ Helper Functions:
 
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import streamlit as st
@@ -153,6 +153,28 @@ def get_device_history_from_date(device, start_date, limit=288) -> pd.DataFrame:
     return get_device_history_to_date(device, end_date=end_date_ts, limit=limit)
 
 
+def seek_over_time_gap(
+    last_date: datetime, gap_attempts: int, limit: int, max_attempts: int = 3
+) -> tuple[datetime, int, bool]:
+    """
+    Handles logic for gap-based time seeking during history fetch.
+
+    :param last_date: datetime - Current max date seen.
+    :param gap_attempts: int - Current number of failed fetch/validation attempts.
+    :param limit: int - Records per page used for offsetting.
+    :param max_attempts: int - Maximum retries before exiting.
+    :return: (next_date, new_gap_attempts, should_exit)
+    """
+    gap_attempts += 1
+    if gap_attempts >= max_attempts:
+        logger.info("Maximum gap attempts reached. Exiting.")
+        return last_date, gap_attempts, True
+
+    logger.info(f"Seeking ahead: {gap_attempts}/{max_attempts}")
+    next_date = _calculate_next_start_date(last_date, gap_attempts, limit)
+    return next_date, gap_attempts, False
+
+
 def get_history_since_last_archive(
     device: dict,
     archive_df: pd.DataFrame,
@@ -161,15 +183,15 @@ def get_history_since_last_archive(
     sleep: bool = False,
 ) -> pd.DataFrame:
     """
-    Sequentially retrieves device history from the last archive date forward in time,
-    handling data gaps and ensuring only new data is added.
+    Retrieves device history from the last archive forward, avoiding duplicate fetches,
+    handling gaps, and skipping future timestamps.
 
-    :param device: Device dictionary for fetching data.
-    :param archive_df: DataFrame of archived data.
-    :param limit: Max records to fetch per call.
-    :param pages: Number of pages to fetch moving forward in time.
-    :param sleep: Enables delay between API calls if True.
-    :return: Combined DataFrame with updated device history.
+    :param device: dict - Device metadata for fetch.
+    :param archive_df: pd.DataFrame - Historical archive to append to.
+    :param limit: int - Records per fetch.
+    :param pages: int - Max pages to pull.
+    :param sleep: bool - If True, sleep 1s between calls.
+    :return: pd.DataFrame - Combined new and archived data.
     """
     if not validate_archive(archive_df):
         return archive_df
@@ -182,35 +204,41 @@ def get_history_since_last_archive(
         if sleep:
             time.sleep(1)
 
+        # Stop if we're trying to fetch data from the future
+        if last_date.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+            logger.info("Next fetch timestamp is in the future. Stopping early.")
+            break
+
+        # Attempt to fetch new records since last known timestamp
         new_data, fetch_successful = fetch_device_data(device, last_date, limit)
 
+        # If fetch fails or returns no data
         if not fetch_successful or new_data.empty:
             logger.debug("No new data fetched.")
-            gap_attempts += 1
-            if gap_attempts >= 3:
-                logger.info("Maximum gap attempts reached. Exiting.")
+            last_date, gap_attempts, exit_flag = seek_over_time_gap(
+                last_date, gap_attempts, limit
+            )
+            if exit_flag:
                 break
-            logger.info(f"Seeking ahead: {gap_attempts}/3")
-            last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
             continue
 
-        is_valid, last_date = validate_new_data(
-            new_data, interim_df, gap_attempts, last_date, limit
-        )
-        if not is_valid:
-            gap_attempts += 1
-            if gap_attempts >= 3:
-                logger.info("Maximum gap attempts reached. Exiting.")
+        # Check if the new data is valid and advances the timeline
+        is_fresh = is_fresh_data(new_data, interim_df)
+        if not is_fresh:
+            last_date, gap_attempts, exit_flag = seek_over_time_gap(
+                last_date, gap_attempts, limit
+            )
+            if exit_flag:
                 break
-            logger.info(f"Seeking ahead: {gap_attempts}/3")
-            last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
             continue
 
+        # If valid data is found, append it and update reference timestamp
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
         last_date = update_last_date(new_data)
         log_interim_progress(page + 1, pages, interim_df)
 
+    # Merge the new records with the existing archive
     return combine_full_history(archive_df, interim_df)
 
 
@@ -237,33 +265,26 @@ def fetch_device_data(device, last_date, limit):
         return pd.DataFrame(), False
 
 
-def validate_new_data(
+def is_fresh_data(
     new_data: pd.DataFrame,
     interim_df: pd.DataFrame,
-    gap_attempts: int,
-    last_date: datetime,
-    limit: int,
-) -> tuple[bool, datetime]:
+) -> bool:
     """
-    Validate new data fetched for completeness and freshness.
+    Validates the new data is structurally complete and non-overlapping.
 
     :param new_data: Newly fetched DataFrame.
-    :param interim_df: Current interim DataFrame of accumulated data.
-    :param gap_attempts: Number of consecutive fetches that failed to advance time.
-    :param last_date: The most recent timestamp seen so far.
-    :param limit: Number of records per fetch.
-    :return: Tuple of (is_valid: bool, new_last_date: datetime).
+    :param interim_df: Accumulated interim data.
+    :return: True if data is fresh and non-duplicate; False otherwise.
     """
     if "dateutc" not in new_data.columns:
         logger.error("New data is missing 'dateutc'.")
-        return False, last_date
+        return False
 
     if not _is_data_new(interim_df, new_data):
-        logger.info(f"Seeking ahead: {gap_attempts + 1}/3")
-        next_start = _calculate_next_start_date(last_date, gap_attempts + 1, limit)
-        return False, next_start
+        logger.debug("Fetched data is not new or overlaps with interim.")
+        return False
 
-    return True, last_date
+    return True
 
 
 def combine_interim_data(interim_df, new_data):
