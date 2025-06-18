@@ -175,7 +175,7 @@ def get_history_since_last_archive(
         return archive_df
 
     interim_df = pd.DataFrame()
-    last_date = pd.to_datetime(archive_df["dateutc"].max(), unit="ms")
+    last_date = pd.to_datetime(archive_df["dateutc"].to_numpy().max(), unit="ms")
     gap_attempts = 0
 
     for page in range(pages):
@@ -183,14 +183,27 @@ def get_history_since_last_archive(
             time.sleep(1)
 
         new_data, fetch_successful = fetch_device_data(device, last_date, limit)
-        if not fetch_successful:
-            break
 
-        if not validate_new_data(new_data, interim_df, gap_attempts, last_date, limit):
+        if not fetch_successful or new_data.empty:
+            logger.debug("No new data fetched.")
             gap_attempts += 1
             if gap_attempts >= 3:
                 logger.info("Maximum gap attempts reached. Exiting.")
                 break
+            logger.info(f"Seeking ahead: {gap_attempts}/3")
+            last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
+            continue
+
+        is_valid, last_date = validate_new_data(
+            new_data, interim_df, gap_attempts, last_date, limit
+        )
+        if not is_valid:
+            gap_attempts += 1
+            if gap_attempts >= 3:
+                logger.info("Maximum gap attempts reached. Exiting.")
+                break
+            logger.info(f"Seeking ahead: {gap_attempts}/3")
+            last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
             continue
 
         gap_attempts = 0
@@ -217,7 +230,6 @@ def fetch_device_data(device, last_date, limit):
     try:
         new_data = get_device_history_from_date(device, last_date, limit)
         if new_data.empty:
-            logger.debug("No new data fetched.")
             return pd.DataFrame(), False
         return new_data, True
     except Exception as e:
@@ -259,9 +271,14 @@ def combine_interim_data(interim_df, new_data):
     return combine_df(interim_df, new_data)
 
 
-def update_last_date(new_data):
-    """Update the last_date for the next fetch."""
-    return pd.to_datetime(new_data["dateutc"].max(), unit="ms")
+def update_last_date(new_data: pd.DataFrame) -> datetime:
+    """
+    Update the last_date for the next fetch.
+
+    :param new_data: DataFrame containing the new data.
+    :return: The max 'dateutc' as a datetime object.
+    """
+    return pd.to_datetime(new_data["dateutc"].max(), unit="ms").to_pydatetime()
 
 
 def log_interim_progress(page, pages, interim_df):
@@ -319,20 +336,46 @@ def _calculate_next_start_date(
 
 def _is_data_new(interim_df, new_data):
     """
-    Internally determines if the fetched data contains new information.
+    Determines if the newly fetched data is truly new.
 
-    :param interim_df: The current interim DataFrame with previously fetched data.
-    :param new_data: The newly fetched data to compare.
-    :return: Boolean indicating whether the new data contains new information.
+    :param interim_df: Existing fetched data (interim).
+    :param new_data: Just-fetched data to check.
+    :return: bool - Whether the new data is considered "new".
     """
+    logger.debug("=== _IS_DATA_NEW ===")
+
     if interim_df.empty:
+        logger.debug("Interim is empty. Data considered new.")
         return True
 
-    # Ensure both sides are datetime for safe comparison
-    new_max = pd.to_datetime(new_data["dateutc"].max(), unit="ms", utc=True)
-    interim_max = pd.to_datetime(interim_df["dateutc"].max(), unit="ms", utc=True)
+    if new_data.empty:
+        logger.debug("New data is empty. Not considered new.")
+        return False
 
-    return new_max > interim_max
+    if "dateutc" not in new_data.columns or "dateutc" not in interim_df.columns:
+        logger.error("Missing 'dateutc' column in data.")
+        return False
+
+    try:
+        new_max = pd.to_datetime(new_data["dateutc"].values.max(), unit="ms", utc=True)
+        interim_max = pd.to_datetime(
+            interim_df["dateutc"].values.max(), unit="ms", utc=True
+        )
+
+        logger.debug(
+            f"new_max={new_max}, interim_max={interim_max}, delta={new_max - interim_max}"
+        )
+        is_newer = new_max > interim_max
+
+        if not is_newer:
+            overlap = set(new_data["dateutc"]).intersection(interim_df["dateutc"])
+            logger.debug(f"Overlapping timestamps: {len(overlap)}")
+
+        return is_newer
+
+    except Exception as e:
+        logger.error(f"Error in _is_data_new: {e}")
+        return False
 
 
 def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
