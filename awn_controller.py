@@ -32,7 +32,7 @@ Helper Functions:
 
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import streamlit as st
@@ -182,8 +182,14 @@ def get_history_since_last_archive(
         if sleep:
             time.sleep(1)
 
+        # Stop if we are attempting to seek into the future
+        if last_date.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+            logger.info("Next fetch timestamp is in the future. Stopping early.")
+            break
+
         new_data, fetch_successful = fetch_device_data(device, last_date, limit)
 
+        # If fetch failed or returned no data
         if not fetch_successful or new_data.empty:
             logger.debug("No new data fetched.")
             gap_attempts += 1
@@ -194,6 +200,7 @@ def get_history_since_last_archive(
             last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
             continue
 
+        # If fetched data isn't valid or duplicate
         is_valid, last_date = validate_new_data(
             new_data, interim_df, gap_attempts, last_date, limit
         )
@@ -206,6 +213,7 @@ def get_history_since_last_archive(
             last_date = _calculate_next_start_date(last_date, gap_attempts, limit)
             continue
 
+        # If new valid data is fetched
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
         last_date = update_last_date(new_data)
