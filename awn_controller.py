@@ -23,7 +23,7 @@ Functions:
 Helper Functions:
 - validate_archive: Ensure archive is non-empty and valid.
 - fetch_device_data: Page data from AWN from a starting point.
-- validate_new_data: Sanity check newly fetched data.
+- is_fresh_data: Check if new data is structurally sound and non-overlapping.
 - combine_interim_data: Accumulate paged results.
 - update_last_date: Move forward in time for next fetch.
 - log_interim_progress: Log fetch progress in paged loop.
@@ -223,10 +223,8 @@ def get_history_since_last_archive(
             continue
 
         # Check if the new data is valid and advances the timeline
-        is_valid, last_date_candidate = validate_new_data(
-            new_data, interim_df, gap_attempts, last_date, limit
-        )
-        if not is_valid:
+        is_fresh = is_fresh_data(new_data, interim_df)
+        if not is_fresh:
             last_date, gap_attempts, exit_flag = seek_over_time_gap(
                 last_date, gap_attempts, limit
             )
@@ -267,7 +265,7 @@ def fetch_device_data(device, last_date, limit):
         return pd.DataFrame(), False
 
 
-def validate_new_data(
+def is_fresh_data(
     new_data: pd.DataFrame,
     interim_df: pd.DataFrame,
 ) -> bool:
