@@ -1,18 +1,23 @@
+"""
+Main streamlit.io application
+"""
+
 import time
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from ambient_api.ambientapi import AmbientAPI
 from dateutil import parser
 
+import lookout.api.ambient_client as ambient_client
+
 # my modules
-# import storj_df_s3 as sj
-import awn_controller as awn
-import visualization as lo_viz
-import data_processing as lo_dp
-from log_util import app_logger
+# import lookout.storage.storj as sj
+import lookout.api.awn_controller as awn
+import lookout.core.data_processing as lo_dp
+import lookout.core.visualization as lo_viz
+from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
@@ -27,12 +32,6 @@ AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
 AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
-api = AmbientAPI(
-    # log_level="INFO",
-    AMBIENT_ENDPOINT=AMBIENT_ENDPOINT,
-    AMBIENT_API_KEY=AMBIENT_API_KEY,
-    AMBIENT_APPLICATION_KEY=AMBIENT_APPLICATION_KEY,
-)
 
 # %%
 # define variables
@@ -117,9 +116,9 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
 
         # Update session state
         st.session_state["history_df"] = updated_df
-        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-            "dateutc"
-        ].max()
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
 
         logger.info("Session data updated successfully.")
     except Exception as e:
@@ -212,12 +211,12 @@ def load_or_update_data(
         )
 
         # Initialize session state variables
-        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-            "dateutc"
-        ].max()
-        st.session_state["cloud_max_dateutc"] = st.session_state["history_df"][
-            "dateutc"
-        ].max()
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+        st.session_state["cloud_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
         st.session_state["session_counter"] = 0
 
         logger.info("Initial archive load completed.")
@@ -228,7 +227,7 @@ def load_or_update_data(
     history_max_dateutc = st.session_state["history_max_dateutc"]
 
     if should_update_history(
-        device_last_dateutc=device.last_data["dateutc"],
+        device_last_dateutc=device["lastData"]["dateutc"],
         history_max_dateutc=history_max_dateutc,
         short_minutes=short_minutes,
         long_minutes=long_minutes,
@@ -236,9 +235,9 @@ def load_or_update_data(
     ):
         update_message.text("Updating historical data...")
         update_session_data(device, history_df)
-        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-            "dateutc"
-        ].max()
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
 
         logger.info("Historical data updated successfully.")
         update_message.empty()
@@ -310,7 +309,7 @@ def make_column_gauges(gauge_list, chart_height=300):
 
 # Setup and get data ########################
 
-devices = api.get_devices()
+devices = ambient_client.get_devices()
 device = False
 device_last_dateutc = 0
 last_data = {}
@@ -318,14 +317,14 @@ last_data = {}
 device_menu = "98:CD:AC:22:0D:E5"
 if len(devices) == 1:
     device = devices[0]
-    device_menu = device.mac_address
-    device_name = device.info["name"]
-    last_data = device.last_data
+    device_menu = device["macAddress"]
+    device_name = device["info"]["name"]
+    last_data = device["lastData"]
     st.header(f"Weather Station:  {device_name}")
-    logger.debug(f"One device found:  {device.info['name']}")
+    logger.debug(f"One device found:  {device['info']['name']}")
 
     # Compare device's last data UTC with the archive max dateutc
-    device_last_dateutc = device.last_data.get("dateutc")
+    device_last_dateutc = device["lastData"].get("dateutc")
 
 # if we dont' get a device from ambient. blow up.
 if not device:
@@ -519,4 +518,4 @@ if selected_metrics and "date" in history_df.columns:
 
     st.plotly_chart(fig)
 
-    st.write(device.last_data)
+    st.write(device["lastData"])

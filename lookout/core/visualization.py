@@ -1,4 +1,7 @@
-""" visualizations.py"""
+""" 
+visualizations.py
+Collection of functions to create charts and visualizations for streamlit
+"""
 
 import plotly.express as px
 import plotly.graph_objects as go
