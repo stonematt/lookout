@@ -4,7 +4,7 @@ with S3-compatible object storage. Replaces legacy AmbientAPI with ambient_clien
 
 Relies on:
 - `ambient_client` for fetching AWN data via HTTP.
-- `storj_df_s3.py` for S3-compatible persistence.
+- `storj.py` for S3-compatible persistence.
 - Streamlit for secrets management.
 - Logging for operational observability.
 
@@ -37,9 +37,9 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import streamlit as st
 
-import storj_df_s3 as sj
-from ambient_client import get_device_history, get_devices
-from log_util import app_logger
+import lookout.storage.storj as sj
+from lookout.api.ambient_client import get_device_history, get_devices
+from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 

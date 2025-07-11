@@ -10,14 +10,14 @@ import plotly.graph_objects as go
 import streamlit as st
 from dateutil import parser
 
-import ambient_client
+import lookout.api.ambient_client as ambient_client
 
 # my modules
-# import storj_df_s3 as sj
-import awn_controller as awn
-import data_processing as lo_dp
-import visualization as lo_viz
-from log_util import app_logger
+# import lookout.storage.storj as sj
+import lookout.api.awn_controller as awn
+import lookout.core.data_processing as lo_dp
+import lookout.core.visualization as lo_viz
+from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 

@@ -17,9 +17,9 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-import awn_controller as awn
-from ambient_client import get_device_history_raw, get_devices
-from log_util import app_logger
+import lookout.api.awn_controller as awn
+from lookout.api.ambient_client import get_device_history_raw, get_devices
+from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 

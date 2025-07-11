@@ -21,7 +21,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from log_util import app_logger
+from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 

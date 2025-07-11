@@ -13,10 +13,10 @@ import argparse
 
 import streamlit as st
 
-import awn_controller as awn
-import storj_df_s3 as sj
-from ambient_client import get_devices
-from log_util import app_logger
+import lookout.api.awn_controller as awn
+import lookout.storage.storj as sj
+from lookout.api.ambient_client import get_devices
+from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="catchup.log")
 
