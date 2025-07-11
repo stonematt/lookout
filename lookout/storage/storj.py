@@ -1,5 +1,5 @@
 """
-storj_df_s3.py: This module provides functionalities to interact with S3 storage,
+storj.py: This module provides functionalities to interact with S3 storage,
 specifically for handling pandas DataFrames and JSON objects. It includes utilities
 for reading and writing data to/from S3 buckets using boto3. It also features
 logger setup for monitoring file operations and a backup mechanism for S3 data.
@@ -24,7 +24,7 @@ import boto3
 import pandas as pd
 import streamlit as st
 
-from log_util import app_logger
+from lookout.utils.log_util import app_logger
 
 # For general logging with console output
 logger = app_logger(__name__)
