@@ -48,6 +48,14 @@ AMBIENT_API_KEY = "..."
 AMBIENT_APPLICATION_KEY = "..."
 AWS_ACCESS_KEY_ID = "..."
 AWS_SECRET_ACCESS_KEY = "..."
+
+# connnect to the lookout bucket on storj.io
+[lookout_storage_options]
+ACCESS_KEY_ID = "..."
+SECRET_ACCESS_KEY = "..."
+ENDPOINT_URL = "https://gateway.storjshare.io"
+
+──
 ```
 
 ---
