@@ -17,6 +17,7 @@ import lookout.api.ambient_client as ambient_client
 import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 import lookout.core.visualization as lo_viz
+from lookout import config as cfg
 from lookout.ui import diagnostics
 from lookout.utils.log_util import app_logger
 
@@ -40,56 +41,6 @@ sec_in_hour = 3600 * 1000
 bucket = "lookout"
 auto_refresh_min = 6  # minutes to wait for auto update
 auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
-
-keys = {
-    "temp_keys": [
-        "tempf",
-    ],
-    "atmos_keys": [],
-    "wind_keys": [
-        "winddir",
-        "winddir_avg10m",
-        "windspeedmph",
-        "windspdmph_avg10m",
-        "windgustmph",
-        "maxdailygust",
-    ],
-    "rain_keys": [
-        "hourlyrainin",
-        "eventrainin",
-        "dailyrainin",
-        "weeklyrainin",
-        "monthlyrainin",
-        "yearlyrainin",
-    ],
-    "all_keys": [
-        "tempf",
-        "humidity",
-        "winddir",
-        "winddir_avg10m",
-        "windspeedmph",
-        "windspdmph_avg10m",
-        "windgustmph",
-        "maxdailygust",
-        "hourlyrainin",
-        "eventrainin",
-        "dailyrainin",
-        "weeklyrainin",
-        "monthlyrainin",
-        "yearlyrainin",
-        "solarradiation",
-        "uv",
-        "temp1f",
-        "humidity1",
-        "feelsLike",
-        "dewPoint",
-        "feelsLike1",
-        "dewPoint1",
-        "feelsLikein",
-        "dewPointin",
-        "lastRain",
-    ],
-}
 
 
 def update_session_data(device, hist_df=None, limit=250, pages=10):
@@ -369,31 +320,6 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 # %%
 
 
-# Gauge configurations
-temp_gauges = [
-    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
-    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
-    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
-]
-
-rain_guages = [
-    {"metric": "hourlyrainin", "title": "Hourly Rain", "metric_type": "rain_rate"},
-    {"metric": "eventrainin", "title": "Event Rain", "metric_type": "rain"},
-    {"metric": "dailyrainin", "title": "Daily Rain", "metric_type": "rain"},
-    {"metric": "weeklyrainin", "title": "Weekly Rain", "metric_type": "rain"},
-    {"metric": "monthlyrainin", "title": "Monthly Rain", "metric_type": "rain"},
-    {"metric": "yearlyrainin", "title": "Yearly Rain", "metric_type": "rain"},
-]
-
-
-# the "metric" that may be boxplotted
-box_plot = [
-    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
-    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
-    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
-    {"metric": "solarradiation", "title": "Solar Radiation", "metric_type": "temps"},
-]
-
 # Present the dashboard ########################
 
 row1 = st.columns(2)
@@ -459,19 +385,21 @@ with row1[1]:
 st.subheader("Current")
 
 if last_data:
-    make_column_gauges(temp_gauges)
+    make_column_gauges(cfg.TEMP_GAUGES)
     # make_column_gauges(rain_guages)
 
 
 st.subheader("Temps Plots")
 # Let the user select multiple metrics for comparison
-metric_titles = [metric["title"] for metric in box_plot]
+metric_titles = [metric["title"] for metric in cfg.BOX_PLOT_METRICS]
 selected_titles = st.multiselect(
     "Select metrics for the box plot:", metric_titles, default=metric_titles[0]
 )
 
 # Find the selected metrics based on the titles
-selected_metrics = [metric for metric in box_plot if metric["title"] in selected_titles]
+selected_metrics = [
+    metric for metric in cfg.BOX_PLOT_METRICS if metric["title"] in selected_titles
+]
 
 # User selects a box width
 box_width_option = st.selectbox("Select box width:", ["hour", "day", "week", "month"])

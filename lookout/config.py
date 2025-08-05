@@ -42,8 +42,8 @@ sensor_index = {
             },
             "uv": {
                 "uv": "UV Index",
-            }
-        }
+            },
+        },
     },
     "location2": {
         "name": "Indoor",
@@ -59,7 +59,7 @@ sensor_index = {
             "battery": {
                 "battin": "Battery Status",
             },
-        }
+        },
     },
     "location3": {
         "name": "Office",
@@ -75,7 +75,7 @@ sensor_index = {
             "battery": {
                 "batt1": "Office Battery Status",
             },
-        }
+        },
     },
     "timestamps": {
         "last_data_collection": {
@@ -83,5 +83,29 @@ sensor_index = {
             "date": "Local Date Time",
             "lastRain": "Last Rain Event",
         }
-    }
+    },
 }
+
+# Gauge configs for UI rendering
+
+TEMP_GAUGES = [
+    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
+    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
+    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
+]
+
+RAIN_GAUGES = [
+    {"metric": "hourlyrainin", "title": "Hourly Rain", "metric_type": "rain_rate"},
+    {"metric": "eventrainin", "title": "Event Rain", "metric_type": "rain"},
+    {"metric": "dailyrainin", "title": "Daily Rain", "metric_type": "rain"},
+    {"metric": "weeklyrainin", "title": "Weekly Rain", "metric_type": "rain"},
+    {"metric": "monthlyrainin", "title": "Monthly Rain", "metric_type": "rain"},
+    {"metric": "yearlyrainin", "title": "Yearly Rain", "metric_type": "rain"},
+]
+
+BOX_PLOT_METRICS = [
+    {"metric": "tempf", "title": "Temp Outside", "metric_type": "temps"},
+    {"metric": "tempinf", "title": "Temp Bedroom", "metric_type": "temps"},
+    {"metric": "temp1f", "title": "Temp Office", "metric_type": "temps"},
+    {"metric": "solarradiation", "title": "Solar Radiation", "metric_type": "temps"},
+]
