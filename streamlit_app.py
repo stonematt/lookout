@@ -19,6 +19,7 @@ import lookout.core.data_processing as lo_dp
 import lookout.core.visualization as lo_viz
 from lookout import config as cfg
 from lookout.ui import diagnostics
+from lookout.utils.date_util import to_date
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -41,21 +42,6 @@ sec_in_hour = 3600 * 1000
 bucket = "lookout"
 auto_refresh_min = 6  # minutes to wait for auto update
 auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
-
-
-def to_date(date_string: str):
-    """
-    Convert a date string to a datetime object.
-
-    :param date_string: str - The date string to parse.
-    :return: datetime - Parsed datetime object.
-    :raises: Exception if date string parsing fails.
-    """
-    try:
-        return parser.parse(date_string)
-    except Exception as e:
-        logger.error(f"Error parsing date string: {e}", exc_info=True)
-        raise
 
 
 def better_heatmap_table(df, metric, aggfunc="max", interval=1800):
