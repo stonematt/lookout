@@ -1,13 +1,13 @@
-""" 
+"""
 visualizations.py
 Collection of functions to create charts and visualizations for streamlit
 """
 
+import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import pandas as pd
-import numpy as np
 from colour import Color
 
 gauge_defaults = {
@@ -355,4 +355,50 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
     )
 
     # Render the plot in Streamlit
+    st.plotly_chart(fig)
+
+
+def better_heatmap_table(df, metric, aggfunc="max", interval=1800):
+    """
+    Create a pivot table of aggregate values for a given metric, with the row index
+    as a time stamp for every `interval`-second interval and the column index as
+    the unique dates in the "date" column.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The input DataFrame with a "date" column and a column with the desired `metric`.
+    metric : str
+        The name of the column in `df` containing the desired metric.
+    aggfunc : str or function
+        The aggregation function to use when computing the pivot table. Can be a string
+        of a built-in function (e.g., "mean", "sum", "count"), or a custom function.
+    interval : int
+        The number of seconds for each interval. For example, `interval=15` would
+        create an interval of 15 seconds.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A pivot table where the row index is a time stamp for every `interval`-second
+        interval, and the column index is the unique dates in the "date" column.
+        The values are the aggregate value of the `metric` column for each interval
+        and each date.
+    """
+
+    df["date"] = pd.to_datetime(df["date"])
+    df["day"] = df["date"].dt.date
+    df["interval"] = df["date"].dt.floor(f"{interval}s").dt.strftime("%H:%M:%S")
+    table = df.pivot_table(
+        index=["interval"],
+        columns=["day"],
+        values=metric,
+        aggfunc=aggfunc,
+    )
+
+    return table
+
+
+def heatmap_chart(heatmap_table):
+    fig = px.imshow(heatmap_table, x=heatmap_table.columns, y=heatmap_table.index)
     st.plotly_chart(fig)
