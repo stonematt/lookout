@@ -17,6 +17,7 @@ import lookout.api.ambient_client as ambient_client
 import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 import lookout.core.visualization as lo_viz
+from lookout.ui import diagnostics
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -518,4 +519,9 @@ if selected_metrics and "date" in history_df.columns:
 
     st.plotly_chart(fig)
 
-    st.write(device["lastData"])
+    tab_overview, tab_diagnostics = st.tabs(["Overview", "Diagnostics"])
+
+    with tab_diagnostics:
+        diagnostics.render()
+
+        st.write(device["lastData"])
