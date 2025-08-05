@@ -43,41 +43,6 @@ auto_refresh_min = 6  # minutes to wait for auto update
 auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
 
 
-def update_session_data(device, hist_df=None, limit=250, pages=10):
-    """
-    Update session with latest historical data and reset session counter.
-
-    :param device: Object representing the device.
-    :param hist_df: DataFrame of current historical data, defaults to session state history.
-    :param limit: int - Max records to fetch per call, default 250.
-    :param pages: int - Number of pages to fetch, default 10.
-    :return: None.
-    """
-    try:
-        # Use provided or session state history
-        current_df = (
-            hist_df
-            if hist_df is not None
-            else st.session_state.get("history_df", pd.DataFrame())
-        )
-
-        # Fetch updated history
-        updated_df = awn.get_history_since_last_archive(
-            device, current_df, limit=limit, pages=pages
-        )
-
-        # Update session state
-        st.session_state["history_df"] = updated_df
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
-
-        logger.info("Session data updated successfully.")
-    except Exception as e:
-        logger.error(f"Failed to update session data: {e}")
-        st.error("An error occurred while updating session data. Please try again.")
-
-
 def to_date(date_string: str):
     """
     Convert a date string to a datetime object.
@@ -186,7 +151,7 @@ def load_or_update_data(
         auto_update=auto_update,
     ):
         update_message.text("Updating historical data...")
-        update_session_data(device, history_df)
+        awn.update_session_data(device, history_df)
         st.session_state["history_max_dateutc"] = int(
             st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
         )
