@@ -5,21 +5,17 @@ Main streamlit.io application
 import time
 
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from dateutil import parser
 
 import lookout.api.ambient_client as ambient_client
 
 # my modules
 # import lookout.storage.storj as sj
-import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 import lookout.core.visualization as lo_viz
 from lookout import config as cfg
 from lookout.ui import diagnostics
-from lookout.utils.date_util import to_date
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
