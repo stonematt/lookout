@@ -52,6 +52,22 @@ def render():
     else:
         col3.metric("Longest Gap", "—")
 
+    with st.expander("View Gap Details"):
+        if gaps_df.empty:
+            st.success("No significant gaps found.")
+        else:
+            st.write(f"Detected {len(gaps_df)} gaps over 10 minutes.")
+            st.dataframe(
+                gaps_df.style.format(
+                    {
+                        "start": lambda x: x.strftime("%Y-%m-%d %H:%M"),
+                        "end": lambda x: x.strftime("%Y-%m-%d %H:%M"),
+                        "duration_minutes": "{:.1f}",
+                    }
+                ),
+                use_container_width=True,
+            )
+
     st.markdown("---")
 
     # --- 2. Gap Heatmap Placeholder ---
