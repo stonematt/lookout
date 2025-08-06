@@ -18,7 +18,7 @@ def render():
     history_df = st.session_state["history_df"]
     last_data = st.session_state["last_data"]
 
-    st.subheader("Overview")
+    st.header("Overview")
     # Access the updated history_df and max_dateutc
 
     # Present the dashboard ########################

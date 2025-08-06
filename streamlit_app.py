@@ -104,5 +104,3 @@ with tab_overview:
 
 with tab_diagnostics:
     diagnostics.render()
-
-    st.write(device["lastData"])
