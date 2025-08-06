@@ -3,6 +3,10 @@ import streamlit as st
 
 import lookout.core.data_processing as lo_dp
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
+from lookout.core.visualization import (
+    display_data_coverage_heatmap,
+    display_hourly_coverage_heatmap,
+)
 
 
 def render():
@@ -101,9 +105,50 @@ def render():
             )
 
     # --- 2. Gap Heatmap Placeholder ---
+    #
+    # --- Data Coverage Heatmap ---
     st.subheader("Data Coverage")
-    st.info("Heatmap showing data presence by hour/day goes here.")
-    st.empty()
+
+    display_hourly_coverage_heatmap(df=filtered_df.copy())
+
+    # # Filtered data reused from Gap Analysis: `filtered_df`
+    # coverage_df = filtered_df.copy()
+    # coverage_df["date"] = pd.to_datetime(coverage_df["dateutc"], unit="ms")
+    #
+    # # Resample into daily/hourly intervals
+    # coverage_df["interval"] = coverage_df["date"].dt.floor(f"{interval_minutes}min")
+    # coverage_df["day"] = coverage_df["date"].dt.date
+    #
+    # heatmap_data = (
+    #     coverage_df.groupby(["day", "interval"]).size().reset_index(name="count")
+    # )
+    #
+    # # Pivot to matrix format
+    # pivot = heatmap_data.pivot_table(
+    #     index="day",
+    #     columns=heatmap_data["interval"].dt.strftime("%H:%M"),
+    #     values="count",
+    #     aggfunc="sum",
+    #     fill_value=0,
+    # )
+    #
+    # # Plot heatmap
+    # fig = px.imshow(
+    #     pivot,
+    #     labels=dict(x="Hour", y="Day", color="Samples"),
+    #     aspect="auto",
+    #     color_continuous_scale="Blues",
+    # )
+    # fig.update_layout(
+    #     xaxis_title="Hour of Day",
+    #     yaxis_title="Date",
+    #     margin=dict(t=30, b=30),
+    # )
+    #
+    # st.plotly_chart(fig, use_container_width=True)
+    # st.subheader("Data Coverage")
+    # st.info("Heatmap showing data presence by hour/day goes here.")
+    # st.empty()
 
     # --- 3. Recent Device Status ---
     st.subheader("Device vs Archive Check")
