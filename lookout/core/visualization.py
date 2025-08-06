@@ -467,8 +467,8 @@ def display_data_coverage_heatmap(df, metric="tempf", interval_minutes=60):
 
 def display_hourly_coverage_heatmap(df):
     """
-    Render a heatmap showing count of samples per hour per day,
-    including missing dates with 0s for full continuity.
+    Render a grid-style heatmap showing the number of samples per hour per day.
+    Missing days/hours are zero-filled to preserve visual continuity.
     """
     df = df.copy()
     df["date"] = pd.to_datetime(df["dateutc"])
@@ -478,24 +478,21 @@ def display_hourly_coverage_heatmap(df):
     # Count samples per (day, hour)
     grouped = df.groupby(["day", "hour"]).size().reset_index(name="samples")
 
-    # Create full date/hour grid
+    # Create full (day, hour) index to fill gaps
     full_days = pd.date_range(df["day"].min(), df["day"].max(), freq="D").date
     full_hours = list(range(24))
     full_index = pd.MultiIndex.from_product(
         [full_days, full_hours], names=["day", "hour"]
     )
 
-    # Reindex to ensure all dates/hours are present
     full_df = (
         grouped.set_index(["day", "hour"])
         .reindex(full_index, fill_value=0)
         .reset_index()
     )
 
-    # Pivot for heatmap
     pivot = full_df.pivot(index="day", columns="hour", values="samples")
 
-    # Hover text
     hover_text = [
         [
             f"Hour: {hour}<br>Date: {date}<br>Samples: {pivot.at[date, hour]}"
@@ -504,7 +501,6 @@ def display_hourly_coverage_heatmap(df):
         for date in pivot.index
     ]
 
-    # Plotly heatmap
     fig = go.Figure(
         data=go.Heatmap(
             z=pivot.values,
@@ -515,9 +511,11 @@ def display_hourly_coverage_heatmap(df):
             colorscale="Blues",
             showscale=True,
             hoverongaps=False,
-            colorbar=dict(title="Samples"),
+            zsmooth=False,  # No smoothing — preserves grid
         )
     )
+
+    fig.update_traces(xgap=2, ygap=2)  # Visual cell spacing
 
     fig.update_layout(
         title="Hourly Coverage",
@@ -526,13 +524,15 @@ def display_hourly_coverage_heatmap(df):
             tickmode="linear",
             dtick=1,
             type="category",
-            showgrid=False,
+            showgrid=True,
+            gridcolor="lightgrey",
         ),
         yaxis=dict(
             title="Date",
             type="category",
             autorange="reversed",
-            showgrid=False,
+            showgrid=True,
+            gridcolor="lightgrey",
         ),
         margin=dict(l=60, r=20, t=40, b=40),
         plot_bgcolor="white",
