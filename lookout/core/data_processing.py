@@ -4,7 +4,9 @@ Collection of functions to manipulate data frames for a streamlit dashboard
 
 import numpy as np
 import pandas as pd
+import streamlit as st
 
+import lookout.api.awn_controller as awn
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -201,3 +203,82 @@ def prepare_polar_chart_data(
     grouped_data = calculate_percentages(df, [value_bin_col, direction_bin_col])
 
     return grouped_data, value_labels, direction_labels
+
+
+def load_or_update_data(
+    device, bucket, file_type, auto_update, short_minutes, long_minutes
+):
+    """
+    Wrapper function to load or update historical data with status messages.
+
+    :param device: Object representing the device.
+    :param bucket: str - The S3 bucket name for archive storage.
+    :param file_type: str - The file type for archive storage (e.g., 'parquet').
+    :param auto_update: bool - Whether to perform updates automatically.
+    :param short_minutes: int - Minimum age threshold for updates (in minutes).
+    :param long_minutes: int - Maximum age threshold for updates (in minutes).
+    :return: None - Updates Streamlit session state directly.
+    """
+    update_message = st.empty()
+
+    # Initial load
+    if "history_df" not in st.session_state:
+        update_message.text("Getting archive data...")
+        st.session_state["history_df"] = awn.load_archive_for_device(
+            device, bucket, file_type
+        )
+
+        # Initialize session state variables
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+        st.session_state["cloud_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+        st.session_state["session_counter"] = 0
+
+        logger.info("Initial archive load completed.")
+        update_message.empty()
+
+    # Fetch interim data if conditions are met
+    history_df = st.session_state["history_df"]
+    history_max_dateutc = st.session_state["history_max_dateutc"]
+
+    if should_update_history(
+        device_last_dateutc=device["lastData"]["dateutc"],
+        history_max_dateutc=history_max_dateutc,
+        short_minutes=short_minutes,
+        long_minutes=long_minutes,
+        auto_update=auto_update,
+    ):
+        update_message.text("Updating historical data...")
+        awn.update_session_data(device, history_df)
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+
+        logger.info("Historical data updated successfully.")
+        update_message.empty()
+
+
+def should_update_history(
+    device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
+):
+    """
+    Determines if the historical data should be updated based on age thresholds.
+
+    :param device_last_dateutc: int - Last data timestamp from the device (in milliseconds).
+    :param history_max_dateutc: int - Maximum data timestamp in the archive (in milliseconds).
+    :param short_minutes: int - Minimum age (in minutes) required to trigger an update.
+    :param long_minutes: int - Maximum age (in minutes) for which updates are valid.
+    :param auto_update: bool - Whether auto-update is enabled.
+    :return: bool - True if history should be updated, False otherwise.
+    """
+    if not auto_update:
+        return False
+
+    delta_ms = device_last_dateutc - history_max_dateutc
+    short_ms = short_minutes * 60 * 1000  # Convert minutes to milliseconds
+    long_ms = long_minutes * 60 * 1000  # Convert minutes to milliseconds
+
+    return short_ms <= delta_ms < long_ms
