@@ -12,7 +12,9 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
+# ========================================
 # Engtry points
+# ========================================
 def load_or_update_data(
     device, bucket, file_type, auto_update, short_minutes, long_minutes
 ):
@@ -160,7 +162,9 @@ def get_history_min_max(df, date_column="date", data_column="tempf", data_label=
     return results
 
 
-# # Polar chart support
+# ========================================
+# Polar chart support
+# ========================================
 def prepare_polar_chart_data(
     df,
     value_col,
@@ -284,3 +288,52 @@ def calculate_percentages(df, group_cols):
     grouped = df.groupby(group_cols, observed=False).size().reset_index(name="count")
     grouped["percentage"] = (grouped["count"] / total_count) * 100
     return grouped
+
+
+# ========================================
+# Gap and Quality Analysis
+# ========================================
+def detect_gaps(
+    df: pd.DataFrame, timestamp_col: str = "dateutc", threshold_minutes: int = 10
+) -> pd.DataFrame:
+    """
+    Detects time gaps in a DataFrame based on a minimum threshold.
+
+    :param df: pd.DataFrame - Input DataFrame with a datetime or integer timestamp column.
+    :param timestamp_col: str - Column name containing timestamps (e.g., "dateutc").
+    :param threshold_minutes: int - Minimum gap size to consider (in minutes).
+    :return: pd.DataFrame - With ['start', 'end', 'duration_minutes'] columns for each gap.
+    """
+    if df.empty or timestamp_col not in df.columns:
+        return pd.DataFrame(
+            {
+                "start": pd.Series(dtype="datetime64[ns]"),
+                "end": pd.Series(dtype="datetime64[ns]"),
+                "duration_minutes": pd.Series(dtype="float"),
+            }
+        )
+    df_sorted = df.sort_values(timestamp_col).copy()
+
+    # Ensure datetime type
+    if not pd.api.types.is_datetime64_any_dtype(df_sorted[timestamp_col]):
+        df_sorted[timestamp_col] = pd.to_datetime(df_sorted[timestamp_col], unit="ms")
+
+    # Compute time delta in minutes
+    time_diffs = df_sorted[timestamp_col].diff().dt.total_seconds().div(60)
+    gap_mask = time_diffs > threshold_minutes
+
+    # Use positional indexing for start and end times
+    gap_indices = gap_mask[gap_mask].index
+    start_times = df_sorted[timestamp_col].iloc[gap_indices - 1].reset_index(drop=True)
+    end_times = df_sorted[timestamp_col].iloc[gap_indices].reset_index(drop=True)
+    durations = time_diffs.loc[gap_indices].reset_index(drop=True)
+
+    result = pd.DataFrame(
+        {
+            "start": start_times,
+            "end": end_times,
+            "duration_minutes": durations,
+        }
+    )
+
+    return result

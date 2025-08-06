@@ -1,6 +1,9 @@
 import pandas as pd
 import streamlit as st
 
+import lookout.core.data_processing as lo_dp
+from lookout.core.data_processing import detect_gaps, get_human_readable_duration
+
 
 def render():
     """
@@ -15,13 +18,39 @@ def render():
     last_data = st.session_state["last_data"]
 
     st.header("Archive Diagnostics")
+    history_max_dateutc = st.session_state["history_max_dateutc"]
+    device_last_dateutc = last_data.get("dateutc")
+
+    # Inline archive status (already in sidebar too)
+    history_age_h = lo_dp.get_human_readable_duration(
+        device_last_dateutc, history_max_dateutc
+    )
+
+    st.caption(
+        f"📅 Archive current to: {history_df.date.max()} -- 🕐 Archive lag: {history_age_h}"
+    )
 
     # --- 1. Status Summary ---
     st.subheader("Summary")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Records", "—")
-    col2.metric("Total Gaps", "—")
-    col3.metric("Longest Gap", "—")
+
+    total_records = len(history_df)
+    col1.metric("Total Records", f"{total_records:,}")
+
+    # Gap analysis
+    gaps_df = detect_gaps(history_df)  # default is 10min gaps
+    total_gaps = len(gaps_df)
+    col2.metric("Total Gaps", f"{total_gaps:,}")
+    if not gaps_df.empty:
+        longest_gap_min = gaps_df["duration_minutes"].max()
+        # Convert minutes to ms for compatibility with the utility
+        dummy_now = 0
+        dummy_then = -longest_gap_min * 60 * 1000
+        human_gap = get_human_readable_duration(dummy_now, dummy_then)
+
+        col3.metric("Longest Gap", human_gap)
+    else:
+        col3.metric("Longest Gap", "—")
 
     st.markdown("---")
 
@@ -40,7 +69,7 @@ def render():
 
     # --- 5. Raw Gap View Placeholder ---
     with st.expander("Raw Gap List (Coming Soon)"):
-        st.dataframe(pd.DataFrame(columns=["Start", "End", "Duration"]))
+        st.dataframe(pd.DataFrame([], columns=["Start", "End", "Duration"]))
 
     st.subheader("Last Data Record")
     st.write(last_data)
