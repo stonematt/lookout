@@ -402,3 +402,49 @@ def better_heatmap_table(df, metric, aggfunc="max", interval=1800):
 def heatmap_chart(heatmap_table):
     fig = px.imshow(heatmap_table, x=heatmap_table.columns, y=heatmap_table.index)
     st.plotly_chart(fig)
+
+
+def make_column_gauges(gauge_list, chart_height=300):
+    """
+    Take a list of metrics and produce a row of gauges, with min, median, and max values displayed below each gauge.
+
+    :param gauge_list: list of dicts with metrics, titles to render as gauges, and their types.
+    :param chart_height: height of the charts in the row
+    """
+    # Create columns for gauges
+    cols = st.columns(len(gauge_list))
+    last_data = st.session_state.get("last_data", {})
+    history_df = st.session_state.get("history_df")
+
+    for i, gauge in enumerate(gauge_list):
+        metric = gauge["metric"]
+        title = gauge["title"]
+        metric_type = gauge["metric_type"]
+
+        # Retrieve the last value for the metric
+        value = last_data.get(metric, 0)
+
+        # Calculate min, median, max for the current metric from history_df
+        min_val = median_val = max_val = 0  # Default fallback
+
+        if isinstance(history_df, pd.DataFrame) and metric in history_df.columns:
+            min_val = history_df[metric].min()
+            median_val = history_df[metric].median()
+            max_val = history_df[metric].max()
+
+        # Create the gauge chart for the current metric
+        gauge_fig = create_gauge_chart(
+            value=value, metric_type=metric_type, title=title, chart_height=chart_height
+        )
+
+        # Plot the gauge in the respective column, fitting it to the column width
+        with cols[i]:
+            st.plotly_chart(gauge_fig, use_container_width=True)
+
+            # Use markdown to display min, median, and max values below the gauge with less vertical space
+            stats_md = f"""<small>
+            <b>Min:</b> {min_val:.2f} <br>
+            <b>Median:</b> {median_val:.2f} <br>
+            <b>Max:</b> {max_val:.2f}
+            </small>"""
+            st.markdown(stats_md, unsafe_allow_html=True)

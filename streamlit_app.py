@@ -44,47 +44,6 @@ auto_refresh_min = 6  # minutes to wait for auto update
 auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
 
 
-def make_column_gauges(gauge_list, chart_height=300):
-    """
-    Take a list of metrics and produce a row of gauges, with min, median, and max values displayed below each gauge.
-
-    :param gauge_list: list of dicts with metrics, titles to render as gauges, and their types.
-    :param chart_height: height of the charts in the row
-    """
-    # Create columns for gauges
-    cols = st.columns(len(gauge_list))
-
-    for i, gauge in enumerate(gauge_list):
-        metric = gauge["metric"]
-        title = gauge["title"]
-        metric_type = gauge["metric_type"]
-
-        # Retrieve the last value for the metric
-        value = last_data.get(metric, 0)
-
-        # Calculate min, median, max for the current metric from history_df
-        min_val = history_df[metric].min()
-        median_val = history_df[metric].median()
-        max_val = history_df[metric].max()
-
-        # Create the gauge chart for the current metric
-        gauge_fig = lo_viz.create_gauge_chart(
-            value=value, metric_type=metric_type, title=title, chart_height=chart_height
-        )
-
-        # Plot the gauge in the respective column, fitting it to the column width
-        with cols[i]:
-            st.plotly_chart(gauge_fig, use_container_width=True)
-
-            # Use markdown to display min, median, and max values below the gauge with less vertical space
-            stats_md = f"""<small>
-            <b>Min:</b> {min_val:.2f} <br>
-            <b>Median:</b> {median_val:.2f} <br>
-            <b>Max:</b> {max_val:.2f}
-            </small>"""
-            st.markdown(stats_md, unsafe_allow_html=True)
-
-
 # Setup and get data ########################
 
 devices = ambient_client.get_devices()
@@ -97,7 +56,8 @@ if len(devices) == 1:
     device = devices[0]
     device_menu = device["macAddress"]
     device_name = device["info"]["name"]
-    last_data = device["lastData"]
+    st.session_state["last_data"] = device["lastData"]
+    last_data = st.session_state["last_data"]
     st.header(f"Weather Station:  {device_name}")
     logger.debug(f"One device found:  {device['info']['name']}")
 
@@ -211,7 +171,7 @@ with row1[1]:
 st.subheader("Current")
 
 if last_data:
-    make_column_gauges(cfg.TEMP_GAUGES)
+    lo_viz.make_column_gauges(cfg.TEMP_GAUGES)
     # make_column_gauges(rain_guages)
 
 
