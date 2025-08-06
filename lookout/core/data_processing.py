@@ -12,6 +12,86 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
+# Engtry points
+def load_or_update_data(
+    device, bucket, file_type, auto_update, short_minutes, long_minutes
+):
+    """
+    Wrapper function to load or update historical data with status messages.
+
+    :param device: Object representing the device.
+    :param bucket: str - The S3 bucket name for archive storage.
+    :param file_type: str - The file type for archive storage (e.g., 'parquet').
+    :param auto_update: bool - Whether to perform updates automatically.
+    :param short_minutes: int - Minimum age threshold for updates (in minutes).
+    :param long_minutes: int - Maximum age threshold for updates (in minutes).
+    :return: None - Updates Streamlit session state directly.
+    """
+    update_message = st.empty()
+
+    # Initial load
+    if "history_df" not in st.session_state:
+        update_message.text("Getting archive data...")
+        st.session_state["history_df"] = awn.load_archive_for_device(
+            device, bucket, file_type
+        )
+
+        # Initialize session state variables
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+        st.session_state["cloud_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+        st.session_state["session_counter"] = 0
+
+        logger.info("Initial archive load completed.")
+        update_message.empty()
+
+    # Fetch interim data if conditions are met
+    history_df = st.session_state["history_df"]
+    history_max_dateutc = st.session_state["history_max_dateutc"]
+
+    if should_update_history(
+        device_last_dateutc=device["lastData"]["dateutc"],
+        history_max_dateutc=history_max_dateutc,
+        short_minutes=short_minutes,
+        long_minutes=long_minutes,
+        auto_update=auto_update,
+    ):
+        update_message.text("Updating historical data...")
+        awn.update_session_data(device, history_df)
+        st.session_state["history_max_dateutc"] = int(
+            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        )
+
+        logger.info("Historical data updated successfully.")
+        update_message.empty()
+
+
+def should_update_history(
+    device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
+):
+    """
+    Determines if the historical data should be updated based on age thresholds.
+
+    :param device_last_dateutc: int - Last data timestamp from the device (in milliseconds).
+    :param history_max_dateutc: int - Maximum data timestamp in the archive (in milliseconds).
+    :param short_minutes: int - Minimum age (in minutes) required to trigger an update.
+    :param long_minutes: int - Maximum age (in minutes) for which updates are valid.
+    :param auto_update: bool - Whether auto-update is enabled.
+    :return: bool - True if history should be updated, False otherwise.
+    """
+    if not auto_update:
+        return False
+
+    delta_ms = device_last_dateutc - history_max_dateutc
+    short_ms = short_minutes * 60 * 1000  # Convert minutes to milliseconds
+    long_ms = long_minutes * 60 * 1000  # Convert minutes to milliseconds
+
+    return short_ms <= delta_ms < long_ms
+
+
 def get_human_readable_duration(recent_dateutc, history_dateutc):
     """
     Returns a human-centric duration in minutes, hours, or days.
@@ -78,6 +158,51 @@ def get_history_min_max(df, date_column="date", data_column="tempf", data_label=
         }
 
     return results
+
+
+# # Polar chart support
+def prepare_polar_chart_data(
+    df,
+    value_col,
+    direction_col,
+    num_bins=5,
+    sector_size=30,
+    value_bin_col="value_bin",
+    direction_bin_col="direction_bin",
+    max_percentile=0.9,
+):
+    """
+    Prepares data for a polar chart by binning values, binning directions, and
+    calculating percentages.
+
+    :param df: pd.DataFrame - Input DataFrame containing the raw data.
+    :param value_col: str - Column name for the continuous values (e.g., wind speed).
+    :param direction_col: str - Column name for the directional data (e.g., wind direction).
+    :param num_bins: int - Number of bins for the value column. Defaults to 5.
+    :param sector_size: int - Size of directional sectors (degrees). Defaults to 30.
+    :param value_bin_col: str - Column name for the binned values. Defaults to "value_bin".
+    :param direction_bin_col: str - Column name for the binned directions. Defaults to "direction_bin".
+    :param max_percentile: float - Percentile to set the maximum binning value. Defaults to 0.9 (90th percentile).
+    :return: pd.DataFrame, list - Grouped data for the polar chart, and value labels.
+    """
+    # Step 1: Bin continuous values
+    df, value_labels = bin_values(
+        df,
+        value_col,
+        num_bins=num_bins,
+        bin_col_name=value_bin_col,
+        max_percentile=max_percentile,
+    )
+
+    # Step 2: Bin directional values
+    df, direction_labels = bin_directions(
+        df, direction_col, sector_size, bin_col_name=direction_bin_col
+    )
+
+    # Step 3: Calculate percentages
+    grouped_data = calculate_percentages(df, [value_bin_col, direction_bin_col])
+
+    return grouped_data, value_labels, direction_labels
 
 
 def bin_values(
@@ -159,126 +284,3 @@ def calculate_percentages(df, group_cols):
     grouped = df.groupby(group_cols, observed=False).size().reset_index(name="count")
     grouped["percentage"] = (grouped["count"] / total_count) * 100
     return grouped
-
-
-def prepare_polar_chart_data(
-    df,
-    value_col,
-    direction_col,
-    num_bins=5,
-    sector_size=30,
-    value_bin_col="value_bin",
-    direction_bin_col="direction_bin",
-    max_percentile=0.9,
-):
-    """
-    Prepares data for a polar chart by binning values, binning directions, and
-    calculating percentages.
-
-    :param df: pd.DataFrame - Input DataFrame containing the raw data.
-    :param value_col: str - Column name for the continuous values (e.g., wind speed).
-    :param direction_col: str - Column name for the directional data (e.g., wind direction).
-    :param num_bins: int - Number of bins for the value column. Defaults to 5.
-    :param sector_size: int - Size of directional sectors (degrees). Defaults to 30.
-    :param value_bin_col: str - Column name for the binned values. Defaults to "value_bin".
-    :param direction_bin_col: str - Column name for the binned directions. Defaults to "direction_bin".
-    :param max_percentile: float - Percentile to set the maximum binning value. Defaults to 0.9 (90th percentile).
-    :return: pd.DataFrame, list - Grouped data for the polar chart, and value labels.
-    """
-    # Step 1: Bin continuous values
-    df, value_labels = bin_values(
-        df,
-        value_col,
-        num_bins=num_bins,
-        bin_col_name=value_bin_col,
-        max_percentile=max_percentile,
-    )
-
-    # Step 2: Bin directional values
-    df, direction_labels = bin_directions(
-        df, direction_col, sector_size, bin_col_name=direction_bin_col
-    )
-
-    # Step 3: Calculate percentages
-    grouped_data = calculate_percentages(df, [value_bin_col, direction_bin_col])
-
-    return grouped_data, value_labels, direction_labels
-
-
-def load_or_update_data(
-    device, bucket, file_type, auto_update, short_minutes, long_minutes
-):
-    """
-    Wrapper function to load or update historical data with status messages.
-
-    :param device: Object representing the device.
-    :param bucket: str - The S3 bucket name for archive storage.
-    :param file_type: str - The file type for archive storage (e.g., 'parquet').
-    :param auto_update: bool - Whether to perform updates automatically.
-    :param short_minutes: int - Minimum age threshold for updates (in minutes).
-    :param long_minutes: int - Maximum age threshold for updates (in minutes).
-    :return: None - Updates Streamlit session state directly.
-    """
-    update_message = st.empty()
-
-    # Initial load
-    if "history_df" not in st.session_state:
-        update_message.text("Getting archive data...")
-        st.session_state["history_df"] = awn.load_archive_for_device(
-            device, bucket, file_type
-        )
-
-        # Initialize session state variables
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
-        st.session_state["cloud_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
-        st.session_state["session_counter"] = 0
-
-        logger.info("Initial archive load completed.")
-        update_message.empty()
-
-    # Fetch interim data if conditions are met
-    history_df = st.session_state["history_df"]
-    history_max_dateutc = st.session_state["history_max_dateutc"]
-
-    if should_update_history(
-        device_last_dateutc=device["lastData"]["dateutc"],
-        history_max_dateutc=history_max_dateutc,
-        short_minutes=short_minutes,
-        long_minutes=long_minutes,
-        auto_update=auto_update,
-    ):
-        update_message.text("Updating historical data...")
-        awn.update_session_data(device, history_df)
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
-
-        logger.info("Historical data updated successfully.")
-        update_message.empty()
-
-
-def should_update_history(
-    device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
-):
-    """
-    Determines if the historical data should be updated based on age thresholds.
-
-    :param device_last_dateutc: int - Last data timestamp from the device (in milliseconds).
-    :param history_max_dateutc: int - Maximum data timestamp in the archive (in milliseconds).
-    :param short_minutes: int - Minimum age (in minutes) required to trigger an update.
-    :param long_minutes: int - Maximum age (in minutes) for which updates are valid.
-    :param auto_update: bool - Whether auto-update is enabled.
-    :return: bool - True if history should be updated, False otherwise.
-    """
-    if not auto_update:
-        return False
-
-    delta_ms = device_last_dateutc - history_max_dateutc
-    short_ms = short_minutes * 60 * 1000  # Convert minutes to milliseconds
-    long_ms = long_minutes * 60 * 1000  # Convert minutes to milliseconds
-
-    return short_ms <= delta_ms < long_ms
