@@ -312,28 +312,25 @@ def detect_gaps(
                 "duration_minutes": pd.Series(dtype="float"),
             }
         )
+
     df_sorted = df.sort_values(timestamp_col).copy()
 
-    # Ensure datetime type
     if not pd.api.types.is_datetime64_any_dtype(df_sorted[timestamp_col]):
         df_sorted[timestamp_col] = pd.to_datetime(df_sorted[timestamp_col], unit="ms")
 
-    # Compute time delta in minutes
-    time_diffs = df_sorted[timestamp_col].diff().dt.total_seconds().div(60)
-    gap_mask = time_diffs > threshold_minutes
+    time_diffs = (
+        df_sorted[timestamp_col].diff().dt.total_seconds().div(60).astype(float)
+    )
+    gap_mask = time_diffs.gt(float(threshold_minutes))
 
-    # Use positional indexing for start and end times
-    gap_indices = gap_mask[gap_mask].index
-    start_times = df_sorted[timestamp_col].iloc[gap_indices - 1].reset_index(drop=True)
-    end_times = df_sorted[timestamp_col].iloc[gap_indices].reset_index(drop=True)
-    durations = time_diffs.loc[gap_indices].reset_index(drop=True)
+    starts = df_sorted[timestamp_col].shift(1)[gap_mask].reset_index(drop=True)
+    ends = df_sorted[timestamp_col][gap_mask].reset_index(drop=True)
+    durations = time_diffs[gap_mask].reset_index(drop=True)
 
-    result = pd.DataFrame(
+    return pd.DataFrame(
         {
-            "start": start_times,
-            "end": end_times,
+            "start": starts,
+            "end": ends,
             "duration_minutes": durations,
         }
     )
-
-    return result
