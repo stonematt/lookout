@@ -146,6 +146,14 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
             params["end_date"] = end_date
 
         logger.info(f"Fetch history: {mac}, Params: {params}")
+        human = None
+        if "end_date" in params and isinstance(params["end_date"], (int, float)):
+            try:
+                human = pd.to_datetime(int(params["end_date"]), unit="ms", utc=True)
+            except (ValueError, TypeError) as e:
+                logger.error(f"Invalid end_date value: {params['end_date']} ({e})")
+                human = None
+        logger.debug(f"to_date:params={params}, human_end={human}")
         df = get_device_history(mac, **params)
 
         if df.empty:
@@ -178,14 +186,25 @@ def get_device_history_from_date(device, start_date, limit=288) -> pd.DataFrame:
         logger.error("Device is missing a valid 'macAddress'")
         return pd.DataFrame()
 
-    current_time = datetime.now()
-    end_date = start_date + timedelta(minutes=(limit - 3) * 5)
+    if getattr(start_date, "tzinfo", None) is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
 
+    current_time = datetime.now(timezone.utc)  # aware now
+    # leave your (limit - 3) * 5 heuristic untouched
+    end_date = start_date + timedelta(minutes=(limit - 3) * 5)
     if end_date > current_time:
         end_date = current_time
 
-    end_date_ts = int(end_date.timestamp() * 1000)
-    return get_device_history_to_date(device, end_date=end_date_ts, limit=limit)
+    end_ms = int(end_date.timestamp() * 1000)
+    logger.debug(
+        "from_date: start=%s end=%s (tz=%s) now=%s (tz=%s)",
+        start_date,
+        end_date,
+        start_date.tzinfo,
+        current_time,
+        current_time.tzinfo,
+    )
+    return get_device_history_to_date(device, end_date=end_ms, limit=limit)
 
 
 def seek_over_time_gap(
@@ -237,6 +256,12 @@ def get_history_since_last_archive(
     last_date = pd.to_datetime(
         archive_df["dateutc"].to_numpy().max(), unit="ms", utc=True
     ).to_pydatetime()
+    last_date = pd.to_datetime(
+        archive_df["dateutc"].to_numpy().max(), unit="ms", utc=True
+    )
+    # debug date time
+    _now_utc = datetime.now(timezone.utc)
+
     now_utc = datetime.now(timezone.utc)
 
     gap_attempts = 0
@@ -246,10 +271,16 @@ def get_history_since_last_archive(
             time.sleep(1)
 
         # Guard: avoid fetching from the future
-        if (
-            last_date if last_date.tzinfo else last_date.replace(tzinfo=timezone.utc)
-        ) >= now_utc:
-            logger.info("Next fetch timestamp is in the future. Stopping early.")
+        last_date_utc = (
+            last_date.astimezone(timezone.utc)
+            if last_date.tzinfo is not None
+            else last_date.replace(tzinfo=timezone.utc)
+        )
+
+        if last_date_utc >= now_utc:
+            logger.info(
+                f"Next fetch timestamp {last_date_utc} is in the future compared to now {now_utc}. Stopping early."
+            )
             break
 
         # Attempt to fetch new records since last known timestamp
@@ -279,11 +310,16 @@ def get_history_since_last_archive(
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
 
-        # Advance using max timestamp in new_data +5min to avoid boundary dupes, capped at now
-        last_date = pd.to_datetime(
+        # Advance cursor from page max (UTC) +5min, cap at now
+        page_max_utc = pd.to_datetime(
             new_data["dateutc"].max(), unit="ms", utc=True
         ).to_pydatetime()
-        last_date = min(last_date + timedelta(minutes=5), now_utc)
+        now_utc = datetime.now(timezone.utc)
+        last_date = min(page_max_utc + timedelta(minutes=5), now_utc)
+
+        logger.debug(
+            f"cursor advance: page_max={page_max_utc} next_cursor={last_date} now={now_utc}"
+        )
 
         log_interim_progress(page + 1, pages, interim_df)
 
@@ -306,6 +342,7 @@ def fetch_device_data(device, last_date, limit):
     """Fetch historical data for a device starting from a given date."""
     try:
         new_data = get_device_history_from_date(device, last_date, limit)
+
         if new_data.empty:
             return pd.DataFrame(), False
         return new_data, True
@@ -346,9 +383,16 @@ def update_last_date(new_data: pd.DataFrame) -> datetime:
     Update the last_date for the next fetch.
 
     :param new_data: DataFrame containing the new data.
-    :return: The max 'dateutc' as a datetime object.
+    :return: The max 'dateutc' as a datetime object (UTC aware).
     """
-    return pd.to_datetime(new_data["dateutc"].max(), unit="ms").to_pydatetime()
+    max_ts = int(new_data["dateutc"].max())
+    max_dt = pd.to_datetime(max_ts, unit="ms", utc=True).to_pydatetime()
+
+    logger.debug(
+        f"update_last_date: max_ts={max_ts}, max_dt={max_dt} (tz={max_dt.tzinfo})"
+    )
+
+    return max_dt
 
 
 def log_interim_progress(page, pages, interim_df):
@@ -377,7 +421,9 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
     try:
         df = pd.concat([df1, df2], ignore_index=True)
-        df["dateutc"] = pd.to_datetime(df["dateutc"], unit="ms", errors="coerce")
+        df["dateutc"] = pd.to_datetime(
+            df["dateutc"], unit="ms", utc=True, errors="coerce"
+        )
         df = df.dropna(subset=["dateutc"])
         df.sort_values("dateutc", ascending=True, inplace=True)
         return (
