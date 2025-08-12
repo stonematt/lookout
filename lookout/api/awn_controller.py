@@ -373,9 +373,14 @@ def is_fresh_data(
     return True
 
 
-def combine_interim_data(interim_df, new_data):
-    """Combine interim data with newly fetched data."""
-    return combine_df(interim_df, new_data)
+def combine_interim_data(
+    interim_df: pd.DataFrame, new_data: pd.DataFrame
+) -> pd.DataFrame:
+    before = len(interim_df)
+    combined = combine_df(interim_df, new_data)
+    added = len(combined) - before
+    logger.info(f"combine: +{added} rows (interim total={len(combined)})")
+    return combined
 
 
 def update_last_date(new_data: pd.DataFrame) -> datetime:
@@ -404,33 +409,66 @@ def log_interim_progress(page, pages, interim_df):
     )
 
 
-def combine_full_history(archive_df, interim_df):
-    """Combine the archive with interim data and log the range."""
-    full_history_df = combine_df(archive_df, interim_df)
+def combine_full_history(
+    archive_df: pd.DataFrame, interim_df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Combine the archive with interim data, log added rows and final UTC range.
+    """
+    before = len(archive_df)
+
+    if interim_df is None or interim_df.empty:
+        combined = archive_df
+        added = 0
+    else:
+        combined = combine_df(archive_df, interim_df)
+        added = len(combined) - before
+
+    # Compute range from dateutc (ms) in UTC
+    # (do not assume presence/correctness of any local 'date' column)
+    dt = pd.to_datetime(combined["dateutc"], unit="ms", utc=True, errors="coerce")
+    dt = dt.dropna()
+    if dt.empty:
+        logger.info(
+            f"Full History Range: (n/a) - (n/a); +{added} rows (total={len(combined)})"
+        )
+        return combined
+
+    start = dt.min().strftime("%y-%m-%d %H:%M")
+    end = dt.max().strftime("%y-%m-%d %H:%M")
+
     logger.info(
-        f"Full History Range: "
-        f"({full_history_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
-        f"({full_history_df['date'].max().strftime('%y-%m-%d %H:%M')})"
+        f"Full History Range: ({start}) - ({end}); +{added} rows (total={len(combined)})"
     )
-    return full_history_df
+
+    return combined
 
 
 def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge two DataFrames on 'dateutc', keeping the last entry for each timestamp.
+    Merge two DataFrames on 'dateutc', keeping the last entry per timestamp.
+    Operates in UTC datetimes for correctness, then returns dateutc as int64 ms.
     """
     try:
         df = pd.concat([df1, df2], ignore_index=True)
+
+        # Normalize to UTC datetimes for safe dedupe
         df["dateutc"] = pd.to_datetime(
             df["dateutc"], unit="ms", utc=True, errors="coerce"
         )
         df = df.dropna(subset=["dateutc"])
-        df.sort_values("dateutc", ascending=True, inplace=True)
-        return (
+
+        # Dedupe and sort (desc to match existing callers)
+        df = (
             df.drop_duplicates(subset="dateutc", keep="last")
             .sort_values("dateutc", ascending=False)
             .reset_index(drop=True)
         )
+
+        # Convert back to int64 milliseconds for storage schema (avoid .view() warnings)
+        df["dateutc"] = (df["dateutc"].astype("int64") // 1_000_000).astype("int64")
+
+        return df
     except Exception as e:
         logger.error(f"Error combining DataFrames: {e}")
         raise
