@@ -39,6 +39,7 @@ import streamlit as st
 
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history, get_devices
+from lookout.utils.dataframe_helpers import max_dateutc_ms
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -77,8 +78,8 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
 
         # Update session state
         st.session_state["history_df"] = updated_df
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
+        st.session_state["history_max_dateutc"] = max_dateutc_ms(
+            st.session_state["history_df"]
         )
 
         logger.info("Session data updated successfully.")

@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 import lookout.api.awn_controller as awn
+from lookout.utils.dataframe_helpers import max_dateutc_ms
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -39,12 +40,9 @@ def load_or_update_data(
         )
 
         # Initialize session state variables
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
-        st.session_state["cloud_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
+        max_ms = max_dateutc_ms(st.session_state["history_df"])
+        st.session_state["history_max_dateutc"] = max_ms
+        st.session_state["cloud_max_dateutc"] = max_ms
         st.session_state["session_counter"] = 0
 
         logger.info("Initial archive load completed.")
