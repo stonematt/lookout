@@ -471,7 +471,7 @@ def display_hourly_coverage_heatmap(df):
     Missing days/hours are zero-filled to preserve visual continuity.
     """
     df = df.copy()
-    df["date"] = pd.to_datetime(df["dateutc"])
+    df["date"] = pd.to_datetime(df["date"])
     df["hour"] = df["date"].dt.hour
     df["day"] = df["date"].dt.date
 

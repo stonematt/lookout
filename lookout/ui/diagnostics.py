@@ -62,10 +62,10 @@ def render():
 
     # Compute filter window
     window_kwargs = {window_unit: window_value}
-    cutoff = pd.Timestamp.now(tz=history_df["dateutc"].dt.tz) - pd.Timedelta(
+    cutoff = pd.Timestamp.now(tz=history_df["date"].dt.tz) - pd.Timedelta(
         **window_kwargs
     )
-    filtered_df = history_df[history_df["dateutc"] >= cutoff]
+    filtered_df = history_df[history_df["date"] >= cutoff]
 
     # Detect gaps with threshold
     gaps_df = detect_gaps(filtered_df, threshold_minutes=threshold)
