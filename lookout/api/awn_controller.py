@@ -232,15 +232,23 @@ def get_history_since_last_archive(
         return archive_df
 
     interim_df = pd.DataFrame()
-    last_date = pd.to_datetime(archive_df["dateutc"].to_numpy().max(), unit="ms")
+
+    # Always work in UTC for consistency
+    last_date = pd.to_datetime(
+        archive_df["dateutc"].to_numpy().max(), unit="ms", utc=True
+    ).to_pydatetime()
+    now_utc = datetime.now(timezone.utc)
+
     gap_attempts = 0
 
     for page in range(pages):
         if sleep:
             time.sleep(1)
 
-        # Stop if we're trying to fetch data from the future
-        if last_date.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+        # Guard: avoid fetching from the future
+        if (
+            last_date if last_date.tzinfo else last_date.replace(tzinfo=timezone.utc)
+        ) >= now_utc:
             logger.info("Next fetch timestamp is in the future. Stopping early.")
             break
 
@@ -270,7 +278,13 @@ def get_history_since_last_archive(
         # If valid data is found, append it and update reference timestamp
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
-        last_date = update_last_date(new_data)
+
+        # Advance using max timestamp in new_data +5min to avoid boundary dupes, capped at now
+        last_date = pd.to_datetime(
+            new_data["dateutc"].max(), unit="ms", utc=True
+        ).to_pydatetime()
+        last_date = min(last_date + timedelta(minutes=5), now_utc)
+
         log_interim_progress(page + 1, pages, interim_df)
 
     # Merge the new records with the existing archive
