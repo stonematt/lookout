@@ -229,6 +229,61 @@ def seek_over_time_gap(
     return next_date, gap_attempts, False
 
 
+def _utc_now():
+    return datetime.now(timezone.utc)
+
+
+def _to_utc(dt: datetime) -> datetime:
+    """Return an aware UTC datetime for comparison."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _advance_cursor_from_page(new_data: pd.DataFrame, now_utc: datetime) -> datetime:
+    """
+    Advance the cursor using page's max dateutc (UTC) + 5 minutes, capped at now.
+    """
+    page_max_utc = pd.to_datetime(
+        new_data["dateutc"].max(), unit="ms", utc=True
+    ).to_pydatetime()
+    return min(page_max_utc + timedelta(minutes=5), now_utc)
+
+
+def _fetch_and_validate_page(
+    device: dict, cursor_dt: datetime, limit: int, interim_df: pd.DataFrame
+):
+    """
+    Fetch one page and decide whether it progresses the timeline.
+    Returns: (new_data_df, progressed_bool)
+    """
+    new_data, ok = fetch_device_data(device, cursor_dt, limit)
+    if not ok or new_data.empty:
+        logger.debug("No new data fetched.")
+        return pd.DataFrame(), False
+
+    if not is_fresh_data(new_data, interim_df):
+        logger.debug("Fetched data did not advance timeline (not fresh).")
+        return pd.DataFrame(), False
+
+    return new_data, True
+
+
+def _first_page_catchup_to_now(device: dict, limit: int) -> pd.DataFrame:
+    """
+    If we hit the 'future' guard before getting any interim data,
+    pull one page ending at 'now' so we at least land on the latest snapshot.
+    """
+    end_ms = int(_utc_now().timestamp() * 1000)
+    logger.info(
+        f"First-page future guard tripped; pulling one page ending at now ({end_ms})."
+    )
+    df = get_device_history_to_date(device, end_date=end_ms, limit=limit)
+    if df.empty:
+        logger.info("First-page catch-up returned no data.")
+    return df
+
+
 def get_history_since_last_archive(
     device: dict,
     archive_df: pd.DataFrame,
@@ -239,13 +294,6 @@ def get_history_since_last_archive(
     """
     Retrieves device history from the last archive forward, avoiding duplicate fetches,
     handling gaps, and skipping future timestamps.
-
-    :param device: dict - Device metadata for fetch.
-    :param archive_df: pd.DataFrame - Historical archive to append to.
-    :param limit: int - Records per fetch.
-    :param pages: int - Max pages to pull.
-    :param sleep: bool - If True, sleep 1s between calls.
-    :return: pd.DataFrame - Combined new and archived data.
     """
     if not validate_archive(archive_df):
         return archive_df
@@ -255,15 +303,8 @@ def get_history_since_last_archive(
     # Always work in UTC for consistency
     last_date = pd.to_datetime(
         archive_df["dateutc"].to_numpy().max(), unit="ms", utc=True
-    ).to_pydatetime()
-    last_date = pd.to_datetime(
-        archive_df["dateutc"].to_numpy().max(), unit="ms", utc=True
     )
-    # debug date time
-    _now_utc = datetime.now(timezone.utc)
-
-    now_utc = datetime.now(timezone.utc)
-
+    now_utc = _utc_now()
     gap_attempts = 0
 
     for page in range(pages):
@@ -271,24 +312,23 @@ def get_history_since_last_archive(
             time.sleep(1)
 
         # Guard: avoid fetching from the future
-        last_date_utc = (
-            last_date.astimezone(timezone.utc)
-            if last_date.tzinfo is not None
-            else last_date.replace(tzinfo=timezone.utc)
-        )
-
-        if last_date_utc >= now_utc:
-            logger.info(
-                f"Next fetch timestamp {last_date_utc} is in the future compared to now {now_utc}. Stopping early."
-            )
+        last_date_utc = _to_utc(last_date)
+        if _should_stop_for_future(last_date_utc, now_utc):
+            if interim_df.empty:
+                # Pull exactly one page up to 'now' so we don't stop while still behind.
+                first_page = _first_page_catchup_to_now(device, limit)
+                if not first_page.empty:
+                    interim_df = combine_interim_data(interim_df, first_page)
+                    log_page_quality(
+                        interim_df, f"Interim after page {page+1} (catch-up)"
+                    )
             break
 
-        # Attempt to fetch new records since last known timestamp
-        new_data, fetch_successful = fetch_device_data(device, last_date, limit)
-
-        # If fetch fails or returns no data
-        if not fetch_successful or new_data.empty:
-            logger.debug("No new data fetched.")
+        # Try to fetch a page that advances the timeline
+        new_data, progressed = _fetch_and_validate_page(
+            device, last_date_utc, limit, interim_df
+        )
+        if not progressed:
             last_date, gap_attempts, exit_flag = seek_over_time_gap(
                 last_date, gap_attempts, limit
             )
@@ -296,31 +336,14 @@ def get_history_since_last_archive(
                 break
             continue
 
-        # Check if the new data is valid and advances the timeline
-        is_fresh = is_fresh_data(new_data, interim_df)
-        if not is_fresh:
-            last_date, gap_attempts, exit_flag = seek_over_time_gap(
-                last_date, gap_attempts, limit
-            )
-            if exit_flag:
-                break
-            continue
-
-        # If valid data is found, append it and update reference timestamp
+        # We’ve got a progressing page — combine, log, advance cursor
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
+        log_page_quality(interim_df, f"Interim after page {page+1}")
+        now_utc = _utc_now()
+        last_date = _advance_cursor_from_page(new_data, now_utc)
 
-        # Advance cursor from page max (UTC) +5min, cap at now
-        page_max_utc = pd.to_datetime(
-            new_data["dateutc"].max(), unit="ms", utc=True
-        ).to_pydatetime()
-        now_utc = datetime.now(timezone.utc)
-        last_date = min(page_max_utc + timedelta(minutes=5), now_utc)
-
-        logger.debug(
-            f"cursor advance: page_max={page_max_utc} next_cursor={last_date} now={now_utc}"
-        )
-
+        logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
         log_interim_progress(page + 1, pages, interim_df)
 
     # Merge the new records with the existing archive
@@ -328,6 +351,24 @@ def get_history_since_last_archive(
 
 
 # Helper Functions
+
+
+def _should_stop_for_future(next_dt, now_utc) -> bool:
+    """
+    True if the next fetch timestamp would be in the future.
+    Normalizes naive datetimes to UTC for a fair comparison.
+    """
+    next_utc = (
+        next_dt
+        if getattr(next_dt, "tzinfo", None)
+        else next_dt.replace(tzinfo=timezone.utc)
+    )
+    if next_utc >= now_utc:
+        logger.info(
+            f"Next fetch timestamp {next_utc} is in the future vs now {now_utc}. Stopping early."
+        )
+        return True
+    return False
 
 
 def validate_archive(archive_df):
@@ -342,6 +383,8 @@ def fetch_device_data(device, last_date, limit):
     """Fetch historical data for a device starting from a given date."""
     try:
         new_data = get_device_history_from_date(device, last_date, limit)
+        # after a successful fetch (before freshness check)
+        log_page_quality(new_data, f"Page {page+1}/{pages} fetched")
 
         if new_data.empty:
             return pd.DataFrame(), False
@@ -548,6 +591,37 @@ def _df_column_to_datetime(df: pd.DataFrame, column: str, tz: str) -> None:
     except Exception as e:
         logger.error(f"Conversion error: {e}")
         raise e
+
+
+def log_page_quality(df: pd.DataFrame, label: str) -> None:
+    """
+    Emit quick stats for a fetched/combined page to spot gaps or drops.
+    """
+    if df is None or df.empty:
+        logger.info(f"{label}: empty page")
+        return
+
+    try:
+        ts = pd.to_datetime(df["dateutc"], unit="ms", utc=True, errors="coerce")
+        ts = ts.dropna()
+        if ts.empty:
+            logger.info(f"{label}: no valid timestamps")
+            return
+
+        n = len(df)
+        n_dup = df["dateutc"].duplicated().sum()
+        first_ts = ts.min()
+        last_ts = ts.max()
+        span = last_ts - first_ts
+
+        # check expected 5‑min cadence (not strict—just a hint)
+        cadence = ts.sort_values().diff().dropna().value_counts().head(3).to_dict()
+
+        logger.info(
+            f"{label}: n={n}, dup={n_dup}, range=({first_ts})–({last_ts}), span={span}, top_steps={cadence}"
+        )
+    except Exception as e:
+        logger.debug(f"{label}: page-quality log failed: {e}")
 
 
 def main() -> None:
