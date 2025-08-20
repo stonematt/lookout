@@ -2,11 +2,10 @@ import pandas as pd
 import streamlit as st
 
 import lookout.core.data_processing as lo_dp
+from lookout.api.awn_controller import fill_archive_gap
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
-from lookout.core.visualization import (
-    display_data_coverage_heatmap,
-    display_hourly_coverage_heatmap,
-)
+from lookout.core.visualization import display_hourly_coverage_heatmap
+from lookout.storage.storj import backup_and_save_history
 
 
 def render():
@@ -18,6 +17,7 @@ def render():
         st.warning("No archive data loaded.")
         return
 
+    device = st.session_state["device"]
     history_df = st.session_state["history_df"]
     last_data = st.session_state["last_data"]
 
@@ -93,62 +93,74 @@ def render():
             )
         else:
             st.write(f"Detected {len(gaps_df)} gaps > {threshold} min.")
-            st.dataframe(
-                gaps_df.style.format(
-                    {
-                        "start": lambda x: x.strftime("%Y-%m-%d %H:%M"),
-                        "end": lambda x: x.strftime("%Y-%m-%d %H:%M"),
-                        "duration_minutes": "{:.1f}",
-                    }
-                ),
-                use_container_width=True,
+
+            # Format gaps for display
+            styled_gaps = gaps_df.copy()
+            styled_gaps["start_str"] = styled_gaps["start"].dt.strftime(
+                "%Y-%m-%d %H:%M"
+            )
+            styled_gaps["end_str"] = styled_gaps["end"].dt.strftime("%Y-%m-%d %H:%M")
+            styled_gaps["duration_minutes"] = styled_gaps["duration_minutes"].round(1)
+
+            # Show as read-only table
+            styled_display_df = (
+                styled_gaps[["start_str", "end_str", "duration_minutes"]]
+                .copy()
+                .rename(
+                    columns={  # explicitly cast to Dict[str, str] to satisfy Pyright
+                        "start_str": "Gap Start",
+                        "end_str": "Gap End",
+                        "duration_minutes": "Minutes",
+                    }  # type: Dict[str, str]
+                )
             )
 
+            st.dataframe(styled_display_df, use_container_width=True)
+
+            # Gap selector
+            selected_idx = st.selectbox(
+                "Select a gap to fill",
+                options=styled_gaps.index,
+                format_func=lambda i: (
+                    f"{styled_gaps.loc[i, 'start_str']} → {styled_gaps.loc[i, 'end_str']} "
+                    f"({styled_gaps.loc[i, 'duration_minutes']:.1f} min)"
+                ),
+            )
+
+            col1, col2, _ = st.columns([1, 1, 4])  # 2 narrow columns, 1 spacer
+            with col1:
+                fill_clicked = st.button("Fill Selected Gap")
+            with col2:
+                save_clicked = st.button("💾 Save Archive")
+
+            if fill_clicked:
+                row = gaps_df.loc[selected_idx]
+                start_ts = pd.to_datetime(row["start"])
+                end_ts = pd.to_datetime(row["end"])
+                st.info(f"Filling gap: {start_ts} to {end_ts}")
+
+                updated_df = fill_archive_gap(
+                    st.session_state["device"],
+                    st.session_state["history_df"],
+                    start_ts,
+                    end_ts,
+                )
+                st.session_state["history_df"] = updated_df
+                st.success("Gap filled and archive updated.")
+                st.rerun()
+
+            if save_clicked:
+                backup_and_save_history(
+                    df=st.session_state["history_df"],
+                    device=st.session_state["device"],
+                )
+                st.success("Archive saved to Storj.")
     # --- 2. Gap Heatmap Placeholder ---
     #
     # --- Data Coverage Heatmap ---
     st.subheader("Data Coverage")
 
     display_hourly_coverage_heatmap(df=filtered_df.copy())
-
-    # # Filtered data reused from Gap Analysis: `filtered_df`
-    # coverage_df = filtered_df.copy()
-    # coverage_df["date"] = pd.to_datetime(coverage_df["dateutc"], unit="ms")
-    #
-    # # Resample into daily/hourly intervals
-    # coverage_df["interval"] = coverage_df["date"].dt.floor(f"{interval_minutes}min")
-    # coverage_df["day"] = coverage_df["date"].dt.date
-    #
-    # heatmap_data = (
-    #     coverage_df.groupby(["day", "interval"]).size().reset_index(name="count")
-    # )
-    #
-    # # Pivot to matrix format
-    # pivot = heatmap_data.pivot_table(
-    #     index="day",
-    #     columns=heatmap_data["interval"].dt.strftime("%H:%M"),
-    #     values="count",
-    #     aggfunc="sum",
-    #     fill_value=0,
-    # )
-    #
-    # # Plot heatmap
-    # fig = px.imshow(
-    #     pivot,
-    #     labels=dict(x="Hour", y="Day", color="Samples"),
-    #     aspect="auto",
-    #     color_continuous_scale="Blues",
-    # )
-    # fig.update_layout(
-    #     xaxis_title="Hour of Day",
-    #     yaxis_title="Date",
-    #     margin=dict(t=30, b=30),
-    # )
-    #
-    # st.plotly_chart(fig, use_container_width=True)
-    # st.subheader("Data Coverage")
-    # st.info("Heatmap showing data presence by hour/day goes here.")
-    # st.empty()
 
     # --- 3. Recent Device Status ---
     st.subheader("Device vs Archive Check")

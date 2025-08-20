@@ -33,13 +33,13 @@ Helper Functions:
 import json
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
 
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history, get_devices
-from lookout.utils.dataframe_helpers import max_dateutc_ms
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -78,9 +78,9 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
 
         # Update session state
         st.session_state["history_df"] = updated_df
-        st.session_state["history_max_dateutc"] = max_dateutc_ms(
-            st.session_state["history_df"]
-        )
+        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+            "dateutc"
+        ].max()
 
         logger.info("Session data updated successfully.")
     except Exception as e:
@@ -173,30 +173,38 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
         return pd.DataFrame()
 
 
-def get_device_history_from_date(device, start_date, limit=288) -> pd.DataFrame:
+def get_device_history_from_date(
+    device, start_date, limit=288, end_date: Optional[datetime] = None
+) -> pd.DataFrame:
     """
     Fetches a page of data for the device starting from the specified date.
 
     :param device: The device dictionary to fetch data for.
     :param start_date: The datetime to start fetching data from.
     :param limit: The number of records to fetch.
+    :param end_date: Optional datetime to stop fetching at (exclusive).
     :return: A DataFrame with the fetched data.
     """
-    mac = device.get("macAddress")
+    mac = device["macAddress"]
     if not isinstance(mac, str):
         logger.error("Device is missing a valid 'macAddress'")
         return pd.DataFrame()
 
+    # Ensure start is timezone-aware
     if getattr(start_date, "tzinfo", None) is None:
         start_date = start_date.replace(tzinfo=timezone.utc)
 
-    current_time = datetime.now(timezone.utc)  # aware now
-    # leave your (limit - 3) * 5 heuristic untouched
-    end_date = start_date + timedelta(minutes=(limit - 3) * 5)
-    if end_date > current_time:
-        end_date = current_time
+    current_time = datetime.now(timezone.utc)
 
+    # Resolve end_date with fallback and clip to current time
+    end_date = (
+        pd.to_datetime(end_date, utc=True)
+        if end_date
+        else start_date + timedelta(minutes=(limit - 3) * 5)
+    )
+    end_date = min(end_date, current_time)
     end_ms = int(end_date.timestamp() * 1000)
+
     logger.debug(
         "from_date: start=%s end=%s (tz=%s) now=%s (tz=%s)",
         start_date,
@@ -205,6 +213,7 @@ def get_device_history_from_date(device, start_date, limit=288) -> pd.DataFrame:
         current_time,
         current_time.tzinfo,
     )
+
     return get_device_history_to_date(device, end_date=end_ms, limit=limit)
 
 
@@ -291,6 +300,7 @@ def get_history_since_last_archive(
     limit: int = 250,
     pages: int = 10,
     sleep: bool = False,
+    end_date: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
     Retrieves device history from the last archive forward, avoiding duplicate fetches,
@@ -305,18 +315,28 @@ def get_history_since_last_archive(
     last_date = pd.to_datetime(
         archive_df["dateutc"].to_numpy().max(), unit="ms", utc=True
     )
-    now_utc = _utc_now()
+
+    # Define a fixed loop cap based on end_date (if provided) or now
+    if end_date:
+        if isinstance(end_date, (int, float)):
+            end_date = pd.to_datetime(end_date, unit="ms", utc=True)
+        else:
+            end_date = _to_utc(pd.to_datetime(end_date, utc=True))
+        now_utc = end_date
+    else:
+        now_utc = _utc_now()
+
     gap_attempts = 0
 
     for page in range(pages):
         if sleep:
             time.sleep(1)
 
-        # Guard: avoid fetching from the future
         last_date_utc = _to_utc(last_date)
+
+        # Stop if we've hit the future or past end bound
         if _should_stop_for_future(last_date_utc, now_utc):
             if interim_df.empty:
-                # Pull exactly one page up to 'now' so we don't stop while still behind.
                 first_page = _first_page_catchup_to_now(device, limit)
                 if not first_page.empty:
                     interim_df = combine_interim_data(interim_df, first_page)
@@ -325,10 +345,11 @@ def get_history_since_last_archive(
                     )
             break
 
-        # Try to fetch a page that advances the timeline
-        new_data, progressed = _fetch_and_validate_page(
-            device, last_date_utc, limit, interim_df
+        page_label = f"Page {page+1}/{pages} fetched"
+        new_data, progressed = fetch_device_data(
+            device, last_date_utc, limit, page_label
         )
+
         if not progressed:
             last_date, gap_attempts, exit_flag = seek_over_time_gap(
                 last_date, gap_attempts, limit
@@ -337,17 +358,14 @@ def get_history_since_last_archive(
                 break
             continue
 
-        # We’ve got a progressing page — combine, log, advance cursor
+        # Progressing page: merge, log, update cursor
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
         log_page_quality(interim_df, f"Interim after page {page+1}")
-        now_utc = _utc_now()
         last_date = _advance_cursor_from_page(new_data, now_utc)
-
         logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
         log_interim_progress(page + 1, pages, interim_df)
 
-    # Merge the new records with the existing archive
     return combine_full_history(archive_df, interim_df)
 
 
@@ -372,6 +390,40 @@ def _should_stop_for_future(next_dt, now_utc) -> bool:
     return False
 
 
+def fill_archive_gap(device, history_df, start, end):
+    """Fetch missing data for a specified gap and append it to the in-memory history."""
+    logger.info(f"*** Attempting to fill gap from {start} to {end} ***")
+
+    # Normalize input
+    working_history_df = history_df.copy()
+    working_history_df["dateutc"] = pd.to_datetime(
+        history_df["dateutc"], unit="ms", utc=True
+    )
+    start = pd.to_datetime(start, utc=True)
+    end = pd.to_datetime(end, utc=True)
+
+    if start >= end:
+        logger.warning("Invalid gap: start >= end")
+        return history_df
+
+    # Trim to before the gap
+    archive_df = working_history_df[working_history_df["dateutc"] < start]
+
+    if archive_df.empty:
+        logger.warning("No archive data before gap start; can't determine baseline.")
+        return history_df
+
+    # Fetch new records to fill the gap
+    new_data_df = get_history_since_last_archive(
+        device, archive_df, end_date=end, pages=20
+    )
+
+    # ✅ Merge new data back into full archive
+    full_combined = combine_full_history(history_df, new_data_df)
+
+    return full_combined
+
+
 def validate_archive(archive_df):
     """Validate that the archive DataFrame is usable."""
     if archive_df.empty or "dateutc" not in archive_df.columns:
@@ -380,12 +432,12 @@ def validate_archive(archive_df):
     return True
 
 
-def fetch_device_data(device, last_date, limit):
+def fetch_device_data(device, last_date, limit, label="Fetched data"):
     """Fetch historical data for a device starting from a given date."""
     try:
         new_data = get_device_history_from_date(device, last_date, limit)
         # after a successful fetch (before freshness check)
-        log_page_quality(new_data, f"Page {page+1}/{pages} fetched")
+        log_page_quality(new_data, label)
 
         if new_data.empty:
             return pd.DataFrame(), False
