@@ -418,9 +418,16 @@ def fill_archive_gap(device, history_df, start, end):
         device, archive_df, end_date=end, pages=20
     )
 
-    # ✅ Merge new data back into full archive
+    # Merge new data back into full archive
     full_combined = combine_full_history(history_df, new_data_df)
 
+    if len(full_combined) == len(history_df):
+        logger.info("No new data found. Marking gap as skipped.")
+        if "skipped_gaps" not in st.session_state:
+            st.session_state["skipped_gaps"] = []
+        st.session_state["skipped_gaps"].append({"start": start, "end": end})
+
+    return history_df
     return full_combined
 
 
