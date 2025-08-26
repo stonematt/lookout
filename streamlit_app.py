@@ -114,8 +114,8 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 
 # Present the dashboard ########################
 
-# tab_overview, tab_diagnostics = st.tabs(["Overview", "Diagnostics"])
-tab_diagnostics, tab_overview = st.tabs(["Diagnostics", "Overview"])
+tab_overview, tab_diagnostics = st.tabs(["Overview", "Diagnostics"])
+# tab_diagnostics, tab_overview = st.tabs(["Diagnostics", "Overview"])
 
 with tab_overview:
     overview.render()
