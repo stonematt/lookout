@@ -11,6 +11,22 @@ import lookout.core.data_processing as lo_dp
 from lookout.ui import diagnostics, overview
 from lookout.utils.log_util import app_logger
 
+# if st.secrets.get("DEBUG", False):
+#     try:
+#         import debugpy
+#
+#         # Avoid calling listen() multiple times
+#         if not hasattr(debugpy, "_already_listening"):
+#             debugpy.listen(("localhost", 5678))
+#             debugpy._already_listening = True
+#             print("🐛 Waiting for debugger to attach on port 5678...")
+#             debugpy.wait_for_client()
+#         else:
+#             print("🐛 Debugger already listening.")
+#     except Exception as e:
+#         print(f"🐛 Failed to set up debugpy: {e}")
+
+
 logger = app_logger(__name__)
 
 
@@ -47,6 +63,7 @@ if len(devices) == 1:
     device_name = device["info"]["name"]
     st.session_state["last_data"] = device["lastData"]
     last_data = st.session_state["last_data"]
+    st.session_state["device"] = device  # ← Add this
     st.header(f"Weather Station:  {device_name}")
     logger.debug(f"One device found:  {device['info']['name']}")
 
@@ -98,6 +115,7 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 # Present the dashboard ########################
 
 tab_overview, tab_diagnostics = st.tabs(["Overview", "Diagnostics"])
+# tab_diagnostics, tab_overview = st.tabs(["Diagnostics", "Overview"])
 
 with tab_overview:
     overview.render()

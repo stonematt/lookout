@@ -448,3 +448,95 @@ def make_column_gauges(gauge_list, chart_height=300):
             <b>Max:</b> {max_val:.2f}
             </small>"""
             st.markdown(stats_md, unsafe_allow_html=True)
+
+
+def display_data_coverage_heatmap(df, metric="tempf", interval_minutes=60):
+    """
+    Show data density heatmap based on datapoint counts per interval.
+
+    :param df: Filtered DataFrame with a datetime column "date".
+    :param metric: A valid metric column (used for presence, not value).
+    :param interval_minutes: Interval granularity in minutes.
+    """
+    interval_seconds = interval_minutes * 60
+    table = better_heatmap_table(
+        df, metric=metric, aggfunc="count", interval=interval_seconds
+    )
+    heatmap_chart(table)
+
+
+def display_hourly_coverage_heatmap(df):
+    """
+    Render a grid-style heatmap showing the number of samples per hour per day.
+    Missing days/hours are zero-filled to preserve visual continuity.
+    """
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df["hour"] = df["date"].dt.hour
+    df["day"] = df["date"].dt.date
+
+    # Count samples per (day, hour)
+    grouped = df.groupby(["day", "hour"]).size().reset_index(name="samples")
+
+    # Create full (day, hour) index to fill gaps
+    full_days = pd.date_range(df["day"].min(), df["day"].max(), freq="D").date
+    full_hours = list(range(24))
+    full_index = pd.MultiIndex.from_product(
+        [full_days, full_hours], names=["day", "hour"]
+    )
+
+    full_df = (
+        grouped.set_index(["day", "hour"])
+        .reindex(full_index, fill_value=0)
+        .reset_index()
+    )
+
+    pivot = full_df.pivot(index="day", columns="hour", values="samples")
+
+    hover_text = [
+        [
+            f"Hour: {hour}<br>Date: {date}<br>Samples: {pivot.at[date, hour]}"
+            for hour in pivot.columns
+        ]
+        for date in pivot.index
+    ]
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=[str(h) for h in pivot.columns],
+            y=pivot.index.astype(str),
+            text=hover_text,
+            hoverinfo="text",
+            colorscale="Blues",
+            showscale=True,
+            hoverongaps=False,
+            zsmooth=False,  # No smoothing — preserves grid
+        )
+    )
+
+    fig.update_traces(xgap=2, ygap=2)  # Visual cell spacing
+
+    fig.update_layout(
+        title="Hourly Coverage",
+        xaxis=dict(
+            title="Hour of Day",
+            tickmode="linear",
+            dtick=1,
+            type="category",
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        yaxis=dict(
+            title="Date",
+            type="category",
+            autorange="reversed",
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        margin=dict(l=60, r=20, t=40, b=40),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
