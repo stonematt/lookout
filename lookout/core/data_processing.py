@@ -12,7 +12,9 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
+# ========================================
 # Engtry points
+# ========================================
 def load_or_update_data(
     device, bucket, file_type, auto_update, short_minutes, long_minutes
 ):
@@ -37,12 +39,9 @@ def load_or_update_data(
         )
 
         # Initialize session state variables
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
-        st.session_state["cloud_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
+        max_ms = st.session_state["history_df"]["dateutc"].max()
+        st.session_state["history_max_dateutc"] = max_ms
+        st.session_state["cloud_max_dateutc"] = max_ms
         st.session_state["session_counter"] = 0
 
         logger.info("Initial archive load completed.")
@@ -61,9 +60,9 @@ def load_or_update_data(
     ):
         update_message.text("Updating historical data...")
         awn.update_session_data(device, history_df)
-        st.session_state["history_max_dateutc"] = int(
-            st.session_state["history_df"]["dateutc"].max().timestamp() * 1000
-        )
+        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+            "dateutc"
+        ].max()
 
         logger.info("Historical data updated successfully.")
         update_message.empty()
@@ -103,6 +102,7 @@ def get_human_readable_duration(recent_dateutc, history_dateutc):
     Returns:
     str: A human-readable duration.
     """
+
     history_age_minutes = (recent_dateutc - history_dateutc) / 60000
 
     if history_age_minutes < 60:
@@ -160,7 +160,9 @@ def get_history_min_max(df, date_column="date", data_column="tempf", data_label=
     return results
 
 
-# # Polar chart support
+# ========================================
+# Polar chart support
+# ========================================
 def prepare_polar_chart_data(
     df,
     value_col,
@@ -284,3 +286,49 @@ def calculate_percentages(df, group_cols):
     grouped = df.groupby(group_cols, observed=False).size().reset_index(name="count")
     grouped["percentage"] = (grouped["count"] / total_count) * 100
     return grouped
+
+
+# ========================================
+# Gap and Quality Analysis
+# ========================================
+def detect_gaps(
+    df: pd.DataFrame, timestamp_col: str = "dateutc", threshold_minutes: int = 10
+) -> pd.DataFrame:
+    """
+    Detects time gaps in a DataFrame based on a minimum threshold.
+
+    :param df: pd.DataFrame - Input DataFrame with a datetime or integer timestamp column.
+    :param timestamp_col: str - Column name containing timestamps (e.g., "dateutc").
+    :param threshold_minutes: int - Minimum gap size to consider (in minutes).
+    :return: pd.DataFrame - With ['start', 'end', 'duration_minutes'] columns for each gap.
+    """
+    if df.empty or timestamp_col not in df.columns:
+        return pd.DataFrame(
+            {
+                "start": pd.Series(dtype="datetime64[ns]"),
+                "end": pd.Series(dtype="datetime64[ns]"),
+                "duration_minutes": pd.Series(dtype="float"),
+            }
+        )
+
+    df_sorted = df.sort_values(timestamp_col).copy()
+
+    if not pd.api.types.is_datetime64_any_dtype(df_sorted[timestamp_col]):
+        df_sorted[timestamp_col] = pd.to_datetime(df_sorted[timestamp_col], unit="ms")
+
+    time_diffs = (
+        df_sorted[timestamp_col].diff().dt.total_seconds().div(60).astype(float)
+    )
+    gap_mask = time_diffs.gt(float(threshold_minutes))
+
+    starts = df_sorted[timestamp_col].shift(1)[gap_mask].reset_index(drop=True)
+    ends = df_sorted[timestamp_col][gap_mask].reset_index(drop=True)
+    durations = time_diffs[gap_mask].reset_index(drop=True)
+
+    return pd.DataFrame(
+        {
+            "start": starts,
+            "end": ends,
+            "duration_minutes": durations,
+        }
+    )

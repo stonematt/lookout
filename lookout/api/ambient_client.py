@@ -91,7 +91,7 @@ def get_device_history(
     :return: A DataFrame of weather data or empty DataFrame on failure.
     """
     try:
-        human = format_ts_utc(end_date) if end_date else "latest"
+        # human = format_ts_utc(end_date) if end_date else "latest"
         # logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})")
 
         raw = get_device_history_raw(mac, limit=limit, end_date=end_date)
@@ -137,16 +137,26 @@ def get_device_history_raw(
         f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})"
     )
 
-    try:
-        time.sleep(1)  # Ambient API rate limit: 1 request/second
-        resp = requests.get(url, params=params)
-        if resp.status_code != 200:
-            logger.error(f"History fetch failed: {resp.status_code} {resp.text}")
+    for attempt in range(3):
+        try:
+            time.sleep(1)  # Ambient API rate limit: 1 request/second
+            resp = requests.get(url, params=params)
+            if resp.status_code == 429:
+                logger.warning(
+                    f"Rate limited (429) on history fetch. Retrying in 1s... attempt {attempt + 1}/3"
+                )
+                time.sleep(1)
+                continue
+            if resp.status_code != 200:
+                logger.error(f"History fetch failed: {resp.status_code} {resp.text}")
+                return []
+            return resp.json()
+        except Exception as e:
+            logger.error(f"Request error while fetching raw history: {e}")
             return []
-        return resp.json()
-    except Exception as e:
-        logger.error(f"Request error while fetching raw history: {e}")
-        return []
+
+    logger.error("Exceeded retry attempts after 429 errors")
+    return []
 
 
 def main():

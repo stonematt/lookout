@@ -24,6 +24,7 @@ import boto3
 import pandas as pd
 import streamlit as st
 
+from lookout.config import HISTORY_FILE_TYPE
 from lookout.utils.log_util import app_logger
 
 # For general logging with console output
@@ -296,6 +297,22 @@ def backup_data(
 
     except Exception as e:
         backup_logger.error(f"Error listing or copying files for backup: {e}")
+
+
+def backup_and_save_history(
+    df: pd.DataFrame, device: dict, bucket: str = "lookout"
+) -> None:
+    """Back up the old archive and save the updated DataFrame to S3."""
+    mac = device["macAddress"]
+    key = f"{mac}.{HISTORY_FILE_TYPE}"
+
+    try:
+        backup_data(bucket=bucket, prefix=mac)
+    except Exception as e:
+        logger.error(f"Backup failed for {mac}: {e}")
+        raise RuntimeError("Aborting save: backup failed.")
+
+    save_df_to_s3(df, bucket, key)
 
 
 # Example usage

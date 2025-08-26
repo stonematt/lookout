@@ -7,6 +7,8 @@ across the application, such as Streamlit visualization settings and data
 processing parameters.
 """
 
+HISTORY_FILE_TYPE = "parquet"
+
 sensor_index = {
     "location1": {
         "name": "Outdoor",
