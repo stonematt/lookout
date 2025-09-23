@@ -8,6 +8,7 @@ Handles daily rainfall extraction from accumulating fields and dry spell calcula
 
 import streamlit as st
 import pandas as pd
+import lookout.core.visualization as lo_viz
 
 
 def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
@@ -60,6 +61,61 @@ def calculate_dry_spell_stats(df: pd.DataFrame) -> dict:
         }
     except Exception:
         return {"current_dry_days": 0, "current_dry_hours": 0}
+
+
+def calculate_rainfall_accumulations(
+    daily_rain_df: pd.DataFrame, df: pd.DataFrame
+) -> dict:
+    """
+    Calculate rainfall accumulations over different time periods.
+    :param daily_rain_df: pd.DataFrame - Daily rainfall data with 'date' and 'rainfall' columns.
+    :param df: pd.DataFrame - Raw weather data for current hourly rate.
+    :return: dict - Accumulation totals for different periods with current rate.
+    """
+    if len(daily_rain_df) == 0:
+        return {}
+
+    # Convert date to datetime for easier filtering
+    df_calc = daily_rain_df.copy()
+    df_calc["date"] = pd.to_datetime(df_calc["date"])
+
+    # Get current date (use last date in data)
+    current_date = df_calc["date"].max()
+
+    # Get current hourly rain rate (same for all periods)
+    current_rate = df["hourlyrainin"].iloc[-1] if len(df) > 0 else 0
+
+    # Define periods
+    periods = {
+        "today": 1,
+        "last 7d": 7,
+        "last 30d": 30,
+        "last 90d": 90,
+        "last 365d": 365,
+    }
+
+    results = {}
+
+    for period_name, days in periods.items():
+        # Calculate start date
+        start_date = current_date - pd.Timedelta(days=days - 1)
+
+        # Filter data for period
+        period_data = df_calc[
+            (df_calc["date"] >= start_date) & (df_calc["date"] <= current_date)
+        ]
+
+        # Sum rainfall for period
+        total_rainfall = period_data["rainfall"].sum()
+
+        # Structure like get_history_min_max
+        results[period_name] = {
+            "min": 0,  # Rainfall can't be negative
+            "max": total_rainfall,
+            "current": current_rate,  # Current hourly rate for all periods
+        }
+
+    return results
 
 
 def calculate_rainfall_statistics(df: pd.DataFrame) -> dict:
@@ -197,12 +253,28 @@ def render():
 
     st.divider()
 
-    # Placeholder sections for upcoming visualizations
+    # Daily Rainfall Chart
     st.subheader("Daily Rainfall Chart")
-    st.info(
-        "Coming next: Box plot visualization similar to temperature chart showing daily rainfall patterns over time"
-    )
 
+    # Extract daily rainfall data and calculate accumulations
+    daily_rain_df = extract_daily_rainfall(df)
+
+    if len(daily_rain_df) > 0:
+        rain_accumulations = calculate_rainfall_accumulations(daily_rain_df, df)
+
+        if rain_accumulations:
+            # Data is already in the correct format for draw_horizontal_bars
+            lo_viz.draw_horizontal_bars(
+                rain_accumulations, label="Rainfall Accumulation (inches)"
+            )
+        else:
+            st.error("Could not calculate rainfall accumulations")
+    else:
+        st.error("No daily rainfall data available")
+
+    st.divider()
+
+    # Placeholder sections for upcoming visualizations
     st.subheader("Year-over-Year Accumulation")
     st.info(
         "Coming next: Line chart showing cumulative rainfall by day of year, with separate lines for each year"
