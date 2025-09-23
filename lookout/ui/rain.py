@@ -117,11 +117,20 @@ def render():
             current_time = pd.to_datetime(latest["dateutc"], unit="ms", utc=True)
             dry_period = current_time - last_rain
             current_dry_days = dry_period.days
+            current_dry_hours = (dry_period.total_seconds() % (24 * 3600)) / 3600
+
+            # Format time since rain
+            if current_dry_days > 0:
+                time_since_rain = f"{current_dry_days}d {current_dry_hours:.1f}h"
+            else:
+                time_since_rain = f"{current_dry_hours:.1f}h"
         except Exception:
             current_dry_days = 0
+            time_since_rain = "0h"
     else:
         latest = df.iloc[-1].to_dict()
         current_dry_days = 0
+        time_since_rain = "0h"
 
     # Calculate statistics
     with st.spinner("Calculating rainfall statistics..."):
@@ -136,6 +145,7 @@ def render():
                     "current_daily": latest.get("dailyrainin", 0),
                     "last_rain": latest.get("lastRain", "Unknown"),
                     "current_dry_days": current_dry_days,
+                    "time_since_rain": time_since_rain,
                 }
             )
 
@@ -170,7 +180,10 @@ def render():
     with col2:
         st.write("**Recent Activity:**")
         st.write(f"• Max Daily Rain: {stats['max_daily_this_year']:.2f}\"")
-        st.write(f"• Days Since Rain: {stats['current_dry_days']}")
+        if "time_since_rain" in stats:
+            st.write(f"• Time Since Rain: {stats['time_since_rain']}")
+        else:
+            st.write(f"• Days Since Rain: {stats['current_dry_days']}")
 
         # Format last rain date properly
         try:
