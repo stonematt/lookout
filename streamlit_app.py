@@ -5,10 +5,9 @@ Main streamlit.io application
 import time
 
 import streamlit as st
-
 import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
-from lookout.ui import diagnostics, overview
+from lookout.ui import diagnostics, rain, overview, playground
 from lookout.utils.log_util import app_logger
 
 # if st.secrets.get("DEBUG", False):
@@ -114,11 +113,19 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 
 # Present the dashboard ########################
 
-tab_overview, tab_diagnostics = st.tabs(["Overview", "Diagnostics"])
+tab_overview, tab_rain, tab_diagnostics, tab_playground = st.tabs(
+    ["Overview", "Rain", "Diagnostics", "Playground"]
+)
 # tab_diagnostics, tab_overview = st.tabs(["Diagnostics", "Overview"])
 
 with tab_overview:
     overview.render()
 
+with tab_rain:
+    rain.render()
+
 with tab_diagnostics:
     diagnostics.render()
+
+with tab_playground:
+    playground.render()
