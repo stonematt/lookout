@@ -5,9 +5,10 @@ Main streamlit.io application
 import time
 
 import streamlit as st
+
 import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
-from lookout.ui import diagnostics, rain, overview, playground
+from lookout.ui import diagnostics, overview, playground, rain
 from lookout.utils.log_util import app_logger
 
 # if st.secrets.get("DEBUG", False):
@@ -24,7 +25,6 @@ from lookout.utils.log_util import app_logger
 #             print("🐛 Debugger already listening.")
 #     except Exception as e:
 #         print(f"🐛 Failed to set up debugpy: {e}")
-
 
 logger = app_logger(__name__)
 
