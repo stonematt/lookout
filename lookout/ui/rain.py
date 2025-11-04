@@ -282,13 +282,18 @@ def calculate_rainfall_accumulations(
     return results
 
 
-def calculate_rainfall_statistics(df: pd.DataFrame) -> dict:
+def calculate_rainfall_statistics(
+    df: pd.DataFrame, daily_rain_df: Optional[pd.DataFrame] = None
+) -> dict:
     """
     Calculate comprehensive rainfall statistics and metrics.
     :param df: pd.DataFrame - Weather data with rain accumulation fields.
+    :param daily_rain_df: pd.DataFrame - Pre-computed daily rainfall data (optional).
     :return: dict - Current accumulations, historical averages, and dry spell info.
     """
-    daily_rain = extract_daily_rainfall(df)
+    daily_rain = (
+        daily_rain_df if daily_rain_df is not None else extract_daily_rainfall(df)
+    )
     dry_stats = calculate_dry_spell_stats(df)
 
     # Current accumulations from latest record
@@ -302,11 +307,19 @@ def calculate_rainfall_statistics(df: pd.DataFrame) -> dict:
         daily_rain["rainfall"].sum() / (total_days / 365.25) if total_days > 365 else 0
     )
 
+    # Calculate yesterday's rainfall
+    yesterday_rainfall = 0.0
+    if len(daily_rain) >= 2:
+        # Sort by date and get second-to-last entry (yesterday)
+        daily_sorted = daily_rain.sort_values("date")
+        yesterday_rainfall = daily_sorted.iloc[-2]["rainfall"]
+
     return {
         "current_ytd": latest.get("yearlyrainin", 0),
         "current_monthly": latest.get("monthlyrainin", 0),
         "current_weekly": latest.get("weeklyrainin", 0),
         "current_daily": latest.get("dailyrainin", 0),
+        "current_yesterday": yesterday_rainfall,
         "avg_annual": avg_annual,
         "total_rain_days": rain_days,
         "max_daily_this_year": max_daily,
@@ -352,9 +365,13 @@ def render():
         current_dry_days = 0
         time_since_rain = "0h"
 
+    # Extract daily rainfall data once for all calculations
+    with st.spinner("Processing daily rainfall data..."):
+        daily_rain_df = extract_daily_rainfall(df)
+
     # Calculate statistics
     with st.spinner("Calculating rainfall statistics..."):
-        stats = calculate_rainfall_statistics(df)
+        stats = calculate_rainfall_statistics(df, daily_rain_df)
         # Override current values with last_data if available
         if "last_data" in st.session_state:
             stats.update(
@@ -373,7 +390,7 @@ def render():
     st.subheader("Rainfall Summary")
 
     # Current accumulations
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("Year to Date", f"{stats['current_ytd']:.2f}\"")
     with col2:
@@ -381,6 +398,8 @@ def render():
     with col3:
         st.metric("This Week", f"{stats['current_weekly']:.2f}\"")
     with col4:
+        st.metric("Yesterday", f"{stats['current_yesterday']:.2f}\"")
+    with col5:
         st.metric("Today", f"{stats['current_daily']:.2f}\"")
 
     # Historical context
@@ -420,9 +439,7 @@ def render():
     # Daily Rainfall Chart
     st.subheader("Daily Rainfall Chart")
 
-    # Extract daily rainfall data and calculate accumulations
-    daily_rain_df = extract_daily_rainfall(df)
-
+    # Use the pre-computed daily rainfall data for accumulations
     if len(daily_rain_df) > 0:
         rain_accumulations = calculate_rainfall_accumulations(daily_rain_df, df)
 
@@ -442,7 +459,7 @@ def render():
 
     st.subheader("Rolling Historical Context (1d / 7d / 30d / 90d)")
 
-    daily_rain_df = extract_daily_rainfall(df)
+    # Use the pre-computed daily rainfall data for rolling context
     if len(daily_rain_df) > 0:
         end_date = pd.to_datetime(daily_rain_df["date"]).max()
         context_df = _cached_rolling_context(
@@ -485,6 +502,5 @@ def render():
 
         # Show sample daily rainfall data
         if st.checkbox("Show daily rainfall sample"):
-            daily_data = extract_daily_rainfall(df)
             st.write("**Recent daily totals:**")
-            st.dataframe(daily_data.tail(10))
+            st.dataframe(daily_rain_df.tail(10))
