@@ -6,7 +6,7 @@ historical statistics, and data processing functions for precipitation visualiza
 Handles daily rainfall extraction from accumulating fields and dry spell calculations.
 """
 
-from typing import Iterable, Optional, Tuple, List, cast
+from typing import Iterable, List, Optional, Tuple, cast
 
 # --- Rolling rainfall context (1d, 7d, 30d, 90d) ----------------------------
 import numpy as np
@@ -23,15 +23,14 @@ def compute_rolling_rain_context(
     end_date: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
     """
-    Rolling-window rainfall totals compared to the same calendar slice in prior years.
+    Rolling-window rainfall totals compared to ALL historical N-day periods.
 
-    Assumptions:
-    - daily_rain_df has ['date', 'rainfall'] where 'date' is already normalized by the API.
-    - No local tz adjustments are performed here.
+    Compares current rainfall totals against the full distribution of all possible
+    N-day periods in historical data, not just the same calendar dates.
 
-    :param daily_rain_df: DataFrame with daily totals.
+    :param daily_rain_df: DataFrame with daily totals ['date', 'rainfall'].
     :param windows: Window lengths in days.
-    :param normals_years: (start_year, end_year); if None, inferred from data excluding current year.
+    :param normals_years: (start_year, end_year); if None, uses all years except current.
     :param end_date: Period end (defaults to latest 'date' in data).
     :return: DataFrame with totals, normal, anomaly %, rank, percentile for each window.
     """
@@ -46,7 +45,7 @@ def compute_rolling_rain_context(
                 "anomaly_pct",
                 "rank",
                 "percentile",
-                "n_years",
+                "n_periods",
             ]
         )
 
@@ -58,54 +57,43 @@ def compute_rolling_rain_context(
         pd.to_datetime(end_date).normalize() if end_date is not None else s.index.max()
     )
 
-    years = sorted(s.index.year.unique().tolist())  # type: ignore
-    other_years = [y for y in years if y != end_dt.year]  # type: ignore
+    # Filter historical data (exclude current year unless specified)
     if normals_years is None:
-        normals_years = (
-            (min(other_years), max(other_years))
-            if other_years
-            else (end_dt.year, end_dt.year)  # type: ignore
-        )
-    y0, y1 = normals_years  # type: ignore
+        historical_data = s[s.index.year != end_dt.year]  # type: ignore
+    else:
+        y0, y1 = normals_years
+        historical_data = s[
+            (s.index.year >= y0) & (s.index.year <= y1) & (s.index.year != end_dt.year)  # type: ignore
+        ]
 
     rows = []
     for w in windows:
         period_end = end_dt
         period_start = end_dt - pd.Timedelta(days=w - 1)  # type: ignore
 
+        # Current period total
         cur = float(s.loc[(s.index >= period_start) & (s.index <= period_end)].sum())
 
-        normals = []
-        for y in range(y0, y1 + 1):
-            if y == end_dt.year:  # type: ignore
-                continue
-            # shift month/day into target year (handles Feb-29 safely)
-            month, day = period_start.month, period_start.day  # type: ignore
-            try:
-                s_y = pd.Timestamp(year=y, month=month, day=day)  # type: ignore
-            except ValueError:
-                s_y = pd.Timestamp(year=y, month=month, day=min(day, 28))  # type: ignore
-            month, day = period_end.month, period_end.day  # type: ignore
-            try:
-                e_y = pd.Timestamp(year=y, month=month, day=day)  # type: ignore
-            except ValueError:
-                e_y = pd.Timestamp(year=y, month=month, day=min(day, 28))  # type: ignore
+        # Generate all possible N-day rolling totals from historical data
+        if len(historical_data) >= w:
+            all_rolling_totals = historical_data.rolling(window=w).sum().dropna()  # type: ignore
+            normals = all_rolling_totals.values  # type: ignore
+            normals = normals[np.isfinite(normals)]  # type: ignore
+        else:
+            normals = []
 
-            n = float(s.loc[(s.index >= s_y) & (s.index <= e_y)].sum())
-            normals.append(n)
-
-        normals = [n for n in normals if np.isfinite(n)]
-        n_years = len(normals)
-        normal_mean = float(np.mean(normals)) if n_years else np.nan
+        n_periods = len(normals)
+        normal_mean = float(np.mean(normals)) if n_periods else np.nan
         anomaly_pct = (
             (100.0 * (cur / normal_mean - 1.0))
-            if (n_years and normal_mean != 0)
+            if (n_periods and normal_mean != 0)
             else np.nan
         )
 
-        if n_years:
-            rank = int(sum(n > cur for n in normals) + 1)  # 1 = wettest
-            percentile = 100.0 * (1.0 - rank / (n_years + 1.0))
+        if n_periods:
+            # Rank: 1 = wettest (highest total)
+            rank = int(sum(n > cur for n in normals) + 1)
+            percentile = 100.0 * (1.0 - rank / (n_periods + 1.0))
         else:
             rank, percentile = np.nan, np.nan
 
@@ -123,7 +111,7 @@ def compute_rolling_rain_context(
                 "percentile": (
                     round(percentile, 1) if np.isfinite(percentile) else np.nan
                 ),
-                "n_years": n_years,
+                "n_periods": n_periods,
             }
         )
 
@@ -132,7 +120,7 @@ def compute_rolling_rain_context(
 
 @st.cache_data(show_spinner=False)
 def _cached_rolling_context(
-    daily_rain_df: pd.DataFrame, windows, normals_years, end_date
+    daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v2"
 ):
     return compute_rolling_rain_context(daily_rain_df, windows, normals_years, end_date)
 
@@ -157,7 +145,7 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
         ),
         Rank=stats_df.apply(
             lambda r: (
-                f"{int(r['rank'])} / {int(r['n_years'])}"
+                f"{int(r['rank'])} / {int(r['n_periods'])}"
                 if pd.notna(r["rank"])
                 else "—"
             ),
@@ -457,7 +445,9 @@ def render():
 
     # --- Rolling Historical Context ---------------------------------------------
 
-    st.subheader("Rolling Historical Context (1d / 7d / 30d / 90d)")
+    st.subheader(
+        "Rolling Historical Context vs All N-day Periods (1d / 7d / 30d / 90d)"
+    )
 
     # Use the pre-computed daily rainfall data for rolling context
     if len(daily_rain_df) > 0:
@@ -467,6 +457,7 @@ def render():
             windows=(1, 7, 30, 90),
             normals_years=None,  # or fixed range, e.g., (2015, 2024)
             end_date=end_date,
+            version="v2",
         )
         render_rolling_rain_context_table(context_df, unit="in")
     else:
