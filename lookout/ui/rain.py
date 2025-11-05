@@ -12,6 +12,7 @@ from typing import Iterable, List, Optional, Tuple, cast
 import numpy as np
 import pandas as pd
 import streamlit as st
+from plotly.subplots import make_subplots
 
 import lookout.core.visualization as lo_viz
 
@@ -161,6 +162,328 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
     except TypeError:
         # older Streamlit compatibility
         st.dataframe(view.set_index("Window"), use_container_width=True)
+
+
+def prepare_violin_plot_data(
+    daily_rain_df: pd.DataFrame,
+    windows: Iterable[int] = (1, 7, 30, 90),
+    normals_years: Optional[Tuple[int, int]] = None,
+    end_date: Optional[pd.Timestamp] = None,
+) -> dict:
+    """
+    Extract all N-day rolling totals and current values for violin plot visualization.
+
+    :param daily_rain_df: DataFrame with daily totals ['date', 'rainfall'].
+    :param windows: Window lengths in days.
+    :param normals_years: (start_year, end_year); if None, uses all years except current.
+    :param end_date: Period end (defaults to latest 'date' in data).
+    :return: Dict with window -> {"values": array, "current": float, "percentile": float}
+    """
+    if daily_rain_df.empty:
+        return {}
+
+    df = daily_rain_df.copy()
+    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+    s = df.set_index("date")["rainfall"].sort_index()
+
+    end_dt = (
+        pd.to_datetime(end_date).normalize() if end_date is not None else s.index.max()
+    )
+
+    # Filter historical data (exclude current year unless specified)
+    if normals_years is None:
+        historical_data = s[s.index.year != end_dt.year]  # type: ignore
+    else:
+        y0, y1 = normals_years
+        historical_data = s[
+            (s.index.year >= y0) & (s.index.year <= y1) & (s.index.year != end_dt.year)  # type: ignore
+        ]
+
+    violin_data = {}
+    for w in windows:
+        period_end = end_dt
+        period_start = end_dt - pd.Timedelta(days=w - 1)  # type: ignore
+
+        # Current period total
+        current_total = float(
+            s.loc[(s.index >= period_start) & (s.index <= period_end)].sum()
+        )
+
+        # Generate all possible N-day rolling totals from historical data
+        if len(historical_data) >= w:
+            all_rolling_totals = historical_data.rolling(window=w).sum().dropna()  # type: ignore
+            historical_values = all_rolling_totals.values  # type: ignore
+            historical_values = historical_values[np.isfinite(historical_values)]  # type: ignore
+
+            # Calculate percentile of current value
+            if len(historical_values) > 0:  # type: ignore
+                rank = int(sum(v > current_total for v in historical_values) + 1)  # type: ignore
+                percentile = 100.0 * (1.0 - rank / (len(historical_values) + 1.0))
+            else:
+                percentile = np.nan
+        else:
+            historical_values = np.array([])
+            percentile = np.nan
+
+        violin_data[f"{w}d"] = {
+            "values": historical_values,
+            "current": current_total,
+            "percentile": percentile,
+        }
+
+    return violin_data
+
+
+def create_rainfall_violin_plot(
+    window: str,
+    violin_data: dict,
+    unit: str = "in",
+    title: Optional[str] = None,
+) -> None:
+    """
+    Create single violin plot showing rainfall distribution for specified window.
+
+    :param window: Window size (e.g., "7d", "30d")
+    :param violin_data: Data from prepare_violin_plot_data()
+    :param unit: Unit for display (e.g., "in")
+    :param title: Chart title (auto-generated if None)
+    """
+    import plotly.graph_objects as go
+
+    if window not in violin_data or len(violin_data[window]["values"]) == 0:
+        st.warning(f"No historical data available for {window} period.")
+        return
+
+    data = violin_data[window]
+    values = data["values"]
+    current = data["current"]
+    percentile = data["percentile"]
+
+    # Create violin plot
+    fig = go.Figure()
+
+    # Add violin showing distribution of historical values
+    fig.add_trace(
+        go.Violin(
+            y=values,
+            name=f"Historical {window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor="rgba(56, 128, 191, 0.6)",  # Blue from rain palette
+            line_color="rgba(56, 128, 191, 1.0)",
+            x0=f"{window} Periods",
+        )
+    )
+
+    # Add current value as overlay marker
+    if not np.isnan(current):
+        fig.add_trace(
+            go.Scatter(
+                x=[f"{window} Periods"],
+                y=[current],
+                mode="markers",
+                marker=dict(
+                    symbol="diamond-tall",
+                    size=16,
+                    color="red",
+                    line=dict(width=2, color="darkred"),
+                ),
+                name=f"Current ({current:.2f}{unit})",
+                text=[
+                    (
+                        f"Current: {current:.2f}{unit}<br>Percentile: {percentile:.1f}th"
+                        if not np.isnan(percentile)
+                        else f"Current: {current:.2f}{unit}"
+                    )
+                ],
+                hoverinfo="text",
+            )
+        )
+
+    # Customize layout
+    chart_title = title or f"Rainfall Distribution: {window} Rolling Periods"
+    fig.update_layout(
+        title=chart_title,
+        yaxis_title=f"Rainfall ({unit})",
+        xaxis_title="",
+        showlegend=True,
+        height=500,
+        template="plotly_white",
+    )
+
+    # Display the plot
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show summary stats
+    if not np.isnan(percentile):
+        if percentile >= 90:
+            status = "🔴 **Extremely wet**"
+        elif percentile >= 75:
+            status = "🟡 **Above normal**"
+        elif percentile >= 25:
+            status = "🟢 **Normal range**"
+        else:
+            status = "🔵 **Below normal**"
+
+        st.markdown(
+            f"{status} - Current {window} total ({current:.2f}{unit}) ranks at **{percentile:.1f}th percentile** of {len(values):,} historical periods."
+        )
+
+
+def create_dual_violin_plot(
+    left_window: str,
+    right_window: str,
+    violin_data: dict,
+    unit: str = "in",
+    title: Optional[str] = None,
+) -> None:
+    """
+    Create dual violin plot comparing two different rainfall windows side-by-side.
+
+    :param left_window: Left window size (e.g., "1d")
+    :param right_window: Right window size (e.g., "7d")
+    :param violin_data: Data from prepare_violin_plot_data()
+    :param unit: Unit for display (e.g., "in")
+    :param title: Chart title (auto-generated if None)
+    """
+    import plotly.graph_objects as go
+
+    # Check data availability
+    missing_data = []
+    for window in [left_window, right_window]:
+        if window not in violin_data or len(violin_data[window]["values"]) == 0:  # type: ignore
+            missing_data.append(window)
+
+    if missing_data:
+        st.warning(f"No historical data available for: {', '.join(missing_data)}")
+        return
+
+    left_data = violin_data[left_window]
+    right_data = violin_data[right_window]
+
+    # Create subplot with shared y-axis
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=[f"{left_window} Periods", f"{right_window} Periods"],
+        shared_yaxes=True,
+    )
+
+    # Colors for distinction
+    colors = {
+        left_window: "rgba(56, 128, 191, 0.6)",  # Blue
+        right_window: "rgba(191, 128, 56, 0.6)",  # Orange
+    }
+    line_colors = {
+        left_window: "rgba(56, 128, 191, 1.0)",
+        right_window: "rgba(191, 128, 56, 1.0)",
+    }
+
+    # Add left violin
+    fig.add_trace(
+        go.Violin(
+            y=left_data["values"],
+            name=f"Historical {left_window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor=colors[left_window],
+            line_color=line_colors[left_window],
+            x0=f"{left_window}",
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Add right violin
+    fig.add_trace(
+        go.Violin(
+            y=right_data["values"],
+            name=f"Historical {right_window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor=colors[right_window],
+            line_color=line_colors[right_window],
+            x0=f"{right_window}",
+        ),
+        row=1,
+        col=2,
+    )
+
+    # Add current value markers
+    for i, (window, data) in enumerate(
+        [(left_window, left_data), (right_window, right_data)], 1
+    ):
+        current = data["current"]
+        percentile = data["percentile"]
+
+        if not np.isnan(current):
+            fig.add_trace(
+                go.Scatter(
+                    x=[window],
+                    y=[current],
+                    mode="markers",
+                    marker=dict(
+                        symbol="diamond-tall",
+                        size=16,
+                        color="red",
+                        line=dict(width=2, color="darkred"),
+                    ),
+                    name=f"Current {window} ({current:.2f}{unit})",
+                    text=[
+                        (
+                            f"Current: {current:.2f}{unit}<br>Percentile: {percentile:.1f}th"
+                            if not np.isnan(percentile)
+                            else f"Current: {current:.2f}{unit}"
+                        )
+                    ],
+                    hoverinfo="text",
+                    showlegend=True,
+                ),
+                row=1,
+                col=i,
+            )
+
+    # Customize layout
+    chart_title = (
+        title or f"Rainfall Distribution Comparison: {left_window} vs {right_window}"
+    )
+    fig.update_layout(
+        title=chart_title,
+        height=600,
+        template="plotly_white",
+    )
+
+    # Update y-axis
+    fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
+
+    # Display the plot
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show comparison summary
+    col1, col2 = st.columns(2)
+
+    with col1:
+        left_current = left_data["current"]
+        left_percentile = left_data["percentile"]
+        if not np.isnan(left_percentile):
+            st.markdown(
+                f"**{left_window} Period**: {left_current:.2f}{unit} ({left_percentile:.1f}th percentile)"
+            )
+
+    with col2:
+        right_current = right_data["current"]
+        right_percentile = right_data["percentile"]
+        if not np.isnan(right_percentile):
+            st.markdown(
+                f"**{right_window} Period**: {right_current:.2f}{unit} ({right_percentile:.1f}th percentile)"
+            )
+
+
+@st.cache_data(show_spinner=False)
+def _cached_violin_data(
+    daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v1"
+):
+    return prepare_violin_plot_data(daily_rain_df, windows, normals_years, end_date)
 
 
 def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
@@ -462,6 +785,95 @@ def render():
         render_rolling_rain_context_table(context_df, unit="in")
     else:
         st.info("No daily totals to compute rolling context.")
+
+    st.divider()
+
+    # --- Rainfall Distribution Analysis -------------------------------------
+
+    st.subheader("Historical Rainfall Distribution")
+    st.write(
+        "Compare current rainfall periods against the full distribution of all historical periods"
+    )
+
+    if len(daily_rain_df) > 0:
+        # Prepare violin plot data (cached for performance)
+        end_date = pd.to_datetime(daily_rain_df["date"]).max()
+        violin_data = _cached_violin_data(
+            daily_rain_df=daily_rain_df,
+            windows=(1, 7, 30, 90),
+            normals_years=None,
+            end_date=end_date,
+            version="v1",
+        )
+
+        # Window selection
+        available_windows = [
+            w
+            for w in ["1d", "7d", "30d", "90d"]
+            if w in violin_data and len(violin_data[w]["values"]) > 0  # type: ignore
+        ]
+
+        if available_windows:
+            # Visualization mode selection
+            viz_mode = st.radio(
+                "Visualization mode:",
+                ["Single Window", "Compare Two Windows"],
+                horizontal=True,
+                help="Choose single window analysis or side-by-side comparison",
+            )
+
+            if viz_mode == "Single Window":
+                selected_window = st.selectbox(
+                    "Select time window for distribution analysis:",
+                    available_windows,
+                    index=min(
+                        1, len(available_windows) - 1
+                    ),  # Default to 7d if available
+                    help="Choose the rolling period length to analyze",
+                )
+
+                # Create violin plot for selected window
+                create_rainfall_violin_plot(
+                    window=selected_window, violin_data=violin_data, unit="in"
+                )
+
+            else:  # Compare Two Windows
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    left_window = st.selectbox(
+                        "Left window:",
+                        available_windows,
+                        index=0,  # Default to first available
+                        help="Choose the left period for comparison",
+                    )
+
+                with col2:
+                    right_window = st.selectbox(
+                        "Right window:",
+                        available_windows,
+                        index=min(
+                            1, len(available_windows) - 1
+                        ),  # Default to second available
+                        help="Choose the right period for comparison",
+                    )
+
+                if left_window != right_window:
+                    # Create dual violin plot
+                    create_dual_violin_plot(
+                        left_window=left_window,
+                        right_window=right_window,
+                        violin_data=violin_data,
+                        unit="in",
+                    )
+                else:
+                    st.info("Please select different windows for comparison.")
+        else:
+            st.warning("Insufficient historical data for distribution analysis.")
+    else:
+        st.info("No daily rainfall data available for distribution analysis.")
+
+    st.divider()
 
     # Placeholder sections for upcoming visualizations
     st.subheader("Year-over-Year Accumulation")
