@@ -883,16 +883,13 @@ def render():
     try:
         from lookout.core.rain_events import RainEventCatalog
 
-        # Get device MAC address - look for it in session state or df
-        device_mac = None
-        if "devices" in st.session_state and st.session_state["devices"]:
-            device_mac = st.session_state["devices"][0]["macAddress"]
-        elif len(df) > 0 and "passkey" in df.columns:
-            # Try to extract from data (fallback)
-            device_mac = "98:CD:AC:22:0D:E5"  # Your device MAC
+        # Get device info from session state (set in streamlit_app.py)
+        if "device" in st.session_state:
+            device = st.session_state["device"]
+            device_mac = device["macAddress"]
+            file_type = "parquet"  # Could also get from streamlit_app.py if needed
 
-        if device_mac:
-            catalog = RainEventCatalog(device_mac)
+            catalog = RainEventCatalog(device_mac, file_type)
 
             # Check if catalog exists
             if catalog.catalog_exists():
@@ -1021,11 +1018,11 @@ def render():
                             st.success(
                                 f"✅ Generated catalog with {len(events_df)} events!"
                             )
-                            st.experimental_rerun()
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Failed to generate catalog: {e}")
         else:
-            st.error("Could not determine device MAC address for event catalog")
+            st.error("Device not found in session state. Please refresh the page.")
 
     except ImportError as e:
         st.error(f"Event catalog feature not available: {e}")

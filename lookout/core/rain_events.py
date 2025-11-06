@@ -226,11 +226,14 @@ class RainEventCatalog:
     Handles incremental updates and data quality validation.
     """
 
-    def __init__(self, mac_address: str, bucket: str = "lookout"):
+    def __init__(
+        self, mac_address: str, file_type: str = "parquet", bucket: str = "lookout"
+    ):
         self.mac_address = mac_address
+        self.file_type = file_type
         self.bucket = bucket
-        self.catalog_path = f"events/{mac_address}/rain_events.parquet"
-        self.backup_path_prefix = f"events/{mac_address}/backups/rain_events"
+        self.catalog_path = f"{mac_address}.event_catalog.{file_type}"
+        self.backup_path_prefix = f"backups/{mac_address}.event_catalog"
 
     def _get_storage_client(self):
         """Get S3 client for Storj operations"""
@@ -321,7 +324,7 @@ class RainEventCatalog:
 
         try:
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            backup_path = f"{self.backup_path_prefix}_{timestamp}.parquet"
+            backup_path = f"{self.backup_path_prefix}_{timestamp}.{self.file_type}"
 
             client = self._get_storage_client()
 

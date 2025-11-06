@@ -26,6 +26,7 @@ from lookout.utils.log_util import app_logger
 #     except Exception as e:
 #         print(f"🐛 Failed to set up debugpy: {e}")
 
+
 logger = app_logger(__name__)
 
 
@@ -116,7 +117,6 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 tab_overview, tab_rain, tab_diagnostics, tab_playground = st.tabs(
     ["Overview", "Rain", "Diagnostics", "Playground"]
 )
-# tab_diagnostics, tab_overview = st.tabs(["Diagnostics", "Overview"])
 
 with tab_overview:
     overview.render()
