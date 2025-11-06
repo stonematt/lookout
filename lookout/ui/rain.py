@@ -15,6 +15,9 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 import lookout.core.visualization as lo_viz
+from lookout.utils.log_util import app_logger
+
+logger = app_logger(__name__)
 
 
 def compute_rolling_rain_context(
@@ -898,18 +901,29 @@ def render():
                 # Use cached catalog from session
                 events_df = st.session_state["rain_events_catalog"]
                 catalog_source = "session"
+                logger.info(
+                    f"Using catalog from session state: {len(events_df)} events"
+                )
 
             elif catalog.catalog_exists():
                 # Load from storage and update with new data
                 with st.spinner("Loading event catalog from storage..."):
+                    logger.info(f"Loading catalog from Storj: {catalog.catalog_path}")
                     stored_catalog = catalog.load_catalog()
                     if not stored_catalog.empty:
+                        logger.info(
+                            f"Loaded {len(stored_catalog)} events from storage, checking for updates..."
+                        )
                         events_df = catalog.update_catalog_with_new_data(
                             df, stored_catalog
                         )
                         st.session_state["rain_events_catalog"] = events_df
                         catalog_source = "storage"
+                        logger.info(
+                            f"Catalog updated and cached in session: {len(events_df)} events"
+                        )
                     else:
+                        logger.warning("Loaded catalog from storage is empty")
                         catalog_source = None
 
             else:
@@ -917,12 +931,23 @@ def render():
                 with st.spinner(
                     "Generating event catalog from historical data... This may take a minute."
                 ):
+                    logger.info(
+                        "No catalog found in session or storage, generating fresh catalog..."
+                    )
                     events_df = catalog.detect_and_catalog_events(df, auto_save=False)
                     st.session_state["rain_events_catalog"] = events_df
                     catalog_source = "generated"
+                    logger.info(
+                        f"Fresh catalog generated and cached: {len(events_df)} events"
+                    )
 
             # Display catalog if we have events
             if events_df is not None and not events_df.empty:
+                # Debug: Check if we're showing updated data
+                zero_rate_count = (events_df["max_hourly_rate"] == 0).sum()
+                logger.debug(
+                    f"Displaying catalog: {len(events_df)} events, {zero_rate_count} with zero max_rate"
+                )
                 # Save and regenerate buttons
                 btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 3])
                 with btn_col1:
@@ -934,9 +959,34 @@ def render():
 
                 with btn_col2:
                     if st.button("🔄 Regenerate"):
+                        logger.info("User requested catalog regeneration")
+
+                        # Clear existing catalog from session
                         if "rain_events_catalog" in st.session_state:
+                            old_count = len(st.session_state["rain_events_catalog"])
                             del st.session_state["rain_events_catalog"]
-                        st.rerun()
+                            logger.info(
+                                f"Cleared old catalog from session: {old_count} events"
+                            )
+
+                        # Generate fresh catalog
+                        with st.spinner("Regenerating event catalog from archive..."):
+                            new_events = catalog.detect_and_catalog_events(
+                                df, auto_save=False
+                            )
+                            st.session_state["rain_events_catalog"] = new_events
+                            events_df = new_events  # Update current UI reference
+                            logger.info(
+                                f"Catalog regenerated: {len(new_events)} events cached in session state"
+                            )
+
+                        # Clear any cached data that might hold old event info
+                        st.cache_data.clear()
+                        logger.info("Cleared streamlit data cache")
+
+                        st.success(
+                            f"✅ Regenerated {len(new_events)} events! Data updated in current view."
+                        )
 
                 st.divider()
 
@@ -959,9 +1009,9 @@ def render():
                 # Event selection and details
                 st.write("**Select a rain event to analyze:**")
 
-                # Create event options with meaningful labels
+                # Create event options with meaningful labels (convert to Pacific time)
                 events_df["event_label"] = events_df.apply(
-                    lambda row: f"{pd.to_datetime(row['start_time']).strftime('%Y-%m-%d %H:%M')} - "
+                    lambda row: f"{pd.to_datetime(row['start_time']).tz_convert('America/Los_Angeles').strftime('%Y-%m-%d %H:%M')} - "
                     f"{row['total_rainfall']:.2f}\" in {row['duration_minutes']/60:.1f}h "
                     f"({row['quality_rating']})",
                     axis=1,
@@ -986,8 +1036,12 @@ def render():
 
                     detail_col1, detail_col2 = st.columns(2)
                     with detail_col1:
-                        start_time = pd.to_datetime(selected_event["start_time"])
-                        end_time = pd.to_datetime(selected_event["end_time"])
+                        start_time = pd.to_datetime(
+                            selected_event["start_time"]
+                        ).tz_convert("America/Los_Angeles")
+                        end_time = pd.to_datetime(
+                            selected_event["end_time"]
+                        ).tz_convert("America/Los_Angeles")
                         st.write(
                             f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}"
                         )

@@ -161,6 +161,20 @@ def detect_rain_events(
                 f"Event at archive end ({status}): {event['duration_minutes']:.1f}min, {event['total_rainfall']:.3f}in"
             )
 
+    # Ensure only the chronologically last event is marked as ongoing
+    # All other events have definitive ends (other events came after them)
+    if len(events) > 0:
+        # Sort by end_time to find chronologically last event
+        sorted_events = sorted(events, key=lambda e: e["end_time"])
+
+        # Mark all but last as definitely not ongoing
+        for i, event in enumerate(sorted_events):
+            if i < len(sorted_events) - 1:
+                event["ongoing"] = False
+
+        # Update events list with corrected flags
+        events = sorted_events
+
     logger.info(f"Detected {len(events)} rain events")
     return events
 
@@ -182,12 +196,36 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
 
     # Calculate expected vs actual readings based on time span
     event_data = event_data.sort_values("timestamp")
-    time_span_minutes = (
-        event_data["timestamp"].max() - event_data["timestamp"].min()
-    ).total_seconds() / 60
-    expected_readings = (time_span_minutes / 5) + 1  # 5-min intervals + first reading
+    start_ts = event_data["timestamp"].min()
+    end_ts = event_data["timestamp"].max()
+    time_span_minutes = (end_ts - start_ts).total_seconds() / 60
+
+    # Expected readings: time_span / 5 (number of 5-min intervals)
+    # For a 10-minute span with readings at 0, 5, 10 min, we have 3 readings
+    # Time span = 10 min, intervals = 10/5 = 2, but we have 3 readings (start + 2 intervals)
+    # So expected = (time_span / 5) + 1 if we count endpoints
+    # BUT: if actual readings = 3 and expected = 2, we get >100%
+    #
+    # Correct approach: expected = number of 5-min intervals that SHOULD exist
+    # In 10 minutes: 0min, 5min, 10min = 3 timestamps = (10/5) + 1
+    # In 60 minutes: 0, 5, 10, ..., 60 = 13 timestamps = (60/5) + 1
+    #
+    # Let's use actual interval count instead:
+    expected_intervals = time_span_minutes / 5
+    expected_readings = expected_intervals + 1  # Include starting point
     actual_readings = len(event_data)
-    completeness = actual_readings / expected_readings if expected_readings > 0 else 0
+
+    # Alternative: count actual intervals and compare
+    actual_intervals = actual_readings - 1 if actual_readings > 0 else 0
+    completeness = (
+        actual_intervals / expected_intervals if expected_intervals > 0 else 0
+    )
+
+    logger.debug(
+        f"Event quality for {event.get('event_id', 'unknown')[:8]}: "
+        f"span={time_span_minutes:.1f}min, expected_intervals={expected_intervals:.1f}, "
+        f"actual_intervals={actual_intervals}, completeness={completeness:.3f}"
+    )
 
     # Analyze gaps within event (only count gaps > 10 minutes as abnormal)
     time_gaps = event_data["timestamp"].diff().dt.total_seconds() / 60
@@ -195,14 +233,51 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
     max_gap_minutes = abnormal_gaps.max() if len(abnormal_gaps) > 0 else 0
     significant_gaps = len(abnormal_gaps)
 
-    # Calculate rainfall statistics
-    if "hourlyrainin" in event_data.columns:
-        hourly_rates = event_data["hourlyrainin"].dropna()
-        max_hourly_rate = float(hourly_rates.max()) if len(hourly_rates) > 0 else 0.0
-        avg_hourly_rate = float(hourly_rates.mean()) if len(hourly_rates) > 0 else 0.0
+    # Calculate rainfall statistics using proper rate derivation from dailyrainin
+    if "dailyrainin" in event_data.columns:
+        # Derive 5-minute interval rainfall
+        event_data["interval_rain"] = event_data["dailyrainin"].diff().clip(lower=0)
+
+        # Handle first reading (no previous value to diff against)
+        if len(event_data) > 0 and pd.isna(event_data["interval_rain"].iloc[0]):
+            event_data.loc[event_data.index[0], "interval_rain"] = 0
+
+        # Convert to hourly-equivalent rate for 5-minute intervals
+        event_data["rate_5min_in_per_hr"] = event_data["interval_rain"] * 12
+
+        # Calculate 10-minute rain rate (matches console definition)
+        event_data["rainrate_10min_in_per_hr"] = (
+            event_data["interval_rain"].rolling(window=2, min_periods=1).sum() * 6
+        )
+
+        # Max rate = peak 10-minute rate during event
+        max_hourly_rate = (
+            float(event_data["rainrate_10min_in_per_hr"].max())
+            if len(event_data) > 0
+            else 0.0
+        )
+        avg_hourly_rate = (
+            float(event_data["rate_5min_in_per_hr"].mean())
+            if len(event_data) > 0
+            else 0.0
+        )
+
+        non_zero_rates = event_data["rainrate_10min_in_per_hr"][
+            event_data["rainrate_10min_in_per_hr"] > 0
+        ]
+
+        logger.debug(
+            f"Event {event.get('event_id', 'unknown')[:8]}: "
+            f"interval readings={len(event_data)}, "
+            f"non-zero rates={len(non_zero_rates)}, "
+            f"max_10min_rate={max_hourly_rate:.3f}, avg_5min_rate={avg_hourly_rate:.3f}"
+        )
     else:
         max_hourly_rate = 0.0
         avg_hourly_rate = 0.0
+        logger.warning(
+            f"Event {event.get('event_id', 'unknown')[:8]}: dailyrainin column not found"
+        )
 
     # Quality classification based on actual gaps and completeness
     if completeness >= 0.95 and max_gap_minutes == 0:
