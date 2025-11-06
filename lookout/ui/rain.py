@@ -887,140 +887,159 @@ def render():
         if "device" in st.session_state:
             device = st.session_state["device"]
             device_mac = device["macAddress"]
-            file_type = "parquet"  # Could also get from streamlit_app.py if needed
+            file_type = "parquet"
 
             catalog = RainEventCatalog(device_mac, file_type)
 
-            # Check if catalog exists
-            if catalog.catalog_exists():
-                events_df = catalog.load_catalog()
+            # Session-first workflow: check session state, then storage, then generate
+            events_df = None
 
-                if not events_df.empty:
-                    st.success(f"📋 Event catalog loaded: {len(events_df)} rain events")
+            if "rain_events_catalog" in st.session_state:
+                # Use cached catalog from session
+                events_df = st.session_state["rain_events_catalog"]
+                catalog_source = "session"
 
-                    # Event catalog summary
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Events", f"{len(events_df)}")
-                    with col2:
-                        total_rain = events_df["total_rainfall"].sum()
-                        st.metric("Total Rainfall", f'{total_rain:.1f}"')
-                    with col3:
-                        avg_duration = events_df["duration_minutes"].mean()
-                        st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
-                    with col4:
-                        excellent_pct = (
-                            events_df["quality_rating"] == "excellent"
-                        ).mean() * 100
-                        st.metric("Data Quality", f"{excellent_pct:.0f}% excellent")
-
-                    # Event selection and details
-                    st.write("**Select a rain event to analyze:**")
-
-                    # Create event options with meaningful labels
-                    events_df["event_label"] = events_df.apply(
-                        lambda row: f"{pd.to_datetime(row['start_time']).strftime('%Y-%m-%d %H:%M')} - "
-                        f"{row['total_rainfall']:.2f}\" in {row['duration_minutes']/60:.1f}h "
-                        f"({row['quality_rating']})",
-                        axis=1,
-                    )
-
-                    # Sort by start time (most recent first)
-                    events_df = events_df.sort_values("start_time", ascending=False)
-
-                    # Event selection
-                    if len(events_df) > 0:
-                        selected_event_idx = st.selectbox(
-                            "Choose event:",
-                            range(len(events_df)),
-                            format_func=lambda x: events_df.iloc[x]["event_label"],
-                            help="Events sorted by most recent first",
+            elif catalog.catalog_exists():
+                # Load from storage and update with new data
+                with st.spinner("Loading event catalog from storage..."):
+                    stored_catalog = catalog.load_catalog()
+                    if not stored_catalog.empty:
+                        events_df = catalog.update_catalog_with_new_data(
+                            df, stored_catalog
                         )
-
-                        selected_event = events_df.iloc[selected_event_idx]
-
-                        # Display event details
-                        st.write("**Event Details:**")
-
-                        detail_col1, detail_col2 = st.columns(2)
-                        with detail_col1:
-                            start_time = pd.to_datetime(selected_event["start_time"])
-                            end_time = pd.to_datetime(selected_event["end_time"])
-                            st.write(
-                                f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}"
-                            )
-                            st.write(
-                                f"• **End**: {end_time.strftime('%Y-%m-%d %H:%M %Z')}"
-                            )
-                            st.write(
-                                f"• **Duration**: {selected_event['duration_minutes']/60:.1f} hours"
-                            )
-                            st.write(
-                                f"• **Total Rainfall**: {selected_event['total_rainfall']:.3f} inches"
-                            )
-
-                        with detail_col2:
-                            st.write(
-                                f"• **Data Quality**: {selected_event['quality_rating'].title()}"
-                            )
-                            st.write(
-                                f"• **Completeness**: {selected_event['data_completeness']*100:.1f}%"
-                            )
-                            st.write(
-                                f"• **Max Gap**: {selected_event['max_gap_minutes']:.1f} minutes"
-                            )
-                            st.write(
-                                f"• **Max Rate**: {selected_event['max_hourly_rate']:.3f} in/hr"
-                            )
-
-                        # Quality flags
-                        if selected_event.get("flags"):
-                            flags = selected_event["flags"]
-                            if isinstance(flags, str):
-                                import json
-
-                                flags = json.loads(flags)
-
-                            flag_indicators = []
-                            if flags.get("ongoing"):
-                                flag_indicators.append("🔄 Ongoing")
-                            if flags.get("interrupted"):
-                                flag_indicators.append("⚠️ Interrupted")
-                            if flags.get("has_gaps"):
-                                flag_indicators.append("🕳️ Has gaps")
-                            if flags.get("low_completeness"):
-                                flag_indicators.append("📉 Low completeness")
-
-                            if flag_indicators:
-                                st.write(f"**Flags**: {' '.join(flag_indicators)}")
-
-                        # Future: Add event data visualization here
-                        st.info(
-                            "🚧 Event data visualization coming next - this will show the intensity-duration curve for the selected event"
-                        )
-
-                else:
-                    st.info("Event catalog is empty")
+                        st.session_state["rain_events_catalog"] = events_df
+                        catalog_source = "storage"
+                    else:
+                        catalog_source = None
 
             else:
-                st.warning(
-                    "📋 No event catalog found. Events will be automatically detected when you use this feature."
+                # Auto-generate catalog on first visit (don't save)
+                with st.spinner(
+                    "Generating event catalog from historical data... This may take a minute."
+                ):
+                    events_df = catalog.detect_and_catalog_events(df, auto_save=False)
+                    st.session_state["rain_events_catalog"] = events_df
+                    catalog_source = "generated"
+
+            # Display catalog if we have events
+            if events_df is not None and not events_df.empty:
+                # Save and regenerate buttons
+                btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 3])
+                with btn_col1:
+                    if st.button("💾 Save to Storage"):
+                        if catalog.save_catalog(events_df):
+                            st.success("✅ Catalog saved to Storj!")
+                        else:
+                            st.error("❌ Failed to save catalog")
+
+                with btn_col2:
+                    if st.button("🔄 Regenerate"):
+                        if "rain_events_catalog" in st.session_state:
+                            del st.session_state["rain_events_catalog"]
+                        st.rerun()
+
+                st.divider()
+
+                # Event catalog summary
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Events", f"{len(events_df)}")
+                with col2:
+                    total_rain = events_df["total_rainfall"].sum()
+                    st.metric("Total Rainfall", f'{total_rain:.1f}"')
+                with col3:
+                    avg_duration = events_df["duration_minutes"].mean()
+                    st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
+                with col4:
+                    excellent_pct = (
+                        events_df["quality_rating"] == "excellent"
+                    ).mean() * 100
+                    st.metric("Data Quality", f"{excellent_pct:.0f}% excellent")
+
+                # Event selection and details
+                st.write("**Select a rain event to analyze:**")
+
+                # Create event options with meaningful labels
+                events_df["event_label"] = events_df.apply(
+                    lambda row: f"{pd.to_datetime(row['start_time']).strftime('%Y-%m-%d %H:%M')} - "
+                    f"{row['total_rainfall']:.2f}\" in {row['duration_minutes']/60:.1f}h "
+                    f"({row['quality_rating']})",
+                    axis=1,
                 )
 
-                if st.button("Generate Event Catalog Now"):
-                    with st.spinner(
-                        "Detecting rain events from historical data... This may take a minute."
-                    ):
-                        try:
-                            events_df = catalog.detect_and_catalog_events(
-                                df, backup_existing=True
-                            )
-                            st.success(
-                                f"✅ Generated catalog with {len(events_df)} events!"
-                            )
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to generate catalog: {e}")
+                # Sort by start time (most recent first)
+                events_df = events_df.sort_values("start_time", ascending=False)
+
+                # Event selection
+                if len(events_df) > 0:
+                    selected_event_idx = st.selectbox(
+                        "Choose event:",
+                        range(len(events_df)),
+                        format_func=lambda x: events_df.iloc[x]["event_label"],
+                        help="Events sorted by most recent first",
+                    )
+
+                    selected_event = events_df.iloc[selected_event_idx]
+
+                    # Display event details
+                    st.write("**Event Details:**")
+
+                    detail_col1, detail_col2 = st.columns(2)
+                    with detail_col1:
+                        start_time = pd.to_datetime(selected_event["start_time"])
+                        end_time = pd.to_datetime(selected_event["end_time"])
+                        st.write(
+                            f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}"
+                        )
+                        st.write(f"• **End**: {end_time.strftime('%Y-%m-%d %H:%M %Z')}")
+                        st.write(
+                            f"• **Duration**: {selected_event['duration_minutes']/60:.1f} hours"
+                        )
+                        st.write(
+                            f"• **Total Rainfall**: {selected_event['total_rainfall']:.3f} inches"
+                        )
+
+                    with detail_col2:
+                        st.write(
+                            f"• **Data Quality**: {selected_event['quality_rating'].title()}"
+                        )
+                        st.write(
+                            f"• **Completeness**: {selected_event['data_completeness']*100:.1f}%"
+                        )
+                        st.write(
+                            f"• **Max Gap**: {selected_event['max_gap_minutes']:.1f} minutes"
+                        )
+                        st.write(
+                            f"• **Max Rate**: {selected_event['max_hourly_rate']:.3f} in/hr"
+                        )
+
+                    # Quality flags
+                    if selected_event.get("flags"):
+                        flags = selected_event["flags"]
+                        if isinstance(flags, str):
+                            import json
+
+                            flags = json.loads(flags)
+
+                        flag_indicators = []
+                        if flags.get("ongoing"):
+                            flag_indicators.append("🔄 Ongoing")
+                        if flags.get("interrupted"):
+                            flag_indicators.append("⚠️ Interrupted")
+                        if flags.get("has_gaps"):
+                            flag_indicators.append("🕳️ Has gaps")
+                        if flags.get("low_completeness"):
+                            flag_indicators.append("📉 Low completeness")
+
+                        if flag_indicators:
+                            st.write(f"**Flags**: {' '.join(flag_indicators)}")
+
+                    # Future: Add event data visualization here
+                    st.info(
+                        "🚧 Event data visualization coming next - this will show the intensity-duration curve for the selected event"
+                    )
+            else:
+                st.info("No events found in catalog")
         else:
             st.error("Device not found in session state. Please refresh the page.")
 

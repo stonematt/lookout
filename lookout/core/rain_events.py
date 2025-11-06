@@ -347,18 +347,20 @@ class RainEventCatalog:
         self,
         archive_df: pd.DataFrame,
         backup_existing: bool = True,
+        auto_save: bool = True,
     ) -> pd.DataFrame:
         """
         Detect events from archive data and create/update catalog.
 
         :param archive_df: Complete weather archive DataFrame
         :param backup_existing: Whether to backup existing catalog first
+        :param auto_save: Whether to automatically save to storage
         :return: Complete event catalog DataFrame
         """
         logger.info("Starting event detection and cataloging...")
 
-        # Backup existing catalog if requested
-        if backup_existing and self.catalog_exists():
+        # Backup existing catalog if requested and auto-saving
+        if auto_save and backup_existing and self.catalog_exists():
             self.backup_catalog()
 
         # Detect events
@@ -387,13 +389,96 @@ class RainEventCatalog:
         events_df["updated_at"] = datetime.now(timezone.utc)
         events_df["catalog_version"] = "1.0"
 
-        # Save catalog
-        if self.save_catalog(events_df):
-            logger.info(f"Successfully cataloged {len(events_df)} rain events")
+        # Save catalog if requested
+        if auto_save:
+            if self.save_catalog(events_df):
+                logger.info(f"Successfully cataloged {len(events_df)} rain events")
+            else:
+                logger.error("Failed to save event catalog")
         else:
-            logger.error("Failed to save event catalog")
+            logger.info(
+                f"Catalog generated in memory: {len(events_df)} events (not saved)"
+            )
 
         return events_df
+
+    def update_catalog_with_new_data(
+        self,
+        archive_df: pd.DataFrame,
+        existing_catalog: Optional[pd.DataFrame] = None,
+    ) -> pd.DataFrame:
+        """
+        Update existing catalog with new events from recent archive data.
+
+        :param archive_df: Complete weather archive DataFrame
+        :param existing_catalog: Existing catalog DataFrame (will load if None)
+        :return: Updated catalog DataFrame
+        """
+        if existing_catalog is None:
+            existing_catalog = self.load_catalog()
+
+        if existing_catalog.empty:
+            logger.info("No existing catalog, performing full detection")
+            return self.detect_and_catalog_events(archive_df, auto_save=False)
+
+        # Find the last event end time
+        existing_catalog["end_time"] = pd.to_datetime(
+            existing_catalog["end_time"], utc=True
+        )
+        last_event_time = existing_catalog["end_time"].max()
+
+        logger.info(f"Last cataloged event ended at {last_event_time}")
+
+        # Filter archive to only new data since last event
+        archive_copy = archive_df.copy()
+        archive_copy["timestamp"] = pd.to_datetime(
+            archive_copy["dateutc"], unit="ms", utc=True
+        )
+        new_data = archive_copy[archive_copy["timestamp"] > last_event_time].copy()
+
+        if new_data.empty:
+            logger.info("No new data to process")
+            return existing_catalog
+
+        logger.info(f"Processing {len(new_data)} new records since {last_event_time}")
+
+        # Detect events in new data
+        if isinstance(new_data, pd.DataFrame):
+            new_events = detect_rain_events(new_data)
+        else:
+            logger.error("New data is not a DataFrame")
+            return existing_catalog
+
+        if not new_events:
+            logger.info("No new events detected")
+            return existing_catalog
+
+        # Convert to DataFrame and add quality metrics
+        new_events_df = pd.DataFrame(new_events)
+
+        quality_metrics = []
+        for idx, event in new_events_df.iterrows():
+            quality = classify_event_quality(event.to_dict(), archive_df)
+            quality_metrics.append(quality)
+
+        quality_df = pd.DataFrame(quality_metrics)
+        new_events_df = pd.concat([new_events_df, quality_df], axis=1)
+        new_events_df["updated_at"] = datetime.now(timezone.utc)
+        new_events_df["catalog_version"] = "1.0"
+
+        # Merge with existing catalog
+        updated_catalog = pd.concat(
+            [existing_catalog, new_events_df], ignore_index=True
+        )
+        updated_catalog = updated_catalog.sort_values("start_time").reset_index(
+            drop=True
+        )
+
+        logger.info(
+            f"Added {len(new_events)} new events to catalog (total: {len(updated_catalog)})"
+        )
+
+        return updated_catalog
 
     def get_events_in_period(
         self,
