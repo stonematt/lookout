@@ -259,9 +259,12 @@ class RainEventCatalog:
             return pd.DataFrame()
 
         try:
+            import io
+
             client = self._get_storage_client()
             response = client.get_object(Bucket=self.bucket, Key=self.catalog_path)
-            catalog_df = pd.read_parquet(response["Body"])
+            body = response["Body"].read()
+            catalog_df = pd.read_parquet(io.BytesIO(body))
             logger.info(f"Loaded catalog with {len(catalog_df)} events")
             return catalog_df
         except Exception as e:
