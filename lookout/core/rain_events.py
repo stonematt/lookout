@@ -130,19 +130,24 @@ def detect_rain_events(
     # Handle ongoing event at end of data
     if current_event is not None:
         last_row = df.iloc[-1]
+        last_eventrainin = last_row.get("eventrainin", 0) or 0
+
+        # Only mark as ongoing if eventrainin is still > 0 at archive end
+        is_ongoing = last_eventrainin > 0
+
         event = {
             "event_id": str(uuid.uuid4()),
             "start_time": current_event["start_time"],
             "end_time": last_row["timestamp"],
             "start_idx": current_event["start_idx"],
             "end_idx": len(df) - 1,
-            "total_rainfall": last_row.get("eventrainin", 0),
+            "total_rainfall": last_eventrainin,
             "duration_minutes": (
                 last_row["timestamp"] - current_event["start_time"]
             ).total_seconds()
             / 60,
             "data_point_count": len(current_event["data_points"]),
-            "ongoing": True,  # Flag for ongoing events
+            "ongoing": is_ongoing,
             "created_at": datetime.now(timezone.utc),
         }
 
@@ -151,8 +156,9 @@ def detect_rain_events(
             and event["total_rainfall"] >= min_total_rainfall
         ):
             events.append(event)
+            status = "ongoing" if is_ongoing else "completed at archive boundary"
             logger.info(
-                f"Ongoing event detected: {event['duration_minutes']:.1f}min, {event['total_rainfall']:.3f}in"
+                f"Event at archive end ({status}): {event['duration_minutes']:.1f}min, {event['total_rainfall']:.3f}in"
             )
 
     logger.info(f"Detected {len(events)} rain events")
@@ -174,25 +180,32 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
     event_data = archive_df.iloc[event["start_idx"] : event["end_idx"] + 1].copy()
     event_data["timestamp"] = pd.to_datetime(event_data["dateutc"], unit="ms", utc=True)
 
-    # Calculate expected vs actual readings
-    duration_hours = event["duration_minutes"] / 60
-    expected_readings = duration_hours * 12  # 5-minute intervals
+    # Calculate expected vs actual readings based on time span
+    event_data = event_data.sort_values("timestamp")
+    time_span_minutes = (
+        event_data["timestamp"].max() - event_data["timestamp"].min()
+    ).total_seconds() / 60
+    expected_readings = (time_span_minutes / 5) + 1  # 5-min intervals + first reading
     actual_readings = len(event_data)
     completeness = actual_readings / expected_readings if expected_readings > 0 else 0
 
-    # Analyze gaps within event
-    event_data = event_data.sort_values("timestamp")
+    # Analyze gaps within event (only count gaps > 10 minutes as abnormal)
     time_gaps = event_data["timestamp"].diff().dt.total_seconds() / 60
-    max_gap_minutes = time_gaps.max() if len(time_gaps) > 0 else 0
-    significant_gaps = (time_gaps > 10).sum()  # Gaps > 10 minutes
+    abnormal_gaps = time_gaps[time_gaps > 10]  # Only gaps >10min are "gaps"
+    max_gap_minutes = abnormal_gaps.max() if len(abnormal_gaps) > 0 else 0
+    significant_gaps = len(abnormal_gaps)
 
     # Calculate rainfall statistics
-    hourly_rates = event_data.get("hourlyrainin", pd.Series([0]))
-    max_hourly_rate = hourly_rates.max() if len(hourly_rates) > 0 else 0
-    avg_hourly_rate = hourly_rates.mean() if len(hourly_rates) > 0 else 0
+    if "hourlyrainin" in event_data.columns:
+        hourly_rates = event_data["hourlyrainin"].dropna()
+        max_hourly_rate = float(hourly_rates.max()) if len(hourly_rates) > 0 else 0.0
+        avg_hourly_rate = float(hourly_rates.mean()) if len(hourly_rates) > 0 else 0.0
+    else:
+        max_hourly_rate = 0.0
+        avg_hourly_rate = 0.0
 
-    # Quality classification
-    if completeness >= 0.95 and max_gap_minutes <= 15:
+    # Quality classification based on actual gaps and completeness
+    if completeness >= 0.95 and max_gap_minutes == 0:
         quality = "excellent"
     elif completeness >= 0.90 and max_gap_minutes <= 30:
         quality = "good"
@@ -210,9 +223,9 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
         "avg_hourly_rate": round(avg_hourly_rate, 3),
         "usable_for_analysis": quality in ["excellent", "good", "fair"],
         "flags": {
-            "has_gaps": max_gap_minutes > 10,
+            "has_gaps": significant_gaps > 0,
             "low_completeness": completeness < 0.90,
-            "interrupted": max_gap_minutes > 60,
+            "interrupted": max_gap_minutes >= 60,
             "ongoing": event.get("ongoing", False),
         },
     }
