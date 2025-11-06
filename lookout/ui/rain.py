@@ -875,6 +875,165 @@ def render():
 
     st.divider()
 
+    # --- Rain Event Catalog ------------------------------------------------
+
+    st.subheader("Rain Event Catalog")
+    st.write("Browse and analyze individual rain events detected from historical data")
+
+    try:
+        from lookout.core.rain_events import RainEventCatalog
+
+        # Get device MAC address - look for it in session state or df
+        device_mac = None
+        if "devices" in st.session_state and st.session_state["devices"]:
+            device_mac = st.session_state["devices"][0]["macAddress"]
+        elif len(df) > 0 and "passkey" in df.columns:
+            # Try to extract from data (fallback)
+            device_mac = "98:CD:AC:22:0D:E5"  # Your device MAC
+
+        if device_mac:
+            catalog = RainEventCatalog(device_mac)
+
+            # Check if catalog exists
+            if catalog.catalog_exists():
+                events_df = catalog.load_catalog()
+
+                if not events_df.empty:
+                    st.success(f"📋 Event catalog loaded: {len(events_df)} rain events")
+
+                    # Event catalog summary
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Events", f"{len(events_df)}")
+                    with col2:
+                        total_rain = events_df["total_rainfall"].sum()
+                        st.metric("Total Rainfall", f'{total_rain:.1f}"')
+                    with col3:
+                        avg_duration = events_df["duration_minutes"].mean()
+                        st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
+                    with col4:
+                        excellent_pct = (
+                            events_df["quality_rating"] == "excellent"
+                        ).mean() * 100
+                        st.metric("Data Quality", f"{excellent_pct:.0f}% excellent")
+
+                    # Event selection and details
+                    st.write("**Select a rain event to analyze:**")
+
+                    # Create event options with meaningful labels
+                    events_df["event_label"] = events_df.apply(
+                        lambda row: f"{pd.to_datetime(row['start_time']).strftime('%Y-%m-%d %H:%M')} - "
+                        f"{row['total_rainfall']:.2f}\" in {row['duration_minutes']/60:.1f}h "
+                        f"({row['quality_rating']})",
+                        axis=1,
+                    )
+
+                    # Sort by start time (most recent first)
+                    events_df = events_df.sort_values("start_time", ascending=False)
+
+                    # Event selection
+                    if len(events_df) > 0:
+                        selected_event_idx = st.selectbox(
+                            "Choose event:",
+                            range(len(events_df)),
+                            format_func=lambda x: events_df.iloc[x]["event_label"],
+                            help="Events sorted by most recent first",
+                        )
+
+                        selected_event = events_df.iloc[selected_event_idx]
+
+                        # Display event details
+                        st.write("**Event Details:**")
+
+                        detail_col1, detail_col2 = st.columns(2)
+                        with detail_col1:
+                            start_time = pd.to_datetime(selected_event["start_time"])
+                            end_time = pd.to_datetime(selected_event["end_time"])
+                            st.write(
+                                f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}"
+                            )
+                            st.write(
+                                f"• **End**: {end_time.strftime('%Y-%m-%d %H:%M %Z')}"
+                            )
+                            st.write(
+                                f"• **Duration**: {selected_event['duration_minutes']/60:.1f} hours"
+                            )
+                            st.write(
+                                f"• **Total Rainfall**: {selected_event['total_rainfall']:.3f} inches"
+                            )
+
+                        with detail_col2:
+                            st.write(
+                                f"• **Data Quality**: {selected_event['quality_rating'].title()}"
+                            )
+                            st.write(
+                                f"• **Completeness**: {selected_event['data_completeness']*100:.1f}%"
+                            )
+                            st.write(
+                                f"• **Max Gap**: {selected_event['max_gap_minutes']:.1f} minutes"
+                            )
+                            st.write(
+                                f"• **Max Rate**: {selected_event['max_hourly_rate']:.3f} in/hr"
+                            )
+
+                        # Quality flags
+                        if selected_event.get("flags"):
+                            flags = selected_event["flags"]
+                            if isinstance(flags, str):
+                                import json
+
+                                flags = json.loads(flags)
+
+                            flag_indicators = []
+                            if flags.get("ongoing"):
+                                flag_indicators.append("🔄 Ongoing")
+                            if flags.get("interrupted"):
+                                flag_indicators.append("⚠️ Interrupted")
+                            if flags.get("has_gaps"):
+                                flag_indicators.append("🕳️ Has gaps")
+                            if flags.get("low_completeness"):
+                                flag_indicators.append("📉 Low completeness")
+
+                            if flag_indicators:
+                                st.write(f"**Flags**: {' '.join(flag_indicators)}")
+
+                        # Future: Add event data visualization here
+                        st.info(
+                            "🚧 Event data visualization coming next - this will show the intensity-duration curve for the selected event"
+                        )
+
+                else:
+                    st.info("Event catalog is empty")
+
+            else:
+                st.warning(
+                    "📋 No event catalog found. Events will be automatically detected when you use this feature."
+                )
+
+                if st.button("Generate Event Catalog Now"):
+                    with st.spinner(
+                        "Detecting rain events from historical data... This may take a minute."
+                    ):
+                        try:
+                            events_df = catalog.detect_and_catalog_events(
+                                df, backup_existing=True
+                            )
+                            st.success(
+                                f"✅ Generated catalog with {len(events_df)} events!"
+                            )
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error(f"Failed to generate catalog: {e}")
+        else:
+            st.error("Could not determine device MAC address for event catalog")
+
+    except ImportError as e:
+        st.error(f"Event catalog feature not available: {e}")
+    except Exception as e:
+        st.error(f"Error loading event catalog: {e}")
+
+    st.divider()
+
     # Placeholder sections for upcoming visualizations
     st.subheader("Year-over-Year Accumulation")
     st.info(
