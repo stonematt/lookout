@@ -3,6 +3,8 @@ visualizations.py
 Collection of functions to create charts and visualizations for streamlit
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -540,3 +542,230 @@ def display_hourly_coverage_heatmap(df):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def create_rainfall_violin_plot(
+    window: str,
+    violin_data: dict,
+    unit: str = "in",
+    title: Optional[str] = None,
+) -> None:
+    """
+    Create single violin plot showing rainfall distribution for specified window.
+
+    :param window: Window size (e.g., "7d", "30d")
+    :param violin_data: Data from prepare_violin_plot_data()
+    :param unit: Unit for display (e.g., "in")
+    :param title: Chart title (auto-generated if None)
+    """
+    if window not in violin_data or len(violin_data[window]["values"]) == 0:
+        st.warning(f"No historical data available for {window} period.")
+        return
+
+    data = violin_data[window]
+    values = data["values"]
+    current = data["current"]
+    percentile = data["percentile"]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Violin(
+            y=values,
+            name=f"Historical {window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor="rgba(56, 128, 191, 0.6)",
+            line_color="rgba(56, 128, 191, 1.0)",
+            x0=f"{window} Periods",
+        )
+    )
+
+    if not np.isnan(current):
+        fig.add_trace(
+            go.Scatter(
+                x=[f"{window} Periods"],
+                y=[current],
+                mode="markers",
+                marker=dict(
+                    symbol="diamond-tall",
+                    size=16,
+                    color="red",
+                    line=dict(width=2, color="darkred"),
+                ),
+                name=f"Current ({current:.2f}{unit})",
+                text=[
+                    (
+                        f"Current: {current:.2f}{unit}<br>Percentile: {percentile:.1f}th"
+                        if not np.isnan(percentile)
+                        else f"Current: {current:.2f}{unit}"
+                    )
+                ],
+                hoverinfo="text",
+            )
+        )
+
+    chart_title = title or f"Rainfall Distribution: {window} Rolling Periods"
+    fig.update_layout(
+        title=chart_title,
+        yaxis_title=f"Rainfall ({unit})",
+        xaxis_title="",
+        showlegend=True,
+        height=500,
+        template="plotly_white",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    if not np.isnan(percentile):
+        if percentile >= 90:
+            status = "🔴 **Extremely wet**"
+        elif percentile >= 75:
+            status = "🟡 **Above normal**"
+        elif percentile >= 25:
+            status = "🟢 **Normal range**"
+        else:
+            status = "🔵 **Below normal**"
+
+        st.markdown(
+            f"{status} - Current {window} total ({current:.2f}{unit}) ranks at **{percentile:.1f}th percentile** of {len(values):,} historical periods."
+        )
+
+
+def create_dual_violin_plot(
+    left_window: str,
+    right_window: str,
+    violin_data: dict,
+    unit: str = "in",
+    title: Optional[str] = None,
+) -> None:
+    """
+    Create dual violin plot comparing two different rainfall windows side-by-side.
+
+    :param left_window: Left window size (e.g., "1d")
+    :param right_window: Right window size (e.g., "7d")
+    :param violin_data: Data from prepare_violin_plot_data()
+    :param unit: Unit for display (e.g., "in")
+    :param title: Chart title (auto-generated if None)
+    """
+    from plotly.subplots import make_subplots
+
+    missing_data = []
+    for window in [left_window, right_window]:
+        if window not in violin_data or len(violin_data[window]["values"]) == 0:  # type: ignore
+            missing_data.append(window)
+
+    if missing_data:
+        st.warning(f"No historical data available for: {', '.join(missing_data)}")
+        return
+
+    left_data = violin_data[left_window]
+    right_data = violin_data[right_window]
+
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=[f"{left_window} Periods", f"{right_window} Periods"],
+        shared_yaxes=True,
+    )
+
+    colors = {
+        left_window: "rgba(56, 128, 191, 0.6)",
+        right_window: "rgba(191, 128, 56, 0.6)",
+    }
+    line_colors = {
+        left_window: "rgba(56, 128, 191, 1.0)",
+        right_window: "rgba(191, 128, 56, 1.0)",
+    }
+
+    fig.add_trace(
+        go.Violin(
+            y=left_data["values"],
+            name=f"Historical {left_window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor=colors[left_window],
+            line_color=line_colors[left_window],
+            x0=f"{left_window}",
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Violin(
+            y=right_data["values"],
+            name=f"Historical {right_window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor=colors[right_window],
+            line_color=line_colors[right_window],
+            x0=f"{right_window}",
+        ),
+        row=1,
+        col=2,
+    )
+
+    for i, (window, data) in enumerate(
+        [(left_window, left_data), (right_window, right_data)], 1
+    ):
+        current = data["current"]
+        percentile = data["percentile"]
+
+        if not np.isnan(current):
+            fig.add_trace(
+                go.Scatter(
+                    x=[window],
+                    y=[current],
+                    mode="markers",
+                    marker=dict(
+                        symbol="diamond-tall",
+                        size=16,
+                        color="red",
+                        line=dict(width=2, color="darkred"),
+                    ),
+                    name=f"Current {window} ({current:.2f}{unit})",
+                    text=[
+                        (
+                            f"Current: {current:.2f}{unit}<br>Percentile: {percentile:.1f}th"
+                            if not np.isnan(percentile)
+                            else f"Current: {current:.2f}{unit}"
+                        )
+                    ],
+                    hoverinfo="text",
+                    showlegend=True,
+                ),
+                row=1,
+                col=i,
+            )
+
+    chart_title = (
+        title or f"Rainfall Distribution Comparison: {left_window} vs {right_window}"
+    )
+    fig.update_layout(
+        title=chart_title,
+        height=600,
+        template="plotly_white",
+    )
+
+    fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        left_current = left_data["current"]
+        left_percentile = left_data["percentile"]
+        if not np.isnan(left_percentile):
+            st.markdown(
+                f"**{left_window} Period**: {left_current:.2f}{unit} ({left_percentile:.1f}th percentile)"
+            )
+
+    with col2:
+        right_current = right_data["current"]
+        right_percentile = right_data["percentile"]
+        if not np.isnan(right_percentile):
+            st.markdown(
+                f"**{right_window} Period**: {right_current:.2f}{unit} ({right_percentile:.1f}th percentile)"
+            )
