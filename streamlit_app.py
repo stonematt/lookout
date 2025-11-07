@@ -51,7 +51,12 @@ auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
 
 # Setup and get data ########################
 
-devices = ambient_client.get_devices()
+if "devices" not in st.session_state:
+    devices = ambient_client.get_devices()
+    st.session_state["devices"] = devices
+else:
+    devices = st.session_state["devices"]
+
 device = False
 device_last_dateutc = 0
 last_data = {}

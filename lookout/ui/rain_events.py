@@ -5,13 +5,75 @@ This module provides event browsing, selection, and management interface
 for rain events detected from historical weather data.
 """
 
+from datetime import datetime, timedelta
+
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from lookout.core.rain_events import RainEventCatalog
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
+
+
+def create_event_histogram(events_df: pd.DataFrame, selected_range: tuple) -> go.Figure:
+    """
+    Create histogram showing event count over time with selected range highlighted.
+
+    :param events_df: DataFrame with event data
+    :param selected_range: Tuple of (start_date, end_date) for highlighting
+    :return: Plotly figure
+    """
+    events_by_week = (
+        events_df.set_index("start_time").resample("W").size().reset_index(name="count")
+    )
+
+    fig = go.Figure()
+
+    start_date, end_date = selected_range
+    start_ts = (
+        pd.Timestamp(start_date).tz_localize("America/Los_Angeles").tz_convert("UTC")
+    )
+    end_ts = (
+        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
+        .tz_localize("America/Los_Angeles")
+        .tz_convert("UTC")
+    )
+
+    def get_bar_color(date):
+        date_ts = (
+            pd.Timestamp(date).tz_localize("UTC")
+            if pd.Timestamp(date).tz is None
+            else pd.Timestamp(date)
+        )
+        return "steelblue" if start_ts <= date_ts < end_ts else "lightgray"
+
+    colors = [get_bar_color(date) for date in events_by_week["start_time"]]
+
+    fig.add_trace(
+        go.Bar(
+            x=events_by_week["start_time"],
+            y=events_by_week["count"],
+            marker_color=colors,
+            hovertemplate="<b>Week of %{x|%Y-%m-%d}</b><br>Events: %{y}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        title="Events by Week",
+        xaxis_title="",
+        yaxis_title="Event Count",
+        height=200,
+        margin=dict(l=40, r=20, t=40, b=20),
+        showlegend=False,
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray")
+
+    return fig
 
 
 def render():
@@ -80,97 +142,214 @@ def render():
                 f"Displaying catalog: {len(events_df)} events, {zero_rate_count} with zero max_rate"
             )
 
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Events", f"{len(events_df)}")
-            with col2:
-                total_rain = events_df["total_rainfall"].sum()
-                st.metric("Total Rainfall", f'{total_rain:.1f}"')
-            with col3:
-                avg_duration = events_df["duration_minutes"].mean()
-                st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
-            with col4:
-                excellent_pct = (
-                    events_df["quality_rating"] == "excellent"
-                ).mean() * 100
-                st.metric("Data Quality", f"{excellent_pct:.0f}% excellent")
+            min_date = events_df["start_time"].min().date()
+            max_date = events_df["start_time"].max().date()
 
-            st.write("**Select a rain event to analyze:**")
+            st.write("**Date Range:**")
 
-            events_df["event_label"] = events_df.apply(
-                lambda row: f"{pd.to_datetime(row['start_time']).tz_convert('America/Los_Angeles').strftime('%Y-%m-%d %H:%M')} - "
-                f"{row['total_rainfall']:.2f}\" in {row['duration_minutes']/60:.1f}h "
-                f"({row['quality_rating']})",
-                axis=1,
+            date_range = st.slider(
+                "Select date range",
+                min_value=min_date,
+                max_value=max_date,
+                value=(min_date, max_date),
+                format="MMM DD, YYYY",
+                label_visibility="collapsed",
             )
 
-            events_df = events_df.sort_values("start_time", ascending=False)
+            histogram_fig = create_event_histogram(events_df, date_range)
+            st.plotly_chart(
+                histogram_fig, use_container_width=True, key="date_histogram"
+            )
 
-            if len(events_df) > 0:
-                selected_event_idx = st.selectbox(
-                    "Choose event:",
-                    range(len(events_df)),
-                    format_func=lambda x: events_df.iloc[x]["event_label"],
-                    help="Events sorted by most recent first",
+            with st.expander("Advanced Filter"):
+                filter_col1, filter_col2 = st.columns(2)
+
+                with filter_col1:
+                    st.write("**Minimum Rainfall:**")
+                    max_rainfall = float(events_df["total_rainfall"].max())
+                    min_rainfall_threshold = st.slider(
+                        "Minimum rainfall (inches)",
+                        min_value=0.0,
+                        max_value=max_rainfall,
+                        value=0.0,
+                        step=0.01,
+                        format="%.2f",
+                        label_visibility="collapsed",
+                    )
+                    st.caption(f"≥ {min_rainfall_threshold:.2f} inches")
+
+                with filter_col2:
+                    st.write("**Data Quality:**")
+                    quality_options = ["excellent", "good", "fair", "poor"]
+                    selected_quality = st.multiselect(
+                        "Select quality ratings",
+                        options=quality_options,
+                        default=quality_options,
+                        label_visibility="collapsed",
+                    )
+
+            filtered_events_df = events_df.copy()
+
+            if len(date_range) == 2:
+                start_date, end_date = date_range
+                start_ts = (
+                    pd.Timestamp(start_date)
+                    .tz_localize("America/Los_Angeles")
+                    .tz_convert("UTC")
+                )
+                end_ts = (
+                    (pd.Timestamp(end_date) + pd.Timedelta(days=1))
+                    .tz_localize("America/Los_Angeles")
+                    .tz_convert("UTC")
+                )
+                filtered_events_df = filtered_events_df[
+                    (filtered_events_df["start_time"] >= start_ts)
+                    & (filtered_events_df["start_time"] < end_ts)
+                ]
+
+            if selected_quality:
+                filtered_events_df = filtered_events_df[
+                    filtered_events_df["quality_rating"].isin(selected_quality)
+                ]
+
+            filtered_events_df = filtered_events_df[
+                filtered_events_df["total_rainfall"] >= min_rainfall_threshold
+            ]
+
+            logger.info(
+                f"Filtered events: {len(filtered_events_df)} of {len(events_df)} "
+                f"(date: {date_range}, quality: {selected_quality}, min_rain: {min_rainfall_threshold})"
+            )
+
+            st.divider()
+
+            if len(filtered_events_df) < len(events_df):
+                st.info(
+                    f"📊 Showing {len(filtered_events_df)} of {len(events_df)} events "
+                    f"({len(events_df) - len(filtered_events_df)} filtered out)"
                 )
 
-                selected_event = events_df.iloc[selected_event_idx]
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Events", f"{len(filtered_events_df)}")
+            with col2:
+                total_rain = filtered_events_df["total_rainfall"].sum()
+                st.metric("Total Rainfall", f'{total_rain:.1f}"')
+            with col3:
+                if len(filtered_events_df) > 0:
+                    med_rainfall = filtered_events_df["total_rainfall"].median()
+                    st.metric("Median Rainfall", f'{med_rainfall:.2f}"')
+                else:
+                    st.metric("Median Rainfall", "—")
+            with col4:
+                if len(filtered_events_df) > 0:
+                    avg_duration = filtered_events_df["duration_minutes"].mean()
+                    st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
+                else:
+                    st.metric("Avg Duration", "—")
 
-                st.write("**Event Details:**")
+            if len(filtered_events_df) > 0:
+                st.write("**Select a rain event to analyze:**")
 
-                detail_col1, detail_col2 = st.columns(2)
-                with detail_col1:
-                    start_time = pd.to_datetime(
-                        selected_event["start_time"]
-                    ).tz_convert("America/Los_Angeles")
-                    end_time = pd.to_datetime(selected_event["end_time"]).tz_convert(
-                        "America/Los_Angeles"
+                display_df = filtered_events_df.copy()
+                display_df = display_df.sort_values("start_time", ascending=False)
+                display_df["Date"] = (
+                    display_df["start_time"]
+                    .dt.tz_convert("America/Los_Angeles")
+                    .dt.strftime("%Y-%m-%d %H:%M")
+                )
+                display_df["Duration (h)"] = (
+                    display_df["duration_minutes"] / 60
+                ).round(1)
+                display_df["Rainfall (in)"] = display_df["total_rainfall"].round(2)
+                display_df["Max Rate (in/hr)"] = display_df["max_hourly_rate"].round(3)
+                display_df["Quality"] = display_df["quality_rating"].str.title()
+
+                event_selection = st.dataframe(
+                    display_df[
+                        [
+                            "Date",
+                            "Duration (h)",
+                            "Rainfall (in)",
+                            "Max Rate (in/hr)",
+                            "Quality",
+                        ]
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    height=400,
+                )
+
+                if event_selection["selection"]["rows"]:
+                    selected_idx = event_selection["selection"]["rows"][0]
+                    selected_event = display_df.iloc[selected_idx]
+                else:
+                    selected_event = None
+
+                if selected_event is not None:
+                    st.write("**Event Details:**")
+
+                    detail_col1, detail_col2 = st.columns(2)
+                    with detail_col1:
+                        start_time = pd.to_datetime(
+                            selected_event["start_time"]
+                        ).tz_convert("America/Los_Angeles")
+                        end_time = pd.to_datetime(
+                            selected_event["end_time"]
+                        ).tz_convert("America/Los_Angeles")
+                        st.write(
+                            f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}"
+                        )
+                        st.write(f"• **End**: {end_time.strftime('%Y-%m-%d %H:%M %Z')}")
+                        st.write(
+                            f"• **Duration**: {selected_event['duration_minutes']/60:.1f} hours"
+                        )
+                        st.write(
+                            f"• **Total Rainfall**: {selected_event['total_rainfall']:.3f} inches"
+                        )
+
+                    with detail_col2:
+                        st.write(
+                            f"• **Data Quality**: {selected_event['quality_rating'].title()}"
+                        )
+                        st.write(
+                            f"• **Completeness**: {selected_event['data_completeness']*100:.1f}%"
+                        )
+                        st.write(
+                            f"• **Max Gap**: {selected_event['max_gap_minutes']:.1f} minutes"
+                        )
+                        st.write(
+                            f"• **Max Rate**: {selected_event['max_hourly_rate']:.3f} in/hr"
+                        )
+
+                    if selected_event.get("flags"):
+                        flags = selected_event["flags"]
+                        if isinstance(flags, str):
+                            import json
+
+                            flags = json.loads(flags)
+
+                        flag_indicators = []
+                        if flags.get("ongoing"):
+                            flag_indicators.append("🔄 Ongoing")
+                        if flags.get("interrupted"):
+                            flag_indicators.append("⚠️ Interrupted")
+                        if flags.get("has_gaps"):
+                            flag_indicators.append("🕳️ Has gaps")
+                        if flags.get("low_completeness"):
+                            flag_indicators.append("📉 Low completeness")
+
+                        if flag_indicators:
+                            st.write(f"**Flags**: {' '.join(flag_indicators)}")
+
+                    st.info(
+                        "🚧 Event data visualization coming next - this will show the intensity-duration curve for the selected event"
                     )
-                    st.write(f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}")
-                    st.write(f"• **End**: {end_time.strftime('%Y-%m-%d %H:%M %Z')}")
-                    st.write(
-                        f"• **Duration**: {selected_event['duration_minutes']/60:.1f} hours"
-                    )
-                    st.write(
-                        f"• **Total Rainfall**: {selected_event['total_rainfall']:.3f} inches"
-                    )
-
-                with detail_col2:
-                    st.write(
-                        f"• **Data Quality**: {selected_event['quality_rating'].title()}"
-                    )
-                    st.write(
-                        f"• **Completeness**: {selected_event['data_completeness']*100:.1f}%"
-                    )
-                    st.write(
-                        f"• **Max Gap**: {selected_event['max_gap_minutes']:.1f} minutes"
-                    )
-                    st.write(
-                        f"• **Max Rate**: {selected_event['max_hourly_rate']:.3f} in/hr"
-                    )
-
-                if selected_event.get("flags"):
-                    flags = selected_event["flags"]
-                    if isinstance(flags, str):
-                        import json
-
-                        flags = json.loads(flags)
-
-                    flag_indicators = []
-                    if flags.get("ongoing"):
-                        flag_indicators.append("🔄 Ongoing")
-                    if flags.get("interrupted"):
-                        flag_indicators.append("⚠️ Interrupted")
-                    if flags.get("has_gaps"):
-                        flag_indicators.append("🕳️ Has gaps")
-                    if flags.get("low_completeness"):
-                        flag_indicators.append("📉 Low completeness")
-
-                    if flag_indicators:
-                        st.write(f"**Flags**: {' '.join(flag_indicators)}")
-
-                st.info(
-                    "🚧 Event data visualization coming next - this will show the intensity-duration curve for the selected event"
+            else:
+                st.warning(
+                    "No events match the selected filters. Try adjusting your criteria."
                 )
 
             st.divider()
