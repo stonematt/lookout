@@ -76,6 +76,107 @@ def create_event_histogram(events_df: pd.DataFrame, selected_range: tuple) -> go
     return fig
 
 
+def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFrame):
+    """
+    Render dense, minimalistic visualization for selected rain event.
+
+    :param selected_event: Event row from catalog DataFrame
+    :param archive_df: Full weather archive (unsorted)
+    """
+    import json
+
+    from lookout.core.visualization import (
+        create_event_accumulation_chart,
+        create_event_rate_chart,
+    )
+
+    archive_df = archive_df.copy()
+    archive_df["timestamp"] = pd.to_datetime(archive_df["dateutc"], unit="ms", utc=True)
+    start_time = pd.to_datetime(selected_event["start_time"], utc=True)
+    end_time = pd.to_datetime(selected_event["end_time"], utc=True)
+
+    mask = (archive_df["timestamp"] >= start_time) & (
+        archive_df["timestamp"] <= end_time
+    )
+    event_data = archive_df[mask].sort_values("timestamp").copy()
+
+    if len(event_data) == 0:
+        st.error(f"No data found for event time range {start_time} to {end_time}")
+        return
+
+    logger.debug(f"Extracted {len(event_data)} records for event")
+
+    start_pst = pd.to_datetime(selected_event["start_time"]).tz_convert(
+        "America/Los_Angeles"
+    )
+    end_pst = pd.to_datetime(selected_event["end_time"]).tz_convert(
+        "America/Los_Angeles"
+    )
+
+    start_str = start_pst.strftime("%b %-d")
+    if end_pst.date() != start_pst.date():
+        end_str = end_pst.strftime("%-d, %Y")
+    else:
+        end_str = end_pst.strftime("%-I:%M %p").lower().lstrip("0")
+
+    duration_h = selected_event["duration_minutes"] / 60
+    total_rain = selected_event["total_rainfall"]
+    peak_rate = selected_event["max_hourly_rate"]
+    quality = selected_event["quality_rating"].title()
+
+    flag_str = ""
+    if selected_event.get("flags"):
+        flags = (
+            selected_event["flags"]
+            if isinstance(selected_event["flags"], dict)
+            else json.loads(selected_event["flags"])
+        )
+        if flags.get("ongoing"):
+            flag_str = " • 🔄"
+        elif flags.get("interrupted"):
+            flag_str = " • ⚠️"
+
+    if duration_h >= 48:
+        duration_str = f"{duration_h/24:.1f}d"
+    else:
+        duration_str = f"{duration_h:.1f}h"
+
+    header = f'{start_str}-{end_str} • {duration_str} • {total_rain:.3f}" • {peak_rate:.3f} in/hr • {quality}{flag_str}'
+    st.markdown(f"**{header}**")
+
+    event_info = {
+        "total_rainfall": total_rain,
+        "duration_minutes": selected_event["duration_minutes"],
+        "start_time": start_time,
+        "end_time": end_time,
+    }
+
+    acc_fig = create_event_accumulation_chart(event_data, event_info)
+    st.plotly_chart(acc_fig, use_container_width=True, key=f"acc_{selected_event.name}")
+
+    rate_fig = create_event_rate_chart(event_data)
+    st.plotly_chart(
+        rate_fig, use_container_width=True, key=f"rate_{selected_event.name}"
+    )
+
+    completeness = selected_event["data_completeness"] * 100
+    gap = selected_event["max_gap_minutes"]
+    gap_str = "No gaps" if gap == 0 else f"{gap:.0f}min gap"
+
+    with st.expander("📊 Data quality", expanded=False):
+        st.caption(f"{quality} • {completeness:.0f}% • {gap_str}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Completeness", f"{completeness:.1f}%")
+            st.metric("Max Gap", f"{gap:.1f} min")
+        with col2:
+            st.metric("Quality", quality)
+            st.metric(
+                "Data Points",
+                int(selected_event.get("data_point_count", len(event_data))),
+            )
+
+
 def render():
     """Render the rain events catalog tab."""
     st.header("Rain Event Catalog")
@@ -289,64 +390,7 @@ def render():
                     selected_event = None
 
                 if selected_event is not None:
-                    st.write("**Event Details:**")
-
-                    detail_col1, detail_col2 = st.columns(2)
-                    with detail_col1:
-                        start_time = pd.to_datetime(
-                            selected_event["start_time"]
-                        ).tz_convert("America/Los_Angeles")
-                        end_time = pd.to_datetime(
-                            selected_event["end_time"]
-                        ).tz_convert("America/Los_Angeles")
-                        st.write(
-                            f"• **Start**: {start_time.strftime('%Y-%m-%d %H:%M %Z')}"
-                        )
-                        st.write(f"• **End**: {end_time.strftime('%Y-%m-%d %H:%M %Z')}")
-                        st.write(
-                            f"• **Duration**: {selected_event['duration_minutes']/60:.1f} hours"
-                        )
-                        st.write(
-                            f"• **Total Rainfall**: {selected_event['total_rainfall']:.3f} inches"
-                        )
-
-                    with detail_col2:
-                        st.write(
-                            f"• **Data Quality**: {selected_event['quality_rating'].title()}"
-                        )
-                        st.write(
-                            f"• **Completeness**: {selected_event['data_completeness']*100:.1f}%"
-                        )
-                        st.write(
-                            f"• **Max Gap**: {selected_event['max_gap_minutes']:.1f} minutes"
-                        )
-                        st.write(
-                            f"• **Max Rate**: {selected_event['max_hourly_rate']:.3f} in/hr"
-                        )
-
-                    if selected_event.get("flags"):
-                        flags = selected_event["flags"]
-                        if isinstance(flags, str):
-                            import json
-
-                            flags = json.loads(flags)
-
-                        flag_indicators = []
-                        if flags.get("ongoing"):
-                            flag_indicators.append("🔄 Ongoing")
-                        if flags.get("interrupted"):
-                            flag_indicators.append("⚠️ Interrupted")
-                        if flags.get("has_gaps"):
-                            flag_indicators.append("🕳️ Has gaps")
-                        if flags.get("low_completeness"):
-                            flag_indicators.append("📉 Low completeness")
-
-                        if flag_indicators:
-                            st.write(f"**Flags**: {' '.join(flag_indicators)}")
-
-                    st.info(
-                        "🚧 Event data visualization coming next - this will show the intensity-duration curve for the selected event"
-                    )
+                    render_event_visualization(selected_event, df)
             else:
                 st.warning(
                     "No events match the selected filters. Try adjusting your criteria."

@@ -769,3 +769,111 @@ def create_dual_violin_plot(
             st.markdown(
                 f"**{right_window} Period**: {right_current:.2f}{unit} ({right_percentile:.1f}th percentile)"
             )
+
+
+def create_event_accumulation_chart(
+    event_data: pd.DataFrame, event_info: dict
+) -> go.Figure:
+    """
+    Create area chart showing cumulative rainfall for a rain event.
+
+    :param event_data: DataFrame with dateutc and eventrainin columns (sorted by time)
+    :param event_info: Dict with total_rainfall, duration_minutes, start_time, end_time
+    :return: Plotly figure
+    """
+    df = event_data.copy()
+    df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
+    df["time_pst"] = df["timestamp"].dt.tz_convert("America/Los_Angeles")
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=df["time_pst"],
+            y=df["eventrainin"],
+            mode="lines",
+            fill="tozeroy",
+            line=dict(color="#4682B4", width=2),
+            fillcolor="rgba(70, 130, 180, 0.3)",
+            hovertemplate='%{x|%b %d %I:%M %p}<br>%{y:.3f}"<extra></extra>',
+            name="Rainfall",
+        )
+    )
+
+    fig.update_layout(
+        height=300,
+        margin=dict(l=50, r=20, t=30, b=40),
+        xaxis_title="",
+        yaxis_title="Rainfall (in)",
+        showlegend=False,
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    fig.add_annotation(
+        text=f"Total: {event_info['total_rainfall']:.3f}\"",
+        xref="paper",
+        yref="paper",
+        x=0.98,
+        y=0.95,
+        xanchor="right",
+        showarrow=False,
+        bgcolor="rgba(255,255,255,0.8)",
+        bordercolor="gray",
+        borderwidth=1,
+        borderpad=4,
+    )
+
+    return fig
+
+
+def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
+    """
+    Create bar chart showing rainfall intensity (10-min rate) with color coding.
+
+    :param event_data: DataFrame with dateutc and dailyrainin columns (sorted by time)
+    :return: Plotly figure
+    """
+    df = event_data.copy()
+    df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
+    df["time_pst"] = df["timestamp"].dt.tz_convert("America/Los_Angeles")
+
+    df["interval_rain"] = df["dailyrainin"].diff().clip(lower=0)
+    df.loc[df.index[0], "interval_rain"] = 0
+    df["rate_10min"] = df["interval_rain"].rolling(window=2, min_periods=1).sum() * 6
+
+    def get_color(rate):
+        if rate < 0.1:
+            return "#90EE90"
+        elif rate < 0.3:
+            return "#FFD700"
+        else:
+            return "#FF6347"
+
+    colors = [get_color(r) for r in df["rate_10min"]]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=df["time_pst"],
+            y=df["rate_10min"],
+            marker_color=colors,
+            hovertemplate="%{x|%b %d %I:%M %p}<br>%{y:.3f} in/hr<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        height=150,
+        margin=dict(l=50, r=20, t=10, b=40),
+        xaxis_title="",
+        yaxis_title="Rate (in/hr)",
+        showlegend=False,
+        bargap=0,
+    )
+
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    return fig
