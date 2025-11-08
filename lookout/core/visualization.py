@@ -831,7 +831,11 @@ def create_event_accumulation_chart(
 
 def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
     """
-    Create bar chart showing rainfall intensity (10-min rate) with color coding.
+    Create bar chart showing rainfall intensity with time-aware rate calculation.
+
+    Rates calculated from actual time intervals. Readings after data gaps (>10 min)
+    show average rate over gap period and are colored gray to distinguish from
+    instantaneous measurements.
 
     :param event_data: DataFrame with dateutc and dailyrainin columns (sorted by time)
     :return: Plotly figure
@@ -840,27 +844,45 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
     df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
     df["time_pst"] = df["timestamp"].dt.tz_convert("America/Los_Angeles")
 
+    df["time_diff_min"] = df["timestamp"].diff().dt.total_seconds() / 60
+    df.loc[df.index[0], "time_diff_min"] = 5
+
     df["interval_rain"] = df["dailyrainin"].diff().clip(lower=0)
     df.loc[df.index[0], "interval_rain"] = 0
-    df["rate_10min"] = df["interval_rain"].rolling(window=2, min_periods=1).sum() * 6
 
-    def get_color(rate):
-        if rate < 0.1:
+    df["rate"] = df["interval_rain"] / (df["time_diff_min"] / 60)
+
+    df["is_gap"] = df["time_diff_min"] > 10
+
+    def get_color(rate, is_gap):
+        if is_gap:
+            return "#B0B0B0"
+        elif rate < 0.1:
             return "#90EE90"
         elif rate < 0.3:
             return "#FFD700"
         else:
             return "#FF6347"
 
-    colors = [get_color(r) for r in df["rate_10min"]]
+    colors = [get_color(r, g) for r, g in zip(df["rate"], df["is_gap"])]
+
+    hover_template = (
+        "%{x|%b %d %I:%M %p}<br>" "%{y:.3f} in/hr<br>" "%{customdata}<extra></extra>"
+    )
+
+    customdata = [
+        f"({int(t)}min avg)" if g else ""
+        for t, g in zip(df["time_diff_min"], df["is_gap"])
+    ]
 
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
             x=df["time_pst"],
-            y=df["rate_10min"],
+            y=df["rate"],
             marker_color=colors,
-            hovertemplate="%{x|%b %d %I:%M %p}<br>%{y:.3f} in/hr<extra></extra>",
+            hovertemplate=hover_template,
+            customdata=customdata,
         )
     )
 
