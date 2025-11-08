@@ -501,10 +501,16 @@ class RainEventCatalog:
         """
         Update existing catalog with new events from recent archive data.
 
+        If last cataloged event is ongoing (eventrainin > 0), re-detects from that
+        event's start to update it with new data. Only creates new event when
+        eventrainin resets to 0.
+
         :param archive_df: Complete weather archive DataFrame
         :param existing_catalog: Existing catalog DataFrame (will load if None)
         :return: Updated catalog DataFrame
         """
+        import json
+
         if existing_catalog is None:
             existing_catalog = self.load_catalog()
 
@@ -512,36 +518,73 @@ class RainEventCatalog:
             logger.info("No existing catalog, performing full detection")
             return self.detect_and_catalog_events(archive_df, auto_save=False)
 
-        # Find the last event end time
+        # Sort by start_time to get chronologically last event
+        existing_catalog["start_time"] = pd.to_datetime(
+            existing_catalog["start_time"], utc=True
+        )
         existing_catalog["end_time"] = pd.to_datetime(
             existing_catalog["end_time"], utc=True
         )
-        last_event_time = existing_catalog["end_time"].max()
+        existing_catalog = existing_catalog.sort_values("start_time").reset_index(
+            drop=True
+        )
+        last_event = existing_catalog.iloc[-1]
 
-        logger.info(f"Last cataloged event ended at {last_event_time}")
+        # Check if last event is ongoing (check both top-level and flags dict)
+        is_ongoing = False
+        if "ongoing" in last_event and last_event["ongoing"]:
+            is_ongoing = True
+        elif "flags" in last_event and last_event["flags"]:
+            flags = last_event["flags"]
+            if isinstance(flags, str):
+                flags = json.loads(flags)
+            is_ongoing = flags.get("ongoing", False)
 
-        # Filter archive to only new data since last event
+        # Determine where to start re-detection
         archive_copy = archive_df.copy()
         archive_copy["timestamp"] = pd.to_datetime(
             archive_copy["dateutc"], unit="ms", utc=True
         )
-        new_data = archive_copy[archive_copy["timestamp"] > last_event_time].copy()
 
-        if new_data.empty:
+        if is_ongoing:
+            # Re-detect from ongoing event's start to update with new data
+            redetect_from = pd.to_datetime(last_event["start_time"], utc=True)
+            logger.info(
+                f"Last event ongoing: {last_event.get('event_id', 'unknown')[:8]}, "
+                f"started {redetect_from}, was {last_event['total_rainfall']:.3f}\" / "
+                f"{last_event['duration_minutes']/60:.1f}h"
+            )
+            logger.info(f"Re-detecting from {redetect_from} to include new data")
+
+            # Remove ongoing event from catalog (will be replaced with updated version)
+            existing_catalog = existing_catalog.iloc[:-1].copy()
+        else:
+            # Normal case: detect new events after last completed event
+            redetect_from = last_event["end_time"]
+            logger.info(
+                f"Last event completed at {redetect_from}, detecting new events"
+            )
+
+        # Get data for detection (>= to include ongoing event data)
+        detection_data = archive_copy[archive_copy["timestamp"] >= redetect_from].copy()
+
+        if detection_data.empty:
             logger.info("No new data to process")
             return existing_catalog
 
-        logger.info(f"Processing {len(new_data)} new records since {last_event_time}")
+        logger.info(f"Processing {len(detection_data)} records from {redetect_from}")
 
-        # Detect events in new data
-        if isinstance(new_data, pd.DataFrame):
-            new_events = detect_rain_events(new_data)
-        else:
-            logger.error("New data is not a DataFrame")
-            return existing_catalog
+        # Detect events (will either update ongoing event or find new ones)
+        new_events = detect_rain_events(detection_data)
 
         if not new_events:
-            logger.info("No new events detected")
+            if is_ongoing:
+                logger.warning(
+                    "Ongoing event removed but no events detected in re-scan - "
+                    "this may indicate data quality issues"
+                )
+            else:
+                logger.info("No new events detected")
             return existing_catalog
 
         # Convert to DataFrame and add quality metrics
@@ -565,9 +608,25 @@ class RainEventCatalog:
             drop=True
         )
 
-        logger.info(
-            f"Added {len(new_events)} new events to catalog (total: {len(updated_catalog)})"
-        )
+        # Log results
+        if is_ongoing:
+            updated_event = new_events_df.iloc[0]
+            event_status = (
+                "ongoing" if updated_event.get("ongoing", False) else "completed"
+            )
+            logger.info(
+                f"Updated event: now {updated_event['total_rainfall']:.3f}\" / "
+                f"{updated_event['duration_minutes']/60:.1f}h, status={event_status}"
+            )
+            if len(new_events) > 1:
+                logger.info(
+                    f"Also detected {len(new_events)-1} new events after updated event"
+                )
+            logger.info(f"Total events in catalog: {len(updated_catalog)}")
+        else:
+            logger.info(
+                f"Added {len(new_events)} new events to catalog (total: {len(updated_catalog)})"
+            )
 
         return updated_catalog
 
