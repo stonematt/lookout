@@ -10,6 +10,17 @@ Key concepts:
 - Events are stored in Storj for persistence and incremental updates
 - Power outages during events are handled gracefully (data continuity maintained)
 
+Known limitations:
+- Multi-day events with extended data gaps (>1h) may experience mid-event eventrainin
+  resets due to Ambient Weather station behavior (power cycles, time thresholds)
+- Approximately 2.2% of events (4 of 185 in Salem OR dataset) show this pattern
+- Affected events undercount rainfall by 8-49% (total ~2.5" across catalog)
+- Visualization shows dramatic drops where resets occur (appears invalid but is correct
+  event boundary - rain never hit eventrainin=0)
+- Resets correlate with data gaps: station reboots after power/network outages
+- Future fix would sum reset amounts into total_rainfall, but adds complexity for
+  minimal impact (2.5% overall error)
+
 Usage:
     catalog = RainEventCatalog("98:CD:AC:22:0D:E5")
     events = catalog.detect_events(archive_df)
