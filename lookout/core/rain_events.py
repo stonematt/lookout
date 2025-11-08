@@ -82,7 +82,6 @@ def detect_rain_events(
         # Event start: eventrainin becomes > 0 for first time
         if eventrainin > 0 and current_event is None:
             current_event = {
-                "start_idx": idx,
                 "start_time": timestamp,
                 "start_eventrainin": eventrainin,
                 "data_points": [idx],
@@ -111,8 +110,6 @@ def detect_rain_events(
                 "event_id": str(uuid.uuid4()),
                 "start_time": current_event["start_time"],
                 "end_time": last_row["timestamp"],
-                "start_idx": current_event["start_idx"],
-                "end_idx": last_idx,
                 "total_rainfall": last_row.get("eventrainin", 0),
                 "duration_minutes": (
                     last_row["timestamp"] - current_event["start_time"]
@@ -150,8 +147,6 @@ def detect_rain_events(
             "event_id": str(uuid.uuid4()),
             "start_time": current_event["start_time"],
             "end_time": last_row["timestamp"],
-            "start_idx": current_event["start_idx"],
-            "end_idx": len(df) - 1,
             "total_rainfall": last_eventrainin,
             "duration_minutes": (
                 last_row["timestamp"] - current_event["start_time"]
@@ -198,12 +193,21 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
     :param archive_df: Complete archive DataFrame
     :return: Quality metrics dictionary
     """
-    if event["start_idx"] >= len(archive_df) or event["end_idx"] >= len(archive_df):
-        return {"quality_rating": "invalid", "error": "Invalid indices"}
+    # Extract event data using timestamps
+    archive_copy = archive_df.copy()
+    archive_copy["timestamp"] = pd.to_datetime(
+        archive_copy["dateutc"], unit="ms", utc=True
+    )
+    start_time = pd.to_datetime(event["start_time"], utc=True)
+    end_time = pd.to_datetime(event["end_time"], utc=True)
 
-    # Extract event data
-    event_data = archive_df.iloc[event["start_idx"] : event["end_idx"] + 1].copy()
-    event_data["timestamp"] = pd.to_datetime(event_data["dateutc"], unit="ms", utc=True)
+    mask = (archive_copy["timestamp"] >= start_time) & (
+        archive_copy["timestamp"] <= end_time
+    )
+    event_data = archive_copy[mask].copy()
+
+    if event_data.empty:
+        return {"quality_rating": "invalid", "error": "No data in time range"}
 
     # Calculate expected vs actual readings based on time span
     event_data = event_data.sort_values("timestamp")
@@ -706,16 +710,26 @@ class RainEventCatalog:
         if not event:
             return pd.DataFrame()
 
-        start_idx = event.get("start_idx", 0)
-        end_idx = event.get("end_idx", 0)
+        # Extract event data using timestamps
+        archive_copy = archive_df.copy()
+        archive_copy["timestamp"] = pd.to_datetime(
+            archive_copy["dateutc"], unit="ms", utc=True
+        )
+        start_time = pd.to_datetime(event["start_time"], utc=True)
+        end_time = pd.to_datetime(event["end_time"], utc=True)
 
-        if start_idx >= len(archive_df) or end_idx >= len(archive_df):
-            logger.error(f"Invalid event indices for event {event_id}")
+        mask = (archive_copy["timestamp"] >= start_time) & (
+            archive_copy["timestamp"] <= end_time
+        )
+        event_slice = archive_copy[mask].sort_values("timestamp")
+
+        if event_slice.empty:
+            logger.error(
+                f"No data found for event {event_id} in time range "
+                f"{start_time} to {end_time}"
+            )
             return pd.DataFrame()
 
-        event_slice = archive_df.iloc[start_idx : end_idx + 1]
-        return (
-            event_slice.copy()
-            if isinstance(event_slice, pd.DataFrame)
-            else pd.DataFrame()
-        )
+        # Remove temporary timestamp column
+        event_slice = event_slice.drop(columns=["timestamp"])
+        return event_slice.copy()
