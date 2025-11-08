@@ -67,6 +67,16 @@ flake8 .
 - Device data identified by MAC address (e.g., `98:CD:AC:22:0D:E5.parquet`)
 - Archive repair functionality normalizes schema inconsistencies
 
+**Event Catalog Management Strategy:**
+- Archive data persisted immediately (catchup CLI writes to Storj on every run)
+- Event catalog uses lazy persistence to minimize Storj I/O costs:
+  - Loads from Storj on first UI access
+  - Updates in-memory when new archive data detected
+  - Auto-saves to Storj only when ongoing events complete (eventrainin=0)
+  - Manual save available via "Save to Storj" button in UI
+- Rationale: Archive is critical raw data; catalog is derived and regenerable
+- Typical behavior: 1-2 auto-saves per week during rainy season (when events end)
+
 **Configuration Management:**
 - Secrets stored in `.streamlit/secrets.toml` (API keys, storage credentials)
 - Sensor mappings and UI configurations in `lookout/config.py`

@@ -214,6 +214,49 @@ def render():
                         f"Loaded {len(stored_catalog)} events from storage, checking for updates..."
                     )
                     events_df = catalog.update_catalog_with_new_data(df, stored_catalog)
+
+                    # Auto-save if ongoing event completed
+                    import json
+
+                    stored_sorted = stored_catalog.sort_values("start_time")
+                    updated_sorted = events_df.sort_values("start_time")
+
+                    if len(stored_sorted) > 0 and len(updated_sorted) > 0:
+                        stored_last = stored_sorted.iloc[-1]
+                        updated_last = updated_sorted.iloc[-1]
+
+                        # Check stored last event ongoing status
+                        stored_ongoing = False
+                        if "ongoing" in stored_last and stored_last["ongoing"]:
+                            stored_ongoing = True
+                        elif "flags" in stored_last and stored_last["flags"]:
+                            flags = stored_last["flags"]
+                            if isinstance(flags, str):
+                                flags = json.loads(flags)
+                            stored_ongoing = flags.get("ongoing", False)
+
+                        # Check updated last event ongoing status
+                        updated_ongoing = False
+                        if "ongoing" in updated_last and updated_last["ongoing"]:
+                            updated_ongoing = True
+                        elif "flags" in updated_last and updated_last["flags"]:
+                            flags = updated_last["flags"]
+                            if isinstance(flags, str):
+                                flags = json.loads(flags)
+                            updated_ongoing = flags.get("ongoing", False)
+
+                        # Auto-save if ongoing event completed
+                        if stored_ongoing and not updated_ongoing:
+                            logger.info(
+                                f"Ongoing event completed: {updated_last.get('event_id', 'unknown')[:8]}, "
+                                f"{updated_last['total_rainfall']:.3f}\" over "
+                                f"{updated_last['duration_minutes']/60:.1f}h"
+                            )
+                            catalog.save_catalog(events_df)
+                            logger.info(
+                                "Catalog auto-saved to Storj (ongoing event completed)"
+                            )
+
                     st.session_state["rain_events_catalog"] = events_df
                     catalog_source = "storage"
                     logger.info(

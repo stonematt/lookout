@@ -83,3 +83,29 @@ Quality: poor
 Completeness: 79.5%
 Max gap: 1205.0 min
 ```
+
+## Auto-save Behavior
+
+After regeneration, the catalog will auto-save to Storj when ongoing events complete.
+This keeps historical catalog current while minimizing Storj writes during active rain.
+
+**Triggers auto-save:**
+- Last event in catalog has `ongoing=True` (rain event in progress)
+- New archive data shows `eventrainin=0` (rain stopped)
+- UI automatically saves completed event to Storj
+
+**Does NOT auto-save:**
+- Event still ongoing (`eventrainin > 0`) - only updates session state
+- No new events detected - catalog unchanged
+- New event starts - new event marked `ongoing=True`, not saved until complete
+
+**Manual save:**
+- Users can manually save anytime via "Save to Storj" button in Rain Events tab
+- Useful for saving newly detected events or manual catalog regeneration
+
+**Rationale:**
+- Raw archive data is critical and persisted immediately by catchup CLI
+- Event catalog is derived data that can be regenerated from archive
+- Auto-saving completed events keeps historical catalog current
+- Avoiding saves during active rain minimizes Storj I/O costs
+- Typical behavior: 1-2 auto-saves per week during rainy season
