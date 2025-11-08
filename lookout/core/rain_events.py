@@ -248,44 +248,42 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
     max_gap_minutes = abnormal_gaps.max() if len(abnormal_gaps) > 0 else 0
     significant_gaps = len(abnormal_gaps)
 
-    # Calculate rainfall statistics using proper rate derivation from dailyrainin
+    # Calculate rainfall statistics using time-aware rate calculation
     if "dailyrainin" in event_data.columns:
-        # Derive 5-minute interval rainfall
-        event_data["interval_rain"] = event_data["dailyrainin"].diff().clip(lower=0)
+        event_data["time_diff_min"] = (
+            event_data["timestamp"].diff().dt.total_seconds() / 60
+        )
+        event_data.loc[event_data.index[0], "time_diff_min"] = 5
 
-        # Handle first reading (no previous value to diff against)
+        event_data["interval_rain"] = event_data["dailyrainin"].diff().clip(lower=0)
         if len(event_data) > 0 and pd.isna(event_data["interval_rain"].iloc[0]):
             event_data.loc[event_data.index[0], "interval_rain"] = 0
 
-        # Convert to hourly-equivalent rate for 5-minute intervals
-        event_data["rate_5min_in_per_hr"] = event_data["interval_rain"] * 12
-
-        # Calculate 10-minute rain rate (matches console definition)
-        event_data["rainrate_10min_in_per_hr"] = (
-            event_data["interval_rain"].rolling(window=2, min_periods=1).sum() * 6
+        event_data["rate_in_per_hr"] = event_data["interval_rain"] / (
+            event_data["time_diff_min"] / 60
         )
 
-        # Max rate = peak 10-minute rate during event
+        normal_readings = event_data[event_data["time_diff_min"] <= 10]
+
         max_hourly_rate = (
-            float(event_data["rainrate_10min_in_per_hr"].max())
-            if len(event_data) > 0
+            float(normal_readings["rate_in_per_hr"].max())
+            if len(normal_readings) > 0
             else 0.0
         )
         avg_hourly_rate = (
-            float(event_data["rate_5min_in_per_hr"].mean())
-            if len(event_data) > 0
+            float(normal_readings["rate_in_per_hr"].mean())
+            if len(normal_readings) > 0
             else 0.0
         )
 
-        non_zero_rates = event_data["rainrate_10min_in_per_hr"][
-            event_data["rainrate_10min_in_per_hr"] > 0
-        ]
+        non_zero_rates = normal_readings[normal_readings["rate_in_per_hr"] > 0]
 
         logger.debug(
             f"Event {event.get('event_id', 'unknown')[:8]}: "
             f"interval readings={len(event_data)}, "
+            f"normal readings={len(normal_readings)}, "
             f"non-zero rates={len(non_zero_rates)}, "
-            f"max_10min_rate={max_hourly_rate:.3f}, avg_5min_rate={avg_hourly_rate:.3f}"
+            f"max_rate={max_hourly_rate:.3f}, avg_rate={avg_hourly_rate:.3f}"
         )
     else:
         max_hourly_rate = 0.0
