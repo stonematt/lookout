@@ -833,9 +833,9 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
     """
     Create bar chart showing rainfall intensity with time-aware rate calculation.
 
-    Rates calculated from actual time intervals. Readings after data gaps (>10 min)
-    show average rate over gap period and are colored gray to distinguish from
-    instantaneous measurements.
+    Rates calculated from actual time intervals. Data gaps (>10 min) are filled with
+    synthetic 5-min interval bars showing average rate over the gap period, colored
+    gray to distinguish from instantaneous measurements.
 
     :param event_data: DataFrame with dateutc and dailyrainin columns (sorted by time)
     :return: Plotly figure
@@ -852,34 +852,53 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
 
     df["rate"] = df["interval_rain"] / (df["time_diff_min"] / 60)
 
-    df["is_gap"] = df["time_diff_min"] > 10
+    times = []
+    rates = []
+    colors = []
+    customdata = []
 
-    def get_color(rate, is_gap):
-        if is_gap:
-            return "#B0B0B0"
-        elif rate < 0.1:
-            return "#90EE90"
-        elif rate < 0.3:
-            return "#FFD700"
+    for idx in df.index:
+        row = df.loc[idx]
+        time_gap = row["time_diff_min"]
+        interval_rain = row["interval_rain"]
+        rate = row["rate"]
+
+        if time_gap > 10:
+            num_intervals = max(1, int(time_gap / 5))
+            avg_rate = interval_rain / (time_gap / 60)
+
+            prev_idx = df.index[df.index.get_loc(idx) - 1]
+            prev_time = df.loc[prev_idx, "time_pst"]
+            curr_time = row["time_pst"]
+
+            for i in range(num_intervals):
+                synthetic_time = prev_time + pd.Timedelta(minutes=5 * (i + 1))
+                if synthetic_time <= curr_time:
+                    times.append(synthetic_time)
+                    rates.append(avg_rate)
+                    colors.append("#B0B0B0")
+                    customdata.append(f"({int(time_gap)}min avg)")
         else:
-            return "#FF6347"
+            times.append(row["time_pst"])
+            rates.append(rate)
 
-    colors = [get_color(r, g) for r, g in zip(df["rate"], df["is_gap"])]
+            if rate < 0.1:
+                colors.append("#90EE90")
+            elif rate < 0.3:
+                colors.append("#FFD700")
+            else:
+                colors.append("#FF6347")
+            customdata.append("")
 
     hover_template = (
         "%{x|%b %d %I:%M %p}<br>" "%{y:.3f} in/hr<br>" "%{customdata}<extra></extra>"
     )
 
-    customdata = [
-        f"({int(t)}min avg)" if g else ""
-        for t, g in zip(df["time_diff_min"], df["is_gap"])
-    ]
-
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=df["time_pst"],
-            y=df["rate"],
+            x=times,
+            y=rates,
             marker_color=colors,
             hovertemplate=hover_template,
             customdata=customdata,
