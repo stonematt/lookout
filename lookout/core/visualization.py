@@ -242,7 +242,7 @@ def display_heatmap(df, metric, interval="15T"):
     df["date"] = pd.to_datetime(df["date"])
     df["interval"] = df["date"].dt.floor(interval).dt.strftime("%H:%M")
     fig = px.density_heatmap(df, x="date", y="interval", z=metric, histfunc="avg")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def display_line_chart(df, metrics):
@@ -253,7 +253,7 @@ def display_line_chart(df, metrics):
     :param metrics: List of metric names to include in the chart.
     """
     fig = px.line(df, x="date", y=metrics, title="Historical Data")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
@@ -441,7 +441,7 @@ def make_column_gauges(gauge_list, chart_height=300):
 
         # Plot the gauge in the respective column, fitting it to the column width
         with cols[i]:
-            st.plotly_chart(gauge_fig, use_container_width=True)
+            st.plotly_chart(gauge_fig, width='stretch')
 
             # Use markdown to display min, median, and max values below the gauge with less vertical space
             stats_md = f"""<small>
@@ -541,7 +541,7 @@ def display_hourly_coverage_heatmap(df):
         paper_bgcolor="white",
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def create_rainfall_violin_plot(
@@ -615,7 +615,7 @@ def create_rainfall_violin_plot(
         template="plotly_white",
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     if not np.isnan(percentile):
         if percentile >= 90:
@@ -750,7 +750,7 @@ def create_dual_violin_plot(
 
     fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     col1, col2 = st.columns(2)
 

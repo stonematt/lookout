@@ -64,7 +64,7 @@ def render():
             grouped_data, value_labels, color_palette="wind", title=value_col
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # Dropdown for selecting the pair (below the chart)
         selected_pair = st.selectbox(
