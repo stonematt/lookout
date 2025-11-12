@@ -60,9 +60,9 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
     )[["Window", "PeriodEnd", "Total", "Normal", "Anomaly", "Rank", "Percentile"]]
 
     try:
-        st.dataframe(view, use_container_width=True, hide_index=True)
+        st.dataframe(view, width='stretch', hide_index=True)
     except TypeError:
-        st.dataframe(view.set_index("Window"), use_container_width=True)
+        st.dataframe(view.set_index("Window"), width='stretch')
 
 
 @st.cache_data(show_spinner=False)
