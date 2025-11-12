@@ -8,7 +8,7 @@ import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
-from lookout.ui import diagnostics, overview
+from lookout.ui import diagnostics, overview, playground, rain, rain_events
 from lookout.utils.log_util import app_logger
 
 # if st.secrets.get("DEBUG", False):
@@ -51,7 +51,12 @@ auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
 
 # Setup and get data ########################
 
-devices = ambient_client.get_devices()
+if "devices" not in st.session_state:
+    devices = ambient_client.get_devices()
+    st.session_state["devices"] = devices
+else:
+    devices = st.session_state["devices"]
+
 device = False
 device_last_dateutc = 0
 last_data = {}
@@ -114,11 +119,21 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 
 # Present the dashboard ########################
 
-tab_overview, tab_diagnostics = st.tabs(["Overview", "Diagnostics"])
-# tab_diagnostics, tab_overview = st.tabs(["Diagnostics", "Overview"])
+tab_overview, tab_rain, tab_rain_events, tab_diagnostics, tab_playground = st.tabs(
+    ["Overview", "Rain", "Rain Events", "Diagnostics", "Playground"]
+)
 
 with tab_overview:
     overview.render()
 
+with tab_rain:
+    rain.render()
+
+with tab_rain_events:
+    rain_events.render()
+
 with tab_diagnostics:
     diagnostics.render()
+
+with tab_playground:
+    playground.render()

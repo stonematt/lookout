@@ -3,6 +3,8 @@ visualizations.py
 Collection of functions to create charts and visualizations for streamlit
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -540,3 +542,379 @@ def display_hourly_coverage_heatmap(df):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def create_rainfall_violin_plot(
+    window: str,
+    violin_data: dict,
+    unit: str = "in",
+    title: Optional[str] = None,
+) -> None:
+    """
+    Create single violin plot showing rainfall distribution for specified window.
+
+    :param window: Window size (e.g., "7d", "30d")
+    :param violin_data: Data from prepare_violin_plot_data()
+    :param unit: Unit for display (e.g., "in")
+    :param title: Chart title (auto-generated if None)
+    """
+    if window not in violin_data or len(violin_data[window]["values"]) == 0:
+        st.warning(f"No historical data available for {window} period.")
+        return
+
+    data = violin_data[window]
+    values = data["values"]
+    current = data["current"]
+    percentile = data["percentile"]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Violin(
+            y=values,
+            name=f"Historical {window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor="rgba(56, 128, 191, 0.6)",
+            line_color="rgba(56, 128, 191, 1.0)",
+            x0=f"{window} Periods",
+        )
+    )
+
+    if not np.isnan(current):
+        fig.add_trace(
+            go.Scatter(
+                x=[f"{window} Periods"],
+                y=[current],
+                mode="markers",
+                marker=dict(
+                    symbol="diamond-tall",
+                    size=16,
+                    color="red",
+                    line=dict(width=2, color="darkred"),
+                ),
+                name=f"Current ({current:.2f}{unit})",
+                text=[
+                    (
+                        f"Current: {current:.2f}{unit}<br>Percentile: {percentile:.1f}th"
+                        if not np.isnan(percentile)
+                        else f"Current: {current:.2f}{unit}"
+                    )
+                ],
+                hoverinfo="text",
+            )
+        )
+
+    chart_title = title or f"Rainfall Distribution: {window} Rolling Periods"
+    fig.update_layout(
+        title=chart_title,
+        yaxis_title=f"Rainfall ({unit})",
+        xaxis_title="",
+        showlegend=True,
+        height=500,
+        template="plotly_white",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    if not np.isnan(percentile):
+        if percentile >= 90:
+            status = "🔴 **Extremely wet**"
+        elif percentile >= 75:
+            status = "🟡 **Above normal**"
+        elif percentile >= 25:
+            status = "🟢 **Normal range**"
+        else:
+            status = "🔵 **Below normal**"
+
+        st.markdown(
+            f"{status} - Current {window} total ({current:.2f}{unit}) ranks at **{percentile:.1f}th percentile** of {len(values):,} historical periods."
+        )
+
+
+def create_dual_violin_plot(
+    left_window: str,
+    right_window: str,
+    violin_data: dict,
+    unit: str = "in",
+    title: Optional[str] = None,
+) -> None:
+    """
+    Create dual violin plot comparing two different rainfall windows side-by-side.
+
+    :param left_window: Left window size (e.g., "1d")
+    :param right_window: Right window size (e.g., "7d")
+    :param violin_data: Data from prepare_violin_plot_data()
+    :param unit: Unit for display (e.g., "in")
+    :param title: Chart title (auto-generated if None)
+    """
+    from plotly.subplots import make_subplots
+
+    missing_data = []
+    for window in [left_window, right_window]:
+        if window not in violin_data or len(violin_data[window]["values"]) == 0:  # type: ignore
+            missing_data.append(window)
+
+    if missing_data:
+        st.warning(f"No historical data available for: {', '.join(missing_data)}")
+        return
+
+    left_data = violin_data[left_window]
+    right_data = violin_data[right_window]
+
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=[f"{left_window} Periods", f"{right_window} Periods"],
+        shared_yaxes=True,
+    )
+
+    colors = {
+        left_window: "rgba(56, 128, 191, 0.6)",
+        right_window: "rgba(191, 128, 56, 0.6)",
+    }
+    line_colors = {
+        left_window: "rgba(56, 128, 191, 1.0)",
+        right_window: "rgba(191, 128, 56, 1.0)",
+    }
+
+    fig.add_trace(
+        go.Violin(
+            y=left_data["values"],
+            name=f"Historical {left_window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor=colors[left_window],
+            line_color=line_colors[left_window],
+            x0=f"{left_window}",
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Violin(
+            y=right_data["values"],
+            name=f"Historical {right_window}",
+            box_visible=True,
+            meanline_visible=True,
+            fillcolor=colors[right_window],
+            line_color=line_colors[right_window],
+            x0=f"{right_window}",
+        ),
+        row=1,
+        col=2,
+    )
+
+    for i, (window, data) in enumerate(
+        [(left_window, left_data), (right_window, right_data)], 1
+    ):
+        current = data["current"]
+        percentile = data["percentile"]
+
+        if not np.isnan(current):
+            fig.add_trace(
+                go.Scatter(
+                    x=[window],
+                    y=[current],
+                    mode="markers",
+                    marker=dict(
+                        symbol="diamond-tall",
+                        size=16,
+                        color="red",
+                        line=dict(width=2, color="darkred"),
+                    ),
+                    name=f"Current {window} ({current:.2f}{unit})",
+                    text=[
+                        (
+                            f"Current: {current:.2f}{unit}<br>Percentile: {percentile:.1f}th"
+                            if not np.isnan(percentile)
+                            else f"Current: {current:.2f}{unit}"
+                        )
+                    ],
+                    hoverinfo="text",
+                    showlegend=True,
+                ),
+                row=1,
+                col=i,
+            )
+
+    chart_title = (
+        title or f"Rainfall Distribution Comparison: {left_window} vs {right_window}"
+    )
+    fig.update_layout(
+        title=chart_title,
+        height=600,
+        template="plotly_white",
+    )
+
+    fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        left_current = left_data["current"]
+        left_percentile = left_data["percentile"]
+        if not np.isnan(left_percentile):
+            st.markdown(
+                f"**{left_window} Period**: {left_current:.2f}{unit} ({left_percentile:.1f}th percentile)"
+            )
+
+    with col2:
+        right_current = right_data["current"]
+        right_percentile = right_data["percentile"]
+        if not np.isnan(right_percentile):
+            st.markdown(
+                f"**{right_window} Period**: {right_current:.2f}{unit} ({right_percentile:.1f}th percentile)"
+            )
+
+
+def create_event_accumulation_chart(
+    event_data: pd.DataFrame, event_info: dict
+) -> go.Figure:
+    """
+    Create area chart showing cumulative rainfall for a rain event.
+
+    :param event_data: DataFrame with dateutc and eventrainin columns (sorted by time)
+    :param event_info: Dict with total_rainfall, duration_minutes, start_time, end_time
+    :return: Plotly figure
+    """
+    df = event_data.copy()
+    df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
+    df["time_pst"] = df["timestamp"].dt.tz_convert("America/Los_Angeles")
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=df["time_pst"],
+            y=df["eventrainin"],
+            mode="lines",
+            fill="tozeroy",
+            line=dict(color="#4682B4", width=2),
+            fillcolor="rgba(70, 130, 180, 0.3)",
+            hovertemplate='%{x|%b %d %I:%M %p}<br>%{y:.3f}"<extra></extra>',
+            name="Rainfall",
+        )
+    )
+
+    fig.update_layout(
+        height=300,
+        margin=dict(l=50, r=20, t=30, b=40),
+        xaxis_title="",
+        yaxis_title="Rainfall (in)",
+        showlegend=False,
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    fig.add_annotation(
+        text=f"Total: {event_info['total_rainfall']:.3f}\"",
+        xref="paper",
+        yref="paper",
+        x=0.98,
+        y=0.95,
+        xanchor="right",
+        showarrow=False,
+        bgcolor="rgba(255,255,255,0.8)",
+        bordercolor="gray",
+        borderwidth=1,
+        borderpad=4,
+    )
+
+    return fig
+
+
+def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
+    """
+    Create bar chart showing rainfall intensity with time-aware rate calculation.
+
+    Rates calculated from actual time intervals. Data gaps (>10 min) are filled with
+    synthetic 5-min interval bars showing average rate over the gap period, colored
+    gray to distinguish from instantaneous measurements.
+
+    :param event_data: DataFrame with dateutc and dailyrainin columns (sorted by time)
+    :return: Plotly figure
+    """
+    df = event_data.copy()
+    df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
+    df["time_pst"] = df["timestamp"].dt.tz_convert("America/Los_Angeles")
+
+    df["time_diff_min"] = df["timestamp"].diff().dt.total_seconds() / 60
+    df.loc[df.index[0], "time_diff_min"] = 5
+
+    df["interval_rain"] = df["dailyrainin"].diff().clip(lower=0)
+    df.loc[df.index[0], "interval_rain"] = 0
+
+    df["rate"] = df["interval_rain"] / (df["time_diff_min"] / 60)
+
+    times = []
+    rates = []
+    colors = []
+    customdata = []
+
+    for idx in df.index:
+        row = df.loc[idx]
+        time_gap = row["time_diff_min"]
+        interval_rain = row["interval_rain"]
+        rate = row["rate"]
+
+        if time_gap > 10:
+            num_intervals = max(1, int(time_gap / 5))
+            avg_rate = interval_rain / (time_gap / 60)
+
+            prev_idx = df.index[df.index.get_loc(idx) - 1]
+            prev_time = df.loc[prev_idx, "time_pst"]
+            curr_time = row["time_pst"]
+
+            for i in range(num_intervals):
+                synthetic_time = prev_time + pd.Timedelta(minutes=5 * (i + 1))
+                if synthetic_time <= curr_time:
+                    times.append(synthetic_time)
+                    rates.append(avg_rate)
+                    colors.append("#B0B0B0")
+                    customdata.append(f"({int(time_gap)}min avg)")
+        else:
+            times.append(row["time_pst"])
+            rates.append(rate)
+
+            if rate < 0.1:
+                colors.append("#90EE90")
+            elif rate < 0.3:
+                colors.append("#FFD700")
+            else:
+                colors.append("#FF6347")
+            customdata.append("")
+
+    hover_template = (
+        "%{x|%b %d %I:%M %p}<br>" "%{y:.3f} in/hr<br>" "%{customdata}<extra></extra>"
+    )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=times,
+            y=rates,
+            marker_color=colors,
+            hovertemplate=hover_template,
+            customdata=customdata,
+        )
+    )
+
+    fig.update_layout(
+        height=150,
+        margin=dict(l=50, r=20, t=10, b=40),
+        xaxis_title="",
+        yaxis_title="Rate (in/hr)",
+        showlegend=False,
+        bargap=0,
+    )
+
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    return fig
