@@ -1065,6 +1065,7 @@ def prepare_rain_accumulation_heatmap_data(
     start_date: Optional[pd.Timestamp] = None,
     end_date: Optional[pd.Timestamp] = None,
     timezone: str = "America/Los_Angeles",
+    num_days: Optional[int] = None,
     include_gaps: bool = False,
 ) -> pd.DataFrame:
     """
@@ -1078,6 +1079,7 @@ def prepare_rain_accumulation_heatmap_data(
     :param start_date: Filter start date (timezone-aware or naive UTC)
     :param end_date: Filter end date (timezone-aware or naive UTC)
     :param timezone: Timezone for hour bucketing
+    :param num_days: Number of days in period (determines aggregation mode)
     :param include_gaps: Deprecated parameter (has no effect, all data included)
     :return: DataFrame with (date, hour, accumulation) columns
     """
@@ -1129,6 +1131,32 @@ def prepare_rain_accumulation_heatmap_data(
     hourly_accum = df.groupby(["date", "hour"])["interval_rain"].sum().reset_index()
     hourly_accum.columns = ["date", "hour", "accumulation"]
 
+    # If long period (>180 days), aggregate by week and day-of-week
+    if num_days and num_days > 180:
+        logger.info(f"Period >180 days ({num_days}), aggregating by week/day-of-week")
+
+        # Add week and day-of-week columns
+        hourly_accum["date_ts"] = pd.to_datetime(hourly_accum["date"])
+        hourly_accum["week_start"] = (
+            hourly_accum["date_ts"].dt.to_period("W").dt.start_time.dt.date
+        )
+        hourly_accum["day_of_week"] = hourly_accum["date_ts"].dt.dayofweek  # 0=Monday
+
+        # Aggregate by (week, day_of_week)
+        weekly_accum = (
+            hourly_accum.groupby(["week_start", "day_of_week"])["accumulation"]
+            .sum()
+            .reset_index()
+        )
+        weekly_accum.columns = ["date", "hour", "accumulation"]  # Reuse column names
+
+        logger.info(
+            f"Prepared weekly heatmap data: {len(weekly_accum)} weekly cells "
+            f"from {weekly_accum['date'].min()} to {weekly_accum['date'].max()}"
+        )
+
+        return weekly_accum
+
     logger.info(
         f"Prepared accumulation heatmap data: {len(hourly_accum)} hourly cells "
         f"from {hourly_accum['date'].min()} to {hourly_accum['date'].max()}"
@@ -1141,81 +1169,127 @@ def create_rain_accumulation_heatmap(
     accumulation_df: pd.DataFrame,
     height: int = 600,
     max_accumulation: Optional[float] = None,
+    num_days: Optional[int] = None,
 ) -> go.Figure:
     """
-    Create heatmap showing hourly rainfall accumulation.
+    Create heatmap showing hourly rainfall accumulation or weekly patterns.
+
+    For periods ≤180 days: Date (rows) × Hour (columns)
+    For periods >180 days: Week (rows) × Day-of-week (columns)
 
     :param accumulation_df: DataFrame with (date, hour, accumulation)
-    :param height: Chart height in pixels
-    :param max_accumulation: Cap color scale (auto if None)
+    :param height: Chart height in pixels (auto-calculated if using default)
+    :param max_accumulation: Cap color scale (auto-calculated at 75th percentile if None)
+    :param num_days: Number of days in period (determines display mode)
     :return: Plotly figure
     """
     if accumulation_df.empty:
         logger.warning("Empty accumulation data for heatmap")
         return go.Figure()
 
-    # Create full grid (all dates, all hours)
-    all_dates = pd.date_range(
-        accumulation_df["date"].min(), accumulation_df["date"].max(), freq="D"
-    ).date
-    all_hours = list(range(24))
+    # Determine display mode
+    weekly_mode = num_days and num_days > 180
 
-    full_index = pd.MultiIndex.from_product(
-        [all_dates, all_hours], names=["date", "hour"]
-    )
+    if weekly_mode:
+        # Weekly mode: rows are weeks, columns are days of week
+        all_weeks = pd.date_range(
+            accumulation_df["date"].min(), accumulation_df["date"].max(), freq="W-MON"
+        ).date
+        all_days = list(range(7))  # 0=Monday to 6=Sunday
+
+        full_index = pd.MultiIndex.from_product(
+            [all_weeks, all_days], names=["date", "hour"]
+        )
+        x_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        x_title = "Day of Week"
+        y_title = "Week Starting"
+        chart_title = "Weekly Rainfall Patterns"
+        height = min(800, max(400, len(all_weeks) * 15))  # Dynamic height
+        grid_gap = 0  # No gaps for dense view
+    else:
+        # Hourly mode: rows are dates, columns are hours
+        all_dates = pd.date_range(
+            accumulation_df["date"].min(), accumulation_df["date"].max(), freq="D"
+        ).date
+        all_hours = list(range(24))
+
+        full_index = pd.MultiIndex.from_product(
+            [all_dates, all_hours], names=["date", "hour"]
+        )
+        x_labels = [f"{h:02d}:00" for h in range(24)]
+        x_title = "Hour of Day"
+        y_title = "Date"
+        chart_title = "Hourly Rainfall Accumulation"
+        height = min(1200, max(600, len(all_dates) * 10))  # Dynamic height
+        grid_gap = 1  # Small gaps for daily view
 
     # Reindex and fill missing with NaN
     indexed = accumulation_df.set_index(["date", "hour"])
     full_data = indexed.reindex(full_index, fill_value=np.nan).reset_index()
 
-    # Pivot: rows=dates, columns=hours
+    # Pivot: rows=dates/weeks, columns=hours/days
     pivot = full_data.pivot(index="date", columns="hour", values="accumulation")
 
-    # Auto-scale colorbar if not specified
+    # Auto-scale colorbar at 90th percentile of non-zero values if not specified
     if max_accumulation is None:
-        # Use 95th percentile to avoid outliers washing out scale
         valid_values = pivot.values[~np.isnan(pivot.values)]
-        if len(valid_values) > 0:
-            max_accumulation = float(np.percentile(valid_values, 95))
+        non_zero_values = valid_values[valid_values > 0]
+
+        if len(non_zero_values) > 0:
+            max_accumulation = float(np.percentile(non_zero_values, 90))
             max_accumulation = max(max_accumulation, 0.05)  # Minimum 0.05"
         else:
             max_accumulation = 0.05
 
     # Create heatmap
+    hover_template = (
+        "<b>%{y}</b><br>"
+        f"{x_title}: %{{x}}<br>"
+        'Accumulation: %{z:.3f}"'
+        "<extra></extra>"
+    )
+
+    # Custom colorscale: white at 0, then blue gradient for positive values
+    colorscale = [
+        [0.0, "white"],  # 0 maps to white
+        [0.001, "#f7fbff"],  # Very light blue
+        [0.25, "#deebf7"],  # Light blue
+        [0.5, "#9ecae1"],  # Medium blue
+        [0.75, "#4292c6"],  # Darker blue
+        [1.0, "#08519c"],  # Darkest blue at 90th percentile
+    ]
+
     fig = go.Figure(
         data=go.Heatmap(
             z=pivot.values,
-            x=[f"{h:02d}:00" for h in range(24)],
+            x=x_labels,
             y=pivot.index.astype(str),
-            colorscale="Blues",
+            colorscale=colorscale,
             zmin=0,
             zmax=max_accumulation,
             colorbar=dict(title="Rain (in)"),
-            hovertemplate=(
-                "<b>%{y}</b><br>"
-                "Hour: %{x}<br>"
-                'Accumulation: %{z:.3f}"'
-                "<extra></extra>"
-            ),
+            hovertemplate=hover_template,
             zsmooth=False,
             hoverongaps=False,
         )
     )
 
-    fig.update_traces(xgap=1, ygap=1)
+    fig.update_traces(xgap=grid_gap, ygap=grid_gap)
 
     fig.update_layout(
-        title="Hourly Rainfall Accumulation",
+        title=chart_title,
         xaxis=dict(
-            title="Hour of Day",
+            title=x_title,
             tickmode="linear",
-            dtick=2,  # Show every 2 hours
+            dtick=(
+                1 if weekly_mode else 2
+            ),  # Show all days for weekly, every 2 hours for hourly
             type="category",
             showgrid=True,
             gridcolor="lightgrey",
         ),
         yaxis=dict(
-            title="Date",
+            title=y_title,
             type="category",
             autorange="reversed",  # Most recent at top
             showgrid=True,
