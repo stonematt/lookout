@@ -38,7 +38,7 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
 
     view = stats_df.assign(
         Window=stats_df["window_days"].astype(str) + "d",
-        PeriodEnd=stats_df["period_end"].dt.strftime("%Y-%m-%d"),
+        PeriodBegins=stats_df["period_start"].dt.strftime("%Y-%m-%d"),
         Total=stats_df["total"].map(lambda x: f"{x:g} {unit}"),
         Normal=stats_df["normal"].map(
             lambda x: f"{x:g} {unit}" if pd.notna(x) else "—"
@@ -57,7 +57,7 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
         Percentile=stats_df["percentile"].map(
             lambda x: f"{x:.0f}th" if pd.notna(x) else "—"
         ),
-    )[["Window", "PeriodEnd", "Total", "Normal", "Anomaly", "Rank", "Percentile"]]
+    )[["Window", "PeriodBegins", "Total", "Normal", "Anomaly", "Rank", "Percentile"]]
 
     try:
         st.dataframe(view, width="stretch", hide_index=True)
