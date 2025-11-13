@@ -12,6 +12,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from colour import Color
 
+from lookout.utils.log_util import app_logger
+
+logger = app_logger(__name__)
+
 gauge_defaults = {
     "default": {
         "start_color": "#33CCFF",
@@ -1052,5 +1056,175 @@ def create_rainfall_summary_violin(
             yanchor="top",
             font=dict(size=10),
         )
+
+    return fig
+
+
+def prepare_rain_accumulation_heatmap_data(
+    archive_df: pd.DataFrame,
+    start_date: Optional[pd.Timestamp] = None,
+    end_date: Optional[pd.Timestamp] = None,
+    timezone: str = "America/Los_Angeles",
+    include_gaps: bool = False,
+) -> pd.DataFrame:
+    """
+    Prepare hourly rainfall accumulation data for heatmap.
+
+    All rainfall increments are included to ensure accurate totals.
+    Each dailyrainin.diff() represents real rain that fell, captured
+    at the time of the reading regardless of data gaps.
+
+    :param archive_df: Archive with dateutc and dailyrainin columns
+    :param start_date: Filter start date (timezone-aware or naive UTC)
+    :param end_date: Filter end date (timezone-aware or naive UTC)
+    :param timezone: Timezone for hour bucketing
+    :param include_gaps: Deprecated parameter (has no effect, all data included)
+    :return: DataFrame with (date, hour, accumulation) columns
+    """
+    if archive_df.empty or "dailyrainin" not in archive_df.columns:
+        logger.warning("No dailyrainin data available for accumulation heatmap")
+        return pd.DataFrame(columns=["date", "hour", "accumulation"])
+
+    df = archive_df.copy()
+
+    # Convert to datetime and timezone
+    df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
+    df["timestamp_local"] = df["timestamp"].dt.tz_convert(timezone)
+
+    # Filter by date range if specified
+    if start_date:
+        if start_date.tz is None:
+            start_date = start_date.tz_localize("UTC")
+        df = df[df["timestamp"] >= start_date]
+
+    if end_date:
+        if end_date.tz is None:
+            end_date = end_date.tz_localize("UTC")
+        df = df[df["timestamp"] <= end_date]
+
+    if df.empty:
+        logger.warning("No data in specified date range")
+        return pd.DataFrame(columns=["date", "hour", "accumulation"])
+
+    # Sort by timestamp ascending (archive may be DESC)
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    # Calculate interval accumulation
+    df["time_diff_min"] = df["timestamp"].diff().dt.total_seconds() / 60
+    df["interval_rain"] = df["dailyrainin"].diff().clip(lower=0)
+
+    # Handle first row
+    first_idx = df.index[0]
+    df.loc[first_idx, "time_diff_min"] = 5
+    df.loc[first_idx, "interval_rain"] = 0
+
+    # Extract date and hour from local time
+    df["date"] = df["timestamp_local"].dt.date
+    df["hour"] = df["timestamp_local"].dt.hour
+
+    # NOTE: Gap filtering removed - all accumulation data is included
+    # to ensure accurate totals and proper hourly distribution
+
+    # Aggregate by (date, hour)
+    hourly_accum = df.groupby(["date", "hour"])["interval_rain"].sum().reset_index()
+    hourly_accum.columns = ["date", "hour", "accumulation"]
+
+    logger.info(
+        f"Prepared accumulation heatmap data: {len(hourly_accum)} hourly cells "
+        f"from {hourly_accum['date'].min()} to {hourly_accum['date'].max()}"
+    )
+
+    return hourly_accum
+
+
+def create_rain_accumulation_heatmap(
+    accumulation_df: pd.DataFrame,
+    height: int = 600,
+    max_accumulation: Optional[float] = None,
+) -> go.Figure:
+    """
+    Create heatmap showing hourly rainfall accumulation.
+
+    :param accumulation_df: DataFrame with (date, hour, accumulation)
+    :param height: Chart height in pixels
+    :param max_accumulation: Cap color scale (auto if None)
+    :return: Plotly figure
+    """
+    if accumulation_df.empty:
+        logger.warning("Empty accumulation data for heatmap")
+        return go.Figure()
+
+    # Create full grid (all dates, all hours)
+    all_dates = pd.date_range(
+        accumulation_df["date"].min(), accumulation_df["date"].max(), freq="D"
+    ).date
+    all_hours = list(range(24))
+
+    full_index = pd.MultiIndex.from_product(
+        [all_dates, all_hours], names=["date", "hour"]
+    )
+
+    # Reindex and fill missing with NaN
+    indexed = accumulation_df.set_index(["date", "hour"])
+    full_data = indexed.reindex(full_index, fill_value=np.nan).reset_index()
+
+    # Pivot: rows=dates, columns=hours
+    pivot = full_data.pivot(index="date", columns="hour", values="accumulation")
+
+    # Auto-scale colorbar if not specified
+    if max_accumulation is None:
+        # Use 95th percentile to avoid outliers washing out scale
+        valid_values = pivot.values[~np.isnan(pivot.values)]
+        if len(valid_values) > 0:
+            max_accumulation = float(np.percentile(valid_values, 95))
+            max_accumulation = max(max_accumulation, 0.05)  # Minimum 0.05"
+        else:
+            max_accumulation = 0.05
+
+    # Create heatmap
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=[f"{h:02d}:00" for h in range(24)],
+            y=pivot.index.astype(str),
+            colorscale="Blues",
+            zmin=0,
+            zmax=max_accumulation,
+            colorbar=dict(title="Rain (in)"),
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Hour: %{x}<br>"
+                'Accumulation: %{z:.3f}"'
+                "<extra></extra>"
+            ),
+            zsmooth=False,
+            hoverongaps=False,
+        )
+    )
+
+    fig.update_traces(xgap=1, ygap=1)
+
+    fig.update_layout(
+        title="Hourly Rainfall Accumulation",
+        xaxis=dict(
+            title="Hour of Day",
+            tickmode="linear",
+            dtick=2,  # Show every 2 hours
+            type="category",
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        yaxis=dict(
+            title="Date",
+            type="category",
+            autorange="reversed",  # Most recent at top
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        height=height,
+        margin=dict(l=80, r=20, t=60, b=60),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
 
     return fig

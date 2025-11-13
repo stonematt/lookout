@@ -74,6 +74,38 @@ def _cached_violin_data(
     )
 
 
+@st.cache_data(show_spinner=False)
+def _cached_accumulation_data(
+    df: pd.DataFrame, date_range_option: str, version: str = "v1"
+):
+    """
+    Cache wrapper for accumulation heatmap data preparation.
+
+    :param df: Archive DataFrame with dateutc and dailyrainin
+    :param date_range_option: Time range selection (e.g., "Last 90 days")
+    :param version: Cache version for invalidation
+    :return: Prepared accumulation DataFrame
+    """
+    # Parse date range option
+    now = pd.Timestamp.now(tz="UTC")
+    if date_range_option == "Last 30 days":
+        start_date = now - pd.Timedelta(days=30)
+    elif date_range_option == "Last 90 days":
+        start_date = now - pd.Timedelta(days=90)
+    elif date_range_option == "Last 365 days":
+        start_date = now - pd.Timedelta(days=365)
+    else:  # All time
+        start_date = None
+
+    return lo_viz.prepare_rain_accumulation_heatmap_data(
+        archive_df=df,
+        start_date=start_date,
+        end_date=now,
+        timezone="America/Los_Angeles",
+        include_gaps=True,  # Always include all data (parameter deprecated)
+    )
+
+
 def render():
     """Render the precipitation analysis tab."""
     st.header("Precipitation Analysis")
@@ -322,10 +354,52 @@ def render():
         "Coming next: Line chart showing cumulative rainfall by day of year, with separate lines for each year"
     )
 
-    st.subheader("Rain Intensity Heatmap")
-    st.info(
-        "Coming next: Heatmap of hourly rain rates with configurable time granularity (daily avg, max, etc.)"
-    )
+    st.subheader("Rain Accumulation Heatmap")
+    st.write("Hourly rainfall accumulation showing when rain falls throughout the day")
+
+    # User controls
+    col1, col2 = st.columns(2)
+    with col1:
+        date_range_option = st.selectbox(
+            "Time Range:",
+            ["Last 30 days", "Last 90 days", "Last 365 days", "All time"],
+            index=1,  # Default: 90 days
+            key="heatmap_date_range",
+        )
+    with col2:
+        max_accumulation = st.number_input(
+            "Scale cap (in):",
+            min_value=0.01,
+            max_value=2.0,
+            value=0.5,
+            step=0.05,
+            help="Cap color scale at this value (outliers will show at max color)",
+        )
+
+    # Data preparation with caching
+    with st.spinner("Preparing accumulation data..."):
+        accumulation_df = _cached_accumulation_data(
+            df=df, date_range_option=date_range_option, version="v1"
+        )
+
+    # Render heatmap
+    if not accumulation_df.empty:
+        fig = lo_viz.create_rain_accumulation_heatmap(
+            accumulation_df=accumulation_df, max_accumulation=max_accumulation
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Summary statistics
+        max_hourly = accumulation_df["accumulation"].max()
+        max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
+        total_period = accumulation_df["accumulation"].sum()
+
+        st.caption(
+            f"Peak hourly accumulation: {max_hourly:.3f}\" on {max_row['date']} at {max_row['hour']:02d}:00 • "
+            f'Total in period: {total_period:.2f}"'
+        )
+    else:
+        st.info("No rainfall data in selected period")
 
     st.subheader("Dry Spell & Event Analysis")
     st.info(
