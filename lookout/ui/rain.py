@@ -176,13 +176,27 @@ def render():
             ),
         }
 
-        fig = lo_viz.create_rainfall_summary_boxplot(
-            daily_rain_df=daily_rain_df,
-            current_values=current_values,
-            rolling_context_df=context_df,
-            end_date=end_date,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            fig_daily = lo_viz.create_rainfall_summary_violin(
+                daily_rain_df=daily_rain_df,
+                current_values=current_values,
+                rolling_context_df=context_df,
+                end_date=end_date,
+                windows=["Today", "Yesterday"],
+            )
+            st.plotly_chart(fig_daily, use_container_width=True, key="daily_viz")
+
+        with col2:
+            fig_rolling = lo_viz.create_rainfall_summary_violin(
+                daily_rain_df=daily_rain_df,
+                current_values=current_values,
+                rolling_context_df=context_df,
+                end_date=end_date,
+                windows=["7d", "30d", "90d", "365d"],
+            )
+            st.plotly_chart(fig_rolling, use_container_width=True, key="rolling_viz")
 
     rain_percentage = (
         (stats["total_rain_days"] / stats["total_days"] * 100)

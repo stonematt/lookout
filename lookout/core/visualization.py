@@ -920,25 +920,30 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_rainfall_summary_boxplot(
+def create_rainfall_summary_violin(
     daily_rain_df: pd.DataFrame,
     current_values: dict,
     rolling_context_df: pd.DataFrame,
     end_date: pd.Timestamp,
+    windows: list = None,
 ) -> go.Figure:
     """
-    Create vertical box plot showing current rainfall vs historical distributions.
+    Create box plot showing current rainfall vs historical distributions.
 
-    Shows Today, Yesterday, 7d, 30d, 90d, and Last 365d periods with box plots
-    (10th-90th percentile whiskers) and current values as colored stars.
+    Shows specified windows with box plots (via violin with hidden shape) and
+    current values as colored diamond markers.
 
     :param daily_rain_df: DataFrame with daily rainfall totals
     :param current_values: Dict with today, yesterday, 7d, 30d, 90d, 365d values
     :param rolling_context_df: DataFrame from compute_rolling_rain_context
     :param end_date: Current date for analysis
+    :param windows: List of window keys to display (default: all 6)
     :return: Plotly figure
     """
     import numpy as np
+
+    if windows is None:
+        windows = ["Today", "Yesterday", "7d", "30d", "90d", "365d"]
 
     fig = go.Figure()
 
@@ -951,42 +956,61 @@ def create_rainfall_summary_boxplot(
 
     annotations_data = []
 
-    for category, current_val in [
-        ("Today", current_values.get("today", 0)),
-        ("Yesterday", current_values.get("yesterday", 0)),
-    ]:
-        if len(all_single_days) > 0:
-            q10, q25, q50, q75, q90 = np.percentile(
-                all_single_days, [10, 25, 50, 75, 90]
+    for window in windows:
+        if window in ["Today", "Yesterday"]:
+            category = window
+            current_val = current_values.get(window.lower(), 0)
+            distribution = all_single_days
+        else:
+            category = window
+            window_days = int(window.rstrip("d"))
+
+            window_row = rolling_context_df[
+                rolling_context_df["window_days"] == window_days
+            ]
+
+            if len(window_row) == 0:
+                continue
+
+            row = window_row.iloc[0]
+            current_val = current_values.get(window, row.get("total", 0))
+
+            s = daily_rain_df_copy.set_index("date")["rainfall"].sort_index()
+            historical_data = s[s.index.year != end_date.year]
+
+            if len(historical_data) < window_days:
+                continue
+
+            all_periods = (
+                historical_data.rolling(window=window_days).sum().dropna().values
             )
+            distribution = all_periods[np.isfinite(all_periods)]
+
+        if len(distribution) > 0:
+            q25, q75 = np.percentile(distribution, [25, 75])
 
             fig.add_trace(
                 go.Box(
-                    x=[category],
-                    y=all_single_days,
-                    q1=[q25],
-                    median=[q50],
-                    q3=[q75],
-                    lowerfence=[q10],
-                    upperfence=[q90],
-                    boxpoints="outliers",
-                    marker_color="lightblue",
-                    line_color="steelblue",
+                    y=distribution,
                     name=category,
+                    boxpoints="outliers",
+                    marker=dict(color="lightblue", size=3),
+                    line=dict(color="steelblue"),
+                    fillcolor="lightblue",
                     showlegend=False,
                 )
             )
 
             percentile = (
-                (all_single_days < current_val).sum() / len(all_single_days) * 100
-                if len(all_single_days) > 0
+                (distribution < current_val).sum() / len(distribution) * 100
+                if len(distribution) > 0
                 else 50
             )
 
             marker_color = (
                 "red"
                 if current_val > q75
-                else "green" if current_val < q25 else "steelblue"
+                else "green" if current_val < q25 else "orange"
             )
 
             fig.add_trace(
@@ -995,10 +1019,10 @@ def create_rainfall_summary_boxplot(
                     y=[current_val],
                     mode="markers",
                     marker=dict(
-                        symbol="star",
-                        size=15,
+                        symbol="diamond",
+                        size=12,
                         color=marker_color,
-                        line=dict(width=1, color="black"),
+                        line=dict(width=2, color="black"),
                     ),
                     showlegend=False,
                     hovertemplate=f'{current_val:.2f}" ({percentile:.0f}th percentile)<extra></extra>',
@@ -1006,77 +1030,6 @@ def create_rainfall_summary_boxplot(
             )
 
             annotations_data.append((category, current_val, percentile))
-
-    for window_days in [7, 30, 90, 365]:
-        window_key = f"{window_days}d"
-
-        window_row = rolling_context_df[
-            rolling_context_df["window_days"] == window_days
-        ]
-
-        if len(window_row) > 0:
-            row = window_row.iloc[0]
-            current_val = current_values.get(window_key, row.get("total", 0))
-
-            daily_rain_df_copy = daily_rain_df.copy()
-            daily_rain_df_copy["date"] = pd.to_datetime(daily_rain_df_copy["date"])
-            s = daily_rain_df_copy.set_index("date")["rainfall"].sort_index()
-
-            historical_data = s[s.index.year != end_date.year]
-
-            if len(historical_data) >= window_days:
-                all_periods = (
-                    historical_data.rolling(window=window_days).sum().dropna().values
-                )
-                all_periods = all_periods[np.isfinite(all_periods)]
-
-                if len(all_periods) > 0:
-                    q10, q25, q50, q75, q90 = np.percentile(
-                        all_periods, [10, 25, 50, 75, 90]
-                    )
-
-                    fig.add_trace(
-                        go.Box(
-                            x=[window_key],
-                            y=all_periods,
-                            q1=[q25],
-                            median=[q50],
-                            q3=[q75],
-                            lowerfence=[q10],
-                            upperfence=[q90],
-                            boxpoints="outliers",
-                            marker_color="lightblue",
-                            line_color="steelblue",
-                            name=window_key,
-                            showlegend=False,
-                        )
-                    )
-
-                    percentile = float(row.get("percentile", 50))
-
-                    marker_color = (
-                        "red"
-                        if current_val > q75
-                        else "green" if current_val < q25 else "steelblue"
-                    )
-
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[window_key],
-                            y=[current_val],
-                            mode="markers",
-                            marker=dict(
-                                symbol="star",
-                                size=15,
-                                color=marker_color,
-                                line=dict(width=1, color="black"),
-                            ),
-                            showlegend=False,
-                            hovertemplate=f'{current_val:.2f}" ({percentile:.0f}th percentile)<extra></extra>',
-                        )
-                    )
-
-                    annotations_data.append((window_key, current_val, percentile))
 
     fig.update_layout(
         height=400,
