@@ -38,7 +38,7 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
 
     view = stats_df.assign(
         Window=stats_df["window_days"].astype(str) + "d",
-        PeriodEnd=stats_df["period_end"].dt.strftime("%Y-%m-%d"),
+        PeriodBegins=stats_df["period_start"].dt.strftime("%Y-%m-%d"),
         Total=stats_df["total"].map(lambda x: f"{x:g} {unit}"),
         Normal=stats_df["normal"].map(
             lambda x: f"{x:g} {unit}" if pd.notna(x) else "—"
@@ -57,12 +57,12 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
         Percentile=stats_df["percentile"].map(
             lambda x: f"{x:.0f}th" if pd.notna(x) else "—"
         ),
-    )[["Window", "PeriodEnd", "Total", "Normal", "Anomaly", "Rank", "Percentile"]]
+    )[["Window", "PeriodBegins", "Total", "Normal", "Anomaly", "Rank", "Percentile"]]
 
     try:
-        st.dataframe(view, width='stretch', hide_index=True)
+        st.dataframe(view, width="stretch", hide_index=True)
     except TypeError:
-        st.dataframe(view.set_index("Window"), width='stretch')
+        st.dataframe(view.set_index("Window"), width="stretch")
 
 
 @st.cache_data(show_spinner=False)
@@ -71,6 +71,38 @@ def _cached_violin_data(
 ):
     return rain_analysis.prepare_violin_plot_data(
         daily_rain_df, windows, normals_years, end_date
+    )
+
+
+@st.cache_data(show_spinner=False)
+def _cached_accumulation_data(
+    df: pd.DataFrame, date_range_option: str, version: str = "v1"
+):
+    """
+    Cache wrapper for accumulation heatmap data preparation.
+
+    :param df: Archive DataFrame with dateutc and dailyrainin
+    :param date_range_option: Time range selection (e.g., "Last 90 days")
+    :param version: Cache version for invalidation
+    :return: Prepared accumulation DataFrame
+    """
+    # Parse date range option
+    now = pd.Timestamp.now(tz="UTC")
+    if date_range_option == "Last 30 days":
+        start_date = now - pd.Timedelta(days=30)
+    elif date_range_option == "Last 90 days":
+        start_date = now - pd.Timedelta(days=90)
+    elif date_range_option == "Last 365 days":
+        start_date = now - pd.Timedelta(days=365)
+    else:  # All time
+        start_date = None
+
+    return lo_viz.prepare_rain_accumulation_heatmap_data(
+        archive_df=df,
+        start_date=start_date,
+        end_date=now,
+        timezone="America/Los_Angeles",
+        include_gaps=True,  # Always include all data (parameter deprecated)
     )
 
 
@@ -124,85 +156,117 @@ def render():
                 }
             )
 
-    st.subheader("Rainfall Summary")
+    yesterday_date = pd.to_datetime(daily_rain_df["date"]).max() - pd.Timedelta(days=1)
+    yesterday_rain = (
+        daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
+            "rainfall"
+        ].sum()
+        if len(daily_rain_df) > 0
+        else 0.0
+    )
 
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.metric("Year to Date", f"{stats['current_ytd']:.2f}\"")
-    with col2:
-        st.metric("This Month", f"{stats['current_monthly']:.2f}\"")
-    with col3:
-        st.metric("This Week", f"{stats['current_weekly']:.2f}\"")
-    with col4:
-        st.metric("Yesterday", f"{stats['current_yesterday']:.2f}\"")
-    with col5:
-        st.metric("Today", f"{stats['current_daily']:.2f}\"")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("**Historical Context:**")
-        st.write(f"• Average Annual: {stats['avg_annual']:.1f}\"")
-        st.write(f"• Total Data Days: {stats['total_days']:,}")
-        st.write(f"• Days with Rain: {stats['total_rain_days']:,}")
-        rain_percentage = (
-            (stats["total_rain_days"] / stats["total_days"] * 100)
-            if stats["total_days"] > 0
-            else 0
-        )
-        st.write(f"• Rain Frequency: {rain_percentage:.1f}%")
-
-    with col2:
-        st.write("**Recent Activity:**")
-        st.write(f"• Max Daily Rain: {stats['max_daily_this_year']:.2f}\"")
-        if "time_since_rain" in stats:
-            st.write(f"• Time Since Rain: {stats['time_since_rain']}")
-        else:
-            st.write(f"• Days Since Rain: {stats['current_dry_days']}")
-
-        try:
-            last_rain_dt = pd.to_datetime(stats["last_rain"])
-            last_rain_local = last_rain_dt.tz_convert("America/Los_Angeles")
-            formatted_date = last_rain_local.strftime("%m/%d/%Y %H:%M")
-            st.write(f"• Last Rain: {formatted_date}")
-        except Exception:
-            st.write(f"• Last Rain: {stats['last_rain']}")
-
-    st.divider()
-
-    st.subheader("Daily Rainfall Chart")
-
-    if len(daily_rain_df) > 0:
-        rain_accumulations = rain_analysis.calculate_rainfall_accumulations(
-            daily_rain_df, df
-        )
-
-        if rain_accumulations:
-            lo_viz.draw_horizontal_bars(
-                rain_accumulations, label="Rainfall Accumulation (inches)"
-            )
-        else:
-            st.error("Could not calculate rainfall accumulations")
-    else:
-        st.error("No daily rainfall data available")
-
-    st.divider()
-
-    st.subheader(
-        "Rolling Historical Context vs All N-day Periods (1d / 7d / 30d / 90d)"
+    st.markdown(
+        f"**YTD:** {stats['current_ytd']:.2f}\" • "
+        f"**Month:** {stats['current_monthly']:.2f}\" • "
+        f"**Week:** {stats['current_weekly']:.2f}\" • "
+        f'**Yesterday:** {yesterday_rain:.2f}" • '
+        f"**Today:** {stats['current_daily']:.2f}\""
     )
 
     if len(daily_rain_df) > 0:
         end_date = pd.to_datetime(daily_rain_df["date"]).max()
         context_df = _cached_rolling_context(
             daily_rain_df=daily_rain_df,
-            windows=(1, 7, 30, 90),
+            windows=(1, 7, 30, 90, 365),
             normals_years=None,
             end_date=end_date,
             version="v2",
         )
-        render_rolling_rain_context_table(context_df, unit="in")
-    else:
-        st.info("No daily totals to compute rolling context.")
+
+        current_values = {
+            "today": stats["current_daily"],
+            "yesterday": yesterday_rain,
+            "7d": (
+                context_df[context_df["window_days"] == 7]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 7]) > 0
+                else 0
+            ),
+            "30d": (
+                context_df[context_df["window_days"] == 30]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 30]) > 0
+                else 0
+            ),
+            "90d": (
+                context_df[context_df["window_days"] == 90]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 90]) > 0
+                else 0
+            ),
+            "365d": (
+                context_df[context_df["window_days"] == 365]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 365]) > 0
+                else 0
+            ),
+        }
+
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            fig_daily = lo_viz.create_rainfall_summary_violin(
+                daily_rain_df=daily_rain_df,
+                current_values=current_values,
+                rolling_context_df=context_df,
+                end_date=end_date,
+                windows=["Today", "Yesterday"],
+            )
+            st.plotly_chart(fig_daily, use_container_width=True, key="daily_viz")
+
+        with col2:
+            fig_rolling = lo_viz.create_rainfall_summary_violin(
+                daily_rain_df=daily_rain_df,
+                current_values=current_values,
+                rolling_context_df=context_df,
+                end_date=end_date,
+                windows=["7d", "30d", "90d", "365d"],
+            )
+            st.plotly_chart(fig_rolling, use_container_width=True, key="rolling_viz")
+
+    rain_percentage = (
+        (stats["total_rain_days"] / stats["total_days"] * 100)
+        if stats["total_days"] > 0
+        else 0
+    )
+
+    try:
+        last_rain_dt = pd.to_datetime(stats["last_rain"])
+        last_rain_local = last_rain_dt.tz_convert("America/Los_Angeles")
+        formatted_date = last_rain_local.strftime("%m/%d/%Y %H:%M")
+    except Exception:
+        formatted_date = str(stats.get("last_rain", "Unknown"))
+
+    st.caption(
+        f"📊 Historical: Avg annual {stats['avg_annual']:.1f}\" • "
+        f"{stats['total_days']:,} days • {stats['total_rain_days']:,} rain days ({rain_percentage:.0f}%)"
+    )
+    st.caption(
+        f"🌧️ Recent: Max daily {stats['max_daily_this_year']:.2f}\" • "
+        f"Last rain {formatted_date} • Dry {stats.get('time_since_rain', '0h')}"
+    )
+
+    with st.expander("History Windows"):
+        st.subheader("Rolling Historical Context (1d / 7d / 30d / 90d)")
+
+        if len(daily_rain_df) > 0:
+            end_date = pd.to_datetime(daily_rain_df["date"]).max()
+            context_df = _cached_rolling_context(
+                daily_rain_df=daily_rain_df,
+                windows=(1, 7, 30, 90),
+                normals_years=None,
+                end_date=end_date,
+                version="v2",
+            )
+            render_rolling_rain_context_table(context_df, unit="in")
+        else:
+            st.info("No daily totals to compute rolling context.")
 
     st.divider()
 
@@ -287,10 +351,52 @@ def render():
         "Coming next: Line chart showing cumulative rainfall by day of year, with separate lines for each year"
     )
 
-    st.subheader("Rain Intensity Heatmap")
-    st.info(
-        "Coming next: Heatmap of hourly rain rates with configurable time granularity (daily avg, max, etc.)"
-    )
+    st.subheader("Rain Accumulation Heatmap")
+    st.write("Hourly rainfall accumulation showing when rain falls throughout the day")
+
+    # User controls
+    col1, col2 = st.columns(2)
+    with col1:
+        date_range_option = st.selectbox(
+            "Time Range:",
+            ["Last 30 days", "Last 90 days", "Last 365 days", "All time"],
+            index=1,  # Default: 90 days
+            key="heatmap_date_range",
+        )
+    with col2:
+        max_accumulation = st.number_input(
+            "Scale cap (in):",
+            min_value=0.01,
+            max_value=2.0,
+            value=0.5,
+            step=0.05,
+            help="Cap color scale at this value (outliers will show at max color)",
+        )
+
+    # Data preparation with caching
+    with st.spinner("Preparing accumulation data..."):
+        accumulation_df = _cached_accumulation_data(
+            df=df, date_range_option=date_range_option, version="v1"
+        )
+
+    # Render heatmap
+    if not accumulation_df.empty:
+        fig = lo_viz.create_rain_accumulation_heatmap(
+            accumulation_df=accumulation_df, max_accumulation=max_accumulation
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Summary statistics
+        max_hourly = accumulation_df["accumulation"].max()
+        max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
+        total_period = accumulation_df["accumulation"].sum()
+
+        st.caption(
+            f"Peak hourly accumulation: {max_hourly:.3f}\" on {max_row['date']} at {max_row['hour']:02d}:00 • "
+            f'Total in period: {total_period:.2f}"'
+        )
+    else:
+        st.info("No rainfall data in selected period")
 
     st.subheader("Dry Spell & Event Analysis")
     st.info(
