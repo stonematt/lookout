@@ -242,7 +242,7 @@ def display_heatmap(df, metric, interval="15T"):
     df["date"] = pd.to_datetime(df["date"])
     df["interval"] = df["date"].dt.floor(interval).dt.strftime("%H:%M")
     fig = px.density_heatmap(df, x="date", y="interval", z=metric, histfunc="avg")
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
 
 def display_line_chart(df, metrics):
@@ -253,7 +253,7 @@ def display_line_chart(df, metrics):
     :param metrics: List of metric names to include in the chart.
     """
     fig = px.line(df, x="date", y=metrics, title="Historical Data")
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
 
 def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
@@ -441,7 +441,7 @@ def make_column_gauges(gauge_list, chart_height=300):
 
         # Plot the gauge in the respective column, fitting it to the column width
         with cols[i]:
-            st.plotly_chart(gauge_fig, width='stretch')
+            st.plotly_chart(gauge_fig, width="stretch")
 
             # Use markdown to display min, median, and max values below the gauge with less vertical space
             stats_md = f"""<small>
@@ -541,7 +541,7 @@ def display_hourly_coverage_heatmap(df):
         paper_bgcolor="white",
     )
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
 
 def create_rainfall_violin_plot(
@@ -615,7 +615,7 @@ def create_rainfall_violin_plot(
         template="plotly_white",
     )
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
     if not np.isnan(percentile):
         if percentile >= 90:
@@ -750,7 +750,7 @@ def create_dual_violin_plot(
 
     fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
     col1, col2 = st.columns(2)
 
@@ -916,5 +916,188 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
 
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    return fig
+
+
+def create_rainfall_summary_boxplot(
+    daily_rain_df: pd.DataFrame,
+    current_values: dict,
+    rolling_context_df: pd.DataFrame,
+    end_date: pd.Timestamp,
+) -> go.Figure:
+    """
+    Create vertical box plot showing current rainfall vs historical distributions.
+
+    Shows Today, Yesterday, 7d, 30d, 90d, and Last 365d periods with box plots
+    (10th-90th percentile whiskers) and current values as colored stars.
+
+    :param daily_rain_df: DataFrame with daily rainfall totals
+    :param current_values: Dict with today, yesterday, 7d, 30d, 90d, 365d values
+    :param rolling_context_df: DataFrame from compute_rolling_rain_context
+    :param end_date: Current date for analysis
+    :return: Plotly figure
+    """
+    import numpy as np
+
+    fig = go.Figure()
+
+    daily_rain_df_copy = daily_rain_df.copy()
+    daily_rain_df_copy["date"] = pd.to_datetime(daily_rain_df_copy["date"])
+
+    all_single_days = daily_rain_df_copy[
+        daily_rain_df_copy["date"].dt.year != end_date.year
+    ]["rainfall"].values
+
+    annotations_data = []
+
+    for category, current_val in [
+        ("Today", current_values.get("today", 0)),
+        ("Yesterday", current_values.get("yesterday", 0)),
+    ]:
+        if len(all_single_days) > 0:
+            q10, q25, q50, q75, q90 = np.percentile(
+                all_single_days, [10, 25, 50, 75, 90]
+            )
+
+            fig.add_trace(
+                go.Box(
+                    x=[category],
+                    y=all_single_days,
+                    q1=[q25],
+                    median=[q50],
+                    q3=[q75],
+                    lowerfence=[q10],
+                    upperfence=[q90],
+                    boxpoints="outliers",
+                    marker_color="lightblue",
+                    line_color="steelblue",
+                    name=category,
+                    showlegend=False,
+                )
+            )
+
+            percentile = (
+                (all_single_days < current_val).sum() / len(all_single_days) * 100
+                if len(all_single_days) > 0
+                else 50
+            )
+
+            marker_color = (
+                "red"
+                if current_val > q75
+                else "green" if current_val < q25 else "steelblue"
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[category],
+                    y=[current_val],
+                    mode="markers",
+                    marker=dict(
+                        symbol="star",
+                        size=15,
+                        color=marker_color,
+                        line=dict(width=1, color="black"),
+                    ),
+                    showlegend=False,
+                    hovertemplate=f'{current_val:.2f}" ({percentile:.0f}th percentile)<extra></extra>',
+                )
+            )
+
+            annotations_data.append((category, current_val, percentile))
+
+    for window_days in [7, 30, 90, 365]:
+        window_key = f"{window_days}d"
+
+        window_row = rolling_context_df[
+            rolling_context_df["window_days"] == window_days
+        ]
+
+        if len(window_row) > 0:
+            row = window_row.iloc[0]
+            current_val = current_values.get(window_key, row.get("total", 0))
+
+            daily_rain_df_copy = daily_rain_df.copy()
+            daily_rain_df_copy["date"] = pd.to_datetime(daily_rain_df_copy["date"])
+            s = daily_rain_df_copy.set_index("date")["rainfall"].sort_index()
+
+            historical_data = s[s.index.year != end_date.year]
+
+            if len(historical_data) >= window_days:
+                all_periods = (
+                    historical_data.rolling(window=window_days).sum().dropna().values
+                )
+                all_periods = all_periods[np.isfinite(all_periods)]
+
+                if len(all_periods) > 0:
+                    q10, q25, q50, q75, q90 = np.percentile(
+                        all_periods, [10, 25, 50, 75, 90]
+                    )
+
+                    fig.add_trace(
+                        go.Box(
+                            x=[window_key],
+                            y=all_periods,
+                            q1=[q25],
+                            median=[q50],
+                            q3=[q75],
+                            lowerfence=[q10],
+                            upperfence=[q90],
+                            boxpoints="outliers",
+                            marker_color="lightblue",
+                            line_color="steelblue",
+                            name=window_key,
+                            showlegend=False,
+                        )
+                    )
+
+                    percentile = float(row.get("percentile", 50))
+
+                    marker_color = (
+                        "red"
+                        if current_val > q75
+                        else "green" if current_val < q25 else "steelblue"
+                    )
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[window_key],
+                            y=[current_val],
+                            mode="markers",
+                            marker=dict(
+                                symbol="star",
+                                size=15,
+                                color=marker_color,
+                                line=dict(width=1, color="black"),
+                            ),
+                            showlegend=False,
+                            hovertemplate=f'{current_val:.2f}" ({percentile:.0f}th percentile)<extra></extra>',
+                        )
+                    )
+
+                    annotations_data.append((window_key, current_val, percentile))
+
+    fig.update_layout(
+        height=400,
+        yaxis_title="Rainfall (inches)",
+        yaxis=dict(rangemode="tozero", showgrid=True, gridcolor="lightgray"),
+        xaxis=dict(showgrid=False),
+        showlegend=False,
+        margin=dict(l=50, r=20, t=30, b=100),
+        hovermode="x unified",
+    )
+
+    for cat, val, pct in annotations_data:
+        fig.add_annotation(
+            x=cat,
+            y=0,
+            yshift=-40,
+            text=f'{val:.2f}"<br>{pct:.0f}th',
+            showarrow=False,
+            yref="paper",
+            yanchor="top",
+            font=dict(size=10),
+        )
 
     return fig
