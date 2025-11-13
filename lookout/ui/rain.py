@@ -252,24 +252,21 @@ def render():
         f"Last rain {formatted_date} • Dry {stats.get('time_since_rain', '0h')}"
     )
 
-    st.divider()
+    with st.expander("History Windows"):
+        st.subheader("Rolling Historical Context (1d / 7d / 30d / 90d)")
 
-    st.subheader(
-        "Rolling Historical Context vs All N-day Periods (1d / 7d / 30d / 90d)"
-    )
-
-    if len(daily_rain_df) > 0:
-        end_date = pd.to_datetime(daily_rain_df["date"]).max()
-        context_df = _cached_rolling_context(
-            daily_rain_df=daily_rain_df,
-            windows=(1, 7, 30, 90),
-            normals_years=None,
-            end_date=end_date,
-            version="v2",
-        )
-        render_rolling_rain_context_table(context_df, unit="in")
-    else:
-        st.info("No daily totals to compute rolling context.")
+        if len(daily_rain_df) > 0:
+            end_date = pd.to_datetime(daily_rain_df["date"]).max()
+            context_df = _cached_rolling_context(
+                daily_rain_df=daily_rain_df,
+                windows=(1, 7, 30, 90),
+                normals_years=None,
+                end_date=end_date,
+                version="v2",
+            )
+            render_rolling_rain_context_table(context_df, unit="in")
+        else:
+            st.info("No daily totals to compute rolling context.")
 
     st.divider()
 
