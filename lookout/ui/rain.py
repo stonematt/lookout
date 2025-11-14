@@ -494,41 +494,6 @@ def render():
                 f'Peak weekly cell: {max_cell:.3f}" • '
                 f'Total in period: {total_period:.2f}"'
             )
-
-        if actual_row_mode == "month":
-            st.caption(
-                f'Peak monthly/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "year_month":
-            st.caption(
-                f'Peak timeline/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "week":
-            st.caption(
-                f'Peak weekly cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        else:  # day
-            max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
-            st.caption(f'Total in period: {total_period:.2f}"')
-
-        if actual_row_mode == "month":
-            st.caption(
-                f'Peak monthly/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "year_month":
-            st.caption(
-                f'Peak timeline/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "week":
-            st.caption(
-                f'Peak weekly cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
         else:  # day
             max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
             st.caption(
