@@ -23,6 +23,33 @@
 - Data storage as parquet in S3/Storj, keyed by MAC address
 - Pandas DataFrames for all data manipulation
 
+## Branching Strategy
+
+### Workflow Pattern
+1. **main** = Development/pre-release branch (always start new features from here)
+2. **feature/branch-name** = New features and enhancements
+3. **fix/branch-name** = Bug fixes and patches
+4. **live** = Production branch (only receives merges from main)
+
+### Development Flow
+- Create new branches: `git checkout -b feature/feature-name main`
+- Create fix branches: `git checkout -b fix/issue-description main`
+- Pull Requests: `feature/` or `fix/` branches → `main` (development integration)
+- Releases: `main` → `live` (production deployment)
+
+### Branch Guidelines
+- **Prefer working on feature/fix branches** - create appropriate branches for development
+- **Resist working directly on main or live** - only for emergency fixes or release merges
+- **Delete feature/fix branches after merge** - keep repository clean
+- **Use descriptive branch names** - e.g., `feature/heatmap-improvements`, `fix/data-validation-error`
+
+### Agent Branch Strategy
+- **Always create branches for multi-step tasks** - Use todo list to track complex work
+- **Branch naming**: `fix/` for bug fixes, `feature/` for enhancements
+- **Commit strategy**: Commit logical milestones, not every small change
+- **PR creation**: Create PRs when work is complete and tested
+- **Merge target**: Always merge to `main` branch first, then `main` → `live` for releases
+
 ## Commit Guidelines
 
 ### When to Commit
