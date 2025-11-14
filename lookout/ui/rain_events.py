@@ -152,12 +152,10 @@ def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFra
     }
 
     acc_fig = create_event_accumulation_chart(event_data, event_info)
-    st.plotly_chart(acc_fig, width='stretch', key=f"acc_{selected_event.name}")
+    st.plotly_chart(acc_fig, width="stretch", key=f"acc_{selected_event.name}")
 
     rate_fig = create_event_rate_chart(event_data)
-    st.plotly_chart(
-        rate_fig, width='stretch', key=f"rate_{selected_event.name}"
-    )
+    st.plotly_chart(rate_fig, width="stretch", key=f"rate_{selected_event.name}")
 
     completeness = selected_event["data_completeness"] * 100
     gap = selected_event["max_gap_minutes"]
@@ -301,9 +299,7 @@ def render():
             )
 
             histogram_fig = create_event_histogram(events_df, date_range)
-            st.plotly_chart(
-                histogram_fig, width='stretch', key="date_histogram"
-            )
+            st.plotly_chart(histogram_fig, width="stretch", key="date_histogram")
 
             with st.expander("Advanced Filter"):
                 filter_col1, filter_col2 = st.columns(2)
@@ -419,7 +415,7 @@ def render():
                             "Quality",
                         ]
                     ],
-                    width='stretch',
+                    width="stretch",
                     hide_index=True,
                     on_select="rerun",
                     selection_mode="single-row",
