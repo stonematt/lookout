@@ -313,53 +313,33 @@ def render():
         ]
 
         if available_windows:
-            viz_mode = st.radio(
-                "Visualization mode:",
-                ["Single Window", "Compare Two Windows"],
-                horizontal=True,
-                help="Choose single window analysis or side-by-side comparison",
-            )
+            col1, col2 = st.columns(2)
 
-            if viz_mode == "Single Window":
-                selected_window = st.selectbox(
-                    "Select time window for distribution analysis:",
+            with col1:
+                left_window = st.selectbox(
+                    "First window:",
                     available_windows,
-                    index=min(1, len(available_windows) - 1),
-                    help="Choose the rolling period length to analyze",
+                    index=available_windows.index("7d") if "7d" in available_windows else 0,
+                    help="Choose the first period for comparison",
                 )
 
-                lo_viz.create_rainfall_violin_plot(
-                    window=selected_window, violin_data=violin_data, unit="in"
+            with col2:
+                right_window = st.selectbox(
+                    "Second window:",
+                    available_windows,
+                    index=available_windows.index("30d") if "30d" in available_windows else min(1, len(available_windows) - 1),
+                    help="Choose the second period for comparison",
                 )
 
+            if left_window != right_window:
+                lo_viz.create_dual_violin_plot(
+                    left_window=left_window,
+                    right_window=right_window,
+                    violin_data=violin_data,
+                    unit="in",
+                )
             else:
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    left_window = st.selectbox(
-                        "Left window:",
-                        available_windows,
-                        index=0,
-                        help="Choose the left period for comparison",
-                    )
-
-                with col2:
-                    right_window = st.selectbox(
-                        "Right window:",
-                        available_windows,
-                        index=min(1, len(available_windows) - 1),
-                        help="Choose the right period for comparison",
-                    )
-
-                if left_window != right_window:
-                    lo_viz.create_dual_violin_plot(
-                        left_window=left_window,
-                        right_window=right_window,
-                        violin_data=violin_data,
-                        unit="in",
-                    )
-                else:
-                    st.info("Please select different windows for comparison.")
+                st.info("Please select different windows for comparison.")
         else:
             st.warning("Insufficient historical data for distribution analysis.")
     else:
