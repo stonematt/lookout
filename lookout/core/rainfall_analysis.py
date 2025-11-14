@@ -20,6 +20,10 @@ def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
     """
     Extract daily rainfall totals from dailyrainin field.
 
+    The dailyrainin field is a rolling 24-hour accumulation that resets to zero
+    at midnight local time. Therefore, max(dailyrainin) for each calendar day
+    represents the total rainfall for that day.
+
     :param df: Weather data with 'dateutc' and 'dailyrainin' columns.
     :return: DataFrame with 'date' and 'rainfall' columns containing daily totals.
     """
@@ -30,15 +34,10 @@ def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
     ).dt.tz_convert("America/Los_Angeles")
     df_local["local_date"] = df_local["local_datetime"].dt.date
 
+    # Since dailyrainin resets at midnight, max value for each day IS the daily total
     daily_max = df_local.groupby("local_date")["dailyrainin"].max()
 
-    daily_totals = daily_max.diff().fillna(daily_max.iloc[0])
-    daily_totals = daily_totals.clip(lower=0)
-
-    mask = (daily_totals == 0) & (daily_max > 0)  # type: ignore
-    daily_totals[mask] = daily_max[mask]
-
-    return pd.DataFrame({"date": daily_totals.index, "rainfall": daily_totals.values})
+    return pd.DataFrame({"date": daily_max.index, "rainfall": daily_max.values})
 
 
 def calculate_dry_spell_stats(df: pd.DataFrame) -> Dict:

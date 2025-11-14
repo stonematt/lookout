@@ -171,14 +171,7 @@ def render():
         else 0.0
     )
 
-    st.markdown(
-        f"**YTD:** {stats['current_ytd']:.2f}\" • "
-        f"**Month:** {stats['current_monthly']:.2f}\" • "
-        f"**Week:** {stats['current_weekly']:.2f}\" • "
-        f'**Yesterday:** {yesterday_rain:.2f}" • '
-        f"**Today:** {stats['current_daily']:.2f}\""
-    )
-
+    # Calculate rolling context for relative periods
     if len(daily_rain_df) > 0:
         end_date = pd.to_datetime(daily_rain_df["date"]).max()
         context_df = _cached_rolling_context(
@@ -189,52 +182,74 @@ def render():
             version="v2",
         )
 
-        current_values = {
-            "today": stats["current_daily"],
-            "yesterday": yesterday_rain,
-            "7d": (
-                context_df[context_df["window_days"] == 7]["total"].iloc[0]
-                if len(context_df[context_df["window_days"] == 7]) > 0
-                else 0
-            ),
-            "30d": (
-                context_df[context_df["window_days"] == 30]["total"].iloc[0]
-                if len(context_df[context_df["window_days"] == 30]) > 0
-                else 0
-            ),
-            "90d": (
-                context_df[context_df["window_days"] == 90]["total"].iloc[0]
-                if len(context_df[context_df["window_days"] == 90]) > 0
-                else 0
-            ),
-            "365d": (
-                context_df[context_df["window_days"] == 365]["total"].iloc[0]
-                if len(context_df[context_df["window_days"] == 365]) > 0
-                else 0
-            ),
-        }
+        # Get relative period values
+        today_val = stats["current_daily"]
+        yesterday_val = yesterday_rain
+        last_7d_val = (
+            context_df[context_df["window_days"] == 7]["total"].iloc[0]
+            if len(context_df[context_df["window_days"] == 7]) > 0
+            else 0
+        )
+        last_30d_val = (
+            context_df[context_df["window_days"] == 30]["total"].iloc[0]
+            if len(context_df[context_df["window_days"] == 30]) > 0
+            else 0
+        )
+        last_90d_val = (
+            context_df[context_df["window_days"] == 90]["total"].iloc[0]
+            if len(context_df[context_df["window_days"] == 90]) > 0
+            else 0
+        )
+        last_365d_val = (
+            context_df[context_df["window_days"] == 365]["total"].iloc[0]
+            if len(context_df[context_df["window_days"] == 365]) > 0
+            else 0
+        )
+    else:
+        today_val = stats["current_daily"]
+        yesterday_val = yesterday_rain
+        last_7d_val = last_30d_val = last_90d_val = last_365d_val = 0
 
-        col1, col2 = st.columns([1, 2])
+    st.markdown(
+        f"**Today:** {today_val:.2f}\" • "
+        f'**Yesterday:** {yesterday_val:.2f}" • '
+        f"**Last 7d:** {last_7d_val:.2f}\" • "
+        f"**Last 30d:** {last_30d_val:.2f}\" • "
+        f"**Last 90d:** {last_90d_val:.2f}\" • "
+        f"**Last 365d:** {last_365d_val:.2f}\""
+    )
 
-        with col1:
-            fig_daily = lo_viz.create_rainfall_summary_violin(
-                daily_rain_df=daily_rain_df,
-                current_values=current_values,
-                rolling_context_df=context_df,
-                end_date=end_date,
-                windows=["Today", "Yesterday"],
-            )
-            st.plotly_chart(fig_daily, width="stretch", key="daily_viz")
+    # Use values already calculated for overview
+    current_values = {
+        "today": today_val,
+        "yesterday": yesterday_val,
+        "7d": last_7d_val,
+        "30d": last_30d_val,
+        "90d": last_90d_val,
+        "365d": last_365d_val,
+    }
 
-        with col2:
-            fig_rolling = lo_viz.create_rainfall_summary_violin(
-                daily_rain_df=daily_rain_df,
-                current_values=current_values,
-                rolling_context_df=context_df,
-                end_date=end_date,
-                windows=["7d", "30d", "90d", "365d"],
-            )
-            st.plotly_chart(fig_rolling, width="stretch", key="rolling_viz")
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        fig_daily = lo_viz.create_rainfall_summary_violin(
+            daily_rain_df=daily_rain_df,
+            current_values=current_values,
+            rolling_context_df=context_df,
+            end_date=end_date,
+            windows=["Today", "Yesterday"],
+        )
+        st.plotly_chart(fig_daily, width="stretch", key="daily_viz")
+
+    with col2:
+        fig_rolling = lo_viz.create_rainfall_summary_violin(
+            daily_rain_df=daily_rain_df,
+            current_values=current_values,
+            rolling_context_df=context_df,
+            end_date=end_date,
+            windows=["7d", "30d", "90d", "365d"],
+        )
+        st.plotly_chart(fig_rolling, width="stretch", key="rolling_viz")
 
     rain_percentage = (
         (stats["total_rain_days"] / stats["total_days"] * 100)
@@ -298,53 +313,33 @@ def render():
         ]
 
         if available_windows:
-            viz_mode = st.radio(
-                "Visualization mode:",
-                ["Single Window", "Compare Two Windows"],
-                horizontal=True,
-                help="Choose single window analysis or side-by-side comparison",
-            )
+            col1, col2 = st.columns(2)
 
-            if viz_mode == "Single Window":
-                selected_window = st.selectbox(
-                    "Select time window for distribution analysis:",
+            with col1:
+                left_window = st.selectbox(
+                    "First window:",
                     available_windows,
-                    index=min(1, len(available_windows) - 1),
-                    help="Choose the rolling period length to analyze",
+                    index=available_windows.index("7d") if "7d" in available_windows else 0,
+                    help="Choose the first period for comparison",
                 )
 
-                lo_viz.create_rainfall_violin_plot(
-                    window=selected_window, violin_data=violin_data, unit="in"
+            with col2:
+                right_window = st.selectbox(
+                    "Second window:",
+                    available_windows,
+                    index=available_windows.index("30d") if "30d" in available_windows else min(1, len(available_windows) - 1),
+                    help="Choose the second period for comparison",
                 )
 
+            if left_window != right_window:
+                lo_viz.create_dual_violin_plot(
+                    left_window=left_window,
+                    right_window=right_window,
+                    violin_data=violin_data,
+                    unit="in",
+                )
             else:
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    left_window = st.selectbox(
-                        "Left window:",
-                        available_windows,
-                        index=0,
-                        help="Choose the left period for comparison",
-                    )
-
-                with col2:
-                    right_window = st.selectbox(
-                        "Right window:",
-                        available_windows,
-                        index=min(1, len(available_windows) - 1),
-                        help="Choose the right period for comparison",
-                    )
-
-                if left_window != right_window:
-                    lo_viz.create_dual_violin_plot(
-                        left_window=left_window,
-                        right_window=right_window,
-                        violin_data=violin_data,
-                        unit="in",
-                    )
-                else:
-                    st.info("Please select different windows for comparison.")
+                st.info("Please select different windows for comparison.")
         else:
             st.warning("Insufficient historical data for distribution analysis.")
     else:
@@ -463,41 +458,6 @@ def render():
                 "year_month" if num_days > 730 else "week" if num_days > 180 else "day"
             )
         )
-
-        if actual_row_mode == "month":
-            st.caption(
-                f'Peak monthly/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "year_month":
-            st.caption(
-                f'Peak timeline/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "week":
-            st.caption(
-                f'Peak weekly cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-
-        if actual_row_mode == "month":
-            st.caption(
-                f'Peak monthly/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "year_month":
-            st.caption(
-                f'Peak timeline/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        elif actual_row_mode == "week":
-            st.caption(
-                f'Peak weekly cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        else:  # day
-            max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
-            st.caption(f'Total in period: {total_period:.2f}"')
 
         if actual_row_mode == "month":
             st.caption(
