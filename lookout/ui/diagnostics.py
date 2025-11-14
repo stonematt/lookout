@@ -96,7 +96,7 @@ def render():
                 },
                 inplace=True,
             )
-            st.dataframe(styled_display_df, width='stretch')
+            st.dataframe(styled_display_df, width="stretch")
 
             available_gaps = styled_gaps[~styled_gaps["processed"]]
             if not available_gaps.empty:

@@ -12,6 +12,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from colour import Color
 
+from lookout.utils.log_util import app_logger
+
+logger = app_logger(__name__)
+
 gauge_defaults = {
     "default": {
         "start_color": "#33CCFF",
@@ -242,7 +246,7 @@ def display_heatmap(df, metric, interval="15T"):
     df["date"] = pd.to_datetime(df["date"])
     df["interval"] = df["date"].dt.floor(interval).dt.strftime("%H:%M")
     fig = px.density_heatmap(df, x="date", y="interval", z=metric, histfunc="avg")
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
 
 def display_line_chart(df, metrics):
@@ -253,7 +257,7 @@ def display_line_chart(df, metrics):
     :param metrics: List of metric names to include in the chart.
     """
     fig = px.line(df, x="date", y=metrics, title="Historical Data")
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
 
 def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
@@ -441,7 +445,7 @@ def make_column_gauges(gauge_list, chart_height=300):
 
         # Plot the gauge in the respective column, fitting it to the column width
         with cols[i]:
-            st.plotly_chart(gauge_fig, width='stretch')
+            st.plotly_chart(gauge_fig, width="stretch")
 
             # Use markdown to display min, median, and max values below the gauge with less vertical space
             stats_md = f"""<small>
@@ -541,7 +545,7 @@ def display_hourly_coverage_heatmap(df):
         paper_bgcolor="white",
     )
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
 
 def create_rainfall_violin_plot(
@@ -615,7 +619,7 @@ def create_rainfall_violin_plot(
         template="plotly_white",
     )
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
     if not np.isnan(percentile):
         if percentile >= 90:
@@ -750,7 +754,7 @@ def create_dual_violin_plot(
 
     fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
 
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
     col1, col2 = st.columns(2)
 
@@ -916,5 +920,505 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
 
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    return fig
+
+
+def create_rainfall_summary_violin(
+    daily_rain_df: pd.DataFrame,
+    current_values: dict,
+    rolling_context_df: pd.DataFrame,
+    end_date: pd.Timestamp,
+    windows: list = None,
+) -> go.Figure:
+    """
+    Create box plot showing current rainfall vs historical distributions.
+
+    Shows specified windows with box plots (via violin with hidden shape) and
+    current values as colored diamond markers.
+
+    :param daily_rain_df: DataFrame with daily rainfall totals
+    :param current_values: Dict with today, yesterday, 7d, 30d, 90d, 365d values
+    :param rolling_context_df: DataFrame from compute_rolling_rain_context
+    :param end_date: Current date for analysis
+    :param windows: List of window keys to display (default: all 6)
+    :return: Plotly figure
+    """
+    import numpy as np
+
+    if windows is None:
+        windows = ["Today", "Yesterday", "7d", "30d", "90d", "365d"]
+
+    fig = go.Figure()
+
+    daily_rain_df_copy = daily_rain_df.copy()
+    daily_rain_df_copy["date"] = pd.to_datetime(daily_rain_df_copy["date"])
+
+    all_single_days = daily_rain_df_copy[
+        daily_rain_df_copy["date"].dt.year != end_date.year
+    ]["rainfall"].values
+
+    annotations_data = []
+
+    for window in windows:
+        if window in ["Today", "Yesterday"]:
+            category = window
+            current_val = current_values.get(window.lower(), 0)
+            distribution = all_single_days
+        else:
+            category = window
+            window_days = int(window.rstrip("d"))
+
+            window_row = rolling_context_df[
+                rolling_context_df["window_days"] == window_days
+            ]
+
+            if len(window_row) == 0:
+                continue
+
+            row = window_row.iloc[0]
+            current_val = current_values.get(window, row.get("total", 0))
+
+            s = daily_rain_df_copy.set_index("date")["rainfall"].sort_index()
+            historical_data = s[s.index.year != end_date.year]
+
+            if len(historical_data) < window_days:
+                continue
+
+            all_periods = (
+                historical_data.rolling(window=window_days).sum().dropna().values
+            )
+            distribution = all_periods[np.isfinite(all_periods)]
+
+        if len(distribution) > 0:
+            q25, q75 = np.percentile(distribution, [25, 75])
+
+            fig.add_trace(
+                go.Box(
+                    y=distribution,
+                    name=category,
+                    boxpoints="outliers",
+                    marker=dict(color="lightblue", size=3),
+                    line=dict(color="steelblue"),
+                    fillcolor="lightblue",
+                    showlegend=False,
+                )
+            )
+
+            percentile = (
+                (distribution < current_val).sum() / len(distribution) * 100
+                if len(distribution) > 0
+                else 50
+            )
+
+            marker_color = (
+                "red"
+                if current_val > q75
+                else "green" if current_val < q25 else "orange"
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[category],
+                    y=[current_val],
+                    mode="markers",
+                    marker=dict(
+                        symbol="diamond",
+                        size=12,
+                        color=marker_color,
+                        line=dict(width=2, color="black"),
+                    ),
+                    showlegend=False,
+                    hovertemplate=f'{current_val:.2f}" ({percentile:.0f}th percentile)<extra></extra>',
+                )
+            )
+
+            annotations_data.append((category, current_val, percentile))
+
+    fig.update_layout(
+        height=400,
+        yaxis_title="Rainfall (inches)",
+        yaxis=dict(rangemode="tozero", showgrid=True, gridcolor="lightgray"),
+        xaxis=dict(showgrid=False),
+        showlegend=False,
+        margin=dict(l=50, r=20, t=30, b=100),
+        hovermode="x unified",
+    )
+
+    for cat, val, pct in annotations_data:
+        fig.add_annotation(
+            x=cat,
+            y=0,
+            yshift=-40,
+            text=f'{val:.2f}"<br>{pct:.0f}th',
+            showarrow=False,
+            yref="paper",
+            yanchor="top",
+            font=dict(size=10),
+        )
+
+    return fig
+
+
+def prepare_rain_accumulation_heatmap_data(
+    archive_df: pd.DataFrame,
+    start_date: Optional[pd.Timestamp] = None,
+    end_date: Optional[pd.Timestamp] = None,
+    timezone: str = "America/Los_Angeles",
+    num_days: Optional[int] = None,
+    include_gaps: bool = False,
+    row_mode: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Prepare rainfall accumulation data for heatmap with simplified aggregation.
+
+    All rainfall increments are included to ensure accurate totals.
+    Each dailyrainin.diff() represents real rain that fell, captured
+    at the time of the reading regardless of data gaps.
+
+    Row modes: 'day', 'week', 'month', 'year_month', 'auto'
+    - day: Daily rows with Hour of Day columns
+    - week: Weekly rows with Day of Week columns
+    - month: Monthly rows with Day of Month columns
+    - year_month: YY-MM rows with Day of Month columns
+    - auto: Automatically select based on period length
+
+    :param archive_df: Archive with dateutc and dailyrainin columns
+    :param start_date: Filter start date (timezone-aware or naive UTC)
+    :param end_date: Filter end date (timezone-aware or naive UTC)
+    :param timezone: Timezone for hour bucketing
+    :param num_days: Number of days in period (helps determine auto mode)
+    :param include_gaps: Deprecated parameter (has no effect, all data included)
+    :param row_mode: Row aggregation mode ('day', 'week', 'month', 'year_month', 'auto')
+    :return: DataFrame with (date, hour, accumulation) columns
+    """
+    if archive_df.empty or "dailyrainin" not in archive_df.columns:
+        logger.warning("No dailyrainin data available for accumulation heatmap")
+        return pd.DataFrame(columns=["date", "hour", "accumulation"])
+
+    df = archive_df.copy()
+
+    # Convert to datetime and timezone
+    df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
+    df["timestamp_local"] = df["timestamp"].dt.tz_convert(timezone)
+
+    # Filter by date range if specified
+    if start_date:
+        if start_date.tz is None:
+            start_date = start_date.tz_localize("UTC")
+        df = df[df["timestamp"] >= start_date]
+
+    if end_date:
+        if end_date.tz is None:
+            end_date = end_date.tz_localize("UTC")
+        df = df[df["timestamp"] <= end_date]
+
+    if df.empty:
+        logger.warning("No data in specified date range")
+        return pd.DataFrame(columns=["date", "hour", "accumulation"])
+
+    # Sort by timestamp ascending (archive may be DESC)
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    # Calculate interval accumulation
+    df["time_diff_min"] = df["timestamp"].diff().dt.total_seconds() / 60
+    df["interval_rain"] = df["dailyrainin"].diff().clip(lower=0)
+
+    # Handle first row
+    first_idx = df.index[0]
+    df.loc[first_idx, "time_diff_min"] = 5
+    df.loc[first_idx, "interval_rain"] = 0
+
+    # Extract date and hour from local time
+    df["date"] = df["timestamp_local"].dt.date
+    df["hour"] = df["timestamp_local"].dt.hour
+
+    # NOTE: Gap filtering removed - all accumulation data is included
+    # to ensure accurate totals and proper hourly distribution
+
+    # Aggregate by (date, hour)
+    hourly_accum = df.groupby(["date", "hour"])["interval_rain"].sum().reset_index()
+    hourly_accum.columns = ["date", "hour", "accumulation"]
+
+    # Determine aggregation mode
+    if row_mode is None or row_mode == "auto":
+        if num_days and num_days > 730:  # 2 years
+            row_mode = "year_month"
+        elif num_days and num_days > 180:
+            row_mode = "week"
+        else:
+            row_mode = "day"
+
+    # Add timestamp for date operations
+    hourly_accum["date_ts"] = pd.to_datetime(hourly_accum["date"])
+
+    # Apply aggregation based on row mode (column type is determined by row type)
+    if row_mode == "month":
+        logger.info(f"Aggregating by month/day-of-month")
+
+        # Add month and day columns
+        hourly_accum["month"] = hourly_accum["date_ts"].dt.month
+        hourly_accum["day_of_month"] = hourly_accum["date_ts"].dt.day
+
+        # Aggregate by (month, day_of_month)
+        monthly_accum = (
+            hourly_accum.groupby(["month", "day_of_month"])["accumulation"]
+            .sum()
+            .reset_index()
+        )
+        monthly_accum.columns = ["date", "hour", "accumulation"]  # Reuse column names
+
+        logger.info(
+            f"Prepared monthly/day heatmap data: {len(monthly_accum)} cells "
+            f"across all months"
+        )
+
+        return monthly_accum
+
+    elif row_mode == "year_month":
+        logger.info(f"Aggregating by year-month/day-of-month")
+
+        # Add year-month and day columns
+        hourly_accum["year_month"] = (
+            hourly_accum["date_ts"].dt.to_period("M").dt.strftime("%Y-%m")
+        )
+        hourly_accum["day_of_month"] = hourly_accum["date_ts"].dt.day
+
+        # Aggregate by (year_month, day_of_month)
+        year_month_accum = (
+            hourly_accum.groupby(["year_month", "day_of_month"])["accumulation"]
+            .sum()
+            .reset_index()
+        )
+        year_month_accum.columns = [
+            "date",
+            "hour",
+            "accumulation",
+        ]  # Reuse column names
+
+        logger.info(
+            f"Prepared year-month/day heatmap data: {len(year_month_accum)} cells "
+            f"from {year_month_accum['date'].min()} to {year_month_accum['date'].max()}"
+        )
+
+        return year_month_accum
+
+    elif row_mode == "week":
+        logger.info(f"Aggregating by week/day-of-week")
+
+        # Add week and day-of-week columns
+        hourly_accum["week_start"] = (
+            hourly_accum["date_ts"].dt.to_period("W").dt.start_time.dt.date
+        )
+        hourly_accum["day_of_week"] = hourly_accum["date_ts"].dt.dayofweek  # 0=Monday
+
+        # Aggregate by (week, day_of_week)
+        weekly_accum = (
+            hourly_accum.groupby(["week_start", "day_of_week"])["accumulation"]
+            .sum()
+            .reset_index()
+        )
+        weekly_accum.columns = ["date", "hour", "accumulation"]  # Reuse column names
+
+        logger.info(
+            f"Prepared weekly heatmap data: {len(weekly_accum)} weekly cells "
+            f"from {weekly_accum['date'].min()} to {weekly_accum['date'].max()}"
+        )
+
+        return weekly_accum
+
+    logger.info(
+        f"Prepared accumulation heatmap data: {len(hourly_accum)} hourly cells "
+        f"from {hourly_accum['date'].min()} to {hourly_accum['date'].max()}"
+    )
+
+    return hourly_accum
+
+
+def create_rain_accumulation_heatmap(
+    accumulation_df: pd.DataFrame,
+    height: int = 600,
+    max_accumulation: Optional[float] = None,
+    num_days: Optional[int] = None,
+    row_mode: Optional[str] = None,
+) -> go.Figure:
+    """
+    Create heatmap showing rainfall accumulation with simplified grid options.
+
+    Row modes: 'day', 'week', 'month', 'year_month', 'auto'
+    - day: Daily rows with Hour of Day columns
+    - week: Weekly rows with Day of Week columns
+    - month: Monthly rows with Day of Month columns
+    - year_month: YY-MM rows with Day of Month columns
+    - auto: Automatically select based on period length
+
+    Auto behavior:
+    - ≤180 days: daily × hourly
+    - 180-730 days: weekly × day-of-week
+    - >730 days: year_month × day-of-month
+
+    :param accumulation_df: DataFrame with (date, hour, accumulation)
+    :param height: Chart height in pixels (auto-calculated if using default)
+    :param max_accumulation: Cap color scale (auto-calculated at 90th percentile if None)
+    :param num_days: Number of days in period (helps determine auto mode)
+    :param row_mode: Row aggregation mode ('day', 'week', 'month', 'year_month', 'auto')
+    :return: Plotly figure
+    """
+    if accumulation_df.empty:
+        logger.warning("Empty accumulation data for heatmap")
+        return go.Figure()
+
+    # Determine display mode
+    if row_mode is None or row_mode == "auto":
+        if num_days and num_days > 730:  # 2 years
+            row_mode = "year_month"
+        elif num_days and num_days > 180:
+            row_mode = "week"
+        else:
+            row_mode = "day"
+
+    # Setup grid based on row mode (column type is determined by row type)
+    if row_mode == "month":
+        # Month/Day grid: 12 rows x 31 columns
+        all_months = list(range(1, 13))  # 1-12
+        all_days = list(range(1, 32))  # 1-31
+
+        full_index = pd.MultiIndex.from_product(
+            [all_months, all_days], names=["date", "hour"]
+        )
+        x_labels = [str(d) for d in all_days]
+        x_title = "Day of Month"
+        y_title = "Month"
+        chart_title = "Monthly Rainfall Patterns"
+        height = 400  # Fixed height for 12 rows
+        grid_gap = 0
+
+    elif row_mode == "year_month":
+        # YY-MM/Day grid: variable rows x 31 columns
+        # Get unique year-month values from data
+        year_months = sorted(accumulation_df["date"].unique())
+        all_days = list(range(1, 32))  # 1-31
+
+        full_index = pd.MultiIndex.from_product(
+            [year_months, all_days], names=["date", "hour"]
+        )
+        x_labels = [str(d) for d in all_days]
+        x_title = "Day of Month"
+        y_title = "Year-Month"
+        chart_title = "Monthly Timeline Rainfall Patterns"
+        height = min(800, max(400, len(year_months) * 25))  # Dynamic height
+        grid_gap = 0
+
+    elif row_mode == "week":
+        # Weekly mode: rows are weeks, columns are days of week
+        all_weeks = pd.date_range(
+            accumulation_df["date"].min(), accumulation_df["date"].max(), freq="W-MON"
+        ).date
+        all_days = list(range(7))  # 0=Monday to 6=Sunday
+
+        full_index = pd.MultiIndex.from_product(
+            [all_weeks, all_days], names=["date", "hour"]
+        )
+        x_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        x_title = "Day of Week"
+        y_title = "Week Starting"
+        chart_title = "Weekly Rainfall Patterns"
+        height = min(800, max(400, len(all_weeks) * 15))  # Dynamic height
+        grid_gap = 0
+
+    else:  # day
+        # Default hourly mode: rows are dates, columns are hours
+        all_dates = pd.date_range(
+            accumulation_df["date"].min(), accumulation_df["date"].max(), freq="D"
+        ).date
+        all_hours = list(range(24))
+
+        full_index = pd.MultiIndex.from_product(
+            [all_dates, all_hours], names=["date", "hour"]
+        )
+        x_labels = [f"{h:02d}:00" for h in range(24)]
+        x_title = "Hour of Day"
+        y_title = "Date"
+        chart_title = "Hourly Rainfall Accumulation"
+        height = min(1200, max(600, len(all_dates) * 10))  # Dynamic height
+        grid_gap = 1  # Small gaps for daily view
+
+    # Reindex and fill missing with NaN
+    indexed = accumulation_df.set_index(["date", "hour"])
+    full_data = indexed.reindex(full_index, fill_value=np.nan).reset_index()
+
+    # Pivot: rows=dates/weeks/months, columns=hours/days
+    pivot = full_data.pivot(index="date", columns="hour", values="accumulation")
+
+    # Auto-scale colorbar at 90th percentile of non-zero values if not specified
+    if max_accumulation is None:
+        valid_values = pivot.values[~np.isnan(pivot.values)]
+        non_zero_values = valid_values[valid_values > 0]
+
+        if len(non_zero_values) > 0:
+            max_accumulation = float(np.percentile(non_zero_values, 90))
+            max_accumulation = max(max_accumulation, 0.05)  # Minimum 0.05"
+        else:
+            max_accumulation = 0.05
+
+    # Create heatmap
+    hover_template = (
+        "<b>%{y}</b><br>"
+        f"{x_title}: %{{x}}<br>"
+        'Accumulation: %{z:.3f}"'
+        "<extra></extra>"
+    )
+
+    # Custom colorscale: white at 0, then blue gradient for positive values
+    colorscale = [
+        [0.0, "white"],  # 0 maps to white
+        [0.001, "#f7fbff"],  # Very light blue
+        [0.25, "#deebf7"],  # Light blue
+        [0.5, "#9ecae1"],  # Medium blue
+        [0.75, "#4292c6"],  # Darker blue
+        [1.0, "#08519c"],  # Darkest blue at 90th percentile
+    ]
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=x_labels,
+            y=pivot.index.astype(str),
+            colorscale=colorscale,
+            zmin=0,
+            zmax=max_accumulation,
+            colorbar=dict(title="Rain (in)"),
+            hovertemplate=hover_template,
+            zsmooth=False,
+            hoverongaps=False,
+        )
+    )
+
+    fig.update_traces(xgap=grid_gap, ygap=grid_gap)
+
+    fig.update_layout(
+        title=chart_title,
+        xaxis=dict(
+            title=x_title,
+            tickmode="linear",
+            dtick=(
+                1 if row_mode in ["week", "month", "year_month"] else 2
+            ),  # Show all for aggregated views, every 2 for hourly
+            type="category",
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        yaxis=dict(
+            title=y_title,
+            type="category",
+            autorange="reversed",  # Most recent at top
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        height=height,
+        margin=dict(l=80, r=20, t=60, b=60),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
 
     return fig
