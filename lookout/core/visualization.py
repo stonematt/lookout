@@ -1067,20 +1067,29 @@ def prepare_rain_accumulation_heatmap_data(
     timezone: str = "America/Los_Angeles",
     num_days: Optional[int] = None,
     include_gaps: bool = False,
+    row_mode: Optional[str] = None,
 ) -> pd.DataFrame:
     """
-    Prepare hourly rainfall accumulation data for heatmap.
+    Prepare rainfall accumulation data for heatmap with simplified aggregation.
 
     All rainfall increments are included to ensure accurate totals.
     Each dailyrainin.diff() represents real rain that fell, captured
     at the time of the reading regardless of data gaps.
 
+    Row modes: 'day', 'week', 'month', 'year_month', 'auto'
+    - day: Daily rows with Hour of Day columns
+    - week: Weekly rows with Day of Week columns
+    - month: Monthly rows with Day of Month columns
+    - year_month: YY-MM rows with Day of Month columns
+    - auto: Automatically select based on period length
+
     :param archive_df: Archive with dateutc and dailyrainin columns
     :param start_date: Filter start date (timezone-aware or naive UTC)
     :param end_date: Filter end date (timezone-aware or naive UTC)
     :param timezone: Timezone for hour bucketing
-    :param num_days: Number of days in period (determines aggregation mode)
+    :param num_days: Number of days in period (helps determine auto mode)
     :param include_gaps: Deprecated parameter (has no effect, all data included)
+    :param row_mode: Row aggregation mode ('day', 'week', 'month', 'year_month', 'auto')
     :return: DataFrame with (date, hour, accumulation) columns
     """
     if archive_df.empty or "dailyrainin" not in archive_df.columns:
@@ -1131,12 +1140,73 @@ def prepare_rain_accumulation_heatmap_data(
     hourly_accum = df.groupby(["date", "hour"])["interval_rain"].sum().reset_index()
     hourly_accum.columns = ["date", "hour", "accumulation"]
 
-    # If long period (>180 days), aggregate by week and day-of-week
-    if num_days and num_days > 180:
-        logger.info(f"Period >180 days ({num_days}), aggregating by week/day-of-week")
+    # Determine aggregation mode
+    if row_mode is None or row_mode == "auto":
+        if num_days and num_days > 730:  # 2 years
+            row_mode = "year_month"
+        elif num_days and num_days > 180:
+            row_mode = "week"
+        else:
+            row_mode = "day"
+
+    # Add timestamp for date operations
+    hourly_accum["date_ts"] = pd.to_datetime(hourly_accum["date"])
+
+    # Apply aggregation based on row mode (column type is determined by row type)
+    if row_mode == "month":
+        logger.info(f"Aggregating by month/day-of-month")
+
+        # Add month and day columns
+        hourly_accum["month"] = hourly_accum["date_ts"].dt.month
+        hourly_accum["day_of_month"] = hourly_accum["date_ts"].dt.day
+
+        # Aggregate by (month, day_of_month)
+        monthly_accum = (
+            hourly_accum.groupby(["month", "day_of_month"])["accumulation"]
+            .sum()
+            .reset_index()
+        )
+        monthly_accum.columns = ["date", "hour", "accumulation"]  # Reuse column names
+
+        logger.info(
+            f"Prepared monthly/day heatmap data: {len(monthly_accum)} cells "
+            f"across all months"
+        )
+
+        return monthly_accum
+
+    elif row_mode == "year_month":
+        logger.info(f"Aggregating by year-month/day-of-month")
+
+        # Add year-month and day columns
+        hourly_accum["year_month"] = (
+            hourly_accum["date_ts"].dt.to_period("M").dt.strftime("%Y-%m")
+        )
+        hourly_accum["day_of_month"] = hourly_accum["date_ts"].dt.day
+
+        # Aggregate by (year_month, day_of_month)
+        year_month_accum = (
+            hourly_accum.groupby(["year_month", "day_of_month"])["accumulation"]
+            .sum()
+            .reset_index()
+        )
+        year_month_accum.columns = [
+            "date",
+            "hour",
+            "accumulation",
+        ]  # Reuse column names
+
+        logger.info(
+            f"Prepared year-month/day heatmap data: {len(year_month_accum)} cells "
+            f"from {year_month_accum['date'].min()} to {year_month_accum['date'].max()}"
+        )
+
+        return year_month_accum
+
+    elif row_mode == "week":
+        logger.info(f"Aggregating by week/day-of-week")
 
         # Add week and day-of-week columns
-        hourly_accum["date_ts"] = pd.to_datetime(hourly_accum["date"])
         hourly_accum["week_start"] = (
             hourly_accum["date_ts"].dt.to_period("W").dt.start_time.dt.date
         )
@@ -1170,17 +1240,28 @@ def create_rain_accumulation_heatmap(
     height: int = 600,
     max_accumulation: Optional[float] = None,
     num_days: Optional[int] = None,
+    row_mode: Optional[str] = None,
 ) -> go.Figure:
     """
-    Create heatmap showing hourly rainfall accumulation or weekly patterns.
+    Create heatmap showing rainfall accumulation with simplified grid options.
 
-    For periods ≤180 days: Date (rows) × Hour (columns)
-    For periods >180 days: Week (rows) × Day-of-week (columns)
+    Row modes: 'day', 'week', 'month', 'year_month', 'auto'
+    - day: Daily rows with Hour of Day columns
+    - week: Weekly rows with Day of Week columns
+    - month: Monthly rows with Day of Month columns
+    - year_month: YY-MM rows with Day of Month columns
+    - auto: Automatically select based on period length
+
+    Auto behavior:
+    - ≤180 days: daily × hourly
+    - 180-730 days: weekly × day-of-week
+    - >730 days: year_month × day-of-month
 
     :param accumulation_df: DataFrame with (date, hour, accumulation)
     :param height: Chart height in pixels (auto-calculated if using default)
-    :param max_accumulation: Cap color scale (auto-calculated at 75th percentile if None)
-    :param num_days: Number of days in period (determines display mode)
+    :param max_accumulation: Cap color scale (auto-calculated at 90th percentile if None)
+    :param num_days: Number of days in period (helps determine auto mode)
+    :param row_mode: Row aggregation mode ('day', 'week', 'month', 'year_month', 'auto')
     :return: Plotly figure
     """
     if accumulation_df.empty:
@@ -1188,9 +1269,47 @@ def create_rain_accumulation_heatmap(
         return go.Figure()
 
     # Determine display mode
-    weekly_mode = num_days and num_days > 180
+    if row_mode is None or row_mode == "auto":
+        if num_days and num_days > 730:  # 2 years
+            row_mode = "year_month"
+        elif num_days and num_days > 180:
+            row_mode = "week"
+        else:
+            row_mode = "day"
 
-    if weekly_mode:
+    # Setup grid based on row mode (column type is determined by row type)
+    if row_mode == "month":
+        # Month/Day grid: 12 rows x 31 columns
+        all_months = list(range(1, 13))  # 1-12
+        all_days = list(range(1, 32))  # 1-31
+
+        full_index = pd.MultiIndex.from_product(
+            [all_months, all_days], names=["date", "hour"]
+        )
+        x_labels = [str(d) for d in all_days]
+        x_title = "Day of Month"
+        y_title = "Month"
+        chart_title = "Monthly Rainfall Patterns"
+        height = 400  # Fixed height for 12 rows
+        grid_gap = 0
+
+    elif row_mode == "year_month":
+        # YY-MM/Day grid: variable rows x 31 columns
+        # Get unique year-month values from data
+        year_months = sorted(accumulation_df["date"].unique())
+        all_days = list(range(1, 32))  # 1-31
+
+        full_index = pd.MultiIndex.from_product(
+            [year_months, all_days], names=["date", "hour"]
+        )
+        x_labels = [str(d) for d in all_days]
+        x_title = "Day of Month"
+        y_title = "Year-Month"
+        chart_title = "Monthly Timeline Rainfall Patterns"
+        height = min(800, max(400, len(year_months) * 25))  # Dynamic height
+        grid_gap = 0
+
+    elif row_mode == "week":
         # Weekly mode: rows are weeks, columns are days of week
         all_weeks = pd.date_range(
             accumulation_df["date"].min(), accumulation_df["date"].max(), freq="W-MON"
@@ -1205,9 +1324,10 @@ def create_rain_accumulation_heatmap(
         y_title = "Week Starting"
         chart_title = "Weekly Rainfall Patterns"
         height = min(800, max(400, len(all_weeks) * 15))  # Dynamic height
-        grid_gap = 0  # No gaps for dense view
-    else:
-        # Hourly mode: rows are dates, columns are hours
+        grid_gap = 0
+
+    else:  # day
+        # Default hourly mode: rows are dates, columns are hours
         all_dates = pd.date_range(
             accumulation_df["date"].min(), accumulation_df["date"].max(), freq="D"
         ).date
@@ -1227,7 +1347,7 @@ def create_rain_accumulation_heatmap(
     indexed = accumulation_df.set_index(["date", "hour"])
     full_data = indexed.reindex(full_index, fill_value=np.nan).reset_index()
 
-    # Pivot: rows=dates/weeks, columns=hours/days
+    # Pivot: rows=dates/weeks/months, columns=hours/days
     pivot = full_data.pivot(index="date", columns="hour", values="accumulation")
 
     # Auto-scale colorbar at 90th percentile of non-zero values if not specified
@@ -1282,8 +1402,8 @@ def create_rain_accumulation_heatmap(
             title=x_title,
             tickmode="linear",
             dtick=(
-                1 if weekly_mode else 2
-            ),  # Show all days for weekly, every 2 hours for hourly
+                1 if row_mode in ["week", "month", "year_month"] else 2
+            ),  # Show all for aggregated views, every 2 for hourly
             type="category",
             showgrid=True,
             gridcolor="lightgrey",
