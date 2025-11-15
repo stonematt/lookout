@@ -23,15 +23,16 @@ def render():
 
     # Present the dashboard ########################
 
-    row1 = st.columns(2)
+    row1 = st.columns([1, 1])  # Two equal columns
 
-    with row1[0]:
-
+    with row1[0]:  # LEFT: Current Conditions
+        # Temperature bars (existing)
         temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
         lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
 
-    with row1[1]:
+        st.markdown("---")  # Visual divider
 
+        # Wind rose (existing, moved down)
         # Parameters for the polar chart
         # value_col = "windspeedmph"
         # direction_col = "winddir"
@@ -80,6 +81,9 @@ def render():
         if selected_pair != st.session_state["selected_pair"]:
             st.session_state["selected_pair"] = selected_pair
             st.rerun()
+
+    with row1[1]:  # RIGHT: Rainfall Summary (NEW)
+        render_rainfall_summary_widget()
 
     # rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
 
@@ -149,3 +153,8 @@ def render():
         )
 
         st.plotly_chart(fig)
+
+
+def render_rainfall_summary_widget():
+    """Placeholder for rainfall summary widget - coming soon!"""
+    st.info("🌧️ Rainfall summary coming soon...")
