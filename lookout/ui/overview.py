@@ -18,11 +18,7 @@ def render():
     history_df = st.session_state["history_df"]
     last_data = st.session_state["last_data"]
 
-    st.header("Overview")
     # Access the updated history_df and max_dateutc
-
-    # Active Event Headline (under page title)
-    render_active_event_headline()
 
     # Present the dashboard ########################
 
@@ -90,13 +86,6 @@ def render():
 
     # rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
 
-    # Display the header
-    st.subheader("Current")
-
-    if last_data:
-        lo_viz.make_column_gauges(cfg.TEMP_GAUGES)
-        # make_column_gauges(rain_guages)
-
     st.subheader("Temps Plots")
     # Let the user select multiple metrics for comparison
     metric_titles = [metric["title"] for metric in cfg.BOX_PLOT_METRICS]
@@ -158,134 +147,36 @@ def render():
         st.plotly_chart(fig)
 
 
-def render_active_event_headline():
-    """Render active rain event headline under page title."""
-    import json
-    
-    # Active Event Detection
-    active_event_headline = None
-    
-    try:
-        if "device" in st.session_state and "history_df" in st.session_state:
-            device = st.session_state["device"]
-            device_mac = device["macAddress"]
-            file_type = "parquet"
-            
-            from lookout.core.rain_events import RainEventCatalog
-            catalog = RainEventCatalog(device_mac, file_type)
-            
-            # Try to get events from session or storage
-            events_df = None
-            if "rain_events_catalog" in st.session_state:
-                events_df = st.session_state["rain_events_catalog"]
-            elif catalog.catalog_exists():
-                events_df = catalog.load_catalog()
-            
-            if events_df is not None and not events_df.empty:
-                # Check for ongoing events
-                ongoing_events = []
-                for _, event in events_df.iterrows():
-                    is_ongoing = False
-                    if "ongoing" in event and event["ongoing"]:
-                        is_ongoing = True
-                    elif "flags" in event and event["flags"]:
-                        flags = event["flags"]
-                        if isinstance(flags, str):
-                            flags = json.loads(flags)
-                        is_ongoing = flags.get("ongoing", False) is True
-                    
-                    if is_ongoing:
-                        ongoing_events.append(event)
-                
-                # Additional validation: check current data eventrainin
-                current_eventrainin = 0
-                if "last_data" in st.session_state:
-                    current_eventrainin = st.session_state["last_data"].get("eventrainin", 0) or 0
-                
-                # Filter ongoing events to only those that match current data
-                validated_ongoing_events = []
-                for event in ongoing_events:
-                    # Only consider event ongoing if current eventrainin > 0
-                    # (catalog was updated with live data during app runtime)
-                    if current_eventrainin > 0:
-                        validated_ongoing_events.append(event)
-                    else:
-                        logger.info(f"Event {event.get('event_id', 'unknown')[:8]} marked ongoing in catalog but current eventrainin=0, skipping")
-                
-                if validated_ongoing_events:
-                    # Get the most recent ongoing event
-                    latest_event = max(validated_ongoing_events, key=lambda x: x["start_time"])
-                    
-                    # Calculate duration and format
-                    duration_h = latest_event["duration_minutes"] / 60
-                    total_rain = latest_event["total_rainfall"]
-                    
-                    # Get last rain time from current data
-                    last_rain_time = "unknown"
-                    if "last_data" in st.session_state:
-                        last_data = st.session_state["last_data"]
-                        try:
-                            last_rain = pd.to_datetime(last_data["lastRain"])
-                            current_time = pd.to_datetime(last_data["dateutc"], unit="ms", utc=True)
-                            time_since = current_time - last_rain
-                            
-                            if time_since.total_seconds() < 3600:  # Less than 1 hour
-                                last_rain_time = f"{time_since.total_seconds()/60:.0f}min ago"
-                            else:
-                                hours = time_since.total_seconds() / 3600
-                                last_rain_time = f"{hours:.1f}h ago"
-                        except Exception:
-                            last_rain_time = "unknown"
-                    
-                    # Format duration string
-                    if duration_h >= 24:
-                        duration_str = f"{duration_h/24:.1f}d"
-                    else:
-                        duration_str = f"{duration_h:.1f}h"
-                    
-                    active_event_headline = f"🌧️ {duration_str} event: {total_rain:.2f}\" (last rain {last_rain_time})"
-    
-    except ImportError:
-        # Rain events not available
-        pass
-    except Exception as e:
-        logger.warning(f"Error detecting active rain events: {e}")
-    
-    # Display active event headline if present
-    if active_event_headline:
-        st.markdown(f"**{active_event_headline}**")
-
-
 def render_rainfall_summary_widget():
     """Render rainfall summary widget with today/yesterday chart and placeholder for heatmap."""
     import lookout.core.rainfall_analysis as rain_analysis
-    
+
     try:
         if "history_df" not in st.session_state:
             st.info("🌧️ No weather data available")
             return
-            
+
         df = st.session_state["history_df"]
-        
+
         # Extract daily rainfall data
         with st.spinner("Processing rainfall data..."):
             daily_rain_df = rain_analysis.extract_daily_rainfall(df)
-            
+
         if daily_rain_df.empty:
             st.info("🌧️ No rainfall data available")
             return
-            
+
         # Get today and yesterday values
         end_date = pd.to_datetime(daily_rain_df["date"]).max()
         yesterday_date = end_date - pd.Timedelta(days=1)
-        
+
         today_rain = 0.0
         yesterday_rain = 0.0
-        
+
         # Get today's rainfall from current data if available
         if "last_data" in st.session_state:
             today_rain = st.session_state["last_data"].get("dailyrainin", 0) or 0
-            
+
         # Get yesterday's rainfall from daily data
         yesterday_rain = (
             daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
@@ -294,24 +185,24 @@ def render_rainfall_summary_widget():
             if len(daily_rain_df) > 0
             else 0.0
         )
-        
+
         # Get historical distributions (excluding current year for context)
         daily_rain_df["date_dt"] = pd.to_datetime(daily_rain_df["date"])
         historical_today = daily_rain_df[
             daily_rain_df["date_dt"].dt.year != end_date.year
         ]["rainfall"].tolist()
-        
+
         # For yesterday, we need historical data for same day-of-year
         yesterday_doy = yesterday_date.dayofyear
         historical_yesterday = daily_rain_df[
-            (daily_rain_df["date_dt"].dt.year != end_date.year) &
-            (daily_rain_df["date_dt"].dt.dayofyear == yesterday_doy)
+            (daily_rain_df["date_dt"].dt.year != end_date.year)
+            & (daily_rain_df["date_dt"].dt.dayofyear == yesterday_doy)
         ]["rainfall"].tolist()
-        
+
         # Calculate rolling context for the violin plot (same as rain tab)
         context_df = None
         current_values = {}
-        
+
         if len(daily_rain_df) > 0:
             context_df = rain_analysis.compute_rolling_rain_context(
                 daily_rain_df=daily_rain_df,
@@ -319,7 +210,7 @@ def render_rainfall_summary_widget():
                 normals_years=None,
                 end_date=end_date,
             )
-            
+
             # Get current values for the violin plot
             current_values = {
                 "today": today_rain,
@@ -345,7 +236,7 @@ def render_rainfall_summary_widget():
                     else 0
                 ),
             }
-        
+
         # Use the same violin plot as rain tab (today/yesterday only)
         if context_df is not None and not context_df.empty:
             chart = lo_viz.create_rainfall_summary_violin(
@@ -355,19 +246,19 @@ def render_rainfall_summary_widget():
                 end_date=end_date,
                 windows=["Today", "Yesterday"],
             )
-            
+
             st.plotly_chart(chart, width="stretch", key="today_yesterday_violin")
-        
+
         # 30-day compact heatmap
         st.markdown("**Last 30 Days:**")
-        
+
         # Get date range for last 30 days
-        df_timestamps = pd.to_datetime(df["dateutc"], unit="ms", utc=True).dt.tz_convert(
-            "America/Los_Angeles"
-        )
+        df_timestamps = pd.to_datetime(
+            df["dateutc"], unit="ms", utc=True
+        ).dt.tz_convert("America/Los_Angeles")
         max_date = df_timestamps.max().date()
         start_date = max_date - pd.Timedelta(days=29)  # 30 days inclusive
-        
+
         # Prepare heatmap data using existing function
         start_ts = (
             pd.Timestamp(start_date)
@@ -379,7 +270,7 @@ def render_rainfall_summary_widget():
             .tz_localize("America/Los_Angeles")
             .tz_convert("UTC")
         )
-        
+
         accumulation_df = lo_viz.prepare_rain_accumulation_heatmap_data(
             archive_df=df,
             start_date=start_ts,
@@ -388,27 +279,32 @@ def render_rainfall_summary_widget():
             num_days=30,
             row_mode="auto",  # Let it choose best mode for 30 days
         )
-        
+
         # Render compact heatmap
         if not accumulation_df.empty:
             fig = lo_viz.create_rain_accumulation_heatmap(
-                accumulation_df=accumulation_df, 
-                num_days=30, 
+                accumulation_df=accumulation_df,
+                num_days=30,
                 row_mode="auto",
                 max_accumulation=None,  # Let function auto-scale
                 height=300,  # Compact height
-                compact=True  # Remove legend and axis labels
+                compact=True,  # Remove legend and axis labels
             )
-            
-            st.plotly_chart(fig, width="stretch", key="compact_30day_heatmap_v2", config={"displayModeBar": False})
-            
+
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                key="compact_30day_heatmap_v2",
+                config={"displayModeBar": False},
+            )
+
             # Summary stats
             total_period = accumulation_df["accumulation"].sum()
             max_cell = accumulation_df["accumulation"].max()
             st.caption(f'📈 Total: {total_period:.2f}" • Peak daily: {max_cell:.2f}"')
         else:
             st.info("🌧️ No rainfall data in last 30 days")
-        
+
     except Exception as e:
         logger.error(f"Error rendering rainfall summary widget: {e}")
         st.info("🌧️ Rainfall summary temporarily unavailable")
