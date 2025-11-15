@@ -211,12 +211,12 @@ def render():
         last_7d_val = last_30d_val = last_90d_val = last_365d_val = 0
 
     st.markdown(
-        f"**Today:** {today_val:.2f}\" • "
+        f'**Today:** {today_val:.2f}" • '
         f'**Yesterday:** {yesterday_val:.2f}" • '
-        f"**Last 7d:** {last_7d_val:.2f}\" • "
-        f"**Last 30d:** {last_30d_val:.2f}\" • "
-        f"**Last 90d:** {last_90d_val:.2f}\" • "
-        f"**Last 365d:** {last_365d_val:.2f}\""
+        f'**Last 7d:** {last_7d_val:.2f}" • '
+        f'**Last 30d:** {last_30d_val:.2f}" • '
+        f'**Last 90d:** {last_90d_val:.2f}" • '
+        f'**Last 365d:** {last_365d_val:.2f}"'
     )
 
     # Use values already calculated for overview
@@ -319,7 +319,11 @@ def render():
                 left_window = st.selectbox(
                     "First window:",
                     available_windows,
-                    index=available_windows.index("7d") if "7d" in available_windows else 0,
+                    index=(
+                        available_windows.index("7d")
+                        if "7d" in available_windows
+                        else 0
+                    ),
                     help="Choose the first period for comparison",
                 )
 
@@ -327,7 +331,11 @@ def render():
                 right_window = st.selectbox(
                     "Second window:",
                     available_windows,
-                    index=available_windows.index("30d") if "30d" in available_windows else min(1, len(available_windows) - 1),
+                    index=(
+                        available_windows.index("30d")
+                        if "30d" in available_windows
+                        else min(1, len(available_windows) - 1)
+                    ),
                     help="Choose the second period for comparison",
                 )
 

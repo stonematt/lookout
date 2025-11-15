@@ -1060,9 +1060,6 @@ def create_rainfall_summary_violin(
     return fig
 
 
-
-
-
 def prepare_rain_accumulation_heatmap_data(
     archive_df: pd.DataFrame,
     start_date: Optional[pd.Timestamp] = None,
@@ -1248,19 +1245,19 @@ def create_rain_accumulation_heatmap(
 ) -> go.Figure:
     """
     Create heatmap showing rainfall accumulation with simplified grid options.
-    
+
     Row modes: 'day', 'week', 'month', 'year_month', 'auto'
     - day: Daily rows with Hour of Day columns
     - week: Weekly rows with Day of Week columns
     - month: Monthly rows with Day of Month columns
     - year_month: YY-MM rows with Day of Month columns
     - auto: Automatically select based on period length
-    
+
     Auto behavior:
     - ≤180 days: daily × hourly
     - 180-730 days: weekly × day-of-week
     - >730 days: year_month × day-of-month
-    
+
     :param accumulation_df: DataFrame with (date, hour, accumulation)
     :param height: Chart height in pixels (auto-calculated if using default)
     :param max_accumulation: Cap color scale (auto-calculated at 90th percentile if None)
@@ -1414,7 +1411,7 @@ def create_rain_accumulation_heatmap(
         xaxis_showticklabels = None  # Use default
         colorbar_title = "Rain (in)"
         colorbar_dtick = None  # Use default
-    
+
     fig.update_layout(
         title=chart_title,
         xaxis=dict(
