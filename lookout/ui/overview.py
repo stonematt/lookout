@@ -257,6 +257,110 @@ def render_active_event_headline():
 
 
 def render_rainfall_summary_widget():
-    """Render rainfall summary widget with placeholder for future components."""
-    # Placeholder for remaining components
-    st.info("🌧️ Today/Yesterday chart and 30-day heatmap coming next...")
+    """Render rainfall summary widget with today/yesterday chart and placeholder for heatmap."""
+    import lookout.core.rainfall_analysis as rain_analysis
+    
+    try:
+        if "history_df" not in st.session_state:
+            st.info("🌧️ No weather data available")
+            return
+            
+        df = st.session_state["history_df"]
+        
+        # Extract daily rainfall data
+        with st.spinner("Processing rainfall data..."):
+            daily_rain_df = rain_analysis.extract_daily_rainfall(df)
+            
+        if daily_rain_df.empty:
+            st.info("🌧️ No rainfall data available")
+            return
+            
+        # Get today and yesterday values
+        end_date = pd.to_datetime(daily_rain_df["date"]).max()
+        yesterday_date = end_date - pd.Timedelta(days=1)
+        
+        today_rain = 0.0
+        yesterday_rain = 0.0
+        
+        # Get today's rainfall from current data if available
+        if "last_data" in st.session_state:
+            today_rain = st.session_state["last_data"].get("dailyrainin", 0) or 0
+            
+        # Get yesterday's rainfall from daily data
+        yesterday_rain = (
+            daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
+                "rainfall"
+            ].sum()
+            if len(daily_rain_df) > 0
+            else 0.0
+        )
+        
+        # Get historical distributions (excluding current year for context)
+        daily_rain_df["date_dt"] = pd.to_datetime(daily_rain_df["date"])
+        historical_today = daily_rain_df[
+            daily_rain_df["date_dt"].dt.year != end_date.year
+        ]["rainfall"].tolist()
+        
+        # For yesterday, we need historical data for same day-of-year
+        yesterday_doy = yesterday_date.dayofyear
+        historical_yesterday = daily_rain_df[
+            (daily_rain_df["date_dt"].dt.year != end_date.year) &
+            (daily_rain_df["date_dt"].dt.dayofyear == yesterday_doy)
+        ]["rainfall"].tolist()
+        
+        # Calculate rolling context for the violin plot (same as rain tab)
+        context_df = None
+        current_values = {}
+        
+        if len(daily_rain_df) > 0:
+            context_df = rain_analysis.compute_rolling_rain_context(
+                daily_rain_df=daily_rain_df,
+                windows=(1, 7, 30, 90, 365),
+                normals_years=None,
+                end_date=end_date,
+            )
+            
+            # Get current values for the violin plot
+            current_values = {
+                "today": today_rain,
+                "yesterday": yesterday_rain,
+                "7d": (
+                    context_df[context_df["window_days"] == 7]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 7]) > 0
+                    else 0
+                ),
+                "30d": (
+                    context_df[context_df["window_days"] == 30]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 30]) > 0
+                    else 0
+                ),
+                "90d": (
+                    context_df[context_df["window_days"] == 90]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 90]) > 0
+                    else 0
+                ),
+                "365d": (
+                    context_df[context_df["window_days"] == 365]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 365]) > 0
+                    else 0
+                ),
+            }
+        
+        # Use the same violin plot as rain tab (today/yesterday only)
+        if context_df is not None and not context_df.empty:
+            chart = lo_viz.create_rainfall_summary_violin(
+                daily_rain_df=daily_rain_df,
+                current_values=current_values,
+                rolling_context_df=context_df,
+                end_date=end_date,
+                windows=["Today", "Yesterday"],
+            )
+            
+            st.plotly_chart(chart, width="stretch", key="today_yesterday_violin")
+        
+        # Placeholder for 30-day heatmap
+        st.info("🌧️ 30-day heatmap coming next...")
+        
+    except Exception as e:
+        logger.error(f"Error rendering rainfall summary widget: {e}")
+        st.info("🌧️ Rainfall summary temporarily unavailable")
