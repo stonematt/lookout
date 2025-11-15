@@ -21,6 +21,9 @@ def render():
     st.header("Overview")
     # Access the updated history_df and max_dateutc
 
+    # Active Event Headline (under page title)
+    render_active_event_headline()
+
     # Present the dashboard ########################
 
     row1 = st.columns([1, 1])  # Two equal columns
@@ -155,6 +158,90 @@ def render():
         st.plotly_chart(fig)
 
 
+def render_active_event_headline():
+    """Render active rain event headline under page title."""
+    import json
+    
+    # Active Event Detection
+    active_event_headline = None
+    
+    try:
+        if "device" in st.session_state and "history_df" in st.session_state:
+            device = st.session_state["device"]
+            device_mac = device["macAddress"]
+            file_type = "parquet"
+            
+            from lookout.core.rain_events import RainEventCatalog
+            catalog = RainEventCatalog(device_mac, file_type)
+            
+            # Try to get events from session or storage
+            events_df = None
+            if "rain_events_catalog" in st.session_state:
+                events_df = st.session_state["rain_events_catalog"]
+            elif catalog.catalog_exists():
+                events_df = catalog.load_catalog()
+            
+            if events_df is not None and not events_df.empty:
+                # Check for ongoing events
+                ongoing_events = []
+                for _, event in events_df.iterrows():
+                    is_ongoing = False
+                    if "ongoing" in event and event["ongoing"]:
+                        is_ongoing = True
+                    elif "flags" in event and event["flags"]:
+                        flags = event["flags"]
+                        if isinstance(flags, str):
+                            flags = json.loads(flags)
+                        is_ongoing = flags.get("ongoing", False)
+                    
+                    if is_ongoing:
+                        ongoing_events.append(event)
+                
+                if ongoing_events:
+                    # Get the most recent ongoing event
+                    latest_event = max(ongoing_events, key=lambda x: x["start_time"])
+                    
+                    # Calculate duration and format
+                    duration_h = latest_event["duration_minutes"] / 60
+                    total_rain = latest_event["total_rainfall"]
+                    
+                    # Get last rain time from current data
+                    last_rain_time = "unknown"
+                    if "last_data" in st.session_state:
+                        last_data = st.session_state["last_data"]
+                        try:
+                            last_rain = pd.to_datetime(last_data["lastRain"])
+                            current_time = pd.to_datetime(last_data["dateutc"], unit="ms", utc=True)
+                            time_since = current_time - last_rain
+                            
+                            if time_since.total_seconds() < 3600:  # Less than 1 hour
+                                last_rain_time = f"{time_since.total_seconds()/60:.0f}min ago"
+                            else:
+                                hours = time_since.total_seconds() / 3600
+                                last_rain_time = f"{hours:.1f}h ago"
+                        except Exception:
+                            last_rain_time = "unknown"
+                    
+                    # Format duration string
+                    if duration_h >= 24:
+                        duration_str = f"{duration_h/24:.1f}d"
+                    else:
+                        duration_str = f"{duration_h:.1f}h"
+                    
+                    active_event_headline = f"🌧️ {duration_str} event: {total_rain:.2f}\" (last rain {last_rain_time})"
+    
+    except ImportError:
+        # Rain events not available
+        pass
+    except Exception as e:
+        logger.warning(f"Error detecting active rain events: {e}")
+    
+    # Display active event headline if present
+    if active_event_headline:
+        st.markdown(f"**{active_event_headline}**")
+
+
 def render_rainfall_summary_widget():
-    """Placeholder for rainfall summary widget - coming soon!"""
-    st.info("🌧️ Rainfall summary coming soon...")
+    """Render rainfall summary widget with placeholder for future components."""
+    # Placeholder for remaining components
+    st.info("🌧️ Today/Yesterday chart and 30-day heatmap coming next...")
