@@ -358,8 +358,56 @@ def render_rainfall_summary_widget():
             
             st.plotly_chart(chart, width="stretch", key="today_yesterday_violin")
         
-        # Placeholder for 30-day heatmap
-        st.info("🌧️ 30-day heatmap coming next...")
+        # 30-day compact heatmap
+        st.markdown("**Last 30 Days:**")
+        
+        # Get date range for last 30 days
+        df_timestamps = pd.to_datetime(df["dateutc"], unit="ms", utc=True).dt.tz_convert(
+            "America/Los_Angeles"
+        )
+        max_date = df_timestamps.max().date()
+        start_date = max_date - pd.Timedelta(days=29)  # 30 days inclusive
+        
+        # Prepare heatmap data using existing function
+        start_ts = (
+            pd.Timestamp(start_date)
+            .tz_localize("America/Los_Angeles")
+            .tz_convert("UTC")
+        )
+        end_ts = (
+            (pd.Timestamp(max_date) + pd.Timedelta(days=1))
+            .tz_localize("America/Los_Angeles")
+            .tz_convert("UTC")
+        )
+        
+        accumulation_df = lo_viz.prepare_rain_accumulation_heatmap_data(
+            archive_df=df,
+            start_date=start_ts,
+            end_date=end_ts,
+            timezone="America/Los_Angeles",
+            num_days=30,
+            row_mode="auto",  # Let it choose best mode for 30 days
+        )
+        
+        # Render compact heatmap
+        if not accumulation_df.empty:
+            fig = lo_viz.create_rain_accumulation_heatmap(
+                accumulation_df=accumulation_df, 
+                num_days=30, 
+                row_mode="auto",
+                max_accumulation=None,  # Let function auto-scale
+                height=300,  # Compact height
+                compact=True  # Remove legend and axis labels
+            )
+            
+            st.plotly_chart(fig, width="stretch", key="compact_30day_heatmap_v2", config={"displayModeBar": False})
+            
+            # Summary stats
+            total_period = accumulation_df["accumulation"].sum()
+            max_cell = accumulation_df["accumulation"].max()
+            st.caption(f'📈 Total: {total_period:.2f}" • Peak daily: {max_cell:.2f}"')
+        else:
+            st.info("🌧️ No rainfall data in last 30 days")
         
     except Exception as e:
         logger.error(f"Error rendering rainfall summary widget: {e}")
