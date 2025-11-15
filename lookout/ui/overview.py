@@ -192,14 +192,29 @@ def render_active_event_headline():
                         flags = event["flags"]
                         if isinstance(flags, str):
                             flags = json.loads(flags)
-                        is_ongoing = flags.get("ongoing", False)
+                        is_ongoing = flags.get("ongoing", False) is True
                     
                     if is_ongoing:
                         ongoing_events.append(event)
                 
-                if ongoing_events:
+                # Additional validation: check current data eventrainin
+                current_eventrainin = 0
+                if "last_data" in st.session_state:
+                    current_eventrainin = st.session_state["last_data"].get("eventrainin", 0) or 0
+                
+                # Filter ongoing events to only those that match current data
+                validated_ongoing_events = []
+                for event in ongoing_events:
+                    # Only consider event ongoing if current eventrainin > 0
+                    # (catalog was updated with live data during app runtime)
+                    if current_eventrainin > 0:
+                        validated_ongoing_events.append(event)
+                    else:
+                        logger.info(f"Event {event.get('event_id', 'unknown')[:8]} marked ongoing in catalog but current eventrainin=0, skipping")
+                
+                if validated_ongoing_events:
                     # Get the most recent ongoing event
-                    latest_event = max(ongoing_events, key=lambda x: x["start_time"])
+                    latest_event = max(validated_ongoing_events, key=lambda x: x["start_time"])
                     
                     # Calculate duration and format
                     duration_h = latest_event["duration_minutes"] / 60
