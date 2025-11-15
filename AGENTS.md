@@ -22,6 +22,11 @@
 - Timestamps as epoch milliseconds (UTC)
 - Data storage as parquet in S3/Storj, keyed by MAC address
 - Pandas DataFrames for all data manipulation
+- **Archive data is reverse sorted by date** (newest first, oldest last)
+- **When examining data, use .tail() for oldest records, .head() for newest**
+- **Archive updates every 1-2 days; app fills gap with live Ambient data**
+- **Event catalog updates during app runtime with combined archive + live data**
+- **Session data is always current, even if cloud archive is stale**
 
 ## Branching Strategy
 
