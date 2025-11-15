@@ -96,6 +96,11 @@ Agent: "You have uncommitted changes to rain_events.py and rain.py
 - Bullet points grouped by category
 - Rationale section (2-3 lines explaining technical decisions)
 
+**Guidelines:**
+- Focus on actual functional changes, not QA debugging details
+- Don't include tactical fixes found during QA in commit messages
+- Keep commits clean and focused on delivered functionality
+
 **Example:**
 ```
 Fix event quality metrics and add Pacific timezone display
