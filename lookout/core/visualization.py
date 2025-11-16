@@ -930,6 +930,7 @@ def create_rainfall_summary_violin(
     rolling_context_df: pd.DataFrame,
     end_date: pd.Timestamp,
     windows: list = None,
+    title: str = None,
 ) -> go.Figure:
     """
     Create box plot showing current rainfall vs historical distributions.
@@ -1043,6 +1044,7 @@ def create_rainfall_summary_violin(
         showlegend=False,
         margin=dict(l=50, r=20, t=30, b=100),
         hovermode="x unified",
+        title=title,
     )
 
     for cat, val, pct in annotations_data:
@@ -1241,6 +1243,7 @@ def create_rain_accumulation_heatmap(
     max_accumulation: Optional[float] = None,
     num_days: Optional[int] = None,
     row_mode: Optional[str] = None,
+    compact: bool = False,
 ) -> go.Figure:
     """
     Create heatmap showing rainfall accumulation with simplified grid options.
@@ -1262,6 +1265,7 @@ def create_rain_accumulation_heatmap(
     :param max_accumulation: Cap color scale (auto-calculated at 90th percentile if None)
     :param num_days: Number of days in period (helps determine auto mode)
     :param row_mode: Row aggregation mode ('day', 'week', 'month', 'year_month', 'auto')
+    :param compact: If True, removes legend and axis labels for overview display
     :return: Plotly figure
     """
     if accumulation_df.empty:
@@ -1396,6 +1400,20 @@ def create_rain_accumulation_heatmap(
 
     fig.update_traces(xgap=grid_gap, ygap=grid_gap)
 
+    # Apply compact styling if requested
+    if compact:
+        margin = dict(l=30, r=20, t=30, b=40)
+        showlegend = False
+        xaxis_showticklabels = False
+        colorbar_title = ""
+        colorbar_dtick = 0.1
+    else:
+        margin = dict(l=80, r=20, t=60, b=60)
+        showlegend = None  # Use default
+        xaxis_showticklabels = None  # Use default
+        colorbar_title = "Rain (in)"
+        colorbar_dtick = None  # Use default
+
     fig.update_layout(
         title=chart_title,
         xaxis=dict(
@@ -1407,6 +1425,7 @@ def create_rain_accumulation_heatmap(
             type="category",
             showgrid=True,
             gridcolor="lightgrey",
+            showticklabels=xaxis_showticklabels,
         ),
         yaxis=dict(
             title=y_title,
@@ -1416,9 +1435,16 @@ def create_rain_accumulation_heatmap(
             gridcolor="lightgrey",
         ),
         height=height,
-        margin=dict(l=80, r=20, t=60, b=60),
+        margin=margin,
         plot_bgcolor="white",
         paper_bgcolor="white",
+        showlegend=showlegend,
+        coloraxis_colorbar=dict(
+            title=colorbar_title,
+            tickmode="linear",
+            tick0=0,
+            dtick=colorbar_dtick,
+        ),
     )
 
     return fig

@@ -18,20 +18,20 @@ def render():
     history_df = st.session_state["history_df"]
     last_data = st.session_state["last_data"]
 
-    st.header("Overview")
     # Access the updated history_df and max_dateutc
 
     # Present the dashboard ########################
 
-    row1 = st.columns(2)
+    row1 = st.columns([1, 1])  # Two equal columns
 
-    with row1[0]:
-
+    with row1[0]:  # LEFT: Current Conditions
+        # Temperature bars (existing)
         temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
         lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
 
-    with row1[1]:
+        st.markdown("---")  # Visual divider
 
+        # Wind rose (existing, moved down)
         # Parameters for the polar chart
         # value_col = "windspeedmph"
         # direction_col = "winddir"
@@ -81,14 +81,10 @@ def render():
             st.session_state["selected_pair"] = selected_pair
             st.rerun()
 
+    with row1[1]:  # RIGHT: Rainfall Summary (NEW)
+        render_rainfall_summary_widget()
+
     # rain_bars = lo_dp.get_history_min_max(history_df, data_column= , )
-
-    # Display the header
-    st.subheader("Current")
-
-    if last_data:
-        lo_viz.make_column_gauges(cfg.TEMP_GAUGES)
-        # make_column_gauges(rain_guages)
 
     st.subheader("Temps Plots")
     # Let the user select multiple metrics for comparison
@@ -149,3 +145,171 @@ def render():
         )
 
         st.plotly_chart(fig)
+
+
+def render_rainfall_summary_widget():
+    """Render rainfall summary widget with today/yesterday chart and placeholder for heatmap."""
+    import lookout.core.rainfall_analysis as rain_analysis
+
+    try:
+        if "history_df" not in st.session_state:
+            st.info("🌧️ No weather data available")
+            return
+
+        df = st.session_state["history_df"]
+
+        # Extract daily rainfall data
+        with st.spinner("Processing rainfall data..."):
+            daily_rain_df = rain_analysis.extract_daily_rainfall(df)
+
+        if daily_rain_df.empty:
+            st.info("🌧️ No rainfall data available")
+            return
+
+        # Get today and yesterday values
+        end_date = pd.to_datetime(daily_rain_df["date"]).max()
+        yesterday_date = end_date - pd.Timedelta(days=1)
+
+        today_rain = 0.0
+        yesterday_rain = 0.0
+
+        # Get today's rainfall from current data if available
+        if "last_data" in st.session_state:
+            today_rain = st.session_state["last_data"].get("dailyrainin", 0) or 0
+
+        # Get yesterday's rainfall from daily data
+        yesterday_rain = (
+            daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
+                "rainfall"
+            ].sum()
+            if len(daily_rain_df) > 0
+            else 0.0
+        )
+
+        # Get historical distributions (excluding current year for context)
+        daily_rain_df["date_dt"] = pd.to_datetime(daily_rain_df["date"])
+        historical_today = daily_rain_df[
+            daily_rain_df["date_dt"].dt.year != end_date.year
+        ]["rainfall"].tolist()
+
+        # For yesterday, we need historical data for same day-of-year
+        yesterday_doy = yesterday_date.dayofyear
+        historical_yesterday = daily_rain_df[
+            (daily_rain_df["date_dt"].dt.year != end_date.year)
+            & (daily_rain_df["date_dt"].dt.dayofyear == yesterday_doy)
+        ]["rainfall"].tolist()
+
+        # Calculate rolling context for the violin plot (same as rain tab)
+        context_df = None
+        current_values = {}
+
+        if len(daily_rain_df) > 0:
+            context_df = rain_analysis.compute_rolling_rain_context(
+                daily_rain_df=daily_rain_df,
+                windows=(1, 7, 30, 90, 365),
+                normals_years=None,
+                end_date=end_date,
+            )
+
+            # Get current values for the violin plot
+            current_values = {
+                "today": today_rain,
+                "yesterday": yesterday_rain,
+                "7d": (
+                    context_df[context_df["window_days"] == 7]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 7]) > 0
+                    else 0
+                ),
+                "30d": (
+                    context_df[context_df["window_days"] == 30]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 30]) > 0
+                    else 0
+                ),
+                "90d": (
+                    context_df[context_df["window_days"] == 90]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 90]) > 0
+                    else 0
+                ),
+                "365d": (
+                    context_df[context_df["window_days"] == 365]["total"].iloc[0]
+                    if len(context_df[context_df["window_days"] == 365]) > 0
+                    else 0
+                ),
+            }
+
+        # Use the same violin plot as rain tab (today/yesterday only)
+        # Hide chart completely if both days have no rainfall
+        if today_rain == 0.0 and yesterday_rain == 0.0:
+            # Silent - no chart or message when no rainfall
+            pass
+        elif context_df is not None and not context_df.empty:
+            chart = lo_viz.create_rainfall_summary_violin(
+                daily_rain_df=daily_rain_df,
+                current_values=current_values,
+                rolling_context_df=context_df,
+                end_date=end_date,
+                windows=["Today", "Yesterday"],
+                title="Recent Rainfall",
+            )
+
+            st.plotly_chart(chart, width="stretch", key="today_yesterday_violin")
+
+        # 30-day compact heatmap
+        st.markdown("**Last 30 Days:**")
+
+        # Get date range for last 30 days
+        df_timestamps = pd.to_datetime(
+            df["dateutc"], unit="ms", utc=True
+        ).dt.tz_convert("America/Los_Angeles")
+        max_date = df_timestamps.max().date()
+        start_date = max_date - pd.Timedelta(days=29)  # 30 days inclusive
+
+        # Prepare heatmap data using existing function
+        start_ts = (
+            pd.Timestamp(start_date)
+            .tz_localize("America/Los_Angeles")
+            .tz_convert("UTC")
+        )
+        end_ts = (
+            (pd.Timestamp(max_date) + pd.Timedelta(days=1))
+            .tz_localize("America/Los_Angeles")
+            .tz_convert("UTC")
+        )
+
+        accumulation_df = lo_viz.prepare_rain_accumulation_heatmap_data(
+            archive_df=df,
+            start_date=start_ts,
+            end_date=end_ts,
+            timezone="America/Los_Angeles",
+            num_days=30,
+            row_mode="auto",  # Let it choose best mode for 30 days
+        )
+
+        # Render compact heatmap
+        if not accumulation_df.empty:
+            fig = lo_viz.create_rain_accumulation_heatmap(
+                accumulation_df=accumulation_df,
+                num_days=30,
+                row_mode="auto",
+                max_accumulation=None,  # Let function auto-scale
+                height=300,  # Compact height
+                compact=True,  # Remove legend and axis labels
+            )
+
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                key="compact_30day_heatmap_v2",
+                config={"displayModeBar": False},
+            )
+
+            # Summary stats
+            total_period = accumulation_df["accumulation"].sum()
+            max_cell = accumulation_df["accumulation"].max()
+            st.caption(f'📈 Total: {total_period:.2f}" • Peak daily: {max_cell:.2f}"')
+        else:
+            st.info("🌧️ No rainfall data in last 30 days")
+
+    except Exception as e:
+        logger.error(f"Error rendering rainfall summary widget: {e}")
+        st.info("🌧️ Rainfall summary temporarily unavailable")

@@ -9,7 +9,6 @@ import streamlit as st
 import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
 from lookout.ui import diagnostics, overview, playground, rain, rain_events
-from lookout.ui import header
 from lookout.utils.log_util import app_logger
 
 # if st.secrets.get("DEBUG", False):
@@ -70,10 +69,8 @@ if len(devices) == 1:
     st.session_state["last_data"] = device["lastData"]
     last_data = st.session_state["last_data"]
     st.session_state["device"] = device  # ← Add this
+    st.header(f"Weather Station:  {device_name}")
     logger.debug(f"One device found:  {device['info']['name']}")
-
-    # Render weather header with current conditions
-    header.render_weather_header(device_name)
 
     # Compare device's last data UTC with the archive max dateutc
     device_last_dateutc = device["lastData"].get("dateutc")
