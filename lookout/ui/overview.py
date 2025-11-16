@@ -238,7 +238,12 @@ def render_rainfall_summary_widget():
             }
 
         # Use the same violin plot as rain tab (today/yesterday only)
-        if context_df is not None and not context_df.empty:
+        # Hide chart completely if both days have no rainfall
+        if today_rain == 0.0 and yesterday_rain == 0.0:
+            # Silent - no chart or message when no rainfall
+            pass
+        elif context_df is not None and not context_df.empty:
+            st.markdown("**Recent Rainfall**")
             chart = lo_viz.create_rainfall_summary_violin(
                 daily_rain_df=daily_rain_df,
                 current_values=current_values,
