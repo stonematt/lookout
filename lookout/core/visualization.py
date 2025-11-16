@@ -930,6 +930,7 @@ def create_rainfall_summary_violin(
     rolling_context_df: pd.DataFrame,
     end_date: pd.Timestamp,
     windows: list = None,
+    title: str = None,
 ) -> go.Figure:
     """
     Create box plot showing current rainfall vs historical distributions.
@@ -1043,6 +1044,7 @@ def create_rainfall_summary_violin(
         showlegend=False,
         margin=dict(l=50, r=20, t=30, b=100),
         hovermode="x unified",
+        title=title,
     )
 
     for cat, val, pct in annotations_data:

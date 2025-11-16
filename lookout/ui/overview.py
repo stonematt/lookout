@@ -243,13 +243,13 @@ def render_rainfall_summary_widget():
             # Silent - no chart or message when no rainfall
             pass
         elif context_df is not None and not context_df.empty:
-            st.markdown("**Recent Rainfall**")
             chart = lo_viz.create_rainfall_summary_violin(
                 daily_rain_df=daily_rain_df,
                 current_values=current_values,
                 rolling_context_df=context_df,
                 end_date=end_date,
                 windows=["Today", "Yesterday"],
+                title="Recent Rainfall",
             )
 
             st.plotly_chart(chart, width="stretch", key="today_yesterday_violin")
