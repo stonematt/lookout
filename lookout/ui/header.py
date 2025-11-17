@@ -104,7 +104,7 @@ def get_weather_data() -> WeatherData:
                     duration_hours=active_event_data["duration_h"],
                 )
     except Exception as e:
-        logger.warning(f"Error getting active event: {e}")
+        logger.debug(f"Active event not available (catalog may not be loaded yet): {e}")
 
     return WeatherData(current=current, active_event=active_event)
 
@@ -114,21 +114,20 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     current = weather_data.current
     event = weather_data.active_event
 
-    # Main weather line with active event
+    # Active event banner at the top
     st.caption(
-        f"""
-    🌡️ {current.temperature:.0f}°F {current.temp_trend} • 💨 {current.wind_speed:.0f}mph {current.wind_direction} • 🌧️ {current.rain_status}    
-    **🌧️ ACTIVE EVENT ({event.duration} running)**
-    Total: {event.total_rain:.2f}" • Rate: {event.rain_rate:.2f}"/hr • Last rain: {current.time_since_rain} ago
-    Started: {event.start_time} • Duration ongoing
-    """
+        f"**🌧️\u00a0ACTIVE\u00a0EVENT\u00a0({event.duration}\u00a0running)**\u00a0•\u00a0"
+        f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0Rate:\u00a0{event.rain_rate:.2f}"/hr\u00a0•\u00a0'
+        f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago\u00a0•\u00a0Started:\u00a0{event.start_time}"
     )
 
-    # Secondary weather metrics
+    # Current conditions on one line with non-breaking spaces for better wrapping
     st.caption(
-        f"""
-    🌊 {current.barometer:.2f}" {current.barom_trend} • 💧 {current.humidity:.0f}% • ☀️ {current.uv_level}
-    """
+        f"🌡️\u00a0{current.temperature:.0f}°F\u00a0{current.temp_trend}\u00a0•\u00a0"
+        f"💨\u00a0{current.wind_speed:.0f}mph\u00a0{current.wind_direction}\u00a0•\u00a0"
+        f'🌊\u00a0{current.barometer:.2f}"\u00a0{current.barom_trend}\u00a0•\u00a0'
+        f"💧\u00a0{current.humidity:.0f}%\u00a0•\u00a0"
+        f"☀️\u00a0{current.uv_level}"
     )
 
 
