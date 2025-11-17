@@ -126,25 +126,68 @@ class StyleManager:
         @media (max-width: {self.config.mobile_breakpoint}) {{
             .weather-header {{
                 font-size: 0.8rem;
+                line-height: 1.1;
+                margin: 0.3rem 0;
             }}
             
             .active-event-banner {{
                 font-size: 0.75rem;
                 padding: 0.4rem 0.6rem;
+                line-height: 1.2;
+                margin: 0.3rem 0;
             }}
             
             .weather-metrics-line {{
-                gap: 0.3rem;
+                gap: 0.25rem;
+                margin: 0.2rem 0;
+            }}
+            
+            .metric-group {{
+                margin-right: 0.25rem;
+            }}
+            
+            .metric-separator {{
+                margin: 0 0.2rem;
             }}
         }}
         
         @media (max-width: 480px) {{
             .weather-header {{
                 font-size: 0.75rem;
+                line-height: 1.0;
+                margin: 0.2rem 0;
+            }}
+            
+            .active-event-banner {{
+                font-size: 0.7rem;
+                padding: 0.3rem 0.5rem;
+                margin: 0.2rem 0;
+            }}
+            
+            .weather-metrics-line {{
+                gap: 0.2rem;
+                flex-direction: column;
+                align-items: flex-start;
             }}
             
             .metric-group {{
-                margin-right: 0.3rem;
+                margin-right: 0;
+                margin-bottom: 0.15rem;
+            }}
+            
+            .metric-separator {{
+                display: none; /* Hide separators on small mobile */
+            }}
+        }}
+        
+        @media (max-width: 320px) {{
+            .weather-header {{
+                font-size: 0.7rem;
+            }}
+            
+            .active-event-banner {{
+                font-size: 0.65rem;
+                padding: 0.25rem 0.4rem;
             }}
         }}
         """
