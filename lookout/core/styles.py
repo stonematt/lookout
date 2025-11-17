@@ -42,7 +42,30 @@ class StyleManager:
     Centralized style management with singleton pattern.
     
     Provides CSS injection and HTML rendering utilities for consistent
-    component styling across the application.
+    component styling across application. Follows SOLID principles:
+    
+    - Single Responsibility: Manages only CSS/HTML rendering
+    - Open/Closed: Extensible without modifying existing code
+    - Dependency Inversion: Components depend on abstraction, not concrete CSS
+    
+    Usage:
+        style_manager = get_style_manager()
+        style_manager.inject_styles()  # Call once per session
+        style_manager.render_weather_header(html_content)
+    
+    CSS Classes:
+        - .weather-header: Main container for weather display
+        - .active-event-banner: Styled banner for active rain events
+        - .current-conditions: Container for current weather metrics
+        - .weather-metrics-line: Flex container for metric groups
+        - .metric-group: Individual metric with emoji and value
+        - .metric-separator: Visual separator between metrics
+    
+    Responsive Breakpoints:
+        - Desktop: >768px (horizontal layout, normal fonts)
+        - Tablet: ≤768px (tighter spacing, smaller fonts)
+        - Mobile: ≤480px (vertical layout, hidden separators)
+        - Tiny: ≤320px (ultra-compact layout)
     """
     
     _instance: Optional['StyleManager'] = None
