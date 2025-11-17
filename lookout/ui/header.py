@@ -119,7 +119,8 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     # Build active event banner content
     event_content = (
         f"🌧️\u00a0ACTIVE\u00a0EVENT\u00a0({event.duration}\u00a0running)\u00a0•\u00a0"
-        f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0Rate:\u00a0{event.rain_rate:.2f}"/hr\u00a0•\u00a0'
+        f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0'
+        f"Rate:\u00a0{event.rain_rate:.2f}\"/hr\u00a0•\u00a0"
         f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago\u00a0•\u00a0Started:\u00a0{event.start_time}"
     )
 
