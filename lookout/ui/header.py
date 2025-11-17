@@ -10,6 +10,7 @@ import pandas as pd
 
 from lookout.models.weather import CurrentConditions, ActiveEvent, WeatherData
 from lookout.core.weather_events import get_active_rain_event
+from lookout.core.styles import get_style_manager
 from lookout.utils.weather_utils import (
     format_wind_direction,
     classify_uv_level,
@@ -134,17 +135,31 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
 def _render_no_event_display(weather_data: WeatherData) -> None:
     """Render current conditions when no active rain event."""
     current = weather_data.current
+    style_manager = get_style_manager()
 
-    # Main weather line
-    st.caption(
-        f"""
-    🌡️ {current.temperature:.0f}°F {current.temp_trend} • 💨 {current.wind_speed:.0f}mph {current.wind_direction} • 🌧️ {current.rain_status}
-    """
+    # Build metric groups using StyleManager
+    temp_metric = style_manager.build_metric_group(
+        "🌡️", f"{current.temperature:.0f}°F", current.temp_trend
     )
+    wind_metric = style_manager.build_metric_group(
+        "💨", f"{current.wind_speed:.0f}mph", current.wind_direction
+    )
+    rain_metric = style_manager.build_metric_group("🌧️", current.rain_status)
+    
+    barometer_metric = style_manager.build_metric_group(
+        "🌊", f'{current.barometer:.2f}"', current.barom_trend
+    )
+    humidity_metric = style_manager.build_metric_group("💧", f"{current.humidity:.0f}%")
+    uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
 
-    # Secondary weather metrics
-    st.caption(
-        f"""
-    🌊 {current.barometer:.2f}" {current.barom_trend} • 💧 {current.humidity:.0f}% • ☀️ {current.uv_level}
-    """
-    )
+    # Build metrics lines
+    primary_line = style_manager.build_metrics_line([
+        temp_metric, wind_metric, rain_metric
+    ])
+    secondary_line = style_manager.build_metrics_line([
+        barometer_metric, humidity_metric, uv_metric
+    ])
+
+    # Render with StyleManager
+    html_content = f"{primary_line}{secondary_line}"
+    style_manager.render_weather_header(html_content)
