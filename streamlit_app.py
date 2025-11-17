@@ -72,8 +72,13 @@ if len(devices) == 1:
     st.session_state["device"] = device  # ← Add this
     logger.debug(f"One device found:  {device['info']['name']}")
 
+    # Create header placeholder for dynamic updates
+    header_placeholder = st.empty()
+    st.session_state["header_placeholder"] = header_placeholder
+
     # Render weather header with current conditions
-    header.render_weather_header(device_name)
+    with header_placeholder.container():
+        header.render_weather_header(device_name)
 
     # Compare device's last data UTC with the archive max dateutc
     device_last_dateutc = device["lastData"].get("dateutc")
