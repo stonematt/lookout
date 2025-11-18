@@ -116,12 +116,12 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     event = weather_data.active_event
     style_manager = get_style_manager()
 
-    # Build active event banner content
+    # Build active event banner content with line break
     event_content = (
-        f"🌧️\u00a0ACTIVE\u00a0EVENT\u00a0({event.duration}\u00a0running)\u00a0•\u00a0"
+        f"🌧️\u00a0Rain\u00a0Event\u00a0Started:\u00a0{event.start_time}\u00a0•\u00a0Running:\u00a0{event.duration}\u00a0  \n"
         f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0'
         f"Rate:\u00a0{event.rain_rate:.2f}\"/hr\u00a0•\u00a0"
-        f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago\u00a0•\u00a0Started:\u00a0{event.start_time}"
+        f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago"
     )
 
     # Build current conditions metrics (same as no-event)
