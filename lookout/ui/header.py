@@ -120,7 +120,7 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     event_content = (
         f"🌧️\u00a0ACTIVE\u00a0EVENT\u00a0({event.duration}\u00a0running)\u00a0•\u00a0"
         f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0'
-        f"Rate:\u00a0{event.rain_rate:.2f}\"/hr\u00a0•\u00a0"
+        f'Rate:\u00a0{event.rain_rate:.2f}"/hr\u00a0•\u00a0'
         f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago\u00a0•\u00a0Started:\u00a0{event.start_time}"
     )
 
@@ -138,10 +138,9 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
 
     # Build current conditions line
-    conditions_line = style_manager.build_metrics_line([
-        temp_metric, wind_metric, barometer_metric, 
-        humidity_metric, uv_metric
-    ])
+    conditions_line = style_manager.build_metrics_line(
+        [temp_metric, wind_metric, barometer_metric, humidity_metric, uv_metric]
+    )
 
     # Render with StyleManager
     style_manager.render_active_event_banner(event_content)
@@ -161,7 +160,7 @@ def _render_no_event_display(weather_data: WeatherData) -> None:
         "💨", f"{current.wind_speed:.0f}mph", current.wind_direction
     )
     rain_metric = style_manager.build_metric_group("🌧️", current.rain_status)
-    
+
     barometer_metric = style_manager.build_metric_group(
         "🌊", f'{current.barometer:.2f}"', current.barom_trend
     )
@@ -169,13 +168,13 @@ def _render_no_event_display(weather_data: WeatherData) -> None:
     uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
 
     # Build metrics lines
-    primary_line = style_manager.build_metrics_line([
-        temp_metric, wind_metric, rain_metric
-    ])
-    secondary_line = style_manager.build_metrics_line([
-        barometer_metric, humidity_metric, uv_metric
-    ])
+    primary_line = style_manager.build_metrics_line(
+        [temp_metric, wind_metric, rain_metric]
+    )
+    secondary_line = style_manager.build_metrics_line(
+        [barometer_metric, humidity_metric, uv_metric]
+    )
 
-    # Render with StyleManager
-    html_content = f"{primary_line}{secondary_line}"
-    style_manager.render_weather_header(html_content)
+    # Render with StyleManager - two stacked divs
+    style_manager.render_current_conditions(primary_line)
+    style_manager.render_current_conditions(secondary_line)
