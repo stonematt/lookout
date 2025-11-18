@@ -38,6 +38,8 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
+from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
+
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history, get_devices
 from lookout.utils.log_util import app_logger
@@ -75,6 +77,16 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
         updated_df = get_history_since_last_archive(
             device, current_df, limit=limit, pages=pages
         )
+
+        # Calculate trends for latest data point
+        if not updated_df.empty:
+            latest_row = updated_df.iloc[0]  # Most recent (archive is reverse sorted)
+            temp_trend = calculate_temperature_trend(updated_df, latest_row['tempf'])
+            barom_trend = calculate_barometer_trend(updated_df, latest_row['baromrelin'])
+            
+            # Store trends in session state
+            st.session_state["temp_trend"] = temp_trend
+            st.session_state["barom_trend"] = barom_trend
 
         # Update session state
         st.session_state["history_df"] = updated_df

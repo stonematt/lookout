@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 import lookout.api.awn_controller as awn
+from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -37,6 +38,16 @@ def load_or_update_data(
         st.session_state["history_df"] = awn.load_archive_for_device(
             device, bucket, file_type
         )
+
+        # Calculate trends for initial load
+        if not st.session_state["history_df"].empty:
+            latest_row = st.session_state["history_df"].iloc[0]
+            temp_trend = calculate_temperature_trend(st.session_state["history_df"], latest_row['tempf'])
+            barom_trend = calculate_barometer_trend(st.session_state["history_df"], latest_row['baromrelin'])
+            
+            # Store trends in session state
+            st.session_state["temp_trend"] = temp_trend
+            st.session_state["barom_trend"] = barom_trend
 
         # Initialize session state variables
         max_ms = st.session_state["history_df"]["dateutc"].max()

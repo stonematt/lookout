@@ -260,6 +260,27 @@ def render():
                     logger.info(
                         f"Catalog updated and cached in session: {len(events_df)} events"
                     )
+
+                    # Update header with active event information now that catalog is available
+                    if (
+                        "header_placeholder" in st.session_state
+                        and "device" in st.session_state
+                    ):
+                        try:
+                            from lookout.ui import header
+
+                            device_name = (
+                                st.session_state["device"]
+                                .get("info", {})
+                                .get("name", "Unknown")
+                            )
+                            with st.session_state.header_placeholder.container():
+                                header.render_weather_header(device_name)
+                            logger.debug("Header updated with active event information")
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to update header after catalog load: {e}"
+                            )
                 else:
                     logger.warning("Loaded catalog from storage is empty")
                     catalog_source = None
@@ -277,6 +298,27 @@ def render():
                 logger.info(
                     f"Fresh catalog generated and cached: {len(events_df)} events"
                 )
+
+                # Update header with active event information now that catalog is available
+                if (
+                    "header_placeholder" in st.session_state
+                    and "device" in st.session_state
+                ):
+                    try:
+                        from lookout.ui import header
+
+                        device_name = (
+                            st.session_state["device"]
+                            .get("info", {})
+                            .get("name", "Unknown")
+                        )
+                        with st.session_state.header_placeholder.container():
+                            header.render_weather_header(device_name)
+                        logger.debug("Header updated with active event information")
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to update header after catalog generation: {e}"
+                        )
 
         if events_df is not None and not events_df.empty:
             zero_rate_count = (events_df["max_hourly_rate"] == 0).sum()

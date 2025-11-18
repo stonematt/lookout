@@ -10,6 +10,7 @@ import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
 from lookout.ui import diagnostics, overview, playground, rain, rain_events
 from lookout.ui import header
+from lookout.core.styles import get_style_manager
 from lookout.utils.log_util import app_logger
 
 # if st.secrets.get("DEBUG", False):
@@ -30,6 +31,9 @@ from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
+# Initialize global styles
+style_manager = get_style_manager()
+style_manager.inject_styles()
 
 st.set_page_config(
     page_title="Weather Station Dashboard",
@@ -72,8 +76,13 @@ if len(devices) == 1:
     st.session_state["device"] = device  # ← Add this
     logger.debug(f"One device found:  {device['info']['name']}")
 
+    # Create header placeholder for dynamic updates
+    header_placeholder = st.empty()
+    st.session_state["header_placeholder"] = header_placeholder
+
     # Render weather header with current conditions
-    header.render_weather_header(device_name)
+    with header_placeholder.container():
+        header.render_weather_header(device_name)
 
     # Compare device's last data UTC with the archive max dateutc
     device_last_dateutc = device["lastData"].get("dateutc")
