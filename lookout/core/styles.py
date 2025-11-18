@@ -32,6 +32,8 @@ class StyleConfig:
     separator_color: str = "#666666"
     active_event_bg: str = "#fff3cd"
     active_event_border: str = "#ffeaa7"
+    current_conditions_bg: str = "#f8f9fa"
+    current_conditions_border: str = "#e9ecef"
 
     # Responsive breakpoints
     mobile_breakpoint: str = "768px"
@@ -112,9 +114,10 @@ class StyleManager:
         }}
         
         .metric-group {{
-            display: inline-block;
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
             white-space: nowrap;
-            margin-right: {self.config.metric_spacing};
         }}
         
         .metric-separator {{
@@ -124,7 +127,13 @@ class StyleManager:
         }}
         
         .current-conditions {{
-            margin: 0.25rem 0;
+            background-color: {self.config.current_conditions_bg};
+            border: 1px solid {self.config.current_conditions_border};
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            margin: 0.5rem 0;
+            font-size: 0.85rem;
+            line-height: 1.3;
         }}
         
         .active-event-banner {{
@@ -161,6 +170,13 @@ class StyleManager:
                 margin: 0.3rem 0;
             }}
             
+            .current-conditions {{
+                font-size: 0.75rem;
+                padding: 0.4rem 0.6rem;
+                line-height: 1.2;
+                margin: 0.3rem 0;
+            }}
+            
             .weather-metrics-line {{
                 gap: 0.25rem;
                 margin: 0.2rem 0;
@@ -183,6 +199,12 @@ class StyleManager:
             }}
             
             .active-event-banner {{
+                font-size: 0.7rem;
+                padding: 0.3rem 0.5rem;
+                margin: 0.2rem 0;
+            }}
+            
+            .current-conditions {{
                 font-size: 0.7rem;
                 padding: 0.3rem 0.5rem;
                 margin: 0.2rem 0;
@@ -213,6 +235,11 @@ class StyleManager:
                 font-size: 0.65rem;
                 padding: 0.25rem 0.4rem;
             }}
+            
+            .current-conditions {{
+                font-size: 0.65rem;
+                padding: 0.25rem 0.4rem;
+            }}
         }}
         """
 
@@ -240,7 +267,7 @@ class StyleManager:
 
         :param html_content: HTML content for current conditions
         """
-        wrapped_html = f'<div class="active-event-banner">{html_content}</div>'
+        wrapped_html = f'<div class="current-conditions">{html_content}</div>'
         st.markdown(wrapped_html, unsafe_allow_html=True)
 
     def build_metric_group(

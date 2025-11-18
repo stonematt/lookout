@@ -120,11 +120,11 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     event_content = (
         f"🌧️\u00a0ACTIVE\u00a0EVENT\u00a0({event.duration}\u00a0running)\u00a0•\u00a0"
         f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0'
-        f'Rate:\u00a0{event.rain_rate:.2f}"/hr\u00a0•\u00a0'
+        f"Rate:\u00a0{event.rain_rate:.2f}\"/hr\u00a0•\u00a0"
         f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago\u00a0•\u00a0Started:\u00a0{event.start_time}"
     )
 
-    # Build current conditions metrics
+    # Build current conditions metrics (same as no-event)
     temp_metric = style_manager.build_metric_group(
         "🌡️", f"{current.temperature:.0f}°F", current.temp_trend
     )
@@ -137,14 +137,16 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     humidity_metric = style_manager.build_metric_group("💧", f"{current.humidity:.0f}%")
     uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
 
-    # Build current conditions line
-    conditions_line = style_manager.build_metrics_line(
-        [temp_metric, wind_metric, barometer_metric, humidity_metric, uv_metric]
-    )
+    # Build current conditions line (all metrics in one line)
+    all_metrics = [
+        temp_metric, wind_metric, barometer_metric,
+        humidity_metric, uv_metric
+    ]
+    metrics_line = style_manager.build_metrics_line(all_metrics)
 
-    # Render with StyleManager
+    # Render with StyleManager - unified structure
     style_manager.render_active_event_banner(event_content)
-    style_manager.render_current_conditions(conditions_line)
+    style_manager.render_current_conditions(metrics_line)
 
 
 def _render_no_event_display(weather_data: WeatherData) -> None:
@@ -159,7 +161,9 @@ def _render_no_event_display(weather_data: WeatherData) -> None:
     wind_metric = style_manager.build_metric_group(
         "💨", f"{current.wind_speed:.0f}mph", current.wind_direction
     )
-    rain_metric = style_manager.build_metric_group("🌧️", current.rain_status)
+    # Change "Dry" to "Last Rain" when no active event
+    rain_status = current.rain_status.replace("Dry", "Last Rain")
+    rain_metric = style_manager.build_metric_group("🌧️", rain_status)
 
     barometer_metric = style_manager.build_metric_group(
         "🌊", f'{current.barometer:.2f}"', current.barom_trend
@@ -167,14 +171,12 @@ def _render_no_event_display(weather_data: WeatherData) -> None:
     humidity_metric = style_manager.build_metric_group("💧", f"{current.humidity:.0f}%")
     uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
 
-    # Build metrics lines
-    primary_line = style_manager.build_metrics_line(
-        [temp_metric, wind_metric, rain_metric]
-    )
-    secondary_line = style_manager.build_metrics_line(
-        [barometer_metric, humidity_metric, uv_metric]
-    )
+    # Build metrics line (all weather metrics in one div)
+    all_metrics = [
+        temp_metric, wind_metric, rain_metric,
+        barometer_metric, humidity_metric, uv_metric
+    ]
+    metrics_line = style_manager.build_metrics_line(all_metrics)
 
-    # Render with StyleManager - two stacked divs
-    style_manager.render_current_conditions(primary_line)
-    style_manager.render_current_conditions(secondary_line)
+    # Render with StyleManager - single div
+    style_manager.render_current_conditions(metrics_line)
