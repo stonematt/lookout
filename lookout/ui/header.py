@@ -10,6 +10,7 @@ import pandas as pd
 
 from lookout.models.weather import CurrentConditions, ActiveEvent, WeatherData
 from lookout.core.weather_events import get_active_rain_event
+from lookout.core.styles import get_style_manager
 from lookout.utils.weather_utils import (
     format_wind_direction,
     classify_uv_level,
@@ -113,38 +114,74 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
     """Render current conditions when active rain event is present."""
     current = weather_data.current
     event = weather_data.active_event
+    style_manager = get_style_manager()
 
-    # Active event banner at the top
-    st.caption(
-        f"**🌧️\u00a0ACTIVE\u00a0EVENT\u00a0({event.duration}\u00a0running)**\u00a0•\u00a0"
-        f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0Rate:\u00a0{event.rain_rate:.2f}"/hr\u00a0•\u00a0'
-        f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago\u00a0•\u00a0Started:\u00a0{event.start_time}"
+    # Build active event banner content with hanging indent structure
+    event_content = (
+        f'<div class="event-line">'
+        f'<span class="emoji-bullet">🌧️</span>'
+        f'<span class="event-content">Rain\u00a0Event\u00a0Started:\u00a0{event.start_time}\u00a0•\u00a0Running:\u00a0{event.duration}</span>'
+        f'</div>'
+        f'<div class="metrics-line">'
+        f'Total:\u00a0{event.total_rain:.2f}"\u00a0•\u00a0'
+        f"Rate:\u00a0{event.rain_rate:.2f}\"/hr\u00a0•\u00a0"
+        f"Last\u00a0rain:\u00a0{current.time_since_rain}\u00a0ago"
+        f'</div>'
     )
 
-    # Current conditions on one line with non-breaking spaces for better wrapping
-    st.caption(
-        f"🌡️\u00a0{current.temperature:.0f}°F\u00a0{current.temp_trend}\u00a0•\u00a0"
-        f"💨\u00a0{current.wind_speed:.0f}mph\u00a0{current.wind_direction}\u00a0•\u00a0"
-        f'🌊\u00a0{current.barometer:.2f}"\u00a0{current.barom_trend}\u00a0•\u00a0'
-        f"💧\u00a0{current.humidity:.0f}%\u00a0•\u00a0"
-        f"☀️\u00a0{current.uv_level}"
+    # Build current conditions metrics (same as no-event)
+    temp_metric = style_manager.build_metric_group(
+        "🌡️", f"{current.temperature:.0f}°F", current.temp_trend
     )
+    wind_metric = style_manager.build_metric_group(
+        "💨", f"{current.wind_speed:.0f}mph", current.wind_direction
+    )
+    barometer_metric = style_manager.build_metric_group(
+        "🌊", f'{current.barometer:.2f}"', current.barom_trend
+    )
+    humidity_metric = style_manager.build_metric_group("💧", f"{current.humidity:.0f}%")
+    uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
+
+    # Build current conditions line (all metrics in one line)
+    all_metrics = [
+        temp_metric, wind_metric, barometer_metric,
+        humidity_metric, uv_metric
+    ]
+    metrics_line = style_manager.build_metrics_line(all_metrics)
+
+    # Render with StyleManager - unified structure
+    style_manager.render_active_event_banner(event_content)
+    style_manager.render_current_conditions(metrics_line)
 
 
 def _render_no_event_display(weather_data: WeatherData) -> None:
     """Render current conditions when no active rain event."""
     current = weather_data.current
+    style_manager = get_style_manager()
 
-    # Main weather line
-    st.caption(
-        f"""
-    🌡️ {current.temperature:.0f}°F {current.temp_trend} • 💨 {current.wind_speed:.0f}mph {current.wind_direction} • 🌧️ {current.rain_status}
-    """
+    # Build metric groups using StyleManager
+    temp_metric = style_manager.build_metric_group(
+        "🌡️", f"{current.temperature:.0f}°F", current.temp_trend
     )
+    wind_metric = style_manager.build_metric_group(
+        "💨", f"{current.wind_speed:.0f}mph", current.wind_direction
+    )
+    # Change "Dry" to "Last Rain" when no active event
+    rain_status = current.rain_status.replace("Dry", "Last Rain")
+    rain_metric = style_manager.build_metric_group("🌧️", rain_status)
 
-    # Secondary weather metrics
-    st.caption(
-        f"""
-    🌊 {current.barometer:.2f}" {current.barom_trend} • 💧 {current.humidity:.0f}% • ☀️ {current.uv_level}
-    """
+    barometer_metric = style_manager.build_metric_group(
+        "🌊", f'{current.barometer:.2f}"', current.barom_trend
     )
+    humidity_metric = style_manager.build_metric_group("💧", f"{current.humidity:.0f}%")
+    uv_metric = style_manager.build_metric_group("☀️", current.uv_level)
+
+    # Build metrics line (all weather metrics in one div)
+    all_metrics = [
+        temp_metric, wind_metric, rain_metric,
+        barometer_metric, humidity_metric, uv_metric
+    ]
+    metrics_line = style_manager.build_metrics_line(all_metrics)
+
+    # Render with StyleManager - single div
+    style_manager.render_current_conditions(metrics_line)

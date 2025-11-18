@@ -10,6 +10,7 @@ import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
 from lookout.ui import diagnostics, overview, playground, rain, rain_events
 from lookout.ui import header
+from lookout.core.styles import get_style_manager
 from lookout.utils.log_util import app_logger
 
 # if st.secrets.get("DEBUG", False):
@@ -30,6 +31,9 @@ from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
+# Initialize global styles
+style_manager = get_style_manager()
+style_manager.inject_styles()
 
 st.set_page_config(
     page_title="Weather Station Dashboard",
