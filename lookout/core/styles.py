@@ -147,6 +147,26 @@ class StyleManager:
             line-height: 1.3;
         }}
         
+        .event-line {{
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.25rem;
+        }}
+        
+        .emoji-bullet {{
+            flex-shrink: 0;
+            margin-right: 0.5rem;
+            font-size: 1.0em;
+        }}
+        
+        .event-content {{
+            flex: 1;
+        }}
+        
+        .metrics-line {{
+            margin-left: 1.5rem; /* Align with event content */
+        }}
+        
         .weather-metrics-line {{
             margin: 0.25rem 0;
             display: flex;
@@ -175,6 +195,19 @@ class StyleManager:
                 padding: 0.4rem 0.6rem;
                 line-height: 1.2;
                 margin: 0.3rem 0;
+            }}
+            
+            .event-line {{
+                margin-bottom: 0.2rem;
+            }}
+            
+            .emoji-bullet {{
+                margin-right: 0.4rem;
+                font-size: 0.9em;
+            }}
+            
+            .metrics-line {{
+                margin-left: 1.2rem;
             }}
             
             .weather-metrics-line {{
@@ -210,6 +243,19 @@ class StyleManager:
                 margin: 0.2rem 0;
             }}
             
+            .event-line {{
+                margin-bottom: 0.15rem;
+            }}
+            
+            .emoji-bullet {{
+                margin-right: 0.3rem;
+                font-size: 0.85em;
+            }}
+            
+            .metrics-line {{
+                margin-left: 1.0rem;
+            }}
+            
             .weather-metrics-line {{
                 gap: 0.2rem;
                 flex-direction: column;
@@ -239,6 +285,19 @@ class StyleManager:
             .current-conditions {{
                 font-size: 0.65rem;
                 padding: 0.25rem 0.4rem;
+            }}
+            
+            .event-line {{
+                margin-bottom: 0.1rem;
+            }}
+            
+            .emoji-bullet {{
+                margin-right: 0.25rem;
+                font-size: 0.8em;
+            }}
+            
+            .metrics-line {{
+                margin-left: 0.9rem;
             }}
         }}
         """
