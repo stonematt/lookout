@@ -85,6 +85,8 @@ def get_weather_data() -> WeatherData:
         uv_level=uv_level,
         rain_status=rain_status,
         time_since_rain=time_since_rain,
+        temp_trend=st.session_state.get("temp_trend", "→"),
+        barom_trend=st.session_state.get("barom_trend", "→"),
     )
 
     # Get active event if available
