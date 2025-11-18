@@ -5,10 +5,11 @@ This module provides a scalable CSS architecture following SOLID principles
 for consistent styling across the application.
 """
 
-import streamlit as st
+import re
 from dataclasses import dataclass
 from typing import Dict, Optional
-import re
+
+import streamlit as st
 
 from lookout.utils.log_util import app_logger
 
@@ -18,20 +19,20 @@ logger = app_logger(__name__)
 @dataclass
 class StyleConfig:
     """Configuration dataclass for style parameters."""
-    
+
     # Weather header styles
     header_font_size: str = "0.9rem"
     header_line_height: str = "1.2"
     header_letter_spacing: str = "0.5px"
     metric_spacing: str = "0.5rem"
     separator_margin: str = "0.3rem"
-    
+
     # Colors
     text_color: str = "#262730"
     separator_color: str = "#666666"
     active_event_bg: str = "#fff3cd"
     active_event_border: str = "#ffeaa7"
-    
+
     # Responsive breakpoints
     mobile_breakpoint: str = "768px"
     tablet_breakpoint: str = "1024px"
@@ -40,19 +41,19 @@ class StyleConfig:
 class StyleManager:
     """
     Centralized style management with singleton pattern.
-    
+
     Provides CSS injection and HTML rendering utilities for consistent
     component styling across application. Follows SOLID principles:
-    
+
     - Single Responsibility: Manages only CSS/HTML rendering
     - Open/Closed: Extensible without modifying existing code
     - Dependency Inversion: Components depend on abstraction, not concrete CSS
-    
+
     Usage:
         style_manager = get_style_manager()
         style_manager.inject_styles()  # Call once per session
         style_manager.render_weather_header(html_content)
-    
+
     CSS Classes:
         - .weather-header: Main container for weather display
         - .active-event-banner: Styled banner for active rain events
@@ -60,43 +61,43 @@ class StyleManager:
         - .weather-metrics-line: Flex container for metric groups
         - .metric-group: Individual metric with emoji and value
         - .metric-separator: Visual separator between metrics
-    
+
     Responsive Breakpoints:
         - Desktop: >768px (horizontal layout, normal fonts)
         - Tablet: ≤768px (tighter spacing, smaller fonts)
         - Mobile: ≤480px (vertical layout, hidden separators)
         - Tiny: ≤320px (ultra-compact layout)
     """
-    
-    _instance: Optional['StyleManager'] = None
+
+    _instance: Optional["StyleManager"] = None
     _initialized: bool = False
-    
-    def __new__(cls) -> 'StyleManager':
+
+    def __new__(cls) -> "StyleManager":
         """Implement singleton pattern."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def __init__(self) -> None:
         """Initialize StyleManager with default configuration."""
-        if not hasattr(self, '_config'):
+        if not hasattr(self, "_config"):
             self._config = StyleConfig()
-    
+
     @property
     def config(self) -> StyleConfig:
         """Get current style configuration."""
         return self._config
-    
+
     def inject_styles(self) -> None:
         """Inject global CSS styles once per session."""
         if "styles_injected" in st.session_state:
             return
-            
+
         css = self._generate_css()
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
         st.session_state["styles_injected"] = True
         logger.debug("Global CSS styles injected")
-    
+
     def _generate_css(self) -> str:
         """Generate CSS rules from configuration."""
         return f"""
@@ -214,38 +215,40 @@ class StyleManager:
             }}
         }}
         """
-    
+
     def render_weather_header(self, html_content: str) -> None:
         """
         Render weather header with proper CSS classes.
-        
+
         :param html_content: HTML content for weather header
         """
         wrapped_html = f'<div class="weather-header">{html_content}</div>'
         st.markdown(wrapped_html, unsafe_allow_html=True)
-    
+
     def render_active_event_banner(self, html_content: str) -> None:
         """
         Render active event banner with styling.
-        
+
         :param html_content: HTML content for active event
         """
         wrapped_html = f'<div class="active-event-banner">{html_content}</div>'
         st.markdown(wrapped_html, unsafe_allow_html=True)
-    
+
     def render_current_conditions(self, html_content: str) -> None:
         """
         Render current conditions with proper styling.
-        
+
         :param html_content: HTML content for current conditions
         """
-        wrapped_html = f'<div class="current-conditions">{html_content}</div>'
+        wrapped_html = f'<div class="active-event-banner">{html_content}</div>'
         st.markdown(wrapped_html, unsafe_allow_html=True)
-    
-    def build_metric_group(self, emoji: str, value: str, unit: str = "", trend: str = "") -> str:
+
+    def build_metric_group(
+        self, emoji: str, value: str, unit: str = "", trend: str = ""
+    ) -> str:
         """
         Build HTML for a metric group with emoji and value.
-        
+
         :param emoji: Emoji icon for the metric
         :param value: Metric value
         :param unit: Optional unit string
@@ -259,35 +262,35 @@ class StyleManager:
             parts.append(unit)
         if trend:
             parts.append(trend)
-        
+
         content = "\u00a0".join(parts)  # Non-breaking spaces
         return f'<span class="metric-group">{content}</span>'
-    
+
     def build_separator(self) -> str:
         """
         Build HTML for a separator between metrics.
-        
+
         :return: HTML string for separator
         """
         return f'<span class="metric-separator">\u00a0•\u00a0</span>'
-    
+
     def build_metrics_line(self, metric_groups: list[str]) -> str:
         """
         Build HTML for a line of weather metrics.
-        
+
         :param metric_groups: List of metric group HTML strings
         :return: HTML string for the metrics line
         """
         if not metric_groups:
             return ""
-        
+
         # Insert separators between metric groups
         result = []
         for i, group in enumerate(metric_groups):
             result.append(group)
             if i < len(metric_groups) - 1:
                 result.append(self.build_separator())
-        
+
         content = "".join(result)
         return f'<div class="weather-metrics-line">{content}</div>'
 
@@ -295,7 +298,7 @@ class StyleManager:
 def get_style_manager() -> StyleManager:
     """
     Get the singleton StyleManager instance.
-    
+
     :return: StyleManager instance
     """
     return StyleManager()
