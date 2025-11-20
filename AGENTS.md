@@ -1,5 +1,7 @@
 # Agent Guidelines for Lookout Weather Dashboard
 
+> **Note**: General development standards (code style, branching, commits) are documented in [CONTRIBUTING.md](CONTRIBUTING.md). This file contains project-specific patterns and agent behaviors.
+
 ## Build/Lint/Test Commands
 - Run app: `streamlit run streamlit_app.py`
 - Format: `black .`
@@ -8,14 +10,10 @@
 - Run single test: `pytest path/to/test_file.py::test_function_name`
 - CLI scripts: `PYTHONPATH=. python lookout/cli/script_name.py`
 
-## Code Style
-- **Formatting**: Black (88 char line limit), flake8 compliant
+## Project-Specific Code Style
 - **Imports**: Fully qualified (`lookout.api.ambient_client`), grouped: stdlib → third-party → local
-- **Types**: Type hints required for all function parameters and returns
-- **Naming**: snake_case for functions/variables, PascalCase for classes, UPPER_CASE for constants
-- **Docstrings**: Required for all modules/functions with `:param:` and `:return:` format (see code_standards.md)
 - **Error Handling**: Use `lookout.utils.log_util.app_logger(__name__)` instead of print statements
-- **Comments**: Inline comments for context, keep concise within 88 char limit
+- **Docstrings**: Follow format in `code_standards.md` for consistency with existing codebase
 
 ## Key Patterns
 - Secrets via `st.secrets` (`.streamlit/secrets.toml`)
@@ -28,48 +26,28 @@
 - **Event catalog updates during app runtime with combined archive + live data**
 - **Session data is always current, even if cloud archive is stale**
 
-## Branching Strategy
+## Agent-Specific Behaviors
 
-### Workflow Pattern
-1. **main** = Development/pre-release branch (always start new features from here)
-2. **feature/branch-name** = New features and enhancements
-3. **fix/branch-name** = Bug fixes and patches
-4. **live** = Production branch (only receives merges from main)
-
-### Development Flow
-- Create new branches: `git checkout -b feature/feature-name main`
-- Create fix branches: `git checkout -b fix/issue-description main`
-- Pull Requests: `feature/` or `fix/` branches → `main` (development integration)
-- Releases: `main` → `live` (production deployment)
-
-### Branch Guidelines
-- **Prefer working on feature/fix branches** - create appropriate branches for development
-- **Resist working directly on main or live** - only for emergency fixes or release merges
-- **Delete feature/fix branches after merge** - keep repository clean
-- **Use descriptive branch names** - e.g., `feature/heatmap-improvements`, `fix/data-validation-error`
-
-### Agent Branch Strategy
+### Branch Strategy for Agents
 - **Always create branches for multi-step tasks** - Use todo list to track complex work
 - **Branch naming**: `fix/` for bug fixes, `feature/` for enhancements
 - **Commit strategy**: Commit logical milestones, not every small change
 - **PR creation**: Create PRs when work is complete and tested
 - **Merge target**: Always merge to `main` branch first, then `main` → `live` for releases
 
-## Commit Guidelines
+### Commit Decision Protocol
 
-### When to Commit
-
-**DO commit when:**
+**When to Commit:**
 - User explicitly directs: "commit", "commit this", "commit it"
 - User switches topics with uncommitted changes (remind user first)
 - Completing a validated, working feature milestone
 - Before starting risky or experimental work (create checkpoint)
 
-**DON'T commit when:**
+**When NOT to Commit:**
 - Iterating on fixes or refinements (wait for validation)
 - During active debugging sessions
 - Making incremental improvements to UI/metrics/quality
-- User explicitly says "don't commit until verified" or similar
+- User explicitly says "don't commit until verified"
 
 ### Topic Change Protocol
 
@@ -88,7 +66,7 @@ Agent: "You have uncommitted changes to rain_events.py and rain.py
 - Ask user preference
 - Don't auto-commit without permission
 
-### Commit Message Style
+### Commit Message Style for Agents
 
 **Structure:**
 - Summary line (imperative mood, 50-70 chars)
@@ -118,24 +96,6 @@ Rationale: hourlyrainin is 60-min rolling accumulation, not instantaneous rate.
 Proper rate uses dailyrainin.diff() * 12 for 5-min intervals,
 then rolling(2).sum() * 6 for 10-min rate matching console definition.
 ```
-
-**Guidelines:**
-- Scannable bullet points for human review
-- Rationale section for agent context and technical decisions
-- Focus on "why" and architectural choices
-- Avoid test results, line numbers, verbose descriptions
-
-**What to Include:**
-- Technical approach and key decisions
-- Problem→solution mapping
-- Cross-references to external analysis
-- Brief rationale for non-obvious choices
-
-**What to Avoid:**
-- Test results and output samples
-- Line-by-line change descriptions
-- Code snippets (diff shows this)
-- Preamble like "This commit..."
 
 **Rationale Section Value:**
 The brief "Rationale:" paragraph helps agents understand design decisions
