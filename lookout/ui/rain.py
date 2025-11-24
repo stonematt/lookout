@@ -20,7 +20,7 @@ from lookout.utils.memory_utils import (
 logger = app_logger(__name__)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=5, ttl=3600)
 def _cached_rolling_context(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v2"
 ):
@@ -78,7 +78,7 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
         st.dataframe(view.set_index("Window"), width="stretch")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=5, ttl=3600)
 def _cached_violin_data(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v1"
 ):
@@ -96,7 +96,7 @@ def _cached_violin_data(
     return result
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=5, ttl=3600)
 def _cached_accumulation_data(
     df: pd.DataFrame,
     start_date: pd.Timestamp,
