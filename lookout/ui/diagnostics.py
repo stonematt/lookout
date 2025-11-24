@@ -207,10 +207,10 @@ def render():
     st.subheader("Memory Usage Analysis")
     
     # Get memory stats
-        memory_mb = get_memory_usage()
-        if memory_mb == MEMORY_UNAVAILABLE:
-            st.info("Install psutil (`pip install psutil`) for detailed memory monitoring")
-            return
+    memory_mb = get_memory_usage()
+    if memory_mb == MEMORY_UNAVAILABLE:
+        st.info("Install psutil (`pip install psutil`) for detailed memory monitoring")
+        return
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -219,7 +219,7 @@ def render():
             st.metric("Session Counter", st.session_state.get("session_counter", 0))
         with col3:
             gc.collect()
-                    st.metric("After GC", f"{get_memory_usage():.1f} MB")
+            st.metric("After GC", f"{get_memory_usage():.1f} MB")
         
         # Detailed memory analysis
         st.write("**Detailed Memory Analysis:**")
@@ -462,10 +462,7 @@ def render():
         elif memory_mb > 800:  # Critical threshold
             st.error(f"🚨 Critical memory usage: {memory_mb:.1f} MB. Memory leak likely in progress.")
             
-    except ImportError:
-        st.info("Install psutil (`pip install psutil`) for detailed memory monitoring")
-    except Exception as e:
-        st.error(f"Memory monitoring error: {e}")
+
 
     # 9. Final Data Row
     st.subheader("Last Data Record")

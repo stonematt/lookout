@@ -546,20 +546,14 @@ def render():
             st.dataframe(daily_rain_df.tail(10))
     
     # Memory tracking at tab exit
-    try:
-        import psutil
-        end_memory = get_memory_usage()
-        logger.debug(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
-        
-        # Memory tracking at tab exit
-        end_memory = get_memory_usage()
-        log_memory_usage("TAB rain END", start_memory)
-        
-        # Force cleanup of visualization objects
-        force_garbage_collection()
-        
-        # Additional cleanup for cached function results
-        cleanup_cache_functions(_cached_rolling_context, _cached_violin_data, _cached_accumulation_data)
-        
-        final_memory = get_memory_usage()
-        log_memory_usage("TAB rain FINAL", after_gc_memory)
+    end_memory = get_memory_usage()
+    log_memory_usage("TAB rain END", start_memory)
+    
+    # Force cleanup of visualization objects
+    force_garbage_collection()
+    
+    # Additional cleanup for cached function results
+    cleanup_cache_functions(_cached_rolling_context, _cached_violin_data, _cached_accumulation_data)
+    
+    final_memory = get_memory_usage()
+    log_memory_usage("TAB rain FINAL", end_memory)
