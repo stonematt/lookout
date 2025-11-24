@@ -19,7 +19,7 @@ logger = app_logger(__name__)
 
 
 # ========================================
-# Engtry points
+# Entry points
 # ========================================
 def load_or_update_data(
     device, bucket, file_type, auto_update, short_minutes, long_minutes
