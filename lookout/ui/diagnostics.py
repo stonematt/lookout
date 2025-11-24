@@ -9,6 +9,7 @@ from lookout.core.data_processing import detect_gaps, get_human_readable_duratio
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import get_memory_usage, log_memory_usage, force_garbage_collection, get_object_counts
 
 logger = app_logger(__name__)
 
@@ -16,11 +17,7 @@ logger = app_logger(__name__)
 def analyze_cache_usage():
     """Analyze Streamlit cache usage patterns."""
     try:
-        import gc
-        import weakref
-        
         # Get all objects before and after cache operations
-        gc.collect()
         before_objects = len(gc.get_objects())
         
         # Try to trigger cache usage
@@ -376,8 +373,7 @@ def render():
         st.session_state["tab_memory_history"].append(current_memory)
         
         # Log memory snapshot with GC analysis (DEBUG level only)
-        gc.collect()  # Force garbage collection
-        gc_objects = len(gc.get_objects())
+        gc_objects = force_garbage_collection()
         
         logger.debug(
             f"MEMORY_SNAPSHOT: {current_memory['process_memory_mb']:.1f}MB "

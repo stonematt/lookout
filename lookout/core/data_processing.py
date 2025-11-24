@@ -10,6 +10,7 @@ import sys
 import lookout.api.awn_controller as awn
 from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import get_memory_usage, log_memory_usage
 
 logger = app_logger(__name__)
 
@@ -98,12 +99,9 @@ def load_or_update_data(
         )
         
         # Log process memory after update
-        try:
-            import psutil
-            process_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        process_memory = get_memory_usage()
+        if process_memory > 0:
             logger.debug(f"PROCESS_MEMORY after update: {process_memory:.1f}MB")
-        except ImportError:
-            pass
 
         logger.info("Historical data updated successfully.")
         update_message.empty()
