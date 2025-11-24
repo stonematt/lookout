@@ -12,7 +12,10 @@ import streamlit as st
 import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.visualization as lo_viz
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import get_memory_usage, log_memory_usage, force_garbage_collection, cleanup_cache_functions
+from lookout.utils.memory_utils import (
+    get_memory_usage, log_memory_usage, force_garbage_collection, 
+    cleanup_cache_functions, get_object_memory_usage, BYTES_TO_MB
+)
 
 logger = app_logger(__name__)
 
@@ -28,7 +31,7 @@ def _cached_rolling_context(
         daily_rain_df, windows, normals_years, end_date
     )
     
-    result_size = sys.getsizeof(result)/1024/1024
+    result_size = get_object_memory_usage(result)
     logger.debug(f"CACHE rolling_context: {result_size:.1f}MB cached")
     
     log_memory_usage("CACHE rolling_context END", before_memory)
@@ -86,7 +89,7 @@ def _cached_violin_data(
         daily_rain_df, windows, normals_years, end_date
     )
     
-    result_size = sys.getsizeof(result)/1024/1024
+    result_size = get_object_memory_usage(result)
     logger.debug(f"CACHE violin_data: {result_size:.1f}MB cached")
     
     log_memory_usage("CACHE violin_data END", before_memory)
@@ -133,7 +136,7 @@ def _cached_accumulation_data(
         row_mode=None,  # Will be set in UI
     )
     
-    result_size = sys.getsizeof(result)/1024/1024
+    result_size = get_object_memory_usage(result)
     logger.debug(f"CACHE accumulation_data: {result_size:.1f}MB cached")
     
     log_memory_usage("CACHE accumulation_data END", before_memory)
@@ -545,7 +548,7 @@ def render():
     # Memory tracking at tab exit
     try:
         import psutil
-        end_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        end_memory = get_memory_usage()
         logger.debug(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
         
         # Memory tracking at tab exit

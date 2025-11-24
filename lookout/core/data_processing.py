@@ -10,7 +10,10 @@ import sys
 import lookout.api.awn_controller as awn
 from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import get_memory_usage, log_memory_usage
+from lookout.utils.memory_utils import (
+    get_memory_usage, log_memory_usage, get_object_memory_usage, 
+    BYTES_TO_MB
+)
 
 logger = app_logger(__name__)
 
@@ -58,7 +61,7 @@ def load_or_update_data(
         st.session_state["session_counter"] = 0
 
         # Log initial memory usage
-        df_size_mb = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
+        df_size_mb = get_object_memory_usage(st.session_state["history_df"])
         logger.debug(f"INITIAL LOAD: {len(st.session_state['history_df'])} rows, {df_size_mb:.1f}MB")
 
         logger.info("Initial archive load completed.")
@@ -78,7 +81,7 @@ def load_or_update_data(
         update_message.text("Updating historical data...")
         
         # Track memory before update
-        before_size = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
+        before_size = get_object_memory_usage(st.session_state["history_df"])
         before_rows = len(st.session_state["history_df"])
         
         awn.update_session_data(device, history_df)
@@ -87,7 +90,7 @@ def load_or_update_data(
         ].max()
         
         # Track memory after update and increment counter
-        after_size = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
+        after_size = get_object_memory_usage(st.session_state["history_df"])
         after_rows = len(st.session_state["history_df"])
         st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
         

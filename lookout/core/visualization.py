@@ -5,7 +5,6 @@ Collection of functions to create charts and visualizations for streamlit
 
 from typing import Optional
 
-import gc
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -14,6 +13,7 @@ import streamlit as st
 from colour import Color
 
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import force_garbage_collection, BYTES_TO_MB
 
 logger = app_logger(__name__)
 
@@ -1063,7 +1063,7 @@ def create_rainfall_summary_violin(
     # Memory cleanup for large DataFrames created during visualization
     try:
         del pivot, full_data, indexed
-        gc.collect()
+        force_garbage_collection()
     except:
         pass
 

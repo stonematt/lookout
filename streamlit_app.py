@@ -2,7 +2,6 @@
 Main streamlit.io application
 """
 
-import gc
 import time
 
 import streamlit as st
@@ -13,6 +12,7 @@ from lookout.ui import diagnostics, overview, playground, rain, rain_events
 from lookout.ui import header
 from lookout.core.styles import get_style_manager
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import force_garbage_collection
 
 # if st.secrets.get("DEBUG", False):
 #     try:
@@ -153,4 +153,4 @@ with tab_playground:
 
 # Periodic memory cleanup to prevent accumulation
 if st.session_state.get("session_counter", 0) % 5 == 0:
-    gc.collect()
+    force_garbage_collection()
