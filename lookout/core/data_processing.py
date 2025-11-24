@@ -5,6 +5,7 @@ Collection of functions to manipulate data frames for a streamlit dashboard
 import numpy as np
 import pandas as pd
 import streamlit as st
+import sys
 
 import lookout.api.awn_controller as awn
 from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
@@ -55,6 +56,10 @@ def load_or_update_data(
         st.session_state["cloud_max_dateutc"] = max_ms
         st.session_state["session_counter"] = 0
 
+        # Log initial memory usage
+        df_size_mb = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
+        logger.info(f"INITIAL LOAD: {len(st.session_state['history_df'])} rows, {df_size_mb:.1f}MB")
+
         logger.info("Initial archive load completed.")
         update_message.empty()
 
@@ -70,10 +75,35 @@ def load_or_update_data(
         auto_update=auto_update,
     ):
         update_message.text("Updating historical data...")
+        
+        # Track memory before update
+        before_size = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
+        before_rows = len(st.session_state["history_df"])
+        
         awn.update_session_data(device, history_df)
         st.session_state["history_max_dateutc"] = st.session_state["history_df"][
             "dateutc"
         ].max()
+        
+        # Track memory after update and increment counter
+        after_size = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
+        after_rows = len(st.session_state["history_df"])
+        st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
+        
+        logger.info(
+            f"UPDATE #{st.session_state['session_counter']}: "
+            f"{before_rows}→{after_rows} rows, "
+            f"{before_size:.1f}→{after_size:.1f}MB "
+            f"(+{after_size-before_size:.1f}MB)"
+        )
+        
+        # Log process memory after update
+        try:
+            import psutil
+            process_memory = psutil.Process().memory_info().rss / 1024 / 1024
+            logger.info(f"PROCESS_MEMORY after update: {process_memory:.1f}MB")
+        except ImportError:
+            pass
 
         logger.info("Historical data updated successfully.")
         update_message.empty()

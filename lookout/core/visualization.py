@@ -5,6 +5,7 @@ Collection of functions to create charts and visualizations for streamlit
 
 from typing import Optional
 
+import gc
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -1057,7 +1058,14 @@ def create_rainfall_summary_violin(
             yref="paper",
             yanchor="top",
             font=dict(size=10),
-        )
+    )
+
+    # Memory cleanup for large DataFrames created during visualization
+    try:
+        del pivot, full_data, indexed
+        gc.collect()
+    except:
+        pass
 
     return fig
 
