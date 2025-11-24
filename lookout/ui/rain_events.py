@@ -183,8 +183,9 @@ def render():
         import psutil
         start_memory = psutil.Process().memory_info().rss / 1024 / 1024
         logger.info(f"TAB rain_events START: {start_memory:.1f}MB")
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Memory tracking failed: {e}")
+        start_memory = 0
     
     st.header("Rain Event Catalog")
     st.write("Browse and analyze individual rain events detected from historical data")
