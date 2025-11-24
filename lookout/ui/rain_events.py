@@ -182,7 +182,7 @@ def render():
     try:
         import psutil
         start_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain_events START: {start_memory:.1f}MB")
+        logger.debug(f"TAB rain_events START: {start_memory:.1f}MB")
     except Exception as e:
         logger.warning(f"Memory tracking failed: {e}")
         start_memory = 0
@@ -273,11 +273,11 @@ def render():
                     try:
                         import psutil
                         process_memory = psutil.Process().memory_info().rss / 1024 / 1024
-                        logger.info(
+                        logger.debug(
                             f"Catalog updated: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
                         )
                     except:
-                        logger.info(
+                        logger.debug(
                             f"Catalog updated and cached in session: {len(events_df)} events, {catalog_size_mb:.1f}MB"
                         )
 
@@ -321,11 +321,11 @@ def render():
                 try:
                     import psutil
                     process_memory = psutil.Process().memory_info().rss / 1024 / 1024
-                    logger.info(
+                    logger.debug(
                         f"Fresh catalog: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
                     )
                 except:
-                    logger.info(
+                    logger.debug(
                         f"Fresh catalog generated and cached: {len(events_df)} events, {catalog_size_mb:.1f}MB"
                     )
 
@@ -557,7 +557,7 @@ def render():
     try:
         import psutil
         end_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain_events END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
+        logger.debug(f"TAB rain_events END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
         
         # Aggressive cleanup for rain events tab
         gc.collect()
@@ -565,6 +565,6 @@ def render():
             gc.collect()
             
         final_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain_events FINAL: {final_memory:.1f}MB ({final_memory-end_memory:+.1f}MB)")
+        logger.debug(f"TAB rain_events FINAL: {final_memory:.1f}MB ({final_memory-end_memory:+.1f}MB)")
     except:
         pass

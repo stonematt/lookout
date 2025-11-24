@@ -25,7 +25,7 @@ def _cached_rolling_context(
     try:
         import psutil
         before_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"CACHE rolling_context START: {before_memory:.1f}MB")
+    logger.debug(f"CACHE rolling_context START: {before_memory:.1f}MB")
     except:
         pass
     
@@ -34,16 +34,20 @@ def _cached_rolling_context(
     )
     
     result_size = sys.getsizeof(result)/1024/1024
-    logger.info(f"CACHE rolling_context: {result_size:.1f}MB cached")
+    logger.debug(f"CACHE rolling_context: {result_size:.1f}MB cached")
     
     # Log memory after cache operation
     try:
         import psutil
         after_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"CACHE rolling_context END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
+        logger.debug(f"CACHE rolling_context END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
     except:
         pass
     
+    result = rain_analysis.compute_rolling_rain_context(
+        daily_rain_df, windows, normals_years, end_date
+    )
+    logger.debug(f"CACHE rolling_context: {sys.getsizeof(result)/1024/1024:.1f}MB cached")
     return result
 
 
@@ -94,7 +98,21 @@ def _cached_violin_data(
     try:
         import psutil
         before_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"CACHE violin_data START: {before_memory:.1f}MB")
+    logger.debug(f"CACHE violin_data START: {before_memory:.1f}MB")
+    except:
+        pass
+    
+    result = rain_analysis.prepare_violin_plot_data(
+        daily_rain_df, windows, normals_years, end_date
+    )
+    
+    result_size = sys.getsizeof(result)/1024/1024
+    logger.debug(f"CACHE violin_data: {result_size:.1f}MB cached")
+    
+    try:
+        import psutil
+        after_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.debug(f"CACHE violin_data END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
     except:
         pass
     
@@ -108,25 +126,10 @@ def _cached_violin_data(
     try:
         import psutil
         after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
-        
-        # Additional cleanup for cached function results
-        try:
-            if hasattr(_cached_rolling_context, 'clear'):
-                _cached_rolling_context.clear()
-            if hasattr(_cached_violin_data, 'clear'):
-                _cached_violin_data.clear()
-            if hasattr(_cached_accumulation_data, 'clear'):
-                _cached_accumulation_data.clear()
-        except Exception as e:
-            logger.warning(f"Cache clearing failed: {e}")
-        
-        # Force multiple GC cycles to clean up circular references
-        for _ in range(3):
-            gc.collect()
+        logger.debug(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
             
         final_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain FINAL: {final_memory:.1f}MB ({final_memory-after_gc_memory:+.1f}MB)")
+        logger.debug(f"TAB rain FINAL: {final_memory:.1f}MB ({final_memory-after_gc_memory:+.1f}MB)")
     except:
         pass
     
@@ -164,7 +167,7 @@ def _cached_accumulation_data(
     try:
         import psutil
         before_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"CACHE accumulation_data START: {before_memory:.1f}MB")
+        logger.debug(f"CACHE accumulation_data START: {before_memory:.1f}MB")
     except:
         pass
     
@@ -178,12 +181,12 @@ def _cached_accumulation_data(
     )
     
     result_size = sys.getsizeof(result)/1024/1024
-    logger.info(f"CACHE accumulation_data: {result_size:.1f}MB cached")
+        logger.debug(f"CACHE accumulation_data: {result_size:.1f}MB cached")
     
     try:
         import psutil
         after_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"CACHE accumulation_data END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
+        logger.debug(f"CACHE accumulation_data END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
     except:
         pass
     
@@ -196,7 +199,7 @@ def render():
     try:
         import psutil
         start_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain START: {start_memory:.1f}MB")
+        logger.debug(f"TAB rain START: {start_memory:.1f}MB")
     except Exception as e:
         logger.warning(f"Memory tracking failed: {e}")
         start_memory = 0
@@ -602,11 +605,17 @@ def render():
     try:
         import psutil
         end_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
+        logger.debug(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
         
-        # Force cleanup of visualization objects
-        gc.collect()
-        after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.info(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
+        # Memory tracking at tab exit
+        try:
+            import psutil
+            end_memory = psutil.Process().memory_info().rss / 1024 / 1024
+            logger.debug(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
+            
+            # Force cleanup of visualization objects
+            gc.collect()
+            after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
+            logger.debug(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
     except:
         pass
