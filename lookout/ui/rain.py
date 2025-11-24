@@ -111,12 +111,15 @@ def _cached_violin_data(
         logger.info(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
         
         # Additional cleanup for cached function results
-        if hasattr(_cached_rolling_context, 'cache_clear'):
-            _cached_rolling_context.cache_clear()
-        if hasattr(_cached_violin_data, 'cache_clear'):
-            _cached_violin_data.cache_clear()
-        if hasattr(_cached_accumulation_data, 'cache_clear'):
-            _cached_accumulation_data.cache_clear()
+        try:
+            if hasattr(_cached_rolling_context, 'clear'):
+                _cached_rolling_context.clear()
+            if hasattr(_cached_violin_data, 'clear'):
+                _cached_violin_data.clear()
+            if hasattr(_cached_accumulation_data, 'clear'):
+                _cached_accumulation_data.clear()
+        except Exception as e:
+            logger.warning(f"Cache clearing failed: {e}")
         
         # Force multiple GC cycles to clean up circular references
         for _ in range(3):
@@ -194,8 +197,9 @@ def render():
         import psutil
         start_memory = psutil.Process().memory_info().rss / 1024 / 1024
         logger.info(f"TAB rain START: {start_memory:.1f}MB")
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Memory tracking failed: {e}")
+        start_memory = 0
     
     st.header("Precipitation Analysis")
     st.write("Comprehensive rainfall data analysis and visualization")
