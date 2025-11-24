@@ -58,7 +58,7 @@ def load_or_update_data(
 
         # Log initial memory usage
         df_size_mb = sys.getsizeof(st.session_state["history_df"]) / 1024 / 1024
-        logger.info(f"INITIAL LOAD: {len(st.session_state['history_df'])} rows, {df_size_mb:.1f}MB")
+        logger.debug(f"INITIAL LOAD: {len(st.session_state['history_df'])} rows, {df_size_mb:.1f}MB")
 
         logger.info("Initial archive load completed.")
         update_message.empty()
@@ -90,7 +90,7 @@ def load_or_update_data(
         after_rows = len(st.session_state["history_df"])
         st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
         
-        logger.info(
+        logger.debug(
             f"UPDATE #{st.session_state['session_counter']}: "
             f"{before_rows}→{after_rows} rows, "
             f"{before_size:.1f}→{after_size:.1f}MB "
@@ -101,7 +101,7 @@ def load_or_update_data(
         try:
             import psutil
             process_memory = psutil.Process().memory_info().rss / 1024 / 1024
-            logger.info(f"PROCESS_MEMORY after update: {process_memory:.1f}MB")
+            logger.debug(f"PROCESS_MEMORY after update: {process_memory:.1f}MB")
         except ImportError:
             pass
 

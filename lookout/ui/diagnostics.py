@@ -361,26 +361,6 @@ def render():
         st.write("**Tab Memory Tracking:**")
         st.info("Visit different tabs and return here to see memory changes")
         
-        # Object count analysis
-        st.write("**Object Count Analysis:**")
-        gc.collect()
-        object_counts = {
-            "total_objects": len(gc.get_objects()),
-            "dataframes": len([obj for obj in gc.get_objects() if isinstance(obj, pd.DataFrame)]),
-            "plotly_figures": len([obj for obj in gc.get_objects() if 'plotly' in str(type(obj)).lower()]),
-        }
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Objects", f"{object_counts['total_objects']:,}")
-        with col2:
-            st.metric("DataFrames", object_counts['dataframes'])
-        with col3:
-            st.metric("Plotly Objects", object_counts['plotly_figures'])
-        
-        # Add to memory data
-        memory_data["object_counts"] = object_counts
-        
         if "tab_memory_history" not in st.session_state:
             st.session_state["tab_memory_history"] = []
         
@@ -395,11 +375,11 @@ def render():
         # Add to history
         st.session_state["tab_memory_history"].append(current_memory)
         
-        # Log memory snapshot with GC analysis
+        # Log memory snapshot with GC analysis (DEBUG level only)
         gc.collect()  # Force garbage collection
         gc_objects = len(gc.get_objects())
         
-        logger.info(
+        logger.debug(
             f"MEMORY_SNAPSHOT: {current_memory['process_memory_mb']:.1f}MB "
             f"(gap: {current_memory['memory_gap_mb']:.1f}MB, "
             f"{current_memory['gap_percentage']:.1f}%), "

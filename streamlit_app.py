@@ -154,4 +154,3 @@ with tab_playground:
 # Periodic memory cleanup to prevent accumulation
 if st.session_state.get("session_counter", 0) % 5 == 0:
     gc.collect()
-    logger.debug("Periodic GC cleanup performed")
