@@ -9,7 +9,11 @@ from lookout.core.data_processing import detect_gaps, get_human_readable_duratio
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import get_memory_usage, log_memory_usage, force_garbage_collection, get_object_counts
+from lookout.utils.memory_utils import (
+    get_memory_usage, log_memory_usage, force_garbage_collection, 
+    get_object_counts, get_df_memory_usage, get_object_memory_usage, 
+    BYTES_TO_MB, MEMORY_UNAVAILABLE
+)
 
 logger = app_logger(__name__)
 
@@ -203,11 +207,10 @@ def render():
     st.subheader("Memory Usage Analysis")
     
     # Get memory stats
-    try:
-        import psutil
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        memory_mb = memory_info.rss / 1024 / 1024
+        memory_mb = get_memory_usage()
+        if memory_mb == MEMORY_UNAVAILABLE:
+            st.info("Install psutil (`pip install psutil`) for detailed memory monitoring")
+            return
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -216,7 +219,7 @@ def render():
             st.metric("Session Counter", st.session_state.get("session_counter", 0))
         with col3:
             gc.collect()
-            st.metric("After GC", f"{process.memory_info().rss / 1024 / 1024:.1f} MB")
+                    st.metric("After GC", f"{get_memory_usage():.1f} MB")
         
         # Detailed memory analysis
         st.write("**Detailed Memory Analysis:**")
@@ -228,7 +231,7 @@ def render():
         for key, value in st.session_state.items():
             try:
                 if hasattr(value, '__sizeof__'):
-                    size_mb = sys.getsizeof(value) / 1024 / 1024
+                    size_mb = get_object_memory_usage(value)
                     session_memory[key] = size_mb
                     total_session_memory += size_mb
                     
@@ -250,7 +253,7 @@ def render():
             df = st.session_state["history_df"]
             df_size = sys.getsizeof(df) / 1024 / 1024
             # More accurate DataFrame memory usage
-            df_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
+            df_memory = get_df_memory_usage(df)
             df_info.append({
                 "DataFrame": "history_df", 
                 "Rows": len(df), 
@@ -260,7 +263,7 @@ def render():
         
         if "rain_events_catalog" in st.session_state:
             df = st.session_state["rain_events_catalog"]
-            df_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
+            df_memory = get_df_memory_usage(df)
             df_info.append({
                 "DataFrame": "rain_events_catalog", 
                 "Rows": len(df), 
@@ -306,7 +309,7 @@ def render():
         for key, value in st.session_state.items():
             try:
                 if hasattr(value, '__sizeof__'):
-                    size_mb = round(sys.getsizeof(value) / 1024 / 1024, 2)
+                    size_mb = round(get_object_memory_usage(value), 2)
                     memory_data["session_state"][key] = {
                         "size_mb": size_mb,
                         "type": type(value).__name__
@@ -322,7 +325,7 @@ def render():
         # Add DataFrame details
         if "history_df" in st.session_state:
             df = st.session_state["history_df"]
-            df_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
+            df_memory = get_df_memory_usage(df)
             memory_data["dataframes"]["history_df"] = {
                 "rows": len(df),
                 "columns": len(df.columns),
@@ -335,7 +338,7 @@ def render():
         
         if "rain_events_catalog" in st.session_state:
             df = st.session_state["rain_events_catalog"]
-            df_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
+            df_memory = get_df_memory_usage(df)
             memory_data["dataframes"]["rain_events_catalog"] = {
                 "rows": len(df),
                 "columns": len(df.columns),
@@ -445,7 +448,7 @@ def render():
                             df, [7, 30, 90], [2023, 2024], 
                             pd.Timestamp.now().date(), "test"
                         )
-                        cache_size = sys.getsizeof(result) / 1024 / 1024
+                        cache_size = get_object_memory_usage(result)
                         st.write(f"Rolling context cache: {cache_size:.1f}MB")
                 except Exception as e:
                     st.write(f"Cache test failed: {e}")

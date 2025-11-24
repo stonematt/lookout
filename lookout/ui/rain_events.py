@@ -13,7 +13,10 @@ import streamlit as st
 
 from lookout.core.rain_events import RainEventCatalog
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import get_memory_usage, log_memory_usage, force_garbage_collection
+from lookout.utils.memory_utils import (
+    get_memory_usage, log_memory_usage, force_garbage_collection, 
+    get_object_memory_usage, BYTES_TO_MB
+)
 
 logger = app_logger(__name__)
 
@@ -263,7 +266,7 @@ def render():
                     catalog_source = "storage"
                     
                     # Log catalog memory usage
-                    catalog_size_mb = sys.getsizeof(events_df) / 1024 / 1024
+                    catalog_size_mb = get_object_memory_usage(events_df)
                     process_memory = get_memory_usage()
                     logger.debug(
                         f"Catalog updated: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
@@ -305,7 +308,7 @@ def render():
                 catalog_source = "generated"
                 
                 # Log catalog memory usage
-                catalog_size_mb = sys.getsizeof(events_df) / 1024 / 1024
+                catalog_size_mb = get_object_memory_usage(events_df)
                 process_memory = get_memory_usage()
                 logger.debug(
                     f"Fresh catalog: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"

@@ -13,14 +13,18 @@ from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
+# Constants for memory calculations
+BYTES_TO_MB = 1024 / 1024
+MEMORY_UNAVAILABLE = 0.0
+
 
 def get_memory_usage() -> float:
     """Get current process memory usage in MB."""
     try:
         import psutil
-        return psutil.Process().memory_info().rss / 1024 / 1024
+        return psutil.Process().memory_info().rss / BYTES_TO_MB
     except ImportError:
-        return 0.0
+        return MEMORY_UNAVAILABLE
 
 
 def log_memory_usage(context: str, start_memory: Optional[float] = None) -> float:
@@ -83,3 +87,26 @@ def get_object_counts() -> Dict[str, int]:
         "dataframes": len([obj for obj in all_objects if isinstance(obj, pd.DataFrame)]),
         "plotly_objects": len([obj for obj in all_objects if 'plotly' in str(type(obj)).lower()]),
     }
+
+
+def get_df_memory_usage(df) -> float:
+    """
+    Get accurate DataFrame memory usage in MB.
+    
+    :param df: pandas DataFrame
+    :return: Memory usage in MB
+    """
+    try:
+        return df.memory_usage(deep=True).sum() / BYTES_TO_MB
+    except:
+        return sys.getsizeof(df) / BYTES_TO_MB
+
+
+def get_object_memory_usage(obj) -> float:
+    """
+    Get object memory usage in MB.
+    
+    :param obj: Any object
+    :return: Memory usage in MB
+    """
+    return sys.getsizeof(obj) / BYTES_TO_MB
