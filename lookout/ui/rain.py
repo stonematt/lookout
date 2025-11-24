@@ -6,6 +6,7 @@ including caching wrappers and table rendering. Core data processing is handled
 by lookout.core.rainfall_analysis and visualizations by lookout.core.visualization.
 """
 
+import sys
 import pandas as pd
 import streamlit as st
 
@@ -20,9 +21,30 @@ logger = app_logger(__name__)
 def _cached_rolling_context(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v2"
 ):
-    return rain_analysis.compute_rolling_rain_context(
+    # Log memory before cache operation
+    try:
+        import psutil
+        before_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"CACHE rolling_context START: {before_memory:.1f}MB")
+    except:
+        pass
+    
+    result = rain_analysis.compute_rolling_rain_context(
         daily_rain_df, windows, normals_years, end_date
     )
+    
+    result_size = sys.getsizeof(result)/1024/1024
+    logger.info(f"CACHE rolling_context: {result_size:.1f}MB cached")
+    
+    # Log memory after cache operation
+    try:
+        import psutil
+        after_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"CACHE rolling_context END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
+    except:
+        pass
+    
+    return result
 
 
 def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") -> None:
@@ -69,9 +91,43 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
 def _cached_violin_data(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v1"
 ):
-    return rain_analysis.prepare_violin_plot_data(
+    try:
+        import psutil
+        before_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"CACHE violin_data START: {before_memory:.1f}MB")
+    except:
+        pass
+    
+    result = rain_analysis.prepare_violin_plot_data(
         daily_rain_df, windows, normals_years, end_date
     )
+    
+    result_size = sys.getsizeof(result)/1024/1024
+    logger.info(f"CACHE violin_data: {result_size:.1f}MB cached")
+    
+    try:
+        import psutil
+        after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
+        
+        # Additional cleanup for cached function results
+        if hasattr(_cached_rolling_context, 'cache_clear'):
+            _cached_rolling_context.cache_clear()
+        if hasattr(_cached_violin_data, 'cache_clear'):
+            _cached_violin_data.cache_clear()
+        if hasattr(_cached_accumulation_data, 'cache_clear'):
+            _cached_accumulation_data.cache_clear()
+        
+        # Force multiple GC cycles to clean up circular references
+        for _ in range(3):
+            gc.collect()
+            
+        final_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"TAB rain FINAL: {final_memory:.1f}MB ({final_memory-after_gc_memory:+.1f}MB)")
+    except:
+        pass
+    
+    return result
 
 
 @st.cache_data(show_spinner=False)
@@ -102,7 +158,14 @@ def _cached_accumulation_data(
 
     num_days = (end_date - start_date).days + 1
 
-    return lo_viz.prepare_rain_accumulation_heatmap_data(
+    try:
+        import psutil
+        before_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"CACHE accumulation_data START: {before_memory:.1f}MB")
+    except:
+        pass
+    
+    result = lo_viz.prepare_rain_accumulation_heatmap_data(
         archive_df=df,
         start_date=start_ts,
         end_date=end_ts,
@@ -110,10 +173,30 @@ def _cached_accumulation_data(
         num_days=num_days,
         row_mode=None,  # Will be set in UI
     )
+    
+    result_size = sys.getsizeof(result)/1024/1024
+    logger.info(f"CACHE accumulation_data: {result_size:.1f}MB cached")
+    
+    try:
+        import psutil
+        after_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"CACHE accumulation_data END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
+    except:
+        pass
+    
+    return result
 
 
 def render():
     """Render the precipitation analysis tab."""
+    # Memory tracking at tab entry
+    try:
+        import psutil
+        start_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"TAB rain START: {start_memory:.1f}MB")
+    except:
+        pass
+    
     st.header("Precipitation Analysis")
     st.write("Comprehensive rainfall data analysis and visualization")
 
@@ -510,3 +593,16 @@ def render():
         if st.checkbox("Show daily rainfall sample"):
             st.write("**Recent daily totals:**")
             st.dataframe(daily_rain_df.tail(10))
+    
+    # Memory tracking at tab exit
+    try:
+        import psutil
+        end_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
+        
+        # Force cleanup of visualization objects
+        gc.collect()
+        after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
+        logger.info(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
+    except:
+        pass
