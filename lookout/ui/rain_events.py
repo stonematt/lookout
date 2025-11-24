@@ -5,7 +5,6 @@ This module provides event browsing, selection, and management interface
 for rain events detected from historical weather data.
 """
 
-import sys
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -14,6 +13,7 @@ import streamlit as st
 
 from lookout.core.rain_events import RainEventCatalog
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import get_memory_usage, log_memory_usage, force_garbage_collection
 
 logger = app_logger(__name__)
 
@@ -178,14 +178,8 @@ def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFra
 
 def render():
     """Render the rain events catalog tab."""
-    # Memory tracking at tab entry
-    try:
-        import psutil
-        start_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"TAB rain_events START: {start_memory:.1f}MB")
-    except Exception as e:
-        logger.warning(f"Memory tracking failed: {e}")
-        start_memory = 0
+    start_memory = get_memory_usage()
+    log_memory_usage("TAB rain_events START", start_memory)
     
     st.header("Rain Event Catalog")
     st.write("Browse and analyze individual rain events detected from historical data")
@@ -270,16 +264,10 @@ def render():
                     
                     # Log catalog memory usage
                     catalog_size_mb = sys.getsizeof(events_df) / 1024 / 1024
-                    try:
-                        import psutil
-                        process_memory = psutil.Process().memory_info().rss / 1024 / 1024
-                        logger.debug(
-                            f"Catalog updated: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
-                        )
-                    except:
-                        logger.debug(
-                            f"Catalog updated and cached in session: {len(events_df)} events, {catalog_size_mb:.1f}MB"
-                        )
+                    process_memory = get_memory_usage()
+                    logger.debug(
+                        f"Catalog updated: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
+                    )
 
                     # Update header with active event information now that catalog is available
                     if (
@@ -318,16 +306,10 @@ def render():
                 
                 # Log catalog memory usage
                 catalog_size_mb = sys.getsizeof(events_df) / 1024 / 1024
-                try:
-                    import psutil
-                    process_memory = psutil.Process().memory_info().rss / 1024 / 1024
-                    logger.debug(
-                        f"Fresh catalog: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
-                    )
-                except:
-                    logger.debug(
-                        f"Fresh catalog generated and cached: {len(events_df)} events, {catalog_size_mb:.1f}MB"
-                    )
+                process_memory = get_memory_usage()
+                logger.debug(
+                    f"Fresh catalog: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
+                )
 
                 # Update header with active event information now that catalog is available
                 if (
@@ -554,17 +536,11 @@ def render():
         st.error(f"Error loading event catalog: {e}")
     
     # Memory tracking at tab exit
-    try:
-        import psutil
-        end_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"TAB rain_events END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
-        
-        # Aggressive cleanup for rain events tab
-        gc.collect()
-        for _ in range(2):
-            gc.collect()
-            
-        final_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"TAB rain_events FINAL: {final_memory:.1f}MB ({final_memory-end_memory:+.1f}MB)")
-    except:
-        pass
+    end_memory = get_memory_usage()
+    log_memory_usage("TAB rain_events END", start_memory)
+    
+    # Aggressive cleanup for rain events tab
+    force_garbage_collection()
+    
+    final_memory = get_memory_usage()
+    log_memory_usage("TAB rain_events FINAL", end_memory)

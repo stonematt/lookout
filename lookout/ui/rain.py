@@ -6,13 +6,13 @@ including caching wrappers and table rendering. Core data processing is handled
 by lookout.core.rainfall_analysis and visualizations by lookout.core.visualization.
 """
 
-import sys
 import pandas as pd
 import streamlit as st
 
 import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.visualization as lo_viz
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import get_memory_usage, log_memory_usage, force_garbage_collection, cleanup_cache_functions
 
 logger = app_logger(__name__)
 
@@ -21,13 +21,8 @@ logger = app_logger(__name__)
 def _cached_rolling_context(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v2"
 ):
-    # Log memory before cache operation
-    try:
-        import psutil
-        before_memory = psutil.Process().memory_info().rss / 1024 / 1024
-    logger.debug(f"CACHE rolling_context START: {before_memory:.1f}MB")
-    except:
-        pass
+    before_memory = get_memory_usage()
+    log_memory_usage("CACHE rolling_context START", before_memory)
     
     result = rain_analysis.compute_rolling_rain_context(
         daily_rain_df, windows, normals_years, end_date
@@ -36,18 +31,7 @@ def _cached_rolling_context(
     result_size = sys.getsizeof(result)/1024/1024
     logger.debug(f"CACHE rolling_context: {result_size:.1f}MB cached")
     
-    # Log memory after cache operation
-    try:
-        import psutil
-        after_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"CACHE rolling_context END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
-    except:
-        pass
-    
-    result = rain_analysis.compute_rolling_rain_context(
-        daily_rain_df, windows, normals_years, end_date
-    )
-    logger.debug(f"CACHE rolling_context: {sys.getsizeof(result)/1024/1024:.1f}MB cached")
+    log_memory_usage("CACHE rolling_context END", before_memory)
     return result
 
 
@@ -95,12 +79,8 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
 def _cached_violin_data(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v1"
 ):
-    try:
-        import psutil
-        before_memory = psutil.Process().memory_info().rss / 1024 / 1024
-    logger.debug(f"CACHE violin_data START: {before_memory:.1f}MB")
-    except:
-        pass
+    before_memory = get_memory_usage()
+    log_memory_usage("CACHE violin_data START", before_memory)
     
     result = rain_analysis.prepare_violin_plot_data(
         daily_rain_df, windows, normals_years, end_date
@@ -109,30 +89,7 @@ def _cached_violin_data(
     result_size = sys.getsizeof(result)/1024/1024
     logger.debug(f"CACHE violin_data: {result_size:.1f}MB cached")
     
-    try:
-        import psutil
-        after_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"CACHE violin_data END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
-    except:
-        pass
-    
-    result = rain_analysis.prepare_violin_plot_data(
-        daily_rain_df, windows, normals_years, end_date
-    )
-    
-    result_size = sys.getsizeof(result)/1024/1024
-    logger.info(f"CACHE violin_data: {result_size:.1f}MB cached")
-    
-    try:
-        import psutil
-        after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
-            
-        final_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"TAB rain FINAL: {final_memory:.1f}MB ({final_memory-after_gc_memory:+.1f}MB)")
-    except:
-        pass
-    
+    log_memory_usage("CACHE violin_data END", before_memory)
     return result
 
 
@@ -164,12 +121,8 @@ def _cached_accumulation_data(
 
     num_days = (end_date - start_date).days + 1
 
-    try:
-        import psutil
-        before_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"CACHE accumulation_data START: {before_memory:.1f}MB")
-    except:
-        pass
+    before_memory = get_memory_usage()
+    log_memory_usage("CACHE accumulation_data START", before_memory)
     
     result = lo_viz.prepare_rain_accumulation_heatmap_data(
         archive_df=df,
@@ -181,28 +134,16 @@ def _cached_accumulation_data(
     )
     
     result_size = sys.getsizeof(result)/1024/1024
-        logger.debug(f"CACHE accumulation_data: {result_size:.1f}MB cached")
+    logger.debug(f"CACHE accumulation_data: {result_size:.1f}MB cached")
     
-    try:
-        import psutil
-        after_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"CACHE accumulation_data END: {after_memory:.1f}MB (+{after_memory-before_memory:.1f}MB)")
-    except:
-        pass
-    
+    log_memory_usage("CACHE accumulation_data END", before_memory)
     return result
 
 
 def render():
     """Render the precipitation analysis tab."""
-    # Memory tracking at tab entry
-    try:
-        import psutil
-        start_memory = psutil.Process().memory_info().rss / 1024 / 1024
-        logger.debug(f"TAB rain START: {start_memory:.1f}MB")
-    except Exception as e:
-        logger.warning(f"Memory tracking failed: {e}")
-        start_memory = 0
+    start_memory = get_memory_usage()
+    log_memory_usage("TAB rain START", start_memory)
     
     st.header("Precipitation Analysis")
     st.write("Comprehensive rainfall data analysis and visualization")
@@ -608,14 +549,14 @@ def render():
         logger.debug(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
         
         # Memory tracking at tab exit
-        try:
-            import psutil
-            end_memory = psutil.Process().memory_info().rss / 1024 / 1024
-            logger.debug(f"TAB rain END: {end_memory:.1f}MB (+{end_memory-start_memory:.1f}MB)")
-            
-            # Force cleanup of visualization objects
-            gc.collect()
-            after_gc_memory = psutil.Process().memory_info().rss / 1024 / 1024
-            logger.debug(f"TAB rain POST-GC: {after_gc_memory:.1f}MB ({after_gc_memory-end_memory:+.1f}MB)")
-    except:
-        pass
+        end_memory = get_memory_usage()
+        log_memory_usage("TAB rain END", start_memory)
+        
+        # Force cleanup of visualization objects
+        force_garbage_collection()
+        
+        # Additional cleanup for cached function results
+        cleanup_cache_functions(_cached_rolling_context, _cached_violin_data, _cached_accumulation_data)
+        
+        final_memory = get_memory_usage()
+        log_memory_usage("TAB rain FINAL", after_gc_memory)
