@@ -1456,3 +1456,97 @@ def create_rain_accumulation_heatmap(
     )
 
     return fig
+
+
+def create_year_over_year_accumulation_chart(
+    yoy_data: pd.DataFrame, max_day: int = 365
+) -> go.Figure:
+    """
+    Create year-over-year cumulative rainfall line chart.
+
+    Displays multiple lines, one for each year, showing cumulative rainfall
+    progression through year. Enables visual comparison of rainfall
+    patterns across different years.
+
+    :param yoy_data: DataFrame with day_of_year, year, cumulative_rainfall columns.
+    :param max_day: Maximum day of year displayed (for axis labeling).
+    :return: Plotly figure with line chart.
+    """
+    if yoy_data.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            title="No year-over-year data available",
+            height=400,
+            margin=dict(l=50, r=20, t=50, b=40),
+        )
+        return fig
+
+    fig = go.Figure()
+
+    # Color palette for different years
+    colors = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"
+    ]
+
+    # Get unique years and sort them
+    years = sorted(yoy_data["year"].unique())
+    
+    # Add a line for each year
+    for i, year in enumerate(years):
+        year_data = yoy_data[yoy_data["year"] == year].copy()
+        year_data = year_data.sort_values("day_of_year")
+        
+        color = colors[i % len(colors)]
+        
+        fig.add_trace(
+            go.Scatter(
+                x=year_data["day_of_year"],
+                y=year_data["cumulative_rainfall"],
+                mode="lines",
+                line=dict(color=color, width=2),
+                name=str(year),
+                hovertemplate=(
+                    "Day %{x}<br>"
+                    "Year: " + str(year) + "<br>"
+                    "Cumulative: %{y:.2f}\"<extra></extra>"
+                ),
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        title="Year-over-Year Rainfall Accumulation",
+        height=450,
+        margin=dict(l=60, r=40, t=60, b=60),
+        xaxis_title="Day of Year",
+        yaxis_title="Cumulative Rainfall (inches)",
+        showlegend=True,
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+    )
+
+    # Update axes
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor="lightgray",
+        range=[1, max_day],
+        tickmode="array",
+        tickvals=[1, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],
+        ticktext=["Jan 1", "Feb 1", "Mar 1", "Apr 1", "May 1", "Jun 1", 
+                 "Jul 1", "Aug 1", "Sep 1", "Oct 1", "Nov 1", "Dec 1", "Dec 31"],
+    )
+    
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="lightgray",
+        rangemode="tozero"
+    )
+
+    return fig
