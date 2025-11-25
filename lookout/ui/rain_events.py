@@ -14,8 +14,11 @@ import streamlit as st
 from lookout.core.rain_events import RainEventCatalog
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
-    get_memory_usage, log_memory_usage, force_garbage_collection, 
-    get_object_memory_usage, BYTES_TO_MB
+    get_memory_usage,
+    log_memory_usage,
+    force_garbage_collection,
+    get_object_memory_usage,
+    BYTES_TO_MB,
 )
 
 logger = app_logger(__name__)
@@ -183,7 +186,7 @@ def render():
     """Render the rain events catalog tab."""
     start_memory = get_memory_usage()
     log_memory_usage("TAB rain_events START", start_memory)
-    
+
     st.header("Rain Event Catalog")
     st.write("Browse and analyze individual rain events detected from historical data")
 
@@ -264,7 +267,7 @@ def render():
 
                     st.session_state["rain_events_catalog"] = events_df
                     catalog_source = "storage"
-                    
+
                     # Log catalog memory usage
                     catalog_size_mb = get_object_memory_usage(events_df)
                     process_memory = get_memory_usage()
@@ -306,7 +309,7 @@ def render():
                 events_df = catalog.detect_and_catalog_events(df, auto_save=False)
                 st.session_state["rain_events_catalog"] = events_df
                 catalog_source = "generated"
-                
+
                 # Log catalog memory usage
                 catalog_size_mb = get_object_memory_usage(events_df)
                 process_memory = get_memory_usage()
@@ -524,8 +527,14 @@ def render():
                             f"Catalog regenerated: {len(new_events)} events cached in session state"
                         )
 
-                    st.cache_data.clear()
-                    logger.info("Cleared streamlit data cache")
+                    # Selective cache clearing to avoid UI disruption
+                    try:
+                        import lookout.ui.rain as rain_module
+                        if hasattr(rain_module, '_cached_rolling_context'):
+                            rain_module._cached_rolling_context.clear()
+                        logger.info("Selective cache cleared after catalog regeneration")
+                    except Exception as e:
+                        logger.warning(f"Selective cache clearing failed: {e}")
 
                     st.success(
                         f"✅ Regenerated {len(new_events)} events! Data updated in current view."
@@ -537,13 +546,13 @@ def render():
         st.error(f"Event catalog feature not available: {e}")
     except Exception as e:
         st.error(f"Error loading event catalog: {e}")
-    
+
     # Memory tracking at tab exit
     end_memory = get_memory_usage()
     log_memory_usage("TAB rain_events END", start_memory)
-    
+
     # Aggressive cleanup for rain events tab
     force_garbage_collection()
-    
+
     final_memory = get_memory_usage()
     log_memory_usage("TAB rain_events FINAL", end_memory)

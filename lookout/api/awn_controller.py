@@ -38,7 +38,10 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
-from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
+from lookout.utils.trend_utils import (
+    calculate_temperature_trend,
+    calculate_barometer_trend,
+)
 
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history, get_devices
@@ -81,24 +84,29 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
         # Calculate trends for latest data point
         if not updated_df.empty:
             latest_row = updated_df.iloc[0]  # Most recent (archive is reverse sorted)
-            temp_trend = calculate_temperature_trend(updated_df, latest_row['tempf'])
-            barom_trend = calculate_barometer_trend(updated_df, latest_row['baromrelin'])
-            
+            temp_trend = calculate_temperature_trend(updated_df, latest_row["tempf"])
+            barom_trend = calculate_barometer_trend(
+                updated_df, latest_row["baromrelin"]
+            )
+
             # Store trends in session state
             st.session_state["temp_trend"] = temp_trend
             st.session_state["barom_trend"] = barom_trend
 
-        # Update session state
-        st.session_state["history_df"] = updated_df
-        st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-            "dateutc"
-        ].max()
-
-        # Force garbage collection to free memory from old DataFrame
-        import gc
-        gc.collect()
-
-        logger.info("Session data updated successfully.")
+        # Only update session state if data actually changed
+        if not updated_df.equals(current_df):
+            st.session_state["history_df"] = updated_df
+            st.session_state["history_max_dateutc"] = st.session_state["history_df"][
+                "dateutc"
+            ].max()
+            
+            # Force garbage collection to free memory from old DataFrame
+            import gc
+            gc.collect()
+            
+            logger.info("Session data updated successfully.")
+        else:
+            logger.debug("No data changes detected, skipping session state update")
     except Exception as e:
         logger.error(f"Failed to update session data: {e}")
         st.error("An error occurred while updating session data. Please try again.")
@@ -443,7 +451,7 @@ def fill_archive_gap(device, history_df, start, end):
             st.session_state["skipped_gaps"] = []
         st.session_state["skipped_gaps"].append({"start": start, "end": end})
         return history_df
-    
+
     return full_combined
 
 

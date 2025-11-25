@@ -13,15 +13,50 @@ import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.visualization as lo_viz
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
-    get_memory_usage,
-    log_memory_usage,
-    force_garbage_collection,
-    cleanup_cache_functions,
-    get_object_memory_usage,
     BYTES_TO_MB,
+    cleanup_cache_functions,
+    force_garbage_collection,
+    get_memory_usage,
+    get_object_memory_usage,
+    log_memory_usage,
 )
 
 logger = app_logger(__name__)
+
+
+def _create_date_slider_options(daily_rain_df: pd.DataFrame):
+    """Create mapping between day numbers and date labels for slider."""
+    if daily_rain_df.empty:
+        return {}, {}
+
+    # Get unique day-of-year and corresponding month-day labels
+    date_mapping = (
+        daily_rain_df[["day_of_year", "month_day"]]
+        .drop_duplicates()
+        .sort_values("day_of_year")
+    )
+
+    # Create dictionaries for quick lookup
+    day_to_label = dict(zip(date_mapping["day_of_year"], date_mapping["month_day"]))
+    label_to_day = dict(zip(date_mapping["month_day"], date_mapping["day_of_year"]))
+
+    return day_to_label, label_to_day
+
+
+def _create_date_index_mapping(daily_rain_df: pd.DataFrame):
+    """Map date indices to actual dates for true date-based slider."""
+    if daily_rain_df.empty:
+        return {}, {}, []
+
+    # Get unique dates from data and sort them
+    unique_dates = pd.to_datetime(daily_rain_df["date"]).unique()
+    unique_dates = sorted(unique_dates)
+
+    # Create mapping: index ↔ date ↔ day_of_year
+    index_to_date = {i: date for i, date in enumerate(unique_dates)}
+    date_to_index = {date: i for i, date in enumerate(unique_dates)}
+
+    return index_to_date, date_to_index, unique_dates
 
 
 @st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
@@ -144,6 +179,33 @@ def _cached_accumulation_data(
     logger.debug(f"CACHE accumulation_data: {result_size:.1f}MB cached")
 
     log_memory_usage("CACHE accumulation_data END", before_memory)
+    return result
+
+
+@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
+def _cached_yoy_accumulation_data(
+    daily_rain_df: pd.DataFrame, start_day: int, end_day: int, version: str = "v2"
+):
+    """
+    Cache wrapper for year-over-year accumulation data preparation.
+
+    :param daily_rain_df: DataFrame with daily rainfall data
+    :param start_day: Start day of year to include (1-365)
+    :param end_day: End day of year to include (1-365)
+    :param version: Cache version for invalidation
+    :return: Prepared YoY accumulation DataFrame
+    """
+    before_memory = get_memory_usage()
+    log_memory_usage("CACHE yoy_accumulation START", before_memory)
+
+    result = rain_analysis.prepare_year_over_year_accumulation(
+        daily_rain_df, start_day=start_day, end_day=end_day
+    )
+
+    result_size = get_object_memory_usage(result)
+    logger.debug(f"CACHE yoy_accumulation: {result_size:.1f}MB cached")
+
+    log_memory_usage("CACHE yoy_accumulation END", before_memory)
     return result
 
 
@@ -394,9 +456,113 @@ def render():
     st.divider()
 
     st.subheader("Year-over-Year Accumulation")
-    st.info(
-        "Coming next: Line chart showing cumulative rainfall by day of year, with separate lines for each year"
+
+    # Get date index mapping for true date-based slider
+    index_to_date, date_to_index, unique_dates = _create_date_index_mapping(
+        daily_rain_df
     )
+
+    # Create true date slider using 2024 (leap year) as reference
+    reference_year = 2024  # Leap year for complete date range
+    year_dates = pd.date_range(
+        f"{reference_year}-01-01", f"{reference_year}-12-31", freq="D"
+    )
+
+    # Convert pandas Timestamps to Python datetime for Streamlit
+    start_date_py = year_dates[0].to_pydatetime()
+    end_date_py = year_dates[-1].to_pydatetime()
+    default_start_py = year_dates[0].to_pydatetime()  # Jan 20
+    default_end_py = year_dates[365].to_pydatetime()  # Apr 10
+
+    ## start row
+
+    # Create columns for layout
+    col1, col2 = st.columns([3, 2])
+
+    with col1:
+        # Create date slider with actual datetime objects
+        date_range = st.slider(
+            "Select date range:",
+            min_value=start_date_py,  # Jan 1
+            max_value=end_date_py,  # Dec 31
+            value=(default_start_py, default_end_py),
+            # format="MMM DD",  # Should show "Jan 01", "Apr 10", etc.
+            help="Select date range for rainfall accumulation",
+            format="MMM DD",
+        )
+
+        # Convert selected datetime objects back to day numbers
+        start_datetime = pd.Timestamp(date_range[0])
+        end_datetime = pd.Timestamp(date_range[1])
+
+        # Extract day-of-year (1-366 for leap year)
+        start_day = start_datetime.dayofyear
+        end_day = end_datetime.dayofyear
+
+        # Handle leap year adjustment for non-leap years
+        # If we're processing data from non-leap years, adjust days after Feb 29
+        if start_day > 59:  # After Feb 29 in leap year
+            start_day -= 1  # Adjust for non-leap years
+        if end_day > 59:  # After Feb 29 in leap year
+            end_day -= 1  # Adjust for non-leap years
+
+        # Prepare and display YoY accumulation chart
+        with st.spinner("Preparing year-over-year data..."):
+            yoy_data = _cached_yoy_accumulation_data(
+                daily_rain_df=daily_rain_df,
+                start_day=start_day,
+                end_day=end_day,
+                version="v3",
+            )
+
+    with col2:
+        # Year filtering options
+        if not yoy_data.empty:
+            available_years = sorted(yoy_data["year"].unique())
+
+            # with col2:
+            selected_years = st.multiselect(
+                "Filter by years:",
+                options=available_years,
+                default=available_years,
+                help="Select specific years to display. All years shown by default.",
+            )
+
+            # Filter data based on year selection
+            if selected_years:
+                filtered_yoy_data = yoy_data[yoy_data["year"].isin(selected_years)]
+            else:
+                filtered_yoy_data = pd.DataFrame()  # Empty if no years selected
+        else:
+            filtered_yoy_data = yoy_data
+
+    ## end row
+
+    # Display chart with filtered data
+    if not filtered_yoy_data.empty:
+        fig = lo_viz.create_year_over_year_accumulation_chart(
+            yoy_data=filtered_yoy_data, start_day=start_day, end_day=end_day
+        )
+        st.plotly_chart(fig, width="stretch", key="yoy_accumulation")
+
+        # Show summary statistics for filtered data
+        filtered_years = sorted(filtered_yoy_data["year"].unique())
+        latest_year = filtered_years[-1] if filtered_years else None
+
+        if latest_year:
+            latest_data = filtered_yoy_data[filtered_yoy_data["year"] == latest_year]
+            if not latest_data.empty:
+                latest_total = latest_data["cumulative_rainfall"].max()
+                total_years = len(yoy_data["year"].unique())
+                st.caption(
+                    f"📊 Showing {len(filtered_years)} of {total_years} years • "
+                    f'Latest year ({latest_year}): {latest_total:.2f}" for days {start_day}-{end_day}'
+                )
+    else:
+        if yoy_data.empty:
+            st.info("No year-over-year data available for the selected range.")
+        else:
+            st.info("No years selected. Please select at least one year to display.")
 
     st.subheader("Rain Accumulation Heatmap")
 

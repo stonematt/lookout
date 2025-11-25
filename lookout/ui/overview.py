@@ -79,7 +79,7 @@ def render():
         # Update session state if the user changes the dropdown value
         if selected_pair != st.session_state["selected_pair"]:
             st.session_state["selected_pair"] = selected_pair
-            st.rerun()
+            # st.rerun()
 
     with row1[1]:  # RIGHT: Rainfall Summary (NEW)
         render_rainfall_summary_widget()
