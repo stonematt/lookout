@@ -421,14 +421,14 @@ def render():
 
     st.subheader("Year-over-Year Accumulation")
     
-    # Day slider for year slicing
+# Day slider for year slicing
     max_day = st.slider(
         "Show accumulation through day of year:",
         min_value=1,
         max_value=365,
         value=365,
         step=1,
-        help="Select the day of year to slice the cumulative rainfall data"
+        help="Select day of year to slice cumulative rainfall data"
     )
     
     # Prepare and display YoY accumulation chart
@@ -439,27 +439,61 @@ def render():
             version="v1"
         )
     
+    # Year filtering options
     if not yoy_data.empty:
+        available_years = sorted(yoy_data["year"].unique())
+        
+        # Create columns for layout
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            selected_years = st.multiselect(
+                "Filter by years:",
+                options=available_years,
+                default=available_years,
+                help="Select specific years to display. All years shown by default."
+            )
+        
+        with col2:
+            if len(selected_years) != len(available_years):
+                st.caption(f"Showing {len(selected_years)} of {len(available_years)} years")
+            else:
+                st.caption(f"All {len(available_years)} years selected")
+        
+        # Filter data based on year selection
+        if selected_years:
+            filtered_yoy_data = yoy_data[yoy_data["year"].isin(selected_years)]
+        else:
+            filtered_yoy_data = pd.DataFrame()  # Empty if no years selected
+    else:
+        filtered_yoy_data = yoy_data
+    
+    # Display chart with filtered data
+    if not filtered_yoy_data.empty:
         fig = lo_viz.create_year_over_year_accumulation_chart(
-            yoy_data=yoy_data,
+            yoy_data=filtered_yoy_data,
             max_day=max_day
         )
         st.plotly_chart(fig, width="stretch", key="yoy_accumulation")
         
-        # Show summary statistics
-        years = sorted(yoy_data["year"].unique())
-        latest_year = years[-1] if years else None
+        # Show summary statistics for filtered data
+        filtered_years = sorted(filtered_yoy_data["year"].unique())
+        latest_year = filtered_years[-1] if filtered_years else None
         
         if latest_year:
-            latest_data = yoy_data[yoy_data["year"] == latest_year]
+            latest_data = filtered_yoy_data[filtered_yoy_data["year"] == latest_year]
             if not latest_data.empty:
                 latest_total = latest_data["cumulative_rainfall"].max()
+                total_years = len(yoy_data["year"].unique())
                 st.caption(
-                    f"📊 Showing {len(years)} years of data • "
+                    f"📊 Showing {len(filtered_years)} of {total_years} years • "
                     f"Latest year ({latest_year}): {latest_total:.2f}\" through day {max_day}"
                 )
     else:
-        st.info("No year-over-year data available for the selected range.")
+        if yoy_data.empty:
+            st.info("No year-over-year data available for the selected range.")
+        else:
+            st.info("No years selected. Please select at least one year to display.")
 
     st.subheader("Rain Accumulation Heatmap")
 
