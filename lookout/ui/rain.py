@@ -149,13 +149,14 @@ def _cached_accumulation_data(
 
 @st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
 def _cached_yoy_accumulation_data(
-    daily_rain_df: pd.DataFrame, max_day: int, version: str = "v1"
+    daily_rain_df: pd.DataFrame, start_day: int, end_day: int, version: str = "v2"
 ):
     """
     Cache wrapper for year-over-year accumulation data preparation.
 
     :param daily_rain_df: DataFrame with daily rainfall data
-    :param max_day: Maximum day of year to include (1-365)
+    :param start_day: Start day of year to include (1-365)
+    :param end_day: End day of year to include (1-365)
     :param version: Cache version for invalidation
     :return: Prepared YoY accumulation DataFrame
     """
@@ -163,7 +164,7 @@ def _cached_yoy_accumulation_data(
     log_memory_usage("CACHE yoy_accumulation START", before_memory)
 
     result = rain_analysis.prepare_year_over_year_accumulation(
-        daily_rain_df, max_day=max_day
+        daily_rain_df, start_day=start_day, end_day=end_day
     )
 
     result_size = get_object_memory_usage(result)
@@ -421,20 +422,26 @@ def render():
 
     st.subheader("Year-over-Year Accumulation")
 
-    # Day slider for year slicing
-    max_day = st.slider(
-        "Show accumulation through day of year:",
+    # Day range slider for year slicing
+    day_range = st.slider(
+        "Select day range:",
         min_value=1,
         max_value=365,
-        value=365,
+        value=(1, 365),
         step=1,
-        help="Select day of year to slice cumulative rainfall data",
+        help="Select start and end day of year for rainfall accumulation"
     )
+    start_day, end_day = day_range
+    
+    # Display date context for selected range
+    start_date = pd.Timestamp("2024-01-01", tz="America/Los_Angeles") + pd.Timedelta(days=start_day - 1)
+    end_date = pd.Timestamp("2024-01-01", tz="America/Los_Angeles") + pd.Timedelta(days=end_day - 1)
+    st.caption(f"📅 Showing data from {start_date.strftime('%B %d')} to {end_date.strftime('%B %d')} (days {start_day}-{end_day})")
 
     # Prepare and display YoY accumulation chart
     with st.spinner("Preparing year-over-year data..."):
         yoy_data = _cached_yoy_accumulation_data(
-            daily_rain_df=daily_rain_df, max_day=max_day, version="v1"
+            daily_rain_df=daily_rain_df, start_day=start_day, end_day=end_day, version="v2"
         )
 
     # Year filtering options
@@ -471,7 +478,7 @@ def render():
     # Display chart with filtered data
     if not filtered_yoy_data.empty:
         fig = lo_viz.create_year_over_year_accumulation_chart(
-            yoy_data=filtered_yoy_data, max_day=max_day
+            yoy_data=filtered_yoy_data, start_day=start_day, end_day=end_day
         )
         st.plotly_chart(fig, width="stretch", key="yoy_accumulation")
 
@@ -486,7 +493,7 @@ def render():
                 total_years = len(yoy_data["year"].unique())
                 st.caption(
                     f"📊 Showing {len(filtered_years)} of {total_years} years • "
-                    f'Latest year ({latest_year}): {latest_total:.2f}" through day {max_day}'
+                    f'Latest year ({latest_year}): {latest_total:.2f}" for days {start_day}-{end_day}'
                 )
     else:
         if yoy_data.empty:

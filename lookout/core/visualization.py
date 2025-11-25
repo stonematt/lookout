@@ -1459,17 +1459,18 @@ def create_rain_accumulation_heatmap(
 
 
 def create_year_over_year_accumulation_chart(
-    yoy_data: pd.DataFrame, max_day: int = 365
+    yoy_data: pd.DataFrame, start_day: int = 1, end_day: int = 365
 ) -> go.Figure:
     """
     Create year-over-year cumulative rainfall line chart.
 
     Displays multiple lines, one for each year, showing cumulative rainfall
-    progression through year. Enables visual comparison of rainfall
-    patterns across different years.
+    progression through the specified day range. Enables visual comparison of 
+    rainfall patterns across different years for specific time periods.
 
     :param yoy_data: DataFrame with day_of_year, year, cumulative_rainfall columns.
-    :param max_day: Maximum day of year displayed (for axis labeling).
+    :param start_day: Start day of year displayed (for axis labeling).
+    :param end_day: End day of year displayed (for axis labeling).
     :return: Plotly figure with line chart.
     """
     if yoy_data.empty:
@@ -1538,7 +1539,7 @@ def create_year_over_year_accumulation_chart(
     fig.update_xaxes(
         showgrid=True,
         gridcolor="lightgray",
-        range=[1, max_day],
+        range=[start_day, end_day],
         tickmode="array",
         tickvals=[1, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],
         ticktext=[

@@ -334,17 +334,19 @@ def prepare_violin_plot_data(
 
 
 def prepare_year_over_year_accumulation(
-    daily_rain_df: pd.DataFrame, max_day: int = 365
+    daily_rain_df: pd.DataFrame, start_day: int = 1, end_day: int = 365
 ) -> pd.DataFrame:
     """
     Prepare year-over-year cumulative rainfall data for visualization.
 
     For each year in the dataset, calculates the running cumulative total
-    of rainfall up to the specified day of year (1-365). This enables
-    comparison of rainfall accumulation patterns across different years.
+    of rainfall within the specified day range (start_day to end_day). This enables
+    comparison of rainfall accumulation patterns across different years for specific
+    time periods.
 
     :param daily_rain_df: DataFrame with 'date' and 'rainfall' columns.
-    :param max_day: Maximum day of year to include (1-365). Defaults to 365.
+    :param start_day: Start day of year to include (1-365). Defaults to 1.
+    :param end_day: End day of year to include (1-365). Defaults to 365.
     :return: DataFrame with columns: day_of_year, year, cumulative_rainfall.
     """
     if daily_rain_df.empty:
@@ -357,7 +359,9 @@ def prepare_year_over_year_accumulation(
     df["year"] = df["date"].dt.year
 
     # Filter to requested day range
-    df_filtered = df[df["day_of_year"] <= max_day].copy()
+    df_filtered = df[
+        (df["day_of_year"] >= start_day) & (df["day_of_year"] <= end_day)
+    ].copy()
 
     # Calculate cumulative rainfall by year
     result_rows = []
