@@ -331,3 +331,49 @@ def prepare_violin_plot_data(
         }
 
     return violin_data
+
+
+def prepare_year_over_year_accumulation(
+    daily_rain_df: pd.DataFrame, max_day: int = 365
+) -> pd.DataFrame:
+    """
+    Prepare year-over-year cumulative rainfall data for visualization.
+
+    For each year in the dataset, calculates the running cumulative total
+    of rainfall up to the specified day of year (1-365). This enables
+    comparison of rainfall accumulation patterns across different years.
+
+    :param daily_rain_df: DataFrame with 'date' and 'rainfall' columns.
+    :param max_day: Maximum day of year to include (1-365). Defaults to 365.
+    :return: DataFrame with columns: day_of_year, year, cumulative_rainfall.
+    """
+    if daily_rain_df.empty:
+        return pd.DataFrame(columns=["day_of_year", "year", "cumulative_rainfall"])
+
+    # Prepare data with proper date handling
+    df = daily_rain_df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df["day_of_year"] = df["date"].dt.dayofyear
+    df["year"] = df["date"].dt.year
+
+    # Filter to requested day range
+    df_filtered = df[df["day_of_year"] <= max_day].copy()
+
+    # Calculate cumulative rainfall by year
+    result_rows = []
+    unique_years = df_filtered["year"].unique()
+    
+    for year_val in sorted(unique_years):
+        year_data = df_filtered[df_filtered["year"] == year_val].copy()
+        year_data = year_data.sort_values("day_of_year")
+        year_data["cumulative_rainfall"] = year_data["rainfall"].cumsum()
+        
+        # Add to result
+        for _, row in year_data.iterrows():
+            result_rows.append({
+                "day_of_year": int(row["day_of_year"]),
+                "year": int(row["year"]),
+                "cumulative_rainfall": float(row["cumulative_rainfall"]),
+            })
+
+    return pd.DataFrame(result_rows)
