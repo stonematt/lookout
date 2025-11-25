@@ -94,6 +94,10 @@ def load_or_update_data(
         after_rows = len(st.session_state["history_df"])
         st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
         
+        # Force garbage collection to free memory from old data
+        import gc
+        gc.collect()
+        
         logger.debug(
             f"UPDATE #{st.session_state['session_counter']}: "
             f"{before_rows}→{after_rows} rows, "

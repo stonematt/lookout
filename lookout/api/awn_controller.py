@@ -94,6 +94,10 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
             "dateutc"
         ].max()
 
+        # Force garbage collection to free memory from old DataFrame
+        import gc
+        gc.collect()
+
         logger.info("Session data updated successfully.")
     except Exception as e:
         logger.error(f"Failed to update session data: {e}")
@@ -438,8 +442,8 @@ def fill_archive_gap(device, history_df, start, end):
         if "skipped_gaps" not in st.session_state:
             st.session_state["skipped_gaps"] = []
         st.session_state["skipped_gaps"].append({"start": start, "end": end})
-
-    return history_df
+        return history_df
+    
     return full_combined
 
 

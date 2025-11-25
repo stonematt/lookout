@@ -158,10 +158,7 @@ def calculate_rainfall_statistics(
 
 
 def compute_rolling_rain_context(
-    daily_rain_df: pd.DataFrame,
-    windows: Iterable[int] = (1, 7, 30, 90),
-    normals_years: Optional[Tuple[int, int]] = None,
-    end_date: Optional[pd.Timestamp] = None,
+    daily_rain_df: pd.DataFrame, windows, normals_years, end_date
 ) -> pd.DataFrame:
     """
     Rolling-window rainfall totals compared to ALL historical N-day periods.
@@ -179,8 +176,6 @@ def compute_rolling_rain_context(
         return pd.DataFrame(
             columns=[  # type: ignore
                 "window_days",
-                "period_start",
-                "period_end",
                 "total",
                 "normal",
                 "anomaly_pct",
@@ -189,6 +184,24 @@ def compute_rolling_rain_context(
                 "n_periods",
             ]
         )
+
+    df = daily_rain_df.copy()
+    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+    s = df.set_index("date")["rainfall"].sort_index()
+
+    end_dt = (
+        pd.to_datetime(end_date).normalize() if end_date is not None else s.index.max()
+    )
+
+    if normals_years is None:
+        historical_data = s[s.index.year != end_dt.year]  # type: ignore
+    else:
+        y0, y1 = normals_years
+        historical_data = s[
+            (s.index.year >= y0)
+            & (s.index.year <= y1)
+            & (s.index.year != end_dt.year)  # type: ignore
+        ]
 
     df = daily_rain_df.copy()
     df["date"] = pd.to_datetime(df["date"]).dt.normalize()
@@ -256,10 +269,7 @@ def compute_rolling_rain_context(
 
 
 def prepare_violin_plot_data(
-    daily_rain_df: pd.DataFrame,
-    windows: Iterable[int] = (1, 7, 30, 90),
-    normals_years: Optional[Tuple[int, int]] = None,
-    end_date: Optional[pd.Timestamp] = None,
+    daily_rain_df: pd.DataFrame, windows, normals_years, end_date
 ) -> Dict:
     """
     Extract all N-day rolling totals and current values for violin plot visualization.
@@ -286,7 +296,9 @@ def prepare_violin_plot_data(
     else:
         y0, y1 = normals_years
         historical_data = s[
-            (s.index.year >= y0) & (s.index.year <= y1) & (s.index.year != end_dt.year)  # type: ignore
+            (s.index.year >= y0)
+            & (s.index.year <= y1)
+            & (s.index.year != end_dt.year)  # type: ignore
         ]
 
     violin_data = {}
