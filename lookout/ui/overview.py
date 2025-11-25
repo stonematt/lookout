@@ -100,7 +100,7 @@ def render():
 
     # User selects a box width
     box_width_option = st.selectbox(
-        "Select box width:", ["hour", "day", "week", "month"]
+        "Select box width:", ["week", "hour", "day", "month"]
     )
 
     if selected_metrics and "date" in history_df.columns:
