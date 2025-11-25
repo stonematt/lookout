@@ -13,27 +13,31 @@ import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.visualization as lo_viz
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
-    get_memory_usage, log_memory_usage, force_garbage_collection, 
-    cleanup_cache_functions, get_object_memory_usage, BYTES_TO_MB
+    get_memory_usage,
+    log_memory_usage,
+    force_garbage_collection,
+    cleanup_cache_functions,
+    get_object_memory_usage,
+    BYTES_TO_MB,
 )
 
 logger = app_logger(__name__)
 
 
-@st.cache_data(show_spinner=False, max_entries=5, ttl=3600)
+@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
 def _cached_rolling_context(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v2"
 ):
     before_memory = get_memory_usage()
     log_memory_usage("CACHE rolling_context START", before_memory)
-    
+
     result = rain_analysis.compute_rolling_rain_context(
         daily_rain_df, windows, normals_years, end_date
     )
-    
+
     result_size = get_object_memory_usage(result)
     logger.debug(f"CACHE rolling_context: {result_size:.1f}MB cached")
-    
+
     log_memory_usage("CACHE rolling_context END", before_memory)
     return result
 
@@ -78,25 +82,25 @@ def render_rolling_rain_context_table(stats_df: pd.DataFrame, unit: str = "in") 
         st.dataframe(view.set_index("Window"), width="stretch")
 
 
-@st.cache_data(show_spinner=False, max_entries=5, ttl=3600)
+@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
 def _cached_violin_data(
     daily_rain_df: pd.DataFrame, windows, normals_years, end_date, version: str = "v1"
 ):
     before_memory = get_memory_usage()
     log_memory_usage("CACHE violin_data START", before_memory)
-    
+
     result = rain_analysis.prepare_violin_plot_data(
         daily_rain_df, windows, normals_years, end_date
     )
-    
+
     result_size = get_object_memory_usage(result)
     logger.debug(f"CACHE violin_data: {result_size:.1f}MB cached")
-    
+
     log_memory_usage("CACHE violin_data END", before_memory)
     return result
 
 
-@st.cache_data(show_spinner=False, max_entries=5, ttl=3600)
+@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
 def _cached_accumulation_data(
     df: pd.DataFrame,
     start_date: pd.Timestamp,
@@ -126,7 +130,7 @@ def _cached_accumulation_data(
 
     before_memory = get_memory_usage()
     log_memory_usage("CACHE accumulation_data START", before_memory)
-    
+
     result = lo_viz.prepare_rain_accumulation_heatmap_data(
         archive_df=df,
         start_date=start_ts,
@@ -135,10 +139,10 @@ def _cached_accumulation_data(
         num_days=num_days,
         row_mode=None,  # Will be set in UI
     )
-    
+
     result_size = get_object_memory_usage(result)
     logger.debug(f"CACHE accumulation_data: {result_size:.1f}MB cached")
-    
+
     log_memory_usage("CACHE accumulation_data END", before_memory)
     return result
 
@@ -147,7 +151,7 @@ def render():
     """Render the precipitation analysis tab."""
     start_memory = get_memory_usage()
     log_memory_usage("TAB rain START", start_memory)
-    
+
     st.header("Precipitation Analysis")
     st.write("Comprehensive rainfall data analysis and visualization")
 
@@ -544,16 +548,18 @@ def render():
         if st.checkbox("Show daily rainfall sample"):
             st.write("**Recent daily totals:**")
             st.dataframe(daily_rain_df.tail(10))
-    
+
     # Memory tracking at tab exit
     end_memory = get_memory_usage()
     log_memory_usage("TAB rain END", start_memory)
-    
+
     # Force cleanup of visualization objects
     force_garbage_collection()
-    
+
     # Additional cleanup for cached function results
-    cleanup_cache_functions(_cached_rolling_context, _cached_violin_data, _cached_accumulation_data)
-    
+    cleanup_cache_functions(
+        _cached_rolling_context, _cached_violin_data, _cached_accumulation_data
+    )
+
     final_memory = get_memory_usage()
     log_memory_usage("TAB rain FINAL", end_memory)

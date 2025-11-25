@@ -953,12 +953,9 @@ def create_rainfall_summary_violin(
 
     fig = go.Figure()
 
-    daily_rain_df_copy = daily_rain_df.copy()
-    daily_rain_df_copy["date"] = pd.to_datetime(daily_rain_df_copy["date"])
-
-    all_single_days = daily_rain_df_copy[
-        daily_rain_df_copy["date"].dt.year != end_date.year
-    ]["rainfall"].values
+    # Convert dates without copying the entire DataFrame
+    dates = pd.to_datetime(daily_rain_df["date"])
+    all_single_days = daily_rain_df[dates.dt.year != end_date.year]["rainfall"].values
 
     annotations_data = []
 
@@ -981,7 +978,10 @@ def create_rainfall_summary_violin(
             row = window_row.iloc[0]
             current_val = current_values.get(window, row.get("total", 0))
 
-            s = daily_rain_df_copy.set_index("date")["rainfall"].sort_index()
+            # Convert date column to datetime and set as index for proper year comparison
+            df_temp = daily_rain_df.copy()
+            df_temp["date"] = pd.to_datetime(df_temp["date"])
+            s = df_temp.set_index("date")["rainfall"].sort_index()
             historical_data = s[s.index.year != end_date.year]
 
             if len(historical_data) < window_days:
@@ -1058,7 +1058,7 @@ def create_rainfall_summary_violin(
             yref="paper",
             yanchor="top",
             font=dict(size=10),
-    )
+        )
 
     # Memory cleanup for large DataFrames created during visualization
     try:
