@@ -420,9 +420,46 @@ def render():
     st.divider()
 
     st.subheader("Year-over-Year Accumulation")
-    st.info(
-        "Coming next: Line chart showing cumulative rainfall by day of year, with separate lines for each year"
+    
+    # Day slider for year slicing
+    max_day = st.slider(
+        "Show accumulation through day of year:",
+        min_value=1,
+        max_value=365,
+        value=365,
+        step=1,
+        help="Select the day of year to slice the cumulative rainfall data"
     )
+    
+    # Prepare and display YoY accumulation chart
+    with st.spinner("Preparing year-over-year data..."):
+        yoy_data = _cached_yoy_accumulation_data(
+            daily_rain_df=daily_rain_df,
+            max_day=max_day,
+            version="v1"
+        )
+    
+    if not yoy_data.empty:
+        fig = lo_viz.create_year_over_year_accumulation_chart(
+            yoy_data=yoy_data,
+            max_day=max_day
+        )
+        st.plotly_chart(fig, width="stretch", key="yoy_accumulation")
+        
+        # Show summary statistics
+        years = sorted(yoy_data["year"].unique())
+        latest_year = years[-1] if years else None
+        
+        if latest_year:
+            latest_data = yoy_data[yoy_data["year"] == latest_year]
+            if not latest_data.empty:
+                latest_total = latest_data["cumulative_rainfall"].max()
+                st.caption(
+                    f"📊 Showing {len(years)} years of data • "
+                    f"Latest year ({latest_year}): {latest_total:.2f}\" through day {max_day}"
+                )
+    else:
+        st.info("No year-over-year data available for the selected range.")
 
     st.subheader("Rain Accumulation Heatmap")
 
