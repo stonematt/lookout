@@ -362,18 +362,20 @@ def prepare_year_over_year_accumulation(
     # Calculate cumulative rainfall by year
     result_rows = []
     unique_years = df_filtered["year"].unique()
-    
+
     for year_val in sorted(unique_years):
         year_data = df_filtered[df_filtered["year"] == year_val].copy()
         year_data = year_data.sort_values("day_of_year")
         year_data["cumulative_rainfall"] = year_data["rainfall"].cumsum()
-        
+
         # Add to result
         for _, row in year_data.iterrows():
-            result_rows.append({
-                "day_of_year": int(row["day_of_year"]),
-                "year": int(row["year"]),
-                "cumulative_rainfall": float(row["cumulative_rainfall"]),
-            })
+            result_rows.append(
+                {
+                    "day_of_year": int(row["day_of_year"]),
+                    "year": int(row["year"]),
+                    "cumulative_rainfall": float(row["cumulative_rainfall"]),
+                }
+            )
 
     return pd.DataFrame(result_rows)

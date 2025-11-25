@@ -1485,20 +1485,28 @@ def create_year_over_year_accumulation_chart(
 
     # Color palette for different years
     colors = [
-        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c",
+        "#d62728",
+        "#9467bd",
+        "#8c564b",
+        "#e377c2",
+        "#7f7f7f",
+        "#bcbd22",
+        "#17becf",
     ]
 
     # Get unique years and sort them
     years = sorted(yoy_data["year"].unique())
-    
+
     # Add a line for each year
     for i, year in enumerate(years):
         year_data = yoy_data[yoy_data["year"] == year].copy()
         year_data = year_data.sort_values("day_of_year")
-        
+
         color = colors[i % len(colors)]
-        
+
         fig.add_trace(
             go.Scatter(
                 x=year_data["day_of_year"],
@@ -1509,7 +1517,7 @@ def create_year_over_year_accumulation_chart(
                 hovertemplate=(
                     "Day %{x}<br>"
                     "Year: " + str(year) + "<br>"
-                    "Cumulative: %{y:.2f}\"<extra></extra>"
+                    'Cumulative: %{y:.2f}"<extra></extra>'
                 ),
             )
         )
@@ -1523,13 +1531,7 @@ def create_year_over_year_accumulation_chart(
         yaxis_title="Cumulative Rainfall (inches)",
         showlegend=True,
         hovermode="x unified",
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
 
     # Update axes
@@ -1539,14 +1541,23 @@ def create_year_over_year_accumulation_chart(
         range=[1, max_day],
         tickmode="array",
         tickvals=[1, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],
-        ticktext=["Jan 1", "Feb 1", "Mar 1", "Apr 1", "May 1", "Jun 1", 
-                 "Jul 1", "Aug 1", "Sep 1", "Oct 1", "Nov 1", "Dec 1", "Dec 31"],
+        ticktext=[
+            "Jan 1",
+            "Feb 1",
+            "Mar 1",
+            "Apr 1",
+            "May 1",
+            "Jun 1",
+            "Jul 1",
+            "Aug 1",
+            "Sep 1",
+            "Oct 1",
+            "Nov 1",
+            "Dec 1",
+            "Dec 31",
+        ],
     )
-    
-    fig.update_yaxes(
-        showgrid=True,
-        gridcolor="lightgray",
-        rangemode="tozero"
-    )
+
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
 
     return fig
