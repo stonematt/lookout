@@ -100,12 +100,15 @@ def load_or_update_data(
             "dateutc"
         ].max()
 
-        # Track memory after update and increment counter
+        # Track memory after update - only increment counter if data actually changed
         after_size = get_object_memory_usage(st.session_state["history_df"])
         after_rows = len(st.session_state["history_df"])
-        st.session_state["session_counter"] = (
-            st.session_state.get("session_counter", 0) + 1
-        )
+        
+        # Only increment counter and trigger updates if data actually changed
+        if before_rows != after_rows or abs(before_size - after_size) > 0.1:
+            st.session_state["session_counter"] = (
+                st.session_state.get("session_counter", 0) + 1
+            )
 
         # Force garbage collection to free memory from old data
         import gc

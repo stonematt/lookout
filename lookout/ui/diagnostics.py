@@ -1,7 +1,8 @@
+import gc
+import sys
+
 import pandas as pd
 import streamlit as st
-import sys
-import gc
 
 import lookout.core.data_processing as lo_dp
 from lookout.api.awn_controller import fill_archive_gap
@@ -10,14 +11,14 @@ from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
-    get_memory_usage,
-    log_memory_usage,
-    force_garbage_collection,
-    get_object_counts,
-    get_df_memory_usage,
-    get_object_memory_usage,
     BYTES_TO_MB,
     MEMORY_UNAVAILABLE,
+    force_garbage_collection,
+    get_df_memory_usage,
+    get_memory_usage,
+    get_object_counts,
+    get_object_memory_usage,
+    log_memory_usage,
 )
 
 logger = app_logger(__name__)
@@ -178,7 +179,7 @@ def render():
                 )
                 st.session_state["history_df"] = updated_df
                 st.success("Gap filled and archive updated.")
-                st.rerun()
+                # st.rerun()
 
             if save_clicked:
                 backup_and_save_history(
@@ -433,16 +434,23 @@ def render():
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🗑️ Clear Cache"):
-                st.cache_data.clear()
-                gc.collect()
-                st.success("Cache cleared!")
-                st.rerun()
+                # Selective cache clearing to avoid UI disruption
+                try:
+                    import lookout.ui.rain as rain_module
+                    cleared_count = 0
+                    if hasattr(rain_module, '_cached_rolling_context'):
+                        rain_module._cached_rolling_context.clear()
+                        cleared_count += 1
+                    gc.collect()
+                    st.success(f"Selective cache cleared ({cleared_count} functions)!")
+                except Exception as e:
+                    st.warning(f"Cache clearing failed: {e}")
 
         with col2:
             if st.button("🔄 Force GC"):
                 gc.collect()
                 st.success("Garbage collection completed!")
-                st.rerun()
+                # st.rerun()
 
         with col3:
             if st.button("🔍 Cache Analysis"):

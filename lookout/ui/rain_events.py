@@ -527,8 +527,14 @@ def render():
                             f"Catalog regenerated: {len(new_events)} events cached in session state"
                         )
 
-                    st.cache_data.clear()
-                    logger.info("Cleared streamlit data cache")
+                    # Selective cache clearing to avoid UI disruption
+                    try:
+                        import lookout.ui.rain as rain_module
+                        if hasattr(rain_module, '_cached_rolling_context'):
+                            rain_module._cached_rolling_context.clear()
+                        logger.info("Selective cache cleared after catalog regeneration")
+                    except Exception as e:
+                        logger.warning(f"Selective cache clearing failed: {e}")
 
                     st.success(
                         f"✅ Regenerated {len(new_events)} events! Data updated in current view."

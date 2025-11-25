@@ -151,6 +151,7 @@ with tab_diagnostics:
 with tab_playground:
     playground.render()
 
-# Periodic memory cleanup to prevent accumulation
-if st.session_state.get("session_counter", 0) % 5 == 0:
+# Reduced frequency memory cleanup to prevent disruptive reruns
+# Only cleanup on higher thresholds to avoid interfering with user interactions
+if st.session_state.get("session_counter", 0) % 20 == 0:
     force_garbage_collection()

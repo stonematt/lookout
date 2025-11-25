@@ -91,14 +91,12 @@ class StyleManager:
         return self._config
 
     def inject_styles(self) -> None:
-        """Inject global CSS styles once per session."""
-        if "styles_injected" in st.session_state:
-            return
-
+        """Inject global CSS styles, ensuring they're always available."""
+        # Always inject styles to ensure they're available after reruns
+        # This prevents style loss when components are redrawn after interactions
         css = self._generate_css()
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-        st.session_state["styles_injected"] = True
-        logger.debug("Global CSS styles injected")
+        logger.debug("CSS styles injected/reinjected")
 
     def _generate_css(self) -> str:
         """Generate CSS rules from configuration."""
