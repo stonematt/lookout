@@ -8,11 +8,16 @@ import streamlit as st
 import sys
 
 import lookout.api.awn_controller as awn
-from lookout.utils.trend_utils import calculate_temperature_trend, calculate_barometer_trend
+from lookout.utils.trend_utils import (
+    calculate_temperature_trend,
+    calculate_barometer_trend,
+)
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
-    get_memory_usage, log_memory_usage, get_object_memory_usage, 
-    BYTES_TO_MB
+    get_memory_usage,
+    log_memory_usage,
+    get_object_memory_usage,
+    BYTES_TO_MB,
 )
 
 logger = app_logger(__name__)
@@ -47,9 +52,13 @@ def load_or_update_data(
         # Calculate trends for initial load
         if not st.session_state["history_df"].empty:
             latest_row = st.session_state["history_df"].iloc[0]
-            temp_trend = calculate_temperature_trend(st.session_state["history_df"], latest_row['tempf'])
-            barom_trend = calculate_barometer_trend(st.session_state["history_df"], latest_row['baromrelin'])
-            
+            temp_trend = calculate_temperature_trend(
+                st.session_state["history_df"], latest_row["tempf"]
+            )
+            barom_trend = calculate_barometer_trend(
+                st.session_state["history_df"], latest_row["baromrelin"]
+            )
+
             # Store trends in session state
             st.session_state["temp_trend"] = temp_trend
             st.session_state["barom_trend"] = barom_trend
@@ -62,7 +71,9 @@ def load_or_update_data(
 
         # Log initial memory usage
         df_size_mb = get_object_memory_usage(st.session_state["history_df"])
-        logger.debug(f"INITIAL LOAD: {len(st.session_state['history_df'])} rows, {df_size_mb:.1f}MB")
+        logger.debug(
+            f"INITIAL LOAD: {len(st.session_state['history_df'])} rows, {df_size_mb:.1f}MB"
+        )
 
         logger.info("Initial archive load completed.")
         update_message.empty()
@@ -77,34 +88,38 @@ def load_or_update_data(
         short_minutes=short_minutes,
         long_minutes=long_minutes,
         auto_update=auto_update,
+        page_loads=st.session_state.get("page_loads", 0),
     ):
         update_message.text("Updating historical data...")
-        
+
         # Track memory before update
         before_size = get_object_memory_usage(st.session_state["history_df"])
         before_rows = len(st.session_state["history_df"])
-        
+
         awn.update_session_data(device, history_df)
         st.session_state["history_max_dateutc"] = st.session_state["history_df"][
             "dateutc"
         ].max()
-        
+
         # Track memory after update and increment counter
         after_size = get_object_memory_usage(st.session_state["history_df"])
         after_rows = len(st.session_state["history_df"])
-        st.session_state["session_counter"] = st.session_state.get("session_counter", 0) + 1
-        
+        st.session_state["session_counter"] = (
+            st.session_state.get("session_counter", 0) + 1
+        )
+
         # Force garbage collection to free memory from old data
         import gc
+
         gc.collect()
-        
+
         logger.debug(
             f"UPDATE #{st.session_state['session_counter']}: "
             f"{before_rows}→{after_rows} rows, "
             f"{before_size:.1f}→{after_size:.1f}MB "
             f"(+{after_size-before_size:.1f}MB)"
         )
-        
+
         # Log process memory after update
         process_memory = get_memory_usage()
         if process_memory > 0:
@@ -115,7 +130,12 @@ def load_or_update_data(
 
 
 def should_update_history(
-    device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
+    device_last_dateutc,
+    history_max_dateutc,
+    short_minutes,
+    long_minutes,
+    auto_update,
+    page_loads,
 ):
     """
     Determines if the historical data should be updated based on age thresholds.
@@ -125,9 +145,13 @@ def should_update_history(
     :param short_minutes: int - Minimum age (in minutes) required to trigger an update.
     :param long_minutes: int - Maximum age (in minutes) for which updates are valid.
     :param auto_update: bool - Whether auto-update is enabled.
+    :param page_loads: int - Number of page loads in current session.
     :return: bool - True if history should be updated, False otherwise.
     """
     if not auto_update:
+        return False
+
+    if page_loads <= 1:
         return False
 
     delta_ms = device_last_dateutc - history_max_dateutc
