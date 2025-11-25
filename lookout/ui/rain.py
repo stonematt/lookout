@@ -147,6 +147,32 @@ def _cached_accumulation_data(
     return result
 
 
+@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
+def _cached_yoy_accumulation_data(
+    daily_rain_df: pd.DataFrame, max_day: int, version: str = "v1"
+):
+    """
+    Cache wrapper for year-over-year accumulation data preparation.
+
+    :param daily_rain_df: DataFrame with daily rainfall data
+    :param max_day: Maximum day of year to include (1-365)
+    :param version: Cache version for invalidation
+    :return: Prepared YoY accumulation DataFrame
+    """
+    before_memory = get_memory_usage()
+    log_memory_usage("CACHE yoy_accumulation START", before_memory)
+
+    result = rain_analysis.prepare_year_over_year_accumulation(
+        daily_rain_df, max_day=max_day
+    )
+
+    result_size = get_object_memory_usage(result)
+    logger.debug(f"CACHE yoy_accumulation: {result_size:.1f}MB cached")
+
+    log_memory_usage("CACHE yoy_accumulation END", before_memory)
+    return result
+
+
 def render():
     """Render the precipitation analysis tab."""
     start_memory = get_memory_usage()
