@@ -57,11 +57,6 @@ auto_refresh_max = 3 * 24 * 60  # 3 days in minutes
 
 # Setup and get data ########################
 
-# Initialize page load counter
-if "page_loads" not in st.session_state:
-    st.session_state.page_loads = 0
-st.session_state.page_loads += 1
-
 if "devices" not in st.session_state:
     devices = ambient_client.get_devices()
     st.session_state["devices"] = devices

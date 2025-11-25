@@ -88,7 +88,6 @@ def load_or_update_data(
         short_minutes=short_minutes,
         long_minutes=long_minutes,
         auto_update=auto_update,
-        page_loads=st.session_state.get("page_loads", 0),
     ):
         update_message.text("Updating historical data...")
 
@@ -130,12 +129,7 @@ def load_or_update_data(
 
 
 def should_update_history(
-    device_last_dateutc,
-    history_max_dateutc,
-    short_minutes,
-    long_minutes,
-    auto_update,
-    page_loads,
+    device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
 ):
     """
     Determines if the historical data should be updated based on age thresholds.
@@ -145,13 +139,9 @@ def should_update_history(
     :param short_minutes: int - Minimum age (in minutes) required to trigger an update.
     :param long_minutes: int - Maximum age (in minutes) for which updates are valid.
     :param auto_update: bool - Whether auto-update is enabled.
-    :param page_loads: int - Number of page loads in current session.
     :return: bool - True if history should be updated, False otherwise.
     """
     if not auto_update:
-        return False
-
-    if page_loads <= 1:
         return False
 
     delta_ms = device_last_dateutc - history_max_dateutc
