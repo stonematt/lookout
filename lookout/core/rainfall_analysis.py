@@ -37,7 +37,14 @@ def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
     # Since dailyrainin resets at midnight, max value for each day IS the daily total
     daily_max = df_local.groupby("local_date")["dailyrainin"].max()
 
-    return pd.DataFrame({"date": daily_max.index, "rainfall": daily_max.values})
+    result_df = pd.DataFrame({"date": daily_max.index, "rainfall": daily_max.values})
+    
+    # Add helper columns for date-based UI
+    result_df["day_of_year"] = pd.to_datetime(result_df["date"]).dt.dayofyear
+    result_df["month_day"] = pd.to_datetime(result_df["date"]).dt.strftime("%b %d")  # "Jan 10", "Feb 15"
+    result_df["month_day_numeric"] = pd.to_datetime(result_df["date"]).dt.month * 100 + pd.to_datetime(result_df["date"]).dt.day  # 101, 215, etc.
+    
+    return result_df
 
 
 def calculate_dry_spell_stats(df: pd.DataFrame) -> Dict:
