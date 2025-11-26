@@ -5,6 +5,7 @@ This module provides event browsing, selection, and management interface
 for rain events detected from historical weather data.
 """
 
+import json
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -12,13 +13,19 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lookout.core.rain_events import RainEventCatalog
+from lookout.core.visualization import (
+    create_event_accumulation_chart,
+    create_event_rate_chart,
+)
+from lookout.ui import header
+import lookout.ui.rain as rain_module
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
-    get_memory_usage,
-    log_memory_usage,
-    force_garbage_collection,
-    get_object_memory_usage,
     BYTES_TO_MB,
+    force_garbage_collection,
+    get_memory_usage,
+    get_object_memory_usage,
+    log_memory_usage,
 )
 
 logger = app_logger(__name__)
@@ -90,12 +97,6 @@ def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFra
     :param selected_event: Event row from catalog DataFrame
     :param archive_df: Full weather archive (unsorted)
     """
-    import json
-
-    from lookout.core.visualization import (
-        create_event_accumulation_chart,
-        create_event_rate_chart,
-    )
 
     archive_df = archive_df.copy()
     archive_df["timestamp"] = pd.to_datetime(archive_df["dateutc"], unit="ms", utc=True)
@@ -223,47 +224,10 @@ def render():
                     )
                     events_df = catalog.update_catalog_with_new_data(df, stored_catalog)
 
-                    # Auto-save if ongoing event completed
-                    import json
-
-                    stored_sorted = stored_catalog.sort_values("start_time")
-                    updated_sorted = events_df.sort_values("start_time")
-
-                    if len(stored_sorted) > 0 and len(updated_sorted) > 0:
-                        stored_last = stored_sorted.iloc[-1]
-                        updated_last = updated_sorted.iloc[-1]
-
-                        # Check stored last event ongoing status
-                        stored_ongoing = False
-                        if "ongoing" in stored_last and stored_last["ongoing"]:
-                            stored_ongoing = True
-                        elif "flags" in stored_last and stored_last["flags"]:
-                            flags = stored_last["flags"]
-                            if isinstance(flags, str):
-                                flags = json.loads(flags)
-                            stored_ongoing = flags.get("ongoing", False)
-
-                        # Check updated last event ongoing status
-                        updated_ongoing = False
-                        if "ongoing" in updated_last and updated_last["ongoing"]:
-                            updated_ongoing = True
-                        elif "flags" in updated_last and updated_last["flags"]:
-                            flags = updated_last["flags"]
-                            if isinstance(flags, str):
-                                flags = json.loads(flags)
-                            updated_ongoing = flags.get("ongoing", False)
-
-                        # Auto-save if ongoing event completed
-                        if stored_ongoing and not updated_ongoing:
-                            logger.info(
-                                f"Ongoing event completed: {updated_last.get('event_id', 'unknown')[:8]}, "
-                                f"{updated_last['total_rainfall']:.3f}\" over "
-                                f"{updated_last['duration_minutes']/60:.1f}h"
-                            )
-                            catalog.save_catalog(events_df)
-                            logger.info(
-                                "Catalog auto-saved to Storj (ongoing event completed)"
-                            )
+                    # Auto-save if ongoing event completed using core function
+                    catalog.check_and_auto_save_ongoing_event(
+                        stored_catalog, events_df
+                    )
 
                     st.session_state["rain_events_catalog"] = events_df
                     catalog_source = "storage"
@@ -281,7 +245,6 @@ def render():
                         and "device" in st.session_state
                     ):
                         try:
-                            from lookout.ui import header
 
                             device_name = (
                                 st.session_state["device"]
@@ -323,7 +286,6 @@ def render():
                     and "device" in st.session_state
                 ):
                     try:
-                        from lookout.ui import header
 
                         device_name = (
                             st.session_state["device"]
@@ -529,10 +491,11 @@ def render():
 
                     # Selective cache clearing to avoid UI disruption
                     try:
-                        import lookout.ui.rain as rain_module
-                        if hasattr(rain_module, '_cached_rolling_context'):
+                        if hasattr(rain_module, "_cached_rolling_context"):
                             rain_module._cached_rolling_context.clear()
-                        logger.info("Selective cache cleared after catalog regeneration")
+                        logger.info(
+                            "Selective cache cleared after catalog regeneration"
+                        )
                     except Exception as e:
                         logger.warning(f"Selective cache clearing failed: {e}")
 

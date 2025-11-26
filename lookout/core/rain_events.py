@@ -728,6 +728,60 @@ class RainEventCatalog:
             )
             return pd.DataFrame()
 
-        # Remove temporary timestamp column
+# Remove temporary timestamp column
         event_slice = event_slice.drop(columns=["timestamp"])
         return event_slice.copy()
+
+    def check_and_auto_save_ongoing_event(
+        self, stored_catalog: pd.DataFrame, updated_catalog: pd.DataFrame
+    ) -> bool:
+        """
+        Check if ongoing event completed and auto-save if needed.
+        
+        :param stored_catalog: Previously stored catalog
+        :param updated_catalog: Updated catalog with new data
+        :return: True if auto-saved, False otherwise
+        """
+        if len(stored_catalog) == 0 or len(updated_catalog) == 0:
+            return False
+        
+        stored_sorted = stored_catalog.sort_values("start_time")
+        updated_sorted = updated_catalog.sort_values("start_time")
+        
+        stored_last = stored_sorted.iloc[-1]
+        updated_last = updated_sorted.iloc[-1]
+        
+        # Check stored last event ongoing status
+        stored_ongoing = False
+        if "ongoing" in stored_last and stored_last["ongoing"]:
+            stored_ongoing = True
+        elif "flags" in stored_last and stored_last["flags"]:
+            flags = stored_last["flags"]
+            if isinstance(flags, str):
+                import json
+                flags = json.loads(flags)
+            stored_ongoing = flags.get("ongoing", False)
+        
+        # Check updated last event ongoing status
+        updated_ongoing = False
+        if "ongoing" in updated_last and updated_last["ongoing"]:
+            updated_ongoing = True
+        elif "flags" in updated_last and updated_last["flags"]:
+            flags = updated_last["flags"]
+            if isinstance(flags, str):
+                import json
+                flags = json.loads(flags)
+            updated_ongoing = flags.get("ongoing", False)
+        
+        # Auto-save if ongoing event completed
+        if stored_ongoing and not updated_ongoing:
+            logger.info(
+                f"Ongoing event completed: {updated_last.get('event_id', 'unknown')[:8]}, "
+                f"{updated_last['total_rainfall']:.3f}\" over "
+                f"{updated_last['duration_minutes']/60:.1f}h"
+            )
+            self.save_catalog(updated_catalog)
+            logger.info("Catalog auto-saved to Storj (ongoing event completed)")
+            return True
+        
+        return False

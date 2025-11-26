@@ -112,3 +112,46 @@ Rationale: Rolling window comparison provides true statistical context vs calend
 ```
 Rationale: 5-minute intervals are normal; only gaps >10min indicate data loss.
 ```
+
+### UI Layer Architecture Patterns
+
+**Separation of Concerns:**
+- UI modules (`lookout/ui/*.py`) should only handle presentation logic
+- Data processing belongs in core modules (`lookout/core/*.py`)
+- Render functions focus on display, user interaction, and caching
+- Business logic, calculations, and data transformations stay in core layer
+
+**Import Organization:**
+- ALL imports at top of file, grouped: stdlib → third-party → local
+- NO imports inside functions unless absolutely necessary
+- Use fully qualified imports for local modules (`lookout.core.module`)
+- Follow existing code standards in CONTRIBUTING.md
+
+**Code Structure:**
+- UI functions call core modules for data processing
+- Core modules return processed data ready for display
+- UI layer handles Streamlit widgets, charts, and user interaction
+- Avoid data processing, calculations, or business logic in UI layer
+
+**Example Pattern:**
+```python
+# UI layer - only presentation
+import lookout.core.data_processing as lo_dp
+import lookout.core.visualization as lo_viz
+
+def render():
+    df = st.session_state["history_df"]
+    
+    # Call core for data processing
+    processed_data = lo_dp.calculate_statistics(df)
+    
+    # UI only handles display
+    st.metric("Total", processed_data["total"])
+    fig = lo_viz.create_chart(processed_data)
+    st.plotly_chart(fig)
+```
+
+**Rationale:** Clean architecture improves maintainability, testability, and 
+follows separation of concerns principle. UI modules should only handle 
+presentation, while core modules contain business logic.
+```

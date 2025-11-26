@@ -222,93 +222,24 @@ def render():
         return
 
     df = st.session_state["history_df"]
+    last_data = st.session_state.get("last_data")
 
-    if "last_data" in st.session_state:
-        latest = st.session_state["last_data"]
-        try:
-            last_rain = pd.to_datetime(latest["lastRain"])
-            current_time = pd.to_datetime(latest["dateutc"], unit="ms", utc=True)
-            dry_period = current_time - last_rain
-            current_dry_days = dry_period.days
-            current_dry_hours = (dry_period.total_seconds() % (24 * 3600)) / 3600
-
-            if current_dry_days > 0:
-                time_since_rain = f"{current_dry_days}d {current_dry_hours:.1f}h"
-            else:
-                time_since_rain = f"{current_dry_hours:.1f}h"
-        except Exception:
-            current_dry_days = 0
-            time_since_rain = "0h"
-    else:
-        latest = df.iloc[-1].to_dict()
-        current_dry_days = 0
-        time_since_rain = "0h"
-
-    with st.spinner("Processing daily rainfall data..."):
-        daily_rain_df = rain_analysis.extract_daily_rainfall(df)
-
-    with st.spinner("Calculating rainfall statistics..."):
-        stats = rain_analysis.calculate_rainfall_statistics(df, daily_rain_df)
-        if "last_data" in st.session_state:
-            stats.update(
-                {
-                    "current_ytd": latest.get("yearlyrainin", 0),
-                    "current_monthly": latest.get("monthlyrainin", 0),
-                    "current_weekly": latest.get("weeklyrainin", 0),
-                    "current_daily": latest.get("dailyrainin", 0),
-                    "last_rain": latest.get("lastRain", "Unknown"),
-                    "current_dry_days": current_dry_days,
-                    "time_since_rain": time_since_rain,
-                }
-            )
-
-    yesterday_date = pd.to_datetime(daily_rain_df["date"]).max() - pd.Timedelta(days=1)
-    yesterday_rain = (
-        daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
-            "rainfall"
-        ].sum()
-        if len(daily_rain_df) > 0
-        else 0.0
-    )
-
-    # Calculate rolling context for relative periods
-    if len(daily_rain_df) > 0:
-        end_date = pd.to_datetime(daily_rain_df["date"]).max()
-        context_df = _cached_rolling_context(
-            daily_rain_df=daily_rain_df,
-            windows=(1, 7, 30, 90, 365),
-            normals_years=None,
-            end_date=end_date,
-            version="v2",
+    # Process rainfall data using core function
+    with st.spinner("Processing rainfall data..."):
+        daily_rain_df, stats, current_values, context_df = (
+            rain_analysis.prepare_rain_tab_data(df, last_data)
         )
 
-        # Get relative period values
-        today_val = stats["current_daily"]
-        yesterday_val = yesterday_rain
-        last_7d_val = (
-            context_df[context_df["window_days"] == 7]["total"].iloc[0]
-            if len(context_df[context_df["window_days"] == 7]) > 0
-            else 0
-        )
-        last_30d_val = (
-            context_df[context_df["window_days"] == 30]["total"].iloc[0]
-            if len(context_df[context_df["window_days"] == 30]) > 0
-            else 0
-        )
-        last_90d_val = (
-            context_df[context_df["window_days"] == 90]["total"].iloc[0]
-            if len(context_df[context_df["window_days"] == 90]) > 0
-            else 0
-        )
-        last_365d_val = (
-            context_df[context_df["window_days"] == 365]["total"].iloc[0]
-            if len(context_df[context_df["window_days"] == 365]) > 0
-            else 0
-        )
-    else:
-        today_val = stats["current_daily"]
-        yesterday_val = yesterday_rain
-        last_7d_val = last_30d_val = last_90d_val = last_365d_val = 0
+    # Extract values for display
+    today_val = current_values.get("today", 0)
+    yesterday_val = current_values.get("yesterday", 0)
+    last_7d_val = current_values.get("7d", 0)
+    last_30d_val = current_values.get("30d", 0)
+    last_90d_val = current_values.get("90d", 0)
+    last_365d_val = current_values.get("365d", 0)
+    
+    # Get end_date for violin plots
+    end_date = pd.to_datetime(daily_rain_df["date"]).max() if not daily_rain_df.empty else pd.Timestamp.now()
 
     st.markdown(
         f'**Today:** {today_val:.2f}" • '
@@ -336,8 +267,9 @@ def render():
             daily_rain_df=daily_rain_df,
             current_values=current_values,
             rolling_context_df=context_df,
-            end_date=end_date,
+            end_date=pd.to_datetime(daily_rain_df["date"]).max() if not daily_rain_df.empty else pd.Timestamp.now(),
             windows=["Today", "Yesterday"],
+            title="",
         )
         st.plotly_chart(fig_daily, width="stretch", key="daily_viz")
 
@@ -346,8 +278,9 @@ def render():
             daily_rain_df=daily_rain_df,
             current_values=current_values,
             rolling_context_df=context_df,
-            end_date=end_date,
+            end_date=pd.to_datetime(daily_rain_df["date"]).max() if not daily_rain_df.empty else pd.Timestamp.now(),
             windows=["7d", "30d", "90d", "365d"],
+            title="",
         )
         st.plotly_chart(fig_rolling, width="stretch", key="rolling_viz")
 
