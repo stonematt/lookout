@@ -218,97 +218,13 @@ def render():
             st.info("No events found in catalog")
             return
 
-        # Note: Removed elif catalog.catalog_exists() and related logic since catalog loads early in data flow
-            with st.spinner("Loading event catalog from storage..."):
-                logger.info(f"Loading catalog from Storj: {catalog.catalog_path}")
-                stored_catalog = catalog.load_catalog()
-                if not stored_catalog.empty:
-                    logger.info(
-                        f"Loaded {len(stored_catalog)} events from storage, checking for updates..."
-                    )
-                    events_df = catalog.update_catalog_with_new_data(df, stored_catalog)
+        
 
-                    # Auto-save if ongoing event completed using core function
-                    catalog.check_and_auto_save_ongoing_event(
-                        stored_catalog, events_df
-                    )
-
-                    st.session_state["rain_events_catalog"] = events_df
-                    catalog_source = "storage"
-
-                    # Log catalog memory usage
-                    catalog_size_mb = get_object_memory_usage(events_df)
-                    process_memory = get_memory_usage()
-                    logger.debug(
-                        f"Catalog updated: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
-                    )
-
-                    # Update header with active event information now that catalog is available
-                    if (
-                        "header_placeholder" in st.session_state
-                        and "device" in st.session_state
-                    ):
-                        try:
-
-                            device_name = (
-                                st.session_state["device"]
-                                .get("info", {})
-                                .get("name", "Unknown")
-                            )
-                            with st.session_state.header_placeholder.container():
-                                header.render_weather_header(device_name)
-                            logger.debug("Header updated with active event information")
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to update header after catalog load: {e}"
-                            )
-                else:
-                    logger.warning("Loaded catalog from storage is empty")
-                    catalog_source = None
-
-        else:
-            with st.spinner(
-                "Generating event catalog from historical data... This may take a minute."
-            ):
-                logger.info(
-                    "No catalog found in session or storage, generating fresh catalog..."
-                )
-                events_df = catalog.detect_and_catalog_events(df, auto_save=False)
-                st.session_state["rain_events_catalog"] = events_df
-                catalog_source = "generated"
-
-                # Log catalog memory usage
-                catalog_size_mb = get_object_memory_usage(events_df)
-                process_memory = get_memory_usage()
-                logger.debug(
-                    f"Fresh catalog: {len(events_df)} events, {catalog_size_mb:.1f}MB, process: {process_memory:.1f}MB"
-                )
-
-                # Update header with active event information now that catalog is available
-                if (
-                    "header_placeholder" in st.session_state
-                    and "device" in st.session_state
-                ):
-                    try:
-
-                        device_name = (
-                            st.session_state["device"]
-                            .get("info", {})
-                            .get("name", "Unknown")
-                        )
-                        with st.session_state.header_placeholder.container():
-                            header.render_weather_header(device_name)
-                        logger.debug("Header updated with active event information")
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to update header after catalog generation: {e}"
-                        )
-
-        if events_df is not None and not events_df.empty:
-            zero_rate_count = (events_df["max_hourly_rate"] == 0).sum()
-            logger.debug(
-                f"Displaying catalog: {len(events_df)} events, {zero_rate_count} with zero max_rate"
-            )
+        # events_df is guaranteed to exist and not be empty from above checks
+        zero_rate_count = (events_df["max_hourly_rate"] == 0).sum()
+        logger.debug(
+            f"Displaying catalog: {len(events_df)} events, {zero_rate_count} with zero max_rate"
+        )
 
             min_date = events_df["start_time"].min().date()
             max_date = events_df["start_time"].max().date()
