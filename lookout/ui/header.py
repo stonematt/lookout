@@ -30,7 +30,7 @@ def render_weather_header(device_name: str) -> None:
     # Ensure styles are always available when header is rendered
     style_manager = get_style_manager()
     style_manager.inject_styles()
-    
+
     # Two-column header layout
     header_col1, header_col2 = st.columns([1, 1])
     with header_col1:
@@ -124,11 +124,11 @@ def _render_active_event_display(weather_data: WeatherData) -> None:
 
     # Build active event banner content with hanging indent structure
     # Use getattr to safely access event attributes
-    start_time = getattr(event, 'start_time', 'Unknown') if event else 'Unknown'
-    duration = getattr(event, 'duration', 'Unknown') if event else 'Unknown'
-    total_rain = getattr(event, 'total_rain', 0.0) if event else 0.0
-    rain_rate = getattr(event, 'rain_rate', 0.0) if event else 0.0
-    
+    start_time = getattr(event, "start_time", "Unknown") if event else "Unknown"
+    duration = getattr(event, "duration", "Unknown") if event else "Unknown"
+    total_rain = getattr(event, "total_rain", 0.0) if event else 0.0
+    rain_rate = getattr(event, "rain_rate", 0.0) if event else 0.0
+
     event_content = (
         f'<div class="event-line">'
         f'<span class="emoji-bullet">🌧️</span>'

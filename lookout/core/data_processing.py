@@ -2,6 +2,8 @@
 Collection of functions to manipulate data frames for a streamlit dashboard
 """
 
+from typing import Dict, Iterable, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -103,7 +105,7 @@ def load_or_update_data(
         # Track memory after update - only increment counter if data actually changed
         after_size = get_object_memory_usage(st.session_state["history_df"])
         after_rows = len(st.session_state["history_df"])
-        
+
         # Only increment counter and trigger updates if data actually changed
         if before_rows != after_rows or abs(before_size - after_size) > 0.1:
             st.session_state["session_counter"] = (
@@ -395,3 +397,40 @@ def detect_gaps(
             "duration_minutes": durations,
         }
     )
+
+
+def prepare_box_plot_data(
+    history_df: pd.DataFrame, selected_metrics: List[Dict], box_width_option: str
+) -> Tuple[pd.DataFrame, str]:
+    """
+    Prepare data for box plot visualization.
+
+    :param history_df: Historical weather data
+    :param selected_metrics: List of selected metrics with titles and column names
+    :param box_width_option: Time grouping option (hour, day, week, month)
+    :return: Tuple of (processed_df, group_column_name)
+    """
+    if not selected_metrics or "date" not in history_df.columns:
+        return history_df, ""
+
+    # Convert 'date' column to datetime if it's not already
+    df_local = history_df.copy()
+    df_local["date"] = pd.to_datetime(df_local["date"])
+
+    group_column = ""
+
+    # Group by the selected box width option
+    if box_width_option == "hour":
+        df_local["hour"] = df_local["date"].dt.hour
+        group_column = "hour"
+    elif box_width_option == "day":
+        df_local["day"] = df_local["date"].dt.dayofyear
+        group_column = "day"
+    elif box_width_option == "week":
+        df_local["week"] = df_local["date"].dt.isocalendar().week
+        group_column = "week"
+    elif box_width_option == "month":
+        df_local["month"] = df_local["date"].dt.month
+        group_column = "month"
+
+    return df_local, group_column

@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import lookout.core.data_processing as lo_dp
+import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.visualization as lo_viz
 from lookout import config as cfg
 from lookout.utils.log_util import app_logger
@@ -103,30 +104,19 @@ def render():
         "Select box width:", ["week", "hour", "day", "month"]
     )
 
-    if selected_metrics and "date" in history_df.columns:
-        # Convert 'date' column to datetime if it's not already
-        history_df["date"] = pd.to_datetime(history_df["date"])
-        group_column = ""
+    # Use core function to prepare box plot data
+    processed_df, group_column = lo_dp.prepare_box_plot_data(
+        history_df, selected_metrics, box_width_option
+    )
 
-        # Group by the selected box width option
-        if box_width_option == "hour":
-            history_df["hour"] = history_df["date"].dt.hour
-            group_column = "hour"
-        elif box_width_option == "day":
-            history_df["day"] = history_df["date"].dt.dayofyear
-            group_column = "day"
-        elif box_width_option == "week":
-            history_df["week"] = history_df["date"].dt.isocalendar().week
-            group_column = "week"
-        elif box_width_option == "month":
-            history_df["month"] = history_df["date"].dt.month
-            group_column = "month"
-
+    if group_column and selected_metrics:
         # Create and render the box plot for each selected metric
         fig = go.Figure()
         for metric in selected_metrics:
             # Filter the DataFrame for the selected metric
-            df_filtered = history_df[["date", group_column, metric["metric"]]].dropna()
+            df_filtered = processed_df[
+                ["date", group_column, metric["metric"]]
+            ].dropna()
 
             # Create a box plot for the current metric
             fig.add_trace(
@@ -149,7 +139,6 @@ def render():
 
 def render_rainfall_summary_widget():
     """Render rainfall summary widget with today/yesterday chart and placeholder for heatmap."""
-    import lookout.core.rainfall_analysis as rain_analysis
 
     try:
         if "history_df" not in st.session_state:
@@ -157,85 +146,22 @@ def render_rainfall_summary_widget():
             return
 
         df = st.session_state["history_df"]
+        last_data = st.session_state.get("last_data")
 
-        # Extract daily rainfall data
+        # Extract daily rainfall data and calculate summary statistics
         with st.spinner("Processing rainfall data..."):
-            daily_rain_df = rain_analysis.extract_daily_rainfall(df)
+            daily_rain_df, current_values, context_df = (
+                rain_analysis.prepare_rainfall_summary_data(df, last_data)
+            )
 
         if daily_rain_df.empty:
             st.info("🌧️ No rainfall data available")
             return
 
-        # Get today and yesterday values
+        # Get today and yesterday values for display logic
+        today_rain = current_values.get("today", 0.0)
+        yesterday_rain = current_values.get("yesterday", 0.0)
         end_date = pd.to_datetime(daily_rain_df["date"]).max()
-        yesterday_date = end_date - pd.Timedelta(days=1)
-
-        today_rain = 0.0
-        yesterday_rain = 0.0
-
-        # Get today's rainfall from current data if available
-        if "last_data" in st.session_state:
-            today_rain = st.session_state["last_data"].get("dailyrainin", 0) or 0
-
-        # Get yesterday's rainfall from daily data
-        yesterday_rain = (
-            daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
-                "rainfall"
-            ].sum()
-            if len(daily_rain_df) > 0
-            else 0.0
-        )
-
-        # Get historical distributions (excluding current year for context)
-        daily_rain_df["date_dt"] = pd.to_datetime(daily_rain_df["date"])
-        historical_today = daily_rain_df[
-            daily_rain_df["date_dt"].dt.year != end_date.year
-        ]["rainfall"].tolist()
-
-        # For yesterday, we need historical data for same day-of-year
-        yesterday_doy = yesterday_date.dayofyear
-        historical_yesterday = daily_rain_df[
-            (daily_rain_df["date_dt"].dt.year != end_date.year)
-            & (daily_rain_df["date_dt"].dt.dayofyear == yesterday_doy)
-        ]["rainfall"].tolist()
-
-        # Calculate rolling context for the violin plot (same as rain tab)
-        context_df = None
-        current_values = {}
-
-        if len(daily_rain_df) > 0:
-            context_df = rain_analysis.compute_rolling_rain_context(
-                daily_rain_df=daily_rain_df,
-                windows=(1, 7, 30, 90, 365),
-                normals_years=None,
-                end_date=end_date,
-            )
-
-            # Get current values for the violin plot
-            current_values = {
-                "today": today_rain,
-                "yesterday": yesterday_rain,
-                "7d": (
-                    context_df[context_df["window_days"] == 7]["total"].iloc[0]
-                    if len(context_df[context_df["window_days"] == 7]) > 0
-                    else 0
-                ),
-                "30d": (
-                    context_df[context_df["window_days"] == 30]["total"].iloc[0]
-                    if len(context_df[context_df["window_days"] == 30]) > 0
-                    else 0
-                ),
-                "90d": (
-                    context_df[context_df["window_days"] == 90]["total"].iloc[0]
-                    if len(context_df[context_df["window_days"] == 90]) > 0
-                    else 0
-                ),
-                "365d": (
-                    context_df[context_df["window_days"] == 365]["total"].iloc[0]
-                    if len(context_df[context_df["window_days"] == 365]) > 0
-                    else 0
-                ),
-            }
 
         # Use the same violin plot as rain tab (today/yesterday only)
         # Hide chart completely if both days have no rainfall

@@ -1,10 +1,12 @@
 import gc
+import inspect
 import sys
 
 import pandas as pd
 import streamlit as st
 
 import lookout.core.data_processing as lo_dp
+import lookout.ui.rain as rain_module
 from lookout.api.awn_controller import fill_archive_gap
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
 from lookout.core.visualization import display_hourly_coverage_heatmap
@@ -38,7 +40,6 @@ def analyze_cache_usage():
         }
 
         # Check for cached functions
-        import lookout.ui.rain as rain_module
 
         for name in dir(rain_module):
             obj = getattr(rain_module, name)
@@ -436,9 +437,8 @@ def render():
             if st.button("🗑️ Clear Cache"):
                 # Selective cache clearing to avoid UI disruption
                 try:
-                    import lookout.ui.rain as rain_module
                     cleared_count = 0
-                    if hasattr(rain_module, '_cached_rolling_context'):
+                    if hasattr(rain_module, "_cached_rolling_context"):
                         rain_module._cached_rolling_context.clear()
                         cleared_count += 1
                     gc.collect()
@@ -461,7 +461,6 @@ def render():
         st.write("**Cache Investigation:**")
         try:
             # Try to get cache info
-            import inspect
 
             # Check if we can access cache internals
             cache_info = {

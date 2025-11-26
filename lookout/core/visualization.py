@@ -1465,7 +1465,7 @@ def create_year_over_year_accumulation_chart(
     Create year-over-year cumulative rainfall line chart.
 
     Displays multiple lines, one for each year, showing cumulative rainfall
-    progression through the specified day range. Enables visual comparison of 
+    progression through the specified day range. Enables visual comparison of
     rainfall patterns across different years for specific time periods.
 
     :param yoy_data: DataFrame with day_of_year, year, cumulative_rainfall columns.

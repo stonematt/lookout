@@ -99,11 +99,12 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
             st.session_state["history_max_dateutc"] = st.session_state["history_df"][
                 "dateutc"
             ].max()
-            
+
             # Force garbage collection to free memory from old DataFrame
             import gc
+
             gc.collect()
-            
+
             logger.info("Session data updated successfully.")
         else:
             logger.debug("No data changes detected, skipping session state update")

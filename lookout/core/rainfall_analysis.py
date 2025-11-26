@@ -38,12 +38,17 @@ def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
     daily_max = df_local.groupby("local_date")["dailyrainin"].max()
 
     result_df = pd.DataFrame({"date": daily_max.index, "rainfall": daily_max.values})
-    
+
     # Add helper columns for date-based UI
     result_df["day_of_year"] = pd.to_datetime(result_df["date"]).dt.dayofyear
-    result_df["month_day"] = pd.to_datetime(result_df["date"]).dt.strftime("%b %d")  # "Jan 10", "Feb 15"
-    result_df["month_day_numeric"] = pd.to_datetime(result_df["date"]).dt.month * 100 + pd.to_datetime(result_df["date"]).dt.day  # 101, 215, etc.
-    
+    result_df["month_day"] = pd.to_datetime(result_df["date"]).dt.strftime(
+        "%b %d"
+    )  # "Jan 10", "Feb 15"
+    result_df["month_day_numeric"] = (
+        pd.to_datetime(result_df["date"]).dt.month * 100
+        + pd.to_datetime(result_df["date"]).dt.day
+    )  # 101, 215, etc.
+
     return result_df
 
 
@@ -390,3 +395,202 @@ def prepare_year_over_year_accumulation(
             )
 
     return pd.DataFrame(result_rows)
+
+
+def prepare_rainfall_summary_data(
+    df: pd.DataFrame, last_data: Optional[Dict] = None
+) -> Tuple[pd.DataFrame, Dict, Optional[pd.DataFrame]]:
+    """
+    Prepare rainfall summary data for overview widget.
+
+    :param df: Weather data DataFrame
+    :param last_data: Optional latest device data for today's rainfall
+    :return: Tuple of (daily_rain_df, current_values, context_df)
+    """
+    # Extract daily rainfall data
+    daily_rain_df = extract_daily_rainfall(df)
+
+    if daily_rain_df.empty:
+        return daily_rain_df, {}, None
+
+    # Get today and yesterday values
+    end_date = pd.to_datetime(daily_rain_df["date"]).max()
+    yesterday_date = end_date - pd.Timedelta(days=1)
+
+    today_rain = 0.0
+    yesterday_rain = 0.0
+
+    # Get today's rainfall from current data if available
+    if last_data:
+        today_rain = last_data.get("dailyrainin", 0) or 0
+
+    # Get yesterday's rainfall from daily data
+    yesterday_rain = (
+        daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
+            "rainfall"
+        ].sum()
+        if len(daily_rain_df) > 0
+        else 0.0
+    )
+
+    # Calculate rolling context for violin plot
+    context_df = None
+    current_values = {}
+
+    if len(daily_rain_df) > 0:
+        context_df = compute_rolling_rain_context(
+            daily_rain_df=daily_rain_df,
+            windows=(1, 7, 30, 90, 365),
+            normals_years=None,
+            end_date=end_date,
+        )
+
+        # Get current values for the violin plot
+        current_values = {
+            "today": today_rain,
+            "yesterday": yesterday_rain,
+            "7d": (
+                context_df[context_df["window_days"] == 7]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 7]) > 0
+                else 0
+            ),
+            "30d": (
+                context_df[context_df["window_days"] == 30]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 30]) > 0
+                else 0
+            ),
+            "90d": (
+                context_df[context_df["window_days"] == 90]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 90]) > 0
+                else 0
+            ),
+            "365d": (
+                context_df[context_df["window_days"] == 365]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 365]) > 0
+                else 0
+            ),
+        }
+
+    return daily_rain_df, current_values, context_df
+
+
+def prepare_rain_tab_data(
+    df: pd.DataFrame, last_data: Optional[Dict] = None
+) -> Tuple[pd.DataFrame, Dict, Dict, pd.DataFrame]:
+    """
+    Prepare rainfall data for rain tab analysis.
+
+    :param df: Weather data DataFrame
+    :param last_data: Optional latest device data
+    :return: Tuple of (daily_rain_df, stats, current_values, context_df)
+    """
+    # Extract daily rainfall data
+    daily_rain_df = extract_daily_rainfall(df)
+
+    # Calculate rainfall statistics
+    stats = calculate_rainfall_statistics(df, daily_rain_df)
+
+    # Calculate current dry period and time since rain
+    current_dry_days = 0
+    time_since_rain = "0h"
+    latest = {}
+
+    if last_data:
+        latest = last_data
+        try:
+            last_rain = pd.to_datetime(last_data["lastRain"])
+            current_time = pd.to_datetime(last_data["dateutc"], unit="ms", utc=True)
+            dry_period = current_time - last_rain
+            current_dry_days = dry_period.days
+            current_dry_hours = (dry_period.total_seconds() % (24 * 3600)) / 3600
+
+            if current_dry_days > 0:
+                time_since_rain = f"{current_dry_days}d {current_dry_hours:.1f}h"
+            else:
+                time_since_rain = f"{current_dry_hours:.1f}h"
+        except Exception:
+            current_dry_days = 0
+            time_since_rain = "0h"
+    else:
+        if not df.empty:
+            latest = df.iloc[-1].to_dict()
+        current_dry_days = 0
+        time_since_rain = "0h"
+
+    # Update stats with current data
+    if last_data:
+        stats.update(
+            {
+                "current_ytd": latest.get("yearlyrainin", 0),
+                "current_monthly": latest.get("monthlyrainin", 0),
+                "current_weekly": latest.get("weeklyrainin", 0),
+                "current_daily": latest.get("dailyrainin", 0),
+                "last_rain": latest.get("lastRain", "Unknown"),
+                "current_dry_days": current_dry_days,
+                "time_since_rain": time_since_rain,
+            }
+        )
+
+    # Calculate yesterday's rainfall
+    yesterday_rain = 0.0
+    if len(daily_rain_df) > 0:
+        yesterday_date = pd.to_datetime(daily_rain_df["date"]).max() - pd.Timedelta(
+            days=1
+        )
+        yesterday_rain = (
+            daily_rain_df[pd.to_datetime(daily_rain_df["date"]) == yesterday_date][
+                "rainfall"
+            ].sum()
+            if len(daily_rain_df) > 0
+            else 0.0
+        )
+
+    # Calculate rolling context for relative periods
+    context_df = None
+    current_values = {}
+
+    if len(daily_rain_df) > 0:
+        end_date = pd.to_datetime(daily_rain_df["date"]).max()
+        context_df = compute_rolling_rain_context(
+            daily_rain_df=daily_rain_df,
+            windows=(1, 7, 30, 90, 365),
+            normals_years=None,
+            end_date=end_date,
+        )
+
+        # Get relative period values
+        current_values = {
+            "today": stats["current_daily"],
+            "yesterday": yesterday_rain,
+            "7d": (
+                context_df[context_df["window_days"] == 7]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 7]) > 0
+                else 0
+            ),
+            "30d": (
+                context_df[context_df["window_days"] == 30]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 30]) > 0
+                else 0
+            ),
+            "90d": (
+                context_df[context_df["window_days"] == 90]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 90]) > 0
+                else 0
+            ),
+            "365d": (
+                context_df[context_df["window_days"] == 365]["total"].iloc[0]
+                if len(context_df[context_df["window_days"] == 365]) > 0
+                else 0
+            ),
+        }
+    else:
+        current_values = {
+            "today": stats.get("current_daily", 0),
+            "yesterday": yesterday_rain,
+            "7d": 0,
+            "30d": 0,
+            "90d": 0,
+            "365d": 0,
+        }
+
+    return daily_rain_df, stats, current_values, context_df
