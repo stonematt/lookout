@@ -1564,6 +1564,44 @@ def create_year_over_year_accumulation_chart(
     return fig
 
 
+def _create_event_headline(current_event):
+    """
+    Create formatted headline for rain event display.
+
+    :param current_event: Event dictionary from catalog
+    :return: Formatted headline string
+    """
+    start_time = pd.to_datetime(current_event["start_time"], utc=True)
+    end_time = pd.to_datetime(current_event["end_time"], utc=True)
+
+    # Convert to Pacific time
+    start_pst = start_time.tz_convert("America/Los_Angeles")
+    end_pst = end_time.tz_convert("America/Los_Angeles")
+
+    # Format date strings
+    start_str = start_pst.strftime("%b %-d")
+    if end_pst.date() != start_pst.date():
+        end_str = end_pst.strftime("%-d, %Y")
+    else:
+        end_str = end_pst.strftime("%-I:%M %p").lower().lstrip("0")
+
+    # Duration formatting
+    duration_h = current_event["duration_minutes"] / 60
+    if duration_h >= 48:
+        duration_str = f"{duration_h/24:.1f}d"
+    else:
+        duration_str = f"{duration_h:.1f}h"
+
+    # Extract values
+    total_rain = current_event["total_rainfall"]
+    peak_rate = current_event["max_hourly_rate"]
+
+    # Create headline without quality and flags
+    headline = f'Rain Event: {start_str}-{end_str} • {duration_str} • {total_rain:.3f}" • {peak_rate:.3f} in/hr'
+
+    return headline
+
+
 def create_event_detail_charts(history_df, current_event, event_key="event"):
     """
     Create both accumulation and rate charts for rain event detail.
@@ -1586,7 +1624,7 @@ def create_event_detail_charts(history_df, current_event, event_key="event"):
     event_data = history_df[mask].sort_values("timestamp").copy()
 
     if len(event_data) == 0:
-        return None, None
+        return None, None, None
 
     # Create event info for accumulation chart
     event_info = {
@@ -1600,4 +1638,7 @@ def create_event_detail_charts(history_df, current_event, event_key="event"):
     acc_fig = create_event_accumulation_chart(event_data, event_info)
     rate_fig = create_event_rate_chart(event_data)
 
-    return acc_fig, rate_fig
+    # Create headline for overview display
+    headline = _create_event_headline(current_event)
+
+    return acc_fig, rate_fig, headline
