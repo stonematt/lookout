@@ -132,6 +132,37 @@ def load_or_update_data(
         logger.info("Historical data updated successfully.")
         update_message.empty()
 
+    # Load rain event catalog after archive data is available
+    if "rain_events_catalog" not in st.session_state:
+        try:
+            from lookout.core.rain_events import RainEventCatalog
+            
+            catalog = RainEventCatalog(device["macAddress"], file_type)
+            
+            if catalog.catalog_exists():
+                events_df = catalog.load_catalog()
+                if not events_df.empty:
+                    # Update catalog with new data from archive
+                    updated_events = catalog.update_catalog_with_new_data(
+                        st.session_state["history_df"], events_df
+                    )
+                    st.session_state["rain_events_catalog"] = updated_events
+                    logger.info(f"Rain event catalog loaded: {len(updated_events)} events")
+                else:
+                    st.session_state["rain_events_catalog"] = pd.DataFrame()
+                    logger.info("Rain event catalog exists but is empty")
+            else:
+                # Generate catalog if doesn't exist
+                events_df = catalog.detect_and_catalog_events(
+                    st.session_state["history_df"], auto_save=False
+                )
+                st.session_state["rain_events_catalog"] = events_df
+                logger.info(f"Rain event catalog generated: {len(events_df)} events")
+                
+        except Exception as e:
+            logger.warning(f"Failed to load rain event catalog: {e}")
+            st.session_state["rain_events_catalog"] = pd.DataFrame()
+
 
 def should_update_history(
     device_last_dateutc, history_max_dateutc, short_minutes, long_minutes, auto_update
