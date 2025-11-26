@@ -12,13 +12,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import lookout.ui.rain as rain_module
 from lookout.core.rain_events import RainEventCatalog
 from lookout.core.visualization import (
     create_event_accumulation_chart,
     create_event_rate_chart,
 )
 from lookout.ui import header
-import lookout.ui.rain as rain_module
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
@@ -218,224 +218,198 @@ def render():
             st.info("No events found in catalog")
             return
 
-        
-
         # events_df is guaranteed to exist and not be empty from above checks
         zero_rate_count = (events_df["max_hourly_rate"] == 0).sum()
         logger.debug(
             f"Displaying catalog: {len(events_df)} events, {zero_rate_count} with zero max_rate"
         )
 
-            min_date = events_df["start_time"].min().date()
-            max_date = events_df["start_time"].max().date()
+        min_date = events_df["start_time"].min().date()
+        max_date = events_df["start_time"].max().date()
 
-            st.write("**Date Range:**")
+        st.write("**Date Range:**")
 
-            date_range = st.slider(
-                "Select date range",
-                min_value=min_date,
-                max_value=max_date,
-                value=(min_date, max_date),
-                format="MMM DD, YYYY",
-                label_visibility="collapsed",
-            )
+        date_range = st.slider(
+            "Select date range",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date),
+            format="MMM DD, YYYY",
+            label_visibility="collapsed",
+        )
 
-            histogram_fig = create_event_histogram(events_df, date_range)
-            st.plotly_chart(histogram_fig, width="stretch", key="date_histogram")
+        # Advanced search - expand
+        with st.expander("Filter Options"):
 
-            with st.expander("Advanced Filter"):
-                filter_col1, filter_col2 = st.columns(2)
+            filter_col1, filter_col2 = st.columns(2)
 
-                with filter_col1:
-                    st.write("**Minimum Rainfall:**")
-                    max_rainfall = float(events_df["total_rainfall"].max())
-                    min_rainfall_threshold = st.slider(
-                        "Minimum rainfall (inches)",
-                        min_value=0.0,
-                        max_value=max_rainfall,
-                        value=0.0,
-                        step=0.01,
-                        format="%.2f",
-                        label_visibility="collapsed",
-                    )
-                    st.caption(f"≥ {min_rainfall_threshold:.2f} inches")
-
-                with filter_col2:
-                    st.write("**Data Quality:**")
-                    quality_options = ["excellent", "good", "fair", "poor"]
-                    selected_quality = st.multiselect(
-                        "Select quality ratings",
-                        options=quality_options,
-                        default=quality_options,
-                        label_visibility="collapsed",
-                    )
-
-            filtered_events_df = events_df.copy()
-
-            if len(date_range) == 2:
-                start_date, end_date = date_range
-                start_ts = (
-                    pd.Timestamp(start_date)
-                    .tz_localize("America/Los_Angeles")
-                    .tz_convert("UTC")
+            with filter_col1:
+                st.write("**Minimum Rainfall:**")
+                max_rainfall = float(events_df["total_rainfall"].max())
+                min_rainfall_threshold = st.slider(
+                    "Minimum rainfall (inches)",
+                    min_value=0.0,
+                    max_value=max_rainfall,
+                    value=0.0,
+                    step=0.01,
+                    format="%.2f",
+                    label_visibility="collapsed",
                 )
-                end_ts = (
-                    (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-                    .tz_localize("America/Los_Angeles")
-                    .tz_convert("UTC")
+                st.caption(f"≥ {min_rainfall_threshold:.2f} inches")
+
+            with filter_col2:
+                st.write("**Data Quality:**")
+                quality_options = ["excellent", "good", "fair", "poor"]
+                selected_quality = st.multiselect(
+                    "Select quality ratings",
+                    options=quality_options,
+                    default=quality_options,
+                    label_visibility="collapsed",
                 )
+
+                filtered_events_df = events_df.copy()
+
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                    start_ts = (
+                        pd.Timestamp(start_date)
+                        .tz_localize("America/Los_Angeles")
+                        .tz_convert("UTC")
+                    )
+                    end_ts = (
+                        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
+                        .tz_localize("America/Los_Angeles")
+                        .tz_convert("UTC")
+                    )
+                    filtered_events_df = filtered_events_df[
+                        (filtered_events_df["start_time"] >= start_ts)
+                        & (filtered_events_df["start_time"] < end_ts)
+                    ]
+
+                if selected_quality:
+                    filtered_events_df = filtered_events_df[
+                        filtered_events_df["quality_rating"].isin(selected_quality)
+                    ]
+
                 filtered_events_df = filtered_events_df[
-                    (filtered_events_df["start_time"] >= start_ts)
-                    & (filtered_events_df["start_time"] < end_ts)
+                    filtered_events_df["total_rainfall"] >= min_rainfall_threshold
                 ]
 
-            if selected_quality:
-                filtered_events_df = filtered_events_df[
-                    filtered_events_df["quality_rating"].isin(selected_quality)
-                ]
-
-            filtered_events_df = filtered_events_df[
-                filtered_events_df["total_rainfall"] >= min_rainfall_threshold
-            ]
-
-            logger.info(
-                f"Filtered events: {len(filtered_events_df)} of {len(events_df)} "
-                f"(date: {date_range}, quality: {selected_quality}, min_rain: {min_rainfall_threshold})"
-            )
-
-            st.divider()
-
-            if len(filtered_events_df) < len(events_df):
-                st.info(
-                    f"📊 Showing {len(filtered_events_df)} of {len(events_df)} events "
-                    f"({len(events_df) - len(filtered_events_df)} filtered out)"
+                logger.debug(
+                    f"Filtered events: {len(filtered_events_df)} of {len(events_df)} "
+                    f"(date: {date_range}, quality: {selected_quality}, min_rain: {min_rainfall_threshold})"
                 )
 
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Events", f"{len(filtered_events_df)}")
-            with col2:
-                total_rain = filtered_events_df["total_rainfall"].sum()
-                st.metric("Total Rainfall", f'{total_rain:.1f}"')
-            with col3:
-                if len(filtered_events_df) > 0:
-                    med_rainfall = filtered_events_df["total_rainfall"].median()
-                    st.metric("Median Rainfall", f'{med_rainfall:.2f}"')
-                else:
-                    st.metric("Median Rainfall", "—")
-            with col4:
-                if len(filtered_events_df) > 0:
-                    avg_duration = filtered_events_df["duration_minutes"].mean()
-                    st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
-                else:
-                    st.metric("Avg Duration", "—")
+        if len(filtered_events_df) < len(events_df):
+            st.info(
+                f"📊 Showing {len(filtered_events_df)} of {len(events_df)} events "
+                f"({len(events_df) - len(filtered_events_df)} filtered out)"
+            )
 
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Events", f"{len(filtered_events_df)}")
+        with col2:
+            total_rain = filtered_events_df["total_rainfall"].sum()
+            st.metric("Total Rainfall", f'{total_rain:.1f}"')
+        with col3:
             if len(filtered_events_df) > 0:
-                st.write("**Select a rain event to analyze:**")
-
-                display_df = filtered_events_df.copy()
-                display_df = display_df.sort_values("start_time", ascending=False)
-                display_df["Date"] = (
-                    display_df["start_time"]
-                    .dt.tz_convert("America/Los_Angeles")
-                    .dt.strftime("%Y-%m-%d %H:%M")
-                )
-                display_df["Duration (h)"] = (
-                    display_df["duration_minutes"] / 60
-                ).round(1)
-                display_df["Rainfall (in)"] = display_df["total_rainfall"].round(2)
-                display_df["Max Rate (in/hr)"] = display_df["max_hourly_rate"].round(3)
-                display_df["Quality"] = display_df["quality_rating"].str.title()
-
-                event_selection = st.dataframe(
-                    display_df[
-                        [
-                            "Date",
-                            "Duration (h)",
-                            "Rainfall (in)",
-                            "Max Rate (in/hr)",
-                            "Quality",
-                        ]
-                    ],
-                    width="stretch",
-                    hide_index=True,
-                    on_select="rerun",
-                    selection_mode="single-row",
-                    height=400,
-                )
-
-                if event_selection["selection"]["rows"]:
-                    selected_idx = event_selection["selection"]["rows"][0]
-                    selected_event = display_df.iloc[selected_idx]
-                else:
-                    selected_event = None
-
-                if selected_event is not None:
-                    render_event_visualization(selected_event, df)
+                med_rainfall = filtered_events_df["total_rainfall"].median()
+                st.metric("Median Rainfall", f'{med_rainfall:.2f}"')
             else:
-                st.warning(
-                    "No events match the selected filters. Try adjusting your criteria."
-                )
+                st.metric("Median Rainfall", "—")
+        with col4:
+            if len(filtered_events_df) > 0:
+                avg_duration = filtered_events_df["duration_minutes"].mean()
+                st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
+            else:
+                st.metric("Avg Duration", "—")
 
-            st.divider()
+        if len(filtered_events_df) > 0:
+            st.write("**Select a rain event to analyze:**")
 
-            st.write("**Catalog Management:**")
-            btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
-            with btn_col1:
-                if st.button("💾 Save to Storage"):
-                    if catalog.save_catalog(events_df):
-                        st.success("✅ Catalog saved to Storj!")
-                    else:
-                        st.error("❌ Failed to save catalog")
+            display_df = filtered_events_df.copy()
+            display_df = display_df.sort_values("start_time", ascending=False)
+            display_df["Date"] = (
+                display_df["start_time"]
+                .dt.tz_convert("America/Los_Angeles")
+                .dt.strftime("%Y-%m-%d %H:%M")
+            )
+            display_df["Duration (h)"] = (display_df["duration_minutes"] / 60).round(1)
+            display_df["Rainfall (in)"] = display_df["total_rainfall"].round(2)
+            display_df["Max Rate (in/hr)"] = display_df["max_hourly_rate"].round(3)
+            display_df["Quality"] = display_df["quality_rating"].str.title()
 
-            with btn_col2:
-                if st.button("🔄 Regenerate"):
-                    logger.info("User requested catalog regeneration")
+            event_selection = st.dataframe(
+                display_df[
+                    [
+                        "Date",
+                        "Duration (h)",
+                        "Rainfall (in)",
+                        "Max Rate (in/hr)",
+                        "Quality",
+                    ]
+                ],
+                width="stretch",
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                height=400,
+            )
 
-                    if "rain_events_catalog" in st.session_state:
-                        old_count = len(st.session_state["rain_events_catalog"])
-                        del st.session_state["rain_events_catalog"]
-                        logger.info(
-                            f"Cleared old catalog from session: {old_count} events"
-                        )
+            if event_selection["selection"]["rows"]:
+                selected_idx = event_selection["selection"]["rows"][0]
+                selected_event = display_df.iloc[selected_idx]
+            else:
+                selected_event = None
 
-                    with st.spinner("Regenerating event catalog from archive..."):
-                        new_events = catalog.detect_and_catalog_events(
-                            df, auto_save=False
-                        )
-                        st.session_state["rain_events_catalog"] = new_events
-                        events_df = new_events
-                        logger.info(
-                            f"Catalog regenerated: {len(new_events)} events cached in session state"
-                        )
-
-                    # Selective cache clearing to avoid UI disruption
-                    try:
-                        if hasattr(rain_module, "_cached_rolling_context"):
-                            rain_module._cached_rolling_context.clear()
-                        logger.info(
-                            "Selective cache cleared after catalog regeneration"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Selective cache clearing failed: {e}")
-
-                    st.success(
-                        f"✅ Regenerated {len(new_events)} events! Data updated in current view."
-                    )
+            if selected_event is not None:
+                render_event_visualization(selected_event, df)
         else:
-            st.info("No events found in catalog")
+            st.warning(
+                "No events match the selected filters. Try adjusting your criteria."
+            )
 
+        st.divider()
+
+        st.write("**Catalog Management:**")
+        btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
+        with btn_col1:
+            if st.button("💾 Save to Storage"):
+                if catalog.save_catalog(events_df):
+                    st.success("✅ Catalog saved to Storj!")
+                else:
+                    st.error("❌ Failed to save catalog")
+
+        with btn_col2:
+            if st.button("🔄 Regenerate"):
+                logger.info("User requested catalog regeneration")
+
+                if "rain_events_catalog" in st.session_state:
+                    old_count = len(st.session_state["rain_events_catalog"])
+                    del st.session_state["rain_events_catalog"]
+                    logger.info(f"Cleared old catalog from session: {old_count} events")
+
+                with st.spinner("Regenerating event catalog from archive..."):
+                    new_events = catalog.detect_and_catalog_events(df, auto_save=False)
+                    st.session_state["rain_events_catalog"] = new_events
+                    events_df = new_events
+                    logger.info(
+                        f"Catalog regenerated: {len(new_events)} events cached in session state"
+                    )
+
+                # Selective cache clearing to avoid UI disruption
+                try:
+                    if hasattr(rain_module, "_cached_rolling_context"):
+                        rain_module._cached_rolling_context.clear()
+                    logger.info("Selective cache cleared after catalog regeneration")
+                except Exception as e:
+                    logger.warning(f"Selective cache clearing failed: {e}")
+
+                st.success(
+                    f"✅ Regenerated {len(new_events)} events! Data updated in current view."
+                )
     except ImportError as e:
         st.error(f"Event catalog feature not available: {e}")
     except Exception as e:
         st.error(f"Error loading event catalog: {e}")
-
-    # Memory tracking at tab exit
-    end_memory = get_memory_usage()
-    log_memory_usage("TAB rain_events END", start_memory)
-
-    # Aggressive cleanup for rain events tab
-    force_garbage_collection()
-
-    final_memory = get_memory_usage()
-    log_memory_usage("TAB rain_events FINAL", end_memory)
