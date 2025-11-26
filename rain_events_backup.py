@@ -209,16 +209,12 @@ def render():
 
         events_df = None
 
-        # Get catalog from session state (loaded early in data flow)
-        events_df = st.session_state.get("rain_events_catalog", pd.DataFrame())
-        catalog_source = "session"
-        logger.info(f"Using catalog from session state: {len(events_df)} events")
+        if "rain_events_catalog" in st.session_state:
+            events_df = st.session_state["rain_events_catalog"]
+            catalog_source = "session"
+            logger.info(f"Using catalog from session state: {len(events_df)} events")
 
-        if events_df.empty:
-            st.info("No events found in catalog")
-            return
-
-        # Note: Removed elif catalog.catalog_exists() and related logic since catalog loads early in data flow
+        elif catalog.catalog_exists():
             with st.spinner("Loading event catalog from storage..."):
                 logger.info(f"Loading catalog from Storj: {catalog.catalog_path}")
                 stored_catalog = catalog.load_catalog()
