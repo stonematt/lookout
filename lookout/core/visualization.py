@@ -13,7 +13,7 @@ import streamlit as st
 from colour import Color
 
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import force_garbage_collection, BYTES_TO_MB
+from lookout.utils.memory_utils import BYTES_TO_MB, force_garbage_collection
 
 logger = app_logger(__name__)
 
@@ -1562,3 +1562,42 @@ def create_year_over_year_accumulation_chart(
     fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
 
     return fig
+
+
+def create_event_detail_charts(history_df, current_event, event_key="event"):
+    """
+    Create both accumulation and rate charts for rain event detail.
+
+    :param history_df: Full weather history DataFrame
+    :param current_event: Current event dictionary from catalog
+    :param event_key: Key prefix for chart uniqueness
+    :return: Tuple of (accumulation_fig, rate_fig)
+    """
+    # Extract event data from history
+    history_df = history_df.copy()
+    history_df["timestamp"] = pd.to_datetime(history_df["dateutc"], unit="ms", utc=True)
+
+    start_time = pd.to_datetime(current_event["start_time"], utc=True)
+    end_time = pd.to_datetime(current_event["end_time"], utc=True)
+
+    mask = (history_df["timestamp"] >= start_time) & (
+        history_df["timestamp"] <= end_time
+    )
+    event_data = history_df[mask].sort_values("timestamp").copy()
+
+    if len(event_data) == 0:
+        return None, None
+
+    # Create event info for accumulation chart
+    event_info = {
+        "total_rainfall": current_event["total_rainfall"],
+        "duration_minutes": current_event["duration_minutes"],
+        "start_time": start_time,
+        "end_time": end_time,
+    }
+
+    # Create charts using existing functions
+    acc_fig = create_event_accumulation_chart(event_data, event_info)
+    rate_fig = create_event_rate_chart(event_data)
+
+    return acc_fig, rate_fig

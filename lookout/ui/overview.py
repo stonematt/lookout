@@ -15,11 +15,46 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
+def render_active_event_visualization():
+    """Render active rain event charts at top of overview if event exists."""
+    # Check for active event
+    last_data = st.session_state.get("last_data", {})
+    event_rain = last_data.get("eventrainin", 0)
+    
+    if event_rain <= 0:
+        return  # No active event, show nothing
+    
+    # Get current event from catalog
+    events_df = st.session_state.get("rain_events_catalog", pd.DataFrame())
+    if events_df.empty:
+        return  # No catalog available
+    
+    current_event = events_df.iloc[-1]  # Last event is current
+    
+    # Create charts using new wrapper function
+    acc_fig, rate_fig = lo_viz.create_event_detail_charts(
+        st.session_state["history_df"], current_event, "overview"
+    )
+    
+    if acc_fig is None:
+        return
+    
+    # Render charts
+    st.plotly_chart(acc_fig, width="stretch", key="overview_acc_active")
+    st.plotly_chart(rate_fig, width="stretch", key="overview_rate_active")
+    
+    # Add divider
+    st.markdown("---")
+
+
 def render():
     history_df = st.session_state["history_df"]
     last_data = st.session_state["last_data"]
 
     # Access the updated history_df and max_dateutc
+
+    # Active event visualization (full width)
+    render_active_event_visualization()
 
     # Present the dashboard ########################
 
