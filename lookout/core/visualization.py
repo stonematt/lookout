@@ -3,18 +3,14 @@ visualizations.py
 Collection of functions to create charts and visualizations for streamlit
 """
 
-from typing import Optional
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from colour import Color
-from plotly.subplots import make_subplots
 
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import force_garbage_collection
 
 logger = app_logger(__name__)
 
@@ -593,21 +589,3 @@ def create_event_detail_charts(history_df, current_event, event_key="event"):
     headline = rain_viz._create_event_headline(current_event)
 
     return acc_fig, rate_fig, headline
-
-
-# Re-exports for backward compatibility during migration to rain_viz module
-from lookout.core.rain_viz import (
-    create_rainfall_violin_plot,
-    create_dual_violin_plot,
-    create_event_accumulation_chart,
-    create_event_rate_chart,
-    create_rainfall_summary_violin,
-    prepare_rain_accumulation_heatmap_data,
-    create_rain_accumulation_heatmap,
-    create_year_over_year_accumulation_chart,
-    create_event_histogram,
-    extract_event_data,
-    format_event_header,
-    render_event_visualization_core,
-    _create_event_headline,
-)
