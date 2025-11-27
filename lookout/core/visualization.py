@@ -605,5 +605,6 @@ from lookout.core.rain_viz import (
     prepare_rain_accumulation_heatmap_data,
     create_rain_accumulation_heatmap,
     create_year_over_year_accumulation_chart,
+    create_event_histogram,
     _create_event_headline,
 )

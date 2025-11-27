@@ -2,11 +2,11 @@
 Rain Event Catalog UI for Lookout weather station dashboard.
 
 This module provides event browsing, selection, and management interface
-for rain events detected from historical weather data.
+for rain events detected from historical weather data. Event visualization
+functions are imported from lookout.core.rain_viz.
 """
 
 import json
-from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -14,80 +14,15 @@ import streamlit as st
 
 import lookout.ui.rain as rain_module
 from lookout.core.rain_events import RainEventCatalog
-from lookout.core.visualization import (
+from lookout.core.rain_viz import (
     create_event_accumulation_chart,
     create_event_rate_chart,
+    create_event_histogram,
 )
-from lookout.ui import header
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import (
-    BYTES_TO_MB,
-    force_garbage_collection,
-    get_memory_usage,
-    get_object_memory_usage,
-    log_memory_usage,
-)
+from lookout.utils.memory_utils import get_memory_usage, log_memory_usage
 
 logger = app_logger(__name__)
-
-
-def create_event_histogram(events_df: pd.DataFrame, selected_range: tuple) -> go.Figure:
-    """
-    Create histogram showing event count over time with selected range highlighted.
-
-    :param events_df: DataFrame with event data
-    :param selected_range: Tuple of (start_date, end_date) for highlighting
-    :return: Plotly figure
-    """
-    events_by_week = (
-        events_df.set_index("start_time").resample("W").size().reset_index(name="count")
-    )
-
-    fig = go.Figure()
-
-    start_date, end_date = selected_range
-    start_ts = (
-        pd.Timestamp(start_date).tz_localize("America/Los_Angeles").tz_convert("UTC")
-    )
-    end_ts = (
-        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-        .tz_localize("America/Los_Angeles")
-        .tz_convert("UTC")
-    )
-
-    def get_bar_color(date):
-        date_ts = (
-            pd.Timestamp(date).tz_localize("UTC")
-            if pd.Timestamp(date).tz is None
-            else pd.Timestamp(date)
-        )
-        return "steelblue" if start_ts <= date_ts < end_ts else "lightgray"
-
-    colors = [get_bar_color(date) for date in events_by_week["start_time"]]
-
-    fig.add_trace(
-        go.Bar(
-            x=events_by_week["start_time"],
-            y=events_by_week["count"],
-            marker_color=colors,
-            hovertemplate="<b>Week of %{x|%Y-%m-%d}</b><br>Events: %{y}<extra></extra>",
-        )
-    )
-
-    fig.update_layout(
-        title="Events by Week",
-        xaxis_title="",
-        yaxis_title="Event Count",
-        height=200,
-        margin=dict(l=40, r=20, t=40, b=20),
-        showlegend=False,
-        hovermode="x unified",
-    )
-
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor="lightgray")
-
-    return fig
 
 
 def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFrame):

@@ -16,6 +16,7 @@ Functions:
 - prepare_rain_accumulation_heatmap_data: Prepare data for accumulation heatmaps
 - create_rain_accumulation_heatmap: Create rainfall accumulation heatmap
 - create_year_over_year_accumulation_chart: Year-over-year cumulative rainfall
+- create_event_histogram: Histogram showing event count over time with range highlighting
 - _create_event_headline: Format event headline string (internal)
 - create_event_detail_charts: Create both accumulation and rate charts for events
 """
@@ -1126,3 +1127,62 @@ def create_event_detail_charts(history_df, current_event, event_key="event"):
     headline = _create_event_headline(current_event)
 
     return acc_fig, rate_fig, headline
+
+
+def create_event_histogram(events_df: pd.DataFrame, selected_range: tuple) -> go.Figure:
+    """
+    Create histogram showing event count over time with selected range highlighted.
+
+    :param events_df: DataFrame with event data
+    :param selected_range: Tuple of (start_date, end_date) for highlighting
+    :return: Plotly figure
+    """
+    events_by_week = (
+        events_df.set_index("start_time").resample("W").size().reset_index(name="count")
+    )
+
+    fig = go.Figure()
+
+    start_date, end_date = selected_range
+    start_ts = (
+        pd.Timestamp(start_date).tz_localize("America/Los_Angeles").tz_convert("UTC")
+    )
+    end_ts = (
+        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
+        .tz_localize("America/Los_Angeles")
+        .tz_convert("UTC")
+    )
+
+    def get_bar_color(date):
+        date_ts = (
+            pd.Timestamp(date).tz_localize("UTC")
+            if pd.Timestamp(date).tz is None
+            else pd.Timestamp(date)
+        )
+        return "steelblue" if start_ts <= date_ts < end_ts else "lightgray"
+
+    colors = [get_bar_color(date) for date in events_by_week["start_time"]]
+
+    fig.add_trace(
+        go.Bar(
+            x=events_by_week["start_time"],
+            y=events_by_week["count"],
+            marker_color=colors,
+            hovertemplate="<b>Week of %{x|%Y-%m-%d}</b><br>Events: %{y}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        title="Events by Week",
+        xaxis_title="",
+        yaxis_title="Event Count",
+        height=200,
+        margin=dict(l=40, r=20, t=40, b=20),
+        showlegend=False,
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray")
+
+    return fig
