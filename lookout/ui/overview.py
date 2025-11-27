@@ -7,9 +7,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import lookout.core.data_processing as lo_dp
+import lookout.core.gauge_viz as gauge_viz
 import lookout.core.rainfall_analysis as rain_analysis
-import lookout.core.visualization as lo_viz
 import lookout.core.rain_viz as rain_viz
+import lookout.core.visualization as lo_viz
 from lookout import config as cfg
 from lookout.utils.log_util import app_logger
 
@@ -67,7 +68,7 @@ def render():
     with row1[0]:  # LEFT: Current Conditions
         # Temperature bars (existing)
         temp_bars = lo_dp.get_history_min_max(history_df, "date", "tempf", "temp")
-        lo_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
+        gauge_viz.draw_horizontal_bars(temp_bars, label="Temperature (°F)")
 
         st.markdown("---")  # Visual divider
 
@@ -100,7 +101,7 @@ def render():
         )
 
         # Create and display the chart
-        fig = lo_viz.create_windrose_chart(
+        fig = gauge_viz.create_windrose_chart(
             grouped_data, value_labels, color_palette="wind", title=value_col
         )
 
