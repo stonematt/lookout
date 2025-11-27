@@ -728,7 +728,7 @@ class RainEventCatalog:
             )
             return pd.DataFrame()
 
-# Remove temporary timestamp column
+        # Remove temporary timestamp column
         event_slice = event_slice.drop(columns=["timestamp"])
         return event_slice.copy()
 
@@ -737,20 +737,20 @@ class RainEventCatalog:
     ) -> bool:
         """
         Check if ongoing event completed and auto-save if needed.
-        
+
         :param stored_catalog: Previously stored catalog
         :param updated_catalog: Updated catalog with new data
         :return: True if auto-saved, False otherwise
         """
         if len(stored_catalog) == 0 or len(updated_catalog) == 0:
             return False
-        
+
         stored_sorted = stored_catalog.sort_values("start_time")
         updated_sorted = updated_catalog.sort_values("start_time")
-        
+
         stored_last = stored_sorted.iloc[-1]
         updated_last = updated_sorted.iloc[-1]
-        
+
         # Check stored last event ongoing status
         stored_ongoing = False
         if "ongoing" in stored_last and stored_last["ongoing"]:
@@ -759,9 +759,10 @@ class RainEventCatalog:
             flags = stored_last["flags"]
             if isinstance(flags, str):
                 import json
+
                 flags = json.loads(flags)
             stored_ongoing = flags.get("ongoing", False)
-        
+
         # Check updated last event ongoing status
         updated_ongoing = False
         if "ongoing" in updated_last and updated_last["ongoing"]:
@@ -770,9 +771,10 @@ class RainEventCatalog:
             flags = updated_last["flags"]
             if isinstance(flags, str):
                 import json
+
                 flags = json.loads(flags)
             updated_ongoing = flags.get("ongoing", False)
-        
+
         # Auto-save if ongoing event completed
         if stored_ongoing and not updated_ongoing:
             logger.info(
@@ -783,5 +785,5 @@ class RainEventCatalog:
             self.save_catalog(updated_catalog)
             logger.info("Catalog auto-saved to Storj (ongoing event completed)")
             return True
-        
+
         return False

@@ -225,9 +225,7 @@ def render():
                     events_df = catalog.update_catalog_with_new_data(df, stored_catalog)
 
                     # Auto-save if ongoing event completed using core function
-                    catalog.check_and_auto_save_ongoing_event(
-                        stored_catalog, events_df
-                    )
+                    catalog.check_and_auto_save_ongoing_event(stored_catalog, events_df)
 
                     st.session_state["rain_events_catalog"] = events_df
                     catalog_source = "storage"

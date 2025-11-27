@@ -11,9 +11,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from colour import Color
+from plotly.subplots import make_subplots
 
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import BYTES_TO_MB, force_garbage_collection
+from lookout.utils.memory_utils import force_garbage_collection
 
 logger = app_logger(__name__)
 
@@ -653,7 +654,6 @@ def create_dual_violin_plot(
     :param unit: Unit for display (e.g., "in")
     :param title: Chart title (auto-generated if None)
     """
-    from plotly.subplots import make_subplots
 
     missing_data = []
     for window in [left_window, right_window]:
@@ -946,7 +946,6 @@ def create_rainfall_summary_violin(
     :param windows: List of window keys to display (default: all 6)
     :return: Plotly figure
     """
-    import numpy as np
 
     if windows is None:
         windows = ["Today", "Yesterday", "7d", "30d", "90d", "365d"]

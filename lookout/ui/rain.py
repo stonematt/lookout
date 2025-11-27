@@ -237,9 +237,13 @@ def render():
     last_30d_val = current_values.get("30d", 0)
     last_90d_val = current_values.get("90d", 0)
     last_365d_val = current_values.get("365d", 0)
-    
+
     # Get end_date for violin plots
-    end_date = pd.to_datetime(daily_rain_df["date"]).max() if not daily_rain_df.empty else pd.Timestamp.now()
+    end_date = (
+        pd.to_datetime(daily_rain_df["date"]).max()
+        if not daily_rain_df.empty
+        else pd.Timestamp.now()
+    )
 
     st.markdown(
         f'**Today:** {today_val:.2f}" • '
@@ -267,7 +271,11 @@ def render():
             daily_rain_df=daily_rain_df,
             current_values=current_values,
             rolling_context_df=context_df,
-            end_date=pd.to_datetime(daily_rain_df["date"]).max() if not daily_rain_df.empty else pd.Timestamp.now(),
+            end_date=(
+                pd.to_datetime(daily_rain_df["date"]).max()
+                if not daily_rain_df.empty
+                else pd.Timestamp.now()
+            ),
             windows=["Today", "Yesterday"],
             title="",
         )
@@ -278,7 +286,11 @@ def render():
             daily_rain_df=daily_rain_df,
             current_values=current_values,
             rolling_context_df=context_df,
-            end_date=pd.to_datetime(daily_rain_df["date"]).max() if not daily_rain_df.empty else pd.Timestamp.now(),
+            end_date=(
+                pd.to_datetime(daily_rain_df["date"]).max()
+                if not daily_rain_df.empty
+                else pd.Timestamp.now()
+            ),
             windows=["7d", "30d", "90d", "365d"],
             title="",
         )
