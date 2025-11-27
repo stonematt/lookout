@@ -9,6 +9,7 @@ import streamlit as st
 import lookout.core.data_processing as lo_dp
 import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.visualization as lo_viz
+import lookout.core.rain_viz as rain_viz
 from lookout import config as cfg
 from lookout.utils.log_util import app_logger
 
@@ -32,7 +33,7 @@ def render_active_event_visualization():
     current_event = events_df.iloc[-1]  # Last event is current
 
     # Create charts using new wrapper function
-    acc_fig, rate_fig, headline = lo_viz.create_event_detail_charts(
+    acc_fig, rate_fig, headline = rain_viz.create_event_detail_charts(
         st.session_state["history_df"], current_event, "overview"
     )
 
@@ -207,7 +208,7 @@ def render_rainfall_summary_widget():
             # Silent - no chart or message when no rainfall
             pass
         elif context_df is not None and not context_df.empty:
-            chart = lo_viz.create_rainfall_summary_violin(
+            chart = rain_viz.create_rainfall_summary_violin(
                 daily_rain_df=daily_rain_df,
                 current_values=current_values,
                 rolling_context_df=context_df,
@@ -240,7 +241,7 @@ def render_rainfall_summary_widget():
             .tz_convert("UTC")
         )
 
-        accumulation_df = lo_viz.prepare_rain_accumulation_heatmap_data(
+        accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
             archive_df=df,
             start_date=start_ts,
             end_date=end_ts,
@@ -251,7 +252,7 @@ def render_rainfall_summary_widget():
 
         # Render compact heatmap
         if not accumulation_df.empty:
-            fig = lo_viz.create_rain_accumulation_heatmap(
+            fig = rain_viz.create_rain_accumulation_heatmap(
                 accumulation_df=accumulation_df,
                 num_days=30,
                 row_mode="auto",
