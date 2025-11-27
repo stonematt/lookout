@@ -13,19 +13,6 @@ from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
-# Re-exports for backward compatibility - gauge functions moved to gauge_viz.py
-from lookout.core.gauge_viz import (
-    gauge_defaults,
-    generate_gradient_steps,
-    create_gauge_chart,
-    make_column_gauges,
-    create_windrose_chart,
-    draw_horizontal_bars,
-)
-
-
-
-
 
 def display_current_data(data):
     """
@@ -61,9 +48,6 @@ def display_line_chart(df, metrics):
     """
     fig = px.line(df, x="date", y=metrics, title="Historical Data")
     st.plotly_chart(fig, width="stretch")
-
-
-
 
 
 def better_heatmap_table(df, metric, aggfunc="max", interval=1800):
@@ -110,9 +94,6 @@ def better_heatmap_table(df, metric, aggfunc="max", interval=1800):
 def heatmap_chart(heatmap_table):
     fig = px.imshow(heatmap_table, x=heatmap_table.columns, y=heatmap_table.index)
     st.plotly_chart(fig)
-
-
-
 
 
 def display_data_coverage_heatmap(df, metric="tempf", interval_minutes=60):
