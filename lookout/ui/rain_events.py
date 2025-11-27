@@ -15,9 +15,8 @@ import streamlit as st
 import lookout.ui.rain as rain_module
 from lookout.core.rain_events import RainEventCatalog
 from lookout.core.rain_viz import (
-    create_event_accumulation_chart,
-    create_event_rate_chart,
     create_event_histogram,
+    render_event_visualization_core,
 )
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import get_memory_usage, log_memory_usage
@@ -32,77 +31,31 @@ def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFra
     :param selected_event: Event row from catalog DataFrame
     :param archive_df: Full weather archive (unsorted)
     """
-
-    archive_df = archive_df.copy()
-    archive_df["timestamp"] = pd.to_datetime(archive_df["dateutc"], unit="ms", utc=True)
-    start_time = pd.to_datetime(selected_event["start_time"], utc=True)
-    end_time = pd.to_datetime(selected_event["end_time"], utc=True)
-
-    mask = (archive_df["timestamp"] >= start_time) & (
-        archive_df["timestamp"] <= end_time
+    # Use core visualization logic
+    event_data, header, acc_fig, rate_fig = render_event_visualization_core(
+        selected_event, archive_df
     )
-    event_data = archive_df[mask].sort_values("timestamp").copy()
 
-    if len(event_data) == 0:
+    if event_data is None:
+        start_time = pd.to_datetime(selected_event["start_time"], utc=True)
+        end_time = pd.to_datetime(selected_event["end_time"], utc=True)
         st.error(f"No data found for event time range {start_time} to {end_time}")
         return
 
     logger.debug(f"Extracted {len(event_data)} records for event")
 
-    start_pst = pd.to_datetime(selected_event["start_time"]).tz_convert(
-        "America/Los_Angeles"
-    )
-    end_pst = pd.to_datetime(selected_event["end_time"]).tz_convert(
-        "America/Los_Angeles"
-    )
-
-    start_str = start_pst.strftime("%b %-d")
-    if end_pst.date() != start_pst.date():
-        end_str = end_pst.strftime("%-d, %Y")
-    else:
-        end_str = end_pst.strftime("%-I:%M %p").lower().lstrip("0")
-
-    duration_h = selected_event["duration_minutes"] / 60
-    total_rain = selected_event["total_rainfall"]
-    peak_rate = selected_event["max_hourly_rate"]
-    quality = selected_event["quality_rating"].title()
-
-    flag_str = ""
-    if selected_event.get("flags"):
-        flags = (
-            selected_event["flags"]
-            if isinstance(selected_event["flags"], dict)
-            else json.loads(selected_event["flags"])
-        )
-        if flags.get("ongoing"):
-            flag_str = " • 🔄"
-        elif flags.get("interrupted"):
-            flag_str = " • ⚠️"
-
-    if duration_h >= 48:
-        duration_str = f"{duration_h/24:.1f}d"
-    else:
-        duration_str = f"{duration_h:.1f}h"
-
-    header = f'{start_str}-{end_str} • {duration_str} • {total_rain:.3f}" • {peak_rate:.3f} in/hr • {quality}{flag_str}'
+    # Display header
     st.markdown(f"**{header}**")
 
-    event_info = {
-        "total_rainfall": total_rain,
-        "duration_minutes": selected_event["duration_minutes"],
-        "start_time": start_time,
-        "end_time": end_time,
-    }
-
-    acc_fig = create_event_accumulation_chart(event_data, event_info)
+    # Render charts
     st.plotly_chart(acc_fig, width="stretch", key=f"acc_{selected_event.name}")
-
-    rate_fig = create_event_rate_chart(event_data)
     st.plotly_chart(rate_fig, width="stretch", key=f"rate_{selected_event.name}")
 
+    # Data quality UI components (remain in UI layer)
     completeness = selected_event["data_completeness"] * 100
     gap = selected_event["max_gap_minutes"]
     gap_str = "No gaps" if gap == 0 else f"{gap:.0f}min gap"
+    quality = selected_event["quality_rating"].title()
 
     with st.expander("📊 Data quality", expanded=False):
         st.caption(f"{quality} • {completeness:.0f}% • {gap_str}")

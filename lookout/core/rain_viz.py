@@ -17,10 +17,14 @@ Functions:
 - create_rain_accumulation_heatmap: Create rainfall accumulation heatmap
 - create_year_over_year_accumulation_chart: Year-over-year cumulative rainfall
 - create_event_histogram: Histogram showing event count over time with range highlighting
+- extract_event_data: Extract and filter event data from weather archive
+- format_event_header: Create formatted event header string with metadata
+- render_event_visualization_core: Unified core event visualization logic
 - _create_event_headline: Format event headline string (internal)
 - create_event_detail_charts: Create both accumulation and rate charts for events
 """
 
+import json
 from typing import Optional
 
 import numpy as np
@@ -1049,6 +1053,190 @@ def create_year_over_year_accumulation_chart(
     return fig
 
 
+def extract_event_data(
+    archive_df: pd.DataFrame, selected_event: pd.Series
+) -> pd.DataFrame:
+    """
+    Extract and filter event data from weather archive.
+
+    :param archive_df: Full weather archive (unsorted)
+    :param selected_event: Event row from catalog DataFrame
+    :return: Filtered event data sorted by timestamp
+    """
+    archive_df = archive_df.copy()
+    archive_df["timestamp"] = pd.to_datetime(archive_df["dateutc"], unit="ms", utc=True)
+    start_time = pd.to_datetime(selected_event["start_time"], utc=True)
+    end_time = pd.to_datetime(selected_event["end_time"], utc=True)
+
+    mask = (archive_df["timestamp"] >= start_time) & (
+        archive_df["timestamp"] <= end_time
+    )
+    event_data = archive_df[mask].sort_values("timestamp").copy()
+
+    return event_data
+
+
+def format_event_header(selected_event: pd.Series) -> str:
+    """
+    Create formatted event header string with duration, rainfall, and quality info.
+
+    :param selected_event: Event row from catalog DataFrame
+    :return: Formatted header string
+    """
+    start_pst = pd.to_datetime(selected_event["start_time"]).tz_convert(
+        "America/Los_Angeles"
+    )
+    end_pst = pd.to_datetime(selected_event["end_time"]).tz_convert(
+        "America/Los_Angeles"
+    )
+
+    start_str = start_pst.strftime("%b %-d")
+    if end_pst.date() != start_pst.date():
+        end_str = end_pst.strftime("%-d, %Y")
+    else:
+        end_str = end_pst.strftime("%-I:%M %p").lower().lstrip("0")
+
+    duration_h = selected_event["duration_minutes"] / 60
+    total_rain = selected_event["total_rainfall"]
+    peak_rate = selected_event["max_hourly_rate"]
+    quality = selected_event["quality_rating"].title()
+
+    flag_str = ""
+    if selected_event.get("flags"):
+        flags = (
+            selected_event["flags"]
+            if isinstance(selected_event["flags"], dict)
+            else json.loads(selected_event["flags"])
+        )
+        if flags.get("ongoing"):
+            flag_str = " • 🔄"
+        elif flags.get("interrupted"):
+            flag_str = " • ⚠️"
+
+    if duration_h >= 48:
+        duration_str = f"{duration_h/24:.1f}d"
+    else:
+        duration_str = f"{duration_h:.1f}h"
+
+    header = f'{start_str}-{end_str} • {duration_str} • {total_rain:.3f}" • {peak_rate:.3f} in/hr • {quality}{flag_str}'
+    return header
+
+
+def render_event_visualization_core(
+    selected_event: pd.Series, archive_df: pd.DataFrame
+) -> tuple:
+    """
+    Core event visualization logic - data processing, header formatting, and chart creation.
+
+    :param selected_event: Event row from catalog DataFrame
+    :param archive_df: Full weather archive (unsorted)
+    :return: Tuple of (event_data, header, acc_fig, rate_fig)
+    """
+    # Extract and filter event data
+    event_data = extract_event_data(archive_df, selected_event)
+
+    if len(event_data) == 0:
+        return None, None, None, None
+
+    # Create formatted header
+    header = format_event_header(selected_event)
+
+    # Create event info for charts
+    event_info = {
+        "total_rainfall": selected_event["total_rainfall"],
+        "duration_minutes": selected_event["duration_minutes"],
+        "start_time": pd.to_datetime(selected_event["start_time"], utc=True),
+        "end_time": pd.to_datetime(selected_event["end_time"], utc=True),
+    }
+
+    # Create charts
+    acc_fig = create_event_accumulation_chart(event_data, event_info)
+    rate_fig = create_event_rate_chart(event_data)
+
+    return event_data, header, acc_fig, rate_fig
+
+    fig = go.Figure()
+
+    # Color palette for different years
+    colors = [
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c",
+        "#d62728",
+        "#9467bd",
+        "#8c564b",
+        "#e377c2",
+        "#7f7f7f",
+        "#bcbd22",
+        "#17becf",
+    ]
+
+    # Get unique years and sort them
+    years = sorted(yoy_data["year"].unique())
+
+    # Add a line for each year
+    for i, year in enumerate(years):
+        year_data = yoy_data[yoy_data["year"] == year].copy()
+        year_data = year_data.sort_values("day_of_year")
+
+        color = colors[i % len(colors)]
+
+        fig.add_trace(
+            go.Scatter(
+                x=year_data["day_of_year"],
+                y=year_data["cumulative_rainfall"],
+                mode="lines",
+                line=dict(color=color, width=2),
+                name=str(year),
+                hovertemplate=(
+                    "Day %{x}<br>"
+                    "Year: " + str(year) + "<br>"
+                    'Cumulative: %{y:.2f}"<extra></extra>'
+                ),
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        title="Year-over-Year Rainfall Accumulation",
+        height=450,
+        margin=dict(l=60, r=40, t=60, b=60),
+        xaxis_title="Day of Year",
+        yaxis_title="Cumulative Rainfall (inches)",
+        showlegend=True,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+
+    # Update axes
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor="lightgray",
+        range=[start_day, end_day],
+        tickmode="array",
+        tickvals=[1, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365],
+        ticktext=[
+            "Jan 1",
+            "Feb 1",
+            "Mar 1",
+            "Apr 1",
+            "May 1",
+            "Jun 1",
+            "Jul 1",
+            "Aug 1",
+            "Sep 1",
+            "Oct 1",
+            "Nov 1",
+            "Dec 1",
+            "Dec 31",
+        ],
+    )
+
+    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+
+    return fig
+
+
 def _create_event_headline(current_event):
     """
     Create formatted headline for rain event display.
@@ -1186,3 +1374,4 @@ def create_event_histogram(events_df: pd.DataFrame, selected_range: tuple) -> go
     fig.update_yaxes(showgrid=True, gridcolor="lightgray")
 
     return fig
+
