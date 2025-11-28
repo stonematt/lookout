@@ -39,6 +39,7 @@ from lookout.core.chart_config import (
     apply_time_series_layout,
     apply_standard_axes,
     create_standard_annotation,
+    apply_violin_layout,
 )
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
@@ -69,6 +70,9 @@ def create_rainfall_violin_plot(
     current = data["current"]
     percentile = data["percentile"]
 
+    # Get standard colors from chart_config
+    colors = get_standard_colors()
+
     fig = go.Figure()
 
     fig.add_trace(
@@ -77,8 +81,8 @@ def create_rainfall_violin_plot(
             name=f"Historical {window}",
             box_visible=True,
             meanline_visible=True,
-            fillcolor="rgba(56, 128, 191, 0.6)",
-            line_color="rgba(56, 128, 191, 1.0)",
+            fillcolor=colors["muted_marker"],
+            line_color=colors["muted_line"],
             x0=f"{window} Periods",
         )
     )
@@ -107,14 +111,14 @@ def create_rainfall_violin_plot(
             )
         )
 
+    # Apply violin layout configuration
     chart_title = title or f"Rainfall Distribution: {window} Rolling Periods"
-    fig.update_layout(
+    fig = apply_violin_layout(
+        fig,
         title=chart_title,
-        yaxis_title=f"Rainfall ({unit})",
-        xaxis_title="",
-        showlegend=True,
         height=500,
-        template="plotly_white",
+        yaxis_title=f"Rainfall ({unit})",
+        showlegend=True
     )
 
     st.plotly_chart(fig, width="stretch")
