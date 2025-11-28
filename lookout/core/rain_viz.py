@@ -354,9 +354,12 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
 
     df["rate"] = df["interval_rain"] / (df["time_diff_min"] / 60)
 
+    # Get standard colors from chart_config
+    colors = get_standard_colors()
+
     times = []
     rates = []
-    colors = []
+    bar_colors = []
     customdata = []
 
     for idx in df.index:
@@ -378,18 +381,18 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
                 if synthetic_time <= curr_time:
                     times.append(synthetic_time)
                     rates.append(avg_rate)
-                    colors.append("#B0B0B0")
+                    bar_colors.append(colors["gap_fill"])
                     customdata.append(f"({int(time_gap)}min avg)")
         else:
             times.append(row["time_pst"])
             rates.append(rate)
 
             if rate < 0.1:
-                colors.append("#90EE90")
+                bar_colors.append(colors["rate_low"])
             elif rate < 0.3:
-                colors.append("#FFD700")
+                bar_colors.append(colors["rate_medium"])
             else:
-                colors.append("#FF6347")
+                bar_colors.append(colors["rate_high"])
             customdata.append("")
 
     hover_template = (
@@ -401,23 +404,31 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
         go.Bar(
             x=times,
             y=rates,
-            marker_color=colors,
+            marker_color=bar_colors,
             hovertemplate=hover_template,
             customdata=customdata,
         )
     )
 
-    fig.update_layout(
+    # Apply time series layout configuration
+    fig = apply_time_series_layout(
+        fig,
         height=150,
-        margin=dict(l=50, r=20, t=10, b=40),
-        xaxis_title="",
-        yaxis_title="Rate (in/hr)",
         showlegend=False,
-        bargap=0,
+        hovermode="closest"  # Better for bar charts
     )
 
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
+    # Apply standard axes configuration
+    fig = apply_standard_axes(
+        fig,
+        xaxis_title="",
+        yaxis_title="Rate (in/hr)",
+        showgrid_x=False,
+        showgrid_y=True
+    )
+
+    # Set bar gap (specific to bar charts)
+    fig.update_layout(bargap=0)
 
     return fig
 
