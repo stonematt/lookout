@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 import lookout.core.rainfall_analysis as rain_analysis
-import lookout.core.visualization as lo_viz
+import lookout.core.rain_viz as rain_viz
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
@@ -166,7 +166,7 @@ def _cached_accumulation_data(
     before_memory = get_memory_usage()
     log_memory_usage("CACHE accumulation_data START", before_memory)
 
-    result = lo_viz.prepare_rain_accumulation_heatmap_data(
+    result = rain_viz.prepare_rain_accumulation_heatmap_data(
         archive_df=df,
         start_date=start_ts,
         end_date=end_ts,
@@ -267,7 +267,7 @@ def render():
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        fig_daily = lo_viz.create_rainfall_summary_violin(
+        fig_daily = rain_viz.create_rainfall_summary_violin(
             daily_rain_df=daily_rain_df,
             current_values=current_values,
             rolling_context_df=context_df,
@@ -282,7 +282,7 @@ def render():
         st.plotly_chart(fig_daily, width="stretch", key="daily_viz")
 
     with col2:
-        fig_rolling = lo_viz.create_rainfall_summary_violin(
+        fig_rolling = rain_viz.create_rainfall_summary_violin(
             daily_rain_df=daily_rain_df,
             current_values=current_values,
             rolling_context_df=context_df,
@@ -385,7 +385,7 @@ def render():
                 )
 
             if left_window != right_window:
-                lo_viz.create_dual_violin_plot(
+                rain_viz.create_dual_violin_plot(
                     left_window=left_window,
                     right_window=right_window,
                     violin_data=violin_data,
@@ -485,7 +485,7 @@ def render():
 
     # Display chart with filtered data
     if not filtered_yoy_data.empty:
-        fig = lo_viz.create_year_over_year_accumulation_chart(
+        fig = rain_viz.create_year_over_year_accumulation_chart(
             yoy_data=filtered_yoy_data, start_day=start_day, end_day=end_day
         )
         st.plotly_chart(fig, width="stretch", key="yoy_accumulation")
@@ -579,7 +579,7 @@ def render():
                 .tz_convert("UTC")
             )
 
-            accumulation_df = lo_viz.prepare_rain_accumulation_heatmap_data(
+            accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
                 archive_df=df,
                 start_date=start_ts,
                 end_date=end_ts,
@@ -598,7 +598,7 @@ def render():
 
     # Render heatmap
     if not accumulation_df.empty:
-        fig = lo_viz.create_rain_accumulation_heatmap(
+        fig = rain_viz.create_rain_accumulation_heatmap(
             accumulation_df=accumulation_df, num_days=num_days, row_mode=row_mode
         )
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})

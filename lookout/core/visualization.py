@@ -13,33 +13,6 @@ from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
-# Re-exports for backward compatibility - gauge functions moved to gauge_viz.py
-from lookout.core.gauge_viz import (
-    gauge_defaults,
-    generate_gradient_steps,
-    create_gauge_chart,
-    make_column_gauges,
-    create_windrose_chart,
-    draw_horizontal_bars,
-)
-
-# Re-exports for backward compatibility during migration to rain_viz module
-from lookout.core.rain_viz import (
-    create_rainfall_violin_plot,
-    create_dual_violin_plot,
-    create_event_accumulation_chart,
-    create_event_rate_chart,
-    create_rainfall_summary_violin,
-    prepare_rain_accumulation_heatmap_data,
-    create_rain_accumulation_heatmap,
-    create_year_over_year_accumulation_chart,
-    create_event_histogram,
-    extract_event_data,
-    format_event_header,
-    render_event_visualization_core,
-    _create_event_headline,
-)
-
 
 def display_current_data(data):
     """
@@ -215,46 +188,4 @@ def display_hourly_coverage_heatmap(df):
     st.plotly_chart(fig, width="stretch")
 
 
-def create_event_detail_charts(history_df, current_event, event_key="event"):
-    """
-    Create both accumulation and rate charts for rain event detail.
 
-    :param history_df: Full weather history DataFrame
-    :param current_event: Current event dictionary from catalog
-    :param event_key: Key prefix for chart uniqueness
-    :return: Tuple of (accumulation_fig, rate_fig)
-    """
-    # Import rain_viz functions for internal calls
-    from lookout.core import rain_viz
-
-    # Extract event data from history
-    history_df = history_df.copy()
-    history_df["timestamp"] = pd.to_datetime(history_df["dateutc"], unit="ms", utc=True)
-
-    start_time = pd.to_datetime(current_event["start_time"], utc=True)
-    end_time = pd.to_datetime(current_event["end_time"], utc=True)
-
-    mask = (history_df["timestamp"] >= start_time) & (
-        history_df["timestamp"] <= end_time
-    )
-    event_data = history_df[mask].sort_values("timestamp").copy()
-
-    if len(event_data) == 0:
-        return None, None, None
-
-    # Create event info for accumulation chart
-    event_info = {
-        "total_rainfall": current_event["total_rainfall"],
-        "duration_minutes": current_event["duration_minutes"],
-        "start_time": start_time,
-        "end_time": end_time,
-    }
-
-    # Create charts using rain_viz functions
-    acc_fig = rain_viz.create_event_accumulation_chart(event_data, event_info)
-    rate_fig = rain_viz.create_event_rate_chart(event_data)
-
-    # Create headline for overview display
-    headline = rain_viz._create_event_headline(current_event)
-
-    return acc_fig, rate_fig, headline
