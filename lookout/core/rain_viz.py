@@ -34,6 +34,12 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+from lookout.core.chart_config import (
+    get_standard_colors,
+    apply_time_series_layout,
+    apply_standard_axes,
+    create_standard_annotation,
+)
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
 
@@ -280,6 +286,9 @@ def create_event_accumulation_chart(
     df["timestamp"] = pd.to_datetime(df["dateutc"], unit="ms", utc=True)
     df["time_pst"] = df["timestamp"].dt.tz_convert("America/Los_Angeles")
 
+    # Get standard colors from chart_config
+    colors = get_standard_colors()
+
     fig = go.Figure()
 
     fig.add_trace(
@@ -288,38 +297,36 @@ def create_event_accumulation_chart(
             y=df["eventrainin"],
             mode="lines",
             fill="tozeroy",
-            line=dict(color="#4682B4", width=2),
-            fillcolor="rgba(70, 130, 180, 0.3)",
+            line=dict(color=colors["rainfall_line"], width=2),
+            fillcolor=colors["rainfall_fill"],
             hovertemplate='%{x|%b %d %I:%M %p}<br>%{y:.3f}"<extra></extra>',
             name="Rainfall",
         )
     )
 
-    fig.update_layout(
+    # Apply time series layout configuration
+    fig = apply_time_series_layout(
+        fig,
         height=300,
-        margin=dict(l=50, r=20, t=30, b=40),
+        showlegend=False,
+        hovermode="x unified"
+    )
+
+    # Apply standard axes configuration
+    fig = apply_standard_axes(
+        fig,
         xaxis_title="",
         yaxis_title="Rainfall (in)",
-        showlegend=False,
-        hovermode="x unified",
+        showgrid_x=False,
+        showgrid_y=True
     )
 
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor="lightgray", rangemode="tozero")
-
-    fig.add_annotation(
+    # Add total rainfall annotation using chart_config helper
+    total_annotation = create_standard_annotation(
         text=f"Total: {event_info['total_rainfall']:.3f}\"",
-        xref="paper",
-        yref="paper",
-        x=0.98,
-        y=0.95,
-        xanchor="right",
-        showarrow=False,
-        bgcolor="rgba(255,255,255,0.8)",
-        bordercolor="gray",
-        borderwidth=1,
-        borderpad=4,
+        position="top_right"
     )
+    fig.add_annotation(total_annotation)
 
     return fig
 
