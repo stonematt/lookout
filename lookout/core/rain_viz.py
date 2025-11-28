@@ -174,13 +174,17 @@ def create_dual_violin_plot(
         shared_yaxes=True,
     )
 
-    colors = {
-        left_window: "rgba(56, 128, 191, 0.6)",
-        right_window: "rgba(191, 128, 56, 0.6)",
+    # Get standard colors from chart_config
+    colors = get_standard_colors()
+    
+    # Use contrasting colors for dual violin comparison
+    violin_colors = {
+        left_window: colors["muted_marker"],
+        right_window: colors["muted_current"],
     }
     line_colors = {
-        left_window: "rgba(56, 128, 191, 1.0)",
-        right_window: "rgba(191, 128, 56, 1.0)",
+        left_window: colors["muted_line"],
+        right_window: colors["muted_line"],
     }
 
     fig.add_trace(
@@ -189,7 +193,7 @@ def create_dual_violin_plot(
             name=f"Historical {left_window}",
             box_visible=True,
             meanline_visible=True,
-            fillcolor=colors[left_window],
+            fillcolor=violin_colors[left_window],
             line_color=line_colors[left_window],
             x0=f"{left_window}",
         ),
@@ -203,7 +207,7 @@ def create_dual_violin_plot(
             name=f"Historical {right_window}",
             box_visible=True,
             meanline_visible=True,
-            fillcolor=colors[right_window],
+            fillcolor=violin_colors[right_window],
             line_color=line_colors[right_window],
             x0=f"{right_window}",
         ),
@@ -244,13 +248,16 @@ def create_dual_violin_plot(
                 col=i,
             )
 
+    # Apply violin layout configuration
     chart_title = (
         title or f"Rainfall Distribution Comparison: {left_window} vs {right_window}"
     )
-    fig.update_layout(
+    fig = apply_violin_layout(
+        fig,
         title=chart_title,
         height=600,
-        template="plotly_white",
+        yaxis_title=f"Rainfall ({unit})",
+        showlegend=True
     )
 
     fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
