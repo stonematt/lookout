@@ -9,6 +9,11 @@ import plotly.graph_objects as go
 import streamlit as st
 from colour import Color
 
+from lookout.core.chart_config import (
+    get_standard_colors,
+    apply_time_series_layout,
+    apply_standard_axes
+)
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -141,9 +146,16 @@ def create_windrose_chart(
             )
         )
 
-    # Customize chart layout
+# Apply standard layout configuration
+    fig = apply_time_series_layout(
+        fig,
+        height=500,
+        showlegend=True,
+        title=title
+    )
+    
+    # Apply polar-specific configuration
     fig.update_layout(
-        title=dict(text=title),
         polar=dict(
             angularaxis=dict(
                 tickmode="array",
@@ -163,7 +175,7 @@ def create_windrose_chart(
             yanchor="top",
             y=-0.15,  # Move legend below chart
             xanchor="center",
-            x=0.5,  # Center the legend horizontally
+            x=0.5,  # Center legend horizontally
         ),
     )
 
@@ -215,8 +227,12 @@ def create_gauge_chart(
         )
     )
 
-    # Update the layout to set the chart height
-    fig.update_layout(height=chart_height)
+    # Apply standard layout configuration
+    fig = apply_time_series_layout(
+        fig,
+        height=chart_height,
+        showlegend=False
+    )
 
     return fig
 
@@ -234,12 +250,8 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
     :param xaxis_range: tuple or None - Custom x-axis range (min, max). If None, defaults
                        to ±10% of the lowest min and highest max in data.
     """
-    # Muted color palette
-    muted_palette = {
-        "line": "#1f77b4",  # Muted blue for the range line
-        "marker": "#aec7e8",  # Light blue for end markers
-        "current": "#2ca02c",  # Muted green for the current value
-    }
+    # Get standard colors from chart_config
+    colors = get_standard_colors()
 
     # Convert dictionary to a list of dictionaries for easier processing
     categories = list(data_dict.keys())
@@ -277,8 +289,8 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
                 x=[plot["Min"], plot["Max"]],
                 y=[plot["Category"], plot["Category"]],
                 mode="lines+markers",
-                line=dict(color=muted_palette["line"], width=8),
-                marker=dict(color=muted_palette["marker"], size=12),
+                line=dict(color=colors["muted_line"], width=8),
+                marker=dict(color=colors["muted_marker"], size=12),
                 name=plot["Category"],
                 text=[  # Tooltip for the line
                     f"min: {plot['Min']}<br>max: {plot['Max']}<br>current: {plot['Current']}",
@@ -297,7 +309,7 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
                     marker=dict(
                         symbol="diamond-tall",
                         line=dict(width=2, color="DarkSlateGrey"),
-                        color=muted_palette["current"],
+                        color=colors["muted_current"],
                         size=14,
                     ),
                     name=f"{plot['Category']} Current",
@@ -308,18 +320,27 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
                 )
             )
 
-    # Customize layout
-    fig.update_layout(
-        title=f"{label} Overview",
-        xaxis=dict(
-            range=xaxis_range,
-            showgrid=True,
-        ),
-        yaxis=dict(title="", showgrid=False),
+    # Apply standard layout configuration
+    fig = apply_time_series_layout(
+        fig,
+        height=400,
         showlegend=False,
-        font=dict(family="Arial", size=18),  # Use a clean font
-        # plot_bgcolor="#f9f9f9",  # Light background for consistency with Streamlit
+        title=f"{label} Overview"
     )
+    
+    # Apply standard axis configuration
+    fig = apply_standard_axes(
+        fig,
+        xaxis_title="",
+        yaxis_title="",
+        showgrid_x=True,
+        showgrid_y=False,
+        type_x="linear",
+        type_y="category"
+    )
+    
+    # Set custom x-axis range
+    fig.update_xaxes(range=xaxis_range)
 
     # Render the plot in Streamlit
     st.plotly_chart(fig)
