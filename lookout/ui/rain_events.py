@@ -2,11 +2,11 @@
 Rain Event Catalog UI for Lookout weather station dashboard.
 
 This module provides event browsing, selection, and management interface
-for rain events detected from historical weather data.
+for rain events detected from historical weather data. Event visualization
+functions are imported from lookout.core.rain_viz.
 """
 
 import json
-from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -14,7 +14,7 @@ import streamlit as st
 
 import lookout.ui.rain as rain_module
 from lookout.core.rain_events import RainEventCatalog
-from lookout.core.visualization import (
+from lookout.core.rain_viz import (
     create_event_accumulation_chart,
     create_event_rate_chart,
 )
@@ -212,7 +212,7 @@ def render():
         # Get catalog from session state (loaded early in data flow)
         events_df = st.session_state.get("rain_events_catalog", pd.DataFrame())
         catalog_source = "session"
-        logger.info(f"Using catalog from session state: {len(events_df)} events")
+        logger.debug(f"Using catalog from session state: {len(events_df)} events")
 
         if events_df.empty:
             st.info("No events found in catalog")
