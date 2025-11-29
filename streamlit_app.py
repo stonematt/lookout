@@ -132,24 +132,30 @@ st.sidebar.write(f"Archive is {history_age_h} old.")
 
 # Present the dashboard ########################
 
-tab_overview, tab_rain, tab_rain_events, tab_diagnostics, tab_playground = st.tabs(
-    ["Overview", "Rain", "Rain Events", "Diagnostics", "Playground"]
-)
+# Check if we're in a dev environment
+is_dev = st.secrets.get("environment", {}).get("dev", False)
 
-with tab_overview:
-    overview.render()
+# Create tab list based on environment
+if is_dev:
+    tab_names = ["Overview", "Rain", "Rain Events", "Diagnostics", "Playground"]
+else:
+    tab_names = ["Overview", "Rain", "Rain Events"]
 
-with tab_rain:
-    rain.render()
+tabs = st.tabs(tab_names)
 
-with tab_rain_events:
-    rain_events.render()
+# Map tab names to their corresponding render functions
+tab_modules = {
+    "Overview": overview,
+    "Rain": rain,
+    "Rain Events": rain_events,
+    "Diagnostics": diagnostics,
+    "Playground": playground,
+}
 
-with tab_diagnostics:
-    diagnostics.render()
-
-with tab_playground:
-    playground.render()
+# Render each tab with its corresponding module
+for tab, name in zip(tabs, tab_names):
+    with tab:
+        tab_modules[name].render()
 
 # Reduced frequency memory cleanup to prevent disruptive reruns
 # Only cleanup on higher thresholds to avoid interfering with user interactions
