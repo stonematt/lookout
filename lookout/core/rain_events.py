@@ -73,7 +73,7 @@ def detect_rain_events(
     events = []
     current_event = None
 
-    logger.info(f"Analyzing {len(df)} records for rain events...")
+    logger.debug(f"Analyzing {len(df)} records for rain events...")
 
     for idx, row in df.iterrows():
         eventrainin = row.get("eventrainin", 0) or 0  # Handle None values
@@ -449,10 +449,10 @@ class RainEventCatalog:
         detection_data = archive_copy[archive_copy["timestamp"] >= redetect_from].copy()
 
         if detection_data.empty:
-            logger.info("No new data to process")
+            logger.debug("No new data to process")
             return existing_catalog
 
-        logger.info(f"Processing {len(detection_data)} records from {redetect_from}")
+        logger.debug(f"Processing {len(detection_data)} records from {redetect_from}")
 
         # Detect events (will either update ongoing event or find new ones)
         new_events = detect_rain_events(detection_data)
@@ -464,7 +464,7 @@ class RainEventCatalog:
                     "this may indicate data quality issues"
                 )
             else:
-                logger.info("No new events detected")
+                logger.debug("No new events detected")
             return existing_catalog
 
         # Convert to DataFrame and add quality metrics
