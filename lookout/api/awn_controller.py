@@ -507,7 +507,7 @@ def combine_interim_data(
     before = len(interim_df)
     combined = combine_df(interim_df, new_data)
     added = len(combined) - before
-    logger.info(f"combine: +{added} rows (interim total={len(combined)})")
+    logger.debug(f"combine: +{added} rows (interim total={len(combined)})")
     return combined
 
 
@@ -530,7 +530,7 @@ def update_last_date(new_data: pd.DataFrame) -> datetime:
 
 def log_interim_progress(page, pages, interim_df):
     """Log progress during interim data fetching."""
-    logger.info(
+    logger.debug(
         f"Interim Page: {page}/{pages} "
         f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
         f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
@@ -683,14 +683,14 @@ def log_page_quality(df: pd.DataFrame, label: str) -> None:
     Emit quick stats for a fetched/combined page to spot gaps or drops.
     """
     if df is None or df.empty:
-        logger.info(f"{label}: empty page")
+        logger.debug(f"{label}: empty page")
         return
 
     try:
         ts = pd.to_datetime(df["dateutc"], unit="ms", utc=True, errors="coerce")
         ts = ts.dropna()
         if ts.empty:
-            logger.info(f"{label}: no valid timestamps")
+            logger.debug(f"{label}: no valid timestamps")
             return
 
         n = len(df)
@@ -702,7 +702,7 @@ def log_page_quality(df: pd.DataFrame, label: str) -> None:
         # check expected 5‑min cadence (not strict—just a hint)
         cadence = ts.sort_values().diff().dropna().value_counts().head(3).to_dict()
 
-        logger.info(
+        logger.debug(
             f"{label}: n={n}, dup={n_dup}, range=({first_ts})–({last_ts}), span={span}, top_steps={cadence}"
         )
     except Exception as e:
