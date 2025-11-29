@@ -118,7 +118,7 @@ def create_rainfall_violin_plot(
         title=chart_title,
         height=500,
         yaxis_title=f"Rainfall ({unit})",
-        showlegend=True
+        showlegend=True,
     )
 
     st.plotly_chart(fig, width="stretch")
@@ -176,7 +176,7 @@ def create_dual_violin_plot(
 
     # Get standard colors from chart_config
     colors = get_standard_colors()
-    
+
     # Use contrasting colors for dual violin comparison
     violin_colors = {
         left_window: colors["muted_marker"],
@@ -257,7 +257,7 @@ def create_dual_violin_plot(
         title=chart_title,
         height=600,
         yaxis_title=f"Rainfall ({unit})",
-        showlegend=True
+        showlegend=True,
     )
 
     fig.update_yaxes(title_text=f"Rainfall ({unit})", row=1, col=1)
@@ -317,10 +317,7 @@ def create_event_accumulation_chart(
 
     # Apply time series layout configuration
     fig = apply_time_series_layout(
-        fig,
-        height=300,
-        showlegend=False,
-        hovermode="x unified"
+        fig, height=300, showlegend=False, hovermode="x unified"
     )
 
     # Apply standard axes configuration
@@ -329,13 +326,12 @@ def create_event_accumulation_chart(
         xaxis_title="",
         yaxis_title="Rainfall (in)",
         showgrid_x=False,
-        showgrid_y=True
+        showgrid_y=True,
     )
 
     # Add total rainfall annotation using chart_config helper
     total_annotation = create_standard_annotation(
-        text=f"Total: {event_info['total_rainfall']:.3f}\"",
-        position="top_right"
+        text=f"Total: {event_info['total_rainfall']:.3f}\"", position="top_right"
     )
     fig.add_annotation(total_annotation)
 
@@ -423,10 +419,7 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
 
     # Apply time series layout configuration
     fig = apply_time_series_layout(
-        fig,
-        height=150,
-        showlegend=False,
-        hovermode="closest"  # Better for bar charts
+        fig, height=150, showlegend=False, hovermode="closest"  # Better for bar charts
     )
 
     # Apply standard axes configuration
@@ -435,7 +428,7 @@ def create_event_rate_chart(event_data: pd.DataFrame) -> go.Figure:
         xaxis_title="",
         yaxis_title="Rate (in/hr)",
         showgrid_x=False,
-        showgrid_y=True
+        showgrid_y=True,
     )
 
     # Set bar gap (specific to bar charts)
@@ -682,7 +675,7 @@ def prepare_rain_accumulation_heatmap_data(
 
     # Apply aggregation based on row mode (column type is determined by row type)
     if row_mode == "month":
-        logger.info(f"Aggregating by month/day-of-month")
+        logger.debug(f"Aggregating by month/day-of-month")
 
         # Add month and day columns
         hourly_accum["month"] = hourly_accum["date_ts"].dt.month
@@ -704,7 +697,7 @@ def prepare_rain_accumulation_heatmap_data(
         return monthly_accum
 
     elif row_mode == "year_month":
-        logger.info(f"Aggregating by year-month/day-of-month")
+        logger.debug(f"Aggregating by year-month/day-of-month")
 
         # Add year-month and day columns
         hourly_accum["year_month"] = (
@@ -732,7 +725,7 @@ def prepare_rain_accumulation_heatmap_data(
         return year_month_accum
 
     elif row_mode == "week":
-        logger.info(f"Aggregating by week/day-of-week")
+        logger.debug(f"Aggregating by week/day-of-week")
 
         # Add week and day-of-week columns
         hourly_accum["week_start"] = (
@@ -755,7 +748,7 @@ def prepare_rain_accumulation_heatmap_data(
 
         return weekly_accum
 
-    logger.info(
+    logger.debug(
         f"Prepared accumulation heatmap data: {len(hourly_accum)} hourly cells "
         f"from {hourly_accum['date'].min()} to {hourly_accum['date'].max()}"
     )
@@ -1403,4 +1396,3 @@ def create_event_histogram(events_df: pd.DataFrame, selected_range: tuple) -> go
     fig.update_yaxes(showgrid=True, gridcolor="lightgray")
 
     return fig
-
