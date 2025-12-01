@@ -206,7 +206,7 @@ def _render_time_series_tab(df: pd.DataFrame):
     with st.spinner("Creating time series chart..."):
         fig = solar_viz.create_solar_time_series_chart(filtered_df)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Additional info
     st.info("Chart shows solar radiation intensity (W/m²) during daylight hours only.")
@@ -220,7 +220,7 @@ def _render_daily_energy_tab(daily_energy: pd.Series):
     with st.spinner("Creating energy chart..."):
         fig = solar_viz.create_daily_energy_chart(daily_energy)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Summary statistics
     col1, col2, col3 = st.columns(3)
@@ -256,7 +256,7 @@ def _render_seasonal_analysis_tab(daily_energy: pd.Series):
     with st.spinner("Creating seasonal comparison..."):
         fig = solar_viz.create_seasonal_comparison_chart(seasonal_data)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Seasonal details
     if 'seasonal_variation_ratio' in seasonal_data:
@@ -283,7 +283,7 @@ def _render_seasonal_analysis_tab(daily_energy: pd.Series):
 
     if seasonal_rows:
         seasonal_df = pd.DataFrame(seasonal_rows)
-        st.dataframe(seasonal_df, use_container_width=True)
+        st.dataframe(seasonal_df, width='stretch')
 
 
 def _render_patterns_heatmap_tab(df: pd.DataFrame):
@@ -303,7 +303,7 @@ def _render_patterns_heatmap_tab(df: pd.DataFrame):
             with st.spinner("Creating hourly pattern chart..."):
                 fig = solar_viz.create_hourly_pattern_chart(hourly_patterns)
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     with col2:
         st.subheader("Solar Radiation Heatmap")
@@ -327,6 +327,6 @@ def _render_patterns_heatmap_tab(df: pd.DataFrame):
             with st.spinner("Creating solar heatmap..."):
                 fig = solar_viz.create_solar_heatmap(heatmap_df, row_mode=heatmap_mode)
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     st.info("Heatmap shows solar radiation patterns by hour and selected time period.")
