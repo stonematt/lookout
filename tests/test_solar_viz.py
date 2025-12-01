@@ -21,7 +21,7 @@ class TestSolarTimeSeriesChart:
     def test_create_solar_time_series_chart_with_valid_data(self):
         """Test chart creation with valid solar data."""
         # Create test data
-        dates = pd.date_range('2024-01-01', periods=24, freq='H', tz='UTC')
+        dates = pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC')
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': np.random.uniform(0, 1000, 24),
@@ -47,7 +47,7 @@ class TestSolarTimeSeriesChart:
 
     def test_create_solar_time_series_chart_no_daytime_data(self):
         """Test chart creation with no daytime data."""
-        dates = pd.date_range('2024-01-01', periods=24, freq='H', tz='UTC')
+        dates = pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC')
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': np.random.uniform(0, 1000, 24),
@@ -62,21 +62,84 @@ class TestSolarTimeSeriesChart:
 
     def test_create_solar_time_series_chart_with_nan_values(self):
         """Test chart creation with NaN values."""
-        dates = pd.date_range('2024-01-01', periods=24, freq='H', tz='UTC')
-        solar_data = np.random.uniform(0, 1000, 24)
-        solar_data[10:15] = np.nan  # Some NaN values
+        dates = pd.date_range('2024-01-01', periods=100, freq='h', tz='UTC')
+
+        # Create data with gaps (some hours missing)
+        solar_data = np.random.uniform(0, 1000, 100)
+        # Simulate gaps by setting some values to NaN
+        solar_data[20:30] = np.nan  # 10-hour gap
+        solar_data[50:55] = np.nan  # 5-hour gap
 
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': solar_data,
-            'daylight_period': ['day'] * 24
+            'daylight_period': ['day'] * 100
         })
 
         fig = solar_viz.create_solar_time_series_chart(df)
 
-        # Should create chart, filtering out NaN values
+        # Should handle gaps gracefully
         assert fig is not None
         assert len(fig.data) == 1
+
+    def test_solar_data_extended_gaps(self):
+        """Test handling of extended data gaps (days missing)."""
+        # Create data with a full day gap
+        dates1 = pd.date_range('2024-01-01', periods=48, freq='h', tz='UTC')
+        dates2 = pd.date_range('2024-01-03', periods=48, freq='h', tz='UTC')  # Skip Jan 2
+        dates = dates1.append(dates2)
+
+        solar_data = np.random.uniform(0, 1000, len(dates))
+
+        df = pd.DataFrame({
+            'datetime': dates,
+            'solarradiation': solar_data,
+            'daylight_period': ['day'] * len(dates)
+        })
+
+        fig = solar_viz.create_solar_time_series_chart(df)
+
+        # Should handle extended gaps
+        assert fig is not None
+        assert len(fig.data) == 1
+
+
+class TestColorConfiguration:
+    """Test solar color configuration."""
+
+    def test_solar_colors_exist_in_palette(self):
+        """Test that solar colors are properly defined in chart config."""
+        from lookout.core.chart_config import get_standard_colors
+
+        colors = get_standard_colors()
+
+        # Check that solar colors exist
+        assert 'solar_line' in colors
+        assert 'solar_fill' in colors
+        assert 'solar_high' in colors
+        assert 'solar_medium' in colors
+        assert 'solar_low' in colors
+
+        # Check that colors are valid hex codes or rgba strings
+        for color_name in ['solar_line', 'solar_fill', 'solar_high', 'solar_medium', 'solar_low']:
+            color_value = colors[color_name]
+            assert isinstance(color_value, str)
+            assert len(color_value) > 0
+
+    def test_solar_color_values_are_valid(self):
+        """Test that solar color values are valid CSS color strings."""
+        from lookout.core.chart_config import get_standard_colors
+
+        colors = get_standard_colors()
+
+        # Basic validation - should start with # or rgba
+        solar_colors = ['solar_line', 'solar_high', 'solar_medium', 'solar_low']
+        for color_name in solar_colors:
+            color_value = colors[color_name]
+            assert color_value.startswith('#'), f"{color_name} should be hex color"
+
+        # Fill should be rgba
+        assert colors['solar_fill'].startswith('rgba('), "solar_fill should be rgba color"
 
 
 class TestDailyEnergyChart:
@@ -182,7 +245,7 @@ class TestSolarHeatmap:
 
     def test_prepare_solar_heatmap_data_day_mode(self):
         """Test heatmap data preparation in day mode."""
-        dates = pd.date_range('2024-01-01', periods=48, freq='H', tz='UTC')
+        dates = pd.date_range('2024-01-01', periods=48, freq='h', tz='UTC')
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': np.random.uniform(0, 1000, 48),
@@ -199,7 +262,7 @@ class TestSolarHeatmap:
     def test_prepare_solar_heatmap_data_week_mode(self):
         """Test heatmap data preparation in week mode."""
         # Create a week's worth of data
-        dates = pd.date_range('2024-01-01', periods=168, freq='H', tz='UTC')
+        dates = pd.date_range('2024-01-01', periods=168, freq='h', tz='UTC')
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': np.random.uniform(0, 1000, 168),
@@ -256,7 +319,7 @@ class TestDSTHandling:
     def test_solar_data_dst_spring_forward(self):
         """Test handling of spring forward DST transition."""
         # Create data around March 10, 2024 (DST starts)
-        dates = pd.date_range('2024-03-09 20:00', '2024-03-11 04:00', freq='H', tz='UTC')
+        dates = pd.date_range('2024-03-09 20:00', '2024-03-11 04:00', freq='h', tz='UTC')
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': np.random.uniform(0, 500, len(dates)),
@@ -270,7 +333,7 @@ class TestDSTHandling:
     def test_solar_data_dst_fall_back(self):
         """Test handling of fall back DST transition."""
         # Create data around November 3, 2024 (DST ends)
-        dates = pd.date_range('2024-11-02 20:00', '2024-11-04 04:00', freq='H', tz='UTC')
+        dates = pd.date_range('2024-11-02 20:00', '2024-11-04 04:00', freq='h', tz='UTC')
         df = pd.DataFrame({
             'datetime': dates,
             'solarradiation': np.random.uniform(0, 500, len(dates)),
@@ -287,7 +350,7 @@ class TestDataGaps:
 
     def test_solar_data_with_gaps(self):
         """Test handling of data gaps in solar readings."""
-        dates = pd.date_range('2024-01-01', periods=100, freq='H', tz='UTC')
+        dates = pd.date_range('2024-01-01', periods=100, freq='h', tz='UTC')
 
         # Create data with gaps (some hours missing)
         solar_data = np.random.uniform(0, 1000, 100)
@@ -306,62 +369,3 @@ class TestDataGaps:
         # Should handle gaps gracefully
         assert fig is not None
         assert len(fig.data) == 1
-
-    def test_solar_data_extended_gaps(self):
-        """Test handling of extended data gaps (days missing)."""
-        # Create data with a full day gap
-        dates1 = pd.date_range('2024-01-01', periods=48, freq='H', tz='UTC')
-        dates2 = pd.date_range('2024-01-03', periods=48, freq='H', tz='UTC')  # Skip Jan 2
-        dates = dates1.append(dates2)
-
-        solar_data = np.random.uniform(0, 1000, len(dates))
-
-        df = pd.DataFrame({
-            'datetime': dates,
-            'solarradiation': solar_data,
-            'daylight_period': ['day'] * len(dates)
-        })
-
-        fig = solar_viz.create_solar_time_series_chart(df)
-
-        # Should handle extended gaps
-        assert fig is not None
-        assert len(fig.data) == 1
-
-
-class TestColorConfiguration:
-    """Test solar color configuration."""
-
-    def test_solar_colors_exist_in_palette(self):
-        """Test that solar colors are properly defined in chart config."""
-        from lookout.core.chart_config import get_standard_colors
-
-        colors = get_standard_colors()
-
-        # Check that solar colors exist
-        assert 'solar_line' in colors
-        assert 'solar_fill' in colors
-        assert 'solar_high' in colors
-        assert 'solar_medium' in colors
-        assert 'solar_low' in colors
-
-        # Check that colors are valid hex codes or rgba strings
-        for color_name in ['solar_line', 'solar_fill', 'solar_high', 'solar_medium', 'solar_low']:
-            color_value = colors[color_name]
-            assert isinstance(color_value, str)
-            assert len(color_value) > 0
-
-    def test_solar_color_values_are_valid(self):
-        """Test that solar color values are valid CSS color strings."""
-        from lookout.core.chart_config import get_standard_colors
-
-        colors = get_standard_colors()
-
-        # Basic validation - should start with # or rgba
-        solar_colors = ['solar_line', 'solar_high', 'solar_medium', 'solar_low']
-        for color_name in solar_colors:
-            color_value = colors[color_name]
-            assert color_value.startswith('#'), f"{color_name} should be hex color"
-
-        # Fill should be rgba
-        assert colors['solar_fill'].startswith('rgba('), "solar_fill should be rgba color"
