@@ -27,19 +27,24 @@ def get_default_margins(compact: bool = False) -> Dict[str, int]:
 def get_standard_colors() -> Dict[str, str]:
     """
     Get standard color palette used across charts.
-    
+
     :return: Dictionary with color definitions
     """
     return {
         "muted_line": "#1f77b4",
-        "muted_marker": "#aec7e8", 
+        "muted_marker": "#aec7e8",
         "muted_current": "#2ca02c",
         "rainfall_line": "#4682B4",
         "rainfall_fill": "rgba(70, 130, 180, 0.3)",
         "rate_low": "#90EE90",
-        "rate_medium": "#FFD700", 
+        "rate_medium": "#FFD700",
         "rate_high": "#FF6347",
-        "gap_fill": "#B0B0B0"
+        "gap_fill": "#B0B0B0",
+        "solar_line": "#FFA500",
+        "solar_fill": "rgba(255, 165, 0, 0.3)",
+        "solar_high": "#FF8C00",
+        "solar_medium": "#FFA500",
+        "solar_low": "#FFD700"
     }
 
 
