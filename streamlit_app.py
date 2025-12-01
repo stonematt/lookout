@@ -8,7 +8,7 @@ import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
-from lookout.ui import diagnostics, overview, playground, rain, rain_events
+from lookout.ui import diagnostics, overview, playground, rain, rain_events, solar
 from lookout.ui import header
 from lookout.core.styles import get_style_manager
 from lookout.utils.log_util import app_logger
@@ -137,9 +137,9 @@ is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Create tab list based on environment
 if is_dev:
-    tab_names = ["Overview", "Rain", "Rain Events", "Diagnostics", "Playground"]
+    tab_names = ["Overview", "Rain", "Rain Events", "Solar", "Diagnostics", "Playground"]
 else:
-    tab_names = ["Overview", "Rain", "Rain Events"]
+    tab_names = ["Overview", "Rain", "Rain Events", "Solar"]
 
 tabs = st.tabs(tab_names)
 
@@ -148,6 +148,7 @@ tab_modules = {
     "Overview": overview,
     "Rain": rain,
     "Rain Events": rain_events,
+    "Solar": solar,
     "Diagnostics": diagnostics,
     "Playground": playground,
 }
