@@ -356,38 +356,40 @@ def prepare_solar_heatmap_data(
     """
     Prepare solar radiation data for heatmap visualization.
 
-    :param df: DataFrame with datetime, solarradiation, and daylight_period columns
+    Shows daylight solar patterns excluding nighttime hours for focused analysis.
+
+    :param df: DataFrame with datetime, solarradiation, daylight_period columns
     :param row_mode: Row aggregation mode ('day', 'week', 'month')
     :return: DataFrame with (date, hour, radiation) columns ready for heatmap
     """
     if df.empty:
         return pd.DataFrame()
 
-    # Filter for daytime data with valid solar readings
-    daytime_df = df[(df['daylight_period'] == 'day') &
-                   (df['solarradiation'].notna())].copy()
+    # Filter for daylight hours only (exclude 'night' from daylight_period)
+    # This focuses on actual solar production window
+    solar_df = df[(df['solarradiation'].notna()) &
+                  (df['daylight_period'] != 'night')].copy()
 
-    if daytime_df.empty:
+    if solar_df.empty:
         return pd.DataFrame()
 
     # Convert to local time
-    daytime_df = daytime_df.copy()
-    daytime_df['datetime'] = pd.to_datetime(daytime_df['datetime'], utc=True)
-    daytime_df['datetime_local'] = daytime_df['datetime'].dt.tz_convert('America/Los_Angeles')
-    daytime_df['date'] = daytime_df['datetime_local'].dt.date
-    daytime_df['hour'] = daytime_df['datetime_local'].dt.hour
+    solar_df['datetime'] = pd.to_datetime(solar_df['datetime'], utc=True)
+    solar_df['datetime_local'] = solar_df['datetime'].dt.tz_convert('America/Los_Angeles')
+    solar_df['date'] = solar_df['datetime_local'].dt.date
+    solar_df['hour'] = solar_df['datetime_local'].dt.hour
 
     # Aggregate based on row mode
     if row_mode == 'week':
-        daytime_df['week_start'] = daytime_df['datetime_local'].dt.to_period('W').dt.start_time.dt.date
-        heatmap_df = daytime_df.groupby(['week_start', daytime_df['datetime_local'].dt.dayofweek])['solarradiation'].mean().reset_index()
+        solar_df['week_start'] = solar_df['datetime_local'].dt.to_period('W').dt.start_time.dt.date
+        heatmap_df = solar_df.groupby(['week_start', 'hour'])['solarradiation'].mean().reset_index()
         heatmap_df.columns = ['date', 'hour', 'radiation']
     elif row_mode == 'month':
-        daytime_df['month'] = daytime_df['datetime_local'].dt.month
-        heatmap_df = daytime_df.groupby(['month', 'hour'])['solarradiation'].mean().reset_index()
+        solar_df['month'] = solar_df['datetime_local'].dt.month
+        heatmap_df = solar_df.groupby(['month', 'hour'])['solarradiation'].mean().reset_index()
         heatmap_df.columns = ['date', 'hour', 'radiation']
     else:  # day
-        heatmap_df = daytime_df.groupby(['date', 'hour'])['solarradiation'].mean().reset_index()
+        heatmap_df = solar_df.groupby(['date', 'hour'])['solarradiation'].mean().reset_index()
         heatmap_df.columns = ['date', 'hour', 'radiation']
 
     return heatmap_df
@@ -412,14 +414,29 @@ def create_solar_heatmap(
         logger.warning("Empty heatmap data")
         return go.Figure()
 
-    # Create pivot table for heatmap
-    heatmap_data = heatmap_df.pivot_table(
+    # Create pivot table for heatmap with all daylight hours (4-21)
+    # First ensure we have all hours 4-21 in the data, even if some have no readings
+    daylight_hours = list(range(4, 22))  # Hours 4 through 21
+
+    # Reindex to ensure all daylight hours are present
+    heatmap_df['hour'] = heatmap_df['hour'].astype(int)
+    complete_index = pd.MultiIndex.from_product(
+        [heatmap_df['date'].unique(), daylight_hours],
+        names=['date', 'hour']
+    )
+
+    # Create pivot table with complete index
+    heatmap_data = heatmap_df.set_index(['date', 'hour'])['radiation'].reindex(complete_index, fill_value=0).reset_index()
+    heatmap_data = heatmap_data.pivot_table(
         values='radiation',
         index='date',
         columns='hour',
         aggfunc='mean',
         fill_value=0
     )
+
+    # Ensure all daylight hours are present (should be after reindexing)
+    heatmap_data = heatmap_data.reindex(columns=daylight_hours, fill_value=0)
 
     # Get standard colors
     colors = get_standard_colors()
