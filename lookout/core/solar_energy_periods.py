@@ -97,27 +97,113 @@ def aggregate_to_daily(periods_df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate 15-minute periods to daily totals.
 
-    TODO: Implement in Phase 1 - Epic 1.2
+    :param periods_df: DataFrame from calculate_15min_energy_periods with columns [period_start, period_end, energy_kwh]
+    :return: DataFrame with columns [date, daily_kwh]
     """
-    raise NotImplementedError("Phase 1 - Epic 1.2 in progress")
+    if periods_df.empty:
+        return pd.DataFrame({"date": pd.Series(dtype="datetime64[ns]"), "daily_kwh": pd.Series(dtype=float)})
+
+    # Extract date from period_start (already TZ-aware US/Pacific)
+    periods_df = periods_df.copy()
+    periods_df["date"] = periods_df["period_start"].dt.date
+
+    # Group by date and sum energy_kwh, keeping all dates including zeros
+    daily_df = periods_df.groupby("date", as_index=False)["energy_kwh"].sum()
+    daily_df.columns = ["date", "daily_kwh"]
+
+    # Sort by date
+    daily_df = daily_df.sort_values("date").reset_index(drop=True)
+
+    return daily_df
 
 
 def aggregate_to_hourly(periods_df: pd.DataFrame, date: str) -> pd.DataFrame:
     """
     Aggregate 15-minute periods to hourly for a specific date.
 
-    TODO: Implement in Phase 1 - Epic 1.2
+    :param periods_df: DataFrame from calculate_15min_energy_periods
+    :param date: String in format 'YYYY-MM-DD' (US/Pacific timezone)
+    :return: DataFrame with columns [hour, hourly_kwh]
     """
-    raise NotImplementedError("Phase 1 - Epic 1.2 in progress")
+    if periods_df.empty:
+        return pd.DataFrame({"hour": pd.Series(dtype=int), "hourly_kwh": pd.Series(dtype=float)})
+
+    try:
+        target_date = pd.to_datetime(date).date()
+    except ValueError:
+        raise ValueError(f"Invalid date format: {date}. Expected 'YYYY-MM-DD'")
+
+    # Filter to specified date
+    date_filter = periods_df["period_start"].dt.date == target_date
+    filtered_df = periods_df[date_filter].copy()
+
+    if filtered_df.empty:
+        # Return all hours with zero energy
+        hourly_dict = {hour: 0.0 for hour in range(24)}
+    else:
+        # Extract hour from period_start
+        filtered_df["hour"] = filtered_df["period_start"].dt.hour
+
+        # Group by hour and sum energy_kwh
+        hourly_dict = filtered_df.groupby("hour")["energy_kwh"].sum().to_dict()
+
+        # Ensure all hours 0-23 are present (including zeros)
+        for hour in range(24):
+            if hour not in hourly_dict:
+                hourly_dict[hour] = 0.0
+
+    # Create result DataFrame
+    result_df = pd.DataFrame({
+        "hour": list(hourly_dict.keys()),
+        "hourly_kwh": list(hourly_dict.values())
+    })
+
+    # Sort by hour
+    result_df = result_df.sort_values("hour").reset_index(drop=True)
+
+    return result_df
 
 
 def get_period_stats(periods_df: pd.DataFrame) -> Dict:
     """
     Calculate summary statistics for energy periods.
 
-    Returns:
-        Dict with keys: total_kwh, days_with_production, avg_daily_kwh, peak_day
-
-    TODO: Implement in Phase 1 - Epic 1.2
+    :param periods_df: DataFrame from calculate_15min_energy_periods
+    :return: Dict with keys: total_kwh, days_with_production, avg_daily_kwh, peak_day
     """
-    raise NotImplementedError("Phase 1 - Epic 1.2 in progress")
+    if periods_df.empty:
+        return {
+            'total_kwh': 0.0,
+            'days_with_production': 0,
+            'avg_daily_kwh': 0.0,
+            'peak_day': {'date': '', 'kwh': 0.0}
+        }
+
+    # Calculate total_kwh
+    total_kwh = periods_df["energy_kwh"].sum()
+
+    # Get daily aggregation
+    daily_df = aggregate_to_daily(periods_df)
+
+    # Calculate days_with_production
+    days_with_production = (daily_df["daily_kwh"] > 0).sum()
+
+    # Calculate avg_daily_kwh
+    avg_daily_kwh = total_kwh / days_with_production if days_with_production > 0 else 0.0
+
+    # Find peak_day
+    if not daily_df.empty and not daily_df["daily_kwh"].empty:
+        peak_idx = daily_df["daily_kwh"].idxmax()
+        peak_day = {
+            'date': daily_df.loc[peak_idx, "date"].strftime('%Y-%m-%d'),
+            'kwh': daily_df.loc[peak_idx, "daily_kwh"]
+        }
+    else:
+        peak_day = {'date': '', 'kwh': 0.0}
+
+    return {
+        'total_kwh': total_kwh,
+        'days_with_production': days_with_production,
+        'avg_daily_kwh': avg_daily_kwh,
+        'peak_day': peak_day
+    }
