@@ -5,6 +5,7 @@ Converts raw solar radiation measurements into 15-minute energy periods.
 
 import pandas as pd
 import pytz
+import streamlit as st
 from typing import Dict
 from lookout.core.solar_analysis import LOCATION
 from lookout.utils.log_util import app_logger
@@ -100,6 +101,93 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
     result_df = result_df.sort_values("period_start").reset_index(drop=True)
 
     logger.info(f"Generated {len(result_df)} 15-minute solar energy periods")
+    return result_df
+
+
+@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
+def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Optimized version of calculate_15min_energy_periods with vectorized operations and caching.
+
+    Uses pandas resample() for O(n) vectorized processing instead of O(n²) groupby iteration.
+    Includes Streamlit caching to avoid recalculation on every page load.
+
+    :param df: DataFrame with datetime and solarradiation columns
+    :return: DataFrame with period_start, period_end, energy_kwh columns
+    """
+    # Input validation
+    required_cols = ["datetime", "solarradiation"]
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    if df.empty:
+        logger.info("No solar data provided for cached period calculation")
+        empty_df = pd.DataFrame({
+            "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+            "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+            "energy_kwh": pd.Series(dtype=float)
+        })
+        return empty_df
+
+    # Sort by datetime ascending (archive is reverse-sorted)
+    df_sorted = df.sort_values("datetime").copy()
+
+    if df_sorted.empty:
+        logger.info("No solar data after sorting for cached period calculation")
+        empty_df = pd.DataFrame({
+            "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+            "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+            "energy_kwh": pd.Series(dtype=float)
+        })
+        return empty_df
+
+    logger.debug(f"Processing {len(df_sorted)} solar radiation records for cached 15-minute periods")
+
+    # Set datetime as index for resampling
+    df_indexed = df_sorted.set_index("datetime")
+
+    # Resample to 15-minute periods and calculate energy using vectorized trapezoidal integration
+    def vectorized_trapezoidal_integration(group):
+        """Vectorized trapezoidal integration for a 15-minute period"""
+        if len(group) < 2:
+            return 0.0
+
+        # Time differences in hours (vectorized)
+        time_diffs = group.index.to_series().diff().dt.total_seconds() / 3600
+
+        # Trapezoidal rule: (y1 + y2) / 2 * dx (vectorized)
+        energy_wh = (
+            (group["solarradiation"].shift(1) + group["solarradiation"]) / 2 * time_diffs
+        ).sum()
+
+        # Convert Wh/m² to kWh/m²
+        return energy_wh / 1000
+
+    # Resample and apply vectorized integration
+    resampled = df_indexed.resample("15min", origin="start")
+    energy_series = resampled.apply(vectorized_trapezoidal_integration)
+
+    # Convert to DataFrame with proper timezone handling
+    result_df = energy_series.reset_index()
+    result_df.columns = ["period_start", "energy_kwh"]
+
+    # Ensure period_start is in Pacific timezone
+    if result_df["period_start"].dt.tz is None:
+        # If naive, assume UTC and convert to Pacific
+        result_df["period_start"] = result_df["period_start"].dt.tz_localize("UTC").dt.tz_convert("America/Los_Angeles")
+    else:
+        # If already timezone-aware, convert to Pacific
+        result_df["period_start"] = result_df["period_start"].dt.tz_convert("America/Los_Angeles")
+
+    # Add period_end
+    result_df["period_end"] = result_df["period_start"] + pd.Timedelta(minutes=15)
+
+    # Reorder columns and sort
+    result_df = result_df[["period_start", "period_end", "energy_kwh"]]
+    result_df = result_df.sort_values("period_start").reset_index(drop=True)
+
+    logger.info(f"Generated {len(result_df)} cached 15-minute solar energy periods")
     return result_df
 
 

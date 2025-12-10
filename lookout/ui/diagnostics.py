@@ -508,6 +508,55 @@ def render():
                 f"🚨 Critical memory usage: {memory_mb:.1f} MB. Memory leak likely in progress."
             )
 
-    # 9. Final Data Row
+    # 9. Solar Energy Catalog Management
+    st.subheader("Solar Energy Catalog Management")
+
+    if "energy_catalog" in st.session_state:
+        catalog_df = st.session_state["energy_catalog"]
+        if not catalog_df.empty:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Energy Periods", f"{len(catalog_df)}")
+            with col2:
+                if not catalog_df.empty:
+                    date_range = f"{catalog_df['period_start'].min().date()} → {catalog_df['period_start'].max().date()}"
+                    st.metric("Date Range", date_range)
+            with col3:
+                total_energy = catalog_df['energy_kwh'].sum()
+                st.metric("Total Energy", f"{total_energy:.1f} kWh")
+
+            # Management controls
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("🔄 Regenerate Energy Catalog", help="Recalculate all energy periods from scratch"):
+                    with st.spinner("Regenerating energy catalog..."):
+                        from lookout.core.energy_catalog import EnergyCatalog
+                        catalog = EnergyCatalog(st.session_state["device"]["macAddress"])
+                        periods_df = catalog.detect_and_calculate_periods(
+                            st.session_state["history_df"], auto_save=False
+                        )
+                        st.session_state["energy_catalog"] = periods_df
+                        st.success(f"✓ Regenerated {len(periods_df)} energy periods")
+                        st.rerun()
+
+            with col2:
+                if st.button("💾 Save Energy Catalog", help="Save current catalog to storage"):
+                    with st.spinner("Saving energy catalog..."):
+                        from lookout.core.energy_catalog import EnergyCatalog
+                        catalog = EnergyCatalog(st.session_state["device"]["macAddress"])
+                        catalog.save_catalog(st.session_state["energy_catalog"])
+                        st.success("✓ Energy catalog saved to storage")
+
+            # Catalog details
+            with st.expander("📊 Catalog Details", expanded=False):
+                st.write("**Recent Periods:**")
+                st.dataframe(catalog_df.tail(10), width="stretch")
+        else:
+            st.warning("Energy catalog is empty")
+    else:
+        st.info("Energy catalog not loaded yet")
+
+    # 10. Final Data Row
     st.subheader("Last Data Record")
     st.write(last_data)

@@ -165,7 +165,51 @@ def load_or_update_data(
             logger.warning(f"Failed to load rain event catalog: {e}")
             st.session_state["rain_events_catalog"] = pd.DataFrame()
 
-    # Update header now that catalog is loaded
+    # Load energy catalog after archive data is available
+    if "energy_catalog" not in st.session_state:
+        try:
+            update_message.text("Getting solar energy catalog...")
+            from lookout.core.energy_catalog import EnergyCatalog
+
+            catalog = EnergyCatalog(device["macAddress"], file_type)
+
+            if catalog.catalog_exists():
+                periods_df = catalog.load_catalog()
+                if not periods_df.empty:
+                    # Update catalog with new data from archive
+                    update_message.text("Updating solar energy catalog...")
+                    updated_periods = catalog.update_catalog_with_new_data(
+                        st.session_state["history_df"], periods_df
+                    )
+                    st.session_state["energy_catalog"] = updated_periods
+
+                    # Auto-save if catalog is >2 days old
+                    if catalog.get_catalog_age() > pd.Timedelta(days=2):
+                        update_message.text("Saving solar energy catalog...")
+                        catalog.save_catalog(updated_periods)
+                        logger.info("Energy catalog auto-saved (age > 2 days)")
+                    update_message.text("Solar energy catalog loaded successfully")
+                    logger.info(f"Energy catalog loaded: {len(updated_periods)} periods")
+                else:
+                    st.session_state["energy_catalog"] = pd.DataFrame()
+                    update_message.text("Solar energy catalog loaded successfully")
+                    logger.info("Energy catalog exists but is empty")
+            else:
+                # Generate catalog if doesn't exist
+                update_message.text("Generating solar energy periods...")
+                periods_df = catalog.detect_and_calculate_periods(
+                    st.session_state["history_df"], auto_save=False
+                )
+                st.session_state["energy_catalog"] = periods_df
+                update_message.text("Solar energy catalog loaded successfully")
+                logger.info(f"Energy catalog generated: {len(periods_df)} periods")
+
+        except Exception as e:
+            logger.warning(f"Failed to load energy catalog: {e}")
+            st.session_state["energy_catalog"] = pd.DataFrame()
+            update_message.text("Solar energy catalog loading failed")
+
+    # Update header now that catalogs are loaded
     if "header_placeholder" in st.session_state and "device" in st.session_state:
         try:
             device_name = (

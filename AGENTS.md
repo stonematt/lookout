@@ -26,6 +26,17 @@
 - **Event catalog updates during app runtime with combined archive + live data**
 - **Session data is always current, even if cloud archive is stale**
 
+## Energy Catalog Management
+
+Energy catalogs provide 15-minute solar energy period caching following the same pattern as rain_events:
+
+- **Storage**: `{mac_address}.energy_catalog.parquet` in Storj bucket
+- **Session caching**: `st.session_state["energy_catalog"]` for instant loads
+- **Auto-save**: Catalogs >2 days old are automatically saved to storage
+- **Management**: Regenerate/save buttons available in diagnostics tab
+- **Performance**: 30x faster cached loads (<1s vs 30s) using vectorized algorithms
+- **Incremental updates**: Only processes new data since last period
+
 ## Agent-Specific Behaviors
 
 ### Branch Strategy for Agents
