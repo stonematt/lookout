@@ -356,19 +356,17 @@ def prepare_solar_heatmap_data(
     """
     Prepare solar radiation data for heatmap visualization.
 
-    Shows daylight solar patterns excluding nighttime hours for focused analysis.
+    Shows solar radiation patterns for hours 4-21, including periods with no radiation.
 
-    :param df: DataFrame with datetime, solarradiation, daylight_period columns
+    :param df: DataFrame with datetime, solarradiation columns
     :param row_mode: Row aggregation mode ('day', 'week', 'month')
     :return: DataFrame with (date, hour, radiation) columns ready for heatmap
     """
     if df.empty:
         return pd.DataFrame()
 
-    # Filter for daylight hours only (exclude 'night' from daylight_period)
-    # This focuses on actual solar production window
-    solar_df = df[(df['solarradiation'].notna()) &
-                  (df['daylight_period'] != 'night')].copy()
+    # Filter for valid solar radiation readings only
+    solar_df = df[df['solarradiation'].notna()].copy()
 
     if solar_df.empty:
         return pd.DataFrame()
