@@ -4,6 +4,7 @@ Converts raw solar radiation measurements into 15-minute energy periods.
 """
 
 import pandas as pd
+import pytz
 from typing import Dict
 from lookout.core.solar_analysis import LOCATION
 from lookout.utils.log_util import app_logger
@@ -30,6 +31,7 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Missing required columns: {missing_cols}")
 
     if df.empty:
+        logger.info("No solar data provided for period calculation")
         empty_df = pd.DataFrame({
             "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
             "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
@@ -41,6 +43,7 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
     df_sorted = df.sort_values("datetime").copy()
 
     if df_sorted.empty:
+        logger.info("No solar data after sorting for period calculation")
         empty_df = pd.DataFrame({
             "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
             "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
@@ -48,8 +51,14 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
         })
         return empty_df
 
+    logger.debug(f"Processing {len(df_sorted)} solar radiation records for 15-minute periods")
+
     # Create 15-minute period buckets aligned to clock times
-    df_sorted["period_start"] = df_sorted["datetime"].dt.floor("15min")
+    # Convert to UTC to avoid DST issues, floor, then convert back to Pacific
+    utc_dt = df_sorted["datetime"].dt.tz_convert("UTC")
+    utc_floored = utc_dt.dt.floor("15min")
+    df_sorted["period_start"] = utc_floored.dt.tz_convert("America/Los_Angeles")
+
     df_sorted["period_end"] = df_sorted["period_start"] + pd.Timedelta(minutes=15)
 
     # Calculate energy for each period using trapezoidal integration
@@ -90,6 +99,7 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
     # Sort by period_start
     result_df = result_df.sort_values("period_start").reset_index(drop=True)
 
+    logger.info(f"Generated {len(result_df)} 15-minute solar energy periods")
     return result_df
 
 
