@@ -4,6 +4,7 @@ Main streamlit.io application
 
 import time
 
+import pandas as pd
 import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
@@ -13,6 +14,50 @@ from lookout.ui import header
 from lookout.core.styles import get_style_manager
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
+
+logger = app_logger(__name__)
+
+
+def render_dev_mode_notice() -> None:
+    """Render dev mode notice with cache age information in sidebar."""
+    try:
+        # Get cache age from history data
+        history_df = st.session_state.get("history_df")
+        if history_df is not None and not history_df.empty:
+            # Get oldest record (max datetime since archive is reverse sorted)
+            oldest_timestamp_ms = history_df["dateutc"].max()
+            oldest_datetime = pd.to_datetime(oldest_timestamp_ms, unit="ms", utc=True)
+
+            # Convert to Pacific Time
+            pacific_time = oldest_datetime.tz_convert("America/Los_Angeles")
+            cache_age_str = pacific_time.strftime("%Y-%m-%d %H:%M PT")
+
+            # Calculate age in hours
+            now_utc = pd.Timestamp.now(tz="UTC")
+            age_hours = (now_utc - oldest_datetime).total_seconds() / 3600
+
+            if age_hours < 1:
+                age_display = f"{age_hours*60:.0f} min old"
+            elif age_hours < 24:
+                age_display = f"{age_hours:.1f} hours old"
+            else:
+                age_display = f"{age_hours/24:.1f} days old"
+        else:
+            cache_age_str = "No data"
+            age_display = "Unknown"
+
+        # Render dev mode notice
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("🛠️ **Dev Mode**")
+        st.sidebar.caption(f"Cache: {age_display}")
+        st.sidebar.caption(f"Oldest: {cache_age_str}")
+
+    except Exception as e:
+        logger.error(f"Error rendering dev mode notice: {e}")
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("🛠️ **Dev Mode**")
+        st.sidebar.caption("Cache info unavailable")
+
 
 # if st.secrets.get("DEBUG", False):
 #     try:
@@ -104,6 +149,10 @@ time.sleep(1)
 # %%
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
+# Display dev mode notice if in development
+is_dev = st.secrets.get("environment", {}).get("dev", False)
+if is_dev:
+    render_dev_mode_notice()
 
 # Call the wrapper to load or update the weather station data
 lo_dp.load_or_update_data(
