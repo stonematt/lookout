@@ -137,7 +137,14 @@ is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Create tab list based on environment
 if is_dev:
-    tab_names = ["Overview", "Rain", "Rain Events", "Solar", "Diagnostics", "Playground"]
+    tab_names = [
+        "Overview",
+        "Rain",
+        "Rain Events",
+        "Solar",
+        "Diagnostics",
+        "Playground",
+    ]
 else:
     tab_names = ["Overview", "Rain", "Rain Events", "Solar"]
 

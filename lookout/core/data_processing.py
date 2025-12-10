@@ -166,18 +166,14 @@ def load_or_update_data(
             st.session_state["rain_events_catalog"] = pd.DataFrame()
 
     # Update header now that catalog is loaded
-    if (
-        "header_placeholder" in st.session_state
-        and "device" in st.session_state
-    ):
+    if "header_placeholder" in st.session_state and "device" in st.session_state:
         try:
             device_name = (
-                st.session_state["device"]
-                .get("info", {})
-                .get("name", "Unknown")
+                st.session_state["device"].get("info", {}).get("name", "Unknown")
             )
             with st.session_state.header_placeholder.container():
                 from lookout.ui import header
+
                 header.render_weather_header(device_name)
             logger.debug("Header updated with active event information")
         except Exception as e:

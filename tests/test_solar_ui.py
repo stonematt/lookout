@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 
 import lookout.core.solar_analysis as solar_analysis
 import lookout.core.solar_viz as solar_viz
+
 # Temporarily commented out during solar UI rebuild
 # from lookout.ui.solar import (
 #     _get_cached_solar_statistics,

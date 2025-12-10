@@ -12,7 +12,7 @@ from colour import Color
 from lookout.core.chart_config import (
     get_standard_colors,
     apply_time_series_layout,
-    apply_standard_axes
+    apply_standard_axes,
 )
 from lookout.utils.log_util import app_logger
 
@@ -146,14 +146,9 @@ def create_windrose_chart(
             )
         )
 
-# Apply standard layout configuration
-    fig = apply_time_series_layout(
-        fig,
-        height=500,
-        showlegend=True,
-        title=title
-    )
-    
+    # Apply standard layout configuration
+    fig = apply_time_series_layout(fig, height=500, showlegend=True, title=title)
+
     # Apply polar-specific configuration
     fig.update_layout(
         polar=dict(
@@ -228,11 +223,7 @@ def create_gauge_chart(
     )
 
     # Apply standard layout configuration
-    fig = apply_time_series_layout(
-        fig,
-        height=chart_height,
-        showlegend=False
-    )
+    fig = apply_time_series_layout(fig, height=chart_height, showlegend=False)
 
     return fig
 
@@ -322,12 +313,9 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
 
     # Apply standard layout configuration
     fig = apply_time_series_layout(
-        fig,
-        height=400,
-        showlegend=False,
-        title=f"{label} Overview"
+        fig, height=400, showlegend=False, title=f"{label} Overview"
     )
-    
+
     # Apply standard axis configuration
     fig = apply_standard_axes(
         fig,
@@ -336,9 +324,9 @@ def draw_horizontal_bars(data_dict, label="Value", xaxis_range=None):
         showgrid_x=True,
         showgrid_y=False,
         type_x="linear",
-        type_y="category"
+        type_y="category",
     )
-    
+
     # Set custom x-axis range
     fig.update_xaxes(range=xaxis_range)
 

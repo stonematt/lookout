@@ -13,7 +13,7 @@ import streamlit as st
 def create_date_range_slider(
     data_df: pd.DataFrame,
     date_column: str = "timestamp",
-    key_prefix: str = "date_range"
+    key_prefix: str = "date_range",
 ) -> tuple:
     """
     Create a reusable date range slider component.
@@ -40,7 +40,7 @@ def create_date_range_slider(
         value=(min_date, max_date),
         format="MMM DD, YYYY",
         label_visibility="collapsed",
-        key=f"{key_prefix}_slider"
+        key=f"{key_prefix}_slider",
     )
 
     if len(date_range) == 2:
@@ -71,10 +71,7 @@ def create_date_range_slider(
 
 
 def filter_dataframe_by_date_range(
-    df: pd.DataFrame,
-    date_column: str,
-    start_ts: pd.Timestamp,
-    end_ts: pd.Timestamp
+    df: pd.DataFrame, date_column: str, start_ts: pd.Timestamp, end_ts: pd.Timestamp
 ) -> pd.DataFrame:
     """
     Filter a DataFrame by date range using UTC timestamps.
