@@ -135,18 +135,17 @@ class TestSolarUIRendering:
 
     @patch('lookout.ui.solar.st')
     @patch('lookout.ui.solar._display_solar_statistics')
+    @patch('lookout.ui.solar._display_solar_data_quality')
     @patch('lookout.ui.solar._render_time_series_tab')
-    @patch('lookout.ui.solar._render_daily_energy_tab')
     @patch('lookout.ui.solar._render_seasonal_analysis_tab')
     @patch('lookout.ui.solar._render_patterns_heatmap_tab')
-    def test_render_with_data(self, mock_patterns, mock_seasonal, mock_energy,
-                             mock_time_series, mock_stats, mock_st):
-        # Mock st.tabs to return 4 mock tab objects
+    def test_render_with_data(self, mock_patterns, mock_seasonal, mock_time_series,
+                             mock_data_quality, mock_stats, mock_st):
+        # Mock st.tabs to return 3 mock tab objects (updated structure)
         mock_tab1 = MagicMock()
         mock_tab2 = MagicMock()
         mock_tab3 = MagicMock()
-        mock_tab4 = MagicMock()
-        mock_st.tabs.return_value = [mock_tab1, mock_tab2, mock_tab3, mock_tab4]
+        mock_st.tabs.return_value = [mock_tab1, mock_tab2, mock_tab3]
         """Test render function with valid solar data."""
         # Create mock data with solar readings
         mock_df = pd.DataFrame({
@@ -163,9 +162,9 @@ class TestSolarUIRendering:
         # Should call all the rendering functions
         mock_stats.assert_called_once()
         mock_time_series.assert_called_once()
-        mock_energy.assert_called_once()
         mock_seasonal.assert_called_once()
         mock_patterns.assert_called_once()
+        mock_data_quality.assert_called_once()
 
 
 class TestSolarUIStatistics:
@@ -229,29 +228,58 @@ class TestSolarUITabs:
             'daylight_period': ['day'] * 24
         })
 
-        from lookout.ui.solar import _render_time_series_tab
-        _render_time_series_tab(df)
+        # Create daily energy for the test
+        daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3, tz='UTC'))
 
-        # Should call chart creation
-        mock_chart.assert_called_once()
+        from lookout.ui.solar import _render_time_series_tab
+        with patch('lookout.ui.components.create_date_range_slider') as mock_date_slider, \
+             patch('lookout.ui.solar.solar_viz.create_solar_time_series_chart') as mock_time_chart, \
+             patch('lookout.ui.solar.solar_viz.create_daily_energy_chart') as mock_energy_chart, \
+             patch('lookout.ui.solar.st') as mock_st:
+            mock_date_slider.return_value = (None, None)  # No date filtering
+            # Mock st.columns for the energy metrics
+            mock_col1 = MagicMock()
+            mock_col2 = MagicMock()
+            mock_col3 = MagicMock()
+            mock_st.columns.return_value = [mock_col1, mock_col2, mock_col3]
+            _render_time_series_tab(df, daily_energy)
+
+            # Should call time series chart creation
+            mock_time_chart.assert_called_once()
 
     @patch('lookout.ui.solar.st')
     @patch('lookout.ui.solar.solar_viz.create_daily_energy_chart')
-    def test_render_daily_energy_tab(self, mock_chart, mock_st):
-        """Test daily energy tab rendering."""
-        daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3))
+    @patch('lookout.ui.solar.solar_viz.create_solar_time_series_chart')
+    @patch('lookout.ui.components.create_date_range_slider')
+    def test_render_combined_time_series_tab(self, mock_date_slider, mock_time_series_chart, mock_energy_chart, mock_st):
+        """Test combined time series and daily energy tab rendering."""
+        # Create test data
+        dates = pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC')
+        df = pd.DataFrame({
+            'datetime': dates,
+            'solarradiation': [500, 600, 700] + [0] * 21,
+            'daylight_period': ['day'] * 3 + ['night'] * 21
+        })
+        daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3, tz='UTC'))
 
-        # Mock st.columns to return 3 mock column objects
+        # Mock date slider to return timestamps
+        mock_date_slider.return_value = (
+            pd.Timestamp('2024-01-01').tz_localize('UTC'),
+            pd.Timestamp('2024-01-03').tz_localize('UTC')
+        )
+
+        # Mock st.columns to return 3 mock column objects for energy metrics
         mock_col1 = MagicMock()
         mock_col2 = MagicMock()
         mock_col3 = MagicMock()
         mock_st.columns.return_value = [mock_col1, mock_col2, mock_col3]
 
-        from lookout.ui.solar import _render_daily_energy_tab
-        _render_daily_energy_tab(daily_energy)
+        from lookout.ui.solar import _render_time_series_tab
+        _render_time_series_tab(df, daily_energy)
 
-        # Should call chart creation
-        mock_chart.assert_called_once()
+        # Should call both chart creation functions
+        mock_time_series_chart.assert_called_once()
+        mock_energy_chart.assert_called_once()
 
     @patch('lookout.ui.solar.st')
     @patch('lookout.ui.solar.solar_viz.create_seasonal_comparison_chart')
@@ -303,23 +331,37 @@ class TestSolarUIEdgeCases:
 
     @patch('lookout.ui.solar.st')
     @patch('lookout.ui.solar.solar_viz.create_daily_energy_chart')
-    def test_render_empty_daily_energy(self, mock_chart, mock_st):
-        """Test handling of empty daily energy data."""
+    @patch('lookout.ui.solar.solar_viz.create_solar_time_series_chart')
+    @patch('lookout.ui.components.create_date_range_slider')
+    def test_render_empty_daily_energy(self, mock_date_slider, mock_time_chart, mock_energy_chart, mock_st):
+        """Test rendering with empty daily energy data."""
+        # Create test data
+        df = pd.DataFrame({
+            'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
+            'solarradiation': np.random.uniform(0, 1000, 24),
+            'daylight_period': ['day'] * 24
+        })
+
+        # Mock date slider
+        mock_date_slider.return_value = (None, None)
+
         # Mock st.columns to return 3 mock column objects
         mock_col1 = MagicMock()
         mock_col2 = MagicMock()
         mock_col3 = MagicMock()
         mock_st.columns.return_value = [mock_col1, mock_col2, mock_col3]
 
-        # Mock the chart function to return empty figure
-        mock_chart.return_value = go.Figure()
+        # Mock the chart functions
+        mock_time_chart.return_value = go.Figure()
+        mock_energy_chart.return_value = go.Figure()
 
-        from lookout.ui.solar import _render_daily_energy_tab
-        _render_daily_energy_tab(pd.Series(dtype=float))
+        from lookout.ui.solar import _render_time_series_tab
+        _render_time_series_tab(df, pd.Series(dtype=float))
 
-        # Should call chart creation and display
-        mock_chart.assert_called_once()
-        mock_st.plotly_chart.assert_called_once()
+        # Should call time series chart creation (energy chart not called when empty)
+        mock_time_chart.assert_called_once()
+        # Energy chart is not called when daily_energy is empty
+        mock_energy_chart.assert_not_called()
 
     @patch('lookout.ui.solar.st')
     def test_render_empty_seasonal_data(self, mock_st):
@@ -332,7 +374,8 @@ class TestSolarUIEdgeCases:
         mock_st.warning.assert_called_once()
 
     @patch('lookout.ui.solar.st')
-    def test_time_series_no_data_in_range(self, mock_st):
+    @patch('lookout.ui.components.create_date_range_slider')
+    def test_time_series_no_data_in_range(self, mock_date_slider, mock_st):
         """Test time series with no data in selected range."""
         df = pd.DataFrame({
             'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
@@ -340,8 +383,17 @@ class TestSolarUIEdgeCases:
             'daylight_period': ['day'] * 24
         })
 
-        from lookout.ui.solar import _render_time_series_tab
-        _render_time_series_tab(df)
+        # Create daily energy for the test
+        daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3, tz='UTC'))
 
-        # Should handle the date range selection gracefully
-        # (This is a basic test - full date range testing would require more mocking)
+        # Mock date slider to return range with no data
+        mock_date_slider.return_value = (
+            pd.Timestamp('2024-02-01').tz_localize('UTC'),
+            pd.Timestamp('2024-02-02').tz_localize('UTC')
+        )
+
+        from lookout.ui.solar import _render_time_series_tab
+        _render_time_series_tab(df, daily_energy)
+
+        # Should show warning for no data in range
+        mock_st.warning.assert_called_once()

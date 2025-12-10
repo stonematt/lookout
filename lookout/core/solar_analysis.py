@@ -66,9 +66,12 @@ def calculate_daily_energy(df: pd.DataFrame) -> pd.Series:
 
         daily_energy_dict[date_val] = energy_wh / 1000  # Convert to kWh/m²
 
-    daily_energy = pd.Series(daily_energy_dict)
+    daily_energy = pd.Series(daily_energy_dict, dtype=float)
     daily_energy.name = 'daily_kwh_per_m2'
     daily_energy.index.name = 'date'
+
+    # Convert index to timezone-aware datetime for consistent date comparisons
+    daily_energy.index = pd.to_datetime(daily_energy.index).tz_localize('UTC')
 
     return daily_energy
 

@@ -12,6 +12,7 @@ import streamlit as st
 
 import lookout.core.solar_analysis as solar_analysis
 import lookout.core.solar_viz as solar_viz
+import lookout.ui.components as ui_components
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
@@ -76,8 +77,8 @@ def render():
 
     df = st.session_state["history_df"]
 
-    # Filter for data with solar radiation readings
-    solar_df = df[df['solarradiation'].notna()].copy()
+    # Filter for data with solar radiation readings (no copy for memory efficiency)
+    solar_df = df[df['solarradiation'].notna()]
     if solar_df.empty:
         st.warning("No solar radiation data available in the current dataset.")
         return
@@ -106,24 +107,24 @@ def render():
     _display_solar_statistics(solar_df, daily_energy)
 
     # Create tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "📈 Time Series",
-        "⚡ Daily Energy",
         "🌤️ Seasonal Analysis",
         "🕐 Patterns & Heatmap"
     ])
 
     with tab1:
-        _render_time_series_tab(solar_df)
+        _render_time_series_tab(solar_df, daily_energy)
 
     with tab2:
-        _render_daily_energy_tab(daily_energy)
-
-    with tab3:
         _render_seasonal_analysis_tab(daily_energy)
 
-    with tab4:
+    with tab3:
         _render_patterns_heatmap_tab(solar_df)
+
+    # Data quality information at the bottom
+    st.markdown("---")
+    _display_solar_data_quality(solar_df, daily_energy)
 
     # Memory usage tracking
     mem_usage = get_memory_usage()
@@ -167,78 +168,90 @@ def _display_solar_statistics(df: pd.DataFrame, daily_energy: pd.Series):
             help="Hours with highest average radiation (UTC)"
         )
 
-    # Data quality info
-    with st.expander("📊 Data Quality", expanded=False):
-        st.write(f"**Data Period:** {daily_energy.index.min()} to {daily_energy.index.max()}")
-        st.write(f"**Days with Data:** {len(daily_energy)}")
-        st.write(f"**Total Solar Readings:** {len(df)}")
 
-        # Calculate data completeness
-        completeness = 100.0  # Simplified for now
-        st.write(f"**Data Completeness:** {completeness:.1f}%")
+def _display_solar_data_quality(df: pd.DataFrame, daily_energy: pd.Series):
+    """Display solar data quality information at the bottom of the page."""
+    st.subheader("📊 Data Quality")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Data Period", f"{daily_energy.index.min()} to {daily_energy.index.max()}")
+
+    with col2:
+        st.metric("Days with Data", len(daily_energy))
+
+    with col3:
+        st.metric("Total Readings", len(df))
+
+    # Additional quality metrics
+    completeness = 100.0  # Simplified for now
+    st.metric("Data Completeness", f"{completeness:.1f}%")
 
 
-def _render_time_series_tab(df: pd.DataFrame):
-    """Render solar radiation time series tab."""
+def _render_time_series_tab(df: pd.DataFrame, daily_energy: pd.Series):
+    """Render combined time series and daily energy tab."""
     st.subheader("Solar Radiation Over Time")
 
-    # Date range selector
-    date_range = st.date_input(
-        "Select date range",
-        value=(df['datetime'].min().date(), df['datetime'].max().date()),
-        key="solar_date_range"
+    # Use shared date range slider
+    start_ts, end_ts = ui_components.create_date_range_slider(
+        df, date_column="datetime", key_prefix="solar_time_series"
     )
 
-    if len(date_range) == 2:
-        start_date, end_date = date_range
-        filtered_df = df[
-            (df['datetime'].dt.date >= start_date) &
-            (df['datetime'].dt.date <= end_date)
-        ].copy()
+    # Filter data by date range
+    if start_ts and end_ts:
+        filtered_df = ui_components.filter_dataframe_by_date_range(
+            df, "datetime", start_ts, end_ts
+        )
+        # Use .loc[] for Series filtering to avoid copy and ensure type safety
+        mask = (daily_energy.index >= start_ts) & (daily_energy.index < end_ts)
+        filtered_daily_energy = daily_energy.loc[mask]
     else:
-        filtered_df = df.copy()
+        filtered_df = df  # No copy needed
+        filtered_daily_energy = daily_energy  # No copy needed
 
     if filtered_df.empty:
         st.warning("No data available for selected date range.")
         return
 
-    # Create and display chart
+    # Time series chart
     with st.spinner("Creating time series chart..."):
         fig = solar_viz.create_solar_time_series_chart(filtered_df)
 
     st.plotly_chart(fig, width='stretch')
-
-    # Additional info
     st.info("Chart shows solar radiation intensity (W/m²) during daylight hours only.")
 
+    st.markdown("---")  # Visual separator
 
-def _render_daily_energy_tab(daily_energy: pd.Series):
-    """Render daily energy accumulation tab."""
+    # Daily energy chart
     st.subheader("Daily Solar Energy Accumulation")
 
-    # Create and display chart
-    with st.spinner("Creating energy chart..."):
-        fig = solar_viz.create_daily_energy_chart(daily_energy)
+    if filtered_daily_energy.empty:
+        st.warning("No daily energy data available for selected date range.")
+    else:
+        with st.spinner("Creating energy chart..."):
+            fig = solar_viz.create_daily_energy_chart(filtered_daily_energy)
 
-    st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, width='stretch')
 
-    # Summary statistics
-    col1, col2, col3 = st.columns(3)
+        # Summary statistics
+        col1, col2, col3 = st.columns(3)
 
-    with col1:
-        avg_energy = daily_energy.mean()
-        st.metric("Average Daily Energy", f"{avg_energy:.2f} kWh/m²")
+        with col1:
+            avg_energy = filtered_daily_energy.mean()
+            st.metric("Average Daily Energy", f"{avg_energy:.2f} kWh/m²")
 
-    with col2:
-        max_energy = daily_energy.max()
-        max_date = str(daily_energy.idxmax()) if not daily_energy.empty else "N/A"
-        st.metric("Peak Daily Energy", f"{max_energy:.2f} kWh/m²", f"on {max_date}")
+        with col2:
+            max_energy = filtered_daily_energy.max()
+            max_date = str(filtered_daily_energy.idxmax()) if not filtered_daily_energy.empty else "N/A"
+            st.metric("Peak Daily Energy", f"{max_energy:.2f} kWh/m²", f"on {max_date}")
 
-    with col3:
-        total_energy = daily_energy.sum()
-        st.metric("Total Period Energy", f"{total_energy:.1f} kWh/m²")
+        with col3:
+            total_energy = filtered_daily_energy.sum()
+            st.metric("Total Period Energy", f"{total_energy:.1f} kWh/m²")
 
-    st.info("Energy calculated using trapezoidal integration of solar radiation readings.")
+        st.info("Energy calculated using trapezoidal integration of solar radiation readings.")
+
 
 
 def _render_seasonal_analysis_tab(daily_energy: pd.Series):
