@@ -1,6 +1,6 @@
 """
-Tests for solar_viz module
-TODO: Implement as part of Phase 2
+Integration tests for solar UI
+TODO: Implement as part of Phase 5
 """
 
 import pytest
