@@ -9,9 +9,16 @@ import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
 import lookout.core.data_processing as lo_dp
-from lookout.ui import diagnostics, overview, playground, rain, rain_events, solar
-from lookout.ui import header
 from lookout.core.styles import get_style_manager
+from lookout.ui import (
+    diagnostics,
+    header,
+    overview,
+    playground,
+    rain,
+    rain_events,
+    solar,
+)
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
 
@@ -178,6 +185,7 @@ history_age_h = lo_dp.get_human_readable_duration(
 st.sidebar.write(f"Archive is {history_age_h} old.")
 # %%
 
+st.sidebar.write(last_data)
 
 # Present the dashboard ########################
 
