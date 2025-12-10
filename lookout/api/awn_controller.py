@@ -33,6 +33,7 @@ Helper Functions:
 import json
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -54,6 +55,96 @@ AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
 AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
 AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 sec_in_hour = 3600 * 1000
+
+# Local cache configuration
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+CACHE_FRESHNESS_HOURS = 48  # Refresh cache if older than 2 days
+
+# Cache Management Functions
+
+
+def get_local_archive_path(mac_address: str) -> Path:
+    """
+    Get the local parquet file path for a device MAC address.
+
+    :param mac_address: Device MAC address
+    :return: Path object for local parquet file
+    """
+    filename = f"{mac_address.replace(':', '-')}.parquet"
+    return DATA_DIR / filename
+
+
+def is_local_cache_fresh(file_path: Path) -> bool:
+    """
+    Check if local cache file is fresh (less than 2 days old).
+
+    :param file_path: Path to local cache file
+    :return: True if file exists and is fresh, False otherwise
+    """
+    if not file_path.exists():
+        return False
+
+    file_age_hours = (
+        datetime.now(timezone.utc)
+        - datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc)
+    ).total_seconds() / 3600
+
+    return file_age_hours < CACHE_FRESHNESS_HOURS
+
+
+def load_local_archive(mac_address: str) -> pd.DataFrame:
+    """
+    Load archive data from local parquet file.
+
+    :param mac_address: Device MAC address
+    :return: DataFrame containing local archive data
+    """
+    local_path = get_local_archive_path(mac_address)
+    logger.info(f"Loading local archive: {local_path}")
+
+    try:
+        df = pd.read_parquet(local_path)
+        logger.info(f"✅ Local cache loaded: {len(df)} records")
+        return df
+    except FileNotFoundError:
+        logger.error(f"Local cache file not found: {local_path}")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"Error reading local cache: {local_path}, {e}")
+        return pd.DataFrame()
+
+
+def update_local_cache(df: pd.DataFrame, mac_address: str) -> None:
+    """
+    Update local cache with fresh data from S3.
+
+    :param df: DataFrame to cache locally
+    :param mac_address: Device MAC address
+    """
+    if df.empty:
+        logger.debug("Skipping cache update: empty DataFrame")
+        return
+
+    local_path = get_local_archive_path(mac_address)
+
+    # Ensure data directory exists
+    DATA_DIR.mkdir(exist_ok=True)
+
+    try:
+        df.to_parquet(local_path, index=False)
+        logger.info(f"✅ Local cache updated: {local_path} ({len(df)} records)")
+    except Exception as e:
+        logger.error(f"Failed to update local cache: {local_path}, {e}")
+
+
+def is_dev_mode() -> bool:
+    """
+    Check if application is running in development mode.
+
+    :return: True if dev mode is enabled
+    """
+    return st.secrets.get("environment", {}).get("dev", False)
+
 
 # Core Functions
 
@@ -136,6 +227,7 @@ def load_archive_for_device(
 ) -> pd.DataFrame:
     """
     Loads device-specific weather data from S3 into a DataFrame.
+    In dev mode, uses local cache first if available and fresh.
 
     :param device: Device dictionary with MAC address and metadata.
     :param bucket: Name of the S3 bucket.
@@ -143,12 +235,50 @@ def load_archive_for_device(
     :return: DataFrame containing the device's archived data.
     """
     mac = device.get("macAddress")
-    key = f"{mac}.{file_type}"
+    if not mac:
+        logger.error("Device missing MAC address")
+        return pd.DataFrame()
+
+    # Type assertion for mypy
+    mac_address = str(mac)
+    key = f"{mac_address}.{file_type}"
+
+    # Dev mode: try local cache first
+    if is_dev_mode():
+        local_path = get_local_archive_path(mac_address)
+
+        if local_path.exists() and is_local_cache_fresh(local_path):
+            logger.info(f"🏎️  Using fresh local cache: {local_path}")
+            return load_local_archive(mac_address)
+        elif local_path.exists():
+            logger.info(
+                f"📅 Local cache stale ({CACHE_FRESHNESS_HOURS}h threshold), will refresh"
+            )
+        else:
+            logger.info(f"📂 No local cache found, will create")
+
+    # Load from S3 (production or dev fallback)
     logger.info(f"Load from S3: {bucket}/{key}")
     try:
-        return sj.get_df_from_s3(bucket, key, file_type=file_type)
+        df = sj.get_df_from_s3(bucket, key, file_type=file_type)
+
+        # Update local cache in dev mode if we got fresh data
+        if is_dev_mode() and not df.empty:
+            update_local_cache(df, mac_address)
+            logger.info(f"🔄 Dev mode: Updated local cache from S3")
+
+        return df
+
     except Exception as e:
         logger.error(f"S3 load error: {bucket}/{key}, {e}")
+
+        # Dev mode: try to use stale local cache as last resort
+        if is_dev_mode():
+            local_path = get_local_archive_path(mac_address)
+            if local_path.exists():
+                logger.warning(f"🆘 S3 failed, using stale local cache: {local_path}")
+                return load_local_archive(mac_address)
+
         return pd.DataFrame()
 
 
