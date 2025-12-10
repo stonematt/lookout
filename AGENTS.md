@@ -133,6 +133,10 @@ Rationale: 5-minute intervals are normal; only gaps >10min indicate data loss.
 - UI layer handles Streamlit widgets, charts, and user interaction
 - Avoid data processing, calculations, or business logic in UI layer
 
+**Streamlit Deprecations (AVOID):**
+- ❌ `st.plotly_chart(fig, use_container_width=True)` → ✅ `st.plotly_chart(fig, width='stretch')`
+- Always use current, non-deprecated Streamlit parameters to avoid warnings
+
 **Example Pattern:**
 ```python
 # UI layer - only presentation
