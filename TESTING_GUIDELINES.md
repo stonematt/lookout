@@ -148,6 +148,70 @@ grep -E "(MemoryError|OutOfMemoryError|Killed)" /tmp/test.log
 function quick_test() {
     local port=$1
     timeout 10s streamlit run streamlit_app.py --server.headless true --server.port $port > /tmp/quick_$port.log 2>&1 & sleep 6
+
+## AI-Specific Testing Requirements
+
+### Archive Data Structure Testing
+
+**AI agents MUST use correct test data structure to avoid `date`/`datetime`/`dateutc` confusion:**
+
+#### Required Test Data Format
+```python
+def create_test_archive_data():
+    """Create test data matching actual archive structure"""
+    dates = pd.date_range("2023-01-01", periods=100, freq="5min", tz="America/Los_Angeles")
+    return pd.DataFrame({
+        "date": dates,  # TZ-aware datetime (PRIMARY)
+        "dateutc": [int(dt.timestamp() * 1000) for dt in dates],  # Milliseconds
+        "solarradiation": [max(0, 800 * (1 - abs((i % 288) - 144) / 144)) for i in range(100)],
+        "tempf": [70 + 10 * (i % 24) / 24 for i in range(100)],
+        "dailyrainin": [0.0] * 100,
+        "baromrelin": [30.0 + 0.1 * (i % 10) for i in range(100)],
+    })
+```
+
+#### AI Test Data Validation Checklist
+- [ ] Used `date` column for datetime operations (not `datetime`)
+- [ ] Included `dateutc` column with millisecond timestamps
+- [ ] Set correct timezone on `date` column (`America/Los_Angeles`)
+- [ ] Verified column existence checks in code
+- [ ] Tested with actual archive data structure before committing
+
+#### Forbidden Test Data Patterns
+```python
+# ❌ DON'T create test data like this
+def wrong_test_data():
+    return pd.DataFrame({
+        "datetime": dates,  # Column doesn't exist in archive
+        "timestamp": dates,  # Wrong column name
+        "date": dates.date,  # Loses timezone information
+    })
+```
+
+### AI Code Generation Validation
+
+**Before committing AI-generated code, verify:**
+
+1. **Column Access**: Uses `df['date']` not `df['datetime']`
+2. **Existence Checks**: `if 'column' in df.columns` before access
+3. **Timezone Trust**: No redundant conversions of `date` column
+4. **Data Types**: Correct handling of datetime64 vs int64 columns
+5. **Test Coverage**: Tests with actual archive structure
+
+### Debugging AI-Generated Code
+
+**When AI code fails with archive data:**
+```python
+# Check what columns actually exist
+print("Available columns:", df.columns.tolist())
+print("Date column type:", df['date'].dtype if 'date' in df.columns else "MISSING")
+print("DateUTC column type:", df['dateutc'].dtype if 'dateutc' in df.columns else "MISSING")
+
+# Verify timezone
+if 'date' in df.columns:
+    print("Date timezone:", df['date'].dt.tz)
+    print("Sample dates:", df['date'].head(3).tolist())
+```
     
     # Check for immediate errors
     if grep -qi "error\|exception\|traceback" /tmp/quick_$port.log; then
