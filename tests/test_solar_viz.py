@@ -29,10 +29,10 @@ class TestCreateMonthDayHeatmap:
         assert isinstance(fig, go.Figure)
 
         # Check basic layout properties
-        assert fig.layout.height == 500
-        assert fig.layout.xaxis.title.text == "Day of Month"
-        assert fig.layout.yaxis.title.text == "Month"
-        assert fig.layout.yaxis.autorange == "reversed"  # Newest months at top
+        assert fig.layout.height == 1000
+        assert fig.layout.xaxis.title.text == "Time of Day"
+        assert fig.layout.yaxis.title.text == "Date"
+        assert fig.layout.yaxis.autorange == "reversed"  # Newest dates at top
 
         # Check heatmap properties
         heatmap = fig.data[0]
@@ -42,8 +42,8 @@ class TestCreateMonthDayHeatmap:
         )
         assert heatmap.zmin == 0
         assert heatmap.showscale is True
-        assert heatmap.colorbar.title.text == "kWh/day"
-        assert heatmap.colorbar.ticksuffix == " kWh"
+        assert heatmap.colorbar.title.text == "Wh/15min"
+        assert heatmap.colorbar.ticksuffix == " Wh"
 
     def test_empty_dataframe(self):
         """Test handling of empty input data."""
@@ -57,7 +57,7 @@ class TestCreateMonthDayHeatmap:
 
         # Should return a figure with "No Solar Data Available" title
         assert isinstance(fig, go.Figure)
-        assert fig.layout.height == 500
+        assert fig.layout.height == 1000
 
     def test_single_day_data(self):
         """Test with data for a single day."""
@@ -242,6 +242,180 @@ class TestCreateDayColumnChart:
         # Check that all values are zero
         bar = fig.data[0]
         assert all(y == 0.0 for y in bar.y)
+
+
+class TestCreateDay15minHeatmap:
+    """Test the create_day_15min_heatmap function."""
+
+    def test_basic_functionality(self):
+        """Test basic heatmap creation with sample data."""
+        from lookout.core.solar_viz import create_day_15min_heatmap
+
+        # Create sample periods data for a full 24-hour day
+        periods_df = pd.DataFrame({
+            'period_start': pd.date_range('2023-01-01 00:00:00', periods=96, freq='15min', tz='America/Los_Angeles'),
+            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min', tz='America/Los_Angeles'),
+            'energy_kwh': [0.01 if 6 <= i//4 <= 18 else 0.0 for i in range(96)]  # Production only during daylight hours
+        })
+
+        fig = create_day_15min_heatmap(periods_df)
+
+        # Check return type
+        assert isinstance(fig, go.Figure)
+
+        # Check basic layout properties
+        assert fig.layout.height == 1000
+        assert fig.layout.xaxis.title.text == "Time of Day"
+        assert fig.layout.yaxis.title.text == "Date"
+        assert fig.layout.yaxis.autorange == "reversed"  # Newest dates at top
+
+        # Check heatmap properties
+        heatmap = fig.data[0]
+        assert isinstance(heatmap, go.Heatmap)
+        assert heatmap.colorscale == (
+            (0.0, "#FFF9E6"), (0.3, "#FFE680"), (0.6, "#FFB732"), (1.0, "#FF8C00")
+        )
+        assert heatmap.zmin == 0
+        assert heatmap.showscale is True
+        assert heatmap.colorbar.title.text == "Wh/15min"
+        assert heatmap.colorbar.ticksuffix == " Wh"
+
+        # Should have 1 day and 96 time slots (full 24-hour day in 15min intervals)
+        assert heatmap.z.shape == (1, 96)
+        assert len(heatmap.x) == 96  # 96 time slots from 00:00 to 23:45
+        assert len(heatmap.y) == 1   # 1 day
+
+    def test_empty_dataframe(self):
+        """Test handling of empty input data."""
+        from lookout.core.solar_viz import create_day_15min_heatmap
+
+        empty_df = pd.DataFrame({
+            'period_start': pd.Series(dtype='datetime64[ns]'),
+            'period_end': pd.Series(dtype='datetime64[ns]'),
+            'energy_kwh': pd.Series(dtype=float)
+        })
+
+        fig = create_day_15min_heatmap(empty_df)
+
+        # Should return a figure with "No Solar Production Data Available" title
+        assert isinstance(fig, go.Figure)
+        assert fig.layout.height == 1000
+
+    def test_zero_energy_data(self):
+        """Test handling when all energy values are zero (but still shows heatmap)."""
+        from lookout.core.solar_viz import create_day_15min_heatmap
+
+        periods_df = pd.DataFrame({
+            'period_start': pd.date_range('2023-01-01 06:00:00', periods=10, freq='15min', tz='America/Los_Angeles'),
+            'period_end': pd.date_range('2023-01-01 06:15:00', periods=10, freq='15min', tz='America/Los_Angeles'),
+            'energy_kwh': [0.0] * 10  # All zero energy
+        })
+
+        fig = create_day_15min_heatmap(periods_df)
+
+        # Should return heatmap with zero values (not empty figure)
+        assert isinstance(fig, go.Figure)
+        assert fig.layout.height == 1000
+        assert fig.layout.title.text == "15-Minute Energy Periods"
+
+        heatmap = fig.data[0]
+        assert isinstance(heatmap, go.Heatmap)
+        # Should have all zero values
+        assert all(val == 0.0 for val in heatmap.z.flatten())
+
+    def test_partial_day_data(self):
+        """Test handling when data covers only part of the day."""
+        from lookout.core.solar_viz import create_day_15min_heatmap
+
+        periods_df = pd.DataFrame({
+            'period_start': pd.date_range('2023-01-01 22:00:00', periods=8, freq='15min', tz='America/Los_Angeles'),
+            'period_end': pd.date_range('2023-01-01 22:15:00', periods=8, freq='15min', tz='America/Los_Angeles'),
+            'energy_kwh': [0.1] * 8  # Production during night
+        })
+
+        fig = create_day_15min_heatmap(periods_df)
+
+        # Should return heatmap with data only in nighttime hours
+        assert isinstance(fig, go.Figure)
+        assert fig.layout.height == 1000
+        assert fig.layout.title.text == "15-Minute Energy Periods"
+
+        heatmap = fig.data[0]
+        assert isinstance(heatmap, go.Heatmap)
+        # Should have 8 time slots with data, rest filled with zeros
+        assert heatmap.z.shape == (1, 8)
+
+    def test_custom_time_range(self):
+        """Test with custom start_hour and end_hour parameters."""
+        from lookout.core.solar_viz import create_day_15min_heatmap
+
+        # Create full day data
+        periods_df = pd.DataFrame({
+            'period_start': pd.date_range('2023-01-01 00:00:00', periods=96, freq='15min', tz='America/Los_Angeles'),
+            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min', tz='America/Los_Angeles'),
+            'energy_kwh': [0.01 if 6 <= i//4 <= 18 else 0.0 for i in range(96)]  # Production only during daylight
+        })
+
+        fig = create_day_15min_heatmap(periods_df, start_hour=6, end_hour=18)
+
+        # Check return type
+        assert isinstance(fig, go.Figure)
+
+        # Check title includes time range
+        assert "(06:00-18:00)" in fig.layout.title.text
+
+        # Check basic layout properties
+        assert fig.layout.height == 1000
+        assert fig.layout.xaxis.title.text == "Time of Day"
+        assert fig.layout.yaxis.title.text == "Date"
+        assert fig.layout.yaxis.autorange == "reversed"
+
+        # Check heatmap properties
+        heatmap = fig.data[0]
+        assert isinstance(heatmap, go.Heatmap)
+        assert heatmap.colorscale == (
+            (0.0, "#FFF9E6"), (0.3, "#FFE680"), (0.6, "#FFB732"), (1.0, "#FF8C00")
+        )
+        assert heatmap.zmin == 0
+        assert heatmap.showscale is True
+        assert heatmap.colorbar.title.text == "Wh/15min"
+
+        # Should have 1 day and 52 time slots (13 hours * 4 periods per hour)
+        assert heatmap.z.shape == (1, 52)
+        assert len(heatmap.x) == 52
+        assert len(heatmap.y) == 1
+
+        # Check axis labels are within the specified range
+        tick_labels = fig.layout.xaxis.ticktext
+        assert tick_labels[0] == "06:00"
+        assert tick_labels[-1] == "18:00"
+
+    def test_multiple_days(self):
+        """Test with data spanning multiple days."""
+        from lookout.core.solar_viz import create_day_15min_heatmap
+
+        # Create data for 3 days with production only during daylight hours
+        periods_data = []
+        for day in range(3):
+            # Only daylight hours (8:00-16:00)
+            start_time = pd.Timestamp(f'2023-01-0{day+1} 08:00:00', tz='America/Los_Angeles')
+            periods = pd.date_range(start_time, periods=32, freq='15min')  # 8 hours = 32 periods
+            periods_data.extend([{
+                'period_start': period,
+                'period_end': period + pd.Timedelta(minutes=15),
+                'energy_kwh': 0.02  # 20 Wh per 15min period
+            } for period in periods])
+
+        periods_df = pd.DataFrame(periods_data)
+
+        fig = create_day_15min_heatmap(periods_df)
+        assert isinstance(fig, go.Figure)
+
+        heatmap = fig.data[0]
+        # Should have 3 days and 32 time slots per day
+        assert heatmap.z.shape == (3, 32)
+        assert len(heatmap.y) == 3  # 3 days
+        assert len(heatmap.x) == 32  # 32 time slots (08:00 to 15:45)
 
 
 class TestSolarUIRender:
