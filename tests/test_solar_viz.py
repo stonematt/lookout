@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
-from lookout.core.solar_viz import create_month_day_heatmap
+from lookout.core.solar_viz import create_month_day_heatmap, create_day_column_chart
 
 
 class TestCreateMonthDayHeatmap:
@@ -174,6 +174,74 @@ class TestCreateMonthDayHeatmap:
         assert pd.isna(z_values[0][1])  # January 2nd
         # Day 3 should have value
         assert abs(z_values[0][2] - 1.2) < 1e-10  # January 3rd
+
+
+class TestCreateDayColumnChart:
+    """Test the create_day_column_chart function."""
+
+    def test_basic_functionality(self):
+        """Test basic bar chart creation with sample data."""
+        # Create sample periods data for one day with hourly production
+        periods_data = []
+        for hour in range(6, 18):  # 6 AM to 6 PM
+            periods_data.append({
+                'period_start': pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
+                'period_end': pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
+                'energy_kwh': 0.1
+            })
+
+        periods_df = pd.DataFrame(periods_data)
+        fig = create_day_column_chart(periods_df, "2023-01-01")
+
+        # Check return type
+        assert isinstance(fig, go.Figure)
+
+        # Check basic layout properties
+        assert fig.layout.height == 400
+        assert fig.layout.xaxis.title.text == "Hour of Day"
+        assert fig.layout.yaxis.title.text == "Energy (kWh)"
+        assert fig.layout.title.text == "Hourly Production - 2023-01-01"
+
+        # Check bar chart properties
+        bar = fig.data[0]
+        assert isinstance(bar, go.Bar)
+        assert bar.marker.color == "#FFB732"
+        assert bar.hovertemplate == "<b>%{x}:00</b><br>%{y:.2f} kWh<extra></extra>"
+
+        # Check x-axis range (should show all hours 0-23)
+        assert fig.layout.xaxis.range == (-0.5, 23.5)
+
+    def test_empty_dataframe(self):
+        """Test handling of empty input data."""
+        empty_df = pd.DataFrame()
+
+        fig = create_day_column_chart(empty_df, "2023-01-01")
+
+        # Should return a figure with "No Solar Data Available" title
+        assert isinstance(fig, go.Figure)
+        assert "No Solar Data Available" in fig.layout.title.text
+        assert fig.layout.height == 400
+
+    def test_no_data_for_date(self):
+        """Test handling when no data exists for the selected date."""
+        # Create data for a different date
+        periods_data = [{
+            'period_start': pd.Timestamp("2023-01-02 12:00:00"),
+            'period_end': pd.Timestamp("2023-01-02 12:15:00"),
+            'energy_kwh': 0.1
+        }]
+
+        periods_df = pd.DataFrame(periods_data)
+        fig = create_day_column_chart(periods_df, "2023-01-01")  # Different date
+
+        # Should still create a normal chart with all zeros
+        assert isinstance(fig, go.Figure)
+        assert fig.layout.title.text == "Hourly Production - 2023-01-01"
+        assert fig.layout.height == 400
+
+        # Check that all values are zero
+        bar = fig.data[0]
+        assert all(y == 0.0 for y in bar.y)
 
 
 class TestSolarUIRender:
@@ -363,15 +431,18 @@ class TestSolarUIRender:
         """Test successful rendering with valid data."""
         from lookout.ui.solar import render
 
-        # Mock session state with valid solar data
+        # Mock session state with valid energy catalog data (processed periods)
         mock_session_state = MagicMock()
         mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000, 1640995320000],  # Jan 1, 2022
-            'date': pd.to_datetime([1640995200000, 1640995260000, 1640995320000],
-                                 unit='ms', utc=True).tz_convert('America/Los_Angeles'),
-            'solarradiation': [100.0, 150.0, 200.0]
-        })
+        mock_session_state.get.side_effect = lambda key, default=None: {
+            "energy_catalog": pd.DataFrame({
+                'period_start': pd.date_range('2022-01-01', periods=3, freq='15min', tz='America/Los_Angeles'),
+                'period_end': pd.date_range('2022-01-01 00:15:00', periods=3, freq='15min', tz='America/Los_Angeles'),
+                'energy_kwh': [0.1, 0.2, 0.3]
+            }),
+            "selected_solar_date": "2022-01-01"
+        }.get(key, default)
+        mock_session_state.__getitem__.side_effect = lambda key: mock_session_state.get(key)
 
         with patch('lookout.ui.solar.st.session_state', mock_session_state), \
              patch('lookout.ui.solar.st.header'), \
@@ -385,11 +456,11 @@ class TestSolarUIRender:
 
             render()
 
-            # Should show success messages for calculation and rendering
-            assert mock_success.call_count >= 2
+            # Should show success messages for data loading, heatmap and day chart rendering
+            assert mock_success.call_count == 3
 
-            # Should render plotly chart
-            mock_plotly_chart.assert_called_once()
+            # Should render plotly charts (heatmap and day chart)
+            assert mock_plotly_chart.call_count == 2
 
     def test_heatmap_rendering_error(self):
         """Test handling of errors during heatmap rendering."""

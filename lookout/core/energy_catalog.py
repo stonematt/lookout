@@ -77,11 +77,12 @@ class EnergyCatalog:
             body = response["Body"].read()
             catalog_df = pd.read_parquet(io.BytesIO(body))
 
-            # Ensure datetime columns are properly parsed
+            # Ensure datetime columns are properly parsed and converted to Pacific timezone
             datetime_cols = ["period_start", "period_end"]
             for col in datetime_cols:
                 if col in catalog_df.columns:
-                    catalog_df[col] = pd.to_datetime(catalog_df[col], utc=True)
+                    # Convert to datetime first, then to Pacific timezone
+                    catalog_df[col] = pd.to_datetime(catalog_df[col], utc=True).dt.tz_convert("America/Los_Angeles")
 
             logger.info(f"Loaded energy catalog with {len(catalog_df)} periods")
             return catalog_df
@@ -243,10 +244,10 @@ class EnergyCatalog:
         # Find the latest period in existing catalog
         existing_catalog["period_start"] = pd.to_datetime(
             existing_catalog["period_start"], utc=True
-        )
+        ).dt.tz_convert("America/Los_Angeles")
         existing_catalog["period_end"] = pd.to_datetime(
             existing_catalog["period_end"], utc=True
-        )
+        ).dt.tz_convert("America/Los_Angeles")
         existing_catalog = existing_catalog.sort_values("period_start").reset_index(
             drop=True
         )

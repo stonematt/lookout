@@ -5,7 +5,7 @@ Plotly-based charts and heatmaps for solar production data.
 
 import pandas as pd
 import plotly.graph_objects as go
-from lookout.core.solar_energy_periods import aggregate_to_daily
+from lookout.core.solar_energy_periods import aggregate_to_daily, aggregate_to_hourly
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -129,9 +129,51 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
     """
     Create hourly column chart for a specific day.
 
-    TODO: Implement in Phase 2 - Epic 2.2
+    Design:
+    - X-axis: Hours (0-23)
+    - Y-axis: Energy (kWh)
+    - Bars: SOLAR_BAR_COLOR (#FFB732 - golden orange)
+    - Height: ~400px
     """
-    raise NotImplementedError("Phase 2 - Epic 2.2 in progress")
+    logger.debug(f"Creating hourly column chart for date: {selected_date}")
+
+    # Aggregate to hourly totals for the selected date
+    hourly_df = aggregate_to_hourly(periods_df, selected_date)
+
+    if hourly_df.empty:
+        logger.info(f"No hourly solar data available for {selected_date}")
+        # Return empty figure if no data
+        fig = go.Figure()
+        fig.update_layout(
+            title=f"No Solar Data Available - {selected_date}",
+            height=400
+        )
+        return fig
+
+    # Create bar chart
+    fig = go.Figure(data=go.Bar(
+        x=hourly_df["hour"],
+        y=hourly_df["hourly_kwh"],
+        marker_color=SOLAR_BAR_COLOR,
+        hovertemplate="<b>%{x}:00</b><br>%{y:.2f} kWh<extra></extra>"
+    ))
+
+    # Update layout
+    fig.update_layout(
+        title=f"Hourly Production - {selected_date}",
+        xaxis_title="Hour of Day",
+        yaxis_title="Energy (kWh)",
+        height=400,
+        xaxis=dict(
+            tickmode='linear',
+            tick0=0,
+            dtick=1,
+            range=[-0.5, 23.5]  # Show all hours 0-23
+        )
+    )
+
+    logger.info(f"Created hourly column chart for {selected_date} with {len(hourly_df)} hours")
+    return fig
 
 
 def create_day_15min_heatmap(periods_df: pd.DataFrame) -> go.Figure:
