@@ -1,13 +1,16 @@
 """
-Solar Radiation UI Module - Phase 3.1: Foundation
+Solar Radiation UI Module - Phase 3.2: Summary Metrics
 
-Basic UI structure with data loading and date filtering for solar radiation measurements.
+UI structure with data loading, date filtering, and 4 summary metric cards for solar radiation measurements.
+Today metric compares current day to yesterday's production.
 """
 
 import streamlit as st
 import pandas as pd
+import datetime
 import lookout.ui.components as ui_components
 from lookout.utils.log_util import app_logger
+from lookout.core.solar_energy_periods import get_period_stats
 
 logger = app_logger(__name__)
 
@@ -43,10 +46,9 @@ def render():
         st.warning("No solar data in selected date range")
         return
 
-    # Show proof of concept
-    st.success(f"✓ Loaded {len(periods_df)} 15-minute periods")
+    # Summary metrics
+    _render_summary_metrics(periods_df)
 
-    # TODO: Phase 3.2 will add metrics
     # TODO: Phase 3.3 will add tabs
 
 
@@ -71,3 +73,46 @@ def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
         return filtered_df
 
     return periods_df
+
+
+def _render_summary_metrics(periods_df):
+    """
+    Display 4 summary metric cards using st.columns(4).
+
+    Metrics:
+    1. Period Total (kWh/m²) - Total radiation in selected date range
+    2. Today (kWh/m²) - Today's radiation (if in range) with yesterday comparison
+    3. Peak Day (kWh/m²) - Highest radiation day with date
+    4. Daily Average (kWh/m²/day) - Average daily radiation
+
+    Format: XX.X with 1 decimal place, units in title
+    """
+    stats = get_period_stats(periods_df)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Period Total (kWh/m²)", f"{stats['total_kwh']:.1f}")
+
+    with col2:
+        # Calculate today's radiation from periods_df
+        today = pd.Timestamp.now(tz="America/Los_Angeles").date()
+        periods_today = periods_df[periods_df['period_start'].dt.date == today]
+        today_kwh = periods_today['energy_kwh'].sum()
+
+        # Calculate yesterday's radiation for comparison
+        yesterday = (pd.Timestamp(today) - pd.Timedelta(days=1)).date()
+        periods_yesterday = periods_df[periods_df['period_start'].dt.date == yesterday]
+        yesterday_kwh = periods_yesterday['energy_kwh'].sum()
+
+        st.metric("Today (kWh/m²)", f"{today_kwh:.1f}", delta=f"{today_kwh - yesterday_kwh:.1f}")
+
+    with col3:
+        peak = stats['peak_day']
+        if peak['date']:
+            st.metric("Peak Day (kWh/m²)", f"{peak['kwh']:.1f}", delta=peak['date'])
+        else:
+            st.metric("Peak Day", "—")
+
+    with col4:
+        st.metric("Daily Average (kWh/m²/day)", f"{stats['avg_daily_kwh']:.1f}")
