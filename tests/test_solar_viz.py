@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
-from lookout.core.solar_viz import create_month_day_heatmap, create_day_column_chart
+from lookout.core.solar_viz import create_month_day_heatmap, create_day_column_chart, create_15min_bar_chart
 
 
 class TestCreateMonthDayHeatmap:
@@ -416,6 +416,142 @@ class TestCreateDay15minHeatmap:
         assert heatmap.z.shape == (3, 32)
         assert len(heatmap.y) == 3  # 3 days
         assert len(heatmap.x) == 32  # 32 time slots (08:00 to 15:45)
+
+
+class TestCreate15minBarChart:
+    """Test the create_15min_bar_chart function."""
+
+    def test_basic_functionality(self):
+        """Test basic bar chart creation with sample data."""
+        # Create sample periods data for one day with 15-minute intervals
+        periods_df = pd.DataFrame({
+            'period_start': pd.date_range('2023-01-01 06:00:00', periods=48, freq='15min'),
+            'period_end': pd.date_range('2023-01-01 06:15:00', periods=48, freq='15min'),
+            'energy_kwh': [0.01] * 48  # 10 Wh per 15min period
+        })
+        fig = create_15min_bar_chart(periods_df, "2023-01-01")
+
+        # Check return type
+        assert isinstance(fig, go.Figure)
+
+        # Check basic layout properties
+        assert fig.layout.height == 400
+        assert fig.layout.xaxis.title.text == "Time"
+        assert fig.layout.yaxis.title.text == "Energy (Wh)"
+        assert fig.layout.title.text == "15-Minute Periods - 2023-01-01"
+
+        # Check bar chart properties
+        bar = fig.data[0]
+        assert isinstance(bar, go.Bar)
+        assert bar.marker.color == "#FFB732"
+        assert bar.hovertemplate == "<b>%{x}</b><br>%{y:.1f} Wh<extra></extra>"
+
+        # Should have 48 periods (12 hours × 4 periods per hour)
+        assert len(bar.x) == 48
+        assert len(bar.y) == 48
+
+        # Check that all values are converted to Wh (10 Wh per period)
+        assert all(y == 10.0 for y in bar.y)
+
+        # Check time labels are in HH:MM format
+        assert bar.x[0] == "06:00"
+        assert bar.x[-1] == "17:45"
+
+    def test_empty_dataframe(self):
+        """Test handling of empty input data."""
+        empty_df = pd.DataFrame()
+
+        fig = create_15min_bar_chart(empty_df, "2023-01-01")
+
+        # Should return a figure with "No Solar Data Available" title
+        assert isinstance(fig, go.Figure)
+        assert "No Solar Data Available" in fig.layout.title.text
+        assert fig.layout.height == 400
+
+    def test_no_data_for_date(self):
+        """Test handling when no data exists for the selected date."""
+        # Create data for a different date
+        periods_data = [{
+            'period_start': pd.Timestamp("2023-01-02 12:00:00"),
+            'period_end': pd.Timestamp("2023-01-02 12:15:00"),
+            'energy_kwh': 0.1
+        }]
+
+        periods_df = pd.DataFrame(periods_data)
+        fig = create_15min_bar_chart(periods_df, "2023-01-01")  # Different date
+
+        # Should still create a normal chart with no-data message
+        assert isinstance(fig, go.Figure)
+        assert "No Solar Data Available" in fig.layout.title.text
+        assert fig.layout.height == 400
+
+    def test_zero_energy_periods(self):
+        """Test that zero energy periods are included in the chart."""
+        # Create data with some zero energy periods
+        periods_data = [
+            {
+                'period_start': pd.Timestamp("2023-01-01 06:00:00"),
+                'period_end': pd.Timestamp("2023-01-01 06:15:00"),
+                'energy_kwh': 0.1  # 100 Wh
+            },
+            {
+                'period_start': pd.Timestamp("2023-01-01 06:15:00"),
+                'period_end': pd.Timestamp("2023-01-01 06:30:00"),
+                'energy_kwh': 0.0  # Zero energy
+            },
+            {
+                'period_start': pd.Timestamp("2023-01-01 06:30:00"),
+                'period_end': pd.Timestamp("2023-01-01 06:45:00"),
+                'energy_kwh': 0.05  # 50 Wh
+            }
+        ]
+
+        periods_df = pd.DataFrame(periods_data)
+        fig = create_15min_bar_chart(periods_df, "2023-01-01")
+
+        bar = fig.data[0]
+        # Should have all 3 periods including the zero
+        assert len(bar.y) == 3
+        assert bar.y[0] == 100.0  # 0.1 kWh = 100 Wh
+        assert bar.y[1] == 0.0    # Zero energy
+        assert bar.y[2] == 50.0   # 0.05 kWh = 50 Wh
+
+    def test_custom_time_range(self):
+        """Test with custom start_hour and end_hour parameters."""
+        # Create full day data
+        periods_data = []
+        for hour in range(24):  # Full day
+            periods_data.append({
+                'period_start': pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
+                'period_end': pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
+                'energy_kwh': 0.01
+            })
+
+        periods_df = pd.DataFrame(periods_data)
+        fig = create_15min_bar_chart(periods_df, "2023-01-01", start_hour=6, end_hour=18)
+
+        # Check title includes time range
+        assert "(06:00-18:00)" in fig.layout.title.text
+
+        bar = fig.data[0]
+        # Should have 13 periods (hours 6-18 inclusive = 13 hours)
+        assert len(bar.y) == 13
+
+        # Check time labels are within the specified range
+        assert bar.x[0] == "06:00"
+        assert bar.x[-1] == "18:00"
+
+    def test_invalid_date_format(self):
+        """Test handling of invalid date format."""
+        periods_df = pd.DataFrame({
+            'period_start': [pd.Timestamp("2023-01-01 12:00:00")],
+            'period_end': [pd.Timestamp("2023-01-01 12:15:00")],
+            'energy_kwh': [0.1]
+        })
+
+        # Should raise ValueError for invalid date format
+        with pytest.raises(ValueError, match="Invalid date format"):
+            create_15min_bar_chart(periods_df, "invalid-date")
 
 
 class TestSolarUIRender:

@@ -303,10 +303,97 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
     return fig
 
 
-def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str) -> go.Figure:
+def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_hour: int = 0, end_hour: int = 23) -> go.Figure:
     """
     Create 15-minute bar chart for a specific day.
 
-    TODO: Implement in Phase 2 - Epic 2.4
+    Design:
+    - X-axis: Time (HH:MM format)
+    - Y-axis: Energy (Wh)
+    - Bars: SOLAR_BAR_COLOR (#FFB732 - golden orange)
+    - Show only periods where energy_kwh > 0
+    - Height: ~400px
+
+    Args:
+        periods_df: DataFrame with period_start, period_end, energy_kwh columns
+        selected_date: String in format 'YYYY-MM-DD'
+        start_hour: Starting hour (0-23) for time filtering (default: 0)
+        end_hour: Ending hour (0-23) for time filtering (default: 23)
+
+    Returns:
+        Plotly Figure for st.plotly_chart()
     """
-    raise NotImplementedError("Phase 2 - Epic 2.4 in progress")
+    logger.debug(f"Creating 15min bar chart for date: {selected_date}")
+
+    # Handle empty dataframe
+    if periods_df.empty:
+        logger.info("No solar data provided for 15min bar chart")
+        fig = go.Figure()
+        fig.update_layout(
+            title=f"No Solar Data Available - {selected_date}", height=400
+        )
+        return fig
+
+    # Convert selected_date string to date object for filtering
+    try:
+        target_date = pd.to_datetime(selected_date).date()
+    except ValueError:
+        raise ValueError(f"Invalid date format: {selected_date}. Expected 'YYYY-MM-DD'")
+
+    # Filter to selected_date
+    date_filter = periods_df["period_start"].dt.date == target_date
+    filtered_df = periods_df[date_filter].copy()
+
+    if filtered_df.empty:
+        logger.info(f"No solar data available for {selected_date}")
+        # Return empty figure if no data
+        fig = go.Figure()
+        fig.update_layout(
+            title=f"No Solar Data Available - {selected_date}", height=400
+        )
+        return fig
+
+    # Filter to specified time range
+    hour_filter = filtered_df["period_start"].dt.hour.between(start_hour, end_hour)
+    time_filtered_df = filtered_df[hour_filter].copy()
+
+    if time_filtered_df.empty:
+        logger.info(f"No solar data available for {selected_date} in time range {start_hour:02d}:00-{end_hour:02d}:00")
+        fig = go.Figure()
+        fig.update_layout(
+            title=f"No Solar Data Available - {selected_date} ({start_hour:02d}:00-{end_hour:02d}:00)", height=400
+        )
+        return fig
+
+    # Sort by period_start
+    time_filtered_df = time_filtered_df.sort_values("period_start")
+
+    # Convert kWh to Wh (multiply by 1000)
+    time_filtered_df["energy_wh"] = time_filtered_df["energy_kwh"] * 1000
+
+    # Format period_start as HH:MM strings for x-axis
+    time_filtered_df["time_label"] = time_filtered_df["period_start"].dt.strftime("%H:%M")
+
+    # Create bar chart
+    fig = go.Figure(
+        data=go.Bar(
+            x=time_filtered_df["time_label"],
+            y=time_filtered_df["energy_wh"],
+            marker_color=SOLAR_BAR_COLOR,
+            hovertemplate="<b>%{x}</b><br>%{y:.1f} Wh<extra></extra>",
+        )
+    )
+
+    # Update layout
+    time_range = f" ({start_hour:02d}:00-{end_hour:02d}:00)" if start_hour != 0 or end_hour != 23 else ""
+    fig.update_layout(
+        title=f"15-Minute Periods - {selected_date}{time_range}",
+        xaxis_title="Time",
+        yaxis_title="Energy (Wh)",
+        height=400,
+    )
+
+    logger.info(
+        f"Created 15min bar chart for {selected_date} with {len(time_filtered_df)} periods"
+    )
+    return fig
