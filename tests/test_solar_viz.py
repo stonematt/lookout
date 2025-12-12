@@ -30,9 +30,9 @@ class TestCreateMonthDayHeatmap:
 
         # Check basic layout properties
         assert fig.layout.height == 1000
-        assert fig.layout.xaxis.title.text == "Time of Day"
-        assert fig.layout.yaxis.title.text == "Date"
-        assert fig.layout.yaxis.autorange == "reversed"  # Newest dates at top
+        assert fig.layout.xaxis.title.text == "Day of Month"
+        assert fig.layout.yaxis.title.text == "Month"
+        assert fig.layout.yaxis.autorange == "reversed"  # Newest months at top
 
         # Check heatmap properties
         heatmap = fig.data[0]
@@ -42,8 +42,8 @@ class TestCreateMonthDayHeatmap:
         )
         assert heatmap.zmin == 0
         assert heatmap.showscale is True
-        assert heatmap.colorbar.title.text == "Wh/15min"
-        assert heatmap.colorbar.ticksuffix == " Wh"
+        assert heatmap.colorbar.title.text == "kWh/day"
+        assert heatmap.colorbar.ticksuffix == " kWh"
 
     def test_empty_dataframe(self):
         """Test handling of empty input data."""

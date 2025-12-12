@@ -12,6 +12,8 @@ from plotly.subplots import make_subplots
 from lookout.core.chart_config import (
     get_default_margins,
     get_standard_colors,
+    get_solar_colors,
+    get_solar_colorscale,
     apply_time_series_layout,
     apply_standard_axes,
     create_standard_annotation,
@@ -68,6 +70,49 @@ class TestStandardColors:
             assert isinstance(color_value, str)
             # Check for hex codes or rgba values
             assert color_value.startswith("#") or color_value.startswith("rgba")
+
+
+class TestSolarColors:
+    """Test solar-specific color helper functions."""
+
+    def test_solar_colors(self):
+        """Test solar color palette."""
+        colors = get_solar_colors()
+
+        assert isinstance(colors, dict)
+        assert "solar_bar" in colors
+        assert "solar_line" in colors
+        assert "solar_fill" in colors
+        assert "solar_high" in colors
+        assert "solar_medium" in colors
+        assert "solar_low" in colors
+        assert len(colors) == 6
+
+        # Check specific values
+        assert colors["solar_bar"] == "#FFB732"
+        assert colors["solar_line"] == "#FFA500"
+        assert colors["solar_fill"] == "rgba(255, 165, 0, 0.3)"
+
+    def test_solar_colorscale(self):
+        """Test solar colorscale structure."""
+        colorscale = get_solar_colorscale()
+
+        assert isinstance(colorscale, list)
+        assert len(colorscale) == 4
+
+        # Each item should be a 2-element list [value, color]
+        for item in colorscale:
+            assert isinstance(item, list)
+            assert len(item) == 2
+            assert isinstance(item[0], (int, float))  # value
+            assert isinstance(item[1], str)  # color
+            assert 0 <= item[0] <= 1  # value range
+
+        # Check specific values
+        assert colorscale[0] == [0.0, "#FFF9E6"]
+        assert colorscale[1] == [0.3, "#FFE680"]
+        assert colorscale[2] == [0.6, "#FFB732"]
+        assert colorscale[3] == [1.0, "#FF8C00"]
 
 
 class TestTimeSeriesLayout:

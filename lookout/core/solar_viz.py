@@ -6,20 +6,14 @@ Plotly-based charts and heatmaps for solar production data.
 import pandas as pd
 import plotly.graph_objects as go
 from lookout.core.solar_energy_periods import aggregate_to_daily, aggregate_to_hourly
+from lookout.core.chart_config import get_solar_colors, get_solar_colorscale
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
 
-# Color constants for all solar visualizations
-SOLAR_COLORSCALE = [
-    [0.0, "#FFF9E6"],  # Dawn/dusk - pale yellow
-    [0.3, "#FFE680"],  # Morning - light yellow
-    [0.6, "#FFB732"],  # Midday - golden orange
-    [1.0, "#FF8C00"],  # Peak sun - deep orange
-]
-
-SOLAR_BAR_COLOR = "#FFB732"  # Golden orange for bar charts
+# Color constants for all solar visualizations - now centralized in chart_config.py
+# Use get_solar_colors() and get_solar_colorscale() instead of these constants
 
 
 def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
@@ -29,12 +23,12 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
     Design (Sunlight-inspired):
     - X-axis: Days 1-31
     - Y-axis: Months (reverse chrono, newest top)
-    - Color: SOLAR_COLORSCALE (yellow-to-orange gradient)
+    - Color: get_solar_colorscale() (yellow-to-orange gradient)
     - Cells: Show kWh on hover (2 decimals)
     - Zero energy days (0.0 kWh): Show as pale yellow (bottom of colorscale) - these are valid cloudy days
     - Missing days (NaN - no data at all): Light gray (#F0F0F0)
     - Click: Enable click events for interactivity
-    - Height: ~500px
+    - Height: ~1000px
     """
     import numpy as np
 
@@ -47,7 +41,7 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
         logger.info("No daily solar data available for heatmap")
         # Return empty figure if no data
         fig = go.Figure()
-        fig.update_layout(title="No Solar Data Available", height=500)
+        fig.update_layout(title="No Solar Data Available", height=1000)
         return fig
 
     # Extract month and day for pivot table
@@ -99,7 +93,7 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
             z=z_values,  # Keep NaN values as-is
             x=x_labels,
             y=y_labels,
-            colorscale=SOLAR_COLORSCALE,
+            colorscale=get_solar_colorscale(),
             zmin=0,  # Force scale to start at 0
             zmax=(
                 z_values[~np.isnan(z_values)].max()
@@ -115,7 +109,7 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
 
     # Update layout
     fig.update_layout(
-        height=500,
+        height=1000,  # Taller for month/day heatmap to show all months clearly
         xaxis_title="Day of Month",
         yaxis_title="Month",
         yaxis_autorange="reversed",  # Newest months at top
@@ -134,7 +128,7 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
     Design:
     - X-axis: Hours (0-23)
     - Y-axis: Energy (kWh)
-    - Bars: SOLAR_BAR_COLOR (#FFB732 - golden orange)
+    - Bars: get_solar_colors()["solar_bar"] (#FFB732 - golden orange)
     - Height: ~400px
     """
     logger.debug(f"Creating hourly column chart for date: {selected_date}")
@@ -156,7 +150,7 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
         data=go.Bar(
             x=hourly_df["hour"],
             y=hourly_df["hourly_kwh"],
-            marker_color=SOLAR_BAR_COLOR,
+            marker_color=get_solar_colors()["solar_bar"],
             hovertemplate="<b>%{x}:00</b><br>%{y:.2f} kWh<extra></extra>",
         )
     )
@@ -193,7 +187,7 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
     Design:
     - X-axis: 15-minute time slots (filtered by start_hour to end_hour)
     - Y-axis: Days (reverse chrono, newest top)
-    - Color: SOLAR_COLORSCALE (yellow-to-orange gradient)
+    - Color: get_solar_colorscale() (yellow-to-orange gradient)
     - Cells: Show Wh on hover
     - Click: Enable click events
     - Height: ~1000px
@@ -256,7 +250,7 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
             z=z_values,
             x=x_labels,
             y=y_labels,
-            colorscale=SOLAR_COLORSCALE,
+            colorscale=get_solar_colorscale(),
             zmin=0,  # Force scale to start at 0
             zmax=z_values.max() if z_values.size > 0 else 1,
             text=hover_text,
@@ -310,7 +304,7 @@ def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_h
     Design:
     - X-axis: Time (HH:MM format)
     - Y-axis: Energy (Wh)
-    - Bars: SOLAR_BAR_COLOR (#FFB732 - golden orange)
+    - Bars: get_solar_colors()["solar_bar"] (#FFB732 - golden orange)
     - Show only periods where energy_kwh > 0
     - Height: ~400px
 
@@ -379,7 +373,7 @@ def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_h
         data=go.Bar(
             x=time_filtered_df["time_label"],
             y=time_filtered_df["energy_wh"],
-            marker_color=SOLAR_BAR_COLOR,
+            marker_color=get_solar_colors()["solar_bar"],
             hovertemplate="<b>%{x}</b><br>%{y:.1f} Wh<extra></extra>",
         )
     )

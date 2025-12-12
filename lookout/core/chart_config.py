@@ -48,6 +48,36 @@ def get_standard_colors() -> Dict[str, str]:
     }
 
 
+def get_solar_colors() -> Dict[str, str]:
+    """
+    Get solar-specific color palette for solar visualizations.
+
+    :return: Dictionary with solar color definitions
+    """
+    return {
+        "solar_bar": "#FFB732",  # Golden orange for bar charts
+        "solar_line": "#FFA500",
+        "solar_fill": "rgba(255, 165, 0, 0.3)",
+        "solar_high": "#FF8C00",
+        "solar_medium": "#FFA500",
+        "solar_low": "#FFD700",
+    }
+
+
+def get_solar_colorscale() -> list:
+    """
+    Get solar radiation colorscale for heatmaps.
+
+    :return: Plotly colorscale list for solar radiation visualization
+    """
+    return [
+        [0.0, "#FFF9E6"],  # Dawn/dusk - pale yellow
+        [0.3, "#FFE680"],  # Morning - light yellow
+        [0.6, "#FFB732"],  # Midday - golden orange
+        [1.0, "#FF8C00"],  # Peak sun - deep orange
+    ]
+
+
 def apply_time_series_layout(
     fig: go.Figure,
     height: int = 450,
