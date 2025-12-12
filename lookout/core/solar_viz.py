@@ -5,8 +5,13 @@ Plotly-based charts and heatmaps for solar production data.
 
 import pandas as pd
 import plotly.graph_objects as go
-from lookout.core.solar_energy_periods import aggregate_to_daily, aggregate_to_hourly
 from lookout.core.chart_config import get_solar_colors, get_solar_colorscale
+from lookout.core.solar_data_transformer import (
+    prepare_month_day_heatmap_data,
+    prepare_day_column_data,
+    prepare_day_15min_heatmap_data,
+    prepare_15min_bar_data,
+)
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -34,41 +39,15 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
 
     logger.debug("Creating month/day solar energy heatmap")
 
-    # Aggregate to daily totals (keeps ALL days including zeros)
-    daily_df = aggregate_to_daily(periods_df)
+    # Get processed data from transformer
+    pivot_df = prepare_month_day_heatmap_data(periods_df)
 
-    if daily_df.empty:
+    if pivot_df.empty:
         logger.info("No daily solar data available for heatmap")
         # Return empty figure if no data
         fig = go.Figure()
         fig.update_layout(title="No Solar Data Available", height=1000)
         return fig
-
-    # Extract month and day for pivot table
-    daily_df = daily_df.copy()
-    daily_df["date"] = pd.to_datetime(daily_df["date"])
-    daily_df["month"] = daily_df["date"].dt.strftime("%Y-%m")  # YYYY-MM format
-    daily_df["day"] = daily_df["date"].dt.day
-
-    # Create pivot table: months x days (1-31)
-    pivot_df = daily_df.pivot_table(
-        values="daily_kwh",
-        index="month",
-        columns="day",
-        aggfunc="sum",  # Should be single value per month/day
-    )
-
-    # Ensure all days 1-31 are present as columns (fill missing with NaN)
-    all_days = list(range(1, 32))
-    for day in all_days:
-        if day not in pivot_df.columns:
-            pivot_df[day] = np.nan
-
-    # Sort columns by day
-    pivot_df = pivot_df[all_days]
-
-    # Sort months chronologically (newest first for reverse y-axis)
-    pivot_df = pivot_df.sort_index(ascending=False)
 
     # Prepare data for heatmap
     z_values = pivot_df.values
@@ -133,8 +112,8 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
     """
     logger.debug(f"Creating hourly column chart for date: {selected_date}")
 
-    # Aggregate to hourly totals for the selected date
-    hourly_df = aggregate_to_hourly(periods_df, selected_date)
+    # Get processed data from transformer
+    hourly_df = prepare_day_column_data(periods_df, selected_date)
 
     if hourly_df.empty:
         logger.info(f"No hourly solar data available for {selected_date}")
@@ -194,41 +173,16 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
     """
     logger.debug("Creating day/15min solar energy heatmap")
 
-    # Extract time-of-day as HH:MM string
-    periods_df = periods_df.copy()
-    periods_df["time_slot"] = periods_df["period_start"].dt.strftime("%H:%M")
+    # Get processed data from transformer
+    pivot_df = prepare_day_15min_heatmap_data(periods_df, start_hour, end_hour)
 
-    # Extract date
-    periods_df["date"] = periods_df["period_start"].dt.date
-
-    # Filter to specified time range
-    periods_df["hour"] = periods_df["period_start"].dt.hour
-    filtered_df = periods_df[
-        (periods_df["hour"] >= start_hour) & (periods_df["hour"] <= end_hour)
-    ].copy()
-
-    if filtered_df.empty:
+    if pivot_df.empty:
         logger.info(f"No solar data available for time range {start_hour:02d}:00-{end_hour:02d}:00")
         fig = go.Figure()
         fig.update_layout(
             title=f"No Solar Data Available ({start_hour:02d}:00-{end_hour:02d}:00)", height=1000
         )
         return fig
-
-    # Convert kWh to Wh for display (multiply by 1000)
-    filtered_df["energy_wh"] = filtered_df["energy_kwh"] * 1000
-
-    # Create pivot table: rows=date, cols=time_slot, values=energy_wh
-    pivot_df = filtered_df.pivot_table(
-        values="energy_wh",
-        index="date",
-        columns="time_slot",
-        aggfunc="sum",  # Sum energy if multiple periods per time_slot
-        fill_value=0,  # Fill missing combinations with 0
-    )
-
-    # Sort dates reverse chronological (newest first)
-    pivot_df = pivot_df.sort_index(ascending=False)
 
     # Prepare data for heatmap
     z_values = pivot_df.values
@@ -328,28 +282,8 @@ def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_h
         )
         return fig
 
-    # Convert selected_date string to date object for filtering
-    try:
-        target_date = pd.to_datetime(selected_date).date()
-    except ValueError:
-        raise ValueError(f"Invalid date format: {selected_date}. Expected 'YYYY-MM-DD'")
-
-    # Filter to selected_date
-    date_filter = periods_df["period_start"].dt.date == target_date
-    filtered_df = periods_df[date_filter].copy()
-
-    if filtered_df.empty:
-        logger.info(f"No solar data available for {selected_date}")
-        # Return empty figure if no data
-        fig = go.Figure()
-        fig.update_layout(
-            title=f"No Solar Data Available - {selected_date}", height=400
-        )
-        return fig
-
-    # Filter to specified time range
-    hour_filter = filtered_df["period_start"].dt.hour.between(start_hour, end_hour)
-    time_filtered_df = filtered_df[hour_filter].copy()
+    # Get processed data from transformer
+    time_filtered_df = prepare_15min_bar_data(periods_df, selected_date, start_hour, end_hour)
 
     if time_filtered_df.empty:
         logger.info(f"No solar data available for {selected_date} in time range {start_hour:02d}:00-{end_hour:02d}:00")
@@ -358,15 +292,6 @@ def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_h
             title=f"No Solar Data Available - {selected_date} ({start_hour:02d}:00-{end_hour:02d}:00)", height=400
         )
         return fig
-
-    # Sort by period_start
-    time_filtered_df = time_filtered_df.sort_values("period_start")
-
-    # Convert kWh to Wh (multiply by 1000)
-    time_filtered_df["energy_wh"] = time_filtered_df["energy_kwh"] * 1000
-
-    # Format period_start as HH:MM strings for x-axis
-    time_filtered_df["time_label"] = time_filtered_df["period_start"].dt.strftime("%H:%M")
 
     # Create bar chart
     fig = go.Figure(
