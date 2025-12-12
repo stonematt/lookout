@@ -6,6 +6,7 @@ tabs and modules to ensure consistent behavior and styling.
 """
 
 import datetime
+from typing import Optional, Union
 import pandas as pd
 import streamlit as st
 
@@ -14,6 +15,7 @@ def create_date_range_slider(
     data_df: pd.DataFrame,
     date_column: str = "timestamp",
     key_prefix: str = "date_range",
+    default_days: Union[int, None] = None,
 ) -> tuple:
     """
     Create a reusable date range slider component.
@@ -21,6 +23,8 @@ def create_date_range_slider(
     :param data_df: DataFrame containing date data
     :param date_column: Name of the column containing dates/timestamps
     :param key_prefix: Prefix for streamlit widget keys to avoid conflicts
+    :param default_days: Optional number of days to show by default (pre-selects last N days).
+                        If None, shows full available range selected.
     :return: Tuple of (start_timestamp, end_timestamp) in UTC, or (None, None) if invalid
     """
     if data_df.empty or date_column not in data_df.columns:
@@ -33,11 +37,20 @@ def create_date_range_slider(
 
     st.write("**Date Range:**")
 
+    # Calculate default selected range
+    if default_days is not None:
+        # Pre-select last N days, but don't go before available data
+        default_start = max(min_date, max_date - pd.Timedelta(days=default_days))
+        selected_value = (default_start, max_date)
+    else:
+        # Default behavior: select full available range
+        selected_value = (min_date, max_date)
+
     date_range = st.slider(
         "Select date range",
         min_value=min_date,
         max_value=max_date,
-        value=(min_date, max_date),
+        value=selected_value,
         format="MMM DD, YYYY",
         label_visibility="collapsed",
         key=f"{key_prefix}_slider",
