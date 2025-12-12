@@ -11,6 +11,7 @@ import datetime
 import lookout.ui.components as ui_components
 from lookout.utils.log_util import app_logger
 from lookout.core.solar_energy_periods import get_period_stats
+from lookout.core.solar_viz import create_month_day_heatmap
 
 logger = app_logger(__name__)
 
@@ -49,7 +50,14 @@ def render():
     # Summary metrics
     _render_summary_metrics(periods_df)
 
-    # TODO: Phase 3.3 will add tabs
+    # Two-tab interface
+    tab1, tab2 = st.tabs(["Month/Day View", "Day/15min View"])
+
+    with tab1:
+        _render_month_day_tab(periods_df)
+
+    with tab2:
+        _render_day_15min_tab(periods_df)
 
 
 def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
@@ -116,3 +124,25 @@ def _render_summary_metrics(periods_df):
 
     with col4:
         st.metric("Daily Average (kWh/m²/day)", f"{stats['avg_daily_kwh']:.1f}")
+
+
+def _render_month_day_tab(filtered_df):
+    """Render Month/Day tab - overview heatmap only (no drill-down yet)."""
+    st.subheader("Monthly Solar Radiation")
+
+    try:
+        fig = create_month_day_heatmap(filtered_df)
+        st.plotly_chart(fig, width="stretch")
+    except Exception as e:
+        st.error(f"Error creating heatmap: {e}")
+        logger.exception("Month/day heatmap error")
+
+    # TODO: Phase 3.4 will add drill-down
+
+
+def _render_day_15min_tab(filtered_df):
+    """Render Day/15min tab - placeholder for now."""
+    st.subheader("15-Minute Solar Radiation")
+    st.info("Coming soon in Phase 3.5")
+
+    # TODO: Phase 3.5 will add heatmap and drill-down
