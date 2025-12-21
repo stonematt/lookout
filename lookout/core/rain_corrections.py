@@ -109,3 +109,67 @@ def detect_carryovers(archive_df: pd.DataFrame) -> List[Dict]:
                 )
     
     return carryovers
+
+
+def apply_corrections(
+    df: pd.DataFrame,
+    mac_address: str,
+    bucket: str = "lookout"
+) -> pd.DataFrame:
+    """
+    Apply carryover corrections to rain accumulation fields.
+
+    Subtracts carryover amount from each field within its reset period:
+    - dailyrainin: affected_date only
+    - weeklyrainin: affected_date through Saturday (week resets Sunday)
+    - monthlyrainin: affected_date through end of month
+    - yearlyrainin: affected_date through end of year
+
+    Vectorized operation. Returns original df if no catalog exists.
+
+    :param df: Archive DataFrame (reverse sorted by dateutc)
+    :param mac_address: Device MAC address
+    :param bucket: S3 bucket name
+    :return: Corrected DataFrame (preserves original sort order)
+    """
+    catalog = load_catalog(mac_address, bucket)
+    if not catalog or not catalog.get('corrections'):
+        return df
+
+    df = df.copy()
+    dates = pd.to_datetime(df['date']).dt.date
+
+    for c in catalog['corrections']:
+        amt = c['carryover_amount']
+        affected = pd.Timestamp(c['affected_date']).date()
+        affected_ts = pd.Timestamp(c['affected_date'])
+
+        # Daily: just affected date
+        mask = dates == affected
+        df.loc[mask, 'dailyrainin'] -= amt
+        logger.info(f"Applied daily correction: {c['affected_date']} = -{amt:.3f}\"")
+
+        # Weekly: through Saturday (week resets Sunday)
+        week_end = (affected_ts + pd.offsets.Week(weekday=5)).date()
+        mask = (dates >= affected) & (dates <= week_end)
+        df.loc[mask, 'weeklyrainin'] -= amt
+        logger.info(f"Applied weekly correction: {c['affected_date']} through {week_end} = -{amt:.3f}\"")
+
+        # Monthly: through end of month
+        month_end = (affected_ts + pd.offsets.MonthEnd(0)).date()
+        mask = (dates >= affected) & (dates <= month_end)
+        df.loc[mask, 'monthlyrainin'] -= amt
+        logger.info(f"Applied monthly correction: {c['affected_date']} through {month_end} = -{amt:.3f}\"")
+
+        # Yearly: through end of year
+        year_end = pd.Timestamp(f"{affected_ts.year}-12-31").date()
+        mask = (dates >= affected) & (dates <= year_end)
+        df.loc[mask, 'yearlyrainin'] -= amt
+        logger.info(f"Applied yearly correction: {c['affected_date']} through {year_end} = -{amt:.3f}\"")
+
+    # Clip negative values
+    for col in ['dailyrainin', 'weeklyrainin', 'monthlyrainin', 'yearlyrainin']:
+        if col in df.columns:
+            df[col] = df[col].clip(lower=0)
+
+    return df

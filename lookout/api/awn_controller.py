@@ -44,7 +44,8 @@ from lookout.utils.trend_utils import (
 )
 
 import lookout.storage.storj as sj
-from lookout.api.ambient_client import get_device_history, get_devices
+from lookout.api.ambient_client import get_device_history
+from lookout.core.rain_corrections import apply_corrections
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -391,7 +392,15 @@ def get_history_since_last_archive(
         logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
         log_interim_progress(page + 1, pages, interim_df)
 
-    return combine_full_history(archive_df, interim_df)
+    combined = combine_full_history(archive_df, interim_df)
+
+    # Apply rain carryover corrections
+    try:
+        corrected = apply_corrections(combined, device['macAddress'], "lookout")
+        return corrected
+    except Exception as e:
+        logger.error(f"Failed to apply corrections: {e}")
+        return combined
 
 
 # Helper Functions
@@ -445,6 +454,14 @@ def fill_archive_gap(device, history_df, start, end):
 
     # Merge new data back into full archive
     full_combined = combine_full_history(history_df, new_data_df)
+
+    # Apply rain carryover corrections
+    try:
+        corrected = apply_corrections(full_combined, device['macAddress'], "lookout")
+        full_combined = corrected
+    except Exception as e:
+        logger.error(f"Failed to apply corrections in gap fill: {e}")
+        # Continue with uncorrected data
 
     if len(full_combined) == len(history_df):
         logger.info("No new data found. Marking gap as skipped.")
