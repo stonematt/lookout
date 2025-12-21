@@ -18,9 +18,10 @@ Sensitivity:
 """
 
 from typing import Dict, List
+import json
 import pandas as pd
 
-from lookout.storage.storj import get_s3_client, read_json_from_path, save_json_to_path
+from lookout.storage.storj import get_json_from_s3, save_json_to_s3, json_exists_in_s3
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -33,27 +34,17 @@ def _get_catalog_path(mac_address: str, bucket: str = "lookout") -> str:
 
 def catalog_exists(mac_address: str, bucket: str = "lookout") -> bool:
     """Check if corrections catalog exists in Storj."""
-    try:
-        client = get_s3_client()
-        client.head_object(
-            Bucket=bucket,
-            Key=f"{mac_address}.rain_corrections.json"
-        )
-        return True
-    except Exception:
-        return False
+    return json_exists_in_s3(bucket, f"{mac_address}.rain_corrections.json")
 
 
 def load_catalog(mac_address: str, bucket: str = "lookout") -> Dict:
     """Load corrections catalog from Storj."""
-    if not catalog_exists(mac_address, bucket):
-        return {}
-    return read_json_from_path(_get_catalog_path(mac_address, bucket))
+    return get_json_from_s3(bucket, f"{mac_address}.rain_corrections.json")
 
 
 def save_catalog(catalog: Dict, mac_address: str, bucket: str = "lookout") -> bool:
     """Save corrections catalog to Storj."""
-    return save_json_to_path(catalog, _get_catalog_path(mac_address, bucket))
+    return save_json_to_s3(catalog, bucket, f"{mac_address}.rain_corrections.json")
 
 
 def detect_carryovers(archive_df: pd.DataFrame) -> List[Dict]:
