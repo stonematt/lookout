@@ -1,6 +1,8 @@
 # Agent Guidelines for Lookout Weather Dashboard
 
 > **Note**: General development standards (code style, branching, commits) are documented in [CONTRIBUTING.md](CONTRIBUTING.md). This file contains project-specific patterns and agent behaviors.
+> 
+> **For all messaging standards including commits, pull requests, and merge commits, see [CONTRIBUTION_STYLE_GUIDE.md](CONTRIBUTION_STYLE_GUIDE.md).
 
 ## Build/Lint/Test Commands
 - Run app: `streamlit run streamlit_app.py`

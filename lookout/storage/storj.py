@@ -19,6 +19,7 @@ import datetime
 import json
 import os
 from io import BytesIO
+from typing import Optional
 
 import boto3
 import pandas as pd
@@ -120,7 +121,7 @@ def save_json_to_path(dict_data: dict, file_path: str, local: bool = False) -> b
             )
             return True
         except Exception as e:
-            logger.error(f"❌ Failed to save JSON to {file_path}: {e}")
+            logger.error(f"Failed to save JSON to {file_path}: {e}")
             return False
 
 
@@ -146,8 +147,68 @@ def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFra
         else:
             raise ValueError(f"Unsupported file type: {file_type}")
     except Exception as e:
-        logger.error(f"❌ Failed to load DataFrame from s3://{bucket}/{key}: {e}")
+        logger.error(f"Failed to load DataFrame from s3://{bucket}/{key}: {e}")
         return pd.DataFrame()
+
+
+def get_json_from_s3(bucket: str, key: str) -> dict:
+    """
+    Retrieves a JSON dict from an S3-compatible bucket using boto3.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The key of the JSON file in the S3 bucket.
+    :return: Dictionary containing the JSON content, empty dict if failed.
+    """
+    try:
+        logger.info(f"Getting JSON from s3://{bucket}/{key}")
+        s3 = get_s3_client()
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        return json.loads(obj["Body"].read())
+    except Exception as e:
+        logger.error(f"Failed to get JSON from s3://{bucket}/{key}: {e}")
+        return {}
+
+
+def save_json_to_s3(dict_data: dict, bucket: str, key: str) -> bool:
+    """
+    Saves a JSON dict to an S3-compatible bucket using boto3.
+
+    :param dict_data: Dictionary to save as JSON.
+    :param bucket: The name of the S3 bucket.
+    :param key: The key (path/filename) to write the JSON file under.
+    :return: True if successful, False if failed.
+    """
+    file_path = f"s3://{bucket}/{key}"
+    logger.info(f"Saving JSON to {file_path}")
+
+    try:
+        s3 = get_s3_client()
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=json.dumps(dict_data),
+            ContentType="application/json",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save JSON to {file_path}: {e}")
+        return False
+
+
+def json_exists_in_s3(bucket: str, key: str) -> bool:
+    """
+    Check if JSON file exists in S3-compatible bucket.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The key of the JSON file in the S3 bucket.
+    :return: True if exists, False otherwise.
+    """
+    try:
+        s3 = get_s3_client()
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:
+        return False
 
 
 def save_df_to_s3(
@@ -190,7 +251,7 @@ def save_df_to_s3(
         )
 
     except Exception as e:
-        logger.error(f"❌ Failed to save {key} to bucket {bucket}: {e}")
+        logger.error(f"Failed to save {key} to bucket {bucket}: {e}")
 
 
 def list_bucket_items(bucket_name: str, depth: int = 2) -> list:
