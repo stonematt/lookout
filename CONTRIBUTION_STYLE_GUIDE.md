@@ -33,8 +33,10 @@ Examples:
 - Architecture: "Centralize S3 Storage Operations"
 
 ### Merge Commits
-Subject: Use PR title directly
+Subject: "Merge pull request #[number] from [branch-name]" - GitHub default format
 Body: Include full PR body (summary, sections, bullets)
+
+Repository pattern: Always include "Merge" verb and branch reference for git log visibility
 
 ## Decision Patterns
 
