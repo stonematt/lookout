@@ -7,6 +7,7 @@ import time
 import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
+import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 from lookout.ui import diagnostics, overview, playground, rain, rain_events
 from lookout.ui import header
@@ -104,6 +105,13 @@ time.sleep(1)
 # %%
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
+if st.sidebar.button("🔄 Refresh Data"):
+    try:
+        awn.update_session_data(st.session_state["device"], st.session_state["history_df"])
+        st.sidebar.success("Data refreshed!")
+    except Exception as e:
+        st.sidebar.error("Failed to refresh data")
+
 
 # Call the wrapper to load or update the weather station data
 lo_dp.load_or_update_data(
@@ -127,6 +135,11 @@ history_age_h = lo_dp.get_human_readable_duration(
 
 # Display in the sidebar
 st.sidebar.write(f"Archive is {history_age_h} old.")
+
+# Display current device data
+st.sidebar.subheader("Current Data")
+last_data = st.session_state.get("last_data", {})
+st.sidebar.write(last_data)
 # %%
 
 
