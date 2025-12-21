@@ -38,6 +38,24 @@ Body: Include full PR body (summary, sections, bullets)
 
 Repository pattern: Always include "Merge" verb and branch reference for git log visibility
 
+### Deployment Commits (main → live)
+Subject: "Deploy [branch-or-description]"
+Body: Multi-line only for batch deployments (list branches)
+
+Patterns:
+- Single feature: "Deploy feature/[full-branch-name]"
+- Multiple features: "Deploy batch-[date]" + branch list in body
+- Hotfixes: "Deploy [short-description]"
+
+Examples:
+Deploy feature/rain-carryover-corrections
+
+Deploy batch-20250121
+feature/solar-visualizations
+feature/rain-carryover-corrections
+
+Deploy header-fix
+
 ## Decision Patterns
 
 Always prioritize user impact over technical details.
