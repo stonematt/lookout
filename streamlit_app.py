@@ -107,7 +107,9 @@ auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
 if st.sidebar.button("🔄 Refresh Data"):
     try:
-        awn.update_session_data(st.session_state["device"], st.session_state["history_df"])
+        awn.update_session_data(
+            st.session_state["device"], st.session_state["history_df"]
+        )
         st.sidebar.success("Data refreshed!")
     except Exception as e:
         st.sidebar.error("Failed to refresh data")
@@ -123,18 +125,25 @@ lo_dp.load_or_update_data(
     long_minutes=auto_refresh_max,
 )
 
-# Access the updated history_df and max_dateutc
+# Access the updated history_df and timestamps
 history_df = st.session_state["history_df"]
 history_max_dateutc = st.session_state["history_max_dateutc"]
+archive_max_dateutc = st.session_state.get("archive_max_dateutc", history_max_dateutc)
+
+# Calculate current time for age calculations
+current_time_utc = int(time.time() * 1000)
 
 st.sidebar.write(f"History as of: {history_df.date.max()}")
 
-history_age_h = lo_dp.get_human_readable_duration(
-    device_last_dateutc, history_max_dateutc
-)
+# Archive age: how old the Storj archive data is (vs current time)
+archive_age_h = lo_dp.get_human_readable_duration(current_time_utc, archive_max_dateutc)
+st.sidebar.write(f"Archive is {archive_age_h} old")
 
-# Display in the sidebar
-st.sidebar.write(f"Archive is {history_age_h} old.")
+# Last refresh: how fresh the most recent record in memory is (vs current time)
+last_refresh_age_h = lo_dp.get_human_readable_duration(
+    current_time_utc, history_max_dateutc
+)
+st.sidebar.write(f"Last refresh: {last_refresh_age_h} ago")
 
 # Display current device data
 st.sidebar.subheader("Current Data")

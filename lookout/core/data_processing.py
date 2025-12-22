@@ -68,6 +68,9 @@ def load_or_update_data(
         # Initialize session state variables
         max_ms = st.session_state["history_df"]["dateutc"].max()
         st.session_state["history_max_dateutc"] = max_ms
+        st.session_state["archive_max_dateutc"] = (
+            max_ms  # Preserve pure archive timestamp
+        )
         st.session_state["cloud_max_dateutc"] = max_ms
         st.session_state["session_counter"] = 0
 
