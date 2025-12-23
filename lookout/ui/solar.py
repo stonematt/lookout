@@ -11,7 +11,10 @@ import datetime
 import lookout.ui.components as ui_components
 from lookout.utils.log_util import app_logger
 from lookout.core.solar_energy_periods import get_period_stats
-from lookout.core.solar_viz import create_month_day_heatmap
+from lookout.core.solar_viz import (
+    create_month_day_heatmap,
+    create_day_column_chart
+)
 
 logger = app_logger(__name__)
 
@@ -75,7 +78,9 @@ def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
 
     # Filter to date range if specified
     if start_ts and end_ts:
-        mask = (periods_df["period_start"] >= start_ts) & (periods_df["period_start"] < end_ts)
+        mask = (periods_df["period_start"] >= start_ts) & (
+            periods_df["period_start"] < end_ts
+        )
         filtered_df = periods_df.loc[mask].copy()
         logger.info(f"Filtered to date range: {len(filtered_df)} periods")
         return filtered_df
@@ -105,20 +110,24 @@ def _render_summary_metrics(periods_df):
     with col2:
         # Calculate today's radiation from periods_df
         today = pd.Timestamp.now(tz="America/Los_Angeles").date()
-        periods_today = periods_df[periods_df['period_start'].dt.date == today]
-        today_kwh = periods_today['energy_kwh'].sum()
+        periods_today = periods_df[periods_df["period_start"].dt.date == today]
+        today_kwh = periods_today["energy_kwh"].sum()
 
         # Calculate yesterday's radiation for comparison
         yesterday = (pd.Timestamp(today) - pd.Timedelta(days=1)).date()
-        periods_yesterday = periods_df[periods_df['period_start'].dt.date == yesterday]
-        yesterday_kwh = periods_yesterday['energy_kwh'].sum()
+        periods_yesterday = periods_df[periods_df["period_start"].dt.date == yesterday]
+        yesterday_kwh = periods_yesterday["energy_kwh"].sum()
 
-        st.metric("Today (kWh/m²)", f"{today_kwh:.1f}", delta=f"{today_kwh - yesterday_kwh:.1f}")
+        st.metric(
+            "Today (kWh/m²)",
+            f"{today_kwh:.1f}",
+            delta=f"{today_kwh - yesterday_kwh:.1f}",
+        )
 
     with col3:
-        peak = stats['peak_day']
-        if peak['date']:
-            st.metric("Peak Day (kWh/m²)", f"{peak['kwh']:.1f}", delta=peak['date'])
+        peak = stats["peak_day"]
+        if peak["date"]:
+            st.metric("Peak Day (kWh/m²)", f"{peak['kwh']:.1f}", delta=peak["date"])
         else:
             st.metric("Peak Day", "—")
 
@@ -127,7 +136,15 @@ def _render_summary_metrics(periods_df):
 
 
 def _render_month_day_tab(filtered_df):
-    """Render Month/Day tab - overview heatmap only (no drill-down yet)."""
+    """Render Month/Day tab - heatmap always visible with drill-down below."""
+    # Initialize today's date as default if not set
+    if 'selected_month_day' not in st.session_state:
+        today = pd.Timestamp.now(tz="America/Los_Angeles").date()
+        st.session_state['selected_month_day'] = today.strftime('%Y-%m-%d')
+
+    selected_date = st.session_state.get('selected_month_day')
+
+    # ALWAYS SHOW: Month/Day heatmap
     st.subheader("Monthly Solar Radiation")
 
     try:
@@ -137,7 +154,28 @@ def _render_month_day_tab(filtered_df):
         st.error(f"Error creating heatmap: {e}")
         logger.exception("Month/day heatmap error")
 
-    # TODO: Phase 3.4 will add drill-down
+    # Calendar control - synchronized with session state
+    st.caption("Select a date to see hourly details")
+    default_date = pd.to_datetime(selected_date).date() if selected_date else None
+
+    test_date = st.date_input("Select date:", value=default_date, key="drill_down_calendar")
+    if test_date:
+        st.session_state['selected_month_day'] = test_date.strftime('%Y-%m-%d')
+
+    # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
+    if selected_date:
+        # Daily total metric
+        daily_periods = filtered_df[filtered_df['period_start'].dt.date.astype(str) == selected_date]
+        daily_total = daily_periods['energy_kwh'].sum()
+        st.metric("Daily Total", f"{daily_total:.2f} kWh/m²")
+
+        # Hourly chart (title shows date)
+        try:
+            fig = create_day_column_chart(filtered_df, selected_date)
+            st.plotly_chart(fig, width="stretch")
+        except Exception as e:
+            st.error(f"Error creating hourly chart: {e}")
+            logger.exception("Hourly chart error")
 
 
 def _render_day_15min_tab(filtered_df):

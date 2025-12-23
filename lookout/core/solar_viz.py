@@ -154,7 +154,9 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
     return fig
 
 
-def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_hour: int = 23) -> go.Figure:
+def create_day_15min_heatmap(
+    periods_df: pd.DataFrame, start_hour: int = 0, end_hour: int = 23
+) -> go.Figure:
     """
     Create day/15min heatmap showing granular production patterns.
 
@@ -177,10 +179,13 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
     pivot_df = prepare_day_15min_heatmap_data(periods_df, start_hour, end_hour)
 
     if pivot_df.empty:
-        logger.info(f"No solar data available for time range {start_hour:02d}:00-{end_hour:02d}:00")
+        logger.info(
+            f"No solar data available for time range {start_hour:02d}:00-{end_hour:02d}:00"
+        )
         fig = go.Figure()
         fig.update_layout(
-            title=f"No Solar Data Available ({start_hour:02d}:00-{end_hour:02d}:00)", height=1000
+            title=f"No Solar Data Available ({start_hour:02d}:00-{end_hour:02d}:00)",
+            height=1000,
         )
         return fig
 
@@ -231,18 +236,18 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
             continue
 
     # Update layout
-    time_range = f" ({start_hour:02d}:00-{end_hour:02d}:00)" if start_hour != 0 or end_hour != 23 else ""
+    time_range = (
+        f" ({start_hour:02d}:00-{end_hour:02d}:00)"
+        if start_hour != 0 or end_hour != 23
+        else ""
+    )
     fig.update_layout(
         title=f"15-Minute Energy Periods{time_range}",
         xaxis_title="Time of Day",
         yaxis_title="Date",
         height=1000,  # Double the height
         yaxis_autorange="reversed",  # Newest dates at top
-        xaxis=dict(
-            tickvals=tickvals,
-            ticktext=ticktext,
-            tickmode='array'
-        )
+        xaxis=dict(tickvals=tickvals, ticktext=ticktext, tickmode="array"),
     )
 
     logger.info(
@@ -251,7 +256,12 @@ def create_day_15min_heatmap(periods_df: pd.DataFrame, start_hour: int = 0, end_
     return fig
 
 
-def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_hour: int = 0, end_hour: int = 23) -> go.Figure:
+def create_15min_bar_chart(
+    periods_df: pd.DataFrame,
+    selected_date: str,
+    start_hour: int = 0,
+    end_hour: int = 23,
+) -> go.Figure:
     """
     Create 15-minute bar chart for a specific day.
 
@@ -283,13 +293,18 @@ def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_h
         return fig
 
     # Get processed data from transformer
-    time_filtered_df = prepare_15min_bar_data(periods_df, selected_date, start_hour, end_hour)
+    time_filtered_df = prepare_15min_bar_data(
+        periods_df, selected_date, start_hour, end_hour
+    )
 
     if time_filtered_df.empty:
-        logger.info(f"No solar data available for {selected_date} in time range {start_hour:02d}:00-{end_hour:02d}:00")
+        logger.info(
+            f"No solar data available for {selected_date} in time range {start_hour:02d}:00-{end_hour:02d}:00"
+        )
         fig = go.Figure()
         fig.update_layout(
-            title=f"No Solar Data Available - {selected_date} ({start_hour:02d}:00-{end_hour:02d}:00)", height=400
+            title=f"No Solar Data Available - {selected_date} ({start_hour:02d}:00-{end_hour:02d}:00)",
+            height=400,
         )
         return fig
 
@@ -304,7 +319,11 @@ def create_15min_bar_chart(periods_df: pd.DataFrame, selected_date: str, start_h
     )
 
     # Update layout
-    time_range = f" ({start_hour:02d}:00-{end_hour:02d}:00)" if start_hour != 0 or end_hour != 23 else ""
+    time_range = (
+        f" ({start_hour:02d}:00-{end_hour:02d}:00)"
+        if start_hour != 0 or end_hour != 23
+        else ""
+    )
     fig.update_layout(
         title=f"15-Minute Periods - {selected_date}{time_range}",
         xaxis_title="Time",

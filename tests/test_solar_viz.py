@@ -8,7 +8,11 @@ import plotly.graph_objects as go
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
-from lookout.core.solar_viz import create_month_day_heatmap, create_day_column_chart, create_15min_bar_chart
+from lookout.core.solar_viz import (
+    create_month_day_heatmap,
+    create_day_column_chart,
+    create_15min_bar_chart,
+)
 
 
 class TestCreateMonthDayHeatmap:
@@ -17,11 +21,17 @@ class TestCreateMonthDayHeatmap:
     def test_basic_functionality(self):
         """Test basic heatmap creation with sample data."""
         # Create sample periods data for a few days
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01', periods=96, freq='15min'),  # 1 day
-            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min'),
-            'energy_kwh': [0.1] * 96  # 1 kWh total for the day
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range(
+                    "2023-01-01", periods=96, freq="15min"
+                ),  # 1 day
+                "period_end": pd.date_range(
+                    "2023-01-01 00:15:00", periods=96, freq="15min"
+                ),
+                "energy_kwh": [0.1] * 96,  # 1 kWh total for the day
+            }
+        )
 
         fig = create_month_day_heatmap(periods_df)
 
@@ -38,7 +48,10 @@ class TestCreateMonthDayHeatmap:
         heatmap = fig.data[0]
         assert isinstance(heatmap, go.Heatmap)
         assert heatmap.colorscale == (
-            (0.0, "#FFF9E6"), (0.3, "#FFE680"), (0.6, "#FFB732"), (1.0, "#FF8C00")
+            (0.0, "#FFF9E6"),
+            (0.3, "#FFE680"),
+            (0.6, "#FFB732"),
+            (1.0, "#FF8C00"),
         )
         assert heatmap.zmin == 0
         assert heatmap.showscale is True
@@ -47,11 +60,13 @@ class TestCreateMonthDayHeatmap:
 
     def test_empty_dataframe(self):
         """Test handling of empty input data."""
-        empty_df = pd.DataFrame({
-            'period_start': pd.Series(dtype='datetime64[ns]'),
-            'period_end': pd.Series(dtype='datetime64[ns]'),
-            'energy_kwh': pd.Series(dtype=float)
-        })
+        empty_df = pd.DataFrame(
+            {
+                "period_start": pd.Series(dtype="datetime64[ns]"),
+                "period_end": pd.Series(dtype="datetime64[ns]"),
+                "energy_kwh": pd.Series(dtype=float),
+            }
+        )
 
         fig = create_month_day_heatmap(empty_df)
 
@@ -61,11 +76,15 @@ class TestCreateMonthDayHeatmap:
 
     def test_single_day_data(self):
         """Test with data for a single day."""
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-06-15', periods=96, freq='15min'),
-            'period_end': pd.date_range('2023-06-15 00:15:00', periods=96, freq='15min'),
-            'energy_kwh': [0.01] * 96  # 0.96 kWh total
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range("2023-06-15", periods=96, freq="15min"),
+                "period_end": pd.date_range(
+                    "2023-06-15 00:15:00", periods=96, freq="15min"
+                ),
+                "energy_kwh": [0.01] * 96,  # 0.96 kWh total
+            }
+        )
 
         fig = create_month_day_heatmap(periods_df)
         assert isinstance(fig, go.Figure)
@@ -82,23 +101,31 @@ class TestCreateMonthDayHeatmap:
     def test_multiple_months(self):
         """Test with data spanning multiple months."""
         # Create data for January and February 2023
-        dates_jan = pd.date_range('2023-01-01', '2023-01-31', freq='D')
-        dates_feb = pd.date_range('2023-02-01', '2023-02-15', freq='D')
+        dates_jan = pd.date_range("2023-01-01", "2023-01-31", freq="D")
+        dates_feb = pd.date_range("2023-02-01", "2023-02-15", freq="D")
 
         periods_data = []
         for date in dates_jan[:5]:  # First 5 days of Jan
-            periods_data.extend([{
-                'period_start': pd.Timestamp(f"{date.date()} 06:00:00"),
-                'period_end': pd.Timestamp(f"{date.date()} 18:00:00"),
-                'energy_kwh': 2.0
-            }])
+            periods_data.extend(
+                [
+                    {
+                        "period_start": pd.Timestamp(f"{date.date()} 06:00:00"),
+                        "period_end": pd.Timestamp(f"{date.date()} 18:00:00"),
+                        "energy_kwh": 2.0,
+                    }
+                ]
+            )
 
         for date in dates_feb[:3]:  # First 3 days of Feb
-            periods_data.extend([{
-                'period_start': pd.Timestamp(f"{date.date()} 06:00:00"),
-                'period_end': pd.Timestamp(f"{date.date()} 18:00:00"),
-                'energy_kwh': 1.5
-            }])
+            periods_data.extend(
+                [
+                    {
+                        "period_start": pd.Timestamp(f"{date.date()} 06:00:00"),
+                        "period_end": pd.Timestamp(f"{date.date()} 18:00:00"),
+                        "energy_kwh": 1.5,
+                    }
+                ]
+            )
 
         periods_df = pd.DataFrame(periods_data)
         fig = create_month_day_heatmap(periods_df)
@@ -110,11 +137,15 @@ class TestCreateMonthDayHeatmap:
 
     def test_zero_energy_days(self):
         """Test that zero energy days are handled correctly (valid cloudy days)."""
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01', periods=96, freq='15min'),
-            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min'),
-            'energy_kwh': [0.0] * 96  # Zero energy (cloudy day)
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range("2023-01-01", periods=96, freq="15min"),
+                "period_end": pd.date_range(
+                    "2023-01-01 00:15:00", periods=96, freq="15min"
+                ),
+                "energy_kwh": [0.0] * 96,  # Zero energy (cloudy day)
+            }
+        )
 
         fig = create_month_day_heatmap(periods_df)
         heatmap = fig.data[0]
@@ -128,11 +159,15 @@ class TestCreateMonthDayHeatmap:
 
     def test_hover_text_format(self):
         """Test that hover text is formatted correctly."""
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01', periods=96, freq='15min'),
-            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min'),
-            'energy_kwh': [0.01] * 96  # 0.96 kWh total
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range("2023-01-01", periods=96, freq="15min"),
+                "period_end": pd.date_range(
+                    "2023-01-01 00:15:00", periods=96, freq="15min"
+                ),
+                "energy_kwh": [0.01] * 96,  # 0.96 kWh total
+            }
+        )
 
         fig = create_month_day_heatmap(periods_df)
         heatmap = fig.data[0]
@@ -149,19 +184,23 @@ class TestCreateMonthDayHeatmap:
 
         # Day 1: full data
         for hour in range(6, 18):  # 6 AM to 6 PM
-            periods_data.append({
-                'period_start': pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
-                'period_end': pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
-                'energy_kwh': 0.1
-            })
+            periods_data.append(
+                {
+                    "period_start": pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
+                    "period_end": pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
+                    "energy_kwh": 0.1,
+                }
+            )
 
         # Day 3: full data
         for hour in range(6, 18):  # 6 AM to 6 PM
-            periods_data.append({
-                'period_start': pd.Timestamp(f"2023-01-03 {hour:02d}:00:00"),
-                'period_end': pd.Timestamp(f"2023-01-03 {hour:02d}:15:00"),
-                'energy_kwh': 0.1
-            })
+            periods_data.append(
+                {
+                    "period_start": pd.Timestamp(f"2023-01-03 {hour:02d}:00:00"),
+                    "period_end": pd.Timestamp(f"2023-01-03 {hour:02d}:15:00"),
+                    "energy_kwh": 0.1,
+                }
+            )
 
         periods_df = pd.DataFrame(periods_data)
         fig = create_month_day_heatmap(periods_df)
@@ -184,11 +223,13 @@ class TestCreateDayColumnChart:
         # Create sample periods data for one day with hourly production
         periods_data = []
         for hour in range(6, 18):  # 6 AM to 6 PM
-            periods_data.append({
-                'period_start': pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
-                'period_end': pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
-                'energy_kwh': 0.1
-            })
+            periods_data.append(
+                {
+                    "period_start": pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
+                    "period_end": pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
+                    "energy_kwh": 0.1,
+                }
+            )
 
         periods_df = pd.DataFrame(periods_data)
         fig = create_day_column_chart(periods_df, "2023-01-01")
@@ -225,11 +266,13 @@ class TestCreateDayColumnChart:
     def test_no_data_for_date(self):
         """Test handling when no data exists for the selected date."""
         # Create data for a different date
-        periods_data = [{
-            'period_start': pd.Timestamp("2023-01-02 12:00:00"),
-            'period_end': pd.Timestamp("2023-01-02 12:15:00"),
-            'energy_kwh': 0.1
-        }]
+        periods_data = [
+            {
+                "period_start": pd.Timestamp("2023-01-02 12:00:00"),
+                "period_end": pd.Timestamp("2023-01-02 12:15:00"),
+                "energy_kwh": 0.1,
+            }
+        ]
 
         periods_df = pd.DataFrame(periods_data)
         fig = create_day_column_chart(periods_df, "2023-01-01")  # Different date
@@ -252,11 +295,25 @@ class TestCreateDay15minHeatmap:
         from lookout.core.solar_viz import create_day_15min_heatmap
 
         # Create sample periods data for a full 24-hour day
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01 00:00:00', periods=96, freq='15min', tz='America/Los_Angeles'),
-            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min', tz='America/Los_Angeles'),
-            'energy_kwh': [0.01 if 6 <= i//4 <= 18 else 0.0 for i in range(96)]  # Production only during daylight hours
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range(
+                    "2023-01-01 00:00:00",
+                    periods=96,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "period_end": pd.date_range(
+                    "2023-01-01 00:15:00",
+                    periods=96,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "energy_kwh": [
+                    0.01 if 6 <= i // 4 <= 18 else 0.0 for i in range(96)
+                ],  # Production only during daylight hours
+            }
+        )
 
         fig = create_day_15min_heatmap(periods_df)
 
@@ -273,7 +330,10 @@ class TestCreateDay15minHeatmap:
         heatmap = fig.data[0]
         assert isinstance(heatmap, go.Heatmap)
         assert heatmap.colorscale == (
-            (0.0, "#FFF9E6"), (0.3, "#FFE680"), (0.6, "#FFB732"), (1.0, "#FF8C00")
+            (0.0, "#FFF9E6"),
+            (0.3, "#FFE680"),
+            (0.6, "#FFB732"),
+            (1.0, "#FF8C00"),
         )
         assert heatmap.zmin == 0
         assert heatmap.showscale is True
@@ -283,17 +343,19 @@ class TestCreateDay15minHeatmap:
         # Should have 1 day and 96 time slots (full 24-hour day in 15min intervals)
         assert heatmap.z.shape == (1, 96)
         assert len(heatmap.x) == 96  # 96 time slots from 00:00 to 23:45
-        assert len(heatmap.y) == 1   # 1 day
+        assert len(heatmap.y) == 1  # 1 day
 
     def test_empty_dataframe(self):
         """Test handling of empty input data."""
         from lookout.core.solar_viz import create_day_15min_heatmap
 
-        empty_df = pd.DataFrame({
-            'period_start': pd.Series(dtype='datetime64[ns]'),
-            'period_end': pd.Series(dtype='datetime64[ns]'),
-            'energy_kwh': pd.Series(dtype=float)
-        })
+        empty_df = pd.DataFrame(
+            {
+                "period_start": pd.Series(dtype="datetime64[ns]"),
+                "period_end": pd.Series(dtype="datetime64[ns]"),
+                "energy_kwh": pd.Series(dtype=float),
+            }
+        )
 
         fig = create_day_15min_heatmap(empty_df)
 
@@ -305,11 +367,23 @@ class TestCreateDay15minHeatmap:
         """Test handling when all energy values are zero (but still shows heatmap)."""
         from lookout.core.solar_viz import create_day_15min_heatmap
 
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01 06:00:00', periods=10, freq='15min', tz='America/Los_Angeles'),
-            'period_end': pd.date_range('2023-01-01 06:15:00', periods=10, freq='15min', tz='America/Los_Angeles'),
-            'energy_kwh': [0.0] * 10  # All zero energy
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range(
+                    "2023-01-01 06:00:00",
+                    periods=10,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "period_end": pd.date_range(
+                    "2023-01-01 06:15:00",
+                    periods=10,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "energy_kwh": [0.0] * 10,  # All zero energy
+            }
+        )
 
         fig = create_day_15min_heatmap(periods_df)
 
@@ -327,11 +401,23 @@ class TestCreateDay15minHeatmap:
         """Test handling when data covers only part of the day."""
         from lookout.core.solar_viz import create_day_15min_heatmap
 
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01 22:00:00', periods=8, freq='15min', tz='America/Los_Angeles'),
-            'period_end': pd.date_range('2023-01-01 22:15:00', periods=8, freq='15min', tz='America/Los_Angeles'),
-            'energy_kwh': [0.1] * 8  # Production during night
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range(
+                    "2023-01-01 22:00:00",
+                    periods=8,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "period_end": pd.date_range(
+                    "2023-01-01 22:15:00",
+                    periods=8,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "energy_kwh": [0.1] * 8,  # Production during night
+            }
+        )
 
         fig = create_day_15min_heatmap(periods_df)
 
@@ -350,11 +436,25 @@ class TestCreateDay15minHeatmap:
         from lookout.core.solar_viz import create_day_15min_heatmap
 
         # Create full day data
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01 00:00:00', periods=96, freq='15min', tz='America/Los_Angeles'),
-            'period_end': pd.date_range('2023-01-01 00:15:00', periods=96, freq='15min', tz='America/Los_Angeles'),
-            'energy_kwh': [0.01 if 6 <= i//4 <= 18 else 0.0 for i in range(96)]  # Production only during daylight
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range(
+                    "2023-01-01 00:00:00",
+                    periods=96,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "period_end": pd.date_range(
+                    "2023-01-01 00:15:00",
+                    periods=96,
+                    freq="15min",
+                    tz="America/Los_Angeles",
+                ),
+                "energy_kwh": [
+                    0.01 if 6 <= i // 4 <= 18 else 0.0 for i in range(96)
+                ],  # Production only during daylight
+            }
+        )
 
         fig = create_day_15min_heatmap(periods_df, start_hour=6, end_hour=18)
 
@@ -374,7 +474,10 @@ class TestCreateDay15minHeatmap:
         heatmap = fig.data[0]
         assert isinstance(heatmap, go.Heatmap)
         assert heatmap.colorscale == (
-            (0.0, "#FFF9E6"), (0.3, "#FFE680"), (0.6, "#FFB732"), (1.0, "#FF8C00")
+            (0.0, "#FFF9E6"),
+            (0.3, "#FFE680"),
+            (0.6, "#FFB732"),
+            (1.0, "#FF8C00"),
         )
         assert heatmap.zmin == 0
         assert heatmap.showscale is True
@@ -398,13 +501,22 @@ class TestCreateDay15minHeatmap:
         periods_data = []
         for day in range(3):
             # Only daylight hours (8:00-16:00)
-            start_time = pd.Timestamp(f'2023-01-0{day+1} 08:00:00', tz='America/Los_Angeles')
-            periods = pd.date_range(start_time, periods=32, freq='15min')  # 8 hours = 32 periods
-            periods_data.extend([{
-                'period_start': period,
-                'period_end': period + pd.Timedelta(minutes=15),
-                'energy_kwh': 0.02  # 20 Wh per 15min period
-            } for period in periods])
+            start_time = pd.Timestamp(
+                f"2023-01-0{day+1} 08:00:00", tz="America/Los_Angeles"
+            )
+            periods = pd.date_range(
+                start_time, periods=32, freq="15min"
+            )  # 8 hours = 32 periods
+            periods_data.extend(
+                [
+                    {
+                        "period_start": period,
+                        "period_end": period + pd.Timedelta(minutes=15),
+                        "energy_kwh": 0.02,  # 20 Wh per 15min period
+                    }
+                    for period in periods
+                ]
+            )
 
         periods_df = pd.DataFrame(periods_data)
 
@@ -424,11 +536,17 @@ class TestCreate15minBarChart:
     def test_basic_functionality(self):
         """Test basic bar chart creation with sample data."""
         # Create sample periods data for one day with 15-minute intervals
-        periods_df = pd.DataFrame({
-            'period_start': pd.date_range('2023-01-01 06:00:00', periods=48, freq='15min'),
-            'period_end': pd.date_range('2023-01-01 06:15:00', periods=48, freq='15min'),
-            'energy_kwh': [0.01] * 48  # 10 Wh per 15min period
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": pd.date_range(
+                    "2023-01-01 06:00:00", periods=48, freq="15min"
+                ),
+                "period_end": pd.date_range(
+                    "2023-01-01 06:15:00", periods=48, freq="15min"
+                ),
+                "energy_kwh": [0.01] * 48,  # 10 Wh per 15min period
+            }
+        )
         fig = create_15min_bar_chart(periods_df, "2023-01-01")
 
         # Check return type
@@ -471,11 +589,13 @@ class TestCreate15minBarChart:
     def test_no_data_for_date(self):
         """Test handling when no data exists for the selected date."""
         # Create data for a different date
-        periods_data = [{
-            'period_start': pd.Timestamp("2023-01-02 12:00:00"),
-            'period_end': pd.Timestamp("2023-01-02 12:15:00"),
-            'energy_kwh': 0.1
-        }]
+        periods_data = [
+            {
+                "period_start": pd.Timestamp("2023-01-02 12:00:00"),
+                "period_end": pd.Timestamp("2023-01-02 12:15:00"),
+                "energy_kwh": 0.1,
+            }
+        ]
 
         periods_df = pd.DataFrame(periods_data)
         fig = create_15min_bar_chart(periods_df, "2023-01-01")  # Different date
@@ -490,20 +610,20 @@ class TestCreate15minBarChart:
         # Create data with some zero energy periods
         periods_data = [
             {
-                'period_start': pd.Timestamp("2023-01-01 06:00:00"),
-                'period_end': pd.Timestamp("2023-01-01 06:15:00"),
-                'energy_kwh': 0.1  # 100 Wh
+                "period_start": pd.Timestamp("2023-01-01 06:00:00"),
+                "period_end": pd.Timestamp("2023-01-01 06:15:00"),
+                "energy_kwh": 0.1,  # 100 Wh
             },
             {
-                'period_start': pd.Timestamp("2023-01-01 06:15:00"),
-                'period_end': pd.Timestamp("2023-01-01 06:30:00"),
-                'energy_kwh': 0.0  # Zero energy
+                "period_start": pd.Timestamp("2023-01-01 06:15:00"),
+                "period_end": pd.Timestamp("2023-01-01 06:30:00"),
+                "energy_kwh": 0.0,  # Zero energy
             },
             {
-                'period_start': pd.Timestamp("2023-01-01 06:30:00"),
-                'period_end': pd.Timestamp("2023-01-01 06:45:00"),
-                'energy_kwh': 0.05  # 50 Wh
-            }
+                "period_start": pd.Timestamp("2023-01-01 06:30:00"),
+                "period_end": pd.Timestamp("2023-01-01 06:45:00"),
+                "energy_kwh": 0.05,  # 50 Wh
+            },
         ]
 
         periods_df = pd.DataFrame(periods_data)
@@ -513,22 +633,26 @@ class TestCreate15minBarChart:
         # Should have all 3 periods including the zero
         assert len(bar.y) == 3
         assert bar.y[0] == 100.0  # 0.1 kWh = 100 Wh
-        assert bar.y[1] == 0.0    # Zero energy
-        assert bar.y[2] == 50.0   # 0.05 kWh = 50 Wh
+        assert bar.y[1] == 0.0  # Zero energy
+        assert bar.y[2] == 50.0  # 0.05 kWh = 50 Wh
 
     def test_custom_time_range(self):
         """Test with custom start_hour and end_hour parameters."""
         # Create full day data
         periods_data = []
         for hour in range(24):  # Full day
-            periods_data.append({
-                'period_start': pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
-                'period_end': pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
-                'energy_kwh': 0.01
-            })
+            periods_data.append(
+                {
+                    "period_start": pd.Timestamp(f"2023-01-01 {hour:02d}:00:00"),
+                    "period_end": pd.Timestamp(f"2023-01-01 {hour:02d}:15:00"),
+                    "energy_kwh": 0.01,
+                }
+            )
 
         periods_df = pd.DataFrame(periods_data)
-        fig = create_15min_bar_chart(periods_df, "2023-01-01", start_hour=6, end_hour=18)
+        fig = create_15min_bar_chart(
+            periods_df, "2023-01-01", start_hour=6, end_hour=18
+        )
 
         # Check title includes time range
         assert "(06:00-18:00)" in fig.layout.title.text
@@ -543,11 +667,13 @@ class TestCreate15minBarChart:
 
     def test_invalid_date_format(self):
         """Test handling of invalid date format."""
-        periods_df = pd.DataFrame({
-            'period_start': [pd.Timestamp("2023-01-01 12:00:00")],
-            'period_end': [pd.Timestamp("2023-01-01 12:15:00")],
-            'energy_kwh': [0.1]
-        })
+        periods_df = pd.DataFrame(
+            {
+                "period_start": [pd.Timestamp("2023-01-01 12:00:00")],
+                "period_end": [pd.Timestamp("2023-01-01 12:15:00")],
+                "energy_kwh": [0.1],
+            }
+        )
 
         # Should raise ValueError for invalid date format
         with pytest.raises(ValueError, match="Invalid date format"):
@@ -563,78 +689,99 @@ class TestSolarUIRender:
 
         # Create a mock session state that doesn't contain 'history_df'
         mock_session_state = MagicMock()
-        mock_session_state.__contains__.return_value = False  # 'history_df' not in session_state
+        mock_session_state.__contains__.return_value = (
+            False  # 'history_df' not in session_state
+        )
 
-        with patch('lookout.ui.solar.st.session_state', mock_session_state), \
-             patch('lookout.ui.solar.st.warning') as mock_warning, \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'):
+        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
+            "lookout.ui.solar.st.warning"
+        ) as mock_warning, patch("lookout.ui.solar.st.header"), patch(
+            "lookout.ui.solar.st.caption"
+        ):
 
             render()
 
-            mock_warning.assert_called_once_with("No weather data loaded. Please load data from main app.")
+            mock_warning.assert_called_once_with(
+                "No weather data loaded. Please load data from main app."
+            )
 
-    @patch('lookout.ui.solar.st.session_state')
+    @patch("lookout.ui.solar.st.session_state")
     def test_missing_date_column(self, mock_session_state):
         """Test handling when date column is missing."""
         from lookout.ui.solar import render
 
         # Mock session state with data missing date column
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000],
-            'solarradiation': [100.0, 150.0]  # No date column
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "dateutc": [1640995200000, 1640995260000],
+                "solarradiation": [100.0, 150.0],  # No date column
+            }
+        )
 
-        with patch('lookout.ui.solar.st.warning'), \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.error') as mock_error:
+        with patch("lookout.ui.solar.st.warning"), patch(
+            "lookout.ui.solar.st.header"
+        ), patch("lookout.ui.solar.st.caption"), patch(
+            "lookout.ui.solar.st.error"
+        ) as mock_error:
 
             render()
 
             mock_error.assert_called_once_with("Solar data not available in dataset.")
 
-    @patch('lookout.ui.solar.st.session_state')
+    @patch("lookout.ui.solar.st.session_state")
     def test_missing_solarradiation_column(self, mock_session_state):
         """Test handling when solarradiation column is missing."""
         from lookout.ui.solar import render
 
         # Mock session state with data missing solarradiation
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000],
-            'date': pd.to_datetime([1640995200000, 1640995260000], unit='ms', utc=True).tz_convert('America/Los_Angeles')
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "dateutc": [1640995200000, 1640995260000],
+                "date": pd.to_datetime(
+                    [1640995200000, 1640995260000], unit="ms", utc=True
+                ).tz_convert("America/Los_Angeles"),
+            }
+        )
 
-        with patch('lookout.ui.solar.st.warning'), \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.error') as mock_error:
+        with patch("lookout.ui.solar.st.warning"), patch(
+            "lookout.ui.solar.st.header"
+        ), patch("lookout.ui.solar.st.caption"), patch(
+            "lookout.ui.solar.st.error"
+        ) as mock_error:
 
             render()
 
             mock_error.assert_called_once_with("Solar data not available in dataset.")
 
-    @patch('lookout.ui.solar.st.session_state')
+    @patch("lookout.ui.solar.st.session_state")
     def test_successful_rendering(self, mock_session_state):
         """Test successful rendering with valid data."""
         from lookout.ui.solar import render
 
         # Mock session state with valid solar data
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000, 1640995320000],  # Jan 1, 2022
-            'date': pd.to_datetime([1640995200000, 1640995260000, 1640995320000],
-                                 unit='ms', utc=True).tz_convert('America/Los_Angeles'),
-            'solarradiation': [100.0, 150.0, 200.0]
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "dateutc": [1640995200000, 1640995260000, 1640995320000],  # Jan 1, 2022
+                "date": pd.to_datetime(
+                    [1640995200000, 1640995260000, 1640995320000], unit="ms", utc=True
+                ).tz_convert("America/Los_Angeles"),
+                "solarradiation": [100.0, 150.0, 200.0],
+            }
+        )
 
-        with patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.spinner'), \
-             patch('lookout.ui.solar.st.success') as mock_success, \
-             patch('lookout.ui.solar.st.expander'), \
-             patch('lookout.ui.solar.st.dataframe'), \
-             patch('lookout.ui.solar.st.subheader'), \
-             patch('lookout.ui.solar.st.plotly_chart') as mock_plotly_chart:
+        with patch("lookout.ui.solar.st.header"), patch(
+            "lookout.ui.solar.st.caption"
+        ), patch("lookout.ui.solar.st.spinner"), patch(
+            "lookout.ui.solar.st.success"
+        ) as mock_success, patch(
+            "lookout.ui.solar.st.expander"
+        ), patch(
+            "lookout.ui.solar.st.dataframe"
+        ), patch(
+            "lookout.ui.solar.st.subheader"
+        ), patch(
+            "lookout.ui.solar.st.plotly_chart"
+        ) as mock_plotly_chart:
 
             render()
 
@@ -644,29 +791,40 @@ class TestSolarUIRender:
             # Should render plotly chart
             mock_plotly_chart.assert_called_once()
 
-    @patch('lookout.ui.solar.st.session_state')
+    @patch("lookout.ui.solar.st.session_state")
     def test_heatmap_rendering_error(self, mock_session_state):
         """Test handling of errors during heatmap rendering."""
         from lookout.ui.solar import render
 
         # Mock session state with valid data
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000],
-            'date': pd.to_datetime([1640995200000, 1640995260000],
-                                 unit='ms', utc=True).tz_convert('America/Los_Angeles'),
-            'solarradiation': [100.0, 150.0]
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "dateutc": [1640995200000, 1640995260000],
+                "date": pd.to_datetime(
+                    [1640995200000, 1640995260000], unit="ms", utc=True
+                ).tz_convert("America/Los_Angeles"),
+                "solarradiation": [100.0, 150.0],
+            }
+        )
 
-        with patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.spinner'), \
-             patch('lookout.ui.solar.st.success'), \
-             patch('lookout.ui.solar.st.expander'), \
-             patch('lookout.ui.solar.st.dataframe'), \
-             patch('lookout.ui.solar.st.subheader'), \
-             patch('lookout.ui.solar.st.error') as mock_error, \
-             patch('lookout.ui.solar.st.exception') as mock_exception, \
-             patch('lookout.core.solar_viz.create_month_day_heatmap', side_effect=Exception("Test error")):
+        with patch("lookout.ui.solar.st.header"), patch(
+            "lookout.ui.solar.st.caption"
+        ), patch("lookout.ui.solar.st.spinner"), patch(
+            "lookout.ui.solar.st.success"
+        ), patch(
+            "lookout.ui.solar.st.expander"
+        ), patch(
+            "lookout.ui.solar.st.dataframe"
+        ), patch(
+            "lookout.ui.solar.st.subheader"
+        ), patch(
+            "lookout.ui.solar.st.error"
+        ) as mock_error, patch(
+            "lookout.ui.solar.st.exception"
+        ) as mock_exception, patch(
+            "lookout.core.solar_viz.create_month_day_heatmap",
+            side_effect=Exception("Test error"),
+        ):
 
             render()
 
@@ -684,14 +842,16 @@ class TestSolarUIRender:
         from lookout.ui.solar import render
 
         # Mock streamlit functions
-        with patch('streamlit.warning') as mock_warning, \
-             patch('streamlit.header'), \
-             patch('streamlit.caption'):
+        with patch("streamlit.warning") as mock_warning, patch(
+            "streamlit.header"
+        ), patch("streamlit.caption"):
 
             render()
 
             # Should show warning about no data loaded
-            mock_warning.assert_called_once_with("No weather data loaded. Please load data from main app.")
+            mock_warning.assert_called_once_with(
+                "No weather data loaded. Please load data from main app."
+            )
 
     def test_missing_solarradiation_column(self):
         """Test handling when solarradiation column is missing."""
@@ -700,16 +860,22 @@ class TestSolarUIRender:
         # Mock session state with data missing solarradiation
         mock_session_state = MagicMock()
         mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000],
-            'date': pd.to_datetime([1640995200000, 1640995260000], unit='ms', utc=True).tz_convert('America/Los_Angeles')
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "dateutc": [1640995200000, 1640995260000],
+                "date": pd.to_datetime(
+                    [1640995200000, 1640995260000], unit="ms", utc=True
+                ).tz_convert("America/Los_Angeles"),
+            }
+        )
 
-        with patch('lookout.ui.solar.st.session_state', mock_session_state), \
-             patch('lookout.ui.solar.st.warning'), \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.error') as mock_error:
+        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
+            "lookout.ui.solar.st.warning"
+        ), patch("lookout.ui.solar.st.header"), patch(
+            "lookout.ui.solar.st.caption"
+        ), patch(
+            "lookout.ui.solar.st.error"
+        ) as mock_error:
 
             render()
 
@@ -722,16 +888,22 @@ class TestSolarUIRender:
         # Mock session state with data missing dateutc
         mock_session_state = MagicMock()
         mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'solarradiation': [100.0, 150.0],
-            'date': pd.to_datetime([1640995200000, 1640995260000], unit='ms', utc=True).tz_convert('America/Los_Angeles')
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "solarradiation": [100.0, 150.0],
+                "date": pd.to_datetime(
+                    [1640995200000, 1640995260000], unit="ms", utc=True
+                ).tz_convert("America/Los_Angeles"),
+            }
+        )
 
-        with patch('lookout.ui.solar.st.session_state', mock_session_state), \
-             patch('lookout.ui.solar.st.warning'), \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.error') as mock_error:
+        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
+            "lookout.ui.solar.st.warning"
+        ), patch("lookout.ui.solar.st.header"), patch(
+            "lookout.ui.solar.st.caption"
+        ), patch(
+            "lookout.ui.solar.st.error"
+        ) as mock_error:
 
             render()
 
@@ -745,24 +917,41 @@ class TestSolarUIRender:
         mock_session_state = MagicMock()
         mock_session_state.__contains__.return_value = True
         mock_session_state.get.side_effect = lambda key, default=None: {
-            "energy_catalog": pd.DataFrame({
-                'period_start': pd.date_range('2022-01-01', periods=3, freq='15min', tz='America/Los_Angeles'),
-                'period_end': pd.date_range('2022-01-01 00:15:00', periods=3, freq='15min', tz='America/Los_Angeles'),
-                'energy_kwh': [0.1, 0.2, 0.3]
-            }),
-            "selected_solar_date": "2022-01-01"
+            "energy_catalog": pd.DataFrame(
+                {
+                    "period_start": pd.date_range(
+                        "2022-01-01", periods=3, freq="15min", tz="America/Los_Angeles"
+                    ),
+                    "period_end": pd.date_range(
+                        "2022-01-01 00:15:00",
+                        periods=3,
+                        freq="15min",
+                        tz="America/Los_Angeles",
+                    ),
+                    "energy_kwh": [0.1, 0.2, 0.3],
+                }
+            ),
+            "selected_solar_date": "2022-01-01",
         }.get(key, default)
-        mock_session_state.__getitem__.side_effect = lambda key: mock_session_state.get(key)
+        mock_session_state.__getitem__.side_effect = lambda key: mock_session_state.get(
+            key
+        )
 
-        with patch('lookout.ui.solar.st.session_state', mock_session_state), \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.spinner'), \
-             patch('lookout.ui.solar.st.success') as mock_success, \
-             patch('lookout.ui.solar.st.expander'), \
-             patch('lookout.ui.solar.st.dataframe'), \
-             patch('lookout.ui.solar.st.subheader'), \
-             patch('lookout.ui.solar.st.plotly_chart') as mock_plotly_chart:
+        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
+            "lookout.ui.solar.st.header"
+        ), patch("lookout.ui.solar.st.caption"), patch(
+            "lookout.ui.solar.st.spinner"
+        ), patch(
+            "lookout.ui.solar.st.success"
+        ) as mock_success, patch(
+            "lookout.ui.solar.st.expander"
+        ), patch(
+            "lookout.ui.solar.st.dataframe"
+        ), patch(
+            "lookout.ui.solar.st.subheader"
+        ), patch(
+            "lookout.ui.solar.st.plotly_chart"
+        ) as mock_plotly_chart:
 
             render()
 
@@ -779,24 +968,36 @@ class TestSolarUIRender:
         # Mock session state with valid data
         mock_session_state = MagicMock()
         mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame({
-            'dateutc': [1640995200000, 1640995260000],
-            'date': pd.to_datetime([1640995200000, 1640995260000],
-                                 unit='ms', utc=True).tz_convert('America/Los_Angeles'),
-            'solarradiation': [100.0, 150.0]
-        })
+        mock_session_state.__getitem__.return_value = pd.DataFrame(
+            {
+                "dateutc": [1640995200000, 1640995260000],
+                "date": pd.to_datetime(
+                    [1640995200000, 1640995260000], unit="ms", utc=True
+                ).tz_convert("America/Los_Angeles"),
+                "solarradiation": [100.0, 150.0],
+            }
+        )
 
-        with patch('lookout.ui.solar.st.session_state', mock_session_state), \
-             patch('lookout.ui.solar.st.header'), \
-             patch('lookout.ui.solar.st.caption'), \
-             patch('lookout.ui.solar.st.spinner'), \
-             patch('lookout.ui.solar.st.success'), \
-             patch('lookout.ui.solar.st.expander'), \
-             patch('lookout.ui.solar.st.dataframe'), \
-             patch('lookout.ui.solar.st.subheader'), \
-             patch('lookout.ui.solar.st.error') as mock_error, \
-             patch('lookout.ui.solar.st.exception') as mock_exception, \
-             patch('lookout.ui.solar.create_month_day_heatmap', side_effect=Exception("Test error")):
+        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
+            "lookout.ui.solar.st.header"
+        ), patch("lookout.ui.solar.st.caption"), patch(
+            "lookout.ui.solar.st.spinner"
+        ), patch(
+            "lookout.ui.solar.st.success"
+        ), patch(
+            "lookout.ui.solar.st.expander"
+        ), patch(
+            "lookout.ui.solar.st.dataframe"
+        ), patch(
+            "lookout.ui.solar.st.subheader"
+        ), patch(
+            "lookout.ui.solar.st.error"
+        ) as mock_error, patch(
+            "lookout.ui.solar.st.exception"
+        ) as mock_exception, patch(
+            "lookout.ui.solar.create_month_day_heatmap",
+            side_effect=Exception("Test error"),
+        ):
 
             render()
 
