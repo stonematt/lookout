@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
+import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 from lookout.core.styles import get_style_manager
 from lookout.ui import (
@@ -26,44 +27,10 @@ logger = app_logger(__name__)
 
 
 def render_dev_mode_notice() -> None:
-    """Render dev mode notice with cache age information in sidebar."""
-    try:
-        # Get cache age from history data
-        history_df = st.session_state.get("history_df")
-        if history_df is not None and not history_df.empty:
-            # Get oldest record (max datetime since archive is reverse sorted)
-            oldest_timestamp_ms = history_df["dateutc"].max()
-            oldest_datetime = pd.to_datetime(oldest_timestamp_ms, unit="ms", utc=True)
-
-            # Convert to Pacific Time
-            pacific_time = oldest_datetime.tz_convert("America/Los_Angeles")
-            cache_age_str = pacific_time.strftime("%Y-%m-%d %H:%M PT")
-
-            # Calculate age in hours
-            now_utc = pd.Timestamp.now(tz="UTC")
-            age_hours = (now_utc - oldest_datetime).total_seconds() / 3600
-
-            if age_hours < 1:
-                age_display = f"{age_hours*60:.0f} min old"
-            elif age_hours < 24:
-                age_display = f"{age_hours:.1f} hours old"
-            else:
-                age_display = f"{age_hours/24:.1f} days old"
-        else:
-            cache_age_str = "No data"
-            age_display = "Unknown"
-
-        # Render dev mode notice
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("🛠️ **Dev Mode**")
-        st.sidebar.caption(f"Cache: {age_display}")
-        st.sidebar.caption(f"Oldest: {cache_age_str}")
-
-    except Exception as e:
-        logger.error(f"Error rendering dev mode notice: {e}")
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("🛠️ **Dev Mode**")
-        st.sidebar.caption("Cache info unavailable")
+    """Render simple dev mode notice in sidebar."""
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("🛠️ **Development Environment**")
+    st.sidebar.caption("Running in development mode")
 
 
 # if st.secrets.get("DEBUG", False):
@@ -154,12 +121,19 @@ hist_file = f"{device_mac}.{file_type}"
 time.sleep(1)
 
 # %%
+
+if st.sidebar.button("🔄 Refresh Data"):
+    try:
+        awn.update_session_data(
+            st.session_state["device"], st.session_state["history_df"]
+        )
+        st.sidebar.success("Data refreshed!")
+    except Exception as e:
+        st.sidebar.error("Failed to refresh data")
+
+
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
-# Display dev mode notice if in development
-is_dev = st.secrets.get("environment", {}).get("dev", False)
-if is_dev:
-    render_dev_mode_notice()
 
 # Call the wrapper to load or update the weather station data
 lo_dp.load_or_update_data(
@@ -171,20 +145,39 @@ lo_dp.load_or_update_data(
     long_minutes=auto_refresh_max,
 )
 
-# Access the updated history_df and max_dateutc
+# Access the updated history_df and timestamps
 history_df = st.session_state["history_df"]
 history_max_dateutc = st.session_state["history_max_dateutc"]
+archive_max_dateutc = st.session_state["archive_max_dateutc"]
+
+# Check if we're in development mode
+is_dev = st.secrets.get("environment", {}).get("dev", False)
+
+# Calculate current time for age calculations
+current_time_utc = int(time.time() * 1000)
 
 st.sidebar.write(f"History as of: {history_df.date.max()}")
 
-history_age_h = lo_dp.get_human_readable_duration(
-    device_last_dateutc, history_max_dateutc
+# Archive/Local Cache age: how old the most recent record in the loaded archive/cache is (vs current time)
+archive_age_h = lo_dp.get_human_readable_duration(current_time_utc, archive_max_dateutc)
+if is_dev:
+    st.sidebar.write(f"Local cache: {archive_age_h} old")
+else:
+    st.sidebar.write(f"Archive: {archive_age_h} old")
+
+# Last refresh: how fresh the most recent record in memory is (vs current time)
+last_refresh_age_h = lo_dp.get_human_readable_duration(
+    current_time_utc, history_max_dateutc
 )
+st.sidebar.write(f"Last refresh: {last_refresh_age_h} ago")
 
-# Display in the sidebar
-st.sidebar.write(f"Archive is {history_age_h} old.")
-# %%
+# Display dev mode notice if in development
+if is_dev:
+    render_dev_mode_notice()
 
+# Display current device data
+st.sidebar.subheader("Current Data")
+last_data = st.session_state.get("last_data", {})
 st.sidebar.write(last_data)
 
 # Present the dashboard ########################
