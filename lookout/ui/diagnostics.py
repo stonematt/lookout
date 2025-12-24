@@ -522,17 +522,23 @@ def render():
                     date_range = f"{catalog_df['period_start'].min().date()} → {catalog_df['period_start'].max().date()}"
                     st.metric("Date Range", date_range)
             with col3:
-                total_energy = catalog_df['energy_kwh'].sum()
+                total_energy = catalog_df["energy_kwh"].sum()
                 st.metric("Total Energy", f"{total_energy:.1f} kWh")
 
             # Management controls
             col1, col2 = st.columns(2)
 
             with col1:
-                if st.button("🔄 Regenerate Energy Catalog", help="Recalculate all energy periods from scratch"):
+                if st.button(
+                    "🔄 Regenerate Energy Catalog",
+                    help="Recalculate all energy periods from scratch",
+                ):
                     with st.spinner("Regenerating energy catalog..."):
                         from lookout.core.energy_catalog import EnergyCatalog
-                        catalog = EnergyCatalog(st.session_state["device"]["macAddress"])
+
+                        catalog = EnergyCatalog(
+                            st.session_state["device"]["macAddress"]
+                        )
                         periods_df = catalog.detect_and_calculate_periods(
                             st.session_state["history_df"], auto_save=False
                         )
@@ -541,10 +547,15 @@ def render():
                         st.rerun()
 
             with col2:
-                if st.button("💾 Save Energy Catalog", help="Save current catalog to storage"):
+                if st.button(
+                    "💾 Save Energy Catalog", help="Save current catalog to storage"
+                ):
                     with st.spinner("Saving energy catalog..."):
                         from lookout.core.energy_catalog import EnergyCatalog
-                        catalog = EnergyCatalog(st.session_state["device"]["macAddress"])
+
+                        catalog = EnergyCatalog(
+                            st.session_state["device"]["macAddress"]
+                        )
                         catalog.save_catalog(st.session_state["energy_catalog"])
                         st.success("✓ Energy catalog saved to storage")
 

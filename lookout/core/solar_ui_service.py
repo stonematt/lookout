@@ -42,8 +42,8 @@ class SolarUIService:
             return []
 
         # Get dates that have production (> 0 kWh)
-        dates_with_data = daily_df[daily_df['daily_kwh'] > 0]['date']
-        return [d.strftime('%Y-%m-%d') for d in dates_with_data]
+        dates_with_data = daily_df[daily_df["daily_kwh"] > 0]["date"]
+        return [d.strftime("%Y-%m-%d") for d in dates_with_data]
 
     def validate_energy_catalog(self, periods_df: pd.DataFrame) -> Tuple[bool, str]:
         """
@@ -55,8 +55,11 @@ class SolarUIService:
         if periods_df.empty:
             return False, "No energy periods data available in cache"
 
-        if 'period_start' not in periods_df.columns:
-            return False, "Energy catalog data is not properly processed. Please regenerate the energy catalog."
+        if "period_start" not in periods_df.columns:
+            return (
+                False,
+                "Energy catalog data is not properly processed. Please regenerate the energy catalog.",
+            )
 
         return True, ""
 
@@ -93,7 +96,9 @@ class SolarUIService:
         """
         session_state["selected_solar_date"] = selected_date
 
-    def get_selectbox_index(self, available_dates: List[str], selected_date: str) -> int:
+    def get_selectbox_index(
+        self, available_dates: List[str], selected_date: str
+    ) -> int:
         """
         Calculate the correct index for selectbox based on selected date.
 

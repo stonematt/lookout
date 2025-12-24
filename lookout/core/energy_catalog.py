@@ -82,7 +82,9 @@ class EnergyCatalog:
             for col in datetime_cols:
                 if col in catalog_df.columns:
                     # Convert to datetime first, then to Pacific timezone
-                    catalog_df[col] = pd.to_datetime(catalog_df[col], utc=True).dt.tz_convert("America/Los_Angeles")
+                    catalog_df[col] = pd.to_datetime(
+                        catalog_df[col], utc=True
+                    ).dt.tz_convert("America/Los_Angeles")
 
             logger.info(f"Loaded energy catalog with {len(catalog_df)} periods")
             return catalog_df
@@ -113,7 +115,7 @@ class EnergyCatalog:
             import io
 
             buffer = io.BytesIO()
-            periods_df.to_parquet(buffer, compression='snappy', index=False)
+            periods_df.to_parquet(buffer, compression="snappy", index=False)
             buffer.seek(0)
 
             # Upload to Storj
@@ -149,7 +151,7 @@ class EnergyCatalog:
             import io
 
             buffer = io.BytesIO()
-            periods_df.to_parquet(buffer, compression='snappy', index=False)
+            periods_df.to_parquet(buffer, compression="snappy", index=False)
             buffer.seek(0)
 
             client = self._get_storage_client()
@@ -191,9 +193,9 @@ class EnergyCatalog:
 
         # Prepare data: ensure datetime column exists (use 'date' column which is already TZ-aware datetime)
         processed_df = archive_df.copy()
-        if 'datetime' not in processed_df.columns:
+        if "datetime" not in processed_df.columns:
             # The 'date' column is already a TZ-aware datetime, so use it as 'datetime'
-            processed_df['datetime'] = processed_df['date']
+            processed_df["datetime"] = processed_df["date"]
 
         # Calculate energy periods
         periods_df = calculate_15min_energy_periods(processed_df)
@@ -304,9 +306,9 @@ class EnergyCatalog:
         try:
             client = self._get_storage_client()
             response = client.head_object(Bucket=self.bucket, Key=self.catalog_path)
-            last_modified = response['LastModified']
+            last_modified = response["LastModified"]
 
-            age = pd.Timestamp.now(tz='UTC') - pd.Timestamp(last_modified, tz='UTC')
+            age = pd.Timestamp.now(tz="UTC") - pd.Timestamp(last_modified, tz="UTC")
             return age
 
         except Exception:
