@@ -36,15 +36,16 @@ class TestCalculate15MinEnergyPeriods:
 
         data = []
         for period_idx in range(6):  # 6 periods over 1.5 hours
-            period_start = base_time + pd.Timedelta(minutes=period_idx*15)
+            period_start = base_time + pd.Timedelta(minutes=period_idx * 15)
             # Add 2 observations per period
             for obs_idx in range(2):
-                obs_time = period_start + pd.Timedelta(minutes=obs_idx*7)  # 0 and 7 minutes into period
-                solar_rad = max(0, 500 * (1 - abs(period_idx - 2) / 3))  # Peak in middle periods
-                data.append({
-                    "datetime": obs_time,
-                    "solarradiation": solar_rad
-                })
+                obs_time = period_start + pd.Timedelta(
+                    minutes=obs_idx * 7
+                )  # 0 and 7 minutes into period
+                solar_rad = max(
+                    0, 500 * (1 - abs(period_idx - 2) / 3)
+                )  # Peak in middle periods
+                data.append({"datetime": obs_time, "solarradiation": solar_rad})
 
         df = pd.DataFrame(data)
         result = calculate_15min_energy_periods(df)
@@ -55,7 +56,7 @@ class TestCalculate15MinEnergyPeriods:
 
         # Check period alignment (should be aligned to 15-minute boundaries)
         for i, row in result.iterrows():
-            expected_start = base_time + pd.Timedelta(minutes=i*15)
+            expected_start = base_time + pd.Timedelta(minutes=i * 15)
             expected_end = expected_start + pd.Timedelta(minutes=15)
             assert row["period_start"] == expected_start
             assert row["period_end"] == expected_end
@@ -72,10 +73,12 @@ class TestCalculate15MinEnergyPeriods:
         # Create data for 24 hours with no solar radiation (nighttime)
         data = []
         for i in range(96):  # 96 observations over 24 hours
-            data.append({
-                "datetime": base_time + pd.Timedelta(minutes=i*15),
-                "solarradiation": 0.0
-            })
+            data.append(
+                {
+                    "datetime": base_time + pd.Timedelta(minutes=i * 15),
+                    "solarradiation": 0.0,
+                }
+            )
 
         df = pd.DataFrame(data)
         result = calculate_15min_energy_periods(df)
@@ -153,9 +156,11 @@ class TestCalculate15MinEnergyPeriods:
         df = pd.DataFrame(data)
         result = calculate_15min_energy_periods(df)
 
-        expected_energy = 500 * 0.1667  / 1000  # kWh/m²
+        expected_energy = 500 * 0.1667 / 1000  # kWh/m²
         assert len(result) == 1  # Should have one period
-        assert abs(result["energy_kwh"].iloc[0] - expected_energy) < 1e-3  # Allow small tolerance
+        assert (
+            abs(result["energy_kwh"].iloc[0] - expected_energy) < 1e-3
+        )  # Allow small tolerance
 
     def test_multiple_periods_with_gaps(self):
         """Test handling of multiple periods with gaps between them."""
@@ -171,7 +176,10 @@ class TestCalculate15MinEnergyPeriods:
             # Period 3: 13:00-13:15 (observation at 13:00)
             {"datetime": base_time + pd.Timedelta(hours=1), "solarradiation": 600.0},
             # Period 4: 13:15-13:30 (observation at 13:15)
-            {"datetime": base_time + pd.Timedelta(hours=1, minutes=15), "solarradiation": 600.0},
+            {
+                "datetime": base_time + pd.Timedelta(hours=1, minutes=15),
+                "solarradiation": 600.0,
+            },
         ]
 
         df = pd.DataFrame(data)
@@ -187,4 +195,6 @@ class TestCalculate15MinEnergyPeriods:
         assert result["period_start"].iloc[0] == base_time
         assert result["period_start"].iloc[1] == base_time + pd.Timedelta(minutes=15)
         assert result["period_start"].iloc[2] == base_time + pd.Timedelta(hours=1)
-        assert result["period_start"].iloc[3] == base_time + pd.Timedelta(hours=1, minutes=15)
+        assert result["period_start"].iloc[3] == base_time + pd.Timedelta(
+            hours=1, minutes=15
+        )

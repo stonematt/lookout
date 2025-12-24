@@ -164,18 +164,24 @@ def _render_month_day_tab(filtered_df):
 
     # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
     if selected_date:
-        # Daily total metric
+        # Daily total and hourly chart in 1:4 column ratio
+        col1, col2 = st.columns([1, 4])
+        
+        # Calculate daily total for metric
         daily_periods = filtered_df[filtered_df['period_start'].dt.date.astype(str) == selected_date]
         daily_total = daily_periods['energy_kwh'].sum()
-        st.metric("Daily Total", f"{daily_total:.2f} kWh/m²")
-
-        # Hourly chart (title shows date)
-        try:
-            fig = create_day_column_chart(filtered_df, selected_date)
-            st.plotly_chart(fig, width="stretch")
-        except Exception as e:
-            st.error(f"Error creating hourly chart: {e}")
-            logger.exception("Hourly chart error")
+        
+        with col1:
+            st.metric("Daily Total (kWh/m²)", f"{daily_total:.2f}")
+        
+        with col2:
+            # Hourly chart (title shows date)
+            try:
+                fig = create_day_column_chart(filtered_df, selected_date)
+                st.plotly_chart(fig, width="stretch")
+            except Exception as e:
+                st.error(f"Error creating hourly chart: {e}")
+                logger.exception("Hourly chart error")
 
 
 def _render_day_15min_tab(filtered_df):

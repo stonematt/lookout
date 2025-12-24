@@ -5,12 +5,13 @@ Plotly-based charts and heatmaps for solar production data.
 
 import pandas as pd
 import plotly.graph_objects as go
+
 from lookout.core.chart_config import get_solar_colors, get_solar_colorscale
 from lookout.core.solar_data_transformer import (
-    prepare_month_day_heatmap_data,
-    prepare_day_column_data,
-    prepare_day_15min_heatmap_data,
     prepare_15min_bar_data,
+    prepare_day_15min_heatmap_data,
+    prepare_day_column_data,
+    prepare_month_day_heatmap_data,
 )
 from lookout.utils.log_util import app_logger
 
@@ -21,7 +22,7 @@ logger = app_logger(__name__)
 # Use get_solar_colors() and get_solar_colorscale() instead of these constants
 
 
-def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
+def create_month_day_heatmap(periods_df: pd.DataFrame, height=500) -> go.Figure:
     """
     Create month/day heatmap showing daily energy production.
 
@@ -46,7 +47,7 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
         logger.info("No daily solar data available for heatmap")
         # Return empty figure if no data
         fig = go.Figure()
-        fig.update_layout(title="No Solar Data Available", height=1000)
+        fig.update_layout(title="No Solar Data Available", height=height)
         return fig
 
     # Prepare data for heatmap
@@ -86,9 +87,12 @@ def create_month_day_heatmap(periods_df: pd.DataFrame) -> go.Figure:
         )
     )
 
+    # Add grid gaps for cell separation (like rain heatmap)
+    fig.update_traces(xgap=1, ygap=1)
+
     # Update layout
     fig.update_layout(
-        height=1000,  # Taller for month/day heatmap to show all months clearly
+        height=height,  # Taller for month/day heatmap to show all months clearly
         xaxis_title="Day of Month",
         yaxis_title="Month",
         yaxis_autorange="reversed",  # Newest months at top
