@@ -61,7 +61,9 @@ def prepare_month_day_heatmap_data(periods_df: pd.DataFrame) -> pd.DataFrame:
     # Convert column names to strings for consistency
     pivot_df.columns = pivot_df.columns.astype(str)
 
-    logger.debug(f"Prepared month/day heatmap data: {len(pivot_df)} months × {len(pivot_df.columns)} days")
+    logger.debug(
+        f"Prepared month/day heatmap data: {len(pivot_df)} months × {len(pivot_df.columns)} days"
+    )
     return pivot_df
 
 
@@ -102,14 +104,18 @@ def prepare_day_column_data(periods_df: pd.DataFrame, date: str) -> pd.DataFrame
         return pd.DataFrame()
 
     # Ensure all 24 hours are present (fill missing with 0)
-    all_hours = pd.DataFrame({'hour': range(24)})
-    result = all_hours.merge(hourly_df, on='hour', how='left').fillna(0)
+    all_hours = pd.DataFrame({"hour": range(24)})
+    result = all_hours.merge(hourly_df, on="hour", how="left").fillna(0)
 
     logger.debug(f"Prepared day column data for {date}: {len(result)} hours")
     return result
 
 
-def prepare_day_15min_heatmap_data(periods_df: pd.DataFrame, start_hour: Optional[int] = None, end_hour: Optional[int] = None) -> pd.DataFrame:
+def prepare_day_15min_heatmap_data(
+    periods_df: pd.DataFrame,
+    start_hour: Optional[int] = None,
+    end_hour: Optional[int] = None,
+) -> pd.DataFrame:
     """
     Transform energy periods data into day/time pivot table for 15min heatmap visualization.
 
@@ -151,11 +157,18 @@ def prepare_day_15min_heatmap_data(periods_df: pd.DataFrame, start_hour: Optiona
     # Sort by date (newest first)
     pivot_df = pivot_df.sort_index(ascending=False)
 
-    logger.debug(f"Prepared day/15min heatmap data: {len(pivot_df)} days × {len(pivot_df.columns)} time slots")
+    logger.debug(
+        f"Prepared day/15min heatmap data: {len(pivot_df)} days × {len(pivot_df.columns)} time slots"
+    )
     return pivot_df
 
 
-def prepare_15min_bar_data(periods_df: pd.DataFrame, date: str, start_hour: Optional[int] = None, end_hour: Optional[int] = None) -> pd.DataFrame:
+def prepare_15min_bar_data(
+    periods_df: pd.DataFrame,
+    date: str,
+    start_hour: Optional[int] = None,
+    end_hour: Optional[int] = None,
+) -> pd.DataFrame:
     """
     Transform energy periods data into 15min bar chart data for a specific date.
 
@@ -188,13 +201,15 @@ def prepare_15min_bar_data(periods_df: pd.DataFrame, date: str, start_hour: Opti
         return pd.DataFrame()
 
     # Create time labels and convert to Wh
-    result = pd.DataFrame({
-        'time_label': periods_df["period_start"].dt.strftime("%H:%M"),
-        'energy_wh': periods_df["energy_kwh"] * 1000  # Convert kWh to Wh
-    })
+    result = pd.DataFrame(
+        {
+            "time_label": periods_df["period_start"].dt.strftime("%H:%M"),
+            "energy_wh": periods_df["energy_kwh"] * 1000,  # Convert kWh to Wh
+        }
+    )
 
     # Sort by time
-    result = result.sort_values('time_label').reset_index(drop=True)
+    result = result.sort_values("time_label").reset_index(drop=True)
 
     logger.debug(f"Prepared 15min bar data for {date}: {len(result)} periods")
     return result
@@ -220,7 +235,7 @@ def _aggregate_to_hourly(periods_df: pd.DataFrame, date: str) -> pd.DataFrame:
     hourly_df = hourly_df.rename(columns={"energy_kwh": "hourly_kwh"})
 
     # Ensure all 24 hours are present (fill missing with 0)
-    all_hours = pd.DataFrame({'hour': range(24)})
-    result = all_hours.merge(hourly_df, on='hour', how='left').fillna(0)
+    all_hours = pd.DataFrame({"hour": range(24)})
+    result = all_hours.merge(hourly_df, on="hour", how="left").fillna(0)
 
     return result

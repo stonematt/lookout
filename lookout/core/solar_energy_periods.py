@@ -33,11 +33,13 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
 
     if df.empty:
         logger.info("No solar data provided for period calculation")
-        empty_df = pd.DataFrame({
-            "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "energy_kwh": pd.Series(dtype=float)
-        })
+        empty_df = pd.DataFrame(
+            {
+                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "energy_kwh": pd.Series(dtype=float),
+            }
+        )
         return empty_df
 
     # Sort by datetime ascending (archive is reverse-sorted)
@@ -45,14 +47,18 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
 
     if df_sorted.empty:
         logger.info("No solar data after sorting for period calculation")
-        empty_df = pd.DataFrame({
-            "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "energy_kwh": pd.Series(dtype=float)
-        })
+        empty_df = pd.DataFrame(
+            {
+                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "energy_kwh": pd.Series(dtype=float),
+            }
+        )
         return empty_df
 
-    logger.debug(f"Processing {len(df_sorted)} solar radiation records for 15-minute periods")
+    logger.debug(
+        f"Processing {len(df_sorted)} solar radiation records for 15-minute periods"
+    )
 
     # Create 15-minute period buckets aligned to clock times
     # Convert to UTC to avoid DST issues, floor, then convert back to Pacific
@@ -82,7 +88,9 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
         # Trapezoidal rule: (y1 + y2) / 2 * dx
         # Convert W/m² to Wh/m² by multiplying by time in hours
         energy_wh = (
-            (period_df["solarradiation"].shift(1) + period_df["solarradiation"]) / 2 * time_diffs
+            (period_df["solarradiation"].shift(1) + period_df["solarradiation"])
+            / 2
+            * time_diffs
         ).sum()
 
         # Convert Wh/m² to kWh/m²
@@ -123,11 +131,13 @@ def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
 
     if df.empty:
         logger.info("No solar data provided for cached period calculation")
-        empty_df = pd.DataFrame({
-            "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "energy_kwh": pd.Series(dtype=float)
-        })
+        empty_df = pd.DataFrame(
+            {
+                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "energy_kwh": pd.Series(dtype=float),
+            }
+        )
         return empty_df
 
     # Sort by datetime ascending (archive is reverse-sorted)
@@ -135,14 +145,18 @@ def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
 
     if df_sorted.empty:
         logger.info("No solar data after sorting for cached period calculation")
-        empty_df = pd.DataFrame({
-            "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-            "energy_kwh": pd.Series(dtype=float)
-        })
+        empty_df = pd.DataFrame(
+            {
+                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "energy_kwh": pd.Series(dtype=float),
+            }
+        )
         return empty_df
 
-    logger.debug(f"Processing {len(df_sorted)} solar radiation records for cached 15-minute periods")
+    logger.debug(
+        f"Processing {len(df_sorted)} solar radiation records for cached 15-minute periods"
+    )
 
     # Set datetime as index for resampling
     df_indexed = df_sorted.set_index("datetime")
@@ -158,7 +172,9 @@ def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
 
         # Trapezoidal rule: (y1 + y2) / 2 * dx (vectorized)
         energy_wh = (
-            (group["solarradiation"].shift(1) + group["solarradiation"]) / 2 * time_diffs
+            (group["solarradiation"].shift(1) + group["solarradiation"])
+            / 2
+            * time_diffs
         ).sum()
 
         # Convert Wh/m² to kWh/m²
@@ -175,10 +191,16 @@ def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
     # Ensure period_start is in Pacific timezone
     if result_df["period_start"].dt.tz is None:
         # If naive, assume UTC and convert to Pacific
-        result_df["period_start"] = result_df["period_start"].dt.tz_localize("UTC").dt.tz_convert("America/Los_Angeles")
+        result_df["period_start"] = (
+            result_df["period_start"]
+            .dt.tz_localize("UTC")
+            .dt.tz_convert("America/Los_Angeles")
+        )
     else:
         # If already timezone-aware, convert to Pacific
-        result_df["period_start"] = result_df["period_start"].dt.tz_convert("America/Los_Angeles")
+        result_df["period_start"] = result_df["period_start"].dt.tz_convert(
+            "America/Los_Angeles"
+        )
 
     # Add period_end
     result_df["period_end"] = result_df["period_start"] + pd.Timedelta(minutes=15)
@@ -199,7 +221,12 @@ def aggregate_to_daily(periods_df: pd.DataFrame) -> pd.DataFrame:
     :return: DataFrame with columns [date, daily_kwh]
     """
     if periods_df.empty:
-        return pd.DataFrame({"date": pd.Series(dtype="datetime64[ns]"), "daily_kwh": pd.Series(dtype=float)})
+        return pd.DataFrame(
+            {
+                "date": pd.Series(dtype="datetime64[ns]"),
+                "daily_kwh": pd.Series(dtype=float),
+            }
+        )
 
     # Extract date from period_start (already TZ-aware US/Pacific)
     periods_df = periods_df.copy()
@@ -224,7 +251,9 @@ def aggregate_to_hourly(periods_df: pd.DataFrame, date: str) -> pd.DataFrame:
     :return: DataFrame with columns [hour, hourly_kwh]
     """
     if periods_df.empty:
-        return pd.DataFrame({"hour": pd.Series(dtype=int), "hourly_kwh": pd.Series(dtype=float)})
+        return pd.DataFrame(
+            {"hour": pd.Series(dtype=int), "hourly_kwh": pd.Series(dtype=float)}
+        )
 
     try:
         target_date = pd.to_datetime(date).date()
@@ -251,10 +280,9 @@ def aggregate_to_hourly(periods_df: pd.DataFrame, date: str) -> pd.DataFrame:
                 hourly_dict[hour] = 0.0
 
     # Create result DataFrame
-    result_df = pd.DataFrame({
-        "hour": list(hourly_dict.keys()),
-        "hourly_kwh": list(hourly_dict.values())
-    })
+    result_df = pd.DataFrame(
+        {"hour": list(hourly_dict.keys()), "hourly_kwh": list(hourly_dict.values())}
+    )
 
     # Sort by hour
     result_df = result_df.sort_values("hour").reset_index(drop=True)
@@ -271,10 +299,10 @@ def get_period_stats(periods_df: pd.DataFrame) -> Dict:
     """
     if periods_df.empty:
         return {
-            'total_kwh': 0.0,
-            'days_with_production': 0,
-            'avg_daily_kwh': 0.0,
-            'peak_day': {'date': '', 'kwh': 0.0}
+            "total_kwh": 0.0,
+            "days_with_production": 0,
+            "avg_daily_kwh": 0.0,
+            "peak_day": {"date": "", "kwh": 0.0},
         }
 
     # Calculate total_kwh
@@ -287,21 +315,23 @@ def get_period_stats(periods_df: pd.DataFrame) -> Dict:
     days_with_production = (daily_df["daily_kwh"] > 0).sum()
 
     # Calculate avg_daily_kwh
-    avg_daily_kwh = total_kwh / days_with_production if days_with_production > 0 else 0.0
+    avg_daily_kwh = (
+        total_kwh / days_with_production if days_with_production > 0 else 0.0
+    )
 
     # Find peak_day
     if not daily_df.empty and not daily_df["daily_kwh"].empty:
         peak_idx = daily_df["daily_kwh"].idxmax()
         peak_day = {
-            'date': daily_df.loc[peak_idx, "date"].strftime('%Y-%m-%d'),
-            'kwh': daily_df.loc[peak_idx, "daily_kwh"]
+            "date": daily_df.loc[peak_idx, "date"].strftime("%Y-%m-%d"),
+            "kwh": daily_df.loc[peak_idx, "daily_kwh"],
         }
     else:
-        peak_day = {'date': '', 'kwh': 0.0}
+        peak_day = {"date": "", "kwh": 0.0}
 
     return {
-        'total_kwh': total_kwh,
-        'days_with_production': days_with_production,
-        'avg_daily_kwh': avg_daily_kwh,
-        'peak_day': peak_day
+        "total_kwh": total_kwh,
+        "days_with_production": days_with_production,
+        "avg_daily_kwh": avg_daily_kwh,
+        "peak_day": peak_day,
     }
