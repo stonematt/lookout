@@ -132,6 +132,8 @@ def prepare_day_15min_heatmap_data(
     periods_df["period_start"] = pd.to_datetime(periods_df["period_start"])
     periods_df["date"] = periods_df["period_start"].dt.date.astype(str)
     periods_df["time_slot"] = periods_df["period_start"].dt.strftime("%H:%M")
+    # Convert kWh to Wh for 15min granularity display
+    periods_df["energy_wh"] = periods_df["energy_kwh"] * 1000
 
     # Apply time filtering if specified
     if start_hour is not None or end_hour is not None:
@@ -142,17 +144,34 @@ def prepare_day_15min_heatmap_data(
             periods_df = periods_df[hour < end_hour]
 
     if periods_df.empty:
-        logger.warning("No data available after time filtering")
+        logger.warning("No solar data available after time filtering")
         return pd.DataFrame()
 
-    # Create pivot table: dates x time_slots
-    pivot_df = periods_df.pivot_table(
-        values="energy_kwh",
-        index="date",
-        columns="time_slot",
-        aggfunc="sum",
-        fill_value=0,  # Fill missing periods with 0
-    )
+    # Create complete date range from min to max date in filtered data
+    min_date = periods_df['date'].min()
+    max_date = periods_df['date'].max()
+    all_dates = pd.date_range(start=min_date, end=max_date, freq='D').strftime('%Y-%m-%d')
+    
+    # Get unique time slots from existing data (all 15-minute slots)
+    time_slots = sorted(periods_df['time_slot'].unique())
+
+    # Create complete index of all date/time combinations
+    multi_index = pd.MultiIndex.from_product([all_dates, time_slots], names=['date', 'time_slot'])
+    
+    # Reindex to include all combinations (missing dates become NaN)
+    # Select only energy_wh column and handle duplicates by summing
+    periods_indexed = periods_df.set_index(['date', 'time_slot'])[['energy_wh']]
+    
+    # Group by index to handle duplicates (sum duplicate entries)
+    periods_indexed = periods_indexed.groupby(['date', 'time_slot']).sum()
+    
+    complete_df = periods_indexed.reindex(multi_index)
+
+    # Create pivot table with NaN preserved (not fill_value=0)
+    pivot_df = complete_df.unstack('time_slot', fill_value=np.nan)
+    
+    # Flatten column names from multi-index
+    pivot_df.columns = pivot_df.columns.droplevel(0)
 
     # Sort by date (newest first)
     pivot_df = pivot_df.sort_index(ascending=False)

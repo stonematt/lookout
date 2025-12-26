@@ -13,7 +13,9 @@ from lookout.utils.log_util import app_logger
 from lookout.core.solar_energy_periods import get_period_stats
 from lookout.core.solar_viz import (
     create_month_day_heatmap,
-    create_day_column_chart
+    create_day_column_chart,
+    create_day_15min_heatmap,
+    create_15min_bar_chart
 )
 
 logger = app_logger(__name__)
@@ -185,8 +187,55 @@ def _render_month_day_tab(filtered_df):
 
 
 def _render_day_15min_tab(filtered_df):
-    """Render Day/15min tab - placeholder for now."""
-    st.subheader("15-Minute Solar Radiation")
-    st.info("Coming soon in Phase 3.5")
+    """Render Day/15min tab - heatmap always visible with drill-down below."""
+    # Initialize today's date as default if not set
+    if 'selected_day_15min' not in st.session_state:
+        today = pd.Timestamp.now(tz="America/Los_Angeles").date()
+        st.session_state['selected_day_15min'] = today.strftime('%Y-%m-%d')
 
-    # TODO: Phase 3.5 will add heatmap and drill-down
+    selected_date = st.session_state.get('selected_day_15min')
+
+    # ALWAYS SHOW: Day/15min heatmap
+    st.subheader("15-Minute Solar Radiation")
+
+    try:
+        fig = create_day_15min_heatmap(filtered_df)
+        st.plotly_chart(fig, width="stretch")
+    except Exception as e:
+        st.error(f"Error creating heatmap: {e}")
+        logger.exception("Day/15min heatmap error")
+
+    # Calendar control - synchronized with session state
+    st.caption("Select a date to see 15-minute details")
+    default_date = pd.to_datetime(selected_date).date() if selected_date else None
+
+    test_date = st.date_input("Select date:", value=default_date, key="drill_down_calendar_15min")
+    if test_date:
+        st.session_state['selected_day_15min'] = test_date.strftime('%Y-%m-%d')
+
+    # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
+    if selected_date:
+        # Daily total and 15min chart in 1:4 column ratio
+        col1, col2 = st.columns([1, 4])
+        
+        # Calculate daily total for metric
+        daily_periods = filtered_df[filtered_df['period_start'].dt.date.astype(str) == selected_date]
+        daily_total = daily_periods['energy_kwh'].sum()
+        
+        with col1:
+            st.metric("Daily Total (kWh/m²)", f"{daily_total:.2f}")
+        
+        with col2:
+            # 15min chart (title shows date)
+            try:
+                fig = create_15min_bar_chart(filtered_df, selected_date)
+                st.plotly_chart(fig, width="stretch")
+            except Exception as e:
+                st.error(f"Error creating 15min chart: {e}")
+                logger.exception("15min chart error")
+        
+        # Manual clear button for testing (Phase 4 will remove this)
+        if st.button("← Clear Selection (Test)", key="clear_15min"):
+            del st.session_state['selected_day_15min']
+        
+    st.caption("Phase 4 will add click-to-drill interaction")

@@ -3,6 +3,7 @@ Solar Energy Visualizations
 Plotly-based charts and heatmaps for solar production data.
 """
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -198,16 +199,19 @@ def create_day_15min_heatmap(
     x_labels = pivot_df.columns.tolist()  # Time slots
     y_labels = [str(date) for date in pivot_df.index]  # Dates as strings
 
-    # Create custom hover text
+    # Create custom hover text that handles missing data properly
     hover_text = []
     for i in range(len(y_labels)):
         row_text = []
         for j in range(len(x_labels)):
             val = z_values[i, j]
-            row_text.append(f"<b>{y_labels[i]}</b> {x_labels[j]}<br>{val:.0f} Wh")
+            if pd.isna(val):
+                row_text.append(f"<b>{y_labels[i]}</b> {x_labels[j]}<br>No data")
+            else:
+                row_text.append(f"<b>{y_labels[i]}</b> {x_labels[j]}<br>{val:.0f} Wh")
         hover_text.append(row_text)
 
-    # Create heatmap
+    # Create heatmap with grid gaps for cell separation
     fig = go.Figure(
         data=go.Heatmap(
             z=z_values,
@@ -220,6 +224,8 @@ def create_day_15min_heatmap(
             hoverinfo="text",
             showscale=True,
             colorbar=dict(title="Wh/15min", ticksuffix=" Wh"),
+            xgap=1,  # Add grid gaps for cell separation
+            ygap=1,  # Add grid gaps for cell separation
         )
     )
 
@@ -249,7 +255,7 @@ def create_day_15min_heatmap(
         title=f"15-Minute Energy Periods{time_range}",
         xaxis_title="Time of Day",
         yaxis_title="Date",
-        height=1000,  # Double the height
+        height=1000,  # Fixed height for consistent display
         yaxis_autorange="reversed",  # Newest dates at top
         xaxis=dict(tickvals=tickvals, ticktext=ticktext, tickmode="array"),
     )
