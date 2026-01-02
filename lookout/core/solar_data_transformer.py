@@ -148,28 +148,32 @@ def prepare_day_15min_heatmap_data(
         return pd.DataFrame()
 
     # Create complete date range from min to max date in filtered data
-    min_date = periods_df['date'].min()
-    max_date = periods_df['date'].max()
-    all_dates = pd.date_range(start=min_date, end=max_date, freq='D').strftime('%Y-%m-%d')
-    
+    min_date = periods_df["date"].min()
+    max_date = periods_df["date"].max()
+    all_dates = pd.date_range(start=min_date, end=max_date, freq="D").strftime(
+        "%Y-%m-%d"
+    )
+
     # Get unique time slots from existing data (all 15-minute slots)
-    time_slots = sorted(periods_df['time_slot'].unique())
+    time_slots = sorted(periods_df["time_slot"].unique())
 
     # Create complete index of all date/time combinations
-    multi_index = pd.MultiIndex.from_product([all_dates, time_slots], names=['date', 'time_slot'])
-    
+    multi_index = pd.MultiIndex.from_product(
+        [all_dates, time_slots], names=["date", "time_slot"]
+    )
+
     # Reindex to include all combinations (missing dates become NaN)
     # Select only energy_wh column and handle duplicates by summing
-    periods_indexed = periods_df.set_index(['date', 'time_slot'])[['energy_wh']]
-    
+    periods_indexed = periods_df.set_index(["date", "time_slot"])[["energy_wh"]]
+
     # Group by index to handle duplicates (sum duplicate entries)
-    periods_indexed = periods_indexed.groupby(['date', 'time_slot']).sum()
-    
+    periods_indexed = periods_indexed.groupby(["date", "time_slot"]).sum()
+
     complete_df = periods_indexed.reindex(multi_index)
 
     # Create pivot table with NaN preserved (not fill_value=0)
-    pivot_df = complete_df.unstack('time_slot', fill_value=np.nan)
-    
+    pivot_df = complete_df.unstack("time_slot", fill_value=np.nan)
+
     # Flatten column names from multi-index
     pivot_df.columns = pivot_df.columns.droplevel(0)
 

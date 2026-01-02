@@ -34,26 +34,7 @@ import lookout.core.solar_viz as solar_viz
 #         dates = pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC')
 #         df = pd.DataFrame({
 #             'datetime': dates,
-#             'solarradiation': [500, 600, 700] + [0] * 21,  # Some daytime values
-#             'daylight_period': ['day'] * 3 + ['night'] * 21
-#         })
-#         daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3))
-#
-#         # Call cached function
-#         result = _get_cached_solar_statistics(df, daily_energy)
-#
-#         # Should return a dictionary with statistics
-#         assert isinstance(result, dict)
-#         assert 'peak_radiation_w_per_m2' in result
-#
-#     def test_get_cached_daily_energy(self):
-#         """Test daily energy caching."""
-#         dates = pd.date_range('2024-01-01', periods=48, freq='h', tz='UTC')
-#         df = pd.DataFrame({
-#             'datetime': dates,
-#             'date': [d.date() for d in dates],  # Add date column
-#             'solarradiation': np.random.uniform(0, 1000, 48),
-#             'daylight_period': ['day'] * 48
+#             'solarradiation': [500] * 48,  # Consistent valid values
 #         })
 #
 #         result = _get_cached_daily_energy(df)
@@ -84,7 +65,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=48, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 48),
-#             'daylight_period': ['day'] * 48
 #         })
 #
 #         result = _get_cached_hourly_patterns(df)
@@ -97,7 +77,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=48, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 48),
-#             'daylight_period': ['day'] * 48
 #         })
 #
 #         result = _get_cached_solar_heatmap_data(df, 'day')
@@ -155,7 +134,6 @@ import lookout.core.solar_viz as solar_viz
 #         mock_df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 24),
-#             'daylight_period': ['day'] * 24,
 #             'dateutc': range(24)
 #         })
 #
@@ -181,7 +159,6 @@ import lookout.core.solar_viz as solar_viz
 #         from lookout.ui.solar import _display_solar_statistics
 #
 #         # Create empty DataFrame with required columns to avoid KeyError
-#         empty_df = pd.DataFrame({'datetime': [], 'solarradiation': [], 'daylight_period': []})
 #         _display_solar_statistics(empty_df, pd.Series(dtype=float))
 #
 #         # Should not create any metrics
@@ -203,7 +180,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
 #             'solarradiation': [500, 600, 700] + [0] * 21,
-#             'daylight_period': ['day'] * 3 + ['night'] * 21
 #         })
 #         daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3))
 #
@@ -231,7 +207,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 24),
-#             'daylight_period': ['day'] * 24
 #         })
 #
 #         # Create daily energy for the test
@@ -264,7 +239,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': dates,
 #             'solarradiation': [500, 600, 700] + [0] * 21,
-#             'daylight_period': ['day'] * 3 + ['night'] * 21
 #         })
 #         daily_energy = pd.Series([2.5, 3.0, 3.5], index=pd.date_range('2024-01-01', periods=3, tz='UTC'))
 #
@@ -316,7 +290,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=48, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 48),
-#             'daylight_period': ['day'] * 48
 #         })
 #
 #         # Mock st.columns to return 2 mock column objects
@@ -346,7 +319,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 24),
-#             'daylight_period': ['day'] * 24
 #         })
 #
 #         # Mock date slider
@@ -387,7 +359,6 @@ import lookout.core.solar_viz as solar_viz
 #         df = pd.DataFrame({
 #             'datetime': pd.date_range('2024-01-01', periods=24, freq='h', tz='UTC'),
 #             'solarradiation': np.random.uniform(0, 1000, 24),
-#             'daylight_period': ['day'] * 24
 #         })
 #
 #         # Create daily energy for the test

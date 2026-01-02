@@ -144,14 +144,12 @@ def print_data_quality(df: pd.DataFrame, daily_energy: pd.Series) -> None:
     print("📊 DATA QUALITY")
     print("=" * 25)
 
-    # Filter for daytime data
-    daytime_df = df[
-        (df["daylight_period"] == "day") & (df["solarradiation"].notna())
-    ].copy()
+    # Filter for valid solar data
+    valid_solar_df = df[df["solarradiation"] > 0].copy()
 
     print(f"Data period: {df['date'].min()} to {df['date'].max()}")
     print(f"Total records: {len(df):,}")
-    print(f"Daytime solar records: {len(daytime_df):,}")
+    print(f"Valid solar records: {len(valid_solar_df):,}")
     print(f"Days with energy data: {len(daily_energy):,}")
     print(
         f"Data coverage: {len(daily_energy)/((df['date'].max() - df['date'].min()).days + 1)*100:.1f}%"
@@ -160,7 +158,7 @@ def print_data_quality(df: pd.DataFrame, daily_energy: pd.Series) -> None:
 
     # Data intervals
     if len(daytime_df) > 1:
-        intervals = daytime_df["datetime"].diff().dt.total_seconds() / 60  # minutes
+        intervals = valid_solar_df["datetime"].diff().dt.total_seconds() / 60  # minutes
         print(f"Data intervals:")
         print(f"  Median: {intervals.median():.1f} minutes")
         print(f"  Mean: {intervals.mean():.1f} minutes")

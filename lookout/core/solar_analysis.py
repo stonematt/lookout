@@ -22,12 +22,16 @@ LOCATION = {
 
 def filter_daytime_data(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Filter DataFrame for daytime solar data with valid radiation readings.
+    Filter DataFrame for valid solar data (radiation > 0).
 
-    :param df: DataFrame with daylight_period and solarradiation columns
-    :return: Filtered DataFrame containing only daytime valid solar data
+    :param df: DataFrame with solarradiation column
+    :return: Filtered DataFrame containing only valid solar data
     """
-    return df[(df["daylight_period"] == "day") & (df["solarradiation"].notna())].copy()
+    if df.empty:
+        return df.copy()
+
+    filtered = df[df["solarradiation"] > 0]
+    return filtered.copy()
 
 
 def calculate_daily_energy(df: pd.DataFrame) -> pd.Series:
@@ -83,11 +87,11 @@ def get_solar_statistics(
     """
     Calculate key solar radiation statistics.
 
-    :param df: DataFrame with solarradiation and daylight_period columns
+    :param df: DataFrame with solarradiation column
     :param daily_energy: Optional pre-calculated daily energy series
     :return: Dictionary with solar statistics
     """
-    # Get daytime data for peak radiation
+    # Get valid solar data for peak radiation
     daytime_df = filter_daytime_data(df)
 
     if daytime_df.empty:
@@ -127,12 +131,14 @@ def calculate_hourly_patterns(df: pd.DataFrame) -> pd.Series:
     :param df: DataFrame with datetime and solarradiation columns
     :return: Series with average radiation by hour (0-23)
     """
-    daytime_df = filter_daytime_data(df)
+    valid_solar_df = filter_daytime_data(df)
 
-    if daytime_df.empty:
+    if valid_solar_df.empty:
         return pd.Series(dtype=float)
 
-    return daytime_df.groupby(daytime_df["datetime"].dt.hour)["solarradiation"].mean()
+    return valid_solar_df.groupby(valid_solar_df["datetime"].dt.hour)[
+        "solarradiation"
+    ].mean()
 
 
 def get_seasonal_breakdown(daily_energy: pd.Series) -> Dict[str, Dict[str, float]]:

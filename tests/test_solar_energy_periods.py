@@ -62,8 +62,8 @@ class TestCalculate15MinEnergyPeriods:
             assert row["period_end"] == expected_end
 
         # Some periods should have positive energy (middle periods with solar radiation)
-        daylight_periods = result[result["energy_kwh"] > 0]
-        assert len(daylight_periods) > 0
+        positive_energy_periods = result[result["energy_kwh"] > 0]
+        assert len(positive_energy_periods) > 0
 
     def test_nighttime_periods_included(self):
         """Test that nighttime periods with zero energy are included."""

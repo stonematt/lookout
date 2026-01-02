@@ -15,7 +15,7 @@ from lookout.core.solar_viz import (
     create_month_day_heatmap,
     create_day_column_chart,
     create_day_15min_heatmap,
-    create_15min_bar_chart
+    create_15min_bar_chart,
 )
 
 logger = app_logger(__name__)
@@ -140,11 +140,11 @@ def _render_summary_metrics(periods_df):
 def _render_month_day_tab(filtered_df):
     """Render Month/Day tab - heatmap always visible with drill-down below."""
     # Initialize today's date as default if not set
-    if 'selected_month_day' not in st.session_state:
+    if "selected_month_day" not in st.session_state:
         today = pd.Timestamp.now(tz="America/Los_Angeles").date()
-        st.session_state['selected_month_day'] = today.strftime('%Y-%m-%d')
+        st.session_state["selected_month_day"] = today.strftime("%Y-%m-%d")
 
-    selected_date = st.session_state.get('selected_month_day')
+    selected_date = st.session_state.get("selected_month_day")
 
     # ALWAYS SHOW: Month/Day heatmap
     st.subheader("Monthly Solar Radiation")
@@ -160,22 +160,26 @@ def _render_month_day_tab(filtered_df):
     st.caption("Select a date to see hourly details")
     default_date = pd.to_datetime(selected_date).date() if selected_date else None
 
-    test_date = st.date_input("Select date:", value=default_date, key="drill_down_calendar")
+    test_date = st.date_input(
+        "Select date:", value=default_date, key="drill_down_calendar"
+    )
     if test_date:
-        st.session_state['selected_month_day'] = test_date.strftime('%Y-%m-%d')
+        st.session_state["selected_month_day"] = test_date.strftime("%Y-%m-%d")
 
     # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
     if selected_date:
         # Daily total and hourly chart in 1:4 column ratio
         col1, col2 = st.columns([1, 4])
-        
+
         # Calculate daily total for metric
-        daily_periods = filtered_df[filtered_df['period_start'].dt.date.astype(str) == selected_date]
-        daily_total = daily_periods['energy_kwh'].sum()
-        
+        daily_periods = filtered_df[
+            filtered_df["period_start"].dt.date.astype(str) == selected_date
+        ]
+        daily_total = daily_periods["energy_kwh"].sum()
+
         with col1:
             st.metric("Daily Total (kWh/m²)", f"{daily_total:.2f}")
-        
+
         with col2:
             # Hourly chart (title shows date)
             try:
@@ -189,11 +193,11 @@ def _render_month_day_tab(filtered_df):
 def _render_day_15min_tab(filtered_df):
     """Render Day/15min tab - heatmap always visible with drill-down below."""
     # Initialize today's date as default if not set
-    if 'selected_day_15min' not in st.session_state:
+    if "selected_day_15min" not in st.session_state:
         today = pd.Timestamp.now(tz="America/Los_Angeles").date()
-        st.session_state['selected_day_15min'] = today.strftime('%Y-%m-%d')
+        st.session_state["selected_day_15min"] = today.strftime("%Y-%m-%d")
 
-    selected_date = st.session_state.get('selected_day_15min')
+    selected_date = st.session_state.get("selected_day_15min")
 
     # ALWAYS SHOW: Day/15min heatmap
     st.subheader("15-Minute Solar Radiation")
@@ -209,22 +213,26 @@ def _render_day_15min_tab(filtered_df):
     st.caption("Select a date to see 15-minute details")
     default_date = pd.to_datetime(selected_date).date() if selected_date else None
 
-    test_date = st.date_input("Select date:", value=default_date, key="drill_down_calendar_15min")
+    test_date = st.date_input(
+        "Select date:", value=default_date, key="drill_down_calendar_15min"
+    )
     if test_date:
-        st.session_state['selected_day_15min'] = test_date.strftime('%Y-%m-%d')
+        st.session_state["selected_day_15min"] = test_date.strftime("%Y-%m-%d")
 
     # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
     if selected_date:
         # Daily total and 15min chart in 1:4 column ratio
         col1, col2 = st.columns([1, 4])
-        
+
         # Calculate daily total for metric
-        daily_periods = filtered_df[filtered_df['period_start'].dt.date.astype(str) == selected_date]
-        daily_total = daily_periods['energy_kwh'].sum()
-        
+        daily_periods = filtered_df[
+            filtered_df["period_start"].dt.date.astype(str) == selected_date
+        ]
+        daily_total = daily_periods["energy_kwh"].sum()
+
         with col1:
             st.metric("Daily Total (kWh/m²)", f"{daily_total:.2f}")
-        
+
         with col2:
             # 15min chart (title shows date)
             try:
@@ -233,9 +241,9 @@ def _render_day_15min_tab(filtered_df):
             except Exception as e:
                 st.error(f"Error creating 15min chart: {e}")
                 logger.exception("15min chart error")
-        
+
         # Manual clear button for testing (Phase 4 will remove this)
         if st.button("← Clear Selection (Test)", key="clear_15min"):
-            del st.session_state['selected_day_15min']
-        
+            del st.session_state["selected_day_15min"]
+
     st.caption("Phase 4 will add click-to-drill interaction")

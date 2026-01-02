@@ -42,7 +42,6 @@ class TestDateFiltering:
                             date.date(), datetime.time(hour, 0)
                         ),
                         "solarradiation": 500.0,  # W/m²
-                        "daylight_period": "day",
                     }
                 )
 
@@ -121,7 +120,6 @@ class TestDateFiltering:
                             hour=hour
                         ),  # Use timezone-aware timestamp
                         "solarradiation": 500.0,
-                        "daylight_period": "day",
                     }
                 )
 
