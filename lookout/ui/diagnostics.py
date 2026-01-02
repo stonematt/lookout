@@ -12,6 +12,7 @@ from lookout.core.data_processing import detect_gaps, get_human_readable_duratio
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history
 from lookout.utils.log_util import app_logger
+from lookout.core.energy_catalog_func import detect_and_calculate_periods, save_energy_catalog
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
     MEMORY_UNAVAILABLE,
@@ -551,12 +552,9 @@ def render():
                     "💾 Save Energy Catalog", help="Save current catalog to storage"
                 ):
                     with st.spinner("Saving energy catalog..."):
-                        from lookout.core.energy_catalog import EnergyCatalog
+                        from lookout.core.energy_catalog_func import save_energy_catalog
 
-                        catalog = EnergyCatalog(
-                            st.session_state["device"]["macAddress"]
-                        )
-                        catalog.save_catalog(st.session_state["energy_catalog"])
+                        save_energy_catalog(st.session_state["energy_catalog"])
                         st.success("✓ Energy catalog saved to storage")
 
             # Catalog details
