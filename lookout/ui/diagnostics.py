@@ -539,7 +539,7 @@ def render():
                         catalog = EnergyCatalog(
                             st.session_state["device"]["macAddress"]
                         )
-                        periods_df = catalog.detect_and_calculate_periods(
+                        periods_df = detect_and_calculate_periods(
                             st.session_state["history_df"], auto_save=False
                         )
                         st.session_state["energy_catalog"] = periods_df

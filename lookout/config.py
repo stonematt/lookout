@@ -9,6 +9,13 @@ processing parameters.
 
 HISTORY_FILE_TYPE = "parquet"
 
+# Storage configuration
+DEFAULT_BUCKET = "lookout"
+DEFAULT_FILE_TYPE = "parquet"
+
+# Default MAC address for testing (backup for when session state unavailable)
+DEFAULT_MAC_ADDRESS = "98:CD:AC:22:0D:E5"
+
 sensor_index = {
     "location1": {
         "name": "Outdoor",
