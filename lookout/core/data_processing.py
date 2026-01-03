@@ -205,6 +205,7 @@ def load_or_update_data(
 
                 update_message.text("Solar energy catalog loaded successfully")
                 logger.info(f"Energy catalog loaded: {len(updated_periods)} periods")
+                update_message.empty()
             else:
                 # Generate catalog if doesn't exist
                 update_message.text("Generating solar energy periods...")
@@ -214,6 +215,7 @@ def load_or_update_data(
                 st.session_state["energy_catalog"] = periods_df
                 update_message.text("Solar energy catalog loaded successfully")
                 logger.info(f"Energy catalog generated: {len(periods_df)} periods")
+                update_message.empty()
 
         except Exception as e:
             logger.warning(f"Failed to load energy catalog: {e}")
