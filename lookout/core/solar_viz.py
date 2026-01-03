@@ -160,7 +160,7 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
 
 
 def create_day_15min_heatmap(
-    periods_df: pd.DataFrame, start_hour: int = 0, end_hour: int = 23
+    periods_df: pd.DataFrame, start_hour: int = 0, end_hour: int = 23, height: int = 500, dense_view: bool = False
 ) -> go.Figure:
     """
     Create day/15min heatmap showing granular production patterns.
@@ -169,6 +169,8 @@ def create_day_15min_heatmap(
         periods_df: DataFrame with period_start, period_end, energy_kwh columns
         start_hour: Starting hour (0-23) for time filtering (default: 0)
         end_hour: Ending hour (0-23) for time filtering (default: 23)
+        height: Height of the heatmap in pixels (default: 500)
+        dense_view: If True, removes cell spacing for denser data display (default: False)
 
     Design:
     - X-axis: 15-minute time slots (filtered by start_hour to end_hour)
@@ -176,7 +178,7 @@ def create_day_15min_heatmap(
     - Color: get_solar_colorscale() (yellow-to-orange gradient)
     - Cells: Show Wh on hover
     - Click: Enable click events
-    - Height: ~1000px
+    - Height: configurable (default 500px)
     """
     logger.debug("Creating day/15min solar energy heatmap")
 
@@ -190,7 +192,7 @@ def create_day_15min_heatmap(
         fig = go.Figure()
         fig.update_layout(
             title=f"No Solar Data Available ({start_hour:02d}:00-{end_hour:02d}:00)",
-            height=1000,
+            height=height,
         )
         return fig
 
@@ -211,23 +213,26 @@ def create_day_15min_heatmap(
                 row_text.append(f"<b>{y_labels[i]}</b> {x_labels[j]}<br>{val:.0f} Wh")
         hover_text.append(row_text)
 
-    # Create heatmap with grid gaps for cell separation
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=z_values,
-            x=x_labels,
-            y=y_labels,
-            colorscale=get_solar_colorscale(),
-            zmin=0,  # Force scale to start at 0
-            zmax=z_values.max() if z_values.size > 0 else 1,
-            text=hover_text,
-            hoverinfo="text",
-            showscale=True,
-            colorbar=dict(title="Wh/15min", ticksuffix=" Wh"),
-            xgap=1,  # Add grid gaps for cell separation
-            ygap=1,  # Add grid gaps for cell separation
-        )
-    )
+    # Create heatmap with conditional grid spacing
+    heatmap_kwargs = {
+        "z": z_values,
+        "x": x_labels,
+        "y": y_labels,
+        "colorscale": get_solar_colorscale(),
+        "zmin": 0,  # Force scale to start at 0
+        "zmax": z_values.max() if z_values.size > 0 else 1,
+        "text": hover_text,
+        "hoverinfo": "text",
+        "showscale": True,
+        "colorbar": dict(title="Wh/15min", ticksuffix=" Wh"),
+    }
+
+    # Add grid gaps only if not in dense view
+    if not dense_view:
+        heatmap_kwargs["xgap"] = 1
+        heatmap_kwargs["ygap"] = 1
+
+    fig = go.Figure(data=go.Heatmap(**heatmap_kwargs))
 
     # Create hourly tick labels for the specified time range
     hourly_labels = [f"{hour:02d}:00" for hour in range(start_hour, end_hour + 1)]
@@ -252,10 +257,9 @@ def create_day_15min_heatmap(
         else ""
     )
     fig.update_layout(
-        title=f"15-Minute Energy Periods{time_range}",
         xaxis_title="Time of Day",
         yaxis_title="Date",
-        height=1000,  # Fixed height for consistent display
+        height=height,  # Configurable height
         yaxis_autorange="reversed",  # Newest dates at top
         xaxis=dict(tickvals=tickvals, ticktext=ticktext, tickmode="array"),
     )

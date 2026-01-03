@@ -55,14 +55,20 @@ def render():
     # Summary metrics
     _render_summary_metrics(periods_df)
 
-    # Two-tab interface
-    tab1, tab2 = st.tabs(["Month/Day View", "Day/15min View"])
+    # Heatmap view selector
+    heatmap_view = st.selectbox(
+        "Select Heatmap View:",
+        options=["Month/Day View", "Day/15min View"],
+        index=0,  # Default to Month/Day View
+        key="solar_heatmap_view",
+        help="Choose between daily monthly view or granular 15-minute view"
+    )
 
-    with tab1:
-        _render_month_day_tab(periods_df)
-
-    with tab2:
-        _render_day_15min_tab(periods_df)
+    # Render selected heatmap
+    if heatmap_view == "Month/Day View":
+        _render_month_day_heatmap(periods_df)
+    else:
+        _render_day_15min_heatmap(periods_df)
 
 
 def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
@@ -137,20 +143,20 @@ def _render_summary_metrics(periods_df):
         st.metric("Daily Average (kWh/m²/day)", f"{stats['avg_daily_kwh']:.1f}")
 
 
-def _render_month_day_tab(filtered_df):
-    """Render Month/Day tab - heatmap always visible with drill-down below."""
+def _render_month_day_heatmap(filtered_df):
+    """Render Month/Day heatmap with drill-down."""
     # Initialize today's date as default if not set
-    if "selected_month_day" not in st.session_state:
+    if "selected_solar_date" not in st.session_state:
         today = pd.Timestamp.now(tz="America/Los_Angeles").date()
-        st.session_state["selected_month_day"] = today.strftime("%Y-%m-%d")
+        st.session_state["selected_solar_date"] = today.strftime("%Y-%m-%d")
 
-    selected_date = st.session_state.get("selected_month_day")
+    selected_date = st.session_state.get("selected_solar_date")
 
     # ALWAYS SHOW: Month/Day heatmap
     st.subheader("Monthly Solar Radiation")
 
     try:
-        fig = create_month_day_heatmap(filtered_df)
+        fig = create_month_day_heatmap(filtered_df, height=500)
         st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.error(f"Error creating heatmap: {e}")
@@ -164,7 +170,7 @@ def _render_month_day_tab(filtered_df):
         "Select date:", value=default_date, key="drill_down_calendar"
     )
     if test_date:
-        st.session_state["selected_month_day"] = test_date.strftime("%Y-%m-%d")
+        st.session_state["selected_solar_date"] = test_date.strftime("%Y-%m-%d")
 
     # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
     if selected_date:
@@ -190,20 +196,20 @@ def _render_month_day_tab(filtered_df):
                 logger.exception("Hourly chart error")
 
 
-def _render_day_15min_tab(filtered_df):
-    """Render Day/15min tab - heatmap always visible with drill-down below."""
+def _render_day_15min_heatmap(filtered_df):
+    """Render Day/15min heatmap with drill-down."""
     # Initialize today's date as default if not set
-    if "selected_day_15min" not in st.session_state:
+    if "selected_solar_date" not in st.session_state:
         today = pd.Timestamp.now(tz="America/Los_Angeles").date()
-        st.session_state["selected_day_15min"] = today.strftime("%Y-%m-%d")
+        st.session_state["selected_solar_date"] = today.strftime("%Y-%m-%d")
 
-    selected_date = st.session_state.get("selected_day_15min")
+    selected_date = st.session_state.get("selected_solar_date")
 
     # ALWAYS SHOW: Day/15min heatmap
     st.subheader("15-Minute Solar Radiation")
 
     try:
-        fig = create_day_15min_heatmap(filtered_df)
+        fig = create_day_15min_heatmap(filtered_df, height=500, dense_view=True)
         st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.error(f"Error creating heatmap: {e}")
@@ -217,7 +223,7 @@ def _render_day_15min_tab(filtered_df):
         "Select date:", value=default_date, key="drill_down_calendar_15min"
     )
     if test_date:
-        st.session_state["selected_day_15min"] = test_date.strftime("%Y-%m-%d")
+        st.session_state["selected_solar_date"] = test_date.strftime("%Y-%m-%d")
 
     # CONDITIONAL: Drill-down details (appears below heatmap when date selected)
     if selected_date:
@@ -244,6 +250,6 @@ def _render_day_15min_tab(filtered_df):
 
         # Manual clear button for testing (Phase 4 will remove this)
         if st.button("← Clear Selection (Test)", key="clear_15min"):
-            del st.session_state["selected_day_15min"]
+            del st.session_state["selected_solar_date"]
 
     st.caption("Phase 4 will add click-to-drill interaction")
