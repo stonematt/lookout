@@ -25,9 +25,9 @@ def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataF
     bucket = kwargs.get("bucket", DEFAULT_BUCKET)
     auto_save = kwargs.get("auto_save", True)
     backup_existing = kwargs.get("backup_existing", True)
-    
+
     logger.info("Starting energy period calculation and cataloging...")
-    
+
     # Backup existing catalog if requested and auto-saving
     if auto_save and backup_existing and catalog_exists(CATALOG_TYPE, bucket):
         existing_catalog = load_catalog(CATALOG_TYPE, bucket)
@@ -37,12 +37,12 @@ def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataF
                 logger.info("Existing energy catalog backed up")
             except Exception as e:
                 logger.warning(f"Failed to backup existing catalog: {e}")
-    
+
     # Prepare archive data for solar_energy_periods - convert 'date' to 'datetime'
     archive_df = archive_df.copy()
-    if 'date' in archive_df.columns and 'datetime' not in archive_df.columns:
-        archive_df['datetime'] = archive_df['date']
-    
+    if "date" in archive_df.columns and "datetime" not in archive_df.columns:
+        archive_df["datetime"] = archive_df["date"]
+
     # Calculate energy periods
     periods_df = calculate_15min_energy_periods(archive_df)
 
@@ -90,10 +90,13 @@ def save_energy_catalog(df: pd.DataFrame, bucket: str = DEFAULT_BUCKET) -> bool:
 
 
 def update_energy_catalog(
-    archive_df: pd.DataFrame, bucket: str = DEFAULT_BUCKET
+    archive_df: pd.DataFrame,
+    existing_catalog: pd.DataFrame = None,
+    bucket: str = DEFAULT_BUCKET,
 ) -> pd.DataFrame:
     """Update energy catalog with new data from archive."""
-    existing_catalog = load_energy_catalog(bucket)
+    if existing_catalog is None:
+        existing_catalog = load_energy_catalog(bucket)
 
     if existing_catalog.empty:
         logger.info("No existing energy catalog, performing full calculation")

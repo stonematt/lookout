@@ -7,7 +7,7 @@ from typing import Optional
 import pandas as pd
 from datetime import datetime, timezone
 
-from lookout.storage.storj import get_df_from_s3, save_df_to_s3, backup_data
+from lookout.storage.storj import get_df_from_s3, save_df_to_s3, backup_data, get_s3_client
 from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, DEFAULT_MAC_ADDRESS
 from lookout.utils.log_util import app_logger
 
@@ -32,9 +32,11 @@ def _get_mac_address() -> str:
 def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
     """Check if catalog exists in storage."""
     mac_address = _get_mac_address()
+
     try:
         catalog_path = get_catalog_path(mac_address, catalog_type)
-        get_df_from_s3(bucket, catalog_path, DEFAULT_FILE_TYPE)
+        client = get_s3_client()
+        client.head_object(Bucket=bucket, Key=catalog_path)
         return True
     except Exception:
         return False
@@ -43,18 +45,14 @@ def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
 def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
     """Load catalog from storage."""
     mac_address = _get_mac_address()
-
-    if not catalog_exists(catalog_type, bucket):
-        logger.info(f"No {catalog_type} catalog found for {mac_address}")
-        return pd.DataFrame()
-
     catalog_path = get_catalog_path(mac_address, catalog_type)
+
     try:
         df = get_df_from_s3(bucket, catalog_path, DEFAULT_FILE_TYPE)
         logger.info(f"Loaded {catalog_type} catalog with {len(df)} items")
         return df
     except Exception as e:
-        logger.error(f"Failed to load {catalog_type} catalog: {e}")
+        logger.info(f"No {catalog_type} catalog found for {mac_address}: {e}")
         return pd.DataFrame()
 
 

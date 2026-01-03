@@ -151,7 +151,7 @@ def load_or_update_data(
                     )
                     st.session_state["rain_events_catalog"] = updated_events
                     logger.info(
-                        f"Rain event catalog loaded: {len(updated_events)} events"
+                        f"Rain event catalog updated: {len(updated_events)} events"
                     )
                 else:
                     st.session_state["rain_events_catalog"] = pd.DataFrame()
@@ -173,24 +173,36 @@ def load_or_update_data(
         try:
             update_message.text("Getting solar energy catalog...")
             from lookout.core.energy_catalog_func import (
-                load_energy_catalog, update_energy_catalog, detect_and_calculate_periods
+                load_energy_catalog,
+                update_energy_catalog,
+                detect_and_calculate_periods,
             )
 
-            periods_df = load_energy_catalog()
-            if not periods_df.empty:
+            # Load existing catalog and update with new data from archive
+            existing_catalog = load_energy_catalog()
+            if not existing_catalog.empty:
                 # Update catalog with new data from archive
                 update_message.text("Updating solar energy catalog...")
-                updated_periods = update_energy_catalog(st.session_state["history_df"])
+                updated_periods = update_energy_catalog(
+                    st.session_state["history_df"], existing_catalog
+                )
                 st.session_state["energy_catalog"] = updated_periods
 
-                # Auto-save if catalog is >2 days old (fallback to OO for age check)
+                # Auto-save if catalog is >2 days old
                 from lookout.core.energy_catalog import EnergyCatalog
+
                 catalog = EnergyCatalog(device["macAddress"], file_type)
-                if catalog.get_catalog_age() > pd.Timedelta(days=2):
-                    update_message.text("Saving solar energy catalog...")
-                    from lookout.core.energy_catalog_func import save_energy_catalog
-                    save_energy_catalog(updated_periods)
-                    logger.info("Energy catalog auto-saved (age > 2 days)")
+                try:
+                    if catalog.get_catalog_age() > pd.Timedelta(days=2):
+                        update_message.text("Saving solar energy catalog...")
+                        from lookout.core.energy_catalog_func import save_energy_catalog
+
+                        save_energy_catalog(updated_periods)
+                        logger.info("Energy catalog auto-saved (age > 2 days)")
+                except (TypeError, ValueError):
+                    # Skip auto-save if age check fails
+                    pass
+
                 update_message.text("Solar energy catalog loaded successfully")
                 logger.info(f"Energy catalog loaded: {len(updated_periods)} periods")
             else:

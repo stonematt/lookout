@@ -308,7 +308,7 @@ class EnergyCatalog:
             response = client.head_object(Bucket=self.bucket, Key=self.catalog_path)
             last_modified = response["LastModified"]
 
-            age = pd.Timestamp.now(tz="UTC") - pd.Timestamp(last_modified, tz="UTC")
+            age = pd.Timestamp.now(tz="UTC") - last_modified
             return age
 
         except Exception:
