@@ -31,29 +31,29 @@ def render():
         st.error("Solar energy catalog not available. Please refresh the page.")
         return
 
-    # Load and cache periods data first (needed for date slider)
-    periods_df = _load_and_cache_data(None, None)
+    # Load and cache unfiltered periods data (for metric grid)
+    full_periods_df = _load_and_cache_data(None, None)
 
-    if periods_df.empty:
+    if full_periods_df.empty:
         st.warning("No solar data available")
         return
+
+    # NEW: Render 2x2 metric grid (unfiltered, fixed periods)
+    _render_metric_grid(full_periods_df)
 
     # Date range slider - use ui_components.create_date_range_slider
     # Pattern from rain_events.py
     # Default to last 365 days
     start_ts, end_ts = ui_components.create_date_range_slider(
-        periods_df, date_column="period_start", key_prefix="solar", default_days=365
+        full_periods_df, date_column="period_start", key_prefix="solar", default_days=365
     )
 
-    # Load and filter data by date range
+    # Load and filter data by date range for heatmap
     periods_df = _load_and_cache_data(start_ts, end_ts)
 
     if periods_df.empty:
         st.warning("No solar data in selected date range")
         return
-
-    # Summary metrics
-    _render_summary_metrics(periods_df)
 
     # Heatmap view selector
     heatmap_view = st.selectbox(
@@ -96,51 +96,73 @@ def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
     return periods_df
 
 
-def _render_summary_metrics(periods_df):
+def _render_metric_grid(periods_df):
     """
-    Display 4 summary metric cards using st.columns(4).
+    Render 2x2 metric grid with solar radiation cards.
 
-    Metrics:
-    1. Period Total (kWh/m²) - Total radiation in selected date range
-    2. Today (kWh/m²) - Today's radiation (if in range) with yesterday comparison
-    3. Peak Day (kWh/m²) - Highest radiation day with date
-    4. Daily Average (kWh/m²/day) - Average daily radiation
-
-    Format: XX.X with 1 decimal place, units in title
+    Uses unfiltered full catalog data (not date-range filtered).
+    Shows Today, Last 7 Days, Last 30 Days, Last 365 Days.
+    Each card has value, unit, step-chart sparkline, and optional delta.
     """
-    stats = get_period_stats(periods_df)
+    from lookout.core.solar_cards import calculate_period_metrics
+    from lookout.ui.components import render_solar_metric_card
 
-    col1, col2, col3, col4 = st.columns(4)
+    # Calculate metrics for all periods
+    metrics = calculate_period_metrics(periods_df)
 
+    # Create 2x2 grid layout
+    col1, col2 = st.columns(2)
+    col3, col4 = st.columns(2)
+
+    # Top row: Today and Last 7 Days
     with col1:
-        st.metric("Period Total (kWh/m²)", f"{stats['total_kwh']:.1f}")
-
-    with col2:
-        # Calculate today's radiation from periods_df
-        today = pd.Timestamp.now(tz="America/Los_Angeles").date()
-        periods_today = periods_df[periods_df["period_start"].dt.date == today]
-        today_kwh = periods_today["energy_kwh"].sum()
-
-        # Calculate yesterday's radiation for comparison
-        yesterday = (pd.Timestamp(today) - pd.Timedelta(days=1)).date()
-        periods_yesterday = periods_df[periods_df["period_start"].dt.date == yesterday]
-        yesterday_kwh = periods_yesterday["energy_kwh"].sum()
-
-        st.metric(
-            "Today (kWh/m²)",
-            f"{today_kwh:.1f}",
-            delta=f"{today_kwh - yesterday_kwh:.1f}",
+        today_data = metrics["today"]
+        render_solar_metric_card(
+            "Today",
+            today_data["value"],
+            today_data["unit"],
+            today_data["sparkline_data"],
+            "today",
+            today_data["axis_range"],
+            today_data["delta"]
         )
 
+    with col2:
+        week_data = metrics["last_7d"]
+        render_solar_metric_card(
+            "Last 7 Days",
+            week_data["value"],
+            week_data["unit"],
+            week_data["sparkline_data"],
+            "last_7d",
+            week_data["axis_range"],
+            week_data["delta"]
+        )
+
+    # Bottom row: Last 30 Days and Last 365 Days
     with col3:
-        peak = stats["peak_day"]
-        if peak["date"]:
-            st.metric("Peak Day (kWh/m²)", f"{peak['kwh']:.1f}", delta=peak["date"])
-        else:
-            st.metric("Peak Day", "—")
+        month_data = metrics["last_30d"]
+        render_solar_metric_card(
+            "Last 30 Days",
+            month_data["value"],
+            month_data["unit"],
+            month_data["sparkline_data"],
+            "last_30d",
+            month_data["axis_range"],
+            month_data["delta"]
+        )
 
     with col4:
-        st.metric("Daily Average (kWh/m²/day)", f"{stats['avg_daily_kwh']:.1f}")
+        year_data = metrics["last_365d"]
+        render_solar_metric_card(
+            "Last 365 Days",
+            year_data["value"],
+            year_data["unit"],
+            year_data["sparkline_data"],
+            "last_365d",
+            year_data["axis_range"],
+            year_data["delta"]
+        )
 
 
 def _render_month_day_heatmap(filtered_df):
