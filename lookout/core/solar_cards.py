@@ -12,7 +12,10 @@ from datetime import date, datetime
 import pytz
 
 from lookout.core.solar_energy_periods import aggregate_to_daily
+from lookout.core.chart_config import get_standard_colors
 from lookout.utils.log_util import app_logger
+
+import plotly.graph_objects as go
 
 logger = app_logger(__name__)
 
@@ -255,3 +258,103 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
     result["today"]["axis_range"] = (0, today_max)
 
     return result
+
+
+def create_solar_sparkline(values: List[float], period_type: str,
+                          y_axis_range: Tuple[float, float]) -> go.Figure:
+    """
+    Create step-chart sparkline for solar radiation metrics.
+
+    Features:
+    - Step chart style (no bar spacing)
+    - Gray bars for NaN values (full height)
+    - Fixed y-axis range for comparison
+    - Minimal styling (no axes/labels/toolbar)
+
+    :param values: List of numeric values (NaN for missing data)
+    :param period_type: "today", "last_7d", "last_30d", or "last_365d"
+    :param y_axis_range: Tuple of (min, max) for fixed y-axis
+    :return: Plotly figure configured as minimal sparkline
+    """
+    # Separate valid values from NaN values
+    valid_indices = []
+    nan_indices = []
+    valid_values = []
+
+    for i, val in enumerate(values):
+        if pd.isna(val):
+            nan_indices.append(i)
+        else:
+            valid_indices.append(i)
+            valid_values.append(val)
+
+    # Get theme colors
+    colors = get_standard_colors()
+
+    # Create figure with step chart bars
+    fig = go.Figure()
+
+    # Add valid data bars (step chart style)
+    if valid_values:
+        fig.add_trace(
+            go.Bar(
+                x=valid_indices,
+                y=valid_values,
+                marker_color=colors["solar_medium"],  # Golden orange from theme
+                marker_line_width=0,  # No bar outlines
+                width=1,  # Full width, no spacing (step chart)
+                hoverinfo="skip",  # No hover (minimal design)
+                showlegend=False
+            )
+        )
+
+    # Add gray bars for NaN values (full height)
+    if nan_indices:
+        max_y = y_axis_range[1]
+        fig.add_trace(
+            go.Bar(
+                x=nan_indices,
+                y=[max_y] * len(nan_indices),  # Full height
+                marker_color=colors["gap_fill"],  # Gray for missing data
+                marker_line_width=0,
+                width=1,
+                hoverinfo="skip",
+                showlegend=False
+            )
+        )
+
+    # Configure layout for minimal sparkline
+    fig.update_layout(
+        height=40,  # Fixed height
+        margin=dict(l=0, r=0, t=0, b=0),  # No margins
+        plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
+        paper_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+        hovermode=False,  # Disable hover
+    )
+
+    # Configure axes - completely hidden
+    fig.update_xaxes(
+        visible=False,  # Hide x-axis
+        showgrid=False,
+        showticklabels=False,
+        autorange=False,
+        range=[-0.5, len(values) - 0.5]  # Full range with padding
+    )
+
+    fig.update_yaxes(
+        visible=False,  # Hide y-axis
+        showgrid=False,
+        showticklabels=False,
+        autorange=False,
+        range=y_axis_range  # Fixed range for comparison
+    )
+
+    # Configure toolbar - completely hidden
+    fig.update_layout(
+        modebar=dict(
+            remove=['zoom', 'pan', 'select', 'lasso', 'zoomIn', 'zoomOut', 'autoScale', 'resetScale']
+        )
+    )
+
+    return fig
