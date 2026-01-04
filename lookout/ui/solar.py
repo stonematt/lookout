@@ -209,7 +209,7 @@ def _render_day_15min_heatmap(filtered_df):
     st.subheader("15-Minute Solar Radiation")
 
     try:
-        fig = create_day_15min_heatmap(filtered_df, height=500, dense_view=True)
+        fig = create_day_15min_heatmap(filtered_df, start_hour=4, end_hour=21, height=500, dense_view=True)
         st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.error(f"Error creating heatmap: {e}")
