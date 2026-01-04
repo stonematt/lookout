@@ -124,7 +124,8 @@ def _render_metric_grid(periods_df):
             today_data["sparkline_data"],
             "today",
             today_data["axis_range"],
-            today_data["delta"]
+            today_data["delta"],
+            today_data["hover_labels"]
         )
 
     with col2:
@@ -136,7 +137,8 @@ def _render_metric_grid(periods_df):
             week_data["sparkline_data"],
             "last_7d",
             week_data["axis_range"],
-            week_data["delta"]
+            week_data["delta"],
+            week_data["hover_labels"]
         )
 
     # Bottom row: Last 30 Days and Last 365 Days
@@ -149,7 +151,8 @@ def _render_metric_grid(periods_df):
             month_data["sparkline_data"],
             "last_30d",
             month_data["axis_range"],
-            month_data["delta"]
+            month_data["delta"],
+            month_data["hover_labels"]
         )
 
     with col4:
@@ -161,7 +164,8 @@ def _render_metric_grid(periods_df):
             year_data["sparkline_data"],
             "last_365d",
             year_data["axis_range"],
-            year_data["delta"]
+            year_data["delta"],
+            year_data["hover_labels"]
         )
 
 

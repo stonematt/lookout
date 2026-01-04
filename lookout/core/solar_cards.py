@@ -204,6 +204,10 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
             # Today's total value
             value = sum(v for v in sparkline_data if not pd.isna(v))
 
+            # Generate hover labels: "Hour 08<br>0.42 kWh/m²"
+            hover_labels = [f"Hour {i:02d}<br>{value:.2f} kWh/m²" if not pd.isna(value) else f"Hour {i:02d}<br>No data"
+                           for i, value in enumerate(sparkline_data)]
+
             # Delta: For now, disable complex delta calculation for rolling window
             # TODO: Implement proper delta vs yesterday's equivalent hours
             delta_value = None
@@ -212,6 +216,12 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
             # Daily periods: get N days of daily data
             sparkline_data = get_daily_range(periods_df, end_date_obj, days)
             value = sum(v for v in sparkline_data if not pd.isna(v))
+
+            # Generate hover labels: "Sun 2025-01-04<br>2.3 kWh/m²"
+            date_list = pd.date_range(end_date_obj - pd.Timedelta(days=days-1),
+                                    periods=days, freq='D')
+            hover_labels = [f"{date.strftime('%a %Y-%m-%d')}<br>{value:.2f} kWh/m²" if not pd.isna(value) else f"{date.strftime('%a %Y-%m-%d')}<br>No data"
+                           for date, value in zip(date_list, sparkline_data)]
 
             # Delta vs previous period
             prev_end_ts = pd.Timestamp(end_date_obj) - pd.Timedelta(days=days)
@@ -234,6 +244,7 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
             "value": formatted_value,
             "unit": unit,
             "sparkline_data": sparkline_data,
+            "hover_labels": hover_labels,
             "delta": delta
         }
 
@@ -306,7 +317,8 @@ def aggregate_to_rolling_24h(periods_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_solar_sparkline(values: List[float], period_type: str,
-                          y_axis_range: Tuple[float, float]) -> go.Figure:
+                          y_axis_range: Tuple[float, float],
+                          hover_labels: Optional[List[str]] = None) -> go.Figure:
     """
     Create step-chart sparkline for solar radiation metrics.
 
@@ -314,11 +326,13 @@ def create_solar_sparkline(values: List[float], period_type: str,
     - Step chart style (no bar spacing)
     - Gray bars for NaN values (full height)
     - Fixed y-axis range for comparison
+    - Custom hover with time/date and unit information
     - Minimal styling (no axes/labels/toolbar)
 
     :param values: List of numeric values (NaN for missing data)
     :param period_type: "today", "last_7d", "last_30d", or "last_365d"
     :param y_axis_range: Tuple of (min, max) for fixed y-axis
+    :param hover_labels: Optional list of hover text labels for each bar
     :return: Plotly figure configured as minimal sparkline
     """
     # Separate valid values from NaN values
@@ -339,6 +353,15 @@ def create_solar_sparkline(values: List[float], period_type: str,
     # Create figure with step chart bars
     fig = go.Figure()
 
+    # Prepare hover text
+    if hover_labels:
+        hover_text = [hover_labels[i] for i in valid_indices]
+        nan_hover_text = [hover_labels[i] for i in nan_indices] if nan_indices else []
+    else:
+        # Fallback hover text
+        hover_text = [f"Value: {v:.2f}" if not pd.isna(v) else "No data" for v in valid_values]
+        nan_hover_text = ["No data"] * len(nan_indices) if nan_indices else []
+
     # Add valid data bars (step chart style)
     if valid_values:
         fig.add_trace(
@@ -348,7 +371,8 @@ def create_solar_sparkline(values: List[float], period_type: str,
                 marker_color=colors["solar_medium"],  # Golden orange from theme
                 marker_line_width=0,  # No bar outlines
                 width=1,  # Full width, no spacing (step chart)
-                hoverinfo="skip",  # No hover (minimal design)
+                text=hover_text,  # Custom hover text
+                hoverinfo="text",
                 showlegend=False
             )
         )
@@ -363,7 +387,8 @@ def create_solar_sparkline(values: List[float], period_type: str,
                 marker_color=colors["gap_fill"],  # Gray for missing data
                 marker_line_width=0,
                 width=1,
-                hoverinfo="skip",
+                text=nan_hover_text,  # Custom hover text for missing data
+                hoverinfo="text",
                 showlegend=False
             )
         )
@@ -375,7 +400,7 @@ def create_solar_sparkline(values: List[float], period_type: str,
         plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
         paper_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
-        hovermode=False,  # Disable hover
+        hovermode="x",  # Enable hover on x-axis
     )
 
     # Configure axes - completely hidden
