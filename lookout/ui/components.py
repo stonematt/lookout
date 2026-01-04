@@ -136,7 +136,7 @@ def render_solar_metric_card(title: str, value: float, unit: str,
     # Value row - large numeric with unit
     col_value, col_unit = st.columns([3, 1])
     with col_value:
-        st.metric("", f"{value:.1f}", label_visibility="collapsed")
+        st.metric("Value", f"{value:.1f}", label_visibility="collapsed")
     with col_unit:
         st.caption(unit)
 

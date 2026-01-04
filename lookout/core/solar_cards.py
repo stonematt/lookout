@@ -197,19 +197,16 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
 
     for period_key, end_date_obj, days, data_type in periods_config:
         if data_type == "hourly":
-            # Today: hourly data for 24-hour sparkline
-            sparkline_df = aggregate_to_hourly(periods_df, today_str)
+            # Today: rolling 24h window from current hour boundary
+            sparkline_df = aggregate_to_rolling_24h(periods_df)
             sparkline_data = sparkline_df["hourly_kwh"].tolist()
 
             # Today's total value
             value = sum(v for v in sparkline_data if not pd.isna(v))
 
-            # Delta vs yesterday
-            yesterday_ts = pd.Timestamp(today) - pd.Timedelta(days=1)
-            yesterday_str = yesterday_ts.strftime("%Y-%m-%d")
-            yesterday_df = aggregate_to_hourly(periods_df, yesterday_str)
-            yesterday_value = sum(v for v in yesterday_df["hourly_kwh"].tolist() if not pd.isna(v))
-            delta_value = value - yesterday_value if not pd.isna(yesterday_value) else None
+            # Delta: For now, disable complex delta calculation for rolling window
+            # TODO: Implement proper delta vs yesterday's equivalent hours
+            delta_value = None
 
         else:
             # Daily periods: get N days of daily data
@@ -241,12 +238,11 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
         }
 
     # Calculate global axis range for 7d, 30d, 365d sparklines (exclude today)
-    daily_periods_data = [
-        result["last_7d"]["sparkline_data"],
-        result["last_30d"]["sparkline_data"],
-        result["last_365d"]["sparkline_data"]
-    ]
-    global_axis = get_global_axis_range(daily_periods_data)
+    # Use actual max from last 365d data for all daily cards
+    daily_365d_values = result["last_365d"]["sparkline_data"]
+    valid_365d_values = [v for v in daily_365d_values if not pd.isna(v)]
+    global_max = max(valid_365d_values) if valid_365d_values else 1.0
+    global_axis = (0, global_max)
 
     # Add axis info to daily periods
     for period_key in ["last_7d", "last_30d", "last_365d"]:
@@ -258,6 +254,55 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
     result["today"]["axis_range"] = (0, today_max)
 
     return result
+
+
+def aggregate_to_rolling_24h(periods_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregate last 24 hours from yesterday same hour boundary.
+
+    Always gets full 24h + current hour: yesterday 08:00 to today 08:00 when current is 08:53.
+    Aggregates by hour using all underlying 15-minute periods.
+
+    :param periods_df: DataFrame from calculate_15min_energy_periods
+    :return: DataFrame with columns [hour, hourly_kwh] for all 24 hours
+    """
+    if periods_df.empty:
+        # Return all hours with NaN
+        return pd.DataFrame({
+            "hour": list(range(24)),
+            "hourly_kwh": [np.nan] * 24
+        })
+
+    now = pd.Timestamp.now(tz="America/Los_Angeles")
+
+    # Get data from yesterday same hour boundary to today same hour
+    start_time = now.replace(minute=0, second=0, microsecond=0) - pd.Timedelta(hours=24)
+    end_time = now.replace(minute=0, second=0, microsecond=0) + pd.Timedelta(hours=1)
+
+    # Filter all 15-minute periods in 24h window
+    filtered = periods_df[
+        (periods_df["period_start"] >= start_time) &
+        (periods_df["period_start"] < end_time)
+    ].copy()
+
+    if filtered.empty:
+        # Return all hours with NaN
+        return pd.DataFrame({
+            "hour": list(range(24)),
+            "hourly_kwh": [np.nan] * 24
+        })
+
+    # Group by hour and sum ALL underlying 15-minute periods
+    filtered["hour"] = filtered["period_start"].dt.hour
+    hourly_dict = filtered.groupby("hour")["energy_kwh"].sum().to_dict()
+
+    # Return all 24 hours (NaN for missing, 0.0 for real zeros)
+    result_data = []
+    for hour in range(24):
+        value = hourly_dict.get(hour, np.nan)
+        result_data.append({"hour": hour, "hourly_kwh": value})
+
+    return pd.DataFrame(result_data)
 
 
 def create_solar_sparkline(values: List[float], period_type: str,
