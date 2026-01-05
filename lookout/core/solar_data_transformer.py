@@ -67,6 +67,75 @@ def prepare_month_day_heatmap_data(periods_df: pd.DataFrame) -> pd.DataFrame:
     return pivot_df
 
 
+def prepare_year_month_heatmap_data(periods_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transform energy periods data into year/month pivot table for heatmap visualization.
+
+    :param periods_df: DataFrame with period_start, period_end, energy_kwh columns
+    :return: Pivot table with years as index, months as columns, kWh values
+    """
+    if periods_df.empty:
+        logger.warning("Empty periods_df provided to prepare_year_month_heatmap_data")
+        return pd.DataFrame()
+
+    # Aggregate to monthly totals by year
+    monthly_df = _aggregate_to_monthly_by_year(periods_df)
+
+    if monthly_df.empty:
+        logger.warning("No monthly data available after aggregation")
+        return pd.DataFrame()
+
+    # Create pivot table: years x months (Jan-Dec)
+    pivot_df = monthly_df.pivot_table(
+        values="monthly_kwh",
+        index="year",
+        columns="month",
+        aggfunc="sum",  # Should be single value per year/month
+    )
+
+    # Ensure all months 1-12 are present as columns (fill missing with NaN)
+    all_months = list(range(1, 13))
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    
+    for month in all_months:
+        if month not in pivot_df.columns:
+            pivot_df[month] = np.nan
+
+    # Sort columns by month and index by year (newest first)
+    pivot_df = pivot_df[all_months]
+    pivot_df = pivot_df.sort_index(ascending=False)
+
+    # Convert column numbers to month names
+    pivot_df.columns = [month_names[i-1] for i in pivot_df.columns]
+
+    logger.debug(
+        f"Prepared year/month heatmap data: {len(pivot_df)} years × {len(pivot_df.columns)} months"
+    )
+    return pivot_df
+
+
+def _aggregate_to_monthly_by_year(periods_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregate energy periods to monthly totals by year.
+
+    :param periods_df: DataFrame with period_start, period_end, energy_kwh columns
+    :return: DataFrame with year, month, and monthly_kwh columns
+    """
+    periods_df = periods_df.copy()
+    periods_df["period_start"] = pd.to_datetime(periods_df["period_start"])
+    
+    # Extract year and month
+    periods_df["year"] = periods_df["period_start"].dt.year
+    periods_df["month"] = periods_df["period_start"].dt.month
+
+    # Group by year and month to get monthly totals
+    monthly_df = periods_df.groupby(["year", "month"])["energy_kwh"].sum().reset_index()
+    monthly_df = monthly_df.rename(columns={"energy_kwh": "monthly_kwh"})
+
+    return monthly_df
+
+
 def _aggregate_to_daily(periods_df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate energy periods to daily totals.

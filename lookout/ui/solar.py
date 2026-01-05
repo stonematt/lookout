@@ -16,6 +16,7 @@ from lookout.core.solar_viz import (
     create_day_column_chart,
     create_day_15min_heatmap,
     create_15min_bar_chart,
+    create_year_month_heatmap,
 )
 
 logger = app_logger(__name__)
@@ -63,14 +64,16 @@ def render():
     # Heatmap view selector
     heatmap_view = st.selectbox(
         "Select Heatmap View:",
-        options=["Month/Day View", "Day/15min View"],
-        index=0,  # Default to Month/Day View
+        options=["Year/Month View", "Month/Day View", "Day/15min View"],
+        index=0,  # Default to Year/Month View
         key="solar_heatmap_view",
-        help="Choose between daily monthly view or granular 15-minute view",
+        help="Choose between yearly, monthly and daily view or granular 15-minute view",
     )
 
     # Render selected heatmap
-    if heatmap_view == "Month/Day View":
+    if heatmap_view == "Year/Month View":
+        _render_year_month_heatmap(periods_df)
+    elif heatmap_view == "Month/Day View":
         _render_month_day_heatmap(periods_df)
     else:
         _render_day_15min_heatmap(periods_df)
@@ -99,6 +102,18 @@ def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
         return filtered_df
 
     return periods_df
+
+
+def _render_year_month_heatmap(filtered_df):
+    """Render Year/Month heatmap."""
+    st.subheader("Yearly Solar Radiation")
+
+    try:
+        fig = create_year_month_heatmap(filtered_df, height=500)
+        st.plotly_chart(fig, width="stretch")
+    except Exception as e:
+        st.error(f"Error creating heatmap: {e}")
+        logger.exception("Year/month heatmap error")
 
 
 def _render_tile_grid(periods_df):

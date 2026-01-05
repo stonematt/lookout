@@ -32,7 +32,7 @@ class SolarUIService:
 
     def get_available_dates(self, periods_df: pd.DataFrame) -> List[str]:
         """
-        Get list of dates that have solar production data.
+        Get list of dates that have solar radiation data.
 
         :param periods_df: DataFrame with energy period data
         :return: List of date strings in YYYY-MM-DD format

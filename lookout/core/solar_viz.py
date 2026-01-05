@@ -1,6 +1,6 @@
 """
 Solar Energy Visualizations
-Plotly-based charts and heatmaps for solar production data.
+Plotly-based charts and heatmaps for solar radiation data.
 """
 
 import numpy as np
@@ -13,6 +13,7 @@ from lookout.core.solar_data_transformer import (
     prepare_day_15min_heatmap_data,
     prepare_day_column_data,
     prepare_month_day_heatmap_data,
+    prepare_year_month_heatmap_data,
 )
 from lookout.utils.log_util import app_logger
 
@@ -21,6 +22,92 @@ logger = app_logger(__name__)
 
 # Color constants for all solar visualizations - now centralized in chart_config.py
 # Use get_solar_colors() and get_solar_colorscale() instead of these constants
+
+
+def create_year_month_heatmap(periods_df: pd.DataFrame, height=500) -> go.Figure:
+    """
+    Create year/month heatmap showing monthly solar radiation.
+
+    Design (Sunlight-inspired):
+    - X-axis: Months (Jan-Dec)
+    - Y-axis: Years (reverse chrono, newest top)
+    - Color: get_solar_colorscale() (yellow-to-orange gradient)
+    - Cells: Show kWh on hover (2 decimals)
+    - Zero energy months (0.0 kWh): Show as pale yellow (bottom of colorscale)
+    - Missing months (NaN - no data at all): Light gray (#F0F0F0)
+    - Click: Enable click events for interactivity
+    - Height: ~500px
+    """
+
+    logger.debug("Creating year/month solar radiation heatmap")
+
+    # Get processed data from transformer
+    pivot_df = prepare_year_month_heatmap_data(periods_df)
+
+    if pivot_df.empty:
+        logger.info("No monthly solar data available for heatmap")
+        # Return empty figure if no data
+        fig = go.Figure()
+        fig.update_layout(title="No Solar Data Available", height=height)
+        return fig
+
+    # Prepare data for heatmap
+    z_values = pivot_df.values
+    x_labels = pivot_df.columns.tolist()  # Month names (Jan, Feb, etc.)
+    y_labels = [str(year) for year in pivot_df.index]  # Years as strings
+
+    # Create custom hover text that handles missing data properly
+    hover_text = []
+    for i in range(len(y_labels)):
+        row_text = []
+        for j in range(len(x_labels)):
+            val = z_values[i, j]
+            if np.isnan(val):
+                row_text.append(f"<b>{x_labels[j]} {y_labels[i]}</b><br>No data")
+            else:
+                row_text.append(f"<b>{x_labels[j]} {y_labels[i]}</b><br>{val:.2f} kWh")
+        hover_text.append(row_text)
+
+    # Create heatmap with NaN values (Plotly handles NaN as transparent/missing)
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=z_values,  # Keep NaN values as-is
+            x=x_labels,
+            y=y_labels,
+            colorscale=get_solar_colorscale(),
+            zmin=0,  # Force scale to start at 0
+            zmax=(
+                z_values[~np.isnan(z_values)].max()
+                if np.any(~np.isnan(z_values))
+                else 1
+            ),
+            text=hover_text,
+            hoverinfo="text",
+            showscale=True,
+            colorbar=dict(title="kWh/month", ticksuffix=" kWh"),
+        )
+    )
+
+    # Add grid gaps for cell separation (like other heatmaps)
+    fig.update_traces(xgap=1, ygap=1)
+
+    # Update layout
+    fig.update_layout(
+        height=height,
+        xaxis_title="Month",
+        yaxis_title="Year",
+        yaxis_autorange="reversed",  # Newest years at top
+        yaxis=dict(
+            type='category',  # Force y-axis to treat years as categorical/text
+            categoryorder='array',  # Preserve the order we provide
+            categoryarray=y_labels  # Use our string labels
+        )
+    )
+
+    logger.info(
+        f"Created solar radiation heatmap with {len(y_labels)} years × {len(x_labels)} months"
+    )
+    return fig
 
 
 def create_month_day_heatmap(periods_df: pd.DataFrame, height=500) -> go.Figure:
