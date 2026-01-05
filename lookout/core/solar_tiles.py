@@ -5,13 +5,12 @@ Provides aggregation functions for additive tile system.
 Calculates metrics for Last 24h, 7d, 30d, and 365d periods.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 import pytz
 
-from lookout.core.chart_config import get_standard_colors
 from lookout.core.solar_energy_periods import aggregate_to_daily
 from lookout.utils.log_util import app_logger
 
@@ -112,35 +111,32 @@ def aggregate_to_last_24h(periods_df: pd.DataFrame) -> Dict:
         # Group by hour and sum energy
         hourly_dict = filtered_copy.groupby("hour")["energy_kwh"].sum().to_dict()
 
-        # Build 25-point sparkline data (24 hours with current partial included)
+        # Create rolling 25-hour sequence: yesterday current hour → current partial hour
+        rolling_hours = [(current_hour + offset) % 24 for offset in range(25)]
+
         sparkline_data = []
         hover_labels = []
 
-        for hour in range(24):
+        for i, hour in enumerate(rolling_hours):
+            # Get data for this hour (from catalog or current session)
             value = hourly_dict.get(hour, np.nan)
             sparkline_data.append(value)
 
-            # Hover labels: "Hour 18<br>0.42 kWh/m²"
-            if not pd.isna(value):
-                hover_labels.append(f"Hour {hour:02d}<br>{value:.2f} kWh/m²")
+            # Determine if this is the current partial hour (last position)
+            if i == 24:
+                hover_labels.append(f"Hour {hour:02d} (Current)<br>{value:.2f} kWh/m²")
             else:
-                hover_labels.append(f"Hour {hour:02d}<br>No data")
+                is_yesterday = i < (24 - current_hour)
+                time_desc = "Yesterday" if is_yesterday else "Today"
+                if not pd.isna(value):
+                    hover_labels.append(
+                        f"Hour {hour:02d} ({time_desc})<br>{value:.2f} kWh/m²"
+                    )
+                else:
+                    hover_labels.append(f"Hour {hour:02d} ({time_desc})<br>No data")
 
-        # Add current partial hour data (if not already in hourly_dict)
-        if current_hour not in hourly_dict:
-            current_partial_value = 0.0
-        else:
-            current_partial_value = hourly_dict[current_hour]
-
-        # Replace the current hour value with partial value
-        if current_hour < 24:
-            sparkline_data[current_hour] = current_partial_value
-            hover_labels[current_hour] = (
-                f"Hour {current_hour:02d} (Partial)<br>{current_partial_value:.2f} kWh/m²"
-            )
-
-        # Calculate total
-        total_kwh = sum(v for v in sparkline_data if not pd.isna(v))
+        # Calculate total - only count each hour once, not the repeated current hour
+        total_kwh = filtered["energy_kwh"].sum()
 
         # Delta vs previous 24h period (yesterday 18:00 → yesterday same time)
         prev_start = start_time - pd.Timedelta(days=1)
@@ -154,10 +150,8 @@ def aggregate_to_last_24h(periods_df: pd.DataFrame) -> Dict:
         prev_total = prev_filtered["energy_kwh"].sum() if not prev_filtered.empty else 0
         delta_value = total_kwh - prev_total
 
-        # Current period index for highlighting
-        current_period_index = (
-            current_hour if current_hour < len(sparkline_data) else None
-        )
+        # Current period index for highlighting - always the last (current partial hour)
+        current_period_index = 24
 
         return {
             "title": "Last 24h",
