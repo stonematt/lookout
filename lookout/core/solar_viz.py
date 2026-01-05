@@ -160,7 +160,11 @@ def create_day_column_chart(periods_df: pd.DataFrame, selected_date: str) -> go.
 
 
 def create_day_15min_heatmap(
-    periods_df: pd.DataFrame, start_hour: int = 0, end_hour: int = 23, height: int = 500, dense_view: bool = False
+    periods_df: pd.DataFrame,
+    start_hour: int = 0,
+    end_hour: int = 23,
+    height: int = 500,
+    dense_view: bool = False,
 ) -> go.Figure:
     """
     Create day/15min heatmap showing granular production patterns.

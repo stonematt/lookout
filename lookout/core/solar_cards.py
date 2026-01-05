@@ -32,10 +32,7 @@ def aggregate_to_hourly(periods_df: pd.DataFrame, target_date: str) -> pd.DataFr
     """
     if periods_df.empty:
         # Return all hours with NaN (will show as gray bars)
-        return pd.DataFrame({
-            "hour": list(range(24)),
-            "hourly_kwh": [np.nan] * 24
-        })
+        return pd.DataFrame({"hour": list(range(24)), "hourly_kwh": [np.nan] * 24})
 
     try:
         target_date_obj = pd.to_datetime(target_date).date()
@@ -50,10 +47,7 @@ def aggregate_to_hourly(periods_df: pd.DataFrame, target_date: str) -> pd.DataFr
 
     if filtered_df.empty:
         # Return all hours with NaN
-        return pd.DataFrame({
-            "hour": list(range(24)),
-            "hourly_kwh": [np.nan] * 24
-        })
+        return pd.DataFrame({"hour": list(range(24)), "hourly_kwh": [np.nan] * 24})
 
     # Extract hour from period_start (already TZ-aware)
     filtered_df["hour"] = filtered_df["period_start"].dt.hour
@@ -91,10 +85,10 @@ def get_daily_range(periods_df: pd.DataFrame, end_date: date, days: int) -> List
         return [np.nan] * days
 
     # Calculate start date (inclusive)
-    start_date = pd.Timestamp(end_date) - pd.Timedelta(days=days-1)
+    start_date = pd.Timestamp(end_date) - pd.Timedelta(days=days - 1)
 
     # Create date range for all expected days
-    date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+    date_range = pd.date_range(start=start_date, end=end_date, freq="D")
 
     # Create dictionary of existing daily values
     daily_values = dict(zip(daily_df["date"], daily_df["daily_kwh"]))
@@ -205,8 +199,14 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
             value = sum(v for v in sparkline_data if not pd.isna(v))
 
             # Generate hover labels: "Hour 08<br>0.42 kWh/m²"
-            hover_labels = [f"Hour {i:02d}<br>{value:.2f} kWh/m²" if not pd.isna(value) else f"Hour {i:02d}<br>No data"
-                           for i, value in enumerate(sparkline_data)]
+            hover_labels = [
+                (
+                    f"Hour {i:02d}<br>{value:.2f} kWh/m²"
+                    if not pd.isna(value)
+                    else f"Hour {i:02d}<br>No data"
+                )
+                for i, value in enumerate(sparkline_data)
+            ]
 
             # Delta: For now, disable complex delta calculation for rolling window
             # TODO: Implement proper delta vs yesterday's equivalent hours
@@ -218,10 +218,17 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
             value = sum(v for v in sparkline_data if not pd.isna(v))
 
             # Generate hover labels: "Sun 2025-01-04<br>2.3 kWh/m²"
-            date_list = pd.date_range(end_date_obj - pd.Timedelta(days=days-1),
-                                    periods=days, freq='D')
-            hover_labels = [f"{date.strftime('%a %Y-%m-%d')}<br>{value:.2f} kWh/m²" if not pd.isna(value) else f"{date.strftime('%a %Y-%m-%d')}<br>No data"
-                           for date, value in zip(date_list, sparkline_data)]
+            date_list = pd.date_range(
+                end_date_obj - pd.Timedelta(days=days - 1), periods=days, freq="D"
+            )
+            hover_labels = [
+                (
+                    f"{date.strftime('%a %Y-%m-%d')}<br>{value:.2f} kWh/m²"
+                    if not pd.isna(value)
+                    else f"{date.strftime('%a %Y-%m-%d')}<br>No data"
+                )
+                for date, value in zip(date_list, sparkline_data)
+            ]
 
             # Delta vs previous period
             prev_end_ts = pd.Timestamp(end_date_obj) - pd.Timedelta(days=days)
@@ -237,7 +244,7 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
         if delta_value is not None:
             delta = {
                 "value": abs(delta_value),
-                "direction": "up" if delta_value > 0 else "down"
+                "direction": "up" if delta_value > 0 else "down",
             }
 
         result[period_key] = {
@@ -245,7 +252,7 @@ def calculate_period_metrics(periods_df: pd.DataFrame) -> Dict:
             "unit": unit,
             "sparkline_data": sparkline_data,
             "hover_labels": hover_labels,
-            "delta": delta
+            "delta": delta,
         }
 
     # Calculate global axis range for 7d, 30d, 365d sparklines (exclude today)
@@ -279,10 +286,7 @@ def aggregate_to_rolling_24h(periods_df: pd.DataFrame) -> pd.DataFrame:
     """
     if periods_df.empty:
         # Return all hours with NaN
-        return pd.DataFrame({
-            "hour": list(range(24)),
-            "hourly_kwh": [np.nan] * 24
-        })
+        return pd.DataFrame({"hour": list(range(24)), "hourly_kwh": [np.nan] * 24})
 
     now = pd.Timestamp.now(tz="America/Los_Angeles")
 
@@ -292,16 +296,13 @@ def aggregate_to_rolling_24h(periods_df: pd.DataFrame) -> pd.DataFrame:
 
     # Filter all 15-minute periods in 24h window
     filtered = periods_df[
-        (periods_df["period_start"] >= start_time) &
-        (periods_df["period_start"] < end_time)
+        (periods_df["period_start"] >= start_time)
+        & (periods_df["period_start"] < end_time)
     ].copy()
 
     if filtered.empty:
         # Return all hours with NaN
-        return pd.DataFrame({
-            "hour": list(range(24)),
-            "hourly_kwh": [np.nan] * 24
-        })
+        return pd.DataFrame({"hour": list(range(24)), "hourly_kwh": [np.nan] * 24})
 
     # Group by hour and sum ALL underlying 15-minute periods
     filtered["hour"] = filtered["period_start"].dt.hour
@@ -316,9 +317,12 @@ def aggregate_to_rolling_24h(periods_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(result_data)
 
 
-def create_solar_sparkline(values: List[float], period_type: str,
-                          y_axis_range: Tuple[float, float],
-                          hover_labels: Optional[List[str]] = None) -> go.Figure:
+def create_solar_sparkline(
+    values: List[float],
+    period_type: str,
+    y_axis_range: Tuple[float, float],
+    hover_labels: Optional[List[str]] = None,
+) -> go.Figure:
     """
     Create step-chart sparkline for solar radiation metrics.
 
@@ -359,7 +363,9 @@ def create_solar_sparkline(values: List[float], period_type: str,
         nan_hover_text = [hover_labels[i] for i in nan_indices] if nan_indices else []
     else:
         # Fallback hover text
-        hover_text = [f"Value: {v:.2f}" if not pd.isna(v) else "No data" for v in valid_values]
+        hover_text = [
+            f"Value: {v:.2f}" if not pd.isna(v) else "No data" for v in valid_values
+        ]
         nan_hover_text = ["No data"] * len(nan_indices) if nan_indices else []
 
     # Add valid data bars (step chart style)
@@ -373,7 +379,7 @@ def create_solar_sparkline(values: List[float], period_type: str,
                 width=1,  # Full width, no spacing (step chart)
                 text=hover_text,  # Custom hover text
                 hoverinfo="text",
-                showlegend=False
+                showlegend=False,
             )
         )
 
@@ -389,7 +395,7 @@ def create_solar_sparkline(values: List[float], period_type: str,
                 width=1,
                 text=nan_hover_text,  # Custom hover text for missing data
                 hoverinfo="text",
-                showlegend=False
+                showlegend=False,
             )
         )
 
@@ -409,7 +415,7 @@ def create_solar_sparkline(values: List[float], period_type: str,
         showgrid=False,
         showticklabels=False,
         autorange=False,
-        range=[-0.5, len(values) - 0.5]  # Full range with padding
+        range=[-0.5, len(values) - 0.5],  # Full range with padding
     )
 
     fig.update_yaxes(
@@ -417,13 +423,22 @@ def create_solar_sparkline(values: List[float], period_type: str,
         showgrid=False,
         showticklabels=False,
         autorange=False,
-        range=y_axis_range  # Fixed range for comparison
+        range=y_axis_range,  # Fixed range for comparison
     )
 
     # Configure toolbar - completely hidden
     fig.update_layout(
         modebar=dict(
-            remove=['zoom', 'pan', 'select', 'lasso', 'zoomIn', 'zoomOut', 'autoScale', 'resetScale']
+            remove=[
+                "zoom",
+                "pan",
+                "select",
+                "lasso",
+                "zoomIn",
+                "zoomOut",
+                "autoScale",
+                "resetScale",
+            ]
         )
     )
 

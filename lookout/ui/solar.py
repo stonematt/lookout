@@ -47,7 +47,10 @@ def render():
     # Pattern from rain_events.py
     # Default to last 365 days
     start_ts, end_ts = ui_components.create_date_range_slider(
-        full_periods_df, date_column="period_start", key_prefix="solar", default_days=365
+        full_periods_df,
+        date_column="period_start",
+        key_prefix="solar",
+        default_days=365,
     )
 
     # Load and filter data by date range for heatmap
@@ -63,7 +66,7 @@ def render():
         options=["Month/Day View", "Day/15min View"],
         index=0,  # Default to Month/Day View
         key="solar_heatmap_view",
-        help="Choose between daily monthly view or granular 15-minute view"
+        help="Choose between daily monthly view or granular 15-minute view",
     )
 
     # Render selected heatmap
@@ -101,7 +104,7 @@ def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
 def _render_tile_grid(periods_df):
     """
     Render 2x2 compact tile grid with Last 24h, 7d, 30d, 365d metrics.
-    
+
     Uses unfiltered full catalog data (not date-range filtered).
     Shows compact tiles with Streamlit metrics + simple sparklines.
     """
@@ -120,26 +123,26 @@ def _render_tile_grid(periods_df):
         tile_data = metrics["last_24h"].copy()
         render_solar_tile(
             title=tile_data["title"],
-            total_kwh=tile_data["total_kwh"], 
+            total_kwh=tile_data["total_kwh"],
             period_type="last_24h",
             sparkline_data=tile_data["sparkline_data"],
             y_axis_range=tile_data["y_axis_range"],
             delta_value=tile_data["delta_value"],
             hover_labels=tile_data["hover_labels"],
-            current_period_index=tile_data["current_period_index"]
+            current_period_index=tile_data["current_period_index"],
         )
 
     with col2:
         tile_data = metrics["last_7d"].copy()
         render_solar_tile(
             title=tile_data["title"],
-            total_kwh=tile_data["total_kwh"], 
+            total_kwh=tile_data["total_kwh"],
             period_type="last_7d",
             sparkline_data=tile_data["sparkline_data"],
             y_axis_range=tile_data["y_axis_range"],
             delta_value=tile_data["delta_value"],
             hover_labels=tile_data["hover_labels"],
-            current_period_index=tile_data["current_period_index"]
+            current_period_index=tile_data["current_period_index"],
         )
 
     # Bottom row: Last 30d and Last 365d
@@ -147,26 +150,26 @@ def _render_tile_grid(periods_df):
         tile_data = metrics["last_30d"].copy()
         render_solar_tile(
             title=tile_data["title"],
-            total_kwh=tile_data["total_kwh"], 
+            total_kwh=tile_data["total_kwh"],
             period_type="last_30d",
             sparkline_data=tile_data["sparkline_data"],
             y_axis_range=tile_data["y_axis_range"],
             delta_value=tile_data["delta_value"],
             hover_labels=tile_data["hover_labels"],
-            current_period_index=tile_data["current_period_index"]
+            current_period_index=tile_data["current_period_index"],
         )
 
     with col4:
         tile_data = metrics["last_365d"].copy()
         render_solar_tile(
             title=tile_data["title"],
-            total_kwh=tile_data["total_kwh"], 
+            total_kwh=tile_data["total_kwh"],
             period_type="last_365d",
             sparkline_data=tile_data["sparkline_data"],
             y_axis_range=tile_data["y_axis_range"],
             delta_value=tile_data["delta_value"],
             hover_labels=tile_data["hover_labels"],
-            current_period_index=tile_data["current_period_index"]
+            current_period_index=tile_data["current_period_index"],
         )
 
 
@@ -236,7 +239,9 @@ def _render_day_15min_heatmap(filtered_df):
     st.subheader("15-Minute Solar Radiation")
 
     try:
-        fig = create_day_15min_heatmap(filtered_df, start_hour=4, end_hour=21, height=500, dense_view=True)
+        fig = create_day_15min_heatmap(
+            filtered_df, start_hour=4, end_hour=21, height=500, dense_view=True
+        )
         st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.error(f"Error creating heatmap: {e}")

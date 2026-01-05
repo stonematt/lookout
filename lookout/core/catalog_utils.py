@@ -7,7 +7,12 @@ from typing import Optional
 import pandas as pd
 from datetime import datetime, timezone
 
-from lookout.storage.storj import get_df_from_s3, save_df_to_s3, backup_data, get_s3_client
+from lookout.storage.storj import (
+    get_df_from_s3,
+    save_df_to_s3,
+    backup_data,
+    get_s3_client,
+)
 from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, DEFAULT_MAC_ADDRESS
 from lookout.utils.log_util import app_logger
 

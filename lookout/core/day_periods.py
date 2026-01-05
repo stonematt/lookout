@@ -91,7 +91,7 @@ def delete_day_periods_catalog(mac_address: str, bucket: str = DEFAULT_BUCKET) -
             return True
 
         catalog_path = get_catalog_path(mac_address)
-        
+
         # Note: S3 delete would require boto3 client - for now use Storj storage patterns
         # This is a placeholder - actual deletion would need storage client access
         logger.info(f"Day periods catalog deletion not implemented for {mac_address}")
