@@ -6,8 +6,10 @@ tabs and modules to ensure consistent behavior and styling.
 """
 
 import datetime
-from typing import Optional, Union, List, Dict, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -107,11 +109,16 @@ def filter_dataframe_by_date_range(
     return df.loc[mask]
 
 
-def render_solar_metric_card(title: str, value: float, unit: str,
-                           sparkline_data: List[float], period_type: str,
-                           y_axis_range: Tuple[float, float],
-                           delta: Optional[Dict] = None,
-                           hover_labels: Optional[List[str]] = None):
+def render_solar_metric_card(
+    title: str,
+    value: float,
+    unit: str,
+    sparkline_data: List[float],
+    period_type: str,
+    y_axis_range: Tuple[float, float],
+    delta: Optional[Dict] = None,
+    hover_labels: Optional[List[str]] = None,
+):
     """
     Render individual solar radiation metric card with step-chart sparkline.
 
@@ -143,7 +150,9 @@ def render_solar_metric_card(title: str, value: float, unit: str,
         st.caption(unit)
 
     # Sparkline row - step chart with no margins
-    sparkline_fig = create_solar_sparkline(sparkline_data, period_type, y_axis_range, hover_labels)
+    sparkline_fig = create_solar_sparkline(
+        sparkline_data, period_type, y_axis_range, hover_labels
+    )
     st.plotly_chart(sparkline_fig, width="stretch", config={"displayModeBar": False})
 
     # Delta row - optional up/down badge
@@ -151,3 +160,127 @@ def render_solar_metric_card(title: str, value: float, unit: str,
         delta_symbol = "↑" if delta["direction"] == "up" else "↓"
         delta_text = f"{delta_symbol} {delta['value']:.1f}"
         st.caption(delta_text)
+
+
+def render_solar_tile(
+    title: str,
+    total_kwh: float,
+    period_type: str,
+    sparkline_data: List[float],
+    y_axis_range: Tuple[float, float],
+    delta_value: Optional[float] = None,
+    hover_labels: List[str] = None,
+    current_period_index: Optional[int] = None,
+):
+    """
+    Render compact solar tile with gauge + sparkline.
+
+    Tile layout:
+    - Row 1: Title (muted)
+    - Row 2: Streamlit metric with delta (integrated)
+    - Row 3: Simple sparkline (40px, dense)
+
+    :param title: Tile title ("Last 24h", "Last 7d", etc.)
+    :param total_kwh: Sum of period energy
+    :param period_type: "last_24h", "last_7d", etc. (unused but for consistency)
+    :param sparkline_data: List of hourly/daily values
+    :param y_axis_range: Fixed axis for comparison across tiles
+    :param delta_value: Delta value (positive/negative/None)
+    :param hover_labels: Hover text with time/date + energy
+    :param current_period_index: Index to highlight with border
+    """
+    # Title row
+    st.caption(title)
+
+    # Metric row with integrated delta
+    if delta_value is not None:
+        delta_display = f"{delta_value:+.2f}"
+    else:
+        delta_display = None
+    st.metric("Total", f"{total_kwh:.2f}", delta=delta_display)
+
+    # Sparkline row - simple column chart
+    fig = _create_simple_sparkline(
+        sparkline_data, hover_labels, current_period_index, y_axis_range
+    )
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def _create_simple_sparkline(
+    values: List[float],
+    hover_labels: List[str] = None,
+    current_period_index: Optional[int] = None,
+    y_axis_range: Tuple[float, float] = (0, 1.0),
+) -> go.Figure:
+    """
+    Create simple column chart sparkline (15-line replacement for 135-line function).
+
+    Features:
+    - Step chart style (full-width bars, no spacing)
+    - Gray bars for NaN values (full height)
+    - Black border for current period highlight
+    - Minimal styling (no axes/labels/toolbar)
+
+    :param values: List of numeric values (NaN for missing data)
+    :param hover_labels: Hover text with time/date + energy values
+    :param current_period_index: Index to highlight with black border
+    :param y_axis_range: Fixed y-axis range for comparison
+    :return: Plotly figure configured as minimal sparkline
+    """
+    from lookout.core.chart_config import get_standard_colors
+
+    colors = get_standard_colors()
+    fig = go.Figure()
+
+    if not values:
+        # Empty sparkline
+        fig.update_layout(height=40, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+        fig.update_xaxes(visible=False)
+        fig.update_yaxes(visible=False, range=y_axis_range)
+        return fig
+
+    # Prepare colors and borders
+    bar_colors = []
+    border_widths = []
+
+    for i, value in enumerate(values):
+        if pd.isna(value):
+            bar_colors.append(colors["gap_fill"])  # Gray for missing data
+            border_widths.append(0)
+        else:
+            bar_colors.append(colors["solar_medium"])  # Golden orange
+            # Black border for current period
+            if i == current_period_index:
+                border_widths.append(1)
+            else:
+                border_widths.append(0)
+
+    # Single trace with conditional styling
+    fig.add_trace(
+        go.Bar(
+            x=list(range(len(values))),
+            y=[v if not pd.isna(v) else y_axis_range[1] for v in values],
+            marker_color=bar_colors,
+            marker_line_width=border_widths,
+            marker_line_color="black",
+            hovertext=hover_labels
+            or [f"Value: {v:.2f}" if not pd.isna(v) else "No data" for v in values],
+            hoverinfo="text",
+            width=1,  # Full width, no spacing
+            showlegend=False,
+        )
+    )
+
+    # Minimal layout
+    fig.update_layout(
+        height=40,  # Compact sparkline height
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=False,
+        hovermode="x",
+    )
+
+    # Hidden axes
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False, range=y_axis_range)
+
+    return fig

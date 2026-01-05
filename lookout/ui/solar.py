@@ -38,8 +38,10 @@ def render():
         st.warning("No solar data available")
         return
 
-    # NEW: Render 2x2 metric grid (unfiltered, fixed periods)
-    _render_metric_grid(full_periods_df)
+    # NEW: Render 2x2 tile grid (unfiltered, fixed periods)
+    _render_tile_grid(full_periods_df)
+
+    st.divider()  # Visual separator between tiles and heatmaps
 
     # Date range slider - use ui_components.create_date_range_slider
     # Pattern from rain_events.py
@@ -96,76 +98,75 @@ def _load_and_cache_data(start_ts, end_ts) -> pd.DataFrame:
     return periods_df
 
 
-def _render_metric_grid(periods_df):
+def _render_tile_grid(periods_df):
     """
-    Render 2x2 metric grid with solar radiation cards.
-
+    Render 2x2 compact tile grid with Last 24h, 7d, 30d, 365d metrics.
+    
     Uses unfiltered full catalog data (not date-range filtered).
-    Shows Today, Last 7 Days, Last 30 Days, Last 365 Days.
-    Each card has value, unit, step-chart sparkline, and optional delta.
+    Shows compact tiles with Streamlit metrics + simple sparklines.
     """
-    from lookout.core.solar_cards import calculate_period_metrics
-    from lookout.ui.components import render_solar_metric_card
+    from lookout.core.solar_tiles import calculate_tile_metrics
+    from lookout.ui.components import render_solar_tile
 
-    # Calculate metrics for all periods
-    metrics = calculate_period_metrics(periods_df)
+    # Calculate metrics for all tiles
+    metrics = calculate_tile_metrics(periods_df)
 
     # Create 2x2 grid layout
     col1, col2 = st.columns(2)
     col3, col4 = st.columns(2)
 
-    # Top row: Today and Last 7 Days
+    # Top row: Last 24h and Last 7d
     with col1:
-        today_data = metrics["today"]
-        render_solar_metric_card(
-            "Today",
-            today_data["value"],
-            today_data["unit"],
-            today_data["sparkline_data"],
-            "today",
-            today_data["axis_range"],
-            today_data["delta"],
-            today_data["hover_labels"]
+        tile_data = metrics["last_24h"].copy()
+        render_solar_tile(
+            title=tile_data["title"],
+            total_kwh=tile_data["total_kwh"], 
+            period_type="last_24h",
+            sparkline_data=tile_data["sparkline_data"],
+            y_axis_range=tile_data["y_axis_range"],
+            delta_value=tile_data["delta_value"],
+            hover_labels=tile_data["hover_labels"],
+            current_period_index=tile_data["current_period_index"]
         )
 
     with col2:
-        week_data = metrics["last_7d"]
-        render_solar_metric_card(
-            "Last 7 Days",
-            week_data["value"],
-            week_data["unit"],
-            week_data["sparkline_data"],
-            "last_7d",
-            week_data["axis_range"],
-            week_data["delta"],
-            week_data["hover_labels"]
+        tile_data = metrics["last_7d"].copy()
+        render_solar_tile(
+            title=tile_data["title"],
+            total_kwh=tile_data["total_kwh"], 
+            period_type="last_7d",
+            sparkline_data=tile_data["sparkline_data"],
+            y_axis_range=tile_data["y_axis_range"],
+            delta_value=tile_data["delta_value"],
+            hover_labels=tile_data["hover_labels"],
+            current_period_index=tile_data["current_period_index"]
         )
 
-    # Bottom row: Last 30 Days and Last 365 Days
+    # Bottom row: Last 30d and Last 365d
     with col3:
-        month_data = metrics["last_30d"]
-        render_solar_metric_card(
-            "Last 30 Days",
-            month_data["value"],
-            month_data["unit"],
-            month_data["sparkline_data"],
-            "last_30d",
-            month_data["axis_range"],
-            month_data["delta"],
-            month_data["hover_labels"]
+        tile_data = metrics["last_30d"].copy()
+        render_solar_tile(
+            title=tile_data["title"],
+            total_kwh=tile_data["total_kwh"], 
+            period_type="last_30d",
+            sparkline_data=tile_data["sparkline_data"],
+            y_axis_range=tile_data["y_axis_range"],
+            delta_value=tile_data["delta_value"],
+            hover_labels=tile_data["hover_labels"],
+            current_period_index=tile_data["current_period_index"]
         )
 
     with col4:
-        year_data = metrics["last_365d"]
-        render_solar_metric_card(
-            "Last 365 Days",
-            year_data["value"],
-            year_data["unit"],
-            year_data["sparkline_data"],
-            "last_365d",
-            year_data["axis_range"],
-            year_data["delta"],
-            year_data["hover_labels"]
+        tile_data = metrics["last_365d"].copy()
+        render_solar_tile(
+            title=tile_data["title"],
+            total_kwh=tile_data["total_kwh"], 
+            period_type="last_365d",
+            sparkline_data=tile_data["sparkline_data"],
+            y_axis_range=tile_data["y_axis_range"],
+            delta_value=tile_data["delta_value"],
+            hover_labels=tile_data["hover_labels"],
+            current_period_index=tile_data["current_period_index"]
         )
 
 
