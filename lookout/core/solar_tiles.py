@@ -35,20 +35,11 @@ def calculate_tile_metrics(periods_df: pd.DataFrame) -> Dict:
         last_30d = aggregate_to_daily_periods(periods_df, 30)
         last_365d = aggregate_to_daily_periods(periods_df, 365)
 
-        # Calculate global y-axis range for daily tiles (7d, 30d, 365d)
-        daily_max = max(
-            [
-                max(last_7d["sparkline_data"]) if last_7d["sparkline_data"] else 0,
-                max(last_30d["sparkline_data"]) if last_30d["sparkline_data"] else 0,
-                max(last_365d["sparkline_data"]) if last_365d["sparkline_data"] else 0,
-            ]
-        )
-        daily_axis_range = (0, daily_max if daily_max > 0 else 1.0)
-
-        # Set axis ranges
-        last_7d["y_axis_range"] = daily_axis_range
-        last_30d["y_axis_range"] = daily_axis_range
-        last_365d["y_axis_range"] = daily_axis_range
+        # Auto-scaling: Let each tile scale to its own data range
+        # Remove uniform scaling to allow individual optimization
+        last_7d["y_axis_range"] = None
+        last_30d["y_axis_range"] = None
+        last_365d["y_axis_range"] = None
 
         # 24h tile uses its own axis range
         if last_24h["sparkline_data"]:

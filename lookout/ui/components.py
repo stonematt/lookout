@@ -235,6 +235,14 @@ def _create_simple_sparkline(
         fig.update_yaxes(visible=False, range=y_axis_range)
         return fig
 
+    # Calculate max value for auto-scaling gray bar height
+    if y_axis_range is None:
+        non_nan_values = [v for v in values if not pd.isna(v)]
+        max_actual_value = max(non_nan_values) if non_nan_values else 1.0
+        gray_bar_height = max_actual_value  # Auto-scale: use actual max
+    else:
+        gray_bar_height = y_axis_range[1]  # Fixed range: use max from range
+
     # Prepare colors and borders
     bar_colors = []
     border_widths = []
@@ -255,7 +263,7 @@ def _create_simple_sparkline(
     fig.add_trace(
         go.Bar(
             x=list(range(len(values))),
-            y=[v if not pd.isna(v) else y_axis_range[1] for v in values],
+            y=[v if not pd.isna(v) else gray_bar_height for v in values],
             marker_color=bar_colors,
             marker_line_width=border_widths,
             marker_line_color="black",
@@ -277,6 +285,11 @@ def _create_simple_sparkline(
 
     # Hidden axes
     fig.update_xaxes(visible=False)
-    fig.update_yaxes(visible=False, range=y_axis_range)
+
+    # Auto-scale if no range provided, otherwise use fixed range
+    if y_axis_range is not None:
+        fig.update_yaxes(visible=False, range=y_axis_range)
+    else:
+        fig.update_yaxes(visible=False)  # Auto-scale
 
     return fig
