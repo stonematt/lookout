@@ -169,18 +169,17 @@ def render_solar_tile(
     sparkline_data: List[float],
     y_axis_range: Tuple[float, float],
     delta_value: Optional[float] = None,
-    hover_labels: List[str] = None,
+    hover_labels: Optional[List[str]] = None,
     current_period_index: Optional[int] = None,
 ):
     """
-    Render compact solar tile with gauge + sparkline.
+    Render compact solar tile with metric + sparkline.
 
     Tile layout:
-    - Row 1: Title (muted)
-    - Row 2: Streamlit metric with delta (integrated)
-    - Row 3: Simple sparkline (40px, dense)
+    - Row 1: Streamlit metric with title as label + delta (integrated)
+    - Row 2: Simple sparkline (40px, dense)
 
-    :param title: Tile title ("Last 24h", "Last 7d", etc.)
+    :param title: Metric label ("Last 24h", "Last 7d", etc.)
     :param total_kwh: Sum of period energy
     :param period_type: "last_24h", "last_7d", etc. (unused but for consistency)
     :param sparkline_data: List of hourly/daily values
@@ -189,26 +188,23 @@ def render_solar_tile(
     :param hover_labels: Hover text with time/date + energy
     :param current_period_index: Index to highlight with border
     """
-    # Title row
-    st.caption(title)
-
-    # Metric row with integrated delta
+    # Metric row with integrated delta (title becomes metric label)
     if delta_value is not None:
         delta_display = f"{delta_value:+.2f}"
     else:
         delta_display = None
-    st.metric("Total", f"{total_kwh:.2f}", delta=delta_display)
+    st.metric(title, f"{total_kwh:.2f}", delta=delta_display)
 
     # Sparkline row - simple column chart
     fig = _create_simple_sparkline(
-        sparkline_data, hover_labels, current_period_index, y_axis_range
+        sparkline_data, hover_labels or [], current_period_index, y_axis_range
     )
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def _create_simple_sparkline(
     values: List[float],
-    hover_labels: List[str] = None,
+    hover_labels: Optional[List[str]] = None,
     current_period_index: Optional[int] = None,
     y_axis_range: Tuple[float, float] = (0, 1.0),
 ) -> go.Figure:
