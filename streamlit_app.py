@@ -122,16 +122,6 @@ time.sleep(1)
 
 # %%
 
-if st.sidebar.button("🔄 Refresh Data"):
-    try:
-        awn.update_session_data(
-            st.session_state["device"], st.session_state["history_df"]
-        )
-        st.sidebar.success("Data refreshed!")
-    except Exception as e:
-        st.sidebar.error("Failed to refresh data")
-
-
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
 if st.sidebar.button("🔄 Refresh Data"):
