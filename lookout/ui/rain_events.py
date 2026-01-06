@@ -19,6 +19,7 @@ from lookout.core.rain_viz import (
     create_event_rate_chart,
 )
 from lookout.ui import header
+import lookout.ui.components as ui_components
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
@@ -224,18 +225,9 @@ def render():
             f"Displaying catalog: {len(events_df)} events, {zero_rate_count} with zero max_rate"
         )
 
-        min_date = events_df["start_time"].min().date()
-        max_date = events_df["start_time"].max().date()
-
-        st.write("**Date Range:**")
-
-        date_range = st.slider(
-            "Select date range",
-            min_value=min_date,
-            max_value=max_date,
-            value=(min_date, max_date),
-            format="MMM DD, YYYY",
-            label_visibility="collapsed",
+        # Use shared date range slider
+        start_ts, end_ts = ui_components.create_date_range_slider(
+            events_df, date_column="start_time", key_prefix="rain_events"
         )
 
         # Advanced search - expand
@@ -269,22 +261,11 @@ def render():
 
                 filtered_events_df = events_df.copy()
 
-                if len(date_range) == 2:
-                    start_date, end_date = date_range
-                    start_ts = (
-                        pd.Timestamp(start_date)
-                        .tz_localize("America/Los_Angeles")
-                        .tz_convert("UTC")
+                # Filter by date range if specified
+                if start_ts and end_ts:
+                    filtered_events_df = ui_components.filter_dataframe_by_date_range(
+                        filtered_events_df, "start_time", start_ts, end_ts
                     )
-                    end_ts = (
-                        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-                        .tz_localize("America/Los_Angeles")
-                        .tz_convert("UTC")
-                    )
-                    filtered_events_df = filtered_events_df[
-                        (filtered_events_df["start_time"] >= start_ts)
-                        & (filtered_events_df["start_time"] < end_ts)
-                    ]
 
                 if selected_quality:
                     filtered_events_df = filtered_events_df[
@@ -297,7 +278,7 @@ def render():
 
                 logger.debug(
                     f"Filtered events: {len(filtered_events_df)} of {len(events_df)} "
-                    f"(date: {date_range}, quality: {selected_quality}, min_rain: {min_rainfall_threshold})"
+                    f"(date_range: {start_ts} to {end_ts}, quality: {selected_quality}, min_rain: {min_rainfall_threshold})"
                 )
 
         if len(filtered_events_df) < len(events_df):

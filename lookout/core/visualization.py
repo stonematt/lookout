@@ -186,6 +186,3 @@ def display_hourly_coverage_heatmap(df):
     )
 
     st.plotly_chart(fig, width="stretch")
-
-
-

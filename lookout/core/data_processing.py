@@ -69,7 +69,7 @@ def load_or_update_data(
         max_ms = st.session_state["history_df"]["dateutc"].max()
         st.session_state["history_max_dateutc"] = max_ms
         st.session_state["archive_max_dateutc"] = (
-            max_ms  # Preserve pure archive timestamp
+            max_ms  # Capture archive age (never changes during session)
         )
         st.session_state["cloud_max_dateutc"] = max_ms
         st.session_state["session_counter"] = 0
@@ -151,7 +151,7 @@ def load_or_update_data(
                     )
                     st.session_state["rain_events_catalog"] = updated_events
                     logger.info(
-                        f"Rain event catalog loaded: {len(updated_events)} events"
+                        f"Rain event catalog updated: {len(updated_events)} events"
                     )
                 else:
                     st.session_state["rain_events_catalog"] = pd.DataFrame()
@@ -167,6 +167,74 @@ def load_or_update_data(
         except Exception as e:
             logger.warning(f"Failed to load rain event catalog: {e}")
             st.session_state["rain_events_catalog"] = pd.DataFrame()
+
+    # Load energy catalog after archive data is available
+    if "energy_catalog" not in st.session_state:
+        try:
+            update_message.text("Getting solar energy catalog...")
+            from lookout.core.energy_catalog_func import (
+                load_energy_catalog,
+                update_energy_catalog,
+                detect_and_calculate_periods,
+            )
+
+            # Load existing catalog and update with new data from archive
+            existing_catalog = load_energy_catalog()
+            if not existing_catalog.empty:
+                # Update catalog with new data from archive
+                update_message.text("Updating solar energy catalog...")
+                updated_periods = update_energy_catalog(
+                    st.session_state["history_df"], existing_catalog
+                )
+                st.session_state["energy_catalog"] = updated_periods
+
+                # Auto-save if catalog is >2 days old
+                from lookout.core.energy_catalog import EnergyCatalog
+
+                catalog = EnergyCatalog(device["macAddress"], file_type)
+                try:
+                    if catalog.get_catalog_age() > pd.Timedelta(days=2):
+                        update_message.text("Saving solar energy catalog...")
+                        from lookout.core.energy_catalog_func import save_energy_catalog
+
+                        save_energy_catalog(updated_periods)
+                        logger.info("Energy catalog auto-saved (age > 2 days)")
+                except (TypeError, ValueError):
+                    # Skip auto-save if age check fails
+                    pass
+
+                update_message.text("Solar energy catalog loaded successfully")
+                logger.info(f"Energy catalog loaded: {len(updated_periods)} periods")
+                update_message.empty()
+            else:
+                # Generate catalog if doesn't exist
+                update_message.text("Generating solar energy periods...")
+                periods_df = detect_and_calculate_periods(
+                    st.session_state["history_df"], auto_save=False
+                )
+                st.session_state["energy_catalog"] = periods_df
+                update_message.text("Solar energy catalog loaded successfully")
+                logger.info(f"Energy catalog generated: {len(periods_df)} periods")
+                update_message.empty()
+
+        except Exception as e:
+            logger.warning(f"Failed to load energy catalog: {e}")
+            st.session_state["energy_catalog"] = pd.DataFrame()
+            update_message.text("Solar energy catalog loading failed")
+
+    # Update header now that catalogs are loaded
+    if "header_placeholder" in st.session_state and "device" in st.session_state:
+        try:
+            device_name = (
+                st.session_state["device"].get("info", {}).get("name", "Unknown")
+            )
+            with st.session_state.header_placeholder.container():
+                from lookout.ui import header
+
+                header.render_weather_header(device_name)
+            logger.debug("Header updated with active event information")
+        except Exception as e:
+            logger.warning(f"Failed to update header after catalog load: {e}")
 
 
 def should_update_history(

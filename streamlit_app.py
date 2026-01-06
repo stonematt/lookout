@@ -4,16 +4,34 @@ Main streamlit.io application
 
 import time
 
+import pandas as pd
 import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
 import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
-from lookout.ui import diagnostics, overview, playground, rain, rain_events
-from lookout.ui import header
 from lookout.core.styles import get_style_manager
+from lookout.ui import (
+    diagnostics,
+    header,
+    overview,
+    playground,
+    rain,
+    rain_events,
+    solar,
+)
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
+
+logger = app_logger(__name__)
+
+
+def render_dev_mode_notice() -> None:
+    """Render simple dev mode notice in sidebar."""
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("🛠️ **Development Environment**")
+    st.sidebar.caption("Running in development mode")
+
 
 # if st.secrets.get("DEBUG", False):
 #     try:
@@ -103,6 +121,17 @@ hist_file = f"{device_mac}.{file_type}"
 time.sleep(1)
 
 # %%
+
+if st.sidebar.button("🔄 Refresh Data"):
+    try:
+        awn.update_session_data(
+            st.session_state["device"], st.session_state["history_df"]
+        )
+        st.sidebar.success("Data refreshed!")
+    except Exception as e:
+        st.sidebar.error("Failed to refresh data")
+
+
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
 if st.sidebar.button("🔄 Refresh Data"):
@@ -128,16 +157,22 @@ lo_dp.load_or_update_data(
 # Access the updated history_df and timestamps
 history_df = st.session_state["history_df"]
 history_max_dateutc = st.session_state["history_max_dateutc"]
-archive_max_dateutc = st.session_state.get("archive_max_dateutc", history_max_dateutc)
+archive_max_dateutc = st.session_state["archive_max_dateutc"]
+
+# Check if we're in development mode
+is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Calculate current time for age calculations
 current_time_utc = int(time.time() * 1000)
 
 st.sidebar.write(f"History as of: {history_df.date.max()}")
 
-# Archive age: how old the Storj archive data is (vs current time)
+# Archive/Local Cache age: how old the most recent record in the loaded archive/cache is (vs current time)
 archive_age_h = lo_dp.get_human_readable_duration(current_time_utc, archive_max_dateutc)
-st.sidebar.write(f"Archive is {archive_age_h} old")
+if is_dev:
+    st.sidebar.write(f"Local cache: {archive_age_h} old")
+else:
+    st.sidebar.write(f"Archive: {archive_age_h} old")
 
 # Last refresh: how fresh the most recent record in memory is (vs current time)
 last_refresh_age_h = lo_dp.get_human_readable_duration(
@@ -145,12 +180,14 @@ last_refresh_age_h = lo_dp.get_human_readable_duration(
 )
 st.sidebar.write(f"Last refresh: {last_refresh_age_h} ago")
 
+# Display dev mode notice if in development
+if is_dev:
+    render_dev_mode_notice()
+
 # Display current device data
 st.sidebar.subheader("Current Data")
 last_data = st.session_state.get("last_data", {})
 st.sidebar.write(last_data)
-# %%
-
 
 # Present the dashboard ########################
 
@@ -159,9 +196,16 @@ is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Create tab list based on environment
 if is_dev:
-    tab_names = ["Overview", "Rain", "Rain Events", "Diagnostics", "Playground"]
+    tab_names = [
+        "Overview",
+        "Rain",
+        "Rain Events",
+        "Solar",
+        "Diagnostics",
+        "Playground",
+    ]
 else:
-    tab_names = ["Overview", "Rain", "Rain Events"]
+    tab_names = ["Overview", "Rain", "Rain Events", "Solar"]
 
 tabs = st.tabs(tab_names)
 
@@ -170,6 +214,7 @@ tab_modules = {
     "Overview": overview,
     "Rain": rain,
     "Rain Events": rain_events,
+    "Solar": solar,
     "Diagnostics": diagnostics,
     "Playground": playground,
 }

@@ -360,6 +360,35 @@ def backup_data(
         backup_logger.error(f"Error listing or copying files for backup: {e}")
 
 
+def backup_and_save_catalog(
+    df: pd.DataFrame, catalog_type: str, bucket: str = None
+) -> None:
+    """Back up existing catalog and save new version using existing backup_data pattern."""
+    from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE
+
+    if bucket is None:
+        bucket = DEFAULT_BUCKET
+
+    # MAC from session state (always available if site works)
+    import streamlit as st
+
+    mac_address = st.session_state["device"]["macAddress"]
+
+    # Create prefix and path for catalog files
+    catalog_prefix = f"{mac_address}.{catalog_type}_catalog"
+    catalog_path = f"{mac_address}.{catalog_type}_catalog.{DEFAULT_FILE_TYPE}"
+
+    # Use existing backup_data for daily deduplication
+    try:
+        backup_data(bucket=bucket, prefix=catalog_prefix)
+    except Exception as e:
+        logger.error(f"Catalog backup failed for {catalog_prefix}: {e}")
+        raise RuntimeError("Aborting catalog save: backup failed.")
+
+    # Save new catalog
+    save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE)
+
+
 def backup_and_save_history(
     df: pd.DataFrame, device: dict, bucket: str = "lookout"
 ) -> None:

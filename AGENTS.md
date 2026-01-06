@@ -28,6 +28,71 @@
 - **Event catalog updates during app runtime with combined archive + live data**
 - **Session data is always current, even if cloud archive is stale**
 
+## Archive Data Schema (AI Reference)
+
+### Column Definitions
+| Column | Type | Purpose | AI Usage Pattern |
+|---------|------|---------|------------------|
+| `date` | `datetime64[ns, America/Los_Angeles]` | Primary time column (TZ-aware) | `df['date']` |
+| `dateutc` | `int64` | UTC timestamp (milliseconds) | `df['dateutc']` |
+| `solarradiation` | `float64` | Solar radiation (W/m²) | `df['solarradiation']` |
+| `tempf` | `float64` | Temperature (°F) | `df['tempf']` |
+| `dailyrainin` | `float64` | Daily rainfall (inches) | `df['dailyrainin']` |
+| `baromrelin` | `float64` | Barometric pressure | `df['baromrelin']` |
+
+### Critical AI Rules
+- **NEVER use `df['datetime']`** - column doesn't exist in archive
+- **ALWAYS use `df['date']`** for time operations (already TZ-aware)
+- **NEVER convert `df['date']` timezone** - already correct
+- **ALWAYS check column existence**: `if 'col' in df.columns`
+
+### ✅ CORRECT AI Patterns
+```python
+# Time access
+df['date']                    # ✅ Primary time column
+df['dateutc']                 # ✅ UTC timestamp
+
+# Data validation
+if 'date' in df.columns:     # ✅ Always check existence
+if not df.empty:               # ✅ Check DataFrame emptiness
+
+# Timezone handling
+df['date']                    # ✅ Already TZ-aware
+```
+
+### ❌ FORBIDDEN AI Patterns
+```python
+# NEVER use these
+df['datetime']                 # ❌ Column doesn't exist
+df['date'].dt.date            # ❌ Loses timezone info
+pd.to_datetime(df['dateutc'])  # ❌ Redundant conversion
+df['datetime'] = df['date']   # ❌ Creating wrong column
+```
+
+### AI Quick Reference
+```python
+# Get time column
+time_col = df['date']  # NOT df['datetime']
+
+# Check if solar data available
+has_solar = 'solarradiation' in df.columns and df['solarradiation'].notna().any()
+
+# Validate archive structure
+required_cols = ['date', 'dateutc', 'solarradiation']
+missing = [col for col in required_cols if col not in df.columns]
+```
+
+## Energy Catalog Management
+
+Energy catalogs provide 15-minute solar energy period caching following the same pattern as rain_events:
+
+- **Storage**: `{mac_address}.energy_catalog.parquet` in Storj bucket
+- **Session caching**: `st.session_state["energy_catalog"]` for instant loads
+- **Auto-save**: Catalogs >2 days old are automatically saved to storage
+- **Management**: Regenerate/save buttons available in diagnostics tab
+- **Performance**: 30x faster cached loads (<1s vs 30s) using vectorized algorithms
+- **Incremental updates**: Only processes new data since last period
+
 ## Agent-Specific Behaviors
 
 ### Branch Strategy for Agents
@@ -134,6 +199,10 @@ Rationale: 5-minute intervals are normal; only gaps >10min indicate data loss.
 - Core modules return processed data ready for display
 - UI layer handles Streamlit widgets, charts, and user interaction
 - Avoid data processing, calculations, or business logic in UI layer
+
+**Streamlit Deprecations (AVOID):**
+- ❌ `st.plotly_chart(fig, use_container_width=True)` → ✅ `st.plotly_chart(fig, width='stretch')`
+- Always use current, non-deprecated Streamlit parameters to avoid warnings
 
 **Example Pattern:**
 ```python
