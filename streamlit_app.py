@@ -134,6 +134,15 @@ if st.sidebar.button("🔄 Refresh Data"):
 
 auto_update = st.sidebar.checkbox("Auto-Update", value=True)
 
+if st.sidebar.button("🔄 Refresh Data"):
+    try:
+        awn.update_session_data(
+            st.session_state["device"], st.session_state["history_df"]
+        )
+        st.sidebar.success("Data refreshed!")
+    except Exception as e:
+        st.sidebar.error("Failed to refresh data")
+
 
 # Call the wrapper to load or update the weather station data
 lo_dp.load_or_update_data(
