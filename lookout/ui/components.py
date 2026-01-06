@@ -109,57 +109,7 @@ def filter_dataframe_by_date_range(
     return df.loc[mask]
 
 
-def render_solar_metric_card(
-    title: str,
-    value: float,
-    unit: str,
-    sparkline_data: List[float],
-    period_type: str,
-    y_axis_range: Tuple[float, float],
-    delta: Optional[Dict] = None,
-    hover_labels: Optional[List[str]] = None,
-):
-    """
-    Render individual solar radiation metric card with step-chart sparkline.
 
-    Card layout:
-    - Title row (muted text)
-    - Value row (large numeric + unit)
-    - Sparkline row (40px bar chart with custom hover text)
-    - Delta row (optional up/down badge)
-
-    :param title: Period title (e.g., "Today", "Last 7 Days")
-    :param value: Numeric value to display
-    :param unit: Unit string ("kWh/m²" or "Wh/m²")
-    :param sparkline_data: List of values for sparkline (NaN for missing)
-    :param period_type: Period type for sparkline configuration
-    :param y_axis_range: Fixed y-axis range tuple (min, max)
-    :param delta: Optional delta dict with 'value' and 'direction' keys
-    :param hover_labels: Optional list of custom hover text labels for each bar
-    """
-    from lookout.core.solar_cards import create_solar_sparkline
-
-    # Title row - muted text
-    st.caption(title)
-
-    # Value row - large numeric with unit
-    col_value, col_unit = st.columns([3, 1])
-    with col_value:
-        st.metric("Value", f"{value:.1f}", label_visibility="collapsed")
-    with col_unit:
-        st.caption(unit)
-
-    # Sparkline row - step chart with no margins
-    sparkline_fig = create_solar_sparkline(
-        sparkline_data, period_type, y_axis_range, hover_labels
-    )
-    st.plotly_chart(sparkline_fig, width="stretch", config={"displayModeBar": False})
-
-    # Delta row - optional up/down badge
-    if delta:
-        delta_symbol = "↑" if delta["direction"] == "up" else "↓"
-        delta_text = f"{delta_symbol} {delta['value']:.1f}"
-        st.caption(delta_text)
 
 
 def render_solar_tile(

@@ -10,7 +10,7 @@ import pandas as pd
 import datetime
 import lookout.ui.components as ui_components
 from lookout.utils.log_util import app_logger
-from lookout.core.solar_energy_periods import get_period_stats
+
 from lookout.core.solar_viz import (
     create_month_day_heatmap,
     create_day_column_chart,
@@ -295,8 +295,4 @@ def _render_day_15min_heatmap(filtered_df):
                 st.error(f"Error creating 15min chart: {e}")
                 logger.exception("15min chart error")
 
-        # Manual clear button for testing (Phase 4 will remove this)
-        if st.button("← Clear Selection (Test)", key="clear_15min"):
-            del st.session_state["selected_solar_date"]
-
-    st.caption("Phase 4 will add click-to-drill interaction")
+        

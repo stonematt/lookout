@@ -237,9 +237,9 @@ class TestPrepareDay15minHeatmapData:
         ]
         assert result.columns.tolist() == expected_times
 
-        # Check values
-        assert all(result.loc["2023-01-01"] == 0.1)
-        assert all(result.loc["2023-01-02"] == 0.2)
+        # Check values (15min heatmap displays Wh units = kWh * 1000)
+        assert all(result.loc["2023-01-01"] == 100.0)
+        assert all(result.loc["2023-01-02"] == 200.0)
 
     def test_time_range_filtering(self):
         """Test filtering by start_hour and end_hour."""
@@ -281,8 +281,8 @@ class TestPrepareDay15minHeatmapData:
 
         result = prepare_day_15min_heatmap_data(periods_df)
 
-        # 00:00 should have value
-        assert result.loc["2023-01-01", "00:00"] == 0.1
+        # 00:00 should have value (Wh units = kWh * 1000)
+        assert result.loc["2023-01-01", "00:00"] == 100.0
 
         # Other time slots should be 0 (filled by pivot_table with fill_value=0)
         assert all(result.loc["2023-01-01", result.columns != "00:00"] == 0)

@@ -35,11 +35,11 @@ class TestCreateMonthDayHeatmap:
 
         fig = create_month_day_heatmap(periods_df)
 
-        # Check return type
+# Check return type
         assert isinstance(fig, go.Figure)
-
+    
         # Check basic layout properties
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
         assert fig.layout.xaxis.title.text == "Day of Month"
         assert fig.layout.yaxis.title.text == "Month"
         assert fig.layout.yaxis.autorange == "reversed"  # Newest months at top
@@ -72,7 +72,7 @@ class TestCreateMonthDayHeatmap:
 
         # Should return a figure with "No Solar Data Available" title
         assert isinstance(fig, go.Figure)
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
 
     def test_single_day_data(self):
         """Test with data for a single day."""
@@ -321,7 +321,7 @@ class TestCreateDay15minHeatmap:
         assert isinstance(fig, go.Figure)
 
         # Check basic layout properties
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
         assert fig.layout.xaxis.title.text == "Time of Day"
         assert fig.layout.yaxis.title.text == "Date"
         assert fig.layout.yaxis.autorange == "reversed"  # Newest dates at top
@@ -341,8 +341,8 @@ class TestCreateDay15minHeatmap:
         assert heatmap.colorbar.ticksuffix == " Wh"
 
         # Should have 1 day and 96 time slots (full 24-hour day in 15min intervals)
-        assert heatmap.z.shape == (1, 96)
-        assert len(heatmap.x) == 96  # 96 time slots from 00:00 to 23:45
+        assert heatmap.z.shape == (1, 92)  # 6:00-21:00 filtered range
+        assert len(heatmap.x) == 92  # 92 time slots from 04:00 to 21:00 filtered range
         assert len(heatmap.y) == 1  # 1 day
 
     def test_empty_dataframe(self):
@@ -361,7 +361,7 @@ class TestCreateDay15minHeatmap:
 
         # Should return a figure with "No Solar Production Data Available" title
         assert isinstance(fig, go.Figure)
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
 
     def test_zero_energy_data(self):
         """Test handling when all energy values are zero (but still shows heatmap)."""
@@ -389,7 +389,7 @@ class TestCreateDay15minHeatmap:
 
         # Should return heatmap with zero values (not empty figure)
         assert isinstance(fig, go.Figure)
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
         assert fig.layout.title.text == "15-Minute Energy Periods"
 
         heatmap = fig.data[0]
@@ -423,7 +423,7 @@ class TestCreateDay15minHeatmap:
 
         # Should return heatmap with data only in nighttime hours
         assert isinstance(fig, go.Figure)
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
         assert fig.layout.title.text == "15-Minute Energy Periods"
 
         heatmap = fig.data[0]
@@ -465,7 +465,7 @@ class TestCreateDay15minHeatmap:
         assert "(06:00-18:00)" in fig.layout.title.text
 
         # Check basic layout properties
-        assert fig.layout.height == 1000
+        assert fig.layout.height == 500
         assert fig.layout.xaxis.title.text == "Time of Day"
         assert fig.layout.yaxis.title.text == "Date"
         assert fig.layout.yaxis.autorange == "reversed"

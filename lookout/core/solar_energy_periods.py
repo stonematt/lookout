@@ -290,48 +290,4 @@ def aggregate_to_hourly(periods_df: pd.DataFrame, date: str) -> pd.DataFrame:
     return result_df
 
 
-def get_period_stats(periods_df: pd.DataFrame) -> Dict:
-    """
-    Calculate summary statistics for energy periods.
 
-    :param periods_df: DataFrame from calculate_15min_energy_periods
-    :return: Dict with keys: total_kwh, days_with_production, avg_daily_kwh, peak_day
-    """
-    if periods_df.empty:
-        return {
-            "total_kwh": 0.0,
-            "days_with_production": 0,
-            "avg_daily_kwh": 0.0,
-            "peak_day": {"date": "", "kwh": 0.0},
-        }
-
-    # Calculate total_kwh
-    total_kwh = periods_df["energy_kwh"].sum()
-
-    # Get daily aggregation
-    daily_df = aggregate_to_daily(periods_df)
-
-    # Calculate days_with_production
-    days_with_production = (daily_df["daily_kwh"] > 0).sum()
-
-    # Calculate avg_daily_kwh
-    avg_daily_kwh = (
-        total_kwh / days_with_production if days_with_production > 0 else 0.0
-    )
-
-    # Find peak_day
-    if not daily_df.empty and not daily_df["daily_kwh"].empty:
-        peak_idx = daily_df["daily_kwh"].idxmax()
-        peak_day = {
-            "date": daily_df.loc[peak_idx, "date"].strftime("%Y-%m-%d"),
-            "kwh": daily_df.loc[peak_idx, "daily_kwh"],
-        }
-    else:
-        peak_day = {"date": "", "kwh": 0.0}
-
-    return {
-        "total_kwh": total_kwh,
-        "days_with_production": days_with_production,
-        "avg_daily_kwh": avg_daily_kwh,
-        "peak_day": peak_day,
-    }
