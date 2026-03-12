@@ -374,7 +374,7 @@ def get_device_history_from_date(
 
 
 def seek_over_time_gap(
-    last_date: datetime, gap_attempts: int, limit: int, max_attempts: int = 3
+    last_date: datetime, gap_attempts: int, limit: int, max_attempts: int = 10
 ) -> tuple[datetime, int, bool]:
     """
     Handles logic for gap-based time seeking during history fetch.
@@ -502,9 +502,11 @@ def get_history_since_last_archive(
             break
 
         page_label = f"Page {page+1}/{pages} fetched"
-        new_data, progressed = fetch_device_data(
-            device, last_date_utc, limit, page_label
+        new_data, progressed = _fetch_and_validate_page(
+            device, last_date_utc, limit, interim_df
         )
+        if progressed:
+            log_page_quality(new_data, page_label)
 
         if not progressed:
             last_date, gap_attempts, exit_flag = seek_over_time_gap(
