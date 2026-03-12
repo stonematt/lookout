@@ -35,13 +35,6 @@ pip install -r requirements.txt
 
 ### Code Quality
 ```bash
-# Format code with Black
-black .
-
-# Lint with flake8
-flake8 .
-
-# Run tests
 pytest tests/
 ```
 
@@ -92,7 +85,6 @@ pytest tests/
 - Streamlit secrets accessed via `st.secrets`
 
 ### Code Standards
-- Follows Black formatting and flake8 compliance
 - Type hints required for function parameters and returns
 - Comprehensive docstrings with parameter descriptions
 - Line length limit: 88 characters
