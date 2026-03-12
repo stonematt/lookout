@@ -24,14 +24,13 @@ lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
 
 ### Environment Setup
 ```bash
-# Set up virtual environment
+# macOS dev: Use conda environment
+conda activate lookout
+
+# Alternative: Use venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-# Alternative: Use conda environment
-conda env create -f lookout_env.yml
-conda activate lookout
 ```
 
 ### Code Quality
@@ -41,6 +40,9 @@ black .
 
 # Lint with flake8
 flake8 .
+
+# Run tests
+pytest tests/
 ```
 
 ## Architecture Overview
@@ -48,9 +50,11 @@ flake8 .
 ### Package Structure
 - `lookout/api/` - API clients for external services (Ambient Weather Network)
 - `lookout/core/` - Data processing and visualization logic
+- `lookout/models/` - Data models and type definitions (dataclasses)
 - `lookout/storage/` - S3/Storj integration for data archival
 - `lookout/utils/` - Shared utilities (logging, date handling, dataframe helpers)
 - `lookout/cli/` - Command-line scripts for maintenance tasks
+- `lookout/bin/` - Shell scripts for cron and operational tasks
 - `lookout/ui/` - Streamlit UI components (overview, diagnostics)
 - `lookout/config.py` - Shared configuration and sensor mappings
 
@@ -97,8 +101,9 @@ flake8 .
 ## Development Notes
 
 ### Testing
-- Test files in `test/` directory mirror the `lookout/` package structure
-- No specific test framework configured - check existing patterns
+- Test files in `tests/` directory using **pytest**
+- Install dev dependencies: `pip install -r requirements-dev.txt`
+- Run tests: `pytest tests/`
 
 ### Data Processing
 - Timestamps normalized to epoch milliseconds (UTC)
@@ -106,6 +111,7 @@ flake8 .
 - Schema validation and repair handled in catchup script
 
 ### UI Components
-- Modular Streamlit tabs: Overview and Diagnostics
+- Modular Streamlit tabs: Overview, Rain, Rain Events, Solar (+ Diagnostics & Playground in dev mode)
 - Gauge configurations defined in `config.py`
 - Auto-refresh with configurable intervals (6 minutes to 3 days)
+- Dev mode (via `st.secrets["environment"]["dev"]`) enables extra tabs, local archive caching, and diagnostic tools
