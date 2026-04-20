@@ -189,8 +189,8 @@ def prepare_day_15min_heatmap_data(
     Transform energy periods data into day/time pivot table for 15min heatmap visualization.
 
     :param periods_df: DataFrame with period_start, period_end, energy_kwh columns
-    :param start_hour: Optional start hour filter (0-23)
-    :param end_hour: Optional end hour filter (0-23, exclusive)
+    :param start_hour: Optional start hour filter (0-23, inclusive)
+    :param end_hour: Optional end hour filter (0-23, inclusive)
     :return: Pivot table with dates as index, time slots as columns, kWh values
     """
     if periods_df.empty:
@@ -204,13 +204,13 @@ def prepare_day_15min_heatmap_data(
     # Convert kWh to Wh for 15min granularity display
     periods_df["energy_wh"] = periods_df["energy_kwh"] * 1000
 
-    # Apply time filtering if specified
+    # Apply time filtering if specified (inclusive on both ends)
     if start_hour is not None or end_hour is not None:
         hour = periods_df["period_start"].dt.hour
         if start_hour is not None:
             periods_df = periods_df[hour >= start_hour]
         if end_hour is not None:
-            periods_df = periods_df[hour < end_hour]
+            periods_df = periods_df[hour <= end_hour]
 
     if periods_df.empty:
         logger.warning("No solar data available after time filtering")
@@ -266,10 +266,16 @@ def prepare_15min_bar_data(
 
     :param periods_df: DataFrame with period_start, period_end, energy_kwh columns
     :param date: Date string in 'YYYY-MM-DD' format
-    :param start_hour: Optional start hour filter (0-23)
-    :param end_hour: Optional end hour filter (0-23, exclusive)
+    :param start_hour: Optional start hour filter (0-23, inclusive)
+    :param end_hour: Optional end hour filter (0-23, inclusive)
     :return: DataFrame with time_label and energy_wh columns
+    :raises ValueError: If `date` is not a valid 'YYYY-MM-DD' string
     """
+    try:
+        pd.Timestamp(date)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Invalid date format: {date!r} (expected 'YYYY-MM-DD')") from exc
+
     if periods_df.empty:
         logger.warning("Empty periods_df provided to prepare_15min_bar_data")
         return pd.DataFrame()
@@ -280,13 +286,13 @@ def prepare_15min_bar_data(
     # Filter to specific date
     periods_df = periods_df[periods_df["period_start"].dt.date.astype(str) == date]
 
-    # Apply time filtering if specified
+    # Apply time filtering if specified (inclusive on both ends)
     if start_hour is not None or end_hour is not None:
         hour = periods_df["period_start"].dt.hour
         if start_hour is not None:
             periods_df = periods_df[hour >= start_hour]
         if end_hour is not None:
-            periods_df = periods_df[hour < end_hour]
+            periods_df = periods_df[hour <= end_hour]
 
     if periods_df.empty:
         logger.warning(f"No data available for date {date} after filtering")
