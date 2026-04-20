@@ -4,7 +4,6 @@ Converts raw solar radiation measurements into 15-minute energy periods.
 """
 
 import pandas as pd
-import pytz
 import streamlit as st
 from typing import Dict
 from lookout.core.solar_analysis import LOCATION
