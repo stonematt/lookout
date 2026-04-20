@@ -511,27 +511,29 @@ def render():
 
     st.subheader("Rain Accumulation Heatmap")
 
-    # Filter out rows with non-positive/non-numeric dateutc so one corrupt row
-    # (e.g. dateutc == 0, 1970-01-01 UTC / 1969-12-31 PT) can't collapse the
-    # slider range and raise StreamlitAPIException.
+    # Filter out rows with invalid dateutc. The station has existed since 2023,
+    # so anything before 2020-01-01 is a corrupt row (e.g. 0 or small-int
+    # placeholder values that land on 1969-12-31 PT after conversion) and must
+    # not be allowed to shape the slider range.
+    MIN_VALID_DATEUTC_MS = int(pd.Timestamp("2020-01-01", tz="UTC").value // 10**6)
     dateutc_numeric = pd.to_numeric(df["dateutc"], errors="coerce")
-    valid_df = df[dateutc_numeric.notna() & (dateutc_numeric > 0)]
+    valid_df = df[dateutc_numeric.notna() & (dateutc_numeric >= MIN_VALID_DATEUTC_MS)]
+
+    dropped = len(df) - len(valid_df)
+    if dropped:
+        logger.warning(
+            f"rain heatmap guard: dropped {dropped} of {len(df)} row(s) with "
+            f"dateutc missing or earlier than 2020-01-01 "
+            f"(dtype={df['dateutc'].dtype}, "
+            f"sample={df['dateutc'].head(3).tolist()})"
+        )
 
     if valid_df.empty:
         st.warning(
             "No valid timestamps in the weather history — skipping "
             "the rain accumulation heatmap."
         )
-    elif valid_df["dateutc"].min() == valid_df["dateutc"].max():
-        single_date = (
-            pd.to_datetime(valid_df["dateutc"].iloc[0], unit="ms", utc=True)
-            .tz_convert("America/Los_Angeles")
-            .date()
-        )
-        st.info(
-            f"Only one day of valid data ({single_date}) — the "
-            "accumulation heatmap requires at least two days."
-        )
+        min_date = max_date = None
     else:
         df_timestamps = pd.to_datetime(
             valid_df["dateutc"], unit="ms", utc=True
@@ -539,6 +541,14 @@ def render():
         min_date = df_timestamps.min().date()
         max_date = df_timestamps.max().date()
 
+        if min_date == max_date:
+            st.info(
+                f"Only one day of valid data ({min_date}) — the "
+                "accumulation heatmap requires at least two days."
+            )
+            min_date = max_date = None
+
+    if min_date is not None and max_date is not None:
         # Default to last 90 days
         default_start = max(min_date, max_date - pd.Timedelta(days=90))
 
