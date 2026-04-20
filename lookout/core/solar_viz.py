@@ -348,6 +348,7 @@ def create_day_15min_heatmap(
         else ""
     )
     fig.update_layout(
+        title=f"15-Minute Energy Periods{time_range}",
         xaxis_title="Time of Day",
         yaxis_title="Date",
         height=height,  # Configurable height

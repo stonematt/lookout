@@ -511,103 +511,73 @@ def render():
 
     st.subheader("Rain Accumulation Heatmap")
 
-    # Get available date range from data
-    df_timestamps = pd.to_datetime(df["dateutc"], unit="ms", utc=True).dt.tz_convert(
-        "America/Los_Angeles"
-    )
-    min_date = df_timestamps.min().date()
-    max_date = df_timestamps.max().date()
+    # Filter out rows with non-positive/non-numeric dateutc so one corrupt row
+    # (e.g. dateutc == 0, 1970-01-01 UTC / 1969-12-31 PT) can't collapse the
+    # slider range and raise StreamlitAPIException.
+    dateutc_numeric = pd.to_numeric(df["dateutc"], errors="coerce")
+    valid_df = df[dateutc_numeric.notna() & (dateutc_numeric > 0)]
 
-    # Default to last 90 days
-    default_start = max(min_date, max_date - pd.Timedelta(days=90))
-
-    st.write("**Date Range:**")
-    date_range = st.slider(
-        "Select date range",
-        min_value=min_date,
-        max_value=max_date,
-        value=(default_start, max_date),
-        format="MMM DD, YYYY",
-        label_visibility="collapsed",
-    )
-
-    start_date, end_date = date_range
-    num_days = (end_date - start_date).days + 1
-
-    # Grid selection control
-    row_mode = st.selectbox(
-        "Grid type:",
-        options=["auto", "day", "week", "month", "year_month"],
-        format_func=lambda x: {
-            "auto": "Auto (based on period)",
-            "day": "Daily × Hourly",
-            "week": "Weekly × Day-of-week",
-            "month": "Monthly × Day-of-month",
-            "year_month": "Timeline × Day-of-month",
-        }[x],
-        index=0,
-        help="Choose grid type (column aggregation is automatic)",
-    )
-
-    # Display mode info
-    mode_descriptions = {
-        "day": "Daily rows × Hourly columns",
-        "week": "Weekly rows × Day-of-week columns",
-        "month": "Monthly rows × Day-of-month columns",
-        "year_month": "Timeline rows × Day-of-month columns",
-    }
-
-    actual_row_mode = (
-        row_mode
-        if row_mode != "auto"
-        else ("year_month" if num_days > 730 else "week" if num_days > 180 else "day")
-    )
-    st.caption(f"📅 {num_days} days selected • {mode_descriptions[actual_row_mode]}")
-
-    # Data preparation with caching
-    with st.spinner("Preparing accumulation data..."):
-        # Re-aggregate data if needed for selected mode
-        if row_mode != "auto":
-            start_ts = (
-                pd.Timestamp(start_date)
-                .tz_localize("America/Los_Angeles")
-                .tz_convert("UTC")
-            )
-            end_ts = (
-                (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-                .tz_localize("America/Los_Angeles")
-                .tz_convert("UTC")
-            )
-
-            accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
-                archive_df=df,
-                start_date=start_ts,
-                end_date=end_ts,
-                timezone="America/Los_Angeles",
-                num_days=num_days,
-                row_mode=row_mode,
-            )
-        else:
-            # Use cached data for auto mode
-            accumulation_df = _cached_accumulation_data(
-                df=df,
-                start_date=start_date,
-                end_date=end_date,
-                version="v3",  # New version for aggregation modes
-            )
-
-    # Render heatmap
-    if not accumulation_df.empty:
-        fig = rain_viz.create_rain_accumulation_heatmap(
-            accumulation_df=accumulation_df, num_days=num_days, row_mode=row_mode
+    if valid_df.empty:
+        st.warning(
+            "No valid timestamps in the weather history — skipping "
+            "the rain accumulation heatmap."
         )
-        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    elif valid_df["dateutc"].min() == valid_df["dateutc"].max():
+        single_date = (
+            pd.to_datetime(valid_df["dateutc"].iloc[0], unit="ms", utc=True)
+            .tz_convert("America/Los_Angeles")
+            .date()
+        )
+        st.info(
+            f"Only one day of valid data ({single_date}) — the "
+            "accumulation heatmap requires at least two days."
+        )
+    else:
+        df_timestamps = pd.to_datetime(
+            valid_df["dateutc"], unit="ms", utc=True
+        ).dt.tz_convert("America/Los_Angeles")
+        min_date = df_timestamps.min().date()
+        max_date = df_timestamps.max().date()
 
-        # Summary statistics
-        max_cell = accumulation_df["accumulation"].max()
-        total_period = accumulation_df["accumulation"].sum()
+        # Default to last 90 days
+        default_start = max(min_date, max_date - pd.Timedelta(days=90))
 
-        # Get actual mode being used
+        st.write("**Date Range:**")
+        date_range = st.slider(
+            "Select date range",
+            min_value=min_date,
+            max_value=max_date,
+            value=(default_start, max_date),
+            format="MMM DD, YYYY",
+            label_visibility="collapsed",
+        )
+
+        start_date, end_date = date_range
+        num_days = (end_date - start_date).days + 1
+
+        # Grid selection control
+        row_mode = st.selectbox(
+            "Grid type:",
+            options=["auto", "day", "week", "month", "year_month"],
+            format_func=lambda x: {
+                "auto": "Auto (based on period)",
+                "day": "Daily × Hourly",
+                "week": "Weekly × Day-of-week",
+                "month": "Monthly × Day-of-month",
+                "year_month": "Timeline × Day-of-month",
+            }[x],
+            index=0,
+            help="Choose grid type (column aggregation is automatic)",
+        )
+
+        # Display mode info
+        mode_descriptions = {
+            "day": "Daily rows × Hourly columns",
+            "week": "Weekly rows × Day-of-week columns",
+            "month": "Monthly rows × Day-of-month columns",
+            "year_month": "Timeline rows × Day-of-month columns",
+        }
+
         actual_row_mode = (
             row_mode
             if row_mode != "auto"
@@ -615,30 +585,87 @@ def render():
                 "year_month" if num_days > 730 else "week" if num_days > 180 else "day"
             )
         )
+        st.caption(
+            f"📅 {num_days} days selected • {mode_descriptions[actual_row_mode]}"
+        )
 
-        if actual_row_mode == "month":
-            st.caption(
-                f'Peak monthly/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
+        # Data preparation with caching
+        with st.spinner("Preparing accumulation data..."):
+            # Re-aggregate data if needed for selected mode
+            if row_mode != "auto":
+                start_ts = (
+                    pd.Timestamp(start_date)
+                    .tz_localize("America/Los_Angeles")
+                    .tz_convert("UTC")
+                )
+                end_ts = (
+                    (pd.Timestamp(end_date) + pd.Timedelta(days=1))
+                    .tz_localize("America/Los_Angeles")
+                    .tz_convert("UTC")
+                )
+
+                accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
+                    archive_df=valid_df,
+                    start_date=start_ts,
+                    end_date=end_ts,
+                    timezone="America/Los_Angeles",
+                    num_days=num_days,
+                    row_mode=row_mode,
+                )
+            else:
+                # Use cached data for auto mode
+                accumulation_df = _cached_accumulation_data(
+                    df=valid_df,
+                    start_date=start_date,
+                    end_date=end_date,
+                    version="v3",  # New version for aggregation modes
+                )
+
+        # Render heatmap
+        if not accumulation_df.empty:
+            fig = rain_viz.create_rain_accumulation_heatmap(
+                accumulation_df=accumulation_df, num_days=num_days, row_mode=row_mode
             )
-        elif actual_row_mode == "year_month":
-            st.caption(
-                f'Peak timeline/day cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
+            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+            # Summary statistics
+            max_cell = accumulation_df["accumulation"].max()
+            total_period = accumulation_df["accumulation"].sum()
+
+            # Get actual mode being used
+            actual_row_mode = (
+                row_mode
+                if row_mode != "auto"
+                else (
+                    "year_month"
+                    if num_days > 730
+                    else "week" if num_days > 180 else "day"
+                )
             )
-        elif actual_row_mode == "week":
-            st.caption(
-                f'Peak weekly cell: {max_cell:.3f}" • '
-                f'Total in period: {total_period:.2f}"'
-            )
-        else:  # day
-            max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
-            st.caption(
-                f"Peak hourly: {max_cell:.3f}\" on {max_row['date']} at {max_row['hour']:02d}:00 • "
-                f'Total in period: {total_period:.2f}"'
-            )
-    else:
-        st.info("No rainfall data in selected period")
+
+            if actual_row_mode == "month":
+                st.caption(
+                    f'Peak monthly/day cell: {max_cell:.3f}" • '
+                    f'Total in period: {total_period:.2f}"'
+                )
+            elif actual_row_mode == "year_month":
+                st.caption(
+                    f'Peak timeline/day cell: {max_cell:.3f}" • '
+                    f'Total in period: {total_period:.2f}"'
+                )
+            elif actual_row_mode == "week":
+                st.caption(
+                    f'Peak weekly cell: {max_cell:.3f}" • '
+                    f'Total in period: {total_period:.2f}"'
+                )
+            else:  # day
+                max_row = accumulation_df.loc[accumulation_df["accumulation"].idxmax()]
+                st.caption(
+                    f"Peak hourly: {max_cell:.3f}\" on {max_row['date']} at {max_row['hour']:02d}:00 • "
+                    f'Total in period: {total_period:.2f}"'
+                )
+        else:
+            st.info("No rainfall data in selected period")
 
     st.subheader("Dry Spell & Event Analysis")
     st.info(

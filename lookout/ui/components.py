@@ -34,8 +34,32 @@ def create_date_range_slider(
         return None, None
 
     # Get date range from data
-    min_date = data_df[date_column].min().date()
-    max_date = data_df[date_column].max().date()
+    min_raw = data_df[date_column].min()
+    max_raw = data_df[date_column].max()
+
+    if pd.isna(min_raw) or pd.isna(max_raw):
+        st.warning("No valid timestamps available for filtering.")
+        return None, None
+
+    min_date = min_raw.date()
+    max_date = max_raw.date()
+
+    if min_date == max_date:
+        st.info(
+            f"Only one day of data available ({min_date}); "
+            "showing the full day."
+        )
+        start_ts = (
+            pd.Timestamp(min_date)
+            .tz_localize("America/Los_Angeles")
+            .tz_convert("UTC")
+        )
+        end_ts = (
+            (pd.Timestamp(max_date) + pd.Timedelta(days=1))
+            .tz_localize("America/Los_Angeles")
+            .tz_convert("UTC")
+        )
+        return start_ts, end_ts
 
     st.write("**Date Range:**")
 
