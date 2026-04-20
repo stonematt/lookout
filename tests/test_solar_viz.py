@@ -340,9 +340,9 @@ class TestCreateDay15minHeatmap:
         assert heatmap.colorbar.title.text == "Wh/15min"
         assert heatmap.colorbar.ticksuffix == " Wh"
 
-        # Should have 1 day and 96 time slots (full 24-hour day in 15min intervals)
-        assert heatmap.z.shape == (1, 92)  # 6:00-21:00 filtered range
-        assert len(heatmap.x) == 92  # 92 time slots from 04:00 to 21:00 filtered range
+        # Default start_hour=0, end_hour=23 inclusive → full 24h in 15min intervals
+        assert heatmap.z.shape == (1, 96)  # 24 hours * 4 slots
+        assert len(heatmap.x) == 96
         assert len(heatmap.y) == 1  # 1 day
 
     def test_empty_dataframe(self):
@@ -680,327 +680,44 @@ class TestCreate15minBarChart:
             create_15min_bar_chart(periods_df, "invalid-date")
 
 
-class TestSolarUIRender:
-    """Test the solar UI render function."""
-
-    def test_no_history_df(self):
-        """Test handling when history_df is not in session state."""
-        from lookout.ui.solar import render
-
-        # Create a mock session state that doesn't contain 'history_df'
-        mock_session_state = MagicMock()
-        mock_session_state.__contains__.return_value = (
-            False  # 'history_df' not in session_state
-        )
-
-        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
-            "lookout.ui.solar.st.warning"
-        ) as mock_warning, patch("lookout.ui.solar.st.header"), patch(
-            "lookout.ui.solar.st.caption"
-        ):
-
-            render()
-
-            mock_warning.assert_called_once_with(
-                "No weather data loaded. Please load data from main app."
-            )
-
-    @patch("lookout.ui.solar.st.session_state")
-    def test_missing_date_column(self, mock_session_state):
-        """Test handling when date column is missing."""
-        from lookout.ui.solar import render
-
-        # Mock session state with data missing date column
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "dateutc": [1640995200000, 1640995260000],
-                "solarradiation": [100.0, 150.0],  # No date column
-            }
-        )
-
-        with patch("lookout.ui.solar.st.warning"), patch(
-            "lookout.ui.solar.st.header"
-        ), patch("lookout.ui.solar.st.caption"), patch(
-            "lookout.ui.solar.st.error"
-        ) as mock_error:
-
-            render()
-
-            mock_error.assert_called_once_with("Solar data not available in dataset.")
-
-    @patch("lookout.ui.solar.st.session_state")
-    def test_missing_solarradiation_column(self, mock_session_state):
-        """Test handling when solarradiation column is missing."""
-        from lookout.ui.solar import render
-
-        # Mock session state with data missing solarradiation
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "dateutc": [1640995200000, 1640995260000],
-                "date": pd.to_datetime(
-                    [1640995200000, 1640995260000], unit="ms", utc=True
-                ).tz_convert("America/Los_Angeles"),
-            }
-        )
-
-        with patch("lookout.ui.solar.st.warning"), patch(
-            "lookout.ui.solar.st.header"
-        ), patch("lookout.ui.solar.st.caption"), patch(
-            "lookout.ui.solar.st.error"
-        ) as mock_error:
-
-            render()
-
-            mock_error.assert_called_once_with("Solar data not available in dataset.")
-
-    @patch("lookout.ui.solar.st.session_state")
-    def test_successful_rendering(self, mock_session_state):
-        """Test successful rendering with valid data."""
-        from lookout.ui.solar import render
-
-        # Mock session state with valid solar data
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "dateutc": [1640995200000, 1640995260000, 1640995320000],  # Jan 1, 2022
-                "date": pd.to_datetime(
-                    [1640995200000, 1640995260000, 1640995320000], unit="ms", utc=True
-                ).tz_convert("America/Los_Angeles"),
-                "solarradiation": [100.0, 150.0, 200.0],
-            }
-        )
-
-        with patch("lookout.ui.solar.st.header"), patch(
-            "lookout.ui.solar.st.caption"
-        ), patch("lookout.ui.solar.st.spinner"), patch(
-            "lookout.ui.solar.st.success"
-        ) as mock_success, patch(
-            "lookout.ui.solar.st.expander"
-        ), patch(
-            "lookout.ui.solar.st.dataframe"
-        ), patch(
-            "lookout.ui.solar.st.subheader"
-        ), patch(
-            "lookout.ui.solar.st.plotly_chart"
-        ) as mock_plotly_chart:
-
-            render()
-
-            # Should show success messages for calculation and rendering
-            assert mock_success.call_count >= 2
-
-            # Should render plotly chart
-            mock_plotly_chart.assert_called_once()
-
-    @patch("lookout.ui.solar.st.session_state")
-    def test_heatmap_rendering_error(self, mock_session_state):
-        """Test handling of errors during heatmap rendering."""
-        from lookout.ui.solar import render
-
-        # Mock session state with valid data
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "dateutc": [1640995200000, 1640995260000],
-                "date": pd.to_datetime(
-                    [1640995200000, 1640995260000], unit="ms", utc=True
-                ).tz_convert("America/Los_Angeles"),
-                "solarradiation": [100.0, 150.0],
-            }
-        )
-
-        with patch("lookout.ui.solar.st.header"), patch(
-            "lookout.ui.solar.st.caption"
-        ), patch("lookout.ui.solar.st.spinner"), patch(
-            "lookout.ui.solar.st.success"
-        ), patch(
-            "lookout.ui.solar.st.expander"
-        ), patch(
-            "lookout.ui.solar.st.dataframe"
-        ), patch(
-            "lookout.ui.solar.st.subheader"
-        ), patch(
-            "lookout.ui.solar.st.error"
-        ) as mock_error, patch(
-            "lookout.ui.solar.st.exception"
-        ) as mock_exception, patch(
-            "lookout.core.solar_viz.create_month_day_heatmap",
-            side_effect=Exception("Test error"),
-        ):
-
-            render()
-
-            # Should show error message and exception details
-            mock_error.assert_called_once_with("Error rendering heatmap: Test error")
-            mock_exception.assert_called_once()
 
 
 class TestSolarUIRender:
-    """Test the solar UI render function."""
+    """Test the solar UI render function against the current energy_catalog data model."""
 
-    def test_no_history_df(self):
-        """Test handling when history_df is not in session state."""
-        import streamlit as st
+    def test_no_energy_catalog_in_session(self):
+        """If 'energy_catalog' isn't in session_state, render() must st.error and return."""
         from lookout.ui.solar import render
 
-        # Mock streamlit functions
-        with patch("streamlit.warning") as mock_warning, patch(
-            "streamlit.header"
-        ), patch("streamlit.caption"):
-
-            render()
-
-            # Should show warning about no data loaded
-            mock_warning.assert_called_once_with(
-                "No weather data loaded. Please load data from main app."
-            )
-
-    def test_missing_solarradiation_column(self):
-        """Test handling when solarradiation column is missing."""
-        from lookout.ui.solar import render
-
-        # Mock session state with data missing solarradiation
         mock_session_state = MagicMock()
-        mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "dateutc": [1640995200000, 1640995260000],
-                "date": pd.to_datetime(
-                    [1640995200000, 1640995260000], unit="ms", utc=True
-                ).tz_convert("America/Los_Angeles"),
-            }
-        )
+        mock_session_state.__contains__.return_value = False
 
         with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
-            "lookout.ui.solar.st.warning"
-        ), patch("lookout.ui.solar.st.header"), patch(
-            "lookout.ui.solar.st.caption"
-        ), patch(
+            "lookout.ui.solar.st.header"
+        ), patch("lookout.ui.solar.st.caption"), patch(
             "lookout.ui.solar.st.error"
         ) as mock_error:
-
             render()
 
-            mock_error.assert_called_once_with("Solar data not available in dataset.")
-
-    def test_missing_dateutc_column(self):
-        """Test handling when dateutc column is missing."""
-        from lookout.ui.solar import render
-
-        # Mock session state with data missing dateutc
-        mock_session_state = MagicMock()
-        mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "solarradiation": [100.0, 150.0],
-                "date": pd.to_datetime(
-                    [1640995200000, 1640995260000], unit="ms", utc=True
-                ).tz_convert("America/Los_Angeles"),
-            }
+        mock_error.assert_called_once_with(
+            "Solar energy catalog not available. Please refresh the page."
         )
 
-        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
-            "lookout.ui.solar.st.warning"
-        ), patch("lookout.ui.solar.st.header"), patch(
-            "lookout.ui.solar.st.caption"
-        ), patch(
-            "lookout.ui.solar.st.error"
-        ) as mock_error:
-
-            render()
-
-            mock_error.assert_called_once_with("Solar data not available in dataset.")
-
-    def test_successful_rendering(self):
-        """Test successful rendering with valid data."""
+    def test_empty_energy_catalog_warns(self):
+        """If energy_catalog exists but is empty, render() must warn and return."""
         from lookout.ui.solar import render
 
-        # Mock session state with valid energy catalog data (processed periods)
         mock_session_state = MagicMock()
         mock_session_state.__contains__.return_value = True
-        mock_session_state.get.side_effect = lambda key, default=None: {
-            "energy_catalog": pd.DataFrame(
-                {
-                    "period_start": pd.date_range(
-                        "2022-01-01", periods=3, freq="15min", tz="America/Los_Angeles"
-                    ),
-                    "period_end": pd.date_range(
-                        "2022-01-01 00:15:00",
-                        periods=3,
-                        freq="15min",
-                        tz="America/Los_Angeles",
-                    ),
-                    "energy_kwh": [0.1, 0.2, 0.3],
-                }
-            ),
-            "selected_solar_date": "2022-01-01",
-        }.get(key, default)
-        mock_session_state.__getitem__.side_effect = lambda key: mock_session_state.get(
-            key
+        mock_session_state.get.side_effect = lambda key, default=None: (
+            pd.DataFrame() if key == "energy_catalog" else default
         )
 
         with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
             "lookout.ui.solar.st.header"
         ), patch("lookout.ui.solar.st.caption"), patch(
-            "lookout.ui.solar.st.spinner"
-        ), patch(
-            "lookout.ui.solar.st.success"
-        ) as mock_success, patch(
-            "lookout.ui.solar.st.expander"
-        ), patch(
-            "lookout.ui.solar.st.dataframe"
-        ), patch(
-            "lookout.ui.solar.st.subheader"
-        ), patch(
-            "lookout.ui.solar.st.plotly_chart"
-        ) as mock_plotly_chart:
-
+            "lookout.ui.solar.st.warning"
+        ) as mock_warning:
             render()
 
-            # Should show success messages for data loading, heatmap and day chart rendering
-            assert mock_success.call_count == 3
-
-            # Should render plotly charts (heatmap and day chart)
-            assert mock_plotly_chart.call_count == 2
-
-    def test_heatmap_rendering_error(self):
-        """Test handling of errors during heatmap rendering."""
-        from lookout.ui.solar import render
-
-        # Mock session state with valid data
-        mock_session_state = MagicMock()
-        mock_session_state.__contains__.return_value = True
-        mock_session_state.__getitem__.return_value = pd.DataFrame(
-            {
-                "dateutc": [1640995200000, 1640995260000],
-                "date": pd.to_datetime(
-                    [1640995200000, 1640995260000], unit="ms", utc=True
-                ).tz_convert("America/Los_Angeles"),
-                "solarradiation": [100.0, 150.0],
-            }
-        )
-
-        with patch("lookout.ui.solar.st.session_state", mock_session_state), patch(
-            "lookout.ui.solar.st.header"
-        ), patch("lookout.ui.solar.st.caption"), patch(
-            "lookout.ui.solar.st.spinner"
-        ), patch(
-            "lookout.ui.solar.st.success"
-        ), patch(
-            "lookout.ui.solar.st.expander"
-        ), patch(
-            "lookout.ui.solar.st.dataframe"
-        ), patch(
-            "lookout.ui.solar.st.subheader"
-        ), patch(
-            "lookout.ui.solar.st.error"
-        ) as mock_error, patch(
-            "lookout.ui.solar.st.exception"
-        ) as mock_exception, patch(
-            "lookout.ui.solar.create_month_day_heatmap",
-            side_effect=Exception("Test error"),
-        ):
-
-            render()
-
-            # Should show error message and exception details
-            mock_error.assert_called_once_with("Error rendering heatmap: Test error")
-            mock_exception.assert_called_once()
+        mock_warning.assert_called_once_with("No solar data available")

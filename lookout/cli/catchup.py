@@ -33,8 +33,8 @@ AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
 def _normalize_dateutc_ms(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Ensure df has `dateutc` as epoch ms (int64, UTC). Drop invalid, sort ascending.
-    No side effects: returns a new DataFrame.
+    Ensure df has `dateutc` as epoch ms (int64, UTC). Drop invalid (NaN, <=0),
+    sort ascending. No side effects: returns a new DataFrame.
     """
     if df is None or df.empty or "dateutc" not in df.columns:
         return pd.DataFrame()
@@ -51,6 +51,14 @@ def _normalize_dateutc_ms(df: pd.DataFrame) -> pd.DataFrame:
         out["dateutc"] = ms
         out = out.dropna(subset=["dateutc"])
         out["dateutc"] = out["dateutc"].astype("int64")
+
+    before = len(out)
+    out = out[out["dateutc"] > 0]
+    dropped = before - len(out)
+    if dropped:
+        logger.warning(
+            f"_normalize_dateutc_ms: dropped {dropped} row(s) with dateutc <= 0"
+        )
 
     return out.sort_values("dateutc").reset_index(drop=True)
 

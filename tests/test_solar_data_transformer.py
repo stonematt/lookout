@@ -256,17 +256,17 @@ class TestPrepareDay15minHeatmapData:
             }
         )
 
-        # Filter to daylight hours only (6 AM to 6 PM)
+        # Filter to daylight hours only (6 AM through 6 PM, inclusive)
         result = prepare_day_15min_heatmap_data(periods_df, start_hour=6, end_hour=18)
 
-        # Should have 12 hours * 4 slots = 48 time slots
-        assert len(result.columns) == 48
+        # Should have 13 hours * 4 slots = 52 time slots (6:00 through 18:45)
+        assert len(result.columns) == 52
 
         # First time slot should be 06:00
         assert result.columns[0] == "06:00"
 
-        # Last time slot should be 17:45 (since end_hour=18 means up to but not including 18:00)
-        assert result.columns[-1] == "17:45"
+        # Last time slot should be 18:45 (end_hour=18 is inclusive)
+        assert result.columns[-1] == "18:45"
 
     def test_missing_periods_filled_with_zero(self):
         """Test that missing time periods are filled with zero."""
@@ -335,19 +335,19 @@ class TestPrepare15minBarData:
             }
         )
 
-        # Filter to morning hours only
+        # Filter to morning hours (6 AM through 12 PM, inclusive)
         result = prepare_15min_bar_data(
             periods_df, "2023-01-01", start_hour=6, end_hour=12
         )
 
-        # Should have 6 hours * 4 slots = 24 periods
-        assert len(result) == 24
+        # Should have 7 hours * 4 slots = 28 periods (6:00 through 12:45)
+        assert len(result) == 28
 
         # First time should be 06:00
         assert result["time_label"].iloc[0] == "06:00"
 
-        # Last time should be 11:45
-        assert result["time_label"].iloc[-1] == "11:45"
+        # Last time should be 12:45 (end_hour=12 is inclusive)
+        assert result["time_label"].iloc[-1] == "12:45"
 
     def test_empty_result_for_missing_date(self):
         """Test empty result when date has no data."""

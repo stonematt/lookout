@@ -735,6 +735,17 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
         )
         df = df.dropna(subset=["dateutc"])
 
+        # Reject epoch-0 / pre-epoch timestamps — these are corrupt rows that
+        # otherwise collapse downstream UI date ranges to 1969-12-31 PT.
+        epoch = pd.Timestamp(0, unit="ms", tz="UTC")
+        before = len(df)
+        df = df[df["dateutc"] > epoch]
+        dropped = before - len(df)
+        if dropped:
+            logger.warning(
+                f"combine_df: dropped {dropped} row(s) with dateutc <= 0"
+            )
+
         # Dedupe and sort (desc to match existing callers)
         df = (
             df.drop_duplicates(subset="dateutc", keep="last")
