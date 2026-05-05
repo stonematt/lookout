@@ -58,9 +58,10 @@ def normalize(
     Empty input or input lacking a `dateutc` column returns an empty
     DataFrame without raising.
 
-    Logs a single warning per invocation when rows are dropped,
-    including the input dtype and a 3-row sample of the original
-    column.
+    Logs a single warning per invocation when **invalid** rows are
+    dropped (null, <= 0, or below ``min_ms``), including the input
+    dtype and a 3-row sample of the original column. Dedup of
+    duplicate `dateutc` values is by design and does not warn.
 
     :param df: DataFrame containing a `dateutc` column.
     :param min_ms: Floor (epoch ms) below which rows are dropped.
@@ -84,26 +85,27 @@ def normalize(
     else:
         ms = pd.to_numeric(original, errors="coerce")
 
-    out = df.assign(dateutc=ms).dropna(subset=["dateutc"])
-    out["dateutc"] = out["dateutc"].astype("int64")
-    out = out[(out["dateutc"] > 0) & (out["dateutc"] >= min_ms)]
-    out = (
-        out.sort_values("dateutc")
-        .drop_duplicates(subset="dateutc", keep="last")
-        .reset_index(drop=True)
-    )
+    valid = df.assign(dateutc=ms).dropna(subset=["dateutc"])
+    valid["dateutc"] = valid["dateutc"].astype("int64")
+    valid = valid[(valid["dateutc"] > 0) & (valid["dateutc"] >= min_ms)]
 
-    dropped = before - len(out)
-    if dropped:
+    invalid_dropped = before - len(valid)
+    if invalid_dropped:
         logger.warning(
-            "dateutc.normalize: dropped %d of %d row(s) (dtype=%s, "
-            "sample=%s, min_ms=%d)",
-            dropped,
+            "dateutc.normalize: dropped %d of %d row(s) as invalid "
+            "(dtype=%s, sample=%s, min_ms=%d)",
+            invalid_dropped,
             before,
             original_dtype,
             sample,
             min_ms,
         )
+
+    out = (
+        valid.sort_values("dateutc")
+        .drop_duplicates(subset="dateutc", keep="last")
+        .reset_index(drop=True)
+    )
 
     return out
 

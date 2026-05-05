@@ -106,6 +106,30 @@ def test_normalize_dedup_keeps_last():
     assert list(out["v"]) == ["second", "third"]
 
 
+def test_normalize_dedup_only_does_not_warn(caplog):
+    df = pd.DataFrame(
+        {"dateutc": [_ms(2025, 1, 1)] * 3 + [_ms(2025, 1, 2)] * 2}
+    )
+
+    with caplog.at_level("WARNING", logger="lookout.utils.dateutc"):
+        normalize(df)
+
+    assert not any(
+        "dateutc.normalize" in r.message for r in caplog.records
+    ), "dedup-only call must not emit an invalid-rows warning"
+
+
+def test_normalize_invalid_drops_emit_warning(caplog):
+    df = pd.DataFrame({"dateutc": [None, 0, _ms(2025, 1, 1)]})
+
+    with caplog.at_level("WARNING", logger="lookout.utils.dateutc"):
+        normalize(df)
+
+    matching = [r for r in caplog.records if "dateutc.normalize" in r.message]
+    assert len(matching) == 1
+    assert "as invalid" in matching[0].message
+
+
 # ---------- casts ----------
 
 
