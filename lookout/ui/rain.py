@@ -11,6 +11,7 @@ import streamlit as st
 
 import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.rain_viz as rain_viz
+from lookout.utils.dateutc import from_local_date_ts
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
@@ -152,14 +153,8 @@ def _cached_accumulation_data(
     :return: Prepared accumulation DataFrame
     """
     # Convert dates to timestamps
-    start_ts = (
-        pd.Timestamp(start_date).tz_localize("America/Los_Angeles").tz_convert("UTC")
-    )
-    end_ts = (
-        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-        .tz_localize("America/Los_Angeles")
-        .tz_convert("UTC")
-    )
+    start_ts = from_local_date_ts(start_date)
+    end_ts = from_local_date_ts(pd.Timestamp(end_date) + pd.Timedelta(days=1))
 
     num_days = (end_date - start_date).days + 1
 
@@ -603,16 +598,8 @@ def render():
         with st.spinner("Preparing accumulation data..."):
             # Re-aggregate data if needed for selected mode
             if row_mode != "auto":
-                start_ts = (
-                    pd.Timestamp(start_date)
-                    .tz_localize("America/Los_Angeles")
-                    .tz_convert("UTC")
-                )
-                end_ts = (
-                    (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-                    .tz_localize("America/Los_Angeles")
-                    .tz_convert("UTC")
-                )
+                start_ts = from_local_date_ts(start_date)
+                end_ts = from_local_date_ts(pd.Timestamp(end_date) + pd.Timedelta(days=1))
 
                 accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
                     archive_df=valid_df,

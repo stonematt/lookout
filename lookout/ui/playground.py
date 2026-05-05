@@ -1,15 +1,15 @@
 import streamlit as st
 import pandas as pd
 
+from lookout.utils.dateutc import to_local, to_utc
+
 
 def extract_daily_from_field(df, field_name):
     """Extract daily totals from accumulating fields that reset."""
     df_local = df.copy()
 
     # Convert epoch milliseconds to datetime in Pacific timezone
-    df_local["local_datetime"] = pd.to_datetime(
-        df_local["dateutc"], unit="ms", utc=True
-    ).dt.tz_convert("America/Los_Angeles")
+    df_local["local_datetime"] = to_local(df_local["dateutc"])
     df_local["local_date"] = df_local["local_datetime"].dt.date
 
     # Group by date and take max (handles accumulation within period)
@@ -31,13 +31,11 @@ def extract_hourly_then_sum_to_daily(df):
     df_local = df.copy()
 
     # Keep in UTC for hourly grouping to avoid DST issues
-    df_local["utc_datetime"] = pd.to_datetime(df_local["dateutc"], unit="ms", utc=True)
+    df_local["utc_datetime"] = to_utc(df_local["dateutc"])
     df_local["utc_hour"] = df_local["utc_datetime"].dt.floor("H")
 
     # Convert to local time only for date calculation
-    df_local["local_datetime"] = df_local["utc_datetime"].dt.tz_convert(
-        "America/Los_Angeles"
-    )
+    df_local["local_datetime"] = to_local(df_local["dateutc"])
     df_local["local_date"] = df_local["local_datetime"].dt.date
 
     # Extract hourly totals using UTC hours

@@ -11,6 +11,7 @@ from lookout.utils.dateutc import (
     DEFAULT_TZ,
     POST_2020_MS,
     from_local_date,
+    from_local_date_ts,
     normalize,
     to_local,
     to_utc,
@@ -136,6 +137,13 @@ def test_from_local_date_accepts_date_object_default_tz():
         pd.Timestamp("2026-05-04", tz=DEFAULT_TZ).tz_convert("UTC").value // 10**6
     )
     assert got == expected
+
+
+def test_from_local_date_ts_returns_utc_timestamp():
+    ts = from_local_date_ts("2026-05-04", tz="America/Los_Angeles")
+    assert isinstance(ts, pd.Timestamp)
+    assert str(ts.tz) == "UTC"
+    assert ts == pd.Timestamp("2026-05-04", tz="America/Los_Angeles").tz_convert("UTC")
 
 
 # ---------- April 2026 regression ----------

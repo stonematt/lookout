@@ -12,6 +12,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from lookout.utils.dateutc import from_local_date_ts
+
 
 def create_date_range_slider(
     data_df: pd.DataFrame,
@@ -49,16 +51,8 @@ def create_date_range_slider(
             f"Only one day of data available ({min_date}); "
             "showing the full day."
         )
-        start_ts = (
-            pd.Timestamp(min_date)
-            .tz_localize("America/Los_Angeles")
-            .tz_convert("UTC")
-        )
-        end_ts = (
-            (pd.Timestamp(max_date) + pd.Timedelta(days=1))
-            .tz_localize("America/Los_Angeles")
-            .tz_convert("UTC")
-        )
+        start_ts = from_local_date_ts(min_date)
+        end_ts = from_local_date_ts(pd.Timestamp(max_date) + pd.Timedelta(days=1))
         return start_ts, end_ts
 
     st.write("**Date Range:**")
@@ -87,20 +81,12 @@ def create_date_range_slider(
 
         # Ensure we have proper timestamp objects for consistent comparisons
         if isinstance(start_date, (datetime.date, str)):
-            start_ts = (
-                pd.Timestamp(start_date)
-                .tz_localize("America/Los_Angeles")
-                .tz_convert("UTC")
-            )
+            start_ts = from_local_date_ts(start_date)
         else:
             start_ts = start_date  # Already a timestamp
 
         if isinstance(end_date, (datetime.date, str)):
-            end_ts = (
-                (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-                .tz_localize("America/Los_Angeles")
-                .tz_convert("UTC")
-            )
+            end_ts = from_local_date_ts(pd.Timestamp(end_date) + pd.Timedelta(days=1))
         else:
             end_ts = end_date  # Already a timestamp
 

@@ -132,9 +132,27 @@ def from_local_date(
     :param tz: Station-local IANA tz. Defaults to ``DEFAULT_TZ``.
     :return: int64 epoch ms UTC for local midnight on ``date``.
     """
+    return int(from_local_date_ts(date, tz).value // 1_000_000)
+
+
+def from_local_date_ts(
+    date: Union[_dt.date, _dt.datetime, pd.Timestamp, str],
+    tz: str = DEFAULT_TZ,
+) -> pd.Timestamp:
+    """
+    Convert a station-local calendar date to its midnight UTC `Timestamp`.
+
+    Sibling of `from_local_date` for UI consumers that compare against
+    pandas tz-aware datetime columns (rather than int64 ms) and want a
+    `pd.Timestamp` directly.
+
+    :param date: Calendar date in the station-local zone.
+    :param tz: Station-local IANA tz. Defaults to ``DEFAULT_TZ``.
+    :return: tz-aware UTC `pd.Timestamp` for local midnight on ``date``.
+    """
     ts = pd.Timestamp(date)
     if ts.tzinfo is None:
         ts = ts.tz_localize(tz)
     else:
         ts = ts.tz_convert(tz)
-    return int(ts.tz_convert("UTC").value // 1_000_000)
+    return ts.tz_convert("UTC")
