@@ -39,6 +39,8 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
+from lookout.utils.dateutc import normalize
+
 from lookout.utils.trend_utils import (
     calculate_temperature_trend,
     calculate_barometer_trend,
@@ -724,39 +726,20 @@ def combine_full_history(
 def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
     Merge two DataFrames on 'dateutc', keeping the last entry per timestamp.
-    Operates in UTC datetimes for correctness, then returns dateutc as int64 ms.
+
+    Validation, cast to int64 ms, drop-invalid, and dedupe are delegated to
+    `lookout.utils.dateutc.normalize`. The result is re-sorted **descending**
+    to preserve the existing caller-visible order (an ergonomic affordance
+    for `df.head()` debugging).
+
+    Behavioral note: as of the dateutc consolidation this path also drops
+    rows below the post-2020 floor (see ADR-0001), closing the same class
+    of corruption that the load/repair paths already guarded.
     """
     try:
         df = pd.concat([df1, df2], ignore_index=True)
-
-        # Normalize to UTC datetimes for safe dedupe
-        df["dateutc"] = pd.to_datetime(
-            df["dateutc"], unit="ms", utc=True, errors="coerce"
-        )
-        df = df.dropna(subset=["dateutc"])
-
-        # Reject epoch-0 / pre-epoch timestamps — these are corrupt rows that
-        # otherwise collapse downstream UI date ranges to 1969-12-31 PT.
-        epoch = pd.Timestamp(0, unit="ms", tz="UTC")
-        before = len(df)
-        df = df[df["dateutc"] > epoch]
-        dropped = before - len(df)
-        if dropped:
-            logger.warning(
-                f"combine_df: dropped {dropped} row(s) with dateutc <= 0"
-            )
-
-        # Dedupe and sort (desc to match existing callers)
-        df = (
-            df.drop_duplicates(subset="dateutc", keep="last")
-            .sort_values("dateutc", ascending=False)
-            .reset_index(drop=True)
-        )
-
-        # Convert back to int64 milliseconds for storage schema (avoid .view() warnings)
-        df["dateutc"] = (df["dateutc"].astype("int64") // 1_000_000).astype("int64")
-
-        return df
+        df = normalize(df)
+        return df.sort_values("dateutc", ascending=False).reset_index(drop=True)
     except Exception as e:
         logger.error(f"Error combining DataFrames: {e}")
         raise

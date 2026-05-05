@@ -19,6 +19,7 @@ import streamlit as st
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_devices
+from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="catchup.log")
@@ -31,46 +32,14 @@ AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 # ---------- archive utilities ----------
 
 
-def _normalize_dateutc_ms(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure df has `dateutc` as epoch ms (int64, UTC). Drop invalid (NaN, <=0),
-    sort ascending. No side effects: returns a new DataFrame.
-    """
-    if df is None or df.empty or "dateutc" not in df.columns:
-        return pd.DataFrame()
-
-    s = df["dateutc"]
-    if pd.api.types.is_datetime64_any_dtype(s):
-        # datetime64[ns, UTC] → ns → ms (no .view)
-        ms = pd.to_datetime(s, utc=True, errors="coerce").astype("int64") // 1_000_000
-        out = df.copy()
-        out["dateutc"] = ms
-    else:
-        ms = pd.to_numeric(s, errors="coerce")
-        out = df.copy()
-        out["dateutc"] = ms
-        out = out.dropna(subset=["dateutc"])
-        out["dateutc"] = out["dateutc"].astype("int64")
-
-    before = len(out)
-    out = out[out["dateutc"] > 0]
-    dropped = before - len(out)
-    if dropped:
-        logger.warning(
-            f"_normalize_dateutc_ms: dropped {dropped} row(s) with dateutc <= 0"
-        )
-
-    return out.sort_values("dateutc").reset_index(drop=True)
-
-
 def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     """
-    Normalize archive:
-      - ensure `dateutc` is epoch ms int64 (UTC)
-      - drop invalid timestamps
-      - de-duplicate on `dateutc` (keep last)
-      - sort ascending
-    Returns (fixed_df, metrics dict).
+    CLI-shaped wrapper around `dateutc.normalize` that produces an
+    operator-readable metrics dict for the `--repair-archive` report.
+
+    Returns (fixed_df, metrics dict). The actual validation/cast/dedupe/
+    sort work is delegated to `normalize`; this function only adapts
+    the result into a metrics shape.
     """
     metrics: Dict = {}
     if df is None or df.empty:
@@ -87,31 +56,18 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     metrics["before_len"] = len(df)
     metrics["before_dtype"] = str(df["dateutc"].dtype)
 
-    fixed = _normalize_dateutc_ms(df)
+    fixed = normalize(df)
 
-    if fixed.empty:
-        metrics.update(
-            {"after_len": 0, "dropped": metrics["before_len"], "after_dtype": "empty"}
-        )
-        return fixed, metrics
-
-    # de-dupe by timestamp (keep last occurrence)
-    before = len(fixed)
-    fixed = (
-        fixed.sort_values("dateutc")
-        .drop_duplicates(subset=["dateutc"], keep="last")
-        .reset_index(drop=True)
-    )
     after = len(fixed)
-
     metrics["after_len"] = after
     metrics["dropped"] = metrics["before_len"] - after
-    metrics["after_dtype"] = str(fixed["dateutc"].dtype)
+    metrics["after_dtype"] = str(fixed["dateutc"].dtype) if not fixed.empty else "empty"
 
-    mn = int(fixed["dateutc"].iloc[0])
-    mx = int(fixed["dateutc"].iloc[-1])
-    metrics["min"] = pd.to_datetime(mn, unit="ms", utc=True)
-    metrics["max"] = pd.to_datetime(mx, unit="ms", utc=True)
+    if not fixed.empty:
+        mn = int(fixed["dateutc"].iloc[0])
+        mx = int(fixed["dateutc"].iloc[-1])
+        metrics["min"] = pd.to_datetime(mn, unit="ms", utc=True)
+        metrics["max"] = pd.to_datetime(mx, unit="ms", utc=True)
 
     return fixed, metrics
 
@@ -166,7 +122,7 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         )
         df = awn.get_device_history_to_date(device)
         # Normalize for consistent printing
-        df = _normalize_dateutc_ms(df)
+        df = normalize(df)
         _log_archive_range(df, "Dry-run latest page")
         df.info()
         return
@@ -176,7 +132,7 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
 
     # Load existing archive
     archive_df = awn.load_archive_for_device(device, bucket=bucket_name)
-    archive_df = _normalize_dateutc_ms(archive_df)
+    archive_df = normalize(archive_df)
 
     _log_archive_range(archive_df, "Loaded archive")
     logger.info(f"Total records in archive: {len(archive_df)}")

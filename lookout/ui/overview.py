@@ -11,6 +11,7 @@ import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.gauge_viz as gauge_viz
 import lookout.core.rain_viz as rain_viz
 from lookout import config as cfg
+from lookout.utils.dateutc import from_local_date_ts, to_local
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -223,23 +224,13 @@ def render_rainfall_summary_widget():
         st.markdown("**Last 30 Days:**")
 
         # Get date range for last 30 days
-        df_timestamps = pd.to_datetime(
-            df["dateutc"], unit="ms", utc=True
-        ).dt.tz_convert("America/Los_Angeles")
+        df_timestamps = to_local(df["dateutc"])
         max_date = df_timestamps.max().date()
         start_date = max_date - pd.Timedelta(days=29)  # 30 days inclusive
 
         # Prepare heatmap data using existing function
-        start_ts = (
-            pd.Timestamp(start_date)
-            .tz_localize("America/Los_Angeles")
-            .tz_convert("UTC")
-        )
-        end_ts = (
-            (pd.Timestamp(max_date) + pd.Timedelta(days=1))
-            .tz_localize("America/Los_Angeles")
-            .tz_convert("UTC")
-        )
+        start_ts = from_local_date_ts(start_date)
+        end_ts = from_local_date_ts(pd.Timestamp(max_date) + pd.Timedelta(days=1))
 
         accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
             archive_df=df,

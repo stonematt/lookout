@@ -11,6 +11,7 @@ import streamlit as st
 
 import lookout.core.rainfall_analysis as rain_analysis
 import lookout.core.rain_viz as rain_viz
+from lookout.utils.dateutc import from_local_date_ts, normalize, to_local
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
     BYTES_TO_MB,
@@ -152,14 +153,8 @@ def _cached_accumulation_data(
     :return: Prepared accumulation DataFrame
     """
     # Convert dates to timestamps
-    start_ts = (
-        pd.Timestamp(start_date).tz_localize("America/Los_Angeles").tz_convert("UTC")
-    )
-    end_ts = (
-        (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-        .tz_localize("America/Los_Angeles")
-        .tz_convert("UTC")
-    )
+    start_ts = from_local_date_ts(start_date)
+    end_ts = from_local_date_ts(pd.Timestamp(end_date) + pd.Timedelta(days=1))
 
     num_days = (end_date - start_date).days + 1
 
@@ -511,22 +506,11 @@ def render():
 
     st.subheader("Rain Accumulation Heatmap")
 
-    # Filter out rows with invalid dateutc. The station has existed since 2023,
-    # so anything before 2020-01-01 is a corrupt row (e.g. 0 or small-int
-    # placeholder values that land on 1969-12-31 PT after conversion) and must
-    # not be allowed to shape the slider range.
-    MIN_VALID_DATEUTC_MS = int(pd.Timestamp("2020-01-01", tz="UTC").value // 10**6)
-    dateutc_numeric = pd.to_numeric(df["dateutc"], errors="coerce")
-    valid_df = df[dateutc_numeric.notna() & (dateutc_numeric >= MIN_VALID_DATEUTC_MS)]
-
-    dropped = len(df) - len(valid_df)
-    if dropped:
-        logger.warning(
-            f"rain heatmap guard: dropped {dropped} of {len(df)} row(s) with "
-            f"dateutc missing or earlier than 2020-01-01 "
-            f"(dtype={df['dateutc'].dtype}, "
-            f"sample={df['dateutc'].head(3).tolist()})"
-        )
+    # Route slider input through the canonical normalizer so the slider
+    # can't be poisoned by corrupt rows (NaN, <=0, below the post-2020
+    # floor). `normalize` logs a single warning per call when rows drop.
+    # See ADR-0001 for why the floor exists.
+    valid_df = normalize(df)
 
     if valid_df.empty:
         st.warning(
@@ -535,9 +519,7 @@ def render():
         )
         min_date = max_date = None
     else:
-        df_timestamps = pd.to_datetime(
-            valid_df["dateutc"], unit="ms", utc=True
-        ).dt.tz_convert("America/Los_Angeles")
+        df_timestamps = to_local(valid_df["dateutc"])
         min_date = df_timestamps.min().date()
         max_date = df_timestamps.max().date()
 
@@ -603,16 +585,8 @@ def render():
         with st.spinner("Preparing accumulation data..."):
             # Re-aggregate data if needed for selected mode
             if row_mode != "auto":
-                start_ts = (
-                    pd.Timestamp(start_date)
-                    .tz_localize("America/Los_Angeles")
-                    .tz_convert("UTC")
-                )
-                end_ts = (
-                    (pd.Timestamp(end_date) + pd.Timedelta(days=1))
-                    .tz_localize("America/Los_Angeles")
-                    .tz_convert("UTC")
-                )
+                start_ts = from_local_date_ts(start_date)
+                end_ts = from_local_date_ts(pd.Timestamp(end_date) + pd.Timedelta(days=1))
 
                 accumulation_df = rain_viz.prepare_rain_accumulation_heatmap_data(
                     archive_df=valid_df,
