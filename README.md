@@ -94,6 +94,10 @@ Test files live in the `test/` directory and mirror the `lookout/` package struc
 - Imports are fully qualified (`lookout.api.ambient_client`)
 - Logging is centralized in `log_util.py`
 - Follows standards defined in [`code_standards.md`](code_standards.md)
+- Domain glossary in [`CONTEXT.md`](CONTEXT.md); architectural decisions in
+  [`docs/adr/`](docs/adr/) (e.g.
+  [ADR-0001 — post-2020 dateutc floor](docs/adr/0001-dateutc-post-2020-floor.md),
+  [ADR-0002 — station-local time as analytical frame](docs/adr/0002-station-local-time-as-analytical-frame.md))
 
 ---
 
