@@ -4,3 +4,5 @@
 worktrees/
 data/
 .journal
+.scratch/
+${CLAUDE_PROJECT_DIR}/
