@@ -4,6 +4,10 @@ How issues flow on `stonematt/lookout`. Optimised for one-maintainer
 operation with AI agents doing PRD authoring, triage assistance, and
 implementation.
 
+Issues and PRDs live as **GitHub issues** at `stonematt/lookout`. Use the
+`gh` CLI for all operations — `gh` infers the repo from `git remote -v`
+when run inside a clone.
+
 ## Label vocabulary
 
 Every triaged issue carries **exactly one category label** and **exactly
@@ -108,3 +112,22 @@ it from the issue.
 Decisions affecting an area should reference the relevant ADR in
 `docs/adr/`. Agent briefs in particular should call out applicable ADRs
 so the implementing agent doesn't relitigate settled decisions.
+
+## `gh` CLI cheat sheet
+
+Shorthand for the verbs the workflow above uses.
+
+- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
+- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
+- **Comment on an issue**: `gh issue comment <number> --body "..."`
+- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
+- **Close**: `gh issue close <number> --comment "..."`
+
+### When a skill says "publish to the issue tracker"
+
+Create a GitHub issue.
+
+### When a skill says "fetch the relevant ticket"
+
+Run `gh issue view <number> --comments`.
