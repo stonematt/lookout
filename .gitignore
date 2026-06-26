@@ -6,3 +6,7 @@ data/
 .journal
 .scratch/
 ${CLAUDE_PROJECT_DIR}/
+
+# direnv
+.envrc
+.direnv/
