@@ -7,7 +7,7 @@ Single source of truth for what counts as a valid `dateutc` value
 controller's combine_df, UI date logic) goes through this module.
 
 See:
-    - CONTEXT.md  -- domain glossary (dateutc, normalize, post-2020 floor)
+    - GLOSSARY.md  -- domain glossary (dateutc, normalize, post-2020 floor)
     - docs/adr/0001-dateutc-post-2020-floor.md
     - docs/adr/0002-station-local-time-as-analytical-frame.md
 
