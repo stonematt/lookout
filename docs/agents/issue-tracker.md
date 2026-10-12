@@ -103,8 +103,8 @@ PRD bodies created by `/to-prd` carry the same disclaimer.
 ## Domain glossary
 
 When writing PRDs, agent briefs, or issue comments, use the canonical
-domain vocabulary from [CONTEXT.md](../../CONTEXT.md). Don't invent new
-terms. If a term needs sharpening, do it in CONTEXT.md, then reference
+domain vocabulary from [GLOSSARY.md](../../GLOSSARY.md). Don't invent new
+terms. If a term needs sharpening, do it in GLOSSARY.md, then reference
 it from the issue.
 
 ## ADR cross-references
