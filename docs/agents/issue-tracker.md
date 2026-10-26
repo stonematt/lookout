@@ -113,6 +113,31 @@ Decisions affecting an area should reference the relevant ADR in
 `docs/adr/`. Agent briefs in particular should call out applicable ADRs
 so the implementing agent doesn't relitigate settled decisions.
 
+## Wayfinding operations
+
+How `/wayfinder` maps live on this tracker. Wayfinder issues carry only
+`wayfinder:*` labels, never a category or triage-state label: they are
+decisions, not implementation work, so `/triage` skips them.
+
+- **Map**: one issue labelled `wayfinder:map`.
+- **Tickets**: issues labelled `wayfinder:research`, `wayfinder:prototype`,
+  `wayfinder:grilling` or `wayfinder:task`, attached to the map as native
+  sub-issues. The sub-issue API takes the issue's database `id`, not its
+  number:
+  `gh api -X POST repos/stonematt/lookout/issues/<map>/sub_issues -F sub_issue_id=$(gh api repos/stonematt/lookout/issues/<ticket> --jq .id)`
+- **Blocking**: native issue dependencies, also keyed by database `id`:
+  `gh api -X POST repos/stonematt/lookout/issues/<blocked>/dependencies/blocked_by -F issue_id=$(gh api repos/stonematt/lookout/issues/<blocker> --jq .id)`
+- **Claim**: assign the ticket before any work:
+  `gh issue edit <ticket> --add-assignee @me`
+- **Frontier**: open, unassigned sub-issues with no open blockers.
+  `issue_dependencies_summary.blocked_by` counts open blockers only:
+  `gh api repos/stonematt/lookout/issues/<map>/sub_issues --jq '.[] | select(.state=="open" and (.assignees|length)==0 and .issue_dependencies_summary.blocked_by==0) | "\(.number) \(.title)"'`
+- **Resolve**: post the answer with `gh issue close <ticket> --comment "..."`,
+  then append one line to the map body's `## Decisions so far` via
+  `gh issue edit <map> --body-file`.
+- **Research findings** go on a pushed `research/<name>` branch that is
+  never merged and has no PR. The resolution comment links the file.
+
 ## `gh` CLI cheat sheet
 
 Shorthand for the verbs the workflow above uses.
