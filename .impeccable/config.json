@@ -1,3 +1,21 @@
 {
-  "buildPath": "code"
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "schibsted grotesk",
+        "createdAt": "2026-10-29T05:08:54.487Z",
+        "reason": "agent: used only by rejected throwaway variants A-C; chosen variant D uses Atkinson per DESIGN.md"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "source serif 4",
+        "createdAt": "2026-10-29T05:08:54.502Z",
+        "reason": "agent: used only by rejected throwaway variants A-C; chosen variant D uses Atkinson per DESIGN.md"
+      }
+    ]
+  }
 }
