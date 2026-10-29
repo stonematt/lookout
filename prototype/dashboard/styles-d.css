@@ -1,0 +1,189 @@
+/* PROTOTYPE variant D style options, selected by html[data-style="1|2|3"] (set by switcher.js).
+   1 Paper, 2 Slate, 3 Mist. Token overrides first, then one shared set of readability and
+   data-primacy rules. Light is the default; dark follows prefers-color-scheme like tokens.css. */
+
+/* ---------- shared: dyslexia-friendly type, one family for all text ---------- */
+html[data-style] {
+  --sans: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --serif: var(--sans);              /* no serif headlines */
+  --num: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.3125rem;
+  --step-3: 1.625rem;
+  --step-4: 4rem;
+  letter-spacing: 0.012em;
+  word-spacing: 0.08em;
+  line-height: 1.55;
+  font-optical-sizing: auto;
+  font-variant-numeric: normal;     /* proportional digits in headlines and body; tabular only in tables, stats and axes */
+  font-feature-settings: normal;
+}
+
+/* ---------- 1 Paper: warm off-white, near-greyscale chrome, desaturated blue + terracotta ---------- */
+html[data-style="1"] {
+  --ground: #f7f4ee; --surface: #fcfbf8;
+  --ink: #26231f; --ink-2: #4b463f; --ink-3: #686259;
+  --rule: #e3ded3; --rule-strong: #c2baab;
+  --rain-0: #dde5ee; --rain-1: #a9bdd3; --rain-2: #6a8aac; --rain-3: #365f8b; --rain-4: #1f405f;
+  --temp-cold: #4a6f94; --temp-cool: #86a3bd; --temp-mild: #b3aea4; --temp-warm: #cf9654; --temp-hot: #b0522b;
+  --sun: #d9a23c; --sun-soft: #f1e2bd; --night: #ece7dc;
+  --note: #94325a;
+  --gap-a: #e6e1d6; --gap-b: #f7f4ee;
+}
+/* ---------- 2 Slate: cool grey ground, ink-blue chrome, restrained cool ramp, plum annotation ---------- */
+html[data-style="2"] {
+  --ground: #eceff3; --surface: #f6f7f9;
+  --ink: #1b2535; --ink-2: #394860; --ink-3: #566479;
+  --rule: #d3d9e2; --rule-strong: #aeb7c5;
+  --rain-0: #dbe4ee; --rain-1: #aabdd2; --rain-2: #6f8db0; --rain-3: #3d648f; --rain-4: #20426a;
+  --temp-cold: #3f699a; --temp-cool: #7d9fbf; --temp-mild: #a9b2bd; --temp-warm: #c29a62; --temp-hot: #9c5a40;
+  --sun: #c79e46; --sun-soft: #e9dfc5; --night: #e0e5ec;
+  --note: #7a3868;
+  --gap-a: #e0e5ec; --gap-b: #eceff3;
+}
+/* ---------- 3 Mist: quietest chrome, no tinted panels, data colour is the only colour ---------- */
+html[data-style="3"] {
+  --ground: #f4f5f5; --surface: #f4f5f5;
+  --ink: #343a41; --ink-2: #535a62; --ink-3: #626971;
+  --rule: #e2e5e6; --rule-strong: #c9cdd0;
+  --rain-0: #d9e6f2; --rain-1: #a3c6e4; --rain-2: #5f9bcc; --rain-3: #2f72ae; --rain-4: #1a5183;
+  --temp-cold: #3a77ae; --temp-cool: #84b2d4; --temp-mild: #b9c0c6; --temp-warm: #e0a046; --temp-hot: #c9532e;
+  --sun: #e0aa2c; --sun-soft: #f3e4b6; --night: #eaeced;
+  --note: #3b4249;
+  --gap-a: #e6e8e9; --gap-b: #f4f5f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-style="1"]:not([data-theme="light"]) {
+    --ground: #1b1a18; --surface: #242321;
+    --ink: #ece8e0; --ink-2: #c3bdb2; --ink-3: #9d968b;
+    --rule: #34322e; --rule-strong: #4f4c46;
+    --rain-0: #263342; --rain-1: #3a5573; --rain-2: #5f87b2; --rain-3: #93b3d6; --rain-4: #d0e0f0;
+    --temp-cold: #6f95bd; --temp-cool: #94b1cb; --temp-mild: #8f8a80; --temp-warm: #d8a463; --temp-hot: #e07a4d;
+    --sun: #e2b04f; --sun-soft: #3a3220; --night: #151412;
+    --note: #e59ab8;
+    --gap-a: #2a2927; --gap-b: #1b1a18;
+  }
+  html[data-style="2"]:not([data-theme="light"]) {
+    --ground: #151a22; --surface: #1c232d;
+    --ink: #e6eaf0; --ink-2: #b5bfcf; --ink-3: #8f9baf;
+    --rule: #2b3441; --rule-strong: #445063;
+    --rain-0: #1f2d3f; --rain-1: #34496a; --rain-2: #5a7ca6; --rain-3: #8aaad1; --rain-4: #c6d8ee;
+    --temp-cold: #6b95c4; --temp-cool: #90b1d1; --temp-mild: #8a94a2; --temp-warm: #cdab74; --temp-hot: #d08467;
+    --sun: #d8b25a; --sun-soft: #353019; --night: #10151c;
+    --note: #d9a2cd;
+    --gap-a: #212a36; --gap-b: #151a22;
+  }
+  html[data-style="3"]:not([data-theme="light"]) {
+    --ground: #17191b; --surface: #17191b;
+    --ink: #d4d8db; --ink-2: #a9afb4; --ink-3: #8c9399;
+    --rule: #2a2d30; --rule-strong: #404448;
+    --rain-0: #22303d; --rain-1: #34526f; --rain-2: #4f87b3; --rain-3: #7db1da; --rain-4: #bcd9ef;
+    --temp-cold: #5b9bd0; --temp-cool: #8cbbdc; --temp-mild: #7c8389; --temp-warm: #e0a94f; --temp-hot: #e5784f;
+    --sun: #e5b84a; --sun-soft: #3a331c; --night: #121416;
+    --note: #d3d7da;
+    --gap-a: #212426; --gap-b: #17191b;
+  }
+}
+/* explicit dark: ?theme=dark */
+  html[data-style="1"][data-theme="dark"] {
+    --ground: #1b1a18; --surface: #242321;
+    --ink: #ece8e0; --ink-2: #c3bdb2; --ink-3: #9d968b;
+    --rule: #34322e; --rule-strong: #4f4c46;
+    --rain-0: #263342; --rain-1: #3a5573; --rain-2: #5f87b2; --rain-3: #93b3d6; --rain-4: #d0e0f0;
+    --temp-cold: #6f95bd; --temp-cool: #94b1cb; --temp-mild: #8f8a80; --temp-warm: #d8a463; --temp-hot: #e07a4d;
+    --sun: #e2b04f; --sun-soft: #3a3220; --night: #151412;
+    --note: #e59ab8;
+    --gap-a: #2a2927; --gap-b: #1b1a18;
+  }
+  html[data-style="2"][data-theme="dark"] {
+    --ground: #151a22; --surface: #1c232d;
+    --ink: #e6eaf0; --ink-2: #b5bfcf; --ink-3: #8f9baf;
+    --rule: #2b3441; --rule-strong: #445063;
+    --rain-0: #1f2d3f; --rain-1: #34496a; --rain-2: #5a7ca6; --rain-3: #8aaad1; --rain-4: #c6d8ee;
+    --temp-cold: #6b95c4; --temp-cool: #90b1d1; --temp-mild: #8a94a2; --temp-warm: #cdab74; --temp-hot: #d08467;
+    --sun: #d8b25a; --sun-soft: #353019; --night: #10151c;
+    --note: #d9a2cd;
+    --gap-a: #212a36; --gap-b: #151a22;
+  }
+  html[data-style="3"][data-theme="dark"] {
+    --ground: #17191b; --surface: #17191b;
+    --ink: #d4d8db; --ink-2: #a9afb4; --ink-3: #8c9399;
+    --rule: #2a2d30; --rule-strong: #404448;
+    --rain-0: #22303d; --rain-1: #34526f; --rain-2: #4f87b3; --rain-3: #7db1da; --rain-4: #bcd9ef;
+    --temp-cold: #5b9bd0; --temp-cool: #8cbbdc; --temp-mild: #7c8389; --temp-warm: #e0a94f; --temp-hot: #e5784f;
+    --sun: #e5b84a; --sun-soft: #3a331c; --night: #121416;
+    --note: #d3d7da;
+    --gap-a: #212426; --gap-b: #17191b;
+  }
+
+
+/* ---------- shared: readability (left aligned, no italics, no long caps, 60-70ch, lh>=1.5) ---------- */
+html[data-style] .vd { line-height: 1.55; text-align: left; font-family: var(--sans); font-feature-settings: normal; }
+html[data-style] .vd :is(table, .facts, .vd-facts dd, .vd-nowstats, .alm, .cell, .cal, .dows, .vd-wrow, .vd-whead, .readout, .key, .temp, .vd-stamp, .vd-svg .tk, .vd-ribbon) { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+html[data-style] .vd :is(h1, h2, h3, .lead, .sub, .src, .claim, .vd-hero-h, .note-live) { font-variant-numeric: normal; font-feature-settings: normal; }
+html[data-style] .vd * { font-style: normal; text-align: inherit; }
+html[data-style] .vd :is(th, td) { text-align: right; }
+html[data-style] .vd :is(th:first-child, td:first-child, caption) { text-align: left; }
+html[data-style] .vd td.gap-hatch, html[data-style] .vd .vd-nums td.gap-hatch { text-align: center; }
+html[data-style] .vd :is(.cell, .h, .vd-wgap, .live, .q) { text-align: center; }
+html[data-style] .vd :is(p, li, dd, .sub, .lead, .readout, .note-live, .src) { text-wrap: pretty; }
+
+/* ---------- shared: FT hierarchy. Headline and standfirst step back; the chart leads ---------- */
+html[data-style] .vd-station { font-family: var(--sans); font-size: var(--step-0); font-weight: 600; letter-spacing: 0.01em; }
+html[data-style] .vd h2 { font-family: var(--sans); font-size: var(--step-1); line-height: 1.3; font-weight: 600; letter-spacing: 0.005em; max-width: 36ch; }
+html[data-style] .vd h3 { font-family: var(--sans); font-size: var(--step-0); line-height: 1.35; font-weight: 600; letter-spacing: 0.005em; }
+html[data-style] .vd .vd-hero-h { font-family: var(--sans); font-size: var(--step-2); line-height: 1.28; font-weight: 600; letter-spacing: 0.005em; max-width: 30ch; }
+@media (min-width: 1024px) {
+  html[data-style] .vd h2 { font-size: var(--step-2); }
+  html[data-style] .vd .vd-hero-h { font-size: var(--step-3); }
+}
+html[data-style] .vd .sub { font-size: var(--step--1); line-height: 1.6; color: var(--ink-2); max-width: 62ch; margin-top: 4px; }
+html[data-style] .vd .src { font-size: 0.8125rem; line-height: 1.55; color: var(--ink-2); max-width: 62ch; margin-top: 12px; }
+html[data-style] .vd .lead { font-family: var(--sans); font-size: var(--step-0); line-height: 1.55; max-width: 60ch; color: var(--ink-2); }
+html[data-style] .vd .temp { font-weight: 650; letter-spacing: -0.02em; }
+html[data-style] .vd .vd-nowline .temp { color: var(--ink); }
+html[data-style] .vd .vd-facts dd { font-weight: 650; }
+html[data-style] .vd .vd-chart, html[data-style] .vd .chart { margin-top: 12px; }
+html[data-style] .vd .vd-grid { gap: 48px 56px; }
+
+/* chart marks and numbers carry the strongest weight; axes and labels stay legible but quiet */
+html[data-style] .vd .vd-svg .now { stroke-width: 3.5; }
+html[data-style] .vd .vd-svg .tk { font: 12px var(--sans); fill: var(--ink-3); }
+html[data-style] .vd .vd-svg .lb2 { font: 12.5px var(--sans); fill: var(--ink-2); }
+html[data-style] .vd .vd-svg .nt { font: 650 13px var(--sans); }
+html[data-style] .vd .strip text { font-size: 12px; }
+html[data-style] .vd td b, html[data-style] .vd .vd-whi, html[data-style] .vd .readout b { font-weight: 650; color: var(--ink); }
+
+/* small text up to 12px minimum */
+html[data-style] .vd :is(.alm .h, .cell, .calm, .dows, .vd-whead, .vd-wday small, .live, .q, .key, .vd-wgap) { font-size: 0.75rem; }
+html[data-style] .vd .live { text-transform: none; letter-spacing: 0.04em; }
+html[data-style] .vd .live::before { content: ""; }
+html[data-style] .vd .ev .live { font-size: 0; }
+html[data-style] .vd :is(.vd-wrow) { font-size: 0.9375rem; }
+html[data-style] .vd :is(.vd-wrow, td, th) { line-height: 1.4; }
+
+/* tabs, controls */
+html[data-style] .vd .vd-tab { font-size: var(--step-0); letter-spacing: 0.01em; }
+html[data-style] .vd .vd-tab[aria-selected=true] { font-weight: 650; }
+html[data-style] .vd .seg { border-radius: 8px; }
+html[data-style] .vd .q { white-space: nowrap; }
+html[data-style] .vd .vd-nowline { margin-bottom: 0; }
+html[data-style] .vd :is(.seg button, .more) { background: var(--surface); }
+/* pressed segment: filled ink with ground text (about 14:1 in Paper light), above the surface fill of unpressed buttons */
+html[data-style] .vd .seg button[aria-pressed=true] { background: var(--ink); color: var(--ground); font-weight: 650; }
+html[data-style] ::selection { background: var(--rain-1); color: var(--ink); }
+html[data-style] :focus-visible { outline: 3px solid var(--rain-3); outline-offset: 2px; }
+
+/* ---------- 3 Mist: hairlines and whitespace instead of tinted panels ---------- */
+html[data-style="3"] .vd :is(.seg, .more, .vd-proto select, .q) { background: transparent; border-color: var(--rule-strong); }
+html[data-style="3"] .vd .seg button { background: transparent; }
+html[data-style="3"] .vd .seg button[aria-pressed=true] { background: transparent; color: var(--ink); box-shadow: inset 0 -2px 0 var(--ink); font-weight: 650; }
+html[data-style="3"] .vd .seg button + button { border-left-color: var(--rule); }
+html[data-style="3"] .vd .ev tr[aria-current=true] td { background: transparent; box-shadow: inset 0 -2px 0 var(--rain-3); font-weight: 600; }
+html[data-style="3"] .vd .vd-tabs { border-bottom-color: var(--rule); }
+html[data-style="3"] .vd .vd-grid { gap: 56px 64px; }
+html[data-style="3"] .vd .vd-facts { border-color: var(--rule); }
+html[data-style="3"] .vd .vd-tab[aria-selected=true] { box-shadow: inset 0 -2px 0 var(--rain-3); }

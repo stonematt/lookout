@@ -1,0 +1,117 @@
+/* PROTOTYPE shared world for all variants: Dark Sky presentation, FT storytelling.
+   Variants own layout and structure; they take type, palette and density from here. */
+:root {
+  /* ground and ink: day */
+  --ground: #f6f8fb;
+  --surface: #ffffff;
+  --ink: #0f1a2b;
+  --ink-2: #3a4a63;          /* secondary text, tinted from the ink hue */
+  --ink-3: #66768f;          /* tertiary: axis labels, timestamps (large/short only) */
+  --rule: #d9e1ec;           /* hairline axes and dividers */
+  --rule-strong: #b8c4d6;
+
+  /* data: precipitation ramp, drizzle to downpour */
+  --rain-0: #dbe9fb;
+  --rain-1: #9cc3f2;
+  --rain-2: #4f8fe0;
+  --rain-3: #1f5fc4;
+  --rain-4: #0b3a85;
+
+  /* data: temperature ramp, cold to warm */
+  --temp-cold: #3d6fd8;
+  --temp-cool: #6fa8dc;
+  --temp-mild: #a7b9c9;
+  --temp-warm: #f0a14a;
+  --temp-hot: #d9542b;
+
+  /* data: sun and daylight */
+  --sun: #f2b636;
+  --sun-soft: #fbe7b0;
+  --night: #e3e8f1;          /* night band on the condition ribbon */
+
+  /* annotation: the finding on a chart */
+  --note: #c8322c;
+
+  /* gaps: invalid comparisons */
+  --gap-a: #e9edf3;
+  --gap-b: #f6f8fb;
+
+  /* type */
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "Schibsted Grotesk", system-ui, sans-serif;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.625rem;
+  --step-3: 2.25rem;
+  --step-4: 4.5rem;          /* current temperature */
+
+  /* space */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 72px;
+  --radius: 10px;
+  --shadow: 0 2px 10px rgba(15, 26, 43, 0.08);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0a1220;
+    --surface: #111c2e;
+    --ink: #eef3fa;
+    --ink-2: #b9c6da;
+    --ink-3: #8797b0;
+    --rule: #22324a;
+    --rule-strong: #34486a;
+    --rain-0: #16304f;
+    --rain-1: #22508a;
+    --rain-2: #3b7fd6;
+    --rain-3: #78b0f2;
+    --rain-4: #c3dcfb;
+    --night: #0d1828;
+    --sun-soft: #3a3016;
+    --note: #ff7a6b;
+    --gap-a: #18243a;
+    --gap-b: #111c2e;
+    --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+}
+/* explicit dark: ?theme=dark */
+  :root[data-theme="dark"] {
+    --ground: #0a1220;
+    --surface: #111c2e;
+    --ink: #eef3fa;
+    --ink-2: #b9c6da;
+    --ink-3: #8797b0;
+    --rule: #22324a;
+    --rule-strong: #34486a;
+    --rain-0: #16304f;
+    --rain-1: #22508a;
+    --rain-2: #3b7fd6;
+    --rain-3: #78b0f2;
+    --rain-4: #c3dcfb;
+    --night: #0d1828;
+    --sun-soft: #3a3016;
+    --note: #ff7a6b;
+    --gap-a: #18243a;
+    --gap-b: #111c2e;
+    --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+
+html { background: var(--ground); color: var(--ink); font-family: var(--sans); font-size: 100%;
+  -webkit-text-size-adjust: 100%; font-variant-numeric: tabular-nums; }
+body { background: var(--ground); }
+::selection { background: var(--rain-1); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--rain-2); outline-offset: 2px; border-radius: 4px; }
+a { color: var(--rain-3); text-underline-offset: 3px; }
+* { box-sizing: border-box; }
+* { scrollbar-color: var(--rule-strong) transparent; }
+
+/* hatched fill for invalid comparisons over archive gaps */
+.gap-hatch {
+  background: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
