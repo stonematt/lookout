@@ -4,7 +4,8 @@
 
 accepted (2026-10-30). Amended the same day: the snapshot is a JSON file
 on Storj, not a Neon table. Decided in "How do secrets and state work
-without Streamlit?" (#56).
+without Streamlit?" (#56). Amended again: VPS secrets stay in TOML,
+and the cron heartbeat moves from the shell wrapper into Python.
 
 ## Context
 
@@ -35,13 +36,16 @@ downloading the 12.8 MB archive and the 2.9 MB energy catalog from Storj.
      page header and any widget read it.
 4. The Storj archive and its parquet layout are unchanged. The cron is
    the only writer to Storj. Vercel holds a separate Storj credential
-   that is read-only and limited to the `snapshot/` prefix.
+   that is read-only and limited to the `snapshot/` prefix. The VPS
+   keeps its secrets in TOML at `~/.config/lookout/secrets.toml`,
+   outside the git checkout. Python reads them through one loader that
+   checks env vars first and never imports Streamlit.
 5. An off-VPS monitor must alert when the snapshot goes stale or the cron
    stops reporting, because the VPS is now the only source of freshness.
    It is two Healthchecks.io heartbeats with email alerts:
-   - A cron heartbeat, pinged by `cron_run.sh` before the run and with
-     its exit status after the snapshot is published. Period 5 min,
-     grace 10 min.
+   - A cron heartbeat, pinged by the Python refresh command at its start
+     and with its exit status after the snapshot is published. Period
+     5 min, grace 10 min.
    - A station heartbeat, pinged by the run only while the station's
      live reading is under 15 min old. Period 5 min, grace 30 min. Its
      slug is the station's human-readable name, not its MAC address.
