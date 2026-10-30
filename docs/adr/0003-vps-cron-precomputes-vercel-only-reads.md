@@ -38,6 +38,19 @@ downloading the 12.8 MB archive and the 2.9 MB energy catalog from Storj.
    that is read-only and limited to the `snapshot/` prefix.
 5. An off-VPS monitor must alert when the snapshot goes stale or the cron
    stops reporting, because the VPS is now the only source of freshness.
+   It is two Healthchecks.io heartbeats with email alerts:
+   - A cron heartbeat, pinged by `cron_run.sh` before the run and with
+     its exit status after the snapshot is published. Period 5 min,
+     grace 10 min.
+   - A station heartbeat, pinged by the run only while the station's
+     live reading is under 15 min old. Period 5 min, grace 30 min. Its
+     slug is the station's human-readable name, not its MAC address.
+   The page header shows the age of the newest observation and turns
+   stale past 15 min. `/current` carries the observation time and the
+   snapshot build time.
+6. Storj data, the snapshot and `/current` are keyed by station MAC
+   address, so a later multi-station effort extends them rather than
+   breaking them. Multi-station support itself is out of scope here.
 
 ## Consequences
 
@@ -45,6 +58,10 @@ downloading the 12.8 MB archive and the 2.9 MB energy catalog from Storj.
   persistence happens in the cron.
 - A dead VPS means a dashboard that stops updating while still serving.
   The monitor and a visible data age are what catch it.
+- A healthy cron with an offline station also gives an old dashboard.
+  The separate station heartbeat tells that case apart from a dead VPS.
+- Renaming a station in Ambient creates a new station heartbeat, and the
+  old one alerts as down. That is accepted.
 - A 5-minute cron re-downloads the archive on each run, about 140 GB a
   month of Storj egress, or about $1. That is accepted. A local archive
   copy on the VPS, checked by ETag, can remove it later.
