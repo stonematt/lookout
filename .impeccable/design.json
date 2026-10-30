@@ -1,0 +1,950 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-28T21:33:52+00:00",
+  "title": "Design System: Lookout",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Paper Ground",
+        "canonical": "#f7f4ee",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#262523",
+          "#43423e",
+          "#63615c",
+          "#84827d",
+          "#a7a5a1",
+          "#cac9c6",
+          "#efeeec"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Card Paper",
+        "canonical": "#fcfbf8",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424240",
+          "#62615f",
+          "#838280",
+          "#a6a5a3",
+          "#c9c9c7",
+          "#efeeed"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Warm Ink",
+        "canonical": "#26231f",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#262523",
+          "#44423e",
+          "#64615c",
+          "#85827d",
+          "#a7a4a1",
+          "#cbc9c6",
+          "#efeeec"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "#4b463f",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45413c",
+          "#65605a",
+          "#87817a",
+          "#a8a49f",
+          "#ccc9c4",
+          "#f0eeeb"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Faint Ink",
+        "canonical": "#686259",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45413b",
+          "#666058",
+          "#878179",
+          "#a9a49d",
+          "#ccc9c3",
+          "#f0eeeb"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e3ded3",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45423b",
+          "#656158",
+          "#868279",
+          "#a8a59d",
+          "#cbc9c3",
+          "#f0eeeb"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong",
+        "canonical": "#c2baab",
+        "tonalRamp": [
+          "#0d0b08",
+          "#28251f",
+          "#464138",
+          "#676054",
+          "#888175",
+          "#aaa49a",
+          "#cdc9c1",
+          "#f1eee9"
+        ]
+      },
+      "rain-0": {
+        "role": "primary",
+        "displayName": "Usual-Band Mist",
+        "canonical": "#dde5ee",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#222529",
+          "#3e4248",
+          "#5c6269",
+          "#7d838a",
+          "#a0a6ac",
+          "#c5cace",
+          "#eceff2"
+        ]
+      },
+      "rain-1": {
+        "role": "primary",
+        "displayName": "Drizzle Blue",
+        "canonical": "#a9bdd3",
+        "tonalRamp": [
+          "#070c10",
+          "#1e262f",
+          "#374350",
+          "#536375",
+          "#738497",
+          "#99a7b6",
+          "#c0cad6",
+          "#e8eff7"
+        ]
+      },
+      "rain-2": {
+        "role": "primary",
+        "displayName": "Shower Blue",
+        "canonical": "#6a8aac",
+        "tonalRamp": [
+          "#050c14",
+          "#192635",
+          "#2f4459",
+          "#486481",
+          "#6985a4",
+          "#90a8c1",
+          "#bacbde",
+          "#e4f0fd"
+        ]
+      },
+      "rain-3": {
+        "role": "primary",
+        "displayName": "Ledger Blue",
+        "canonical": "#365f8b",
+        "tonalRamp": [
+          "#030c17",
+          "#14263a",
+          "#294461",
+          "#3f648c",
+          "#6086b0",
+          "#89a8cb",
+          "#b5cce6",
+          "#e1f0ff"
+        ]
+      },
+      "rain-4": {
+        "role": "primary",
+        "displayName": "Downpour Navy",
+        "canonical": "#1f405f",
+        "tonalRamp": [
+          "#050c14",
+          "#172635",
+          "#2e445a",
+          "#466482",
+          "#6686a5",
+          "#8ea8c2",
+          "#b8ccdf",
+          "#e3f0fd"
+        ]
+      },
+      "temp-cold": {
+        "role": "secondary",
+        "displayName": "Cold Slate Blue",
+        "canonical": "#4a6f94",
+        "tonalRamp": [
+          "#040c15",
+          "#162637",
+          "#2c445c",
+          "#436485",
+          "#6486a8",
+          "#8da8c5",
+          "#b7cce1",
+          "#e3f0fe"
+        ]
+      },
+      "temp-cool": {
+        "role": "secondary",
+        "displayName": "Cool Steel",
+        "canonical": "#86a3bd",
+        "tonalRamp": [
+          "#060c12",
+          "#1a2631",
+          "#324454",
+          "#4c647a",
+          "#6c869c",
+          "#93a8bb",
+          "#bccbda",
+          "#e6f0f9"
+        ]
+      },
+      "temp-mild": {
+        "role": "secondary",
+        "displayName": "Mild Stone",
+        "canonical": "#b3aea4",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45423c",
+          "#656159",
+          "#868279",
+          "#a8a59e",
+          "#cbc9c3",
+          "#f0eeeb"
+        ]
+      },
+      "temp-warm": {
+        "role": "secondary",
+        "displayName": "Warm Ochre",
+        "canonical": "#cf9654",
+        "tonalRamp": [
+          "#150800",
+          "#371f01",
+          "#5c3909",
+          "#855516",
+          "#a8773c",
+          "#c59c70",
+          "#e2c3a2",
+          "#ffebd5"
+        ]
+      },
+      "temp-hot": {
+        "role": "secondary",
+        "displayName": "Terracotta",
+        "canonical": "#b0522b",
+        "tonalRamp": [
+          "#1a0400",
+          "#401705",
+          "#6a2d13",
+          "#984523",
+          "#be6745",
+          "#d89175",
+          "#f2bba6",
+          "#ffe5d8"
+        ]
+      },
+      "sun": {
+        "role": "secondary",
+        "displayName": "Sun Amber",
+        "canonical": "#d9a23c",
+        "tonalRamp": [
+          "#150800",
+          "#362000",
+          "#5c3a00",
+          "#855700",
+          "#a87916",
+          "#c59e5e",
+          "#e2c596",
+          "#ffecce"
+        ]
+      },
+      "sun-soft": {
+        "role": "secondary",
+        "displayName": "Daylight Cream",
+        "canonical": "#f1e2bd",
+        "tonalRamp": [
+          "#0e0b04",
+          "#2a2416",
+          "#4a412b",
+          "#6c6043",
+          "#8e8163",
+          "#aea48b",
+          "#d0c9b6",
+          "#f3eee2"
+        ]
+      },
+      "night": {
+        "role": "neutral",
+        "displayName": "Night Band",
+        "canonical": "#ece7dc",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45423b",
+          "#656158",
+          "#868279",
+          "#a8a59d",
+          "#cbc9c3",
+          "#f0eeeb"
+        ]
+      },
+      "note": {
+        "role": "tertiary",
+        "displayName": "Claret Note",
+        "canonical": "#94325a",
+        "tonalRamp": [
+          "#19030b",
+          "#3f1324",
+          "#692841",
+          "#963e60",
+          "#bc6081",
+          "#d78ba4",
+          "#f1b6c8",
+          "#ffe2ee"
+        ]
+      },
+      "gap-a": {
+        "role": "neutral",
+        "displayName": "Gap Hatch Stripe",
+        "canonical": "#e6e1d6",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45423b",
+          "#656158",
+          "#868279",
+          "#a8a59d",
+          "#cbc9c3",
+          "#f0eeeb"
+        ]
+      },
+      "gap-b": {
+        "role": "neutral",
+        "displayName": "Gap Hatch Ground",
+        "canonical": "#f7f4ee",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#262523",
+          "#43423e",
+          "#63615c",
+          "#84827d",
+          "#a7a5a1",
+          "#cac9c6",
+          "#efeeec"
+        ]
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Paper Ground (dark)",
+        "canonical": "#1b1a18",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#434240",
+          "#62615f",
+          "#838280",
+          "#a6a5a3",
+          "#cac9c7",
+          "#efeeed"
+        ]
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Card Paper (dark)",
+        "canonical": "#242321",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#434240",
+          "#62615f",
+          "#838280",
+          "#a6a5a3",
+          "#cac9c7",
+          "#efeeed"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Warm Ink (dark)",
+        "canonical": "#ece8e0",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262522",
+          "#44423d",
+          "#64615b",
+          "#85827b",
+          "#a7a59f",
+          "#cbc9c5",
+          "#f0eeec"
+        ]
+      },
+      "ink-2-dark": {
+        "role": "neutral",
+        "displayName": "Soft Ink (dark)",
+        "canonical": "#c3bdb2",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272520",
+          "#45423b",
+          "#656158",
+          "#878278",
+          "#a9a49d",
+          "#ccc9c3",
+          "#f0eeea"
+        ]
+      },
+      "ink-3-dark": {
+        "role": "neutral",
+        "displayName": "Faint Ink (dark)",
+        "canonical": "#9d968b",
+        "tonalRamp": [
+          "#0c0b08",
+          "#272520",
+          "#46413b",
+          "#666057",
+          "#888178",
+          "#a9a49c",
+          "#ccc8c2",
+          "#f1eeea"
+        ]
+      },
+      "rule-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "canonical": "#34322e",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#262523",
+          "#43423f",
+          "#63615d",
+          "#84827e",
+          "#a6a5a1",
+          "#cac9c6",
+          "#efeeec"
+        ]
+      },
+      "rule-strong-dark": {
+        "role": "neutral",
+        "displayName": "Hairline Strong (dark)",
+        "canonical": "#4f4c46",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262522",
+          "#44423e",
+          "#64615b",
+          "#85827c",
+          "#a7a5a0",
+          "#cbc9c5",
+          "#efeeec"
+        ]
+      },
+      "rain-0-dark": {
+        "role": "primary",
+        "displayName": "Usual-Band Mist (dark)",
+        "canonical": "#263342",
+        "tonalRamp": [
+          "#080b10",
+          "#1f262d",
+          "#39434e",
+          "#566372",
+          "#768494",
+          "#9ba6b3",
+          "#c2cad4",
+          "#e9eff6"
+        ]
+      },
+      "rain-1-dark": {
+        "role": "primary",
+        "displayName": "Drizzle Blue (dark)",
+        "canonical": "#3a5573",
+        "tonalRamp": [
+          "#060c13",
+          "#1a2634",
+          "#314458",
+          "#4b637f",
+          "#6b85a2",
+          "#92a7c0",
+          "#bbcbdd",
+          "#e5f0fc"
+        ]
+      },
+      "rain-2-dark": {
+        "role": "primary",
+        "displayName": "Shower Blue (dark)",
+        "canonical": "#5f87b2",
+        "tonalRamp": [
+          "#040c16",
+          "#152639",
+          "#2a445f",
+          "#416489",
+          "#6286ac",
+          "#8ba8c8",
+          "#b6cce4",
+          "#e2f0ff"
+        ]
+      },
+      "rain-3-dark": {
+        "role": "primary",
+        "displayName": "Ledger Blue (dark)",
+        "canonical": "#93b3d6",
+        "tonalRamp": [
+          "#050c14",
+          "#192634",
+          "#304459",
+          "#496480",
+          "#6a85a3",
+          "#91a8c0",
+          "#bacbde",
+          "#e5f0fc"
+        ]
+      },
+      "rain-4-dark": {
+        "role": "primary",
+        "displayName": "Downpour Navy (dark)",
+        "canonical": "#d0e0f0",
+        "tonalRamp": [
+          "#080c0f",
+          "#20262c",
+          "#3a434c",
+          "#56636f",
+          "#778491",
+          "#9ca6b1",
+          "#c2cad2",
+          "#eaeff5"
+        ]
+      },
+      "temp-cold-dark": {
+        "role": "secondary",
+        "displayName": "Cold Slate Blue (dark)",
+        "canonical": "#6f95bd",
+        "tonalRamp": [
+          "#040c15",
+          "#162637",
+          "#2c445d",
+          "#446486",
+          "#6486a9",
+          "#8da8c5",
+          "#b7cce2",
+          "#e3f0ff"
+        ]
+      },
+      "temp-cool-dark": {
+        "role": "secondary",
+        "displayName": "Cool Steel (dark)",
+        "canonical": "#94b1cb",
+        "tonalRamp": [
+          "#060c12",
+          "#1b2631",
+          "#324454",
+          "#4c6479",
+          "#6d869c",
+          "#93a8ba",
+          "#bccbd9",
+          "#e6f0f9"
+        ]
+      },
+      "temp-mild-dark": {
+        "role": "secondary",
+        "displayName": "Mild Stone (dark)",
+        "canonical": "#8f8a80",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272521",
+          "#45423b",
+          "#656158",
+          "#868279",
+          "#a8a59d",
+          "#ccc9c3",
+          "#f0eeeb"
+        ]
+      },
+      "temp-warm-dark": {
+        "role": "secondary",
+        "displayName": "Warm Ochre (dark)",
+        "canonical": "#d8a463",
+        "tonalRamp": [
+          "#140800",
+          "#352002",
+          "#5a3a0c",
+          "#82571a",
+          "#a5783f",
+          "#c29e72",
+          "#e0c4a3",
+          "#feebd6"
+        ]
+      },
+      "temp-hot-dark": {
+        "role": "secondary",
+        "displayName": "Terracotta (dark)",
+        "canonical": "#e07a4d",
+        "tonalRamp": [
+          "#1a0400",
+          "#411602",
+          "#6c2c0c",
+          "#9a441a",
+          "#c0663e",
+          "#da9071",
+          "#f3baa3",
+          "#ffe5d6"
+        ]
+      },
+      "sun-dark": {
+        "role": "secondary",
+        "displayName": "Sun Amber (dark)",
+        "canonical": "#e2b04f",
+        "tonalRamp": [
+          "#140900",
+          "#352100",
+          "#5a3b00",
+          "#825900",
+          "#a57a1e",
+          "#c29f60",
+          "#dfc598",
+          "#fdeccf"
+        ]
+      },
+      "sun-soft-dark": {
+        "role": "secondary",
+        "displayName": "Daylight Cream (dark)",
+        "canonical": "#3a3220",
+        "tonalRamp": [
+          "#0d0b06",
+          "#29251c",
+          "#474134",
+          "#68604f",
+          "#8a826f",
+          "#aba495",
+          "#cec9bd",
+          "#f1eee7"
+        ]
+      },
+      "night-dark": {
+        "role": "neutral",
+        "displayName": "Night Band (dark)",
+        "canonical": "#151412",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#434240",
+          "#62615f",
+          "#838280",
+          "#a6a5a3",
+          "#cac9c7",
+          "#efeeed"
+        ]
+      },
+      "note-dark": {
+        "role": "tertiary",
+        "displayName": "Claret Note (dark)",
+        "canonical": "#e59ab8",
+        "tonalRamp": [
+          "#15060c",
+          "#381a27",
+          "#5e3144",
+          "#874b65",
+          "#ac6c86",
+          "#c993a8",
+          "#e5bccb",
+          "#ffe6f0"
+        ]
+      },
+      "gap-a-dark": {
+        "role": "neutral",
+        "displayName": "Gap Hatch Stripe (dark)",
+        "canonical": "#2a2927",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#434240",
+          "#62615f",
+          "#838280",
+          "#a6a5a3",
+          "#cac9c8",
+          "#efeeed"
+        ]
+      },
+      "gap-b-dark": {
+        "role": "neutral",
+        "displayName": "Gap Hatch Ground (dark)",
+        "canonical": "#1b1a18",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#434240",
+          "#62615f",
+          "#838280",
+          "#a6a5a3",
+          "#cac9c7",
+          "#efeeed"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Current temperature",
+        "purpose": "The live temperature only, with a 0.4em superscript unit."
+      },
+      "headline": {
+        "displayName": "Hero finding",
+        "purpose": "The adaptive hero lead's finding; 1.625rem at 1024px and up; max 30ch."
+      },
+      "title": {
+        "displayName": "Section finding",
+        "purpose": "Section headlines that state the finding; 1.3125rem at 1024px and up; max 36ch."
+      },
+      "subtitle": {
+        "displayName": "Sub-block title",
+        "purpose": "Sub-blocks and table captions."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Condition summary and narrative; max 60ch."
+      },
+      "standfirst": {
+        "displayName": "Standfirst",
+        "purpose": "One line under a headline on how to read the chart; ink-2; max 62ch."
+      },
+      "source": {
+        "displayName": "Source line",
+        "purpose": "Method, gaps and archive lag under every chart; ink-2; max 62ch."
+      },
+      "stat": {
+        "displayName": "Stat value",
+        "purpose": "Right-now and hero fact values, tabular, above an ink-2 label."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Keys, almanac headers, ribbon ticks, chips. 12px is the floor for all text."
+      },
+      "axis": {
+        "displayName": "Axis tick",
+        "purpose": "Chart ticks in ink-3, tabular."
+      },
+      "annotation": {
+        "displayName": "Annotation",
+        "purpose": "The now label and end values on charts, in note claret, haloed in ground."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "draw-now",
+        "value": "stroke-dashoffset 1.1s cubic-bezier(.16,1,.3,1) .1s",
+        "purpose": "The bold now line draws in once on first render; skipped under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-table",
+        "value": "480px"
+      },
+      {
+        "name": "narrow-chart",
+        "value": "520px"
+      },
+      {
+        "name": "stats-step-up",
+        "value": "600px"
+      },
+      {
+        "name": "two-column",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Tabs",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Sticky section tabs on the ground with a hairline; the selected tab gets ink, weight 650 and a 3px Ledger Blue underline.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button class=\"ds-tab\" role=\"tab\" aria-selected=\"true\">Overview</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Rain</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Rain Events</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Solar</button></div>",
+      "css": ".ds-tabs { display: flex; gap: 4px; background: #f7f4ee; border-bottom: 1px solid #e3ded3; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; letter-spacing: 0.012em; } .ds-tab { background: none; border: 0; border-radius: 0; padding: 0 14px; min-height: 46px; font: inherit; font-size: 1rem; font-weight: 500; color: #4b463f; box-shadow: inset 0 -3px 0 transparent; cursor: pointer; } .ds-tab:hover { color: #26231f; } .ds-tab[aria-selected=true] { color: #26231f; font-weight: 650; box-shadow: inset 0 -3px 0 #365f8b; } .ds-tab:focus-visible { outline: 3px solid #365f8b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Segmented control",
+      "kind": "chip",
+      "refersTo": "segment",
+      "description": "Measure switch; pressed segment is ink fill with ground text (about 14:1).",
+      "html": "<div class=\"ds-seg\" role=\"group\" aria-label=\"Almanac measure\"><button aria-pressed=\"true\">Rain total</button><button aria-pressed=\"false\">Mean temperature</button></div>",
+      "css": ".ds-seg { display: inline-flex; border: 1px solid #c2baab; border-radius: 8px; overflow: hidden; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; } .ds-seg button { background: #fcfbf8; border: 0; padding: 0 14px; min-height: 40px; font: inherit; font-size: 0.875rem; font-weight: 500; color: #4b463f; cursor: pointer; } .ds-seg button + button { border-left: 1px solid #c2baab; } .ds-seg button:hover { color: #26231f; } .ds-seg button[aria-pressed=true] { background: #26231f; color: #f7f4ee; font-weight: 650; } .ds-seg button:focus-visible { outline: 3px solid #365f8b; outline-offset: 2px; }"
+    },
+    {
+      "name": "More button",
+      "kind": "button",
+      "refersTo": "button-more",
+      "description": "Secondary action: surface fill, strong hairline, 8px corners, 44px target.",
+      "html": "<button class=\"ds-more\">Show more events</button>",
+      "css": ".ds-more { background: #fcfbf8; color: #26231f; border: 1px solid #c2baab; border-radius: 8px; min-height: 44px; padding: 0 16px; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 1rem; font-weight: 600; cursor: pointer; } .ds-more:hover { border-color: #686259; } .ds-more:focus-visible { outline: 3px solid #365f8b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Quality chip",
+      "kind": "chip",
+      "refersTo": "quality-chip",
+      "description": "Event data-quality pill; a low rating is dashed and softer.",
+      "html": "<span class=\"ds-q\">good</span> <span class=\"ds-q ds-q-low\">fair</span>",
+      "css": ".ds-q { display: inline-block; white-space: nowrap; padding: 2px 8px; border-radius: 999px; border: 1px solid #c2baab; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; color: #26231f; } .ds-q-low { border-style: dashed; color: #4b463f; }"
+    },
+    {
+      "name": "Stat strip",
+      "kind": "card",
+      "refersTo": "stat-strip",
+      "description": "Right-now values between hairlines; value above label, tabular digits.",
+      "html": "<dl class=\"ds-stats\"><div><dt>feels like</dt><dd>46.9°</dd></div><div><dt>wind</dt><dd>3.8 mph</dd></div><div><dt>rain today</dt><dd>0.04 in</dd></div></dl>",
+      "css": ".ds-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; max-width: 520px; margin: 0; padding: 8px 0; border-top: 1px solid #e3ded3; border-bottom: 1px solid #e3ded3; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; } .ds-stats div { display: flex; flex-direction: column; } .ds-stats dt { order: 2; font-size: 0.8125rem; color: #4b463f; } .ds-stats dd { order: 1; margin: 0; font-size: 1.1875rem; font-weight: 650; color: #26231f; white-space: nowrap; font-feature-settings: 'tnum' 1; }"
+    },
+    {
+      "name": "Almanac cell",
+      "kind": "custom",
+      "refersTo": "almanac-cell",
+      "description": "Month cells: ramp-filled valid month, prorated with ≈, hatched invalid month, claret-outlined current month.",
+      "html": "<div class=\"ds-alm\"><button class=\"ds-cell\" style=\"background:#6a8aac;color:#fff\">4.5</button><button class=\"ds-cell\" style=\"background:#a9bdd3;color:#14161a\">≈3.5</button><button class=\"ds-cell ds-gap\" aria-label=\"not a valid month\"></button><button class=\"ds-cell ds-cur\" style=\"background:repeating-linear-gradient(135deg,rgba(255,255,255,.35) 0 3px,transparent 3px 7px),#dde5ee;color:#14161a\">1.0</button></div>",
+      "css": ".ds-alm { display: grid; grid-template-columns: repeat(4, 56px); gap: 3px; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; } .ds-cell { border: 0; border-radius: 4px; min-height: 44px; padding: 0; font-size: 0.75rem; font-weight: 500; font-feature-settings: 'tnum' 1; cursor: pointer; } .ds-cell:hover { box-shadow: 0 0 0 2px #26231f; } .ds-cell:focus-visible { outline: 3px solid #365f8b; outline-offset: 2px; } .ds-gap { border: 1px solid #e3ded3; background: repeating-linear-gradient(135deg, #e6e1d6 0 4px, #f7f4ee 4px 8px); } .ds-cur { outline: 2px solid #94325a; outline-offset: 1px; }"
+    },
+    {
+      "name": "Range bar with IQR and now rule",
+      "kind": "custom",
+      "refersTo": "periods-chart",
+      "description": "One window row: ink-3 min-max whisker, temp-cool IQR bar, claret now rule; an invalid window is a hatched bar.",
+      "html": "<svg class=\"ds-range\" width=\"320\" height=\"84\" viewBox=\"0 0 320 84\"><defs><pattern id=\"dsh\" width=\"8\" height=\"8\" patternUnits=\"userSpaceOnUse\" patternTransform=\"rotate(45)\"><rect width=\"8\" height=\"8\" fill=\"#f7f4ee\"/><rect width=\"3\" height=\"8\" fill=\"#e6e1d6\"/></pattern></defs><text x=\"0\" y=\"24\" class=\"ds-lab\">30 days</text><line x1=\"110\" x2=\"290\" y1=\"20\" y2=\"20\" stroke=\"#686259\" stroke-width=\"1.5\"/><circle cx=\"110\" cy=\"20\" r=\"2.6\" fill=\"#686259\"/><circle cx=\"290\" cy=\"20\" r=\"2.6\" fill=\"#686259\"/><rect x=\"170\" y=\"14\" width=\"60\" height=\"12\" rx=\"3\" fill=\"#86a3bd\"/><text x=\"0\" y=\"64\" class=\"ds-lab\">365 days</text><rect x=\"90\" y=\"49\" width=\"220\" height=\"22\" rx=\"4\" fill=\"url(#dsh)\" stroke=\"#c2baab\" stroke-width=\".75\"/><text x=\"200\" y=\"64\" class=\"ds-lb2\" text-anchor=\"middle\">n/a: gap in record</text><line x1=\"190\" x2=\"190\" y1=\"4\" y2=\"44\" stroke=\"#94325a\" stroke-width=\"2.25\"/></svg>",
+      "css": ".ds-range { font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; } .ds-range .ds-lab { font: 600 13px 'Atkinson Hyperlegible Next', system-ui, sans-serif; fill: #26231f; } .ds-range .ds-lb2 { font: 12.5px 'Atkinson Hyperlegible Next', system-ui, sans-serif; fill: #4b463f; paint-order: stroke; stroke: #f7f4ee; stroke-width: 4px; }"
+    },
+    {
+      "name": "Condition ribbon",
+      "kind": "custom",
+      "refersTo": "condition-ribbon",
+      "description": "48-hour band: night or daylight per slot, rain ramp overprinted, ink temperature trace, claret now dot, hatched unarchived tail.",
+      "html": "<div class=\"ds-rband\"><svg viewBox=\"0 0 1000 100\" preserveAspectRatio=\"none\"><rect x=\"0\" width=\"300\" height=\"100\" fill=\"#ece7dc\"/><rect x=\"300\" width=\"420\" height=\"100\" fill=\"#f1e2bd\"/><rect x=\"420\" width=\"90\" height=\"100\" fill=\"#6a8aac\"/><rect x=\"720\" width=\"200\" height=\"100\" fill=\"#ece7dc\"/><polyline points=\"0,70 300,80 500,30 720,40 920,60\" fill=\"none\" stroke=\"#f7f4ee\" stroke-width=\"4.5\" vector-effect=\"non-scaling-stroke\"/><polyline points=\"0,70 300,80 500,30 720,40 920,60\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"2\" vector-effect=\"non-scaling-stroke\"/></svg><div class=\"ds-rhatch\"></div><div class=\"ds-rdot\"></div></div>",
+      "css": ".ds-rband { position: relative; height: 52px; border-radius: 4px; overflow: hidden; background: #ece7dc; max-width: 760px; } .ds-rband svg { position: absolute; inset: 0; width: 100%; height: 100%; } .ds-rhatch { position: absolute; top: 0; bottom: 0; left: 92%; right: 0; background: repeating-linear-gradient(135deg, #e6e1d6 0 4px, #f7f4ee 4px 8px); } .ds-rdot { position: absolute; right: 3px; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: #94325a; box-shadow: 0 0 0 2px #f7f4ee; transform: translateY(-50%); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Annotated Almanac",
+    "overview": "**Creative North Star: \"The Annotated Almanac\"**\n\nLookout is one station's own record, set out the way the Financial Times sets out a chart: a short finding in plain words, a one-line standfirst, the evidence, then where the numbers came from. The Dark Sky half supplies the presentation: a large current temperature, a 48-hour condition ribbon, and colour that comes from the weather rather than from the chrome. The headlines say what the data shows and then step back. The chart is the most contrasty thing in any section.\n\nThe Paper world sits on a warm off-white ground by day and a warm off-black ground at night. The chrome is close to greyscale and warm: ink, two softer inks, two hairline rules. Colour is kept for data. Rain is a desaturated blue ramp from drizzle to downpour, temperature runs from cold blue to terracotta, solar is amber, and one claret marks the finding on a chart. One readable family, Atkinson Hyperlegible Next, sets every word and number. The system is built for dyslexic readers: text is left-aligned, nothing is italic, there are no long all-caps runs, line height is generous, and measures are short.\n\nThe record is honest about itself. Gaps are hatched, never smoothed over. A live value beats an archived one. Each fact is computed once and agrees everywhere it appears. The system has no dark-pattern urgency, no gauge walls and no tile grids of raw numbers.",
+    "keyCharacteristics": [
+      "Every section runs finding headline, standfirst, chart, source line.",
+      "Warm neutral chrome; data colour carries all the hue.",
+      "One sans family for text and numerals; tabular digits only where numbers line up.",
+      "Hairline axes, direct labels, no chart boxes.",
+      "Hatching is the one visual word for \"not valid\".",
+      "Light and dark follow the OS. An explicit override is honoured."
+    ],
+    "rules": [
+      {
+        "name": "The Data Owns the Hue Rule",
+        "body": "Chrome is warm neutral. Every saturated colour on screen is a measurement, the usual band, or the claret finding.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Claret Rule",
+        "body": "`note` marks the \"now\" or the current item that the headline is about, and nothing else. A screen section has one claret subject.",
+        "section": "colors"
+      },
+      {
+        "name": "The AA Both Ways Rule",
+        "body": "All text meets WCAG AA (4.5:1, or 3:1 for 18px+ or bold 14px+) on the ground in light and dark. A selected control meets 4.5:1: the pressed segment is `ink` fill with `ground` text (about 14:1). Text on a ramp-coloured cell is chosen per cell, near-white or near-black, whichever has more contrast with the computed fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Serif, No Italic Rule",
+        "body": "Every word is Atkinson Hyperlegible Next, upright and left-aligned. Emphasis is weight 600–650. Text never uses italics, centred paragraphs or all-caps runs longer than a short label.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Where It Lines Up Rule",
+        "body": "Tabular digits (`tnum`) are used only in tables, stat strips, axes, almanac cells, the ribbon and the temperature. Headlines, standfirsts, source lines and body text use proportional digits.",
+        "section": "typography"
+      },
+      {
+        "name": "The Quiet Headline Rule",
+        "body": "A headline is short, 600 weight, and never larger than step 3. If it competes with the chart for contrast, the headline gives way.",
+        "section": "typography"
+      },
+      {
+        "name": "The Phone First-Screen Rule",
+        "body": "On a phone, the first screen holds, in order: the station name and live timestamp, the current temperature with the condition sentence beside it, the Right-now stat strip (feels like, wind, rain today), the 48-hour condition ribbon, and then the hero lead.",
+        "section": "layout"
+      },
+      {
+        "name": "The Adaptive Lead Rule",
+        "body": "The hero is chosen by rules, checked in order. Rain leads if an event is live or ended in the last 12 h. Temperature leads if it is at least 10° from the month median. Solar leads if it is at least 400 W/m². Otherwise the lead is calm (days since last rain against the usual dry spell). A \"Why this leads\" disclosure lists each rule with its live value and marks which were met.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Paper Rule",
+        "body": "Nothing floats. If a group needs separating, use a hairline or whitespace, never a shadow or a tinted card.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Number Rule",
+        "body": "Each fact is computed once, from one comparison set, and every view that shows it shows that number.",
+        "section": "components"
+      },
+      {
+        "name": "The Live Beats Archive Rule",
+        "body": "A live value always replaces the archived value for the same quantity. The archive lag goes in the source line, never in a headline.",
+        "section": "components"
+      },
+      {
+        "name": "The One Gap Status Rule",
+        "body": "Each month and each window has one gap status: valid, prorated (≈) or invalid. Every chart, table and headline follows it. A ≈ window is never called \"full\". Invalid comparisons are hatched and never computed.",
+        "section": "components"
+      },
+      {
+        "name": "The Name the Years Rule",
+        "body": "A headline that compares years names them, newest first: \"against 3.5 in (2025) and 4.5 in (2024)\".",
+        "section": "components"
+      },
+      {
+        "name": "The One Format Rule",
+        "body": "Times are written `9:36 am`, and dates with times are written `Oct 27, 11:00 pm`. Durations are written `1 d 10 h`, `5 h 12 m` or `45 m`. Use station-local Pacific time and imperial units.",
+        "section": "components"
+      },
+      {
+        "name": "The Label Not Colour Rule",
+        "body": "Copy refers to marks by label or position (\"the bold line\", \"the line marked now\", \"the shaded band\", \"the outlined month\"), never by colour.",
+        "section": "components"
+      },
+      {
+        "name": "The Finding First Rule",
+        "body": "A headline states what the data shows, with the number in it. It does not describe what the chart is.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do build every section as finding headline, one-line standfirst (max 62ch), chart, then source line.",
+      "Do keep the chart the highest-contrast element in its section. The bold now line is 3.5px in the data hue, and the headline is a quiet 600 weight.",
+      "Do hatch every invalid comparison at 135° in `gap-a` over `gap-b`, with a short reason in place.",
+      "Do mark the current value in `note` claret, with a rule or dot and a \"now\" label.",
+      "Do set all text in Atkinson Hyperlegible Next, left-aligned, at a line height of at least 1.5, with no text under 12px.",
+      "Do use tabular digits in tables, stats, axes, almanac cells and the ribbon, and proportional digits everywhere else.",
+      "Do follow the OS colour scheme by default and honour an explicit light or dark choice.",
+      "Do give every chart an accessible name and every invalid cell a spoken reason."
+    ],
+    "donts": [
+      "Don't use a serif, italics, centred paragraphs or all-caps runs.",
+      "Don't use colour for chrome, or claret for anything but the finding.",
+      "Don't draw a line, bar or value across a gap, or call a ≈ window \"full\".",
+      "Don't put the archive lag in a headline, or show an archived value where a live one exists.",
+      "Don't refer to a mark by its colour in copy.",
+      "Don't add shadows, tinted cards, chart boxes or vertical gridlines.",
+      "Don't build gauge walls or tile grids of raw numbers. Lead with the finding."
+    ]
+  }
+}
