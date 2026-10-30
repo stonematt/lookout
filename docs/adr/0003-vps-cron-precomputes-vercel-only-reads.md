@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted (2026-10-30)
+accepted (2026-10-30). Amended the same day: the snapshot is a JSON file
+on Storj, not a Neon table. Decided in "How do secrets and state work
+without Streamlit?" (#56).
 
 ## Context
 
@@ -20,16 +22,20 @@ downloading the 12.8 MB archive and the 2.9 MB energy catalog from Storj.
 1. A cron on the existing VPS runs every 5 minutes. Each run does catchup,
    then the full derived pipeline (Event Catalog update and its lazy
    auto-save, rain and solar aggregations), then publishes a dashboard
-   snapshot and a small context block to a Neon table.
+   snapshot and a small context block as JSON files on Storj, under a
+   `snapshot/` prefix next to the archive.
 2. The front end is Vite + TypeScript with no UI framework, charts in
    Plotly.js, built to static files.
 3. Vercel (Hobby) serves the static build and thin read functions on one
    domain. No pandas runs on Vercel.
-   - `/dashboard` returns the snapshot.
+   - `/dashboard` returns the snapshot, with
+     `Cache-Control: s-maxage=300, stale-while-revalidate=300` so the
+     CDN serves it and Storj is read about once per 5 minutes per region.
    - `/current` returns the live `lastData` plus the context block. The
      page header and any widget read it.
 4. The Storj archive and its parquet layout are unchanged. The cron is
-   the only writer to Storj, so Vercel needs read access to Neon only.
+   the only writer to Storj. Vercel holds a separate Storj credential
+   that is read-only and limited to the `snapshot/` prefix.
 5. An off-VPS monitor must alert when the snapshot goes stale or the cron
    stops reporting, because the VPS is now the only source of freshness.
 
@@ -42,6 +48,11 @@ downloading the 12.8 MB archive and the 2.9 MB energy catalog from Storj.
 - A 5-minute cron re-downloads the archive on each run, about 140 GB a
   month of Storj egress, or about $1. That is accepted. A local archive
   copy on the VPS, checked by ETag, can remove it later.
+- Storj GET latency is not on the user's path. Measured from a laptop
+  (2026-10-30): median 343 ms for 50 KB and about 600 ms for 0.5-2 MB.
+  The CDN cache hides it, and stale-while-revalidate covers cold regions.
+- Sorting, filtering and reshaping the snapshot happen in the browser.
+  The pandas pipeline that builds it stays in Python.
 
 ## Considered alternatives
 
@@ -58,5 +69,11 @@ downloading the 12.8 MB archive and the 2.9 MB energy catalog from Storj.
 - **Move the archive to Postgres.** Rejected: Storj costs about $0.38 a
   month, and a 5-minute cron would keep a Neon compute awake past the
   free plan's compute hours. Out of scope for the Streamlit migration.
+- **Publish the snapshot to a Neon table.** The first version of this
+  ADR. Rejected: it added a database, two Postgres roles and a
+  connection string per host, only to hold one small document. A cached
+  JSON file on the existing store does the same job.
+- **Public Storj linkshare fetched by the browser.** Rejected: no CDN
+  cache in front of Storj, and CORS must be configured on the bucket.
 - **Cloudflare Python Workers.** Rejected in the hosting research: 128 MB
   memory and no boto3.
