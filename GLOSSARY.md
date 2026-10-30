@@ -52,3 +52,11 @@ normalize time. The floor exists because small positive integers (e.g.
 tz conversion and collapse downstream date ranges. See
 [ADR-0001](docs/adr/0001-dateutc-post-2020-floor.md) for why the floor
 stays even after pinning `pandas < 3`.
+
+### water year
+
+The rain season Lookout totals over: Oct 1 through Sep 30, in the lookout
+post's local zone, named by the year it ends in. Season totals,
+year-to-date rain, the almanac's year rows and year-over-year accumulation
+all use it, so a winter's rain is never split across two years.
+_Avoid_: rain year, season year, calendar year (for rain totals).
