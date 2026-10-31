@@ -398,7 +398,9 @@ def seek_over_time_gap(
     Each empty probe advances the cursor by exactly one page of 5-minute
     readings, whatever the attempt count, so the windows requested across
     an outage touch and no stretch goes unrequested (#132). The walk's
-    reach is therefore `max_attempts` pages from where the gap began.
+    reach is therefore about `max_attempts` pages from where the gap began:
+    some 208 hours at 250 records and 10 attempts. A longer outage ends on
+    the cap with nothing fetched, and the next run starts from the same row.
 
     :param last_date: datetime - The cursor the empty probe was made from.
     :param gap_attempts: int - Consecutive empty probes before this one.

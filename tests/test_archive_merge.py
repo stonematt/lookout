@@ -13,14 +13,14 @@ Archives come from `tests/fixtures/archive.py`, Ambient pages from
 catalog lives in the moto bucket.
 """
 
-from typing import Sequence
+from typing import List, Sequence, Tuple
 
 import pandas as pd
 import pytest
 
 from lookout.api import awn_controller as awn
 from lookout.core import rain_corrections
-from tests.fixtures.ambient import devices_body, to_ambient_records
+from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -163,12 +163,19 @@ class TestSeekOverTimeGap:
         assert (cursor, attempts, stop) == (start, 10, True)
 
 
-PAGE = pd.Timedelta(minutes=5 * 250)
+LIMIT = 250  # the controller's default page size
+PAGE = pd.Timedelta(minutes=5 * LIMIT)
+# A probe from a cursor asks for the readings before cursor + (limit - 3) * 5 min.
+PROBE_REACH = pd.Timedelta(minutes=5 * (LIMIT - 3))
 OUTAGE_START = pd.Timestamp("2026-01-05T00:00:00Z")
 ARCHIVE_START = "2026-01-04T00:00:00Z"
 
+Span = Tuple[pd.Timestamp, pd.Timestamp]
 
-def outage(hours: float, after_days: float = 4) -> tuple:
+
+def outage(
+    hours: float, after_days: float = 4
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Timestamp]:
     """
     An archive that ends where an outage of `hours` begins, and the truth.
 
@@ -184,13 +191,15 @@ def outage(hours: float, after_days: float = 4) -> tuple:
     return archive, truth, end
 
 
-def windows(ambient_replay, limit: int = 250) -> list:
+def windows(ambient_replay: AmbientReplay, limit: int = LIMIT) -> List[Span]:
     """
     The span of readings each history request asked for, in request order.
 
     A request ending at `endDate` for `limit` five-minute readings covers
     `[endDate - limit * 5 min, endDate)`.
 
+    :param ambient_replay: The fake Ambient the requests went to.
+    :param limit: Records per page the requests asked for.
     :return: `(start, end)` Timestamps, one pair per history request.
     """
     spans = []
@@ -200,6 +209,18 @@ def windows(ambient_replay, limit: int = 250) -> list:
         end = pd.Timestamp(int(params["endDate"]), unit="ms", tz="UTC")
         spans.append((end - pd.Timedelta(minutes=5 * limit), end))
     return spans
+
+
+def assert_windows_touch(spans: Sequence[Span]) -> None:
+    """
+    Each window starts no later than the last one ended, overlapping it by
+    at most a page.
+
+    :param spans: Requested windows, in request order.
+    """
+    for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
+        assert next_start <= prev_end, "unrequested time between windows"
+        assert prev_end - next_start <= PAGE, "more than a page of overlap"
 
 
 class TestGapSeekAcrossAnOutage:
@@ -215,9 +236,7 @@ class TestGapSeekAcrossAnOutage:
 
         spans = windows(ambient_replay)
         assert len(spans) >= 6
-        for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
-            assert next_start <= prev_end, "unrequested time between windows"
-            assert prev_end - next_start <= PAGE, "more than a page of overlap"
+        assert_windows_touch(spans)
 
     @pytest.mark.parametrize("hours", [42, 72, 180])
     def test_every_reading_after_the_outage_is_fetched(
@@ -294,8 +313,7 @@ class TestGapSeekAcrossAnOutage:
         spans = windows(ambient_replay)
         assert len(spans) == 1 + 10
         assert spans[-1][1] - OUTAGE_START < pd.Timedelta(hours=240)
-        for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
-            assert next_start <= prev_end
+        assert_windows_touch(spans)
         assert len(result) == len(archive)
 
     def test_the_seek_never_probes_from_past_the_end_bound(
@@ -315,7 +333,7 @@ class TestGapSeekAcrossAnOutage:
 
         awn.get_history_since_last_archive(device, archive, pages=20, end_date=bound)
 
-        cursors = [e - pd.Timedelta(minutes=1235) for _, e in windows(ambient_replay)]
+        cursors = [e - PROBE_REACH for _, e in windows(ambient_replay)]
         assert len(cursors) >= 5
         assert all(c < bound for c in cursors)
 
