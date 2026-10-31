@@ -151,6 +151,26 @@ class TestBarometerTrend:
         assert calculate_barometer_trend(df, 30.0) == STEADY
 
 
+class TestTrendsReadEitherOrder:
+    """#133: "now" is the newest `dateutc`, not the first row."""
+
+    @pytest.mark.parametrize("yesterday, arrow", [(45.0, UP), (55.0, DOWN)])
+    def test_temperature_trend_is_the_same_oldest_first(self, yesterday, arrow):
+        df = _temp_history(yesterday)
+        oldest_first = df.iloc[::-1].reset_index(drop=True)
+
+        assert calculate_temperature_trend(df, 50.0) == arrow
+        assert calculate_temperature_trend(oldest_first, 50.0) == arrow
+
+    @pytest.mark.parametrize("three_hours_ago, arrow", [(29.7, UP), (30.3, DOWN)])
+    def test_barometer_trend_is_the_same_oldest_first(self, three_hours_ago, arrow):
+        df = _baro_history(three_hours_ago)
+        oldest_first = df.iloc[::-1].reset_index(drop=True)
+
+        assert calculate_barometer_trend(df, 30.0) == arrow
+        assert calculate_barometer_trend(oldest_first, 30.0) == arrow
+
+
 # ---- active rain event ------------------------------------------------------
 
 
