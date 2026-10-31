@@ -1,0 +1,33 @@
+{
+  "name": "lookout-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lookout's static site and its two read functions on Vercel.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview",
+    "shots": "node scripts/shots.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
+    "aws4fetch": "1.0.20",
+    "plotly.js-dist-min": "4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/plotly.js-dist-min": "2.3.4",
+    "happy-dom": "21.0.4",
+    "playwright": "1.64.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}
