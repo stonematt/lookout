@@ -229,8 +229,11 @@ class EnergyCatalog:
         """
         Update existing catalog with new energy periods from recent archive data.
 
-        For energy catalogs, this is simpler than rain events since we just need to
-        calculate periods for any new data that extends beyond the last period.
+        The newest stored period may still have been filling, so it is
+        recomputed together with every period after it, and replaces its stored
+        value. The archived row just before that period is integrated too,
+        since the interval from it into the period is part of the period's
+        energy; the earlier period that row falls in is kept as stored.
 
         :param archive_df: Complete weather archive DataFrame
         :param existing_catalog: Existing catalog DataFrame (will load if None)
@@ -272,9 +275,9 @@ class EnergyCatalog:
         # The interval from the last row before the period into it is part of
         # the period's energy, so that row is integrated too; the period it
         # falls in is stored already and is not replaced.
-        before = archive_df.loc[~from_last, "datetime"]
-        if not before.empty:
-            from_last |= archive_df["datetime"] == before.max()
+        earlier_times = archive_df.loc[~from_last, "datetime"]
+        if not earlier_times.empty:
+            from_last |= archive_df["datetime"] == earlier_times.max()
         new_data = archive_df[from_last].copy()
 
         logger.debug(f"Processing {len(new_data)} records from {last_period_start}")
@@ -283,7 +286,7 @@ class EnergyCatalog:
         new_periods_df = calculate_15min_energy_periods(new_data)
         new_periods_df = new_periods_df[
             new_periods_df["period_start"] >= last_period_start
-        ]
+        ].copy()
 
         if new_periods_df.empty:
             logger.debug("No new energy periods calculated")

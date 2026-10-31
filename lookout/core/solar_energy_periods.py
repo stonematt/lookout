@@ -5,27 +5,36 @@ Converts raw solar radiation measurements into 15-minute energy periods.
 
 import numpy as np
 import pandas as pd
-from typing import Callable, Dict, Optional
-from lookout.core.solar_analysis import LOCATION
+from typing import Callable, Optional
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
-PERIOD = "15min"
+PERIOD = pd.Timedelta(minutes=15)
 
-# Longest gap between two rows that is integrated: one period. Across a longer
-# gap the radiation between the rows is not known, so nothing is credited.
-MAX_INTERVAL_HOURS = 0.25
+# Longest interval between two rows that is integrated: one period. Across a
+# longer gap the radiation between the rows is not known, so nothing is
+# credited for it.
+MAX_INTERVAL = PERIOD
+
+STATION_TZ = "America/Los_Angeles"
 
 
 def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate energy production for 15-minute periods using trapezoidal integration.
 
-    :param df: DataFrame with dateutc, datetime, date, and solarradiation columns
+    Every pair of consecutive rows is integrated. A pair that crosses a period
+    boundary is split at the boundary and each part is credited to the period
+    it lies in, so a day's periods add up to the trapezoid of its whole curve.
+    A pair more than one period apart is a gap and credits nothing; so does a
+    pair with missing radiation.
+
+    :param df: DataFrame with datetime and solarradiation columns
                - datetime: TZ-aware datetime column in US/Pacific (already converted)
                - solarradiation: Solar radiation in W/m²
-    :return: DataFrame with period_start, period_end, energy_kwh columns
+    :return: DataFrame with period_start, period_end, energy_kwh columns, one row
+             per period that holds a reading
              - period_start: TZ-aware datetime in US/Pacific (start of 15min period)
              - period_end: TZ-aware datetime in US/Pacific (end of 15min period)
              - energy_kwh: Energy accumulated in kWh (can be 0.0 for nighttime periods)
@@ -38,89 +47,89 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
 
     if df.empty:
         logger.info("No solar data provided for period calculation")
-        empty_df = pd.DataFrame(
+        return pd.DataFrame(
             {
-                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
+                "period_start": pd.Series(dtype=f"datetime64[ns, {STATION_TZ}]"),
+                "period_end": pd.Series(dtype=f"datetime64[ns, {STATION_TZ}]"),
                 "energy_kwh": pd.Series(dtype=float),
             }
         )
-        return empty_df
 
     # Sort by datetime ascending (archive is reverse-sorted)
-    df_sorted = df.sort_values("datetime").copy()
-
-    if df_sorted.empty:
-        logger.info("No solar data after sorting for period calculation")
-        empty_df = pd.DataFrame(
-            {
-                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "energy_kwh": pd.Series(dtype=float),
-            }
-        )
-        return empty_df
+    df_sorted = df.sort_values("datetime", kind="stable")
 
     logger.debug(
         f"Processing {len(df_sorted)} solar radiation records for 15-minute periods"
     )
 
-    # Create 15-minute period buckets aligned to clock times
-    # Convert to UTC to avoid DST issues, floor, then convert back to Pacific
-    utc_dt = df_sorted["datetime"].dt.tz_convert("UTC").reset_index(drop=True)
-    utc_floored = utc_dt.dt.floor(PERIOD)
+    # Periods aligned to clock times, floored in UTC to avoid DST issues
+    times = df_sorted["datetime"].dt.tz_convert("UTC").reset_index(drop=True)
     watts = df_sorted["solarradiation"].astype(float).reset_index(drop=True)
-
-    # Trapezoid over each pair of consecutive rows: (y0 + y1) / 2 * dx. A pair
-    # that crosses a period boundary is split there, at the radiation read off
-    # the straight line between the two rows, and each part is credited to the
-    # period it lies in. Splitting a trapezoid on its own line keeps its area,
-    # so the periods add up to the trapezoid of the whole curve.
-    t0, t1 = utc_dt.iloc[:-1].values, utc_dt.iloc[1:].values
-    y0, y1 = watts.iloc[:-1].values, watts.iloc[1:].values
-    p0 = utc_floored.iloc[:-1].values
-    boundary = utc_floored.iloc[1:].values  # start of the later row's period
-    span = (t1 - t0) / np.timedelta64(1, "h")
-    counted = (span > 0) & (span <= MAX_INTERVAL_HOURS)
-    crosses = counted & (boundary > t0) & (boundary < t1)
-
-    before = np.where(crosses, (boundary - t0) / np.timedelta64(1, "h"), span)
-    after = span - before
-    with np.errstate(divide="ignore", invalid="ignore"):
-        y_boundary = np.where(crosses, y0 + (y1 - y0) * before / span, y1)
-    first_wh = np.where(counted, (y0 + y_boundary) / 2 * before, 0.0)
-    second_wh = np.where(crosses, (y_boundary + y1) / 2 * after, 0.0)
-
-    credited = pd.concat(
-        [
-            pd.Series(first_wh, index=pd.DatetimeIndex(p0, tz="UTC")),
-            pd.Series(second_wh, index=pd.DatetimeIndex(boundary, tz="UTC")),
-        ]
-    )
-    # Missing radiation (NaN) contributes nothing, as pandas sum skips it
-    energy_wh = credited.groupby(level=0).sum()
+    energy_wh = _credit_row_pairs(times, watts)
 
     # Every period holding a row is reported, with 0.0 when nothing is credited
-    periods = pd.DatetimeIndex(utc_floored.unique())
+    periods = pd.DatetimeIndex(times.dt.floor(PERIOD).unique())
     energy_wh = energy_wh.reindex(periods, fill_value=0.0).fillna(0.0)
 
     # Convert Wh/m² to kWh/m²
+    period_start = energy_wh.index.tz_convert(STATION_TZ)
     result_df = pd.DataFrame(
         {
-            "period_start": energy_wh.index.tz_convert("America/Los_Angeles"),
+            "period_start": period_start,
+            "period_end": period_start + PERIOD,
             "energy_kwh": (energy_wh / 1000).values,
         }
     )
-    result_df["period_end"] = result_df["period_start"] + pd.Timedelta(minutes=15)
-
-    # Reorder columns to match expected output
-    result_df = result_df[["period_start", "period_end", "energy_kwh"]]
-
-    # Sort by period_start
     result_df = result_df.sort_values("period_start").reset_index(drop=True)
 
     logger.info(f"Generated {len(result_df)} 15-minute solar energy periods")
     return result_df
+
+
+def _credit_row_pairs(times: pd.Series, watts: pd.Series) -> pd.Series:
+    """
+    Integrate each pair of consecutive rows and credit it to its periods.
+
+    The trapezoid rule, (y0 + y1) / 2 * dx, over each pair. A pair that crosses
+    a period boundary is split there, at the radiation read off the straight
+    line between its two rows. Cutting a trapezoid along its own line keeps
+    its area, so the credited energy adds up to the trapezoid of the whole
+    curve. NaN radiation credits nothing, as the sum skips it.
+
+    :param times: Row times in UTC, ascending, index 0..n-1
+    :param watts: Solar radiation in W/m² at each row, same index
+    :return: Wh/m² credited to each UTC period start (only periods credited)
+    """
+    hour = np.timedelta64(1, "h")
+    start, end = times.iloc[:-1].values, times.iloc[1:].values
+    start_wm2, end_wm2 = watts.iloc[:-1].values, watts.iloc[1:].values
+    start_period = times.iloc[:-1].dt.floor(PERIOD).values
+    end_period = times.iloc[1:].dt.floor(PERIOD).values
+
+    span_h = (end - start) / hour
+    counted = (span_h > 0) & (span_h <= MAX_INTERVAL / pd.Timedelta(hours=1))
+    # A pair of at most one period crosses at most one boundary: the start of
+    # its later row's period. A later row on the boundary does not cross it.
+    crosses = counted & (end_period > start) & (end_period < end)
+
+    first_part_h = np.where(crosses, (end_period - start) / hour, span_h)
+    second_part_h = span_h - first_part_h
+    with np.errstate(divide="ignore", invalid="ignore"):
+        boundary_wm2 = np.where(
+            crosses,
+            start_wm2 + (end_wm2 - start_wm2) * first_part_h / span_h,
+            end_wm2,
+        )
+    first_wh = np.where(counted, (start_wm2 + boundary_wm2) / 2 * first_part_h, 0.0)
+    second_wh = np.where(crosses, (boundary_wm2 + end_wm2) / 2 * second_part_h, 0.0)
+
+    credited = pd.concat(
+        [
+            pd.Series(first_wh, index=pd.DatetimeIndex(start_period, tz="UTC")),
+            pd.Series(second_wh, index=pd.DatetimeIndex(end_period, tz="UTC")),
+        ]
+    )
+    return credited.groupby(level=0).sum()
 
 
 _cached_calculation: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None

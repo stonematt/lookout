@@ -2,6 +2,7 @@
 Tests for solar_energy_periods module
 """
 
+import numpy as np
 import pandas as pd
 import pytest
 from datetime import datetime
@@ -242,6 +243,11 @@ class TestEnergyAcrossPeriodBoundaries:
         result = calculate_15min_energy_periods(day)
 
         assert round(result["energy_kwh"].sum(), 2) == 6.11
+        # ... and equals the trapezoid of the whole day's curve
+        curve = day.sort_values("datetime")
+        hours = (curve["datetime"] - curve["datetime"].iloc[0]).dt.total_seconds()
+        whole_kwh = np.trapezoid(curve["solarradiation"], hours / 3600) / 1000
+        assert result["energy_kwh"].sum() == pytest.approx(whole_kwh)
 
     def test_the_boundary_interval_is_split_at_the_boundary(self):
         # 600 W/m² at 12:10 rising to 1200 at 12:20: 750 over 12:10-12:15
