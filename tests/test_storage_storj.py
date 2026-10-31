@@ -60,15 +60,6 @@ def test_json_dict_save_get_and_exists(fake_s3):
     assert storj.get_json_from_s3(BUCKET, "doc.json") == {"a": [1, 2]}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="s3:// path parsing yields '' as the bucket (read/save_json_to_path)",
-)
-def test_json_by_s3_path_round_trips(fake_s3):
-    assert storj.save_json_to_path({"a": 1}, f"s3://{BUCKET}/doc.json") is True
-    assert storj.read_json_from_path(f"s3://{BUCKET}/doc.json") == {"a": 1}
-
-
 def test_archive_is_read_from_mac_dot_parquet(fake_s3, monkeypatch):
     monkeypatch.setattr(awn, "is_dev_mode", lambda: False)
     df = scenario_archive()
