@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Optional, Tuple
 
 import pandas as pd
 import pytest
@@ -49,7 +49,7 @@ def seed(catchup_station) -> Callable[..., CatchupStation]:  # noqa: F811
     :return: `seed(history=())`: `history` is what Ambient serves for fills.
     """
 
-    def _seed(history: pd.DataFrame = None) -> CatchupStation:
+    def _seed(history: Optional[pd.DataFrame] = None) -> CatchupStation:
         archive = scenario_archive()
         records = [] if history is None else to_ambient_records(history)
         last = to_ambient_records(archive.head(1))[0]
@@ -60,7 +60,7 @@ def seed(catchup_station) -> Callable[..., CatchupStation]:  # noqa: F811
     return _seed
 
 
-def run(argv: List[str], capsys: pytest.CaptureFixture) -> tuple:
+def run(argv: List[str], capsys: pytest.CaptureFixture) -> Tuple[int, str]:
     """
     Run the CLI as the shell does.
 

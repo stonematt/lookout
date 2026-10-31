@@ -194,7 +194,7 @@ def render():
                 elif outcome.skipped:
                     st.warning("No new data for that gap; marked as skipped.")
                 else:
-                    st.error("Gap refused: no archive data before it.")
+                    st.error("Gap refused: inverted, or no archive data before it.")
                 # st.rerun()
 
             if save_clicked:

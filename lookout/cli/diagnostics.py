@@ -30,7 +30,7 @@ Exit status: 0 done, 1 refused or failed.
 
 import argparse
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -38,8 +38,8 @@ import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import energy_catalog_func
-from lookout.storage.storj import backup_and_save_history
-from lookout.utils.dateutc import normalize
+from lookout.storage.storj import backup_and_save_history, get_df_from_s3
+from lookout.utils.dateutc import DEFAULT_TZ, normalize
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="diagnostics.log")
@@ -61,6 +61,16 @@ def emit(line: str = "") -> None:
     :param line: The text.
     """
     print(line)
+
+
+def to_ms(stamp: pd.Timestamp) -> int:
+    """
+    A timestamp as epoch milliseconds.
+
+    :param stamp: A timezone-aware timestamp.
+    :return: Milliseconds since the epoch.
+    """
+    return int(stamp.value // 10**6)
 
 
 def to_utc(ms: int) -> pd.Timestamp:
@@ -96,7 +106,12 @@ def load_station(bucket: str) -> Tuple[Dict, pd.DataFrame]:
     :raises StationNotFoundError: If `STATION_MAC` is not on the account.
     """
     device = get_station_device()
-    archive = normalize(awn.load_archive_for_device(device, bucket=bucket))
+    # Straight from Storj: the dev-mode local cache would write a file here.
+    archive = normalize(
+        get_df_from_s3(bucket, f"{device['macAddress']}.parquet", file_type="parquet")
+    )
+    if archive.empty:
+        raise RuntimeError(f"the archive in {bucket} is empty or unreadable")
     return device, archive
 
 
@@ -105,9 +120,9 @@ def station_tz(device: Dict) -> str:
     The station's time zone name.
 
     :param device: The station's `/devices` entry.
-    :return: Its `lastData.tz`, or "UTC" when absent.
+    :return: Its `lastData.tz`, or DEFAULT_TZ when absent.
     """
-    return (device.get("lastData") or {}).get("tz") or "UTC"
+    return (device.get("lastData") or {}).get("tz") or DEFAULT_TZ
 
 
 def window(
@@ -136,8 +151,8 @@ def window(
         start = pd.Timestamp(since, tz="UTC")
     else:
         start = newest - pd.Timedelta(days=days or DEFAULT_GAP_DAYS)
-    start_ms = int(start.value // 10**6)
-    end_ms = int(end.value // 10**6)
+    start_ms = to_ms(start)
+    end_ms = to_ms(end)
     return archive[(archive["dateutc"] >= start_ms) & (archive["dateutc"] < end_ms)]
 
 
@@ -259,7 +274,7 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
     emit(f"Gap: {start:{STAMP}} to {end:{STAMP}} UTC ({end - start})")
 
     if args.dry_run:
-        before = archive[archive["dateutc"] < int(start.value // 10**6)]
+        before = archive[archive["dateutc"] < to_ms(start)]
         baseline = (
             f"{to_utc(before['dateutc'].max()):{STAMP}} UTC"
             if not before.empty
@@ -418,7 +433,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Archive diagnostics.")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    def command(name: str, handler, help_: str) -> argparse.ArgumentParser:
+    def command(
+        name: str, handler: Callable[[argparse.Namespace], int], help_: str
+    ) -> argparse.ArgumentParser:
         sub = commands.add_parser(name, help=help_)
         sub.add_argument("--bucket", default=DEFAULT_BUCKET, help="S3 bucket name")
         sub.set_defaults(handler=handler)
@@ -460,6 +477,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return args.handler(args)
     except StationNotFoundError as e:
         emit(f"Station not found: {e}")
+        return 1
+    except Exception as e:
+        logger.exception(f"{args.command} failed: {e}")
+        emit(f"{args.command} failed: {e}")
         return 1
 
 

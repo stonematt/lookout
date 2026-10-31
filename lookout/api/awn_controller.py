@@ -592,7 +592,7 @@ class GapFill:
         return self.status == "no_new_data"
 
 
-def fill_archive_gap(device, history_df, start, end) -> GapFill:
+def fill_archive_gap(device: dict, history_df: pd.DataFrame, start, end) -> GapFill:
     """
     Fetch missing data for a specified gap and append it to the history.
 
