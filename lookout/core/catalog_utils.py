@@ -13,7 +13,7 @@ from lookout.storage.storj import (
     backup_data,
     get_s3_client,
 )
-from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, DEFAULT_MAC_ADDRESS
+from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -25,13 +25,12 @@ def get_catalog_path(mac_address: str, catalog_type: str) -> str:
 
 
 def _get_mac_address() -> str:
-    """Get MAC address from session state or default."""
-    try:
-        import streamlit as st
+    """
+    Return the pinned station's MAC address (the STATION_MAC setting).
 
-        return st.session_state.get("device", {}).get("macAddress", DEFAULT_MAC_ADDRESS)
-    except Exception:
-        return DEFAULT_MAC_ADDRESS
+    :return: The MAC address catalogs are keyed under.
+    """
+    return get_station_mac()
 
 
 def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
