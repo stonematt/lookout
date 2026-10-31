@@ -9,7 +9,7 @@
 import { DEFAULT_AMBIENT_ENDPOINT, ambientReader } from "./ambient.js";
 import type { ReadSources } from "./handlers.js";
 import { errorResponse, normaliseMac } from "./handlers.js";
-import { storjReader } from "./storj.js";
+import { storjCurveReader, storjReader } from "./storj.js";
 
 /** What every read function needs. */
 export const REQUIRED_NAMES = [
@@ -56,17 +56,16 @@ export function sourcesFromEnv(
   const defaultMac = normaliseMac(value("STATION_MAC"));
   if (!defaultMac) throw new MissingEnvError(["STATION_MAC (not a MAC address)"]);
 
+  const storj = {
+    accessKeyId: value("STORJ_ACCESS_KEY_ID"),
+    secretAccessKey: value("STORJ_SECRET_ACCESS_KEY"),
+    endpointUrl: value("STORJ_ENDPOINT_URL"),
+    bucket: value("STORJ_BUCKET"),
+  };
   const sources: ReadSources = {
     defaultMac,
-    readSnapshot: storjReader(
-      {
-        accessKeyId: value("STORJ_ACCESS_KEY_ID"),
-        secretAccessKey: value("STORJ_SECRET_ACCESS_KEY"),
-        endpointUrl: value("STORJ_ENDPOINT_URL"),
-        bucket: value("STORJ_BUCKET"),
-      },
-      fetchImpl,
-    ),
+    readSnapshot: storjReader(storj, fetchImpl),
+    readCurve: storjCurveReader(storj, fetchImpl),
   };
   if (live) {
     sources.readLive = ambientReader(
