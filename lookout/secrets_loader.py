@@ -17,8 +17,8 @@ and Healthchecks names are top-level keys, and the three Storj names map to
 keys in the `[lookout_storage_options]` table. `secrets.example.toml` at the
 repo root lists every name with no values.
 
-Non-secret settings (`SETTING_NAMES`, e.g. `STATION_MAC`) come from the same
-sources in the same order, through `get_setting(name, default)`.
+Non-secret settings (`SETTING_NAMES`: `STATION_MAC`, `DEV_MODE`) come from the
+same sources in the same order, through `get_setting(name, default)`.
 
 Functions:
 - get_secret(name): Return the value of one secret, or raise MissingSecretError.
@@ -64,6 +64,8 @@ SECRET_NAMES: Tuple[str, ...] = tuple(SECRET_PATHS)
 # from SECRET_NAMES because a setting may be unset (its reader has a default).
 SETTING_PATHS: Dict[str, Tuple[str, ...]] = {
     "STATION_MAC": ("STATION_MAC",),
+    # Streamlit's `[environment] dev = true`; set DEV_MODE=1 anywhere else.
+    "DEV_MODE": ("environment", "dev"),
 }
 
 SETTING_NAMES: Tuple[str, ...] = tuple(SETTING_PATHS)
