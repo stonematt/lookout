@@ -286,6 +286,8 @@ class TestHeartbeats:
 
         assert self.run_main(station) == 0
         assert len(snapshot_keys(station)) == 2
+
+
 # ---------- the catalogs: update on every run, save by rule (#73) ----------
 
 EVENT_CATALOG_KEY = f"{FAKE_MAC}.event_catalog.parquet"
