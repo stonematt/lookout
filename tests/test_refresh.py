@@ -17,11 +17,13 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+import pandas as pd
 import pytest
 
 from lookout.api import awn_controller as awn
 from lookout.cli import refresh
-from lookout.core.rain_events import RainEventCatalog
+from lookout.core.energy_catalog import EnergyCatalog
+from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, build_archive
@@ -157,12 +159,10 @@ class TestActiveEventFromTheStoredCatalog:
         return station
 
     def test_the_ongoing_event_is_active_with_the_live_total(self, raining):
-        stored = RainEventCatalog(FAKE_MAC).load_catalog()
-        ongoing = stored.sort_values("start_time").iloc[-1]
-
         event = run_refresh(raining).active_rain_event
 
-        assert event.event_id == ongoing["event_id"]
+        # The run re-detects the ongoing event, which mints a new id (held
+        # finding); it is the stored catalog's event 3 by its start.
         assert event.start_ms == ms("2026-01-08T22:00:00Z")
         assert event.total_in == 0.3  # live at 00:25Z; the catalog says 0.24
 
@@ -286,3 +286,140 @@ class TestHeartbeats:
 
         assert self.run_main(station) == 0
         assert len(snapshot_keys(station)) == 2
+
+
+# ---------- the catalogs: update on every run, save by rule (#73) ----------
+
+EVENT_CATALOG_KEY = f"{FAKE_MAC}.event_catalog.parquet"
+ENERGY_CATALOG_KEY = f"{FAKE_MAC}.energy_catalog.parquet"
+
+
+def stored_bytes(station: CatchupStation, key: str) -> Optional[bytes]:
+    """What a key holds, or None if it was never written."""
+    try:
+        return station.s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()
+    except station.s3.exceptions.NoSuchKey:
+        return None
+
+
+class TestCatalogUpdatesAndSaves:
+    def storm(self, seed, report_to: str) -> CatchupStation:
+        """
+        Event 3 ongoing at 00:00Z with its Event Catalog stored (as in
+        `TestActiveEventFromTheStoredCatalog`), Ambient reporting to
+        `report_to`.
+        """
+        full = build_archive(
+            SCENARIO.start,
+            report_to,
+            rain=SCENARIO.rain,
+            gaps=SCENARIO.gaps,
+        )
+        archive = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
+        catalog = RainEventCatalog(FAKE_MAC).detect_and_catalog_events(
+            archive, auto_save=False
+        )
+        station = seed(
+            archive=archive,
+            history=to_ambient_records(full),
+            devices=reporting(full),
+            now=report_to,
+        )
+        RainEventCatalog(FAKE_MAC).save_catalog(catalog)
+        assert is_event_ongoing(catalog.sort_values("start_time").iloc[-1])
+        return station
+
+    def test_a_completing_event_saves_the_event_catalog(self, seed):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        before = stored_bytes(station, EVENT_CATALOG_KEY)
+
+        run_refresh(station)
+
+        stored = RainEventCatalog(FAKE_MAC).load_catalog()
+        last = stored.sort_values("start_time").iloc[-1]
+        assert not is_event_ongoing(last)
+        assert last["total_rainfall"] == pytest.approx(0.48, abs=0.01)
+        assert stored_bytes(station, EVENT_CATALOG_KEY) != before
+
+    def test_a_still_ongoing_event_does_not_save_it(self, seed):
+        station = self.storm(seed, "2026-01-09T00:30:00Z")
+        before = stored_bytes(station, EVENT_CATALOG_KEY)
+        stored_before = RainEventCatalog(FAKE_MAC).load_catalog()
+
+        run_refresh(station)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == before
+        stored = RainEventCatalog(FAKE_MAC).load_catalog()
+        assert stored.equals(stored_before)
+
+    def test_a_completed_stored_event_is_not_saved_again(self, seed):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        run_refresh(station)  # completes the event and saves
+        after_first = stored_bytes(station, EVENT_CATALOG_KEY)
+
+        run_refresh(station)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == after_first
+
+    def test_the_snapshot_uses_the_updated_catalog_without_saving(self, seed):
+        station = self.storm(seed, "2026-01-09T00:30:00Z")
+
+        snapshot = run_refresh(station)
+
+        # The stored catalog says 0.24 at 00:00Z; the run re-detected to 00:25Z.
+        assert snapshot.active_rain_event.total_in == 0.3
+
+    def test_no_stored_event_catalog_is_detected_but_not_saved(self, seed):
+        station = seed()
+
+        run_refresh(station)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+
+    def test_no_run_saves_an_event_catalog_when_nothing_is_stored(self, seed):
+        station = seed()
+
+        run_refresh(station)
+        run_refresh(station)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) is None
+
+
+class TestEnergyCatalog:
+    @pytest.fixture
+    def stored_energy(self, seed) -> CatchupStation:
+        """A station with an energy catalog stored from half the archive."""
+        station = seed()
+        archive = station.archive
+        cut = (
+            archive["dateutc"].min()
+            + (archive["dateutc"].max() - archive["dateutc"].min()) // 2
+        )
+        catalog = EnergyCatalog(FAKE_MAC).detect_and_calculate_periods(
+            archive[archive["dateutc"] < cut], auto_save=False
+        )
+        assert not catalog.empty
+        EnergyCatalog(FAKE_MAC).save_catalog(catalog)
+        return station
+
+    def test_the_catalog_updates_in_memory_when_young(self, stored_energy):
+        before = stored_bytes(stored_energy, ENERGY_CATALOG_KEY)
+
+        run_refresh(stored_energy)
+
+        assert stored_bytes(stored_energy, ENERGY_CATALOG_KEY) == before
+
+    def test_a_catalog_over_two_days_old_is_saved_with_new_periods(
+        self, stored_energy, monkeypatch
+    ):
+        stored_len = len(EnergyCatalog(FAKE_MAC).load_catalog())
+        monkeypatch.setattr(
+            EnergyCatalog, "get_catalog_age", lambda self: pd.Timedelta(days=3)
+        )
+
+        run_refresh(stored_energy)
+
+        saved = EnergyCatalog(FAKE_MAC).load_catalog()
+        assert len(saved) > stored_len
+        assert saved["period_start"].is_unique
