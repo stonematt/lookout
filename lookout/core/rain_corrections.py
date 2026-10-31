@@ -20,7 +20,7 @@ Sensitivity:
 from typing import Dict, List
 import pandas as pd
 
-from lookout.storage.storj import get_json_from_s3, save_json_to_s3, json_exists_in_s3
+from lookout.storage.storj import get_json_from_s3, save_json_to_s3, object_exists
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -33,7 +33,7 @@ def _get_catalog_path(mac_address: str, bucket: str = "lookout") -> str:
 
 def catalog_exists(mac_address: str, bucket: str = "lookout") -> bool:
     """Check if corrections catalog exists in Storj."""
-    return json_exists_in_s3(bucket, f"{mac_address}.rain_corrections.json")
+    return object_exists(bucket, f"{mac_address}.rain_corrections.json")
 
 
 def load_catalog(mac_address: str, bucket: str = "lookout") -> Dict:
