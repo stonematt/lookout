@@ -13,7 +13,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import lookout.ui.rain as rain_module
-from lookout.core.rain_events import RainEventCatalog
+from lookout.core.rain_events import (
+    RainEventCatalog,
+    filter_events,
+    summarize_events,
+)
 from lookout.core.rain_viz import (
     create_event_accumulation_chart,
     create_event_rate_chart,
@@ -105,7 +109,7 @@ def render_event_visualization(selected_event: pd.Series, archive_df: pd.DataFra
     event_data = archive_df[mask].sort_values("timestamp").copy()
 
     if len(event_data) == 0:
-        st.error(f"No data found for event time range {start_time} to {end_time}")
+        st.caption("n/a: gap in record (no archive data for this event)")
         return
 
     logger.debug(f"Extracted {len(event_data)} records for event")
@@ -254,22 +258,13 @@ def render():
                     label_visibility="collapsed",
                 )
 
-                filtered_events_df = events_df.copy()
-
-                # Filter by date range if specified
-                if start_ts and end_ts:
-                    filtered_events_df = ui_components.filter_dataframe_by_date_range(
-                        filtered_events_df, "start_time", start_ts, end_ts
-                    )
-
-                if selected_quality:
-                    filtered_events_df = filtered_events_df[
-                        filtered_events_df["quality_rating"].isin(selected_quality)
-                    ]
-
-                filtered_events_df = filtered_events_df[
-                    filtered_events_df["total_rainfall"] >= min_rainfall_threshold
-                ]
+                filtered_events_df = filter_events(
+                    events_df,
+                    start=start_ts if start_ts and end_ts else None,
+                    end=end_ts if start_ts and end_ts else None,
+                    qualities=selected_quality or None,
+                    min_rainfall=min_rainfall_threshold,
+                )
 
                 logger.debug(
                     f"Filtered events: {len(filtered_events_df)} of {len(events_df)} "
@@ -282,24 +277,18 @@ def render():
                 f"({len(events_df) - len(filtered_events_df)} filtered out)"
             )
 
+        summary = summarize_events(filtered_events_df)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Events", f"{len(filtered_events_df)}")
+            st.metric("Total Events", f"{summary['count']}")
         with col2:
-            total_rain = filtered_events_df["total_rainfall"].sum()
-            st.metric("Total Rainfall", f'{total_rain:.1f}"')
+            st.metric("Total Rainfall", f'{summary["total_in"]:.1f}"')
         with col3:
-            if len(filtered_events_df) > 0:
-                med_rainfall = filtered_events_df["total_rainfall"].median()
-                st.metric("Median Rainfall", f'{med_rainfall:.2f}"')
-            else:
-                st.metric("Median Rainfall", "—")
+            median = summary["median_in"]
+            st.metric("Median Rainfall", "—" if median is None else f'{median:.2f}"')
         with col4:
-            if len(filtered_events_df) > 0:
-                avg_duration = filtered_events_df["duration_minutes"].mean()
-                st.metric("Avg Duration", f"{avg_duration/60:.1f}h")
-            else:
-                st.metric("Avg Duration", "—")
+            mean = summary["mean_duration_minutes"]
+            st.metric("Avg Duration", "—" if mean is None else f"{mean / 60:.1f}h")
 
         if len(filtered_events_df) > 0:
             st.write("**Select a rain event to analyze:**")
