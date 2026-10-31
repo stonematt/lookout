@@ -118,7 +118,6 @@ def get_weather_data() -> WeatherData:
     return WeatherData(current=current, active_event=active_event)
 
 
-
 def _session_event_catalog(device_mac: str) -> Optional[pd.DataFrame]:
     """
     The Event Catalog the UI has: the session's copy, else the stored one.
