@@ -13,6 +13,18 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
+def newest_row(df: pd.DataFrame) -> pd.Series:
+    """
+    The row with the greatest `dateutc`, whatever the row order (#133).
+
+    Read by position, so any index works; on a tie the first such row wins.
+
+    :param df: A non-empty DataFrame with a `dateutc` column.
+    :return: The newest row.
+    """
+    return df.iloc[int(df["dateutc"].to_numpy().argmax())]
+
+
 def get_historical_value(
     df: pd.DataFrame, target_time: int, field: str
 ) -> Optional[float]:

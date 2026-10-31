@@ -216,3 +216,47 @@ def test_a_diagnostics_save_keeps_rows_catchup_stored_since_the_fill(
 
     stored = station.stored()
     assert set(stored["dateutc"]) == set(truth["dateutc"])
+
+
+# ---------- an oldest-first archive (#133) ----------
+
+
+UP = "↑"
+TREND_START, TREND_END = "2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z"
+
+
+@pytest.fixture
+def oldest_first(catchup_station) -> CatchupStation:  # noqa: F811
+    """
+    Two dry days stored oldest first; only the newest reading moved.
+
+    Temperature and pressure hold at 50.0F and 30.0" except the newest row,
+    60.0F and 30.3", so read from it both trends rise; read from the oldest
+    row they are steady.
+    """
+    archive = build_archive(TREND_START, TREND_END, newest_first=False)
+    archive["tempf"] = 50.0
+    archive["baromrelin"] = 30.0
+    newest = archive["dateutc"].idxmax()
+    archive.loc[newest, ["tempf", "baromrelin"]] = [60.0, 30.3]
+    return catchup_station(
+        archive=archive, history=[], devices=reporting(archive), now=TREND_END
+    )
+
+
+def test_the_first_load_reads_trends_from_the_newest_row(oldest_first, session):
+    load(session, device(oldest_first, int(oldest_first.archive["dateutc"].max())))
+
+    assert (session["temp_trend"], session["barom_trend"]) == (UP, UP)
+
+
+def test_a_live_update_reads_trends_from_the_newest_row(oldest_first, session):
+    newest = int(oldest_first.archive["dateutc"].max())
+    load(session, device(oldest_first, newest))
+    session["temp_trend"] = session["barom_trend"] = None
+
+    # The device reports half an hour on; Ambient has nothing new to send.
+    load(session, device(oldest_first, newest + 30 * 60 * 1000))
+
+    assert oldest_first.replay.calls  # the update did ask Ambient
+    assert (session["temp_trend"], session["barom_trend"]) == (UP, UP)
