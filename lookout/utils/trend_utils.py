@@ -18,11 +18,12 @@ def newest_row(df: pd.DataFrame) -> pd.Series:
     The row with the greatest `dateutc`, whatever the row order (#133).
 
     Read by position, so any index works; on a tie the first such row wins.
+    A missing `dateutc` is skipped, as `Series.max` skips it in the trends.
 
-    :param df: A non-empty DataFrame with a `dateutc` column.
+    :param df: A DataFrame with at least one `dateutc` value.
     :return: The newest row.
     """
-    return df.iloc[int(df["dateutc"].to_numpy().argmax())]
+    return df.iloc[int(df["dateutc"].reset_index(drop=True).idxmax())]
 
 
 def get_historical_value(

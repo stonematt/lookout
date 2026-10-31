@@ -19,6 +19,7 @@ from lookout.ui import header
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
     calculate_temperature_trend,
+    newest_row,
 )
 from tests.fixtures.ambient import load_devices
 from tests.fixtures.archive import (
@@ -153,6 +154,14 @@ class TestBarometerTrend:
 
 class TestTrendsReadEitherOrder:
     """#133: "now" is the newest `dateutc`, not the first row."""
+
+    def test_newest_row_is_the_greatest_dateutc_and_skips_a_missing_one(self):
+        df = pd.DataFrame(
+            {"dateutc": [1000.0, float("nan"), 3000.0, 2000.0], "tempf": [1, 2, 3, 4]},
+            index=[9, 8, 7, 6],
+        )
+
+        assert newest_row(df)["tempf"] == 3
 
     @pytest.mark.parametrize("yesterday, arrow", [(45.0, UP), (55.0, DOWN)])
     def test_temperature_trend_is_the_same_oldest_first(self, yesterday, arrow):
