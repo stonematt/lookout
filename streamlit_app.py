@@ -11,15 +11,8 @@ import lookout.api.ambient_client as ambient_client
 import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 from lookout.core.styles import get_style_manager
-from lookout.ui import (
-    diagnostics,
-    header,
-    overview,
-    playground,
-    rain,
-    rain_events,
-    solar,
-)
+from lookout.ui import header
+from lookout.ui.tabs import TAB_MODULES, tab_names
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
 
@@ -60,10 +53,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
 
 # %%
@@ -185,34 +174,13 @@ st.sidebar.write(last_data)
 is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Create tab list based on environment
-if is_dev:
-    tab_names = [
-        "Overview",
-        "Rain",
-        "Rain Events",
-        "Solar",
-        "Diagnostics",
-        "Playground",
-    ]
-else:
-    tab_names = ["Overview", "Rain", "Rain Events", "Solar"]
-
-tabs = st.tabs(tab_names)
-
-# Map tab names to their corresponding render functions
-tab_modules = {
-    "Overview": overview,
-    "Rain": rain,
-    "Rain Events": rain_events,
-    "Solar": solar,
-    "Diagnostics": diagnostics,
-    "Playground": playground,
-}
+names = tab_names(is_dev)
+tabs = st.tabs(names)
 
 # Render each tab with its corresponding module
-for tab, name in zip(tabs, tab_names):
+for tab, name in zip(tabs, names):
     with tab:
-        tab_modules[name].render()
+        TAB_MODULES[name].render()
 
 # Reduced frequency memory cleanup to prevent disruptive reruns
 # Only cleanup on higher thresholds to avoid interfering with user interactions
