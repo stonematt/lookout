@@ -673,7 +673,7 @@ class TestEventCurveFiles:
             curve_key(start) for start in (EVENT_1, EVENT_2)
         )
         # Its curve rides in the snapshot instead, under the same key.
-        assert snapshot.rain_events.ongoing_curve.start_ms == EVENT_3
+        assert snapshot.rain_events.open_curve.start_ms == EVENT_3
 
     def test_a_curve_file_is_written_once_and_never_rewritten(self, seed):
         station = self.storm(seed, "2026-01-10T00:00:00Z")

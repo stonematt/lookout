@@ -11,17 +11,25 @@ the new site's rules:
 - Every value over a window goes through the gap rules
   (`lookout.snapshot.gaps`): a total is summed over the window's counted days
   and prorated; an invalid window's value is None and never computed.
+- Rain windows are judged by `RainCoverage`: the archive's coverage, with a
+  day whose rain counter has no reading counted as a gap. The archive holds
+  that day's rows, so `Gaps.windows` (every quantity) still counts it, but
+  its rain is unknown, as it is for dry spells; each `RainWindow` carries
+  its own status.
 - Year-over-year accumulation runs over the water year from Oct 1
   (GLOSSARY.md), where Streamlit used the calendar year.
 
-Functions:
+Classes and functions:
+- RainCoverage(archive, current, now): the coverage rain windows are judged
+  by, holding each day's rain counter.
 - rain_tab(archive, history, current, now): the `RainTab` section.
-- daily_totals(archive, current, coverage): each day's total, today live.
+- daily_totals(coverage): each counted day's total, today live.
 - window_total(status, totals, coverage): one window's rain, gap rules held.
 
 Integration: any other section that totals rain over a window (the
-Overview's rolling-window tables) calls `daily_totals` and `window_total`, so
-each window has one rain total everywhere (the One Number Rule).
+Overview's rolling-window tables) builds a `RainCoverage` and calls
+`daily_totals` and `window_total`, so each window has one rain total and one
+status everywhere (the One Number Rule).
 """
 
 from datetime import date, datetime, timedelta
@@ -67,6 +75,50 @@ _DIGITS = 3
 """Inches are published to a thousandth."""
 
 
+class RainCoverage(ArchiveCoverage):
+    """
+    The archive's coverage for rain: a day with rows but no rain counter
+    reading is a gap, so no rain window reads it as a dry day.
+
+    Each day's rain is its highest `dailyrainin`; today's is the live total
+    (`SnapshotConditions.rain_today_in`) when there is one.
+
+    :param archive: The station's archive as stored.
+    :param current: Current conditions, live stitched: today's rain.
+    :param now: The build time, timezone-aware.
+    :param tz: The station-local zone.
+    """
+
+    def __init__(
+        self,
+        archive: pd.DataFrame,
+        current: SnapshotConditions,
+        now: datetime,
+        tz: str = DEFAULT_TZ,
+    ) -> None:
+        super().__init__(archive, now, tz)
+        counters: Dict[date, float] = {}
+        if not archive.empty:
+            frame = extract_daily_rainfall(archive)
+            counters = {d: float(r) for d, r in zip(frame["date"], frame["rainfall"])}
+        if current.rain_today_in is not None:
+            counters[self.today] = float(current.rain_today_in)
+        self.counters = counters
+
+    def day_kind(self, day: date) -> str:
+        """
+        `ArchiveCoverage.day_kind`, with an unread rain counter a gap.
+
+        :param day: The day.
+        :return: As `ArchiveCoverage.day_kind`; "gap" for a counted day whose
+            counter has no reading.
+        """
+        kind = super().day_kind(day)
+        if kind == "ok" and np.isnan(self.counters.get(day, 0.0)):
+            return "gap"
+        return kind
+
+
 def rain_tab(
     archive: pd.DataFrame,
     history: pd.DataFrame,
@@ -87,14 +139,14 @@ def rain_tab(
     :param tz: The station-local zone.
     :return: The section.
     """
-    coverage = ArchiveCoverage(archive, now, tz)
-    totals = daily_totals(archive, current, coverage)
+    coverage = RainCoverage(archive, current, now, tz)
+    totals = daily_totals(coverage)
     windows = coverage.standard_windows()
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     water_year_status = next(s for s in windows if s.key == "water_year")
     return RainTab(
         windows=tuple(
-            RainWindow(key=s.key, total_in=window_total(s, totals, coverage))
+            RainWindow(key=s.key, status=s, total_in=window_total(s, totals, coverage))
             for s in windows
         ),
         recent=_recent(recent_status, totals, history, coverage, now, tz),
@@ -104,44 +156,33 @@ def rain_tab(
     )
 
 
-def daily_totals(
-    archive: pd.DataFrame,
-    current: SnapshotConditions,
-    coverage: ArchiveCoverage,
-) -> Dict[date, float]:
+def daily_totals(coverage: RainCoverage) -> Dict[date, float]:
     """
     Each counted day's rain: its highest daily counter; today's live total.
 
-    Only days the gap rules count ("ok" days) are present, so a day missing
-    from the record is never read as a dry one.
+    Only days the rain gap rules count ("ok" days) are present, so a day
+    missing from the record, or whose counter has no reading, is never read
+    as a dry one.
 
-    :param archive: The station's archive as stored.
-    :param current: Current conditions, live stitched.
-    :param coverage: The archive's coverage as of the build time.
+    :param coverage: The archive's rain coverage as of the build time.
     :return: Day -> inches, for every counted day.
     """
-    totals: Dict[date, float] = {}
-    if not archive.empty:
-        frame = extract_daily_rainfall(archive)
-        totals = {d: float(r) for d, r in zip(frame["date"], frame["rainfall"])}
-    if current.rain_today_in is not None:
-        totals[coverage.today] = float(current.rain_today_in)
     return {
         d: total
-        for d, total in totals.items()
-        if coverage.day_kind(d) == "ok" and not np.isnan(total)
+        for d, total in coverage.counters.items()
+        if coverage.day_kind(d) == "ok"
     }
 
 
 def window_total(
-    status: GapStatus, totals: Dict[date, float], coverage: ArchiveCoverage
+    status: GapStatus, totals: Dict[date, float], coverage: RainCoverage
 ) -> Optional[float]:
     """
     One window's rain: the sum over its counted days, prorated.
 
-    :param status: The window's gap status.
+    :param status: The window's gap status, from `coverage`.
     :param totals: `daily_totals`.
-    :param coverage: The coverage `status` came from.
+    :param coverage: The rain coverage `status` came from.
     :return: Inches; None when the window is invalid.
     """
 
@@ -157,7 +198,7 @@ def _recent(
     status: GapStatus,
     totals: Dict[date, float],
     history: pd.DataFrame,
-    coverage: ArchiveCoverage,
+    coverage: RainCoverage,
     now: datetime,
     tz: str,
 ) -> RecentRain:
@@ -186,13 +227,15 @@ def _recent(
     reasons = []
     hourly: List[Tuple[Optional[float], ...]] = []
     for d in days:
-        if d not in totals:
+        # A counted day with nothing archived yet (just after midnight) is
+        # 0, as `window_total` sums it.
+        if coverage.day_kind(d) != "ok":
             reason = coverage.window(d, d).reason
             rain_in.append(None)
             reasons.append(reason or "gap")
             hourly.append((None,) * HOURS)
             continue
-        rain_in.append(_round(totals[d]))
+        rain_in.append(_round(totals.get(d, 0.0)))
         reasons.append(None)
         to_come = now_local.hour + 1 if d == last else HOURS
         hourly.append(
@@ -235,7 +278,7 @@ def _recent(
 def _dry_spells(
     totals: Dict[date, float],
     water_year_status: GapStatus,
-    coverage: ArchiveCoverage,
+    coverage: RainCoverage,
 ) -> DrySpells:
     """
     The longest dry spell in the record, and this water year's rain days.
@@ -286,7 +329,7 @@ def _dry_spells(
 
 
 def _water_years(
-    totals: Dict[date, float], coverage: ArchiveCoverage
+    totals: Dict[date, float], coverage: RainCoverage
 ) -> Tuple[WaterYearCurve, ...]:
     """
     Every water year from the archive's first through the current one.

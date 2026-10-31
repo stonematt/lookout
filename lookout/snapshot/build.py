@@ -64,7 +64,7 @@ def build_snapshot(
     archive_newest_ms = int(archive["dateutc"].max()) if not archive.empty else None
     stitched = stitch_live(archive, live)
     observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
-    current = current_conditions(stitched)
+    current = current_conditions(stitched, now)
     active = active_rain_event(event_catalog, current, observed_at_ms)
 
     return Snapshot(

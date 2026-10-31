@@ -714,7 +714,6 @@
         "max_gap_minutes": 0.0,
         "water_year": 2026,
         "rank": 3,
-        "ongoing": true,
         "live": true,
         "has_curve": true
       },
@@ -729,7 +728,6 @@
         "max_gap_minutes": 0.0,
         "water_year": 2026,
         "rank": 1,
-        "ongoing": false,
         "live": false,
         "has_curve": true
       },
@@ -744,7 +742,6 @@
         "max_gap_minutes": 0.0,
         "water_year": 2026,
         "rank": 2,
-        "ongoing": false,
         "live": false,
         "has_curve": true
       }
@@ -766,7 +763,7 @@
         }
       }
     ],
-    "ongoing_curve": {
+    "open_curve": {
       "start_ms": 1767909600000,
       "end_ms": 1767918300000,
       "t_ms": [
@@ -954,30 +951,93 @@
     "windows": [
       {
         "key": "today",
+        "status": {
+          "key": "today",
+          "first_day": "2026-01-08",
+          "last_day": "2026-01-08",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
         "total_in": 0.3
       },
       {
         "key": "yesterday",
+        "status": {
+          "key": "yesterday",
+          "first_day": "2026-01-07",
+          "last_day": "2026-01-07",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
         "total_in": 0.24
       },
       {
         "key": "7d",
+        "status": {
+          "key": "7d",
+          "first_day": "2026-01-02",
+          "last_day": "2026-01-08",
+          "days": 7,
+          "missing_days": 2,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
         "total_in": null
       },
       {
         "key": "30d",
+        "status": {
+          "key": "30d",
+          "first_day": "2025-12-10",
+          "last_day": "2026-01-08",
+          "days": 30,
+          "missing_days": 25,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
         "total_in": null
       },
       {
         "key": "90d",
+        "status": {
+          "key": "90d",
+          "first_day": "2025-10-11",
+          "last_day": "2026-01-08",
+          "days": 90,
+          "missing_days": 85,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
         "total_in": null
       },
       {
         "key": "365d",
+        "status": {
+          "key": "365d",
+          "first_day": "2025-01-09",
+          "last_day": "2026-01-08",
+          "days": 365,
+          "missing_days": 360,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
         "total_in": null
       },
       {
         "key": "water_year",
+        "status": {
+          "key": "water_year",
+          "first_day": "2025-10-01",
+          "last_day": "2026-01-08",
+          "days": 100,
+          "missing_days": 95,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
         "total_in": null
       }
     ],

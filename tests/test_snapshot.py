@@ -105,7 +105,9 @@ class TestLiveStitching:
         assert current.wind_speed_mph == 1.8
         assert current.wind_gust_mph == 2.5
         assert current.humidity_pct == 99.0
-        assert current.rain_today_in == 0.0
+        # Built at local midnight from a 23:55 reading: yesterday's counter
+        # is not today's rain (#122).
+        assert current.rain_today_in is None
         assert current.last_rain_ms == ms("2025-11-17T17:03:00Z")
 
     def test_the_newest_observation_is_the_live_one(self):
@@ -306,10 +308,12 @@ def scenario_curves(scenario: str) -> List[EventCurve]:
 @pytest.mark.parametrize("scenario", sorted(SCENARIOS))
 def test_curve_files_match_the_golden_files(scenario):
     curves = scenario_curves(scenario)
+    section = SCENARIOS[scenario]().rain_events
+    still_open = section.open_curve.start_ms if section.open_curve else None
     listed = {
         row.start_ms
-        for row in SCENARIOS[scenario]().rain_events.events
-        if row.has_curve and not row.ongoing
+        for row in section.events
+        if row.has_curve and row.start_ms != still_open
     }
 
     assert {curve.start_ms for curve in curves} == listed

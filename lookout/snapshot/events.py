@@ -148,16 +148,17 @@ def _live_catalog(
     :param event_catalog: The Event Catalog.
     :param active: The active rain event, or None.
     :param observed_at_ms: The newest observation.
-    :return: A copy, with `start_ms`, `ongoing_now` and `live` columns.
+    :return: A copy, with `start_ms`, `open` (still open in the catalog)
+        and `live` (the active rain event) columns.
     """
     events = event_catalog.copy()
     events["start_time"] = pd.to_datetime(events["start_time"], utc=True)
     events["end_time"] = pd.to_datetime(events["end_time"], utc=True)
     events["start_ms"] = [_ms(t) for t in events["start_time"]]
-    events["ongoing_now"] = [is_event_ongoing(row) for _, row in events.iterrows()]
+    events["open"] = [is_event_ongoing(row) for _, row in events.iterrows()]
     events["live"] = False
     if active is not None:
-        live = events["ongoing_now"] & (events["start_ms"] == active.start_ms)
+        live = events["start_ms"] == active.start_ms
         events.loc[live, "live"] = True
         events.loc[live, "total_rainfall"] = active.total_in
         events.loc[live, "duration_minutes"] = active.duration_minutes
@@ -186,7 +187,6 @@ def _row(event: pd.Series, rank: int, history: _History) -> RainEventRow:
         max_gap_minutes=_number(event.get("max_gap_minutes"), 1),
         water_year=water_year(event["start_time"].tz_convert(STATION_TZ).date()),
         rank=rank,
-        ongoing=bool(event["ongoing_now"]),
         live=bool(event["live"]),
         has_curve=has_curve,
     )
@@ -199,17 +199,17 @@ def rain_events_section(
     observed_at_ms: Optional[int],
 ) -> RainEvents:
     """
-    The Rain Events tab: every event, its summaries, the ongoing curve.
+    The Rain Events tab: every event, its summaries, the open event's curve.
 
     :param event_catalog: The Event Catalog, or None.
     :param stitched: The archive with the live reading stitched in.
-    :param active: The active rain event, or None.
+    :param active: The active rain event, or None: which event is live.
     :param observed_at_ms: The newest observation.
     :return: The section.
     """
     if event_catalog is None or event_catalog.empty:
         return RainEvents(
-            events=(), all_time=_stats(pd.DataFrame()), seasons=(), ongoing_curve=None
+            events=(), all_time=_stats(pd.DataFrame()), seasons=(), open_curve=None
         )
 
     events = _live_catalog(event_catalog, active, observed_at_ms)
@@ -235,21 +235,19 @@ def rain_events_section(
         for year in years
     )
 
-    ongoing_curve = None
-    ongoing = events[events["ongoing_now"]]
-    if not ongoing.empty:
-        start_ms = int(ongoing.iloc[0]["start_ms"])
+    open_curve = None
+    still_open = events[events["open"]]
+    if not still_open.empty:
+        start_ms = int(still_open.iloc[0]["start_ms"])
         readings = history.span(start_ms, None)
         if not readings.empty:
-            ongoing_curve = _curve(
-                readings, start_ms, int(readings["dateutc"].iloc[-1])
-            )
+            open_curve = _curve(readings, start_ms, int(readings["dateutc"].iloc[-1]))
 
     return RainEvents(
         events=rows,
         all_time=_stats(events),
         seasons=seasons,
-        ongoing_curve=ongoing_curve,
+        open_curve=open_curve,
     )
 
 

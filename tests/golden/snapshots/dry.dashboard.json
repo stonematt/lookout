@@ -18,7 +18,7 @@
     "wind_gust_mph": 2.5,
     "wind_dir_deg": 124.0,
     "rain_rate_in_hr": 0.0,
-    "rain_today_in": 0.0,
+    "rain_today_in": null,
     "rain_event_in": 0.0,
     "solar_wm2": 0.0,
     "uv_index": 0.0,
@@ -708,7 +708,6 @@
         "max_gap_minutes": 94.0,
         "water_year": 2026,
         "rank": 1,
-        "ongoing": false,
         "live": false,
         "has_curve": true
       }
@@ -730,7 +729,7 @@
         }
       }
     ],
-    "ongoing_curve": null
+    "open_curve": null
   },
   "hero_lead": {
     "kind": "calm",
@@ -789,30 +788,93 @@
     "windows": [
       {
         "key": "today",
+        "status": {
+          "key": "today",
+          "first_day": "2025-11-19",
+          "last_day": "2025-11-19",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       },
       {
         "key": "yesterday",
+        "status": {
+          "key": "yesterday",
+          "first_day": "2025-11-18",
+          "last_day": "2025-11-18",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       },
       {
         "key": "7d",
+        "status": {
+          "key": "7d",
+          "first_day": "2025-11-13",
+          "last_day": "2025-11-19",
+          "days": 7,
+          "missing_days": 6,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       },
       {
         "key": "30d",
+        "status": {
+          "key": "30d",
+          "first_day": "2025-10-21",
+          "last_day": "2025-11-19",
+          "days": 30,
+          "missing_days": 29,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       },
       {
         "key": "90d",
+        "status": {
+          "key": "90d",
+          "first_day": "2025-08-22",
+          "last_day": "2025-11-19",
+          "days": 90,
+          "missing_days": 89,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       },
       {
         "key": "365d",
+        "status": {
+          "key": "365d",
+          "first_day": "2024-11-20",
+          "last_day": "2025-11-19",
+          "days": 365,
+          "missing_days": 364,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       },
       {
         "key": "water_year",
+        "status": {
+          "key": "water_year",
+          "first_day": "2025-10-01",
+          "last_day": "2025-11-19",
+          "days": 50,
+          "missing_days": 49,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
         "total_in": null
       }
     ],
@@ -3783,14 +3845,14 @@
       {
         "kind": "rain",
         "unit": "in",
-        "now": 0.0,
+        "now": null,
         "now_ms": 1763538900000,
         "values": [],
         "below_pct": null,
         "equal_pct": null,
         "above_pct": null,
         "years": [],
-        "missing": "no_comparison"
+        "missing": "no_reading"
       }
     ]
   },
