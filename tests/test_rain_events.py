@@ -119,7 +119,7 @@ class TestDetectRainEvents:
 
         assert detect_rain_events(df) == []
 
-    def test_event_shorter_than_fifteen_minutes_is_dropped_by_default(self):
+    def test_one_row_event_is_kept_by_default_and_dropped_by_a_higher_floor(self):
         df = build_archive(
             "2026-01-04T00:00:00Z",
             "2026-01-04T12:00:00Z",

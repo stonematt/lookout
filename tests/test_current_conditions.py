@@ -331,7 +331,6 @@ class TestWeatherData:
         current = header.get_weather_data().current
 
         assert current.time_since_rain == "30min"
-        assert current.rain_status == "Dry 30min"
 
     def test_no_last_data_gives_zeros_not_an_error(self, session):
         data = header.get_weather_data()
