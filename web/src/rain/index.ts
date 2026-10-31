@@ -11,7 +11,7 @@
 import "./rain.css";
 
 import { formatStamp } from "../format.js";
-import { hatchGap } from "../gaps.js";
+import { gapElement, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDailyBars, drawHourGrid, drawSized, drawYearCurves } from "./charts.js";
 import {
@@ -99,7 +99,8 @@ function daily(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   const strip = make("dl", "rain-stats rain-windows");
   for (const window of tab.windows) {
     const dd = stat(strip, WINDOW_NAMES[window.key] ?? window.key, windowValue(snapshot, window));
-    hatchGap(dd, windowStatus(snapshot, window.key));
+    // Compact in the strip: the source line says why each one is not shown.
+    hatchGap(dd, windowStatus(snapshot, window.key), { compact: true });
   }
   host.append(strip);
   const { chart, readout } = figure(host, "Rain each day over the last 90 days");
@@ -132,7 +133,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   const strip = make("dl", "rain-stats rain-dry");
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
-  stat(strip, "Usual spell now", spells.usual_days === null ? null : daysText(spells.usual_days));
+  stat(strip, "Usual spell at this time of year", spells.usual_days === null ? null : daysText(spells.usual_days));
   const longest = spells.longest;
   stat(
     strip,
@@ -164,7 +165,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
     "Source: the station archive's daily totals; the last rain is the station's own record.",
     "A rain day has at least 0.01 in. Spells with a day missing from the record are left out, so a missing day is never read as dry.",
     spells.usual_sample
-      ? `The usual spell is the median of ${spells.usual_sample} that ended within 30 days of this date in any year.`
+      ? `The usual spell is the median of ${spells.usual_sample} ${spells.usual_sample === 1 ? "spell" : "spells"} that ended within 30 days of this date in any year.`
       : "No completed dry spell ended within 30 days of this date yet.",
   ]);
   return host;
@@ -178,10 +179,16 @@ function years(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
     yearsHeadline(tab),
     "Rain since Oct 1, one line per water year, named by the year it ends in. The bold line is this year.",
   );
-  const { chart, readout } = figure(host, "Rain since Oct 1, one line per water year");
-  charts.push(() =>
-    drawSized(chart, (width) => drawYearCurves(chart, tab, width, (t) => (readout.textContent = t))),
-  );
+  const current = tab.water_years[tab.water_years.length - 1];
+  if (current && tab.water_years.every((c) => c.cumulative_in.every((v) => v === null))) {
+    // No year can be compared: the hatch in place of an empty chart.
+    host.append(gapElement(current.status));
+  } else {
+    const { chart, readout } = figure(host, "Rain since Oct 1, one line per water year");
+    charts.push(() =>
+      drawSized(chart, (width) => drawYearCurves(chart, tab, width, (t) => (readout.textContent = t))),
+    );
+  }
   const left = tab.water_years
     .filter((c) => c.cumulative_in.every((v) => v === null))
     .map(yearLeftOut);

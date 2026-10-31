@@ -193,7 +193,7 @@ describe("the Rain tab", () => {
     expect(cells.map((dd) => dd.classList.contains("gap-hatch"))).toEqual([
       false, false, true, true, true, true, true,
     ]);
-    expect(text(cells[2]?.querySelector(".gap-label"))).toBe("n/a: before the archive");
+    expect(text(cells[2]?.querySelector(".gap-label"))).toBe("n/a");
     expect(cells[2]?.querySelector(".gap-sr")?.textContent).toContain("before the archive began");
   });
 
@@ -201,7 +201,8 @@ describe("the Rain tab", () => {
     renderRain(panel, dry);
     const today = section("daily").querySelector(".rain-windows dd")!;
 
-    expect(text(today.querySelector(".gap-label"))).toBe("not archived yet");
+    expect(text(today.querySelector(".gap-label"))).toBe("n/a");
+    expect(today.querySelector(".gap-sr")?.textContent).toContain("does not reach this far yet");
     expect(text(section("daily").querySelector(".rain-source"))).toContain(
       "The live reading has 0.00 in today; only the live total is known",
     );
@@ -249,6 +250,9 @@ describe("the Rain tab", () => {
     renderRain(panel, raining);
 
     expect(section("years").querySelectorAll("polyline").length).toBe(0);
+    expect(text(section("years").querySelector(".gap-block .gap-label"))).toBe(
+      "n/a: before the archive",
+    );
     expect(text(section("years").querySelector(".rain-source"))).toContain(
       "Water year 2026 is left out",
     );
@@ -280,7 +284,7 @@ describe("the Rain tab", () => {
     ]);
 
     expect(stats[0]).toEqual(["Last rain", "Nov 17, 9:03 am"]);
-    expect(stats[1]).toEqual(["Usual spell now", "not known"]);
+    expect(stats[1]).toEqual(["Usual spell at this time of year", "not known"]);
     expect(text(section("dry").querySelector(".rain-source"))).toContain(
       "No completed dry spell ended within 30 days of this date yet.",
     );

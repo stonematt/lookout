@@ -21,6 +21,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 /** Width used before the chart's host has been laid out (a hidden tab). */
 export const FALLBACK_WIDTH = 640;
 
+/** About how wide one character of a 12.5px chart label is. */
+const LABEL_CHAR_PX = 6.8;
+
 /** Below this chart width, month ticks thin out and labels shorten. */
 const NARROW = 520;
 
@@ -219,7 +222,7 @@ function hatchDays(
     const width = x(b) + step - x(a);
     svg.append(el("rect", { x: x(a), y: top, width, height: bottom - top, fill: hatch, rx: 2 }));
     const words = gapLabel(dayStatus(recent.first_day, recent.reason[a] as GapReason));
-    if (words && width >= words.length * 6.5 + 8) {
+    if (words && width >= words.length * LABEL_CHAR_PX + 8) {
       svg.append(label(x(a) + width / 2, top + 14, words, "rain-label", "middle"));
     }
   }
@@ -310,7 +313,8 @@ function curveValue(curve: WaterYearCurve, place: number): string | null {
 export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, readout: Readout): void {
   const narrow = width < NARROW;
   const height = narrow ? 240 : 300;
-  const [left, right, top, bottom] = [40, width - (narrow ? 64 : 96), 18, height - 24];
+  // The right margin holds the earlier years' names: "2024 ≈ 18.4 in".
+  const [left, right, top, bottom] = [40, width - (narrow ? 92 : 112), 18, height - 24];
   const shown = tab.water_years.filter((c) => c.cumulative_in.some((v) => v !== null));
   const values = shown.flatMap((c) => c.cumulative_in.filter((v): v is number => v !== null));
   const ticks = niceTicks(Math.max(1, ...values));
@@ -345,7 +349,20 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
     draw(curve, `rain-year rain-year-${Math.min(i, 2)}`);
     const last = curve.cumulative_in.length - 1;
     const value = curveValue(curve, last);
-    if (value !== null) ends.push({ y: y(curve.cumulative_in[last]!), text: `${curve.water_year} ${value}` });
+    if (value !== null) {
+      ends.push({ y: y(curve.cumulative_in[last]!), text: `${curve.water_year} ${value}` });
+      return;
+    }
+    // A line cut short by a gap is named where it stops.
+    let stop = last;
+    while (stop > 0 && curve.cumulative_in[stop] === null) stop--;
+    const at = curve.cumulative_in[stop];
+    if (at === null || at === undefined) return;
+    const text = `${curve.water_year} ${curveValue(curve, stop)}${narrow ? "" : ", then not compared"}`;
+    const room = text.length * LABEL_CHAR_PX;
+    const anchor = x(stop) - 6 - room >= 0 ? "end" : "start";
+    const lx = anchor === "end" ? x(stop) - 6 : Math.min(x(stop) + 6, width - room);
+    svg.append(label(lx, Math.max(top + 12, y(at) - 8), text, "rain-label", anchor));
   });
   ends.sort((a, b) => a.y - b.y);
   let floor = -Infinity;

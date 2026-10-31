@@ -74,11 +74,17 @@
   white-space: normal;
 }
 
-/* a hatched value keeps the strip's height */
+/* a hatched value keeps the strip's height and fills its slot */
 .rain-stats dd.gap-hatch {
   min-height: 1.6em;
+  margin-right: var(--s-2);
   text-align: left;
   padding-left: var(--s-1);
+}
+
+.rain-section > .gap-block {
+  margin-top: var(--s-3);
+  min-height: 96px;
 }
 
 /* ---------- charts ---------- */
