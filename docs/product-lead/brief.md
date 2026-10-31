@@ -18,7 +18,7 @@ One line each. The product lead infers the rung; write one here only when Matt o
 
 ## Where the tickets live
 
-Tracker: GitHub Issues on `stonematt/lookout`. Labels: one category (`bug`, `enhancement`) and one state (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); see `docs/agents/`. Specs: issues titled `Spec: …`, tickets as native sub-issues. Maps: issues labelled `wayfinder:map`. No milestones.
+Tracker: GitHub Issues on `stonematt/lookout`. Labels: one category (`bug`, `enhancement`) and one state (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); see `docs/agents/`. When a fix leaves bad data in Storj, the cleanup is its own `ready-for-human` ticket, blocked by the fix; the product lead queues it as a separate session once the blockers merge (example: #143 after #132). Specs: issues titled `Spec: …`, tickets as native sub-issues. Maps: issues labelled `wayfinder:map`. No milestones.
 
 Integration branch: `dev` · release branch: `main` · deploy branch: `live` (Streamlit Cloud serves it until #86 retires Streamlit). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
 
