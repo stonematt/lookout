@@ -161,7 +161,9 @@ describe("the figures' own age", () => {
     // The page's figures do not borrow its freshness.
     expect(figuresShown()).toBe(true);
     expect(text(".masthead-figures time")).toBe("Jan 8, 4:25 pm");
-    expect(text(".masthead-figures")).toMatch(/^Figures below from Jan 8, 4:25 pm/);
+    expect(text(".masthead-figures")).toMatch(/^Numbers below from Jan 8, 4:25 pm/);
+    // Two lines: the reading line names its source, so neither time is mistaken.
+    expect(text(".masthead-reading .masthead-when")).toMatch(/^Station last reported /);
     expect(text(".masthead-figures .masthead-age")).toBe("Stale: 6 h old");
     expect(stale(".masthead-figures")).toBe("true");
   });
@@ -173,7 +175,7 @@ describe("the figures' own age", () => {
     // No showCurrent: /current could not be read.
 
     // One age, the snapshot's own, stale on its own clock.
-    expect(text(".masthead-reading time")).toBe("Jan 8, 4:25 pm");
+    expect(text(".masthead-reading .masthead-when")).toBe("Reading Jan 8, 4:25 pm");
     expect(text(".masthead-reading .masthead-age")).toBe("Stale: 6 h old");
     expect(stale()).toBe("true");
     expect(figuresShown()).toBe(false);

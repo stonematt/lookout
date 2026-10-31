@@ -119,13 +119,17 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     );
     figures.age.textContent = own.text;
     figures.root.dataset.stale = String(own.stale);
+    // With two lines, "Reading" alone could be taken for the figures' time.
+    if (observedAtMs === null) reading.when.replaceChildren();
+    else {
+      const label = figures.root.hidden ? "Reading" : "Station last reported";
+      stamp(reading, label, observedAtMs);
+    }
   }
 
   function render(): void {
     name.textContent = station?.name || FALLBACK_NAME;
-    if (observedAtMs === null) reading.when.replaceChildren();
-    else stamp(reading, "Reading", observedAtMs);
-    if (figuresAtMs !== null) stamp(figures, "Figures below from", figuresAtMs);
+    if (figuresAtMs !== null) stamp(figures, "Numbers below from", figuresAtMs);
     tick();
   }
 

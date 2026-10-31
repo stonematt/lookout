@@ -123,6 +123,7 @@ a {
 
 .masthead-age {
   color: var(--ink);
+  white-space: nowrap;
 }
 
 .masthead-age:not(:empty)::before {
