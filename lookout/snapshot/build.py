@@ -21,6 +21,7 @@ from lookout.snapshot.current import (
     stitch_live,
     to_ms,
 )
+from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.ribbon import condition_ribbon
@@ -57,6 +58,7 @@ def build_snapshot(
     stitched = stitch_live(archive, live)
     observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
     current = current_conditions(stitched)
+    active = active_rain_event(event_catalog, current, observed_at_ms)
 
     return Snapshot(
         station=station,
@@ -64,7 +66,10 @@ def build_snapshot(
         observed_at_ms=observed_at_ms,
         archive_newest_ms=archive_newest_ms,
         current=current,
-        active_rain_event=active_rain_event(event_catalog, current, observed_at_ms),
+        active_rain_event=active,
         gaps=snapshot_gaps(archive, now),
         condition_ribbon=condition_ribbon(stitched, observed_at_ms),
+        rain_events=rain_events_section(
+            event_catalog, stitched, active, observed_at_ms
+        ),
     )

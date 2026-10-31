@@ -12,7 +12,7 @@ documents on Storj and the Vercel site reads them:
 JSON shape rules, so both sides can rely on them:
 
 - Every document carries `schema_version` (`SCHEMA_VERSION`) and `kind`
-  ("dashboard" or "context").
+  ("dashboard", "context", or "event_curve" for a curve file).
 - Times are integers, epoch milliseconds UTC, in fields ending `_ms`.
 - Station-local calendar days (ADR-0002) are ISO dates, "YYYY-MM-DD", in
   fields ending `_day`.
@@ -226,6 +226,137 @@ class ConditionRibbon:
 
 
 @dataclass(frozen=True)
+class RainEventRow:
+    """
+    One Event Catalog event, as the Rain Events tab lists it.
+
+    An event is keyed by `start_ms`, not its catalog `event_id`: the catalog
+    mints a new id for an ongoing event on every run, but its start (the
+    first reading with event rain) never moves. The curve file and the
+    page's `?event=` link both use the start.
+
+    :param start_ms: When it started; its key.
+    :param end_ms: Its last reading with event rain; the newest observation
+        while it is live.
+    :param duration_minutes: From start to end.
+    :param total_in: Its rain: the live `eventrainin` while it is live.
+    :param peak_rate_in_hr: Its highest rate between 5-minute readings.
+    :param quality: The catalog's rating: "excellent", "good", "fair",
+        "poor", or "invalid" when the archive has no data in its range.
+    :param completeness_pct: Readings present against expected, 0-100.
+    :param max_gap_minutes: Its longest gap over 10 minutes; 0 for none.
+    :param water_year: The water year it started in (named by its end).
+    :param rank: Its place by total among every listed event, 1 the wettest.
+    :param ongoing: Still open in the Event Catalog.
+    :param live: Ongoing and still reporting event rain live.
+    :param has_curve: The archive holds readings in its range, so it has a
+        curve; False shows totals only ("n/a: gap in record").
+    """
+
+    start_ms: int
+    end_ms: int
+    duration_minutes: float
+    total_in: float
+    peak_rate_in_hr: Optional[float]
+    quality: str
+    completeness_pct: Optional[float]
+    max_gap_minutes: Optional[float]
+    water_year: int
+    rank: int
+    ongoing: bool
+    live: bool
+    has_curve: bool
+
+
+@dataclass(frozen=True)
+class EventStats:
+    """
+    The summary metrics over a set of events (`summarize_events`).
+
+    :param count: How many.
+    :param total_in: Their rain added up.
+    :param median_in: Their median total; None for no events.
+    :param mean_duration_minutes: Their mean duration; None for no events.
+    """
+
+    count: int
+    total_in: float
+    median_in: Optional[float]
+    mean_duration_minutes: Optional[float]
+
+
+@dataclass(frozen=True)
+class EventSeason:
+    """
+    The events that started in one water year, summarised.
+
+    :param water_year: The water year, named by the year it ends in.
+    :param stats: Its events' summary metrics.
+    """
+
+    water_year: int
+    stats: EventStats
+
+
+@dataclass(frozen=True)
+class EventCurve:
+    """
+    One event's time series, for its accumulation and rate charts.
+
+    Parallel arrays, one entry per archive reading in the event, oldest
+    first. A reading that follows a gap of more than 10 minutes has its gap
+    length in `gap_minutes` and no rate: the rate across a gap is not known.
+
+    A completed event's curve is published once, as its own document
+    (`EventCurve.document`, key from `lookout.snapshot.curves.curve_key`);
+    the ongoing event's curve rides in the snapshot.
+
+    :param start_ms: The event's start; its key.
+    :param end_ms: Its end, or the newest reading while it is ongoing.
+    :param t_ms: Each reading's time.
+    :param event_in: The event rain so far at each reading (`eventrainin`).
+    :param rate_in_hr: The rain rate since the previous reading, None after
+        a gap.
+    :param gap_minutes: The gap before the reading when over 10 minutes,
+        else None.
+    """
+
+    start_ms: int
+    end_ms: int
+    t_ms: Tuple[int, ...]
+    event_in: Tuple[Optional[float], ...]
+    rate_in_hr: Tuple[Optional[float], ...]
+    gap_minutes: Tuple[Optional[float], ...]
+
+    def document(self, station: "Station") -> Dict[str, Any]:
+        """
+        The curve file: `snapshot/<MAC>.events/<start_ms>.json`.
+
+        :param station: The station the event belongs to.
+        :return: A JSON-ready dict, headed like the snapshot documents.
+        """
+        return _document("event_curve", {"station": asdict(station), **asdict(self)})
+
+
+@dataclass(frozen=True)
+class RainEvents:
+    """
+    The Rain Events tab: the Event Catalog's events and their summaries.
+
+    :param events: Every event, newest first.
+    :param all_time: The summary over every event.
+    :param seasons: The summary per water year, newest first.
+    :param ongoing_curve: The ongoing event's curve, live stitched; None
+        when no event is ongoing.
+    """
+
+    events: Tuple[RainEventRow, ...]
+    all_time: EventStats
+    seasons: Tuple[EventSeason, ...]
+    ongoing_curve: Optional[EventCurve]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -241,6 +372,7 @@ class Snapshot:
     :param gaps: The gap status of each month and standard window.
     :param condition_ribbon: The 48-hour condition ribbon, or None without
         an observation.
+    :param rain_events: The Rain Events tab's list and summaries.
     """
 
     station: Station
@@ -251,6 +383,7 @@ class Snapshot:
     active_rain_event: Optional[ActiveRainEvent]
     gaps: Gaps
     condition_ribbon: Optional[ConditionRibbon]
+    rain_events: RainEvents
 
     def dashboard(self) -> Dict[str, Any]:
         """
