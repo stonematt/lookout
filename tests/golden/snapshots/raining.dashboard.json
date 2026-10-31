@@ -4250,27 +4250,81 @@
     "windows": [
       {
         "key": "today",
-        "energy_kwh_m2": 3.79
+        "energy_kwh_m2": 3.79,
+        "status": {
+          "key": "today",
+          "first_day": "2026-01-08",
+          "last_day": "2026-01-08",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        }
       },
       {
         "key": "yesterday",
-        "energy_kwh_m2": 4.074
+        "energy_kwh_m2": 4.074,
+        "status": {
+          "key": "yesterday",
+          "first_day": "2026-01-07",
+          "last_day": "2026-01-07",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        }
       },
       {
         "key": "7d",
-        "energy_kwh_m2": null
+        "energy_kwh_m2": null,
+        "status": {
+          "key": "7d",
+          "first_day": "2026-01-02",
+          "last_day": "2026-01-08",
+          "days": 7,
+          "missing_days": 2,
+          "status": "invalid",
+          "reason": "before_archive"
+        }
       },
       {
         "key": "30d",
-        "energy_kwh_m2": null
+        "energy_kwh_m2": null,
+        "status": {
+          "key": "30d",
+          "first_day": "2025-12-10",
+          "last_day": "2026-01-08",
+          "days": 30,
+          "missing_days": 25,
+          "status": "invalid",
+          "reason": "before_archive"
+        }
       },
       {
         "key": "90d",
-        "energy_kwh_m2": null
+        "energy_kwh_m2": null,
+        "status": {
+          "key": "90d",
+          "first_day": "2025-10-11",
+          "last_day": "2026-01-08",
+          "days": 90,
+          "missing_days": 85,
+          "status": "invalid",
+          "reason": "before_archive"
+        }
       },
       {
         "key": "365d",
-        "energy_kwh_m2": null
+        "energy_kwh_m2": null,
+        "status": {
+          "key": "365d",
+          "first_day": "2025-01-09",
+          "last_day": "2026-01-08",
+          "days": 365,
+          "missing_days": 360,
+          "status": "invalid",
+          "reason": "before_archive"
+        }
       }
     ],
     "days": {
@@ -4293,7 +4347,16 @@
     "months": [
       {
         "key": "2026-01",
-        "energy_kwh_m2": null
+        "energy_kwh_m2": null,
+        "status": {
+          "key": "2026-01",
+          "first_day": "2026-01-01",
+          "last_day": "2026-01-31",
+          "days": 31,
+          "missing_days": 26,
+          "status": "invalid",
+          "reason": "in_progress"
+        }
       }
     ],
     "recent": {

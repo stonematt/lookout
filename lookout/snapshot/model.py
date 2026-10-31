@@ -839,10 +839,13 @@ class SolarWindow:
     :param key: The window's key in `Gaps.windows`.
     :param energy_kwh_m2: kWh per m² from the energy catalog, prorated when
         the window is; None when it is invalid.
+    :param status: Its gap status for solar: the archive's, with any day the
+        energy catalog lacks judged missing too (#123).
     """
 
     key: str
     energy_kwh_m2: Optional[float]
+    status: GapStatus
 
 
 @dataclass(frozen=True)
@@ -871,10 +874,12 @@ class SolarMonth:
     :param key: "YYYY-MM", its key in `Gaps.months`.
     :param energy_kwh_m2: kWh per m², prorated when the month is; None when
         it is invalid (the month under way is).
+    :param status: Its gap status for solar, as `SolarWindow.status`.
     """
 
     key: str
     energy_kwh_m2: Optional[float]
+    status: GapStatus
 
 
 @dataclass(frozen=True)

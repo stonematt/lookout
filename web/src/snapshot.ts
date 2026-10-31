@@ -464,6 +464,8 @@ export interface SolarWindow {
   key: string;
   /** kWh per m²; prorated when the window is; null when it is invalid. */
   energy_kwh_m2: number | null;
+  /** Its gap status for solar: the archive's, with days the energy catalog lacks missing too. */
+  status: GapStatus;
 }
 
 /**
@@ -483,6 +485,8 @@ export interface SolarMonth {
   /** "YYYY-MM", its key in `Gaps.months`. */
   key: string;
   energy_kwh_m2: number | null;
+  /** Its gap status for solar, as `SolarWindow.status`. */
+  status: GapStatus;
 }
 
 /** The last 90 days, 15 minutes at a time, for picking a day. */
@@ -698,6 +702,11 @@ function checkSolarTab(tab: unknown): void {
     !Array.isArray(recent.energy_wh_m2)
   ) {
     throw new SnapshotContractError("dashboard: solar_tab malformed");
+  }
+  for (const item of [...tab.windows, ...tab.months]) {
+    if (!isRecord(item) || !isRecord(item.status)) {
+      throw new SnapshotContractError("dashboard: solar_tab window or month has no gap status");
+    }
   }
 }
 

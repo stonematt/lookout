@@ -17,7 +17,7 @@ import { addDays, dayText, formatStamp, kwhPerM2 } from "../format.js";
 import { FALLBACK_WIDTH, drawSized } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
-import { WINDOW_NAMES, listText, windowStatus } from "../rain/text.js";
+import { WINDOW_NAMES, listText } from "../rain/text.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
 import {
   drawDailyBars,
@@ -143,17 +143,17 @@ function dailySection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day: 
     const dt = document.createElement("dt");
     dt.textContent = WINDOW_NAMES[window.key] ?? window.key;
     const dd = document.createElement("dd");
-    dd.textContent = windowValue(snapshot, window) ?? "";
+    dd.textContent = windowValue(window) ?? "";
     item.append(dt, dd);
     strip.append(item);
-    hatchGap(dd, windowStatus(snapshot, window.key), { compact: true });
+    hatchGap(dd, window.status, { compact: true });
   }
   const { chart, readout } = figure("Solar energy each day over the last 90 days");
   host.append(strip, chart, readout);
   mount.setup.push(() => {
     mount.redraws.push(sized(chart, (w) => drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick)));
   });
-  const invalid = notShown(snapshot, tab);
+  const invalid = notShown(tab);
   host.append(
     source([
       "Source: the energy catalog, the station's solar readings summed into 15-minute periods; a day is the sum of its periods, today the energy so far.",
@@ -174,11 +174,11 @@ const REASON_WORDS: Record<string, string> = {
   low_coverage: "have too many days with under 80% of their readings",
 };
 
-function notShown(snapshot: DashboardSnapshot, tab: SolarTab): string | null {
+function notShown(tab: SolarTab): string | null {
   const byReason = new Map<string, string[]>();
   for (const w of tab.windows) {
     if (w.energy_kwh_m2 !== null) continue;
-    const reason = windowStatus(snapshot, w.key).reason ?? "gap";
+    const reason = w.status.reason ?? "gap";
     byReason.set(reason, [...(byReason.get(reason) ?? []), (WINDOW_NAMES[w.key] ?? w.key).toLowerCase()]);
   }
   const parts = [...byReason].map(([reason, names]) => `${listText(names)} ${REASON_WORDS[reason] ?? "cannot be compared"}`);
@@ -254,7 +254,7 @@ function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) =
 }
 
 /** The heatmap section, with a control to switch between its views. */
-function heatmapSection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day: string }, pick: (day: string) => void, mount: Mount): HTMLElement {
+function heatmapSection(tab: SolarTab, state: { day: string }, pick: (day: string) => void, mount: Mount): HTMLElement {
   const host = make("section", "solar-section");
   host.dataset.section = "heatmaps";
   const title = make("h2", "solar-title");
@@ -299,7 +299,7 @@ function heatmapSection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day
   function draw(w: number): void {
     width = w;
     const write = (t: string) => (readout.textContent = t);
-    if (view === "months") drawYearMonth(chart, tab, snapshot.gaps.months, w, write);
+    if (view === "months") drawYearMonth(chart, tab, w, write);
     else if (view === "days") drawMonthDay(chart, tab, state.day, w, write, pick);
     else drawDayGrid(chart, tab, state.day, w, write, pick);
   }
@@ -385,7 +385,6 @@ export function renderSolar(
   const daily = dailySection(snapshot, tab, state, pick, mount);
   dayPart = daySection(tab, state, pick);
   const heat = heatmapSection(
-    snapshot,
     tab,
     state,
     (day) => {

@@ -43,7 +43,8 @@ The API, for every section that compares months or windows:
 
 - `ArchiveCoverage(archive, now)`: reads the archive once, then answers
   `.window(first_day, last_day)`, `.month(year, month)`, `.rolling(days)`,
-  `.water_year()` and `.counted_days(first_day, last_day)`.
+  `.water_year()` and `.counted_days(first_day, last_day)`;
+  `.excluding(missing)` judges days a derived record lacks as missing.
 - `window_status(archive, first_day, last_day, now)` and
   `month_status(archive, year, month, now)`: one-off shorthands.
 - `comparable(status, compute)`: `compute()`, or None when invalid; it never
@@ -53,9 +54,10 @@ The API, for every section that compares months or windows:
 - `snapshot_gaps(archive, now)`: the `Gaps` section `build_snapshot` adds.
 """
 
+from copy import copy
 from dataclasses import replace
 from datetime import date, datetime, timedelta
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import Callable, Dict, List, Mapping, Optional, Tuple, TypeVar
 
 import pandas as pd
 
@@ -94,6 +96,7 @@ counted back from today. The water year follows them."""
 
 _OK, _LOW, _GAP = "ok", "low", "gap"
 _NOT_ARCHIVED, _BEFORE_ARCHIVE, _FUTURE = "not_archived", "before_archive", "future"
+_MISSING_KINDS = frozenset({_GAP, _LOW, _NOT_ARCHIVED, _BEFORE_ARCHIVE})
 
 
 class ArchiveCoverage:
@@ -179,6 +182,31 @@ class ArchiveCoverage:
         if held == 0:
             return _GAP
         return _OK if held / expected >= LOW_COVERAGE else _LOW
+
+    def excluding(self, missing: Mapping[date, str]) -> "ArchiveCoverage":
+        """
+        This coverage with some counted days judged missing after all.
+
+        For a section whose values come from a record derived from the
+        archive (the energy catalog) that lacks days the archive holds: those
+        days are judged as `missing` says, so a window over them is prorated
+        or invalid by the same rule, never counted as zero.
+
+        :param missing: Day -> the kind to judge it as: "gap", "low",
+            "not_archived" or "before_archive". Only "ok" days change; the
+            copy shares the read-only slot counts and has its own kinds.
+        :return: A new coverage; this one is unchanged.
+        :raises ValueError: For any other kind.
+        """
+        unknown = set(missing.values()) - _MISSING_KINDS
+        if unknown:
+            raise ValueError(f"Not a missing day's kind: {sorted(unknown)}")
+        other = copy(self)
+        other._kinds = dict(self._kinds)
+        for day, kind in missing.items():
+            if self.day_kind(day) == _OK:
+                other._kinds[day] = kind
+        return other
 
     def counted_days(self, first_day: date, last_day: date) -> Tuple[date, ...]:
         """
