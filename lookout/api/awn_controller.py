@@ -393,12 +393,19 @@ def seek_over_time_gap(
     last_date: datetime, gap_attempts: int, limit: int, max_attempts: int = 10
 ) -> tuple[datetime, int, bool]:
     """
-    Handles logic for gap-based time seeking during history fetch.
+    Move the cursor past a page that brought nothing new, one page at a time.
 
-    :param last_date: datetime - Current max date seen.
-    :param gap_attempts: int - Current number of failed fetch/validation attempts.
-    :param limit: int - Records per page used for offsetting.
-    :param max_attempts: int - Maximum retries before exiting.
+    Each empty probe advances the cursor by exactly one page of 5-minute
+    readings, whatever the attempt count, so the windows requested across
+    an outage touch and no stretch goes unrequested (#132). The walk's
+    reach is therefore about `max_attempts` pages from where the gap began:
+    some 208 hours at 250 records and 10 attempts. A longer outage ends on
+    the cap with nothing fetched, and the next run starts from the same row.
+
+    :param last_date: datetime - The cursor the empty probe was made from.
+    :param gap_attempts: int - Consecutive empty probes before this one.
+    :param limit: int - Records per page; the step is `limit` readings.
+    :param max_attempts: int - Empty probes after which the walk gives up.
     :return: (next_date, new_gap_attempts, should_exit)
     """
     gap_attempts += 1
@@ -407,7 +414,7 @@ def seek_over_time_gap(
         return last_date, gap_attempts, True
 
     logger.info(f"Seeking ahead: {gap_attempts}/{max_attempts}")
-    next_date = _calculate_next_start_date(last_date, gap_attempts, limit)
+    next_date = _calculate_next_start_date(last_date, limit)
     return next_date, gap_attempts, False
 
 
@@ -831,18 +838,19 @@ def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
         raise
 
 
-def _calculate_next_start_date(
-    current_max_date: datetime, gap_attempts: int, limit: int
-) -> datetime:
+def _calculate_next_start_date(current_cursor: datetime, limit: int) -> datetime:
     """
-    Calculates the next start date for fetching, offset by paging attempt.
+    The cursor one page of 5-minute readings after `current_cursor`.
 
-    :param current_max_date: The last known good datetime to start from.
-    :param gap_attempts: Number of consecutive non-advancing fetches.
+    A probe from a cursor requests the `limit` readings before
+    `cursor + (limit - 3) * 5` minutes, so the next probe's window starts
+    where this one's ended.
+
+    :param current_cursor: The cursor the empty probe was made from.
     :param limit: Number of records to fetch per page.
-    :return: New datetime for the next fetch attempt.
+    :return: The cursor for the next probe.
     """
-    return current_max_date + timedelta(minutes=5 * limit * gap_attempts)
+    return current_cursor + timedelta(minutes=5 * limit)
 
 
 def _is_data_new(interim_df, new_data):

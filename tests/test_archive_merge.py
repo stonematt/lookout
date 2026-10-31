@@ -13,14 +13,14 @@ Archives come from `tests/fixtures/archive.py`, Ambient pages from
 catalog lives in the moto bucket.
 """
 
-from typing import Sequence
+from typing import List, Sequence, Tuple
 
 import pandas as pd
 import pytest
 
 from lookout.api import awn_controller as awn
 from lookout.core import rain_corrections
-from tests.fixtures.ambient import devices_body, to_ambient_records
+from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -133,16 +133,27 @@ class TestCombine:
 class TestSeekOverTimeGap:
     """`seek_over_time_gap`: how a page that does not advance moves the cursor."""
 
-    def test_each_attempt_jumps_five_minutes_per_record_per_attempt(self):
+    def test_every_empty_probe_moves_the_cursor_one_page(self):
+        """
+        Probes 1, 2 and 5 move the cursor by the same 1250 minutes (#132).
+
+        It used to move 5 minutes x records x attempt number from the last
+        cursor, so the offsets accumulated and skipped time.
+        """
         start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
 
-        first, attempts, stop = awn.seek_over_time_gap(start, 0, limit=250)
-        second, attempts2, stop2 = awn.seek_over_time_gap(start, 1, limit=250)
+        for done, attempt in ((0, 1), (1, 2), (4, 5)):
+            cursor, attempts, stop = awn.seek_over_time_gap(start, done, limit=250)
 
-        assert (attempts, stop) == (1, False)
-        assert first - start == pd.Timedelta(minutes=5 * 250 * 1)
-        assert (attempts2, stop2) == (2, False)
-        assert second - start == pd.Timedelta(minutes=5 * 250 * 2)
+            assert (attempts, stop) == (attempt, False)
+            assert cursor - start == pd.Timedelta(minutes=1250)
+
+    def test_the_step_is_one_page_at_any_limit(self):
+        start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
+
+        cursor, _, _ = awn.seek_over_time_gap(start, 3, limit=288)
+
+        assert cursor - start == pd.Timedelta(hours=24)
 
     def test_gives_up_on_the_tenth_attempt_without_moving(self):
         start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
@@ -150,6 +161,197 @@ class TestSeekOverTimeGap:
         cursor, attempts, stop = awn.seek_over_time_gap(start, 9, limit=250)
 
         assert (cursor, attempts, stop) == (start, 10, True)
+
+
+LIMIT = 250  # the controller's default page size
+PAGE = pd.Timedelta(minutes=5 * LIMIT)
+# A probe from a cursor asks for the readings before cursor + (limit - 3) * 5 min.
+PROBE_REACH = pd.Timedelta(minutes=5 * (LIMIT - 3))
+OUTAGE_START = pd.Timestamp("2026-01-05T00:00:00Z")
+ARCHIVE_START = "2026-01-04T00:00:00Z"
+
+Span = Tuple[pd.Timestamp, pd.Timestamp]
+
+
+def outage(
+    hours: float, after_days: float = 4
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Timestamp]:
+    """
+    An archive that ends where an outage of `hours` begins, and the truth.
+
+    :param hours: How long the station sent nothing.
+    :param after_days: Days of readings Ambient holds after the outage.
+    :return: `(archive, truth, end)`: the archive (rows before the outage),
+        everything Ambient holds, and the time after its last reading.
+    """
+    resume = OUTAGE_START + pd.Timedelta(hours=hours)
+    end = resume + pd.Timedelta(days=after_days)
+    truth = build_archive(ARCHIVE_START, end, gaps=(Gap(OUTAGE_START, resume),))
+    archive = build_archive(ARCHIVE_START, OUTAGE_START)
+    return archive, truth, end
+
+
+def windows(ambient_replay: AmbientReplay, limit: int = LIMIT) -> List[Span]:
+    """
+    The span of readings each history request asked for, in request order.
+
+    A request ending at `endDate` for `limit` five-minute readings covers
+    `[endDate - limit * 5 min, endDate)`.
+
+    :param ambient_replay: The fake Ambient the requests went to.
+    :param limit: Records per page the requests asked for.
+    :return: `(start, end)` Timestamps, one pair per history request.
+    """
+    spans = []
+    for path, params in ambient_replay.calls:
+        if path == "/devices" or "endDate" not in params:
+            continue
+        end = pd.Timestamp(int(params["endDate"]), unit="ms", tz="UTC")
+        spans.append((end - pd.Timedelta(minutes=5 * limit), end))
+    return spans
+
+
+def assert_windows_touch(spans: Sequence[Span]) -> None:
+    """
+    Each window starts no later than the last one ended, overlapping it by
+    at most a page.
+
+    :param spans: Requested windows, in request order.
+    """
+    for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
+        assert next_start <= prev_end, "unrequested time between windows"
+        assert prev_end - next_start <= PAGE, "more than a page of overlap"
+
+
+class TestGapSeekAcrossAnOutage:
+    """The forward walk across an outage requests every stretch of time (#132)."""
+
+    def test_windows_of_consecutive_empty_probes_touch(
+        self, fake_s3, ambient_replay, device
+    ):
+        archive, truth, end = outage(hours=150)
+        serve(ambient_replay, truth)
+
+        awn.get_history_since_last_archive(device, archive, pages=20, end_date=end)
+
+        spans = windows(ambient_replay)
+        assert len(spans) >= 6
+        assert_windows_touch(spans)
+
+    @pytest.mark.parametrize("hours", [42, 72, 180])
+    def test_every_reading_after_the_outage_is_fetched(
+        self, fake_s3, ambient_replay, device, hours
+    ):
+        """
+        No reading Ambient holds after the outage is skipped.
+
+        At 42 hours and beyond the old offset left a stretch unrequested
+        (244 rows lost at 42 h). 180 h is near the walk's reach.
+        """
+        archive, truth, end = outage(hours)
+        serve(ambient_replay, truth)
+        resume = OUTAGE_START + pd.Timedelta(hours=hours)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=20, end_date=end
+        )
+
+        newest = result["dateutc"].max()
+        assert newest >= ms(str(resume + pd.Timedelta(days=1)))
+        held = truth[truth.dateutc <= newest]
+        assert set(result["dateutc"]) == set(held["dateutc"])
+
+    def test_an_outage_of_41_hours_makes_the_requests_it_always_made(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        One seek step crosses 41 hours, and the first step is unchanged.
+
+        The cursor starts at the last archive row, 2026-01-04T23:55Z; each
+        request ends 1235 minutes after its cursor. The first page brings
+        back the archive's own newest rows (counted as progress against an
+        empty interim), the second the same rows (not fresh), then the seek.
+        """
+        archive, truth, end = outage(hours=41)
+        serve(ambient_replay, truth)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=4, end_date=end
+        )
+
+        ends = [str(e) for _, e in windows(ambient_replay)]
+        assert ends == [
+            "2026-01-05 20:30:00+00:00",  # archive rows only
+            "2026-01-05 20:35:00+00:00",  # from 23:55 + 5 min: nothing new
+            "2026-01-06 17:25:00+00:00",  # one page on; back at 17:00
+            "2026-01-07 14:00:00+00:00",  # paging forward from 17:20 + 5 min
+        ]
+        newest = result["dateutc"].max()
+        assert newest == ms("2026-01-07T13:55:00Z")
+        held = truth[truth.dateutc <= newest]
+        assert set(result["dateutc"]) == set(held["dateutc"])
+
+    def test_an_outage_past_the_walks_reach_gives_up_on_the_tenth_probe(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        Held finding: ten one-page probes reach about 208 hours (#132).
+
+        A 240-hour outage is past that, so the walk ends on the cap with
+        nothing fetched, and the next run starts from the same archive row.
+        The windows it did request still touch, so nothing is skipped.
+        The first request returns the archive's own newest rows; the ten
+        after it are the empty probes.
+        """
+        archive, truth, end = outage(hours=240)
+        serve(ambient_replay, truth)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=20, end_date=end
+        )
+
+        spans = windows(ambient_replay)
+        assert len(spans) == 1 + 10
+        assert spans[-1][1] - OUTAGE_START < pd.Timedelta(hours=240)
+        assert_windows_touch(spans)
+        assert len(result) == len(archive)
+
+    def test_the_seek_never_probes_from_past_the_end_bound(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        Every probe starts before `end_date`; the walk stops at the bound.
+
+        A window can still run past the bound by up to a page: that is the
+        page width (see `test_end_date_caps_the_cursor_not_the_rows_returned`).
+        """
+        resume_never = OUTAGE_START + pd.Timedelta(hours=6)
+        truth = build_archive(ARCHIVE_START, resume_never)
+        archive = build_archive(ARCHIVE_START, OUTAGE_START)
+        serve(ambient_replay, truth)
+        bound = OUTAGE_START + pd.Timedelta(hours=100)
+
+        awn.get_history_since_last_archive(device, archive, pages=20, end_date=bound)
+
+        cursors = [e - PROBE_REACH for _, e in windows(ambient_replay)]
+        assert len(cursors) >= 5
+        assert all(c < bound for c in cursors)
+
+    def test_the_seek_never_requests_past_the_present(
+        self, fake_s3, ambient_replay, device
+    ):
+        now = pd.Timestamp.now(tz="UTC").floor("5min")
+        archive = build_archive(
+            now - pd.Timedelta(days=2), now - pd.Timedelta(hours=30)
+        )
+        serve(ambient_replay, archive)
+
+        awn.get_history_since_last_archive(device, archive, pages=20)
+
+        latest = pd.Timestamp.now(tz="UTC")
+        spans = windows(ambient_replay)
+        assert len(spans) >= 2
+        assert all(e <= latest for _, e in spans)
 
 
 class TestHistorySinceLastArchive:
