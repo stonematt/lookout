@@ -629,7 +629,14 @@ class GapFill:
         return self.status == "no_new_data"
 
 
-def fill_archive_gap(device: dict, history_df: pd.DataFrame, start, end) -> GapFill:
+def fill_archive_gap(
+    device: dict,
+    history_df: pd.DataFrame,
+    start,
+    end,
+    pages: int = 20,
+    sleep: bool = False,
+) -> GapFill:
     """
     Fetch missing data for a specified gap and append it to the history.
 
@@ -641,6 +648,11 @@ def fill_archive_gap(device: dict, history_df: pd.DataFrame, start, end) -> GapF
         The fill applies no rain corrections, so a raw archive saves raw.
     :param start: The gap's start; anything `pd.to_datetime` reads, as UTC.
     :param end: The gap's end.
+    :param pages: Most Ambient pages to fetch (about 246 new readings
+        each); a long window, like the rain repair's, needs more than the
+        default.
+    :param sleep: Wait a second before each page, to stay under Ambient's
+        rate limit on a long fill.
     :return: A `GapFill`; its `history_df` is the merged archive on "filled".
     """
     logger.info(f"*** Attempting to fill gap from {start} to {end} ***")
@@ -665,7 +677,7 @@ def fill_archive_gap(device: dict, history_df: pd.DataFrame, start, end) -> GapF
 
     # Fetch new records to fill the gap
     new_data_df = get_history_since_last_archive(
-        device, archive_df, end_date=end, pages=20
+        device, archive_df, end_date=end, pages=pages, sleep=sleep
     )
 
     # Merge new data back into full archive; raw, like the fetched rows
