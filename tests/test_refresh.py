@@ -350,6 +350,15 @@ class TestCatalogUpdatesAndSaves:
         stored = RainEventCatalog(FAKE_MAC).load_catalog()
         assert stored.equals(stored_before)
 
+    def test_a_completed_stored_event_is_not_saved_again(self, seed):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        run_refresh(station)  # completes the event and saves
+        after_first = stored_bytes(station, EVENT_CATALOG_KEY)
+
+        run_refresh(station)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == after_first
+
     def test_the_snapshot_uses_the_updated_catalog_without_saving(self, seed):
         station = self.storm(seed, "2026-01-09T00:30:00Z")
 

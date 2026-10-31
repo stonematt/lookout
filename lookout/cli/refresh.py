@@ -154,7 +154,7 @@ def update_catalogs(
         energy_store.get_catalog_age() > ENERGY_SAVE_AGE
     ):
         backup_and_save_catalog(energy, ENERGY_TYPE, bucket, station.mac)
-        logger.info("Energy catalog saved (stored one older than 2 days)")
+        logger.info(f"Energy catalog saved (stored one older than {ENERGY_SAVE_AGE})")
 
     return Catalogs(events=None if events.empty else events, energy=energy)
 
