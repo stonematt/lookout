@@ -14,9 +14,14 @@ JSON shape rules, so both sides can rely on them:
 - Every document carries `schema_version` (`SCHEMA_VERSION`) and `kind`
   ("dashboard" or "context").
 - Times are integers, epoch milliseconds UTC, in fields ending `_ms`.
+- Station-local calendar days (ADR-0002) are ISO dates, "YYYY-MM-DD", in
+  fields ending `_day`.
 - Units are imperial and named in the field (`_f`, `_in`, `_mph`, `_inhg`).
 - A value that is not known is `null`, never NaN and never left out.
 - Trends are words: "rising", "falling" or "steady".
+- A value computed over a month or a window is null when that month's or
+  window's `GapStatus` is "invalid": compute it through
+  `lookout.snapshot.gaps.comparable`, which never runs an invalid one.
 
 Adding a field is not a breaking change: add it to the dataclass and both
 sides' goldens, keep `SCHEMA_VERSION`. Renaming, removing or changing the
@@ -135,6 +140,52 @@ class ActiveRainEvent:
 
 
 @dataclass(frozen=True)
+class GapStatus:
+    """
+    One month's or one window's gap status: the One Gap Status Rule.
+
+    Computed by `lookout.snapshot.gaps`, which holds the rules.
+
+    :param key: Which one: "YYYY-MM" for a month, else the window's name
+        ("today", "yesterday", "7d", "30d", "90d", "365d", "water_year").
+    :param first_day: Its first station-local day.
+    :param last_day: Its last station-local day, inclusive.
+    :param days: How many days it spans.
+    :param missing_days: Its days that cannot be counted: no archived rows,
+        low coverage, after the archive ends, before it began, or not yet come.
+    :param status: "valid"; "prorated" (shown with ≈: up to 10% of its days
+        missing, a total scaled to the whole window); or "invalid" (no value
+        is computed).
+    :param reason: Why it is not valid: "gap", "low_coverage",
+        "not_archived", "before_archive" or "in_progress"; None when valid.
+    """
+
+    key: str
+    first_day: str
+    last_day: str
+    days: int
+    missing_days: int
+    status: str
+    reason: Optional[str]
+
+
+@dataclass(frozen=True)
+class Gaps:
+    """
+    The gap status of every month in the archive and every standard window.
+
+    :param months: Each station-local month, oldest first, from the archive's
+        first month through the current one.
+    :param windows: The standard windows ending today, in the order `key`
+        lists them. Views with windows of their own call
+        `lookout.snapshot.gaps.window_status`.
+    """
+
+    months: Tuple[GapStatus, ...]
+    windows: Tuple[GapStatus, ...]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -147,6 +198,7 @@ class Snapshot:
         the lag and mark the span only the live reading covers.
     :param current: Current conditions.
     :param active_rain_event: The active rain event, or None.
+    :param gaps: The gap status of each month and standard window.
     """
 
     station: Station
@@ -155,6 +207,7 @@ class Snapshot:
     archive_newest_ms: Optional[int]
     current: SnapshotConditions
     active_rain_event: Optional[ActiveRainEvent]
+    gaps: Gaps
 
     def dashboard(self) -> Dict[str, Any]:
         """
