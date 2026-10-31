@@ -85,7 +85,8 @@ def publish_event_curves(
     """
     Write the curve files of completed events that have none yet.
 
-    A failed write raises, so the refresh run fails and its heartbeat says so.
+    A failed write raises; the refresh run logs it and does not fail (the
+    snapshot has published, and the next run retries the missing files).
 
     :param station: The station.
     :param event_catalog: The Event Catalog, or None.
