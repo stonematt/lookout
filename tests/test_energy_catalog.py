@@ -43,27 +43,14 @@ class TestEnergyCatalog:
         assert catalog.bucket == "lookout"
         assert catalog.catalog_path == "TEST_MAC.energy_catalog.parquet"
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_catalog_exists_true(self, mock_get_client, catalog):
+    def test_catalog_exists_true(self, fake_s3, catalog):
         """Test catalog_exists when catalog exists"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.head_object.return_value = {
-            "LastModified": datetime.now(timezone.utc)
-        }
+        fake_s3.put_object(Bucket="lookout", Key=catalog.catalog_path, Body=b"x")
 
         assert catalog.catalog_exists() is True
-        mock_client.head_object.assert_called_once_with(
-            Bucket="lookout", Key="TEST_MAC.energy_catalog.parquet"
-        )
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_catalog_exists_false(self, mock_get_client, catalog):
+    def test_catalog_exists_false(self, fake_s3, catalog):
         """Test catalog_exists when catalog doesn't exist"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.head_object.side_effect = Exception("Not found")
-
         assert catalog.catalog_exists() is False
 
     @patch("lookout.core.energy_catalog.get_s3_client")
@@ -77,18 +64,14 @@ class TestEnergyCatalog:
         mock_body.read.return_value = sample_data.to_parquet()
         mock_client.get_object.return_value = {"Body": mock_body}
 
-        with patch("pandas.read_parquet", return_value=sample_data) as mock_read:
-            result = catalog.load_catalog()
-            assert not result.empty
-            mock_read.assert_called_once()
+        with patch("lookout.core.energy_catalog.object_exists", return_value=True):
+            with patch("pandas.read_parquet", return_value=sample_data) as mock_read:
+                result = catalog.load_catalog()
+                assert not result.empty
+                mock_read.assert_called_once()
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_load_catalog_not_exists(self, mock_get_client, catalog):
+    def test_load_catalog_not_exists(self, fake_s3, catalog):
         """Test loading catalog when it doesn't exist"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.head_object.side_effect = Exception("Not found")
-
         result = catalog.load_catalog()
         assert result.empty
 

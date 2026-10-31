@@ -137,17 +137,6 @@ def object_exists(bucket: str, key: str) -> bool:
         return False
 
 
-def json_exists_in_s3(bucket: str, key: str) -> bool:
-    """
-    Check if JSON file exists in S3-compatible bucket.
-
-    :param bucket: The name of the S3 bucket.
-    :param key: The key of the JSON file in the S3 bucket.
-    :return: True if exists, False otherwise.
-    """
-    return object_exists(bucket, key)
-
-
 def save_df_to_s3(
     df: pd.DataFrame, bucket: str, key: str, file_type: str = "parquet"
 ) -> None:
@@ -311,7 +300,12 @@ def backup_archive(
 
     The copy lands at `.backups/<mac>/<YYYYMMDD>/<mac>.<HISTORY_FILE_TYPE>`,
     once a day unless forced. Catalogs share the bare-MAC prefix but are not
-    copied: they are backed up by `backup_and_save_catalog` (decided in #114).
+    copied here. Each catalog is backed up on its own route: those saved through
+    `backup_and_save_catalog` (the generic store, and the energy catalog's
+    updaters), the Event Catalog by `RainEventCatalog.backup_catalog`, the
+    energy catalog's `EnergyCatalog._create_backup`, and the day periods
+    catalog by `backup_day_periods_catalog`. The last three write timestamped
+    copies under `backups/`.
 
     :param bucket: Name of the S3 bucket.
     :param mac: The station's MAC address.

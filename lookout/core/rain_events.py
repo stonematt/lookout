@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 
 from lookout.core.event_quality import classify_event_quality
-from lookout.storage.storj import get_s3_client
+from lookout.storage.storj import get_s3_client, object_exists
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -246,12 +246,7 @@ class RainEventCatalog:
 
     def catalog_exists(self) -> bool:
         """Check if event catalog exists in storage"""
-        try:
-            client = self._get_storage_client()
-            client.head_object(Bucket=self.bucket, Key=self.catalog_path)
-            return True
-        except Exception:
-            return False
+        return object_exists(self.bucket, self.catalog_path)
 
     def load_catalog(self) -> pd.DataFrame:
         """

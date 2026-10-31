@@ -11,7 +11,7 @@ from lookout.storage.storj import (
     get_df_from_s3,
     save_df_to_s3,
     backup_data,
-    get_s3_client,
+    object_exists,
 )
 from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 from lookout.utils.log_util import app_logger
@@ -28,13 +28,7 @@ def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
     """Check if catalog exists in storage."""
     mac_address = get_station_mac()
 
-    try:
-        catalog_path = get_catalog_path(mac_address, catalog_type)
-        client = get_s3_client()
-        client.head_object(Bucket=bucket, Key=catalog_path)
-        return True
-    except Exception:
-        return False
+    return object_exists(bucket, get_catalog_path(mac_address, catalog_type))
 
 
 def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:

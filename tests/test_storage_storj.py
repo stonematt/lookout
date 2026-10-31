@@ -51,12 +51,12 @@ def test_missing_key_reads_as_an_empty_frame(fake_s3):
 
 
 def test_json_dict_save_get_and_exists(fake_s3):
-    assert storj.json_exists_in_s3(BUCKET, "doc.json") is False
+    assert storj.object_exists(BUCKET, "doc.json") is False
     assert storj.get_json_from_s3(BUCKET, "doc.json") == {}
 
     assert storj.save_json_to_s3({"a": [1, 2]}, BUCKET, "doc.json") is True
 
-    assert storj.json_exists_in_s3(BUCKET, "doc.json") is True
+    assert storj.object_exists(BUCKET, "doc.json") is True
     assert storj.get_json_from_s3(BUCKET, "doc.json") == {"a": [1, 2]}
 
 
