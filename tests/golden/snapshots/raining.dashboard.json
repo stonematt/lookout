@@ -4062,5 +4062,188 @@
         "missing": "no_comparison"
       }
     ]
+  },
+  "almanac": {
+    "years": [
+      {
+        "water_year": 2026,
+        "months": [
+          {
+            "status": {
+              "key": "2025-10",
+              "first_day": "2025-10-01",
+              "last_day": "2025-10-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-11",
+              "first_day": "2025-11-01",
+              "last_day": "2025-11-30",
+              "days": 30,
+              "missing_days": 30,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-12",
+              "first_day": "2025-12-01",
+              "last_day": "2025-12-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2026-01",
+              "first_day": "2026-01-01",
+              "last_day": "2026-01-31",
+              "days": 31,
+              "missing_days": 26,
+              "status": "invalid",
+              "reason": "in_progress"
+            },
+            "rain_in": null,
+            "to_date": {
+              "key": "2026-01-01..2026-01-08",
+              "first_day": "2026-01-01",
+              "last_day": "2026-01-08",
+              "days": 8,
+              "missing_days": 3,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "to_date_in": null
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "season": {
+          "key": "water_year_2026",
+          "first_day": "2025-10-01",
+          "last_day": "2026-09-30",
+          "days": 365,
+          "missing_days": 360,
+          "status": "invalid",
+          "reason": "in_progress"
+        },
+        "season_in": null
+      }
+    ],
+    "rolling": [
+      {
+        "key": "7d",
+        "years": [
+          {
+            "year": 2026,
+            "status": {
+              "key": "7d",
+              "first_day": "2026-01-02",
+              "last_day": "2026-01-08",
+              "days": 7,
+              "missing_days": 2,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "30d",
+        "years": [
+          {
+            "year": 2026,
+            "status": {
+              "key": "30d",
+              "first_day": "2025-12-10",
+              "last_day": "2026-01-08",
+              "days": 30,
+              "missing_days": 25,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "90d",
+        "years": [
+          {
+            "year": 2026,
+            "status": {
+              "key": "90d",
+              "first_day": "2025-10-11",
+              "last_day": "2026-01-08",
+              "days": 90,
+              "missing_days": 85,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "365d",
+        "years": [
+          {
+            "year": 2026,
+            "status": {
+              "key": "365d",
+              "first_day": "2025-01-09",
+              "last_day": "2026-01-08",
+              "days": 365,
+              "missing_days": 360,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "water_year",
+        "years": [
+          {
+            "year": 2026,
+            "status": {
+              "key": "water_year",
+              "first_day": "2025-10-01",
+              "last_day": "2026-01-08",
+              "days": 100,
+              "missing_days": 95,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null
+          }
+        ]
+      }
+    ]
   }
 }

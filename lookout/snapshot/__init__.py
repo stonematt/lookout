@@ -11,6 +11,7 @@ The dashboard snapshot: built in Python, published on Storj, read by the site.
 - `publish`: the Storj keys and the write.
 - `events`: the Rain Events tab's section and event curves (#84).
 - `curves`: each completed event's curve file, written once.
+- `almanac`: the Overview's almanac grid and rolling-window rain table (#82).
 """
 
 from lookout.snapshot.build import build_snapshot
