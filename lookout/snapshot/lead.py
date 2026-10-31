@@ -46,6 +46,7 @@ from lookout.snapshot.gaps import ArchiveCoverage, comparable
 from lookout.snapshot.model import (
     ActiveRainEvent,
     HeroLead,
+    LeadChartUnit,
     LeadKind,
     LeadRule,
     LeadTrace,
@@ -72,6 +73,12 @@ HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
 RAIN_SLOT_MINUTES = 15
 _RAIN_SLOT_MS = RAIN_SLOT_MINUTES * 60_000
+
+_DAY_CHARTS: Dict[str, Tuple[str, int, LeadChartUnit, str]] = {
+    "temperature": ("tempf", 1, "f", "temperature_f"),
+    "solar": ("solarradiation", 0, "wm2", "solar_wm2"),
+}
+"""Hourly hero charts: archive column, digits, chart unit, current field."""
 
 _Usual = Tuple[Optional[float], Optional[float], Optional[float]]
 _NO_USUAL: _Usual = (None, None, None)
@@ -448,30 +455,21 @@ def hero_lead(
             stitched, event_catalog, newest, active, current, observed_at_ms
         )
         unit = "in"
-    elif kind in ("temperature", "solar"):
-        column, digits = (
-            ("tempf", 1) if kind == "temperature" else ("solarradiation", 0)
-        )
+    elif kind == "calm":
+        now_value, usual, trace = rules[3].value, spell_usual, None
+        sample = len(spells or [])
+        unit = "days"
+    else:
+        column, digits, unit, field = _DAY_CHARTS[kind]
         by_hour = (
             temperature_by_hour
             if kind == "temperature"
-            else (month_hours.by_hour(column, digits))
+            else month_hours.by_hour(column, digits)
         )
-        now_value = (
-            current.temperature_f if kind == "temperature" else current.solar_wm2
-        )
+        now_value = getattr(current, field)
         usual = by_hour.get(observed_hour, _NO_USUAL)
         sample = month_hours.days()
         trace = _day_trace(stitched, column, by_hour, coverage.today, tz, digits)
-        unit = "f" if kind == "temperature" else "wm2"
-    else:
-        now_value, usual, sample, trace = (
-            rules[3].value,
-            spell_usual,
-            len(spells or []),
-            None,
-        )
-        unit = "days"
 
     return HeroLead(
         kind=kind,
