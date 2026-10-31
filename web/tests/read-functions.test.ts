@@ -126,12 +126,18 @@ describe("GET /dashboard", () => {
     expect(world.calls.every((c) => c.url.startsWith(STORJ))).toBe(true);
   });
 
-  it("takes a station parameter, in either case", async () => {
-    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
+  it("takes the pinned station as a parameter, in either case", async () => {
     const response = await dashboardGET(
       get(`/dashboard?station=${encodeURIComponent(MAC.toLowerCase())}`),
     );
     expect(response.status).toBe(200);
+  });
+
+  it("answers 404, uncached, for any other station, without reading Storj", async () => {
+    const response = await dashboardGET(get("/dashboard?station=AA:BB:CC:DD:EE:FF"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(world.calls).toHaveLength(0);
   });
 
   it("refuses a station that is not a MAC address", async () => {
@@ -141,9 +147,8 @@ describe("GET /dashboard", () => {
   });
 
   it("answers 404 when the station has no snapshot", async () => {
-    const response = await dashboardGET(
-      get("/dashboard?station=AA:BB:CC:DD:EE:FF"),
-    );
+    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
+    const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
@@ -258,5 +263,13 @@ describe("GET /current", () => {
   it("refuses a station that is not a MAC address", async () => {
     const response = await currentGET(get("/current?station=x"));
     expect(response.status).toBe(400);
+  });
+
+  it("answers 404, uncached, for any other station, reading nothing", async () => {
+    world.devices = [ambientDevice(1, "AA:BB:CC:DD:EE:FF")];
+    const response = await currentGET(get("/current?station=AA:BB:CC:DD:EE:FF"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(world.calls).toHaveLength(0);
   });
 });

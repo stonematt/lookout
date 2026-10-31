@@ -68,7 +68,8 @@ Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
 
 ## Read functions
 
-Both take an optional `?station=<MAC>`. Without it they use `STATION_MAC`.
+All three take an optional `?station=<MAC>`. Without it they use `STATION_MAC`.
+Any station other than `STATION_MAC` answers 404, uncached, before any read.
 
 - `GET /dashboard`: the station's `snapshot/<MAC>.dashboard.json`, as Storj
   holds it, with `Cache-Control: s-maxage=300, stale-while-revalidate=300`.

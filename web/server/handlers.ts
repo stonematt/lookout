@@ -8,7 +8,9 @@
  *   fails; only both failing is an error.
  *
  * Both take an optional `station` query parameter (a MAC address) that
- * defaults to the configured station.
+ * defaults to the configured station. Only the configured station is served:
+ * any other MAC is a 404, answered before any read and never cached, so a
+ * caller cannot read another station's snapshot or fill the CDN with keys.
  */
 import type { CurrentReading, LastData, Station } from "../src/snapshot.js";
 import {
@@ -84,16 +86,21 @@ export function errorResponse(status: number, error: string): Response {
 }
 
 /**
- * The station a request asks for: its `station` parameter, else the default.
+ * The station a request asks for: the configured one, whether named by the
+ * `station` parameter (in either case) or left to the default.
  *
  * @param request - The incoming request.
- * @param sources - Holds the default station.
- * @returns The upper-case MAC, or a 400 response for a malformed one.
+ * @param sources - Holds the configured station.
+ * @returns The upper-case MAC; a 400 response for a malformed one; a 404,
+ *   not cached, for any other station.
  */
 export function stationOf(request: Request, sources: ReadSources): string | Response {
   const asked = new URL(request.url).searchParams.get("station");
   if (asked === null) return sources.defaultMac;
-  return normaliseMac(asked) ?? errorResponse(400, "station must be a MAC address");
+  const mac = normaliseMac(asked);
+  if (mac === null) return errorResponse(400, "station must be a MAC address");
+  if (mac !== sources.defaultMac) return errorResponse(404, "no such station");
+  return mac;
 }
 
 /**
