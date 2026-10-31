@@ -18,7 +18,7 @@
  */
 
 /** The schema version this site reads. A breaking change bumps both sides. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** The station a snapshot describes. */
 export interface Station {
@@ -273,7 +273,7 @@ export interface HeroLead {
   trace: LeadTrace | null;
 }
 
-/** The rain over one standard window; its gap status has the same key. */
+/** The rain over one standard window, with its own rain gap status. */
 export interface RainWindow {
   key: string;
   /**

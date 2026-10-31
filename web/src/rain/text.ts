@@ -260,9 +260,8 @@ function notCompared(reason: string | null, many = false): string {
 export function windowsNote(snapshot: DashboardSnapshot): string | null {
   const groups = new Map<string, string[]>();
   for (const window of snapshot.rain_tab.windows) {
-    const status = window.status;
-    if (status.status !== "invalid") continue;
-    const reason = status.reason ?? "gap";
+    if (window.status.status !== "invalid") continue;
+    const reason = window.status.reason ?? "gap";
     groups.set(reason, [...(groups.get(reason) ?? []), WINDOW_NAMES[window.key] ?? window.key]);
   }
   if (!groups.size) return null;

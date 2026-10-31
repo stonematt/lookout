@@ -245,7 +245,7 @@ class TestDocuments:
     def test_both_documents_carry_the_schema_version_and_kind(self):
         snapshot = raining_station()
 
-        assert snapshot.dashboard()["schema_version"] == SCHEMA_VERSION == 1
+        assert snapshot.dashboard()["schema_version"] == SCHEMA_VERSION == 2
         assert snapshot.context()["schema_version"] == SCHEMA_VERSION
         assert snapshot.dashboard()["kind"] == "dashboard"
         assert snapshot.context()["kind"] == "context"

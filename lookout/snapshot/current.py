@@ -19,11 +19,11 @@ import pandas as pd
 
 from lookout.core.weather_events import find_active_rain_event
 from lookout.snapshot.model import ActiveRainEvent, SnapshotConditions
+from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
     calculate_temperature_trend,
 )
-from lookout.utils.dateutc import DEFAULT_TZ
 
 # Snapshot field -> Ambient `lastData` / archive column.
 LIVE_FIELDS: Dict[str, str] = {
@@ -215,8 +215,10 @@ def active_rain_event(
     """
     The rain event still under way, with its live total.
 
-    The Event Catalog says which event is ongoing; the live event rain gates
+    The Event Catalog says which event is open; the live event rain gates
     it and is its total, since the live reading replaces the archived one.
+    This is the one "raining now" decision: the hero and the Rain Events
+    tab's `live` row both read it.
 
     :param event_catalog: The Event Catalog, passed in.
     :param current: Current conditions, live stitched.

@@ -184,7 +184,7 @@ export function mountEvents(
   <tbody>${body}</tbody>
 </table>
 ${more}
-<p class="ev-source">Source: Event Catalog, ${all.length} events. Peak is the highest rate between 5-minute readings. A dashed quality chip marks a poor event or one with no archive data.</p>`;
+<p class="ev-source">Source: Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}. Peak is the highest rate between 5-minute readings. A dashed quality chip marks a poor event or one with no archive data.</p>`;
   }
 
   function renderDetail(): void {

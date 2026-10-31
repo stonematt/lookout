@@ -35,7 +35,7 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # The dashboard fields the context block carries, in order.
 CONTEXT_FIELDS: Tuple[str, ...] = (
@@ -122,8 +122,9 @@ class SnapshotConditions:
 @dataclass(frozen=True)
 class ActiveRainEvent:
     """
-    The rain event still under way: ongoing in the Event Catalog and still
-    reporting event rain live.
+    The rain event still under way: open in the Event Catalog and still
+    reporting event rain live. This is the one "raining now" decision: the
+    Rain Events tab marks the same event `live`.
 
     :param event_id: Its Event Catalog id.
     :param start_ms: When it started.
@@ -543,10 +544,11 @@ class EventCurve:
 
     A completed event's curve is published once, as its own document
     (`EventCurve.document`, key from `lookout.snapshot.curves.curve_key`);
-    the ongoing event's curve rides in the snapshot.
+    the curve of the event the catalog still holds open rides in the
+    snapshot (`RainEvents.open_curve`).
 
     :param start_ms: The event's start; its key.
-    :param end_ms: Its end, or the newest reading while it is ongoing.
+    :param end_ms: Its end, or the newest reading while it is open.
     :param t_ms: Each reading's time.
     :param event_in: The event rain so far at each reading (`eventrainin`).
     :param rate_in_hr: The rain rate since the previous reading, None after

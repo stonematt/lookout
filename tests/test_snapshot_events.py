@@ -16,6 +16,7 @@ import pytest
 
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot.events import completed_curves
+from lookout.snapshot.model import SCHEMA_VERSION
 from tests.fixtures.archive import FAKE_MAC, Gap, RainSpell, build_archive
 from tests.snapshot_helpers import (
     STATION,
@@ -239,7 +240,7 @@ class TestCurves:
 
         document = curve.document(STATION)
 
-        assert document["schema_version"] == 1
+        assert document["schema_version"] == SCHEMA_VERSION
         assert document["kind"] == "event_curve"
         assert document["station"] == {"mac": FAKE_MAC, "name": "Fixture Station"}
         assert document["start_ms"] == EVENT_3

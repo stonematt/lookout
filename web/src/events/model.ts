@@ -152,7 +152,7 @@ export function eventFinding(row: RainEventRow, count: number): string {
     return `${inches(row.total_in, { digits: 2 })} so far over ${minutes(row.duration_minutes)}, and still raining`;
   }
   const place = row.rank === 1 ? "the wettest" : `the ${ordinal(row.rank)} wettest`;
-  return `${inches(row.total_in, { digits: 2 })} over ${minutes(row.duration_minutes)}, ${place} of ${count} events`;
+  return `${inches(row.total_in, { digits: 2 })} over ${minutes(row.duration_minutes)}, ${place} of ${count} event${count === 1 ? "" : "s"}`;
 }
 
 /**
