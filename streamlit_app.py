@@ -71,35 +71,32 @@ if "devices" not in st.session_state:
 else:
     devices = st.session_state["devices"]
 
-device = False
-device_last_dateutc = 0
-last_data = {}
+# The pinned station (STATION_MAC), never Ambient's first device.
+try:
+    device = ambient_client.find_station(devices)
+except ambient_client.StationNotFoundError as e:
+    logger.error(str(e))
+    st.session_state.pop("devices", None)  # refetch on the next rerun
+    st.error(f"No connection to the station: {e}")
+    st.stop()
 
-device_menu = "98:CD:AC:22:0D:E5"
-if len(devices) == 1:
-    device = devices[0]
-    device_menu = device["macAddress"]
-    device_name = device["info"]["name"]
-    st.session_state["last_data"] = device["lastData"]
-    last_data = st.session_state["last_data"]
-    st.session_state["device"] = device  # ← Add this
-    logger.debug(f"One device found:  {device['info']['name']}")
+device_menu = device["macAddress"]
+device_name = device["info"]["name"]
+st.session_state["last_data"] = device["lastData"]
+last_data = st.session_state["last_data"]
+st.session_state["device"] = device
+logger.debug(f"Pinned station found: {device_name}")
 
-    # Create header placeholder for dynamic updates
-    header_placeholder = st.empty()
-    st.session_state["header_placeholder"] = header_placeholder
+# Create header placeholder for dynamic updates
+header_placeholder = st.empty()
+st.session_state["header_placeholder"] = header_placeholder
 
-    # Render weather header with current conditions
-    with header_placeholder.container():
-        header.render_weather_header(device_name)
+# Render weather header with current conditions
+with header_placeholder.container():
+    header.render_weather_header(device_name)
 
-    # Compare device's last data UTC with the archive max dateutc
-    device_last_dateutc = device["lastData"].get("dateutc")
-
-# if we dont' get a device from ambient. blow up.
-if not device:
-    st.write("No connection to Ambient Network")
-    exit()
+# Compare device's last data UTC with the archive max dateutc
+device_last_dateutc = device["lastData"].get("dateutc")
 
 file_type = "parquet"
 device_mac = device_menu
