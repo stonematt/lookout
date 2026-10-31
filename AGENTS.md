@@ -18,7 +18,7 @@
 - **Docstrings**: Follow format in `code_standards.md` for consistency with existing codebase
 
 ## Key Patterns
-- Secrets via `st.secrets` (`.streamlit/secrets.toml`)
+- Secrets via `lookout.secrets_loader.get_secret(name)`, read at first use, never at import (see `secrets.example.toml`)
 - Timestamps as epoch milliseconds (UTC)
 - Data storage as parquet in S3/Storj, keyed by MAC address
 - Pandas DataFrames for all data manipulation
