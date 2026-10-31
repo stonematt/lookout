@@ -19,7 +19,7 @@ The steps, each its own function, run in this order by `run`:
    catalog as stored.
 4. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
    brought up to the caught-up archive. The Event Catalog is saved only when
-   an ongoing event completed in this run; the energy catalog only when the
+   an event completed since the last save; the energy catalog only when the
    stored one is more than `ENERGY_SAVE_AGE` old.
 5. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
 6. `publish(snapshot, bucket)`: both documents under `snapshot/`.
@@ -129,11 +129,14 @@ def update_catalogs(
     """
     Step 4: bring both catalogs up to the caught-up archive.
 
-    The Event Catalog is saved only when its last event was ongoing in the
-    stored catalog and has completed (`eventrainin` back to 0), as
-    `RainEventCatalog.check_and_auto_save_ongoing_event` decides. A catalog
-    detected afresh because none is stored is not saved. The energy catalog
-    is saved only when a stored one is more than `ENERGY_SAVE_AGE` old.
+    The Event Catalog is saved, after a backup of the stored one, only when
+    the updated catalog holds a completed event (`eventrainin` back to 0)
+    the stored one has no completed event for, matched by start: a stored
+    ongoing event that completed, or an event that started since the last
+    save and has completed. With none stored, the first run with a
+    completed event seeds it. `RainEventCatalog.save_if_events_completed`
+    decides. The energy catalog is saved only when a stored one is more
+    than `ENERGY_SAVE_AGE` old.
 
     :param station: The station.
     :param bucket: The bucket.
@@ -147,8 +150,7 @@ def update_catalogs(
     events = event_store.update_catalog_with_new_data(
         archive, pd.DataFrame() if stored is None else stored.copy()
     )
-    if stored is not None:
-        event_store.check_and_auto_save_ongoing_event(stored, events)
+    event_store.save_if_events_completed(stored, events)
 
     energy_store = EnergyCatalog(station.mac, bucket=bucket)
     energy = energy_store.update_catalog_with_new_data(
