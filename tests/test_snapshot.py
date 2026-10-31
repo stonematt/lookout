@@ -86,13 +86,14 @@ def build(
     live: Optional[Dict],
     now: str,
     catalog: Optional[pd.DataFrame] = None,
+    energy: Optional[pd.DataFrame] = None,
 ) -> Snapshot:
-    """`build_snapshot` for the fixture station."""
+    """`build_snapshot` for the fixture station; no energy catalog unless given."""
     return build_snapshot(
         archive=archive,
         live=live,
         event_catalog=catalog,
-        energy_catalog=energy_catalog(archive),
+        energy_catalog=energy,
         station=STATION,
         now=pd.Timestamp(now),
     )
@@ -109,7 +110,9 @@ def dry_station() -> Snapshot:
     """
     archive = load_real_slice()
     live = load_devices()[0]["lastData"]
-    return build(archive, live, AMBIENT_END, event_catalog(archive))
+    return build(
+        archive, live, AMBIENT_END, event_catalog(archive), energy_catalog(archive)
+    )
 
 
 # Mid event 3 (rain 22:00Z-02:00Z): archive to 00:00Z, live at 00:25Z.
@@ -125,7 +128,13 @@ def raining_station() -> Snapshot:
     full = scenario_until("2026-01-09T00:30:00Z")
     archive = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
     live = live_row(full, RAIN_LIVE)
-    return build(archive, live, "2026-01-09T00:27:00Z", event_catalog(archive))
+    return build(
+        archive,
+        live,
+        "2026-01-09T00:27:00Z",
+        event_catalog(archive),
+        energy_catalog(archive),
+    )
 
 
 SCENARIOS = {"dry": dry_station, "raining": raining_station}
