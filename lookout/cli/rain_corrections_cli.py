@@ -27,16 +27,18 @@ logger = app_logger(__name__)
 
 
 def get_primary_device():
-    """Get primary device from Ambient API, following existing patterns."""
-    devices = ambient_client.get_devices()
-    if not devices:
-        logger.error("No devices found in Ambient account")
+    """
+    Get the pinned station (STATION_MAC) from the Ambient API.
+
+    :return: (device, mac, name), or (None, None, None) after logging why the
+        station was not found.
+    """
+    try:
+        device = ambient_client.get_station_device()
+    except ambient_client.StationNotFoundError as e:
+        logger.error(str(e))
         return None, None, None
 
-    if len(devices) > 1:
-        logger.warning(f"Found {len(devices)} devices, using first one")
-
-    device = devices[0]
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
 

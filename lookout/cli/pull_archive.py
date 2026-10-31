@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -18,7 +19,7 @@ import streamlit as st
 
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
-from lookout.api.ambient_client import get_devices
+from lookout.api.ambient_client import get_station_device
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -29,17 +30,14 @@ DATA_DIR.mkdir(exist_ok=True)
 
 
 def get_device_info(mac_address: str = None) -> tuple:
-    """Get device info (mac, name) from Ambient API."""
-    devices = get_devices()
-    if not devices:
-        raise ValueError("No devices found")
+    """
+    Get the station's (mac, name, device) from the Ambient API.
 
-    if mac_address:
-        device = next((d for d in devices if d.get("macAddress") == mac_address), None)
-        if not device:
-            raise ValueError(f"Device {mac_address} not found")
-    else:
-        device = devices[0]
+    :param mac_address: A station to pull instead of the pinned STATION_MAC.
+    :return: The station's MAC, name and device dict.
+    :raises StationNotFoundError: If the account does not list that station.
+    """
+    device = get_station_device(mac_address)
 
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
@@ -85,7 +83,9 @@ def main():
         description="Pull weather archive from S3 to local storage"
     )
     parser.add_argument("--bucket", type=str, default="lookout", help="S3 bucket name")
-    parser.add_argument("--device-mac", type=str, help="Device MAC address (optional)")
+    parser.add_argument(
+        "--device-mac", type=str, help="Device MAC address (default: STATION_MAC)"
+    )
     args = parser.parse_args()
 
     try:
@@ -97,6 +97,7 @@ def main():
     except Exception as e:
         logger.exception(f"Failed to pull archive: {e}")
         print(f"❌ Error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

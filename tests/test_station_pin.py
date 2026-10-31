@@ -113,3 +113,47 @@ def test_catchup_command_exits_nonzero_when_the_pin_is_missing(
         runpy.run_module("lookout.cli.catchup", run_name="__main__")
 
     assert exited.value.code == 1
+
+
+# ---------- the other CLIs ----------
+
+
+def _cli_station_mac(cli: str) -> str:
+    """Run one CLI's station lookup and return the MAC it picked."""
+    if cli == "manage_day_periods":
+        from lookout.cli import manage_day_periods
+
+        return manage_day_periods.get_station()[0]
+    if cli == "pull_archive":
+        from lookout.cli import pull_archive
+
+        return pull_archive.get_device_info()[0]
+    from lookout.cli import rain_corrections_cli
+
+    return rain_corrections_cli.get_primary_device()[1]
+
+
+@pytest.mark.parametrize(
+    "cli", ["manage_day_periods", "pull_archive", "rain_corrections_cli"]
+)
+def test_clis_pick_the_pinned_station_not_the_first(cli, pinned, ambient_replay):
+    ambient_replay.devices = _two_stations()
+    assert _cli_station_mac(cli) == FAKE_MAC
+
+
+def test_manage_day_periods_exits_when_the_pin_is_missing(
+    monkeypatch, ambient_replay
+):
+    from lookout.cli import manage_day_periods
+
+    monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
+    with pytest.raises(SystemExit) as exited:
+        manage_day_periods.get_station()
+    assert exited.value.code == 1
+
+
+def test_pull_archive_device_mac_overrides_the_pin(pinned, ambient_replay):
+    from lookout.cli import pull_archive
+
+    ambient_replay.devices = _two_stations()
+    assert pull_archive.get_device_info(OTHER_MAC)[0] == OTHER_MAC

@@ -31,7 +31,7 @@ from datetime import datetime
 import pandas as pd
 
 # Lookout imports
-from lookout.api.ambient_client import get_devices
+from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.core.day_periods import (
     generate_day_periods_catalog,
     save_day_periods_catalog,
@@ -48,14 +48,14 @@ LOCATION = {"latitude": 44.9429, "longitude": -123.0351}
 logger = app_logger(__name__)
 
 
-def get_first_device():
-    """Get the first device from Ambient API."""
-    devices = get_devices()
-    if not devices:
-        logger.error("❌ No devices found in Ambient API")
+def get_station():
+    """Get the pinned station (STATION_MAC) from the Ambient API, or exit 1."""
+    try:
+        device = get_station_device()
+    except StationNotFoundError as e:
+        logger.error(f"❌ {e}")
         sys.exit(1)
 
-    device = devices[0]
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
 
@@ -153,7 +153,7 @@ Examples:
 
         # Get first device to check for catalogs
         try:
-            mac_address, device = get_first_device()
+            mac_address, device = get_station()
             device_name = device.get("info", {}).get("name", "Unknown")
 
             # List catalogs
@@ -180,7 +180,7 @@ Examples:
         logger.info("🗑️  Delete operation requested")
 
         # Get first device automatically
-        mac_address, device = get_first_device()
+        mac_address, device = get_station()
 
         # Create backup
         if backup_day_periods_catalog(mac_address):
@@ -201,7 +201,7 @@ Examples:
         logger.info("🔍 Dry run mode - showing what would be generated...")
 
         # Get first device automatically
-        mac_address, device = get_first_device()
+        mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
         lat = LOCATION["latitude"]
@@ -262,7 +262,7 @@ Examples:
         logger.info("🌅 Generating day periods catalog...")
 
         # Get first device automatically
-        mac_address, device = get_first_device()
+        mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
         lat = LOCATION["latitude"]
