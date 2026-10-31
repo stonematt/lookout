@@ -192,8 +192,9 @@ class ArchiveCoverage:
         days are judged as `missing` says, so a window over them is prorated
         or invalid by the same rule, never counted as zero.
 
-        :param missing: Day -> its kind instead: "gap", "low",
-            "not_archived" or "before_archive". Only "ok" days change.
+        :param missing: Day -> the kind to judge it as: "gap", "low",
+            "not_archived" or "before_archive". Only "ok" days change; the
+            copy shares the read-only slot counts and has its own kinds.
         :return: A new coverage; this one is unchanged.
         :raises ValueError: For any other kind.
         """

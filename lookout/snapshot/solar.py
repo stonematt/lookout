@@ -126,7 +126,12 @@ def solar_tab(
         ),
         recent=_recent(recent_status, periods, totals),
         last_24h=_last_24h(
-            archive, history, periods, observed_at_ms, archived, coverage
+            archive,
+            history,
+            periods,
+            observed_at_ms,
+            archive_coverage=archived,
+            solar_coverage=coverage,
         ),
     )
 
@@ -308,8 +313,8 @@ def _last_24h(
     history: pd.DataFrame,
     periods: pd.DataFrame,
     observed_at_ms: Optional[int],
-    archived: ArchiveCoverage,
-    coverage: ArchiveCoverage,
+    archive_coverage: ArchiveCoverage,
+    solar_coverage: ArchiveCoverage,
 ) -> Optional[SolarTrace]:
     """
     The 24-hour view, ending at the newest observation.
@@ -318,9 +323,10 @@ def _last_24h(
     :param history: The live-stitched history, for the trace.
     :param periods: `_periods`, for the energy.
     :param observed_at_ms: The newest observation.
-    :param archived: The archive's coverage, for the usual range: it is
-        drawn from the archive's readings, not the catalog.
-    :param coverage: The coverage for solar, for the energy.
+    :param archive_coverage: The archive's coverage, for the usual range: it
+        is drawn from the archive's readings, not the catalog.
+    :param solar_coverage: The coverage for solar (the catalog's missing
+        days excluded), for the energy.
     :return: The trace; None without an observation.
     """
     if observed_at_ms is None or history.empty:
@@ -329,17 +335,19 @@ def _last_24h(
     start = end - TRACE_SLOTS * TRACE_STEP_MS
     solar = _trace(history, start, end)
 
-    today = coverage.today
-    usual = archived.window(
+    today = solar_coverage.today
+    usual = archive_coverage.window(
         today - timedelta(days=USUAL_DAYS),
         today - timedelta(days=1),
         key="solar_usual",
     )
-    band = comparable(usual, lambda: _usual_band(archive, usual, archived, start))
+    band = comparable(
+        usual, lambda: _usual_band(archive, usual, archive_coverage, start)
+    )
 
     day_ms = TRACE_SLOTS * TRACE_STEP_MS
-    energy = coverage.window(today - timedelta(days=1), today, key="last_24h")
-    before = coverage.window(
+    energy = solar_coverage.window(today - timedelta(days=1), today, key="last_24h")
+    before = solar_coverage.window(
         today - timedelta(days=2), today - timedelta(days=1), key="previous_24h"
     )
     return SolarTrace(
