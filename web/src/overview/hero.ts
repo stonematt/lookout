@@ -26,6 +26,7 @@ import {
   inches,
   localHour,
   localMonthName,
+  WET_DAY_IN,
   wattsPerM2,
 } from "../format.js";
 import { niceTicks, scale } from "../charts/svg.js";
@@ -247,7 +248,7 @@ export function heroSource(snapshot: DashboardSnapshot): string {
       const window = snapshot.gaps.windows.find((w) => w.key === "365d");
       const gap = rule(lead, "calm").reference === null && window ? ` ${gapSentence(window)}` : "";
       return (
-        "Last rain from the live reading. A dry spell is a run of days under 0.01 in between two rain days; " +
+        `Last rain from the live reading. A dry spell is a run of days under ${WET_DAY_IN} in between two rain days; ` +
         `a day missing from the record breaks a spell rather than counting as dry.${gap}`
       );
     }

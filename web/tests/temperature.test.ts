@@ -171,4 +171,14 @@ describe("now against normal", () => {
     expect(all("[data-strip=temperature] .tc-dot")).toHaveLength(0);
     expect(text("[data-strip=temperature] [data-part=claim]")).toBe(stripClaim(strip));
   });
+
+  it("says the no-comparison sentence once when both strips lack one", () => {
+    const none = { missing: "no_comparison" as const, values: [], below_pct: null, equal_pct: null, above_pct: null, years: [] };
+    const ctx = structuredClone(year);
+    ctx.strips = [{ ...year.strips[0]!, ...none }, { ...year.strips[1]!, ...none }];
+    show(withYear(ctx));
+
+    const claims = all("[data-block=strips] [data-part=claim]").map((el) => el.textContent);
+    expect(claims).toEqual(["No earlier year is complete enough to set this against."]);
+  });
 });

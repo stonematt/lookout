@@ -24,14 +24,13 @@ import {
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import { MONTHS, STATION_TIME_ZONE, addDays, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
+import { MONTHS, STATION_TIME_ZONE, addDays, daysBetween, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
 import type { GapReason, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
 import {
   FIRST_SLOT,
   LAST_SLOT,
-  daysBetween,
   lastDay,
   monthText,
   peakSlot,

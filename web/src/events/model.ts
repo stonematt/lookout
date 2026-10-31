@@ -119,11 +119,6 @@ export function startLabel(ms: number, nowMs: number): string {
   return `${day}, ${year}, ${time}`;
 }
 
-/** The water year's label, e.g. `Oct 2025 to Sep 2026`. */
-export function seasonSpan(waterYear: number): string {
-  return `Oct ${waterYear - 1} to Sep ${waterYear}`;
-}
-
 /**
  * The quality chip's words: the rating, or "no data" for an event the
  * archive holds no readings for.

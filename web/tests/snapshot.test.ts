@@ -9,7 +9,31 @@ import {
 } from "../src/snapshot.js";
 import { golden } from "./golden.js";
 
+describe("the contract version", () => {
+  it("is the version the Python builder writes (read from the goldens)", () => {
+    for (const scenario of ["dry", "raining"] as const) {
+      for (const kind of ["dashboard", "context"] as const) {
+        const doc = golden(scenario, kind) as { schema_version: number };
+        expect(doc.schema_version).toBe(SCHEMA_VERSION);
+      }
+    }
+  });
+});
+
 describe("parseDashboard", () => {
+  it.each([
+    "gaps",
+    "rain_events",
+    "hero_lead",
+    "rain_tab",
+    "temperature_context",
+    "almanac",
+  ])("refuses a dashboard missing %s", (section) => {
+    const doc = { ...(golden("dry", "dashboard") as Record<string, unknown>) };
+    delete doc[section];
+    expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
+  });
+
   it("reads the raining golden with its live event", () => {
     const snap = parseDashboard(golden("raining", "dashboard"));
     expect(snap.station).toEqual({

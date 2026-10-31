@@ -692,6 +692,10 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
       "dashboard: archive_newest_ms not an integer",
     );
   }
+  const gaps = head.gaps;
+  if (!isRecord(gaps) || !Array.isArray(gaps.months) || !Array.isArray(gaps.windows)) {
+    throw new SnapshotContractError("dashboard: gaps missing");
+  }
   checkRibbon(head.condition_ribbon);
   const events = head.rain_events;
   if (!isRecord(events) || !Array.isArray(events.events)) {
@@ -730,7 +734,6 @@ function checkSolarTab(tab: unknown): void {
 }
 
 function checkRainTab(tab: unknown): void {
-  if (tab === undefined) return;
   if (!isRecord(tab) || !Array.isArray(tab.windows) || !Array.isArray(tab.water_years)) {
     throw new SnapshotContractError("dashboard: rain_tab malformed");
   }
@@ -746,7 +749,6 @@ function checkRainTab(tab: unknown): void {
 }
 
 function checkAlmanac(almanac: unknown): void {
-  if (almanac === undefined) return;
   if (!isRecord(almanac) || !Array.isArray(almanac.years) || !Array.isArray(almanac.rolling)) {
     throw new SnapshotContractError("dashboard: almanac malformed");
   }

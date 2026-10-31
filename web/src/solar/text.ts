@@ -7,7 +7,7 @@
  * computed once in Python and gap-judged there. The browser only picks a
  * day, finds the brightest one, and words them.
  */
-import { DAY_MS, MONTHS, addDays, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
+import { MONTHS, addDays, daysBetween, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
 import { gapValue } from "../gaps.js";
 import type { DashboardSnapshot, GapReason, SolarTab, SolarTrace, SolarWindow } from "../snapshot.js";
 
@@ -61,12 +61,6 @@ export function openingDay(tab: SolarTab, search: string): string {
   const day = selectedDay(search);
   const today = lastDay(tab);
   return day !== null && day >= tab.days.first_day && day <= today ? day : today;
-}
-
-/** Whole days from `first` to `day`. */
-export function daysBetween(first: string, day: string): number {
-  const at = (iso: string) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
-  return Math.round((at(day) - at(first)) / DAY_MS);
 }
 
 /** One day as the tab reads it. */

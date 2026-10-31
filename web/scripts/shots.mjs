@@ -36,6 +36,15 @@ try {
         const url = `${base}/${query ? `?${query}` : ""}`;
         await page.goto(url, { waitUntil: "load" });
         await page.waitForSelector(".masthead-age:not(:empty)", { timeout: 5000 });
+        // Plotly charts load lazily; give any chart host time to draw one.
+        const hasChart = await page.evaluate(
+          () => document.querySelector(".ev-chart, .tc-chart, [data-plotly]") !== null,
+        );
+        if (hasChart) {
+          await page
+            .waitForSelector(".js-plotly-plot", { timeout: 5000 })
+            .catch(() => console.warn(`no .js-plotly-plot within 5 s: ${url}`));
+        }
         const slug = (query || "default").replace(/[^a-z0-9]+/gi, "-");
         const file = join(outDir, `${slug}-${width}-${colorScheme}.png`);
         await page.screenshot({ path: file, fullPage: true });
