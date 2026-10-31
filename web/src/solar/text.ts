@@ -201,21 +201,72 @@ export function traceHeadline(trace: SolarTrace, liveWm2: number | null): string
   return before === null ? head : `${head}, ${change(now, before)} ${kwhNumber(before)} the 24 before`;
 }
 
+/** How many earlier years the daily headline names, newest first. */
+export const NAMED_YEARS = 3;
+
 /**
- * The daily section's finding: the last week's daily average against the
- * last 30 days'.
+ * The last 7 full days (to yesterday), each day's average, and the same
+ * dates in each earlier year whose 7 days are all in the record.
+ *
+ * @param tab - The Solar tab's data.
+ * @returns This year's average and the earlier years', newest first; null
+ *   when the last 7 full days are not all counted.
+ */
+export function sameWeek(tab: SolarTab): { now: number; years: { year: number; perDay: number }[] } | null {
+  const end = addDays(lastDay(tab), -1);
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(end, i - 6));
+  const average = (days: string[]): number | null => {
+    let total = 0;
+    for (const day of days) {
+      const i = daysBetween(tab.days.first_day, day);
+      const v = i >= 0 ? tab.days.energy_kwh_m2[i] : null;
+      if (v === null || v === undefined) return null;
+      total += v;
+    }
+    return total / days.length;
+  };
+  const now = average(dates);
+  if (now === null) return null;
+  const years: { year: number; perDay: number }[] = [];
+  const thisYear = Number(end.slice(0, 4));
+  for (let year = thisYear - 1; year >= Number(tab.days.first_day.slice(0, 4)); year--) {
+    const shifted = dates.map((d) => `${Number(d.slice(0, 4)) - (thisYear - year)}${d.slice(4)}`);
+    if (shifted.some((d) => addDays(d, 0) !== d)) continue; // Feb 29 in a common year
+    const perDay = average(shifted);
+    if (perDay !== null) years.push({ year, perDay });
+  }
+  return { now, years };
+}
+
+/**
+ * The daily section's finding: the last 7 full days against the same dates
+ * in earlier years (the sun follows the season, so a week is compared with
+ * its own dates); against the last 30 days only when no earlier year can be.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "Brighter this week: 3.10 kWh/m² a day, against 2.40 over 30 days".
+ * @returns E.g. "Brighter than this week in earlier years: 3.10 kWh/m² a day,
+ *   against 2.40 (2025) and 2.65 (2024)".
  */
 export function dailyHeadline(snapshot: DashboardSnapshot): string {
-  const week = perDay(snapshot, "7d");
-  const month = perDay(snapshot, "30d");
-  if (week !== null && month !== null) {
-    const word = change(week, month);
+  const tab = snapshot.solar_tab;
+  const week = tab ? sameWeek(tab) : null;
+  if (week && week.years.length) {
+    const named = week.years.slice(0, NAMED_YEARS);
+    const usual = named.reduce((sum, y) => sum + y.perDay, 0) / named.length;
+    const word = change(week.now, usual);
     const lead =
-      word === "about the same as" ? "A usual week for sun" : week > month ? "Brighter this week" : "Duller this week";
-    return `${lead}: ${kwh(week)} a day, against ${kwhNumber(month)} over 30 days`;
+      word === "about the same as"
+        ? "A usual week for sun"
+        : week.now > usual
+          ? "Brighter than this week in earlier years"
+          : "Duller than this week in earlier years";
+    const against = named.map((y) => `${kwhNumber(y.perDay)} (${y.year})`);
+    const list = against.length > 1 ? `${against.slice(0, -1).join(", ")} and ${against[against.length - 1]}` : against[0];
+    return `${lead}: ${kwh(week.now)} a day over the last 7 full days, against ${list}`;
+  }
+  const month = perDay(snapshot, "30d");
+  if (week && month !== null) {
+    return `${kwh(week.now)} a day over the last 7 full days, against ${kwhNumber(month)} over 30 days`;
   }
   if (month !== null) return `${kwh(month)} of sun a day over the last 30 days`;
   return "Sun each day over the last 90 days";

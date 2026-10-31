@@ -16,7 +16,7 @@ import "./solar.css";
 import { formatStamp } from "../format.js";
 import { gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { FALLBACK_WIDTH, dayStatus, drawSized } from "../rain/charts.js";
-import { WINDOW_NAMES, addDays, dayText, windowStatus } from "../rain/text.js";
+import { WINDOW_NAMES, addDays, dayText, listText, windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
 import {
   drawDailyBars,
@@ -116,7 +116,7 @@ function lastDaySection(snapshot: DashboardSnapshot, tab: SolarTab, mount: Mount
   const host = section(
     "now",
     trace ? traceHeadline(trace, live) : "No solar reading yet",
-    "The bold line is solar radiation over the last 24 hours. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
+    "The bold line is solar radiation over the last 24 hours; 1 kWh/m² is an hour of full midday sun. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
   );
   if (!trace) {
     host.append(source(["Source: the station's solar sensor. There is no observation in this snapshot yet."]));
@@ -161,18 +161,36 @@ function dailySection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day: 
   mount.setup.push(() => {
     mount.redraws.push(sized(chart, (w) => drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick)));
   });
-  const invalid = tab.windows
-    .filter((w) => w.energy_kwh_m2 === null)
-    .map((w) => gapSentence(windowStatus(snapshot, w.key)));
+  const invalid = notShown(snapshot, tab);
   host.append(
     source([
       "Source: the energy catalog, the station's solar readings summed into 15-minute periods; a day is the sum of its periods, today the energy so far.",
       archived(snapshot),
       "A day missing from the record is hatched, never read as a dark day.",
-      invalid.length ? `Not shown: ${invalid.join(" ")}` : null,
+      invalid,
     ]),
   );
   return host;
+}
+
+/** Why each window not shown is left out, one sentence per reason. */
+const REASON_WORDS: Record<string, string> = {
+  before_archive: "start before the archive began",
+  not_archived: "reach past the archive's newest reading",
+  in_progress: "are not over yet",
+  gap: "miss more than a tenth of their days",
+  low_coverage: "have too many days with under 80% of their readings",
+};
+
+function notShown(snapshot: DashboardSnapshot, tab: SolarTab): string | null {
+  const byReason = new Map<string, string[]>();
+  for (const w of tab.windows) {
+    if (w.energy_kwh_m2 !== null) continue;
+    const reason = windowStatus(snapshot, w.key).reason ?? "gap";
+    byReason.set(reason, [...(byReason.get(reason) ?? []), (WINDOW_NAMES[w.key] ?? w.key).toLowerCase()]);
+  }
+  const parts = [...byReason].map(([reason, names]) => `${listText(names)} ${REASON_WORDS[reason] ?? "cannot be compared"}`);
+  return parts.length ? `Not shown: ${parts.join("; ")}.` : null;
 }
 
 /** The selected day's section, redrawn in place on every pick. */
@@ -196,7 +214,10 @@ function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) =
   field.append(input);
   const next = make("button", "solar-button", "Next day");
   next.type = "button";
-  controls.append(prev, field, next);
+  const today = make("button", "solar-button", "Today");
+  today.type = "button";
+  today.addEventListener("click", () => pick(lastDay(tab)));
+  controls.append(prev, field, next, today);
   prev.addEventListener("click", () => pick(addDays(state.day, -1)));
   next.addEventListener("click", () => pick(addDays(state.day, 1)));
   input.addEventListener("change", () => {
@@ -257,7 +278,8 @@ function heatmapSection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day
   const note = make("p", "solar-source");
   host.append(title, standfirst, control, chart, key, readout, note);
 
-  let view: View = "days";
+  // On a phone a day cell is too small to tap; the year-by-month grid is not.
+  let view: View = (document.documentElement.clientWidth || 1024) < 520 ? "months" : "days";
   const buttons = VIEWS.map(([id, name]) => {
     const button = make("button", "", name);
     button.type = "button";

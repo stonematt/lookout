@@ -353,6 +353,7 @@ export function drawDailyBars(
   energy.forEach((value, i) => {
     if (value === null || value <= 0) return;
     const recent = i >= count - 7;
+    const isToday = i === count - 1;
     svg.append(
       el("rect", {
         x: x(i) + pad / 2,
@@ -360,15 +361,15 @@ export function drawDailyBars(
         width: Math.max(1, step - pad),
         height: bottom - y(value),
         rx: step > 6 ? 2 : 0,
-        class: recent ? "solar-bar solar-bar-now" : "solar-bar",
+        class: isToday ? "solar-bar solar-bar-now" : recent ? "solar-bar solar-bar-week" : "solar-bar",
       }),
     );
   });
   if (count >= 7) {
     const a = x(count - 7);
     const b = x(count - 1) + step;
-    svg.append(el("line", { x1: a, x2: b, y1: top - 6, y2: top - 6, class: "solar-now-rule" }));
-    svg.append(label(b, top - 11, "last 7 days", "solar-now-label", "end"));
+    svg.append(el("line", { x1: a, x2: b, y1: top - 6, y2: top - 6, class: "solar-week-rule" }));
+    svg.append(label(b, top - 11, "last 7 days", "solar-label", "end"));
   }
   const s = daysBetween(first, selected);
   if (s >= 0 && s < count) {

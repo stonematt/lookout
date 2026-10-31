@@ -199,14 +199,20 @@ describe("words", () => {
     expect(traceHeadline({ ...trace, previous_kwh_m2: null }, 500)).toBe("3.10 kWh/m² of sun in the last 24 hours");
   });
 
-  it("compares the last week's daily energy with the last 30 days'", () => {
+  it("compares the last 7 full days with the same dates in earlier years", () => {
     const copy = structuredClone(raining);
-    copy.solar_tab!.windows = [
-      { key: "7d", energy_kwh_m2: 21.7 }, // 3.10 a day
-      { key: "30d", energy_kwh_m2: 72 }, // 2.40 a day
-    ];
-    copy.gaps.windows = copy.gaps.windows.map((w) => ({ ...w, status: "valid" as const }));
-    expect(dailyHeadline(copy)).toBe("Brighter this week: 3.10 kWh/m² a day, against 2.40 over 30 days");
+    const days = copy.solar_tab!.days;
+    // Jan 1, 2024 to Jan 8, 2026: 2.00 a day, then 3.10 on Jan 1-7, 2026.
+    const count = 739;
+    days.first_day = "2024-01-01";
+    days.energy_kwh_m2 = Array.from({ length: count }, (_, i) => (i >= count - 8 && i < count - 1 ? 3.1 : 2.0));
+    days.reason = days.energy_kwh_m2.map(() => null);
+    expect(dailyHeadline(copy)).toBe(
+      "Brighter than this week in earlier years: 3.10 kWh/m² a day over the last 7 full days, against 2.00 (2025) and 2.00 (2024)",
+    );
+  });
+
+  it("falls back to the last 30 days, or to no claim at all", () => {
     expect(dailyHeadline(raining)).toBe("Sun each day over the last 90 days");
   });
 

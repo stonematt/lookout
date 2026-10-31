@@ -294,9 +294,14 @@
   fill: var(--note);
 }
 
-.solar-svg .solar-now-rule {
-  stroke: var(--note);
-  stroke-width: 2.25;
+/* the last 7 days, the daily headline's span: sun-ink under an ink bracket */
+.solar-svg .solar-bar-week {
+  fill: var(--sun-ink);
+}
+
+.solar-svg .solar-week-rule {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
 }
 
 .solar-svg .solar-selected {
