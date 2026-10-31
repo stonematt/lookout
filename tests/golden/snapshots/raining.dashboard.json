@@ -3748,6 +3748,7 @@
   "temperature_context": {
     "now": 59.3,
     "now_ms": 1767918300000,
+    "finding": "yesterday",
     "periods": [
       {
         "status": {
@@ -3763,7 +3764,8 @@
         "q1": 41.3,
         "q3": 57.1,
         "high": 60.0,
-        "readings": 193
+        "readings": 193,
+        "position": "above"
       },
       {
         "status": {
@@ -3779,7 +3781,8 @@
         "q1": 42.9,
         "q3": 57.1,
         "high": 60.0,
-        "readings": 288
+        "readings": 288,
+        "position": "above"
       },
       {
         "status": {
@@ -3795,7 +3798,8 @@
         "q1": null,
         "q3": null,
         "high": null,
-        "readings": 0
+        "readings": 0,
+        "position": null
       },
       {
         "status": {
@@ -3811,7 +3815,8 @@
         "q1": null,
         "q3": null,
         "high": null,
-        "readings": 0
+        "readings": 0,
+        "position": null
       },
       {
         "status": {
@@ -3827,7 +3832,8 @@
         "q1": null,
         "q3": null,
         "high": null,
-        "readings": 0
+        "readings": 0,
+        "position": null
       },
       {
         "status": {
@@ -3843,7 +3849,8 @@
         "q1": null,
         "q3": null,
         "high": null,
-        "readings": 0
+        "readings": 0,
+        "position": null
       }
     ],
     "ten_days": [
@@ -4038,6 +4045,7 @@
         "values": [],
         "below_pct": null,
         "equal_pct": null,
+        "above_pct": null,
         "years": [],
         "missing": "no_comparison"
       },
@@ -4049,6 +4057,7 @@
         "values": [],
         "below_pct": null,
         "equal_pct": null,
+        "above_pct": null,
         "years": [],
         "missing": "no_comparison"
       }

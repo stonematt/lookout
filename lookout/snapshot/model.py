@@ -348,6 +348,9 @@ class TemperaturePeriod:
     :param q3: The 75th percentile of readings.
     :param high: The highest reading.
     :param readings: How many readings the values are over.
+    :param position: Where the current temperature sits against the middle
+        half: "above", "below" or "inside"; null when the window or the
+        reading is unknown.
     """
 
     status: GapStatus
@@ -356,6 +359,7 @@ class TemperaturePeriod:
     q3: Optional[float]
     high: Optional[float]
     readings: int
+    position: Optional[Literal["above", "below", "inside"]]
 
 
 @dataclass(frozen=True)
@@ -405,6 +409,7 @@ class NormalStrip:
     :param values: One value per past day, ascending.
     :param below_pct: The whole percent of `values` strictly below `now`.
     :param equal_pct: The whole percent equal to `now` (rain ties at zero).
+    :param above_pct: The whole percent strictly above `now`.
     :param years: The earlier years used, newest first.
     :param missing: "no_reading" or "no_comparison" when the strip cannot
         be drawn; else null.
@@ -417,6 +422,7 @@ class NormalStrip:
     values: Tuple[float, ...]
     below_pct: Optional[int]
     equal_pct: Optional[int]
+    above_pct: Optional[int]
     years: Tuple[int, ...]
     missing: Optional[Literal["no_reading", "no_comparison"]]
 
@@ -428,6 +434,9 @@ class TemperatureContext:
 
     :param now: The current temperature (the range bars' now rule).
     :param now_ms: When it was observed.
+    :param finding: The key of the window the headline places `now` in: the
+        first of 30d, 7d, 90d, 365d, yesterday that can be compared; null
+        when none can.
     :param periods: Today, yesterday, 7, 30, 90 and 365 days, in that order.
     :param ten_days: The last ten local days, oldest first, ending today.
     :param ten_day_years: Every earlier year the list's normal is over,
@@ -437,6 +446,7 @@ class TemperatureContext:
 
     now: Optional[float]
     now_ms: Optional[int]
+    finding: Optional[str]
     periods: Tuple[TemperaturePeriod, ...]
     ten_days: Tuple[TemperatureDay, ...]
     ten_day_years: Tuple[int, ...]

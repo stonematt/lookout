@@ -126,10 +126,32 @@ class _Readings:
         return None if values.empty else float(values.max())
 
 
+FINDING_ORDER = ("30d", "7d", "90d", "365d", "yesterday")
+"""The windows the headline tries, longest useful first."""
+
+
+def _position(
+    now: Optional[float], q1: Optional[float], q3: Optional[float]
+) -> Optional[str]:
+    """Where `now` sits against the middle half, or None when unknown."""
+    if now is None or q1 is None or q3 is None:
+        return None
+    return "above" if now > q3 else "below" if now < q1 else "inside"
+
+
+def _finding(periods: Sequence[TemperaturePeriod]) -> Optional[str]:
+    """The key of the window the headline uses, or None."""
+    by_key = {p.status.key: p for p in periods}
+    for key in FINDING_ORDER:
+        if by_key[key].position is not None:
+            return key
+    return None
+
+
 def _periods(
-    coverage: ArchiveCoverage, readings: _Readings
+    coverage: ArchiveCoverage, readings: _Readings, now: Optional[float]
 ) -> Tuple[TemperaturePeriod, ...]:
-    """The range bar of each standard window."""
+    """The range bar of each standard window, with where `now` sits."""
     windows = {w.key: w for w in coverage.standard_windows()}
     periods: List[TemperaturePeriod] = []
     for key in PERIOD_KEYS:
@@ -139,7 +161,7 @@ def _periods(
         )
         values = comparable(status, lambda c=counted: readings.temperatures(c))
         if values is None or len(values) == 0:
-            periods.append(TemperaturePeriod(status, None, None, None, None, 0))
+            periods.append(TemperaturePeriod(status, None, None, None, None, 0, None))
             continue
         q1, q3 = np.quantile(values, [0.25, 0.75])
         periods.append(
@@ -150,6 +172,7 @@ def _periods(
                 q3=_round(q3),
                 high=_round(values.max()),
                 readings=int(len(values)),
+                position=_position(now, _round(q1), _round(q3)),
             )
         )
     return tuple(periods)
@@ -265,6 +288,7 @@ def _strip(
         values=tuple(round(v, 3) for v in values) if ready else (),
         below_pct=_share(values, lambda v: v < now) if ready else None,
         equal_pct=_share(values, lambda v: v == now) if ready else None,
+        above_pct=_share(values, lambda v: v > now) if ready else None,
         years=tuple(years) if ready else (),
         missing=missing,  # type: ignore[arg-type]
     )
@@ -293,12 +317,12 @@ def temperature_context(
     readings = _Readings(stitched, tz) if not stitched.empty else None
     if readings is None:
         empty = tuple(
-            TemperaturePeriod(w, None, None, None, None, 0)
+            TemperaturePeriod(w, None, None, None, None, 0, None)
             for w in coverage.standard_windows()[: len(PERIOD_KEYS)]
         )
-        return TemperatureContext(None, None, empty, (), (), ())
+        return TemperatureContext(None, None, None, empty, (), (), ())
 
-    periods = _periods(coverage, readings)
+    periods = _periods(coverage, readings, current.temperature_f)
     ten_days, ten_day_years = _ten_days(coverage, readings, coverage.today)
 
     # The strips are set at the newest observation's date and time, so a
@@ -334,6 +358,7 @@ def temperature_context(
     return TemperatureContext(
         now=current.temperature_f,
         now_ms=observed_at_ms,
+        finding=_finding(periods),
         periods=periods,
         ten_days=ten_days,
         ten_day_years=ten_day_years,

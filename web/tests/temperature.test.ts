@@ -162,7 +162,7 @@ describe("now against normal", () => {
   });
 
   it("says why a strip cannot be drawn rather than drawing one", () => {
-    const strip = { ...year.strips[0]!, missing: "no_comparison" as const, values: [], below_pct: null, equal_pct: null, years: [] };
+    const strip = { ...year.strips[0]!, missing: "no_comparison" as const, values: [], below_pct: null, equal_pct: null, above_pct: null, years: [] };
     expect(stripClaim(strip)).toBe("No earlier year is complete enough to set this against.");
     const ctx = structuredClone(year);
     ctx.strips = [strip, ctx.strips[1]!];

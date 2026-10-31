@@ -70,13 +70,10 @@ function periodFinding(snapshot: DashboardSnapshot): string {
   const ctx = snapshot.temperature_context;
   const now = ctx.now;
   if (now === null) return "No current temperature to place in context";
-  // The longest windows tell the most; the first that can be compared leads.
-  for (const key of ["30d", "7d", "90d", "365d", "yesterday"]) {
-    const p = ctx.periods.find((x) => x.status.key === key);
-    if (!p || !isComparable(p.status) || p.q1 === null || p.q3 === null) continue;
-    const name = key === "yesterday" ? "yesterday" : `the last ${NAMES[key]}`;
-    const where = now > p.q3 ? "above" : now < p.q1 ? "below" : "inside";
-    return `${deg(now)} now is ${where} the middle half of readings over ${name}`;
+  const p = ctx.periods.find((x) => x.status.key === ctx.finding);
+  if (p && p.position !== null) {
+    const name = p.status.key === "yesterday" ? "yesterday" : `the last ${NAMES[p.status.key]}`;
+    return `${deg(now)} now is ${p.position} the middle half of readings over ${name}`;
   }
   return `${deg(now)} now, with no window complete enough to compare`;
 }
@@ -325,7 +322,7 @@ export function stripClaim(strip: NormalStrip): string {
   if (strip.kind === "temperature") {
     return below >= 50
       ? `Warmer than ${below}% of ${sample}, at this hour.`
-      : `Cooler than ${Math.max(0, 100 - below - equal)}% of ${sample}, at this hour.`;
+      : `Cooler than ${strip.above_pct ?? 0}% of ${sample}, at this hour.`;
   }
   if (strip.now === 0) {
     return `Dry so far today, as on ${equal}% of ${sample}, by this time of day.`;

@@ -105,6 +105,14 @@ class TestPeriods:
         assert keys == ["today", "yesterday", "7d", "30d", "90d", "365d"]
         assert section(snapshot).now == 55.0
 
+    def test_now_is_placed_against_the_middle_half_once(self, snapshot):
+        ctx = section(snapshot)
+
+        assert ctx.finding == "30d"
+        by_key = {p.status.key: p for p in ctx.periods}
+        assert by_key["30d"].position == "inside"
+        assert by_key["today"].position == "inside"
+
     def test_a_window_is_its_low_middle_half_and_high(self, whole, snapshot):
         week = next(p for p in section(snapshot).periods if p.status.key == "7d")
         days = pd.date_range("2025-12-31", "2026-01-06").date
@@ -268,6 +276,7 @@ class TestStrips:
         assert list(strip.values) == pytest.approx(sorted(expected), abs=0.001)
         below = round(100 * sum(v < 55.0 for v in expected) / 30)
         assert strip.below_pct == below
+        assert strip.above_pct == round(100 * sum(v > 55.0 for v in expected) / 30)
 
     def test_a_warm_now_is_above_every_past_day(self, whole):
         live = reading(whole, tempf=95.0)
