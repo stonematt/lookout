@@ -83,9 +83,9 @@ describe("the Rain tab's words", () => {
 
   it("adds the week when it can be compared, with ≈ when prorated", () => {
     const week = structuredClone(raining);
-    const status = week.gaps.windows.find((w) => w.key === "7d")!;
-    Object.assign(status, { status: "prorated", reason: "gap", missing_days: 0 });
-    week.rain_tab.windows.find((w) => w.key === "7d")!.total_in = 0.85;
+    const window = week.rain_tab.windows.find((w) => w.key === "7d")!;
+    Object.assign(window.status, { status: "prorated", reason: "gap", missing_days: 0 });
+    window.total_in = 0.85;
 
     expect(dailyHeadline(week)).toBe(
       "0.30 in of rain so far today, and ≈ 0.85 in over the last 7 days",
@@ -162,7 +162,7 @@ describe("the Rain tab's words", () => {
         wettest_hour: { day: "2026-01-08", hour: 15, rain_in: 0.12 },
       },
     });
-    Object.assign(wet.gaps.windows.find((w) => w.key === "90d")!, {
+    Object.assign(wet.rain_tab.windows.find((w) => w.key === "90d")!.status, {
       status: "prorated",
       reason: "gap",
     });
@@ -178,6 +178,21 @@ describe("the Rain tab's words", () => {
 });
 
 describe("the Rain tab", () => {
+  it("shows a window by its rain status, not the archive's", () => {
+    // A day with rows but no rain counter: the archive counts the 7 days,
+    // the rain does not.
+    const week = structuredClone(raining);
+    Object.assign(week.gaps.windows.find((w) => w.key === "7d")!, { status: "valid", reason: null });
+    const window = week.rain_tab.windows.find((w) => w.key === "7d")!;
+    Object.assign(window.status, { status: "invalid", reason: "gap", missing_days: 1 });
+    window.total_in = null;
+    renderRain(panel, week);
+
+    const dds = [...section("daily").querySelectorAll(".rain-windows dd")];
+    expect(text(dds[2]!.querySelector(".gap-label"))).toBe("n/a");
+    expect(windowsNote(week)).toContain("7 days");
+  });
+
   it("renders its four sections in order", () => {
     renderRain(panel, raining);
 
@@ -224,7 +239,10 @@ describe("the Rain tab", () => {
   });
 
   it("hatches today while only the live total is known, and says so", () => {
-    renderRain(panel, dry);
+    // A live reading from today, the archive not caught up.
+    const live = structuredClone(dry);
+    live.current.rain_today_in = 0;
+    renderRain(panel, live);
     const today = section("daily").querySelector(".rain-windows dd")!;
 
     expect(text(today.querySelector(".gap-label"))).toBe("n/a");

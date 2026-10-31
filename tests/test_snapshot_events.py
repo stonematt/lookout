@@ -16,6 +16,7 @@ import pytest
 
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot.events import completed_curves
+from lookout.snapshot.model import SCHEMA_VERSION
 from tests.fixtures.archive import FAKE_MAC, Gap, RainSpell, build_archive
 from tests.snapshot_helpers import (
     STATION,
@@ -34,7 +35,12 @@ EVENT_3 = ms("2026-01-08T22:00:00Z")
 
 def by_start(snapshot):
     """The section's rows keyed by start."""
-    return {row.start_ms: row for row in snapshot.rain_events.events}
+    return by_start_section(snapshot.rain_events)
+
+
+def by_start_section(section):
+    """A `RainEvents` section's rows keyed by start."""
+    return {row.start_ms: row for row in section.events}
 
 
 class TestTheEventList:
@@ -53,13 +59,13 @@ class TestTheEventList:
         assert row.quality == "excellent"
         assert row.completeness_pct == 100.0
         assert row.max_gap_minutes == 0
-        assert (row.ongoing, row.live, row.has_curve) == (False, False, True)
+        assert (row.live, row.has_curve) == (False, True)
 
     def test_the_live_event_shows_the_live_total_not_the_archived_one(self):
         row = by_start(raining_station())[EVENT_3]
 
         # The catalog says 0.24" at the archive's end (00:00Z); live is 0.3".
-        assert (row.ongoing, row.live) == (True, True)
+        assert row.live
         assert row.total_in == 0.3
         assert row.duration_minutes == 145.0
         assert row.end_ms == ms("2026-01-09T00:25:00Z")
@@ -118,7 +124,7 @@ class TestTheEventList:
         assert section.events == ()
         assert section.all_time.count == 0
         assert section.seasons == ()
-        assert section.ongoing_curve is None
+        assert section.open_curve is None
 
 
 class TestSummaries:
@@ -153,8 +159,8 @@ class TestSummaries:
 
 
 class TestCurves:
-    def test_the_ongoing_curve_runs_from_the_start_to_the_live_reading(self):
-        curve = raining_station().rain_events.ongoing_curve
+    def test_the_open_curve_runs_from_the_start_to_the_live_reading(self):
+        curve = raining_station().rain_events.open_curve
 
         assert curve.start_ms == EVENT_3
         assert curve.t_ms[0] == EVENT_3
@@ -163,7 +169,7 @@ class TestCurves:
         assert len(curve.t_ms) == len(curve.event_in) == len(curve.rate_in_hr)
 
     def test_steady_rain_reads_as_a_steady_rate(self):
-        curve = raining_station().rain_events.ongoing_curve
+        curve = raining_station().rain_events.open_curve
 
         # 0.12 in/hr: 0.01" per 5-minute reading. The first reading has no
         # earlier one to compare with and reads 0.
@@ -173,7 +179,7 @@ class TestCurves:
         assert set(curve.gap_minutes[:-1]) == {None}
 
     def test_the_live_reading_past_the_archive_reads_as_a_gap(self):
-        curve = raining_station().rain_events.ongoing_curve
+        curve = raining_station().rain_events.open_curve
 
         # The archive ends at 23:55Z; the live reading is at 00:25Z. Only the
         # live total is known across those 30 minutes, not a rate.
@@ -181,8 +187,8 @@ class TestCurves:
         assert curve.gap_minutes[-1] == 30.0
         assert curve.rate_in_hr[-1] is None
 
-    def test_no_ongoing_event_means_no_ongoing_curve(self):
-        assert dry_station().rain_events.ongoing_curve is None
+    def test_no_ongoing_event_means_no_open_curve(self):
+        assert dry_station().rain_events.open_curve is None
 
     def test_a_reading_after_a_gap_has_no_rate(self):
         archive = build_archive(
@@ -234,7 +240,7 @@ class TestCurves:
 
         document = curve.document(STATION)
 
-        assert document["schema_version"] == 1
+        assert document["schema_version"] == SCHEMA_VERSION
         assert document["kind"] == "event_curve"
         assert document["station"] == {"mac": FAKE_MAC, "name": "Fixture Station"}
         assert document["start_ms"] == EVENT_3
@@ -267,14 +273,16 @@ def test_the_live_event_keeps_its_key_once_it_completes():
     early = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
     store = RainEventCatalog(FAKE_MAC)
     stored = store.detect_and_catalog_events(early, auto_save=False)
-    live_link = by_start(build(early, None, "2026-01-09T00:00:00Z", stored))
-    assert live_link[EVENT_3].ongoing
+    live_link = build(early, None, "2026-01-09T00:00:00Z", stored).rain_events
+    assert EVENT_3 in by_start_section(live_link)
+    assert live_link.open_curve.start_ms == EVENT_3
 
     updated = store.update_catalog_with_new_data(full, stored.copy())
-    later = by_start(build(full, None, "2026-01-10T00:00:00Z", updated))
+    later = build(full, None, "2026-01-10T00:00:00Z", updated).rain_events
 
     old_id = stored.sort_values("start_time").iloc[-1]["event_id"]
     new_id = updated.sort_values("start_time").iloc[-1]["event_id"]
     assert old_id != new_id  # the catalog's id moved ...
-    assert later[EVENT_3].ongoing is False  # ... the start did not
+    assert EVENT_3 in by_start_section(later)  # ... the start did not
+    assert later.open_curve is None
     assert EVENT_3 in {c.start_ms for c in completed_curves(updated, full)}

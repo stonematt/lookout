@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  SCHEMA_VERSION,
   SnapshotContractError,
   newestObservation,
   parseContext,
@@ -33,8 +34,8 @@ describe("parseDashboard", () => {
   });
 
   it("refuses another schema version", () => {
-    const doc = { ...(golden("dry", "dashboard") as object), schema_version: 2 };
-    expect(() => parseDashboard(doc)).toThrow(/schema_version 2/);
+    const doc = { ...(golden("dry", "dashboard") as object), schema_version: SCHEMA_VERSION + 1 };
+    expect(() => parseDashboard(doc)).toThrow(`schema_version ${SCHEMA_VERSION + 1}`);
   });
 
   it("keeps fields it does not know", () => {

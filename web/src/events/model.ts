@@ -152,11 +152,13 @@ export function eventFinding(row: RainEventRow, count: number): string {
     return `${inches(row.total_in, { digits: 2 })} so far over ${minutes(row.duration_minutes)}, and still raining`;
   }
   const place = row.rank === 1 ? "the wettest" : `the ${ordinal(row.rank)} wettest`;
-  return `${inches(row.total_in, { digits: 2 })} over ${minutes(row.duration_minutes)}, ${place} of ${count} events`;
+  return `${inches(row.total_in, { digits: 2 })} over ${minutes(row.duration_minutes)}, ${place} of ${count} event${count === 1 ? "" : "s"}`;
 }
 
 /**
- * The list's finding headline for a water year or for all events.
+ * The list's finding headline for a water year or for all events. The rain
+ * is the events' totals added up, so it says "in those events": it is not
+ * the water year's rain, which counts showers outside any event too.
  *
  * @param stats - The summary.
  * @param season - A water year, or "all".
@@ -171,8 +173,8 @@ export function listFinding(
   const n = stats.count;
   const events = `${n} rain event${n === 1 ? "" : "s"}`;
   if (season !== "all") {
-    return `${events} in water year ${season}, ${inches(stats.total_in, { digits: 2 })} in all`;
+    return `${events} in water year ${season}, ${inches(stats.total_in, { digits: 2 })} of rain in those events`;
   }
   const since = oldestMs === null ? "" : ` since ${formatStamp(oldestMs).split(",")[0]}, ${YEAR.format(oldestMs)}`;
-  return `${events}${since}, ${inches(stats.total_in, { digits: 2 })} in all`;
+  return `${events}${since}, ${inches(stats.total_in, { digits: 2 })} of rain in those events`;
 }

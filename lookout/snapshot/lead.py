@@ -157,6 +157,10 @@ def _rain_chart(
     """
     The rain chart: the event so far over completed events' totals.
 
+    The usual band is the spread of single events' totals, compared event
+    to event; it is not a rain total over any window, so it is not
+    gap-judged (the water year's rain is `RainTab.water_years`).
+
     :return: (now, usual, sample, trace).
     """
     if active is not None:

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as currentGET } from "../api/current.js";
 import { GET as dashboardGET } from "../api/dashboard.js";
+import { SCHEMA_VERSION } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
 import { golden, goldenText } from "./golden.js";
 
@@ -189,7 +190,7 @@ describe("GET /current", () => {
     );
     const body = await response.json();
     expect(body).toEqual({
-      schema_version: 1,
+      schema_version: SCHEMA_VERSION,
       kind: "current",
       station: { mac: MAC, name: "Fixture Station" },
       observed_at_ms: live,

@@ -7,11 +7,11 @@ almanac.py: The Overview's almanac grid and rolling-window rain table (#82).
   season so far, each against the same window ending on the same date in
   every earlier year the archive reaches, newest first.
 
-Every total comes from the Rain tab's `daily_totals` and `window_total`, so
-a window has one rain total everywhere (the One Number Rule): an archive sum
-of each day's highest `dailyrainin`, with today's live total stitched in,
-judged and prorated by the gap rules. Ambient's year, month and week
-counters are never read.
+Every total comes from the Rain tab's `RainCoverage`, `daily_totals` and
+`window_total`, so a window has one rain total and one status everywhere
+(the One Number Rule): an archive sum of each day's highest `dailyrainin`,
+with today's live total stitched in, judged and prorated by the gap rules.
+Ambient's year, month and week counters are never read.
 
 Functions:
 - almanac(archive, current, now): the `Almanac` section.
@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from lookout.core.rainfall_analysis import water_year, water_year_start
-from lookout.snapshot.gaps import STANDARD_WINDOWS, ArchiveCoverage
+from lookout.snapshot.gaps import STANDARD_WINDOWS
 from lookout.snapshot.model import (
     Almanac,
     AlmanacMonth,
@@ -32,7 +32,7 @@ from lookout.snapshot.model import (
     RollingYear,
     SnapshotConditions,
 )
-from lookout.snapshot.rain_tab import daily_totals, window_total
+from lookout.snapshot.rain_tab import RainCoverage, daily_totals, window_total
 from lookout.utils.dateutc import DEFAULT_TZ
 
 ROLLING_DAYS: Tuple[Tuple[str, int], ...] = tuple(
@@ -63,8 +63,8 @@ def almanac(
     :param tz: The station-local zone.
     :return: The section.
     """
-    coverage = ArchiveCoverage(archive, now, tz)
-    totals = daily_totals(archive, current, coverage)
+    coverage = RainCoverage(archive, current, now, tz)
+    totals = daily_totals(coverage)
     return Almanac(
         years=_years(totals, coverage),
         rolling=_rolling(totals, coverage),
@@ -72,13 +72,13 @@ def almanac(
 
 
 def _years(
-    totals: Dict[date, float], coverage: ArchiveCoverage
+    totals: Dict[date, float], coverage: RainCoverage
 ) -> Tuple[AlmanacYear, ...]:
     """
     Every water year from the archive's first through the current one.
 
     :param totals: `daily_totals`.
-    :param coverage: The archive's coverage.
+    :param coverage: The archive's rain coverage.
     :return: The rows, newest first; none for an empty archive.
     """
     first_day = coverage.first_day
@@ -109,14 +109,14 @@ def _years(
 
 
 def _month(
-    first: date, totals: Dict[date, float], coverage: ArchiveCoverage
+    first: date, totals: Dict[date, float], coverage: RainCoverage
 ) -> AlmanacMonth:
     """
     One month's cell; the current month also carries its rain so far.
 
     :param first: The month's first day.
     :param totals: `daily_totals`.
-    :param coverage: The archive's coverage.
+    :param coverage: The archive's rain coverage.
     :return: The cell.
     """
     status = coverage.month(first.year, first.month)
@@ -134,7 +134,7 @@ def _month(
 
 
 def _rolling(
-    totals: Dict[date, float], coverage: ArchiveCoverage
+    totals: Dict[date, float], coverage: RainCoverage
 ) -> Tuple[RollingWindow, ...]:
     """
     Each rolling window, this year's then each earlier year's.
@@ -143,7 +143,7 @@ def _rolling(
     so they match `Gaps.windows` and the Rain tab's totals.
 
     :param totals: `daily_totals`.
-    :param coverage: The archive's coverage.
+    :param coverage: The archive's rain coverage.
     :return: The windows, shortest first, the season last.
     """
     ends = _same_dates(coverage)
@@ -168,13 +168,13 @@ def _rolling(
     return tuple(rows)
 
 
-def _same_dates(coverage: ArchiveCoverage) -> List[date]:
+def _same_dates(coverage: RainCoverage) -> List[date]:
     """
     Today, then today's date in each earlier year the archive reaches.
 
     Feb 29 falls back to Feb 28 in a year without one.
 
-    :param coverage: The archive's coverage.
+    :param coverage: The archive's rain coverage.
     :return: The end days, newest first.
     """
     today = coverage.today

@@ -35,7 +35,7 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # The dashboard fields the context block carries, in order.
 CONTEXT_FIELDS: Tuple[str, ...] = (
@@ -122,8 +122,9 @@ class SnapshotConditions:
 @dataclass(frozen=True)
 class ActiveRainEvent:
     """
-    The rain event still under way: ongoing in the Event Catalog and still
-    reporting event rain live.
+    The rain event still under way: open in the Event Catalog and still
+    reporting event rain live. This is the one "raining now" decision: the
+    Rain Events tab marks the same event `live`.
 
     :param event_id: Its Event Catalog id.
     :param start_ms: When it started.
@@ -475,8 +476,9 @@ class RainEventRow:
     :param max_gap_minutes: Its longest gap over 10 minutes; 0 for none.
     :param water_year: The water year it started in (named by its end).
     :param rank: Its place by total among every listed event, 1 the wettest.
-    :param ongoing: Still open in the Event Catalog.
-    :param live: Ongoing and still reporting event rain live.
+    :param live: It is the snapshot's `active_rain_event`: the one "it is
+        raining now" decision, which the hero reads too (open in the Event
+        Catalog and the live reading still reporting event rain).
     :param has_curve: The archive holds readings in its range, so it has a
         curve; False shows totals only ("n/a: gap in record").
     """
@@ -491,7 +493,6 @@ class RainEventRow:
     max_gap_minutes: Optional[float]
     water_year: int
     rank: int
-    ongoing: bool
     live: bool
     has_curve: bool
 
@@ -502,7 +503,13 @@ class EventStats:
     The summary metrics over a set of events (`summarize_events`).
 
     :param count: How many.
-    :param total_in: Their rain added up.
+    :param total_in: Their totals added up: rain in events only, not the
+        rain over a window. Rain outside any cataloged event (a shower under
+        the catalog's minimum) is not in it, and an event counts whole in
+        the water year it started in, so it can differ from
+        `RainTab.water_years`, the water year's rain. It is not gap-judged:
+        it sums the events listed, and a gap's missed events are missing
+        from the list too.
     :param median_in: Their median total; None for no events.
     :param mean_duration_minutes: Their mean duration; None for no events.
     """
@@ -537,10 +544,11 @@ class EventCurve:
 
     A completed event's curve is published once, as its own document
     (`EventCurve.document`, key from `lookout.snapshot.curves.curve_key`);
-    the ongoing event's curve rides in the snapshot.
+    the curve of the event the catalog still holds open rides in the
+    snapshot (`RainEvents.open_curve`).
 
     :param start_ms: The event's start; its key.
-    :param end_ms: Its end, or the newest reading while it is ongoing.
+    :param end_ms: Its end, or the newest reading while it is open.
     :param t_ms: Each reading's time.
     :param event_in: The event rain so far at each reading (`eventrainin`).
     :param rate_in_hr: The rain rate since the previous reading, None after
@@ -574,14 +582,16 @@ class RainEvents:
     :param events: Every event, newest first.
     :param all_time: The summary over every event.
     :param seasons: The summary per water year, newest first.
-    :param ongoing_curve: The ongoing event's curve, live stitched; None
-        when no event is ongoing.
+    :param open_curve: The curve of the event the Event Catalog still holds
+        open, live stitched: its curve file is written only once the catalog
+        closes it. None when none is open. Open is not live: the row's
+        `live` says whether it is still raining.
     """
 
     events: Tuple[RainEventRow, ...]
     all_time: EventStats
     seasons: Tuple[EventSeason, ...]
-    ongoing_curve: Optional[EventCurve]
+    open_curve: Optional[EventCurve]
 
 
 @dataclass(frozen=True)
@@ -591,11 +601,16 @@ class RainWindow:
     total in it (`lookout.snapshot.rain_tab`).
 
     :param key: The window, as `Gaps.windows` names it ("today", "7d",
-        "water_year", ...); its gap status is the one with the same key.
+        "water_year", ...).
+    :param status: Its rain gap status (`rain_tab.RainCoverage`): the
+        `Gaps.windows` status with the same key, except that a day whose rain
+        counter has no reading is missing here, so its rain is never read as
+        0. Show the total by this status, not the archive's.
     :param total_in: Its rain; prorated when its status is; None when invalid.
     """
 
     key: str
+    status: GapStatus
     total_in: Optional[float]
 
 
@@ -793,8 +808,8 @@ class RollingYear:
     One year's rain over a rolling window ending on today's date that year.
 
     :param year: The calendar year the window ends in.
-    :param status: The window's gap status. The current year's is the
-        `Gaps.windows` status with the same key.
+    :param status: The window's rain gap status. The current year's is the
+        `RainTab.windows` status with the same key.
     :param rain_in: Its rain; prorated when its status is; None when invalid.
     """
 
