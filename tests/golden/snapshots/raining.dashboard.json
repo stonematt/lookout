@@ -878,5 +878,76 @@
         30.0
       ]
     }
+  },
+  "hero_lead": {
+    "kind": "rain",
+    "rules": [
+      {
+        "kind": "rain",
+        "met": true,
+        "value": 0.0,
+        "unit": "hours",
+        "threshold": 12.0,
+        "reference": null,
+        "compared": [],
+        "missing": null
+      },
+      {
+        "kind": "temperature",
+        "met": false,
+        "value": null,
+        "unit": "degrees_f",
+        "threshold": 10.0,
+        "reference": null,
+        "compared": [],
+        "missing": "no_comparison"
+      },
+      {
+        "kind": "solar",
+        "met": false,
+        "value": 322.2,
+        "unit": "wm2",
+        "threshold": 400.0,
+        "reference": null,
+        "compared": [],
+        "missing": null
+      },
+      {
+        "kind": "calm",
+        "met": false,
+        "value": 0.0,
+        "unit": "days",
+        "threshold": null,
+        "reference": null,
+        "compared": [],
+        "missing": "no_comparison"
+      }
+    ],
+    "unit": "in",
+    "now": 0.3,
+    "now_ms": 1767918300000,
+    "usual_low": 0.39,
+    "usual_median": 0.42,
+    "usual_high": 0.45,
+    "sample": 2,
+    "trace": {
+      "start_ms": 1767909600000,
+      "slot_minutes": 15,
+      "values": [
+        0.03,
+        0.06,
+        0.09,
+        0.12,
+        0.15,
+        0.18,
+        0.21,
+        0.24,
+        null,
+        0.3
+      ],
+      "usual_low": [],
+      "usual_median": [],
+      "usual_high": []
+    }
   }
 }

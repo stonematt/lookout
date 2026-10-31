@@ -197,6 +197,69 @@ export interface EventCurveDocument extends EventCurve {
   station: Station;
 }
 
+/** Which rule of the Adaptive Lead Rule leads. */
+export type LeadKind = "rain" | "temperature" | "solar" | "calm";
+
+/** Why a lead rule's value or reference is not known. */
+export type LeadMissing = "no_event" | "no_reading" | "no_comparison";
+
+/**
+ * One lead rule with its live value, for "Why this leads". Built by
+ * `lookout/snapshot/lead.py`, which documents each rule.
+ */
+export interface LeadRule {
+  kind: LeadKind;
+  /** Whether it holds; calm holds only when no rule before it does. */
+  met: boolean;
+  /**
+   * In `unit`: rain, hours since the newest event ended (0 while one is
+   * live); temperature, degrees from the month median (signed); solar,
+   * W/m²; calm, days since it last rained.
+   */
+  value: number | null;
+  unit: "hours" | "degrees_f" | "wm2" | "days";
+  /** 12 h, 10°, 400 W/m²; null for calm. */
+  threshold: number | null;
+  /** The month median at this hour (temperature), the usual dry spell (calm). */
+  reference: number | null;
+  /** The `GapStatus` keys in `gaps` the reference was computed over, newest first. */
+  compared: string[];
+  missing: LeadMissing | null;
+}
+
+/**
+ * The hero chart's bold line in slots from `start_ms`, with a usual band per
+ * slot for temperature and solar (empty for rain). Null is no reading.
+ */
+export interface LeadTrace {
+  start_ms: number;
+  slot_minutes: number;
+  values: (number | null)[];
+  usual_low: (number | null)[];
+  usual_median: (number | null)[];
+  usual_high: (number | null)[];
+}
+
+/** The Overview's hero lead and every rule's value. */
+export interface HeroLead {
+  kind: LeadKind;
+  /** Rain, temperature, solar, calm, in that order. */
+  rules: LeadRule[];
+  /** The chart's unit. */
+  unit: "in" | "f" | "wm2" | "days";
+  /** The bold "now" value, observed at `now_ms`. */
+  now: number | null;
+  now_ms: number | null;
+  /** The usual range now: quartiles of the comparison set. */
+  usual_low: number | null;
+  usual_median: number | null;
+  usual_high: number | null;
+  /** How many days, events or dry spells the usual range is over. */
+  sample: number;
+  /** The bold line over time; null for calm. */
+  trace: LeadTrace | null;
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -220,6 +283,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   condition_ribbon: ConditionRibbon | null;
 
   rain_events: RainEvents;
+  /** The hero lead and every lead rule's live value. */
+  hero_lead: HeroLead;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -326,6 +391,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   if (!isRecord(events) || !Array.isArray(events.events)) {
     throw new SnapshotContractError("dashboard: rain_events.events missing");
   }
+  checkLead(head.hero_lead);
   return head as unknown as DashboardSnapshot;
 }
 
@@ -338,6 +404,12 @@ function checkRibbon(ribbon: unknown): void {
   const parallel = [ribbon.rain_in, ribbon.daylight];
   if (!Array.isArray(slots) || !parallel.every((a) => Array.isArray(a) && a.length === slots.length)) {
     throw new SnapshotContractError("dashboard: condition_ribbon slots not parallel");
+  }
+}
+
+function checkLead(lead: unknown): void {
+  if (!isRecord(lead) || typeof lead.kind !== "string" || !Array.isArray(lead.rules)) {
+    throw new SnapshotContractError("dashboard: hero_lead missing");
   }
 }
 

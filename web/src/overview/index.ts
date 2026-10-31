@@ -14,6 +14,7 @@ import "./overview.css";
 
 import type { DashboardSnapshot } from "../snapshot.js";
 import { firstScreen } from "./first-screen.js";
+import { heroLead } from "./hero.js";
 
 /** One block of the Overview. */
 export interface OverviewSection {
@@ -33,7 +34,7 @@ export interface OverviewSection {
 /** The Overview's sections, in the spec's order. */
 export const SECTIONS: readonly OverviewSection[] = [
   firstScreen, // #78
-  // #79 the hero lead and "Why this leads"
+  heroLead, // #79 the hero lead and "Why this leads"
   // #81 temperature across periods, the 10-day list, "now against normal"
   // #82 the almanac grid and the rolling-window rain tables
 ];
