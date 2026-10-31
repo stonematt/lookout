@@ -1,0 +1,63 @@
+[
+ {
+  "macAddress": "00:11:22:33:44:55",
+  "lastData": {
+   "dateutc": 1763538900000,
+   "tempinf": 65.1,
+   "battin": 1.0,
+   "humidityin": 58.0,
+   "baromrelin": 29.673,
+   "baromabsin": 29.673,
+   "tempf": 39.4,
+   "battout": 1.0,
+   "battrain": "1",
+   "humidity": 99.0,
+   "winddir": 124.0,
+   "winddir_avg10m": 116.0,
+   "windspeedmph": 1.8,
+   "windspdmph_avg10m": 2.2,
+   "windgustmph": 2.5,
+   "maxdailygust": 7.8,
+   "hourlyrainin": 0.0,
+   "eventrainin": 0.0,
+   "dailyrainin": 0.0,
+   "weeklyrainin": 0.681,
+   "monthlyrainin": 3.89,
+   "yearlyrainin": 24.88800000000002,
+   "solarradiation": 0.0,
+   "uv": 0.0,
+   "temp1f": 63.5,
+   "humidity1": 56.0,
+   "batt1": 1.0,
+   "batt_co2": 1,
+   "feelsLike": 39.4,
+   "dewPoint": 39.14,
+   "feelsLike1": 63.5,
+   "dewPoint1": 47.5,
+   "feelsLikein": 65.1,
+   "dewPointin": 50.0,
+   "lastRain": "2025-11-17T17:03:00.000Z",
+   "date": "2025-11-19T07:55:00.000Z",
+   "tz": "America/Los_Angeles"
+  },
+  "info": {
+   "name": "Fixture Station",
+   "coords": {
+    "coords": {
+     "lat": 45.0,
+     "lon": -123.0
+    },
+    "address": "Fixture Address",
+    "location": "Fixture",
+    "elevation": 50.0,
+    "geo": {
+     "type": "Point",
+     "coordinates": [
+      -123.0,
+      45.0
+     ]
+    }
+   }
+  }
+ }
+]
