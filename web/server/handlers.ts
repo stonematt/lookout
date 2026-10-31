@@ -55,6 +55,22 @@ export function normaliseMac(value: string): string | null {
   return MAC_PATTERN.test(mac) ? mac : null;
 }
 
+/** Query parameters whose values are secrets, as Ambient's URL carries them. */
+const SECRET_PARAM = /\b(apiKey|applicationKey)=[^&\s"']*/gi;
+
+/**
+ * An error as one log line: its name and message only, never its stack,
+ * cause or attached request, with key-shaped query parameters redacted.
+ *
+ * @param error - Anything a promise rejected with.
+ * @returns "<name>: <message>", safe to log.
+ */
+export function describeError(error: unknown): string {
+  const text =
+    error instanceof Error ? `${error.name}: ${error.message}` : `non-Error: ${String(error)}`;
+  return text.replace(SECRET_PARAM, "$1=[redacted]");
+}
+
 /**
  * A JSON response.
  *
@@ -121,14 +137,14 @@ export async function handleDashboard(
   try {
     text = await sources.readSnapshot(mac, "dashboard");
   } catch (error) {
-    console.error("dashboard: Storj read failed", error);
+    console.error("dashboard: Storj read failed", describeError(error));
     return errorResponse(502, "the snapshot could not be read");
   }
   if (text === null) return errorResponse(404, `no snapshot for station ${mac}`);
   try {
     parseDashboard(JSON.parse(text));
   } catch (error) {
-    console.error("dashboard: snapshot breaks the contract", error);
+    console.error("dashboard: snapshot breaks the contract", describeError(error));
     return errorResponse(502, "the snapshot does not match this site");
   }
   return jsonResponse(text, 200, DASHBOARD_CACHE);
@@ -160,10 +176,10 @@ export async function handleCurrent(
     readLive(mac),
   ]);
   if (contextResult.status === "rejected") {
-    console.error("current: context read failed", contextResult.reason);
+    console.error("current: context read failed", describeError(contextResult.reason));
   }
   if (liveResult.status === "rejected") {
-    console.error("current: Ambient read failed", liveResult.reason);
+    console.error("current: Ambient read failed", describeError(liveResult.reason));
   }
   if (contextResult.status === "rejected" && liveResult.status === "rejected") {
     return errorResponse(502, "neither the live reading nor the snapshot could be read");

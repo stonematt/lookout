@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as currentGET } from "../api/current.js";
 import { GET as dashboardGET } from "../api/dashboard.js";
+import { describeError } from "../server/handlers.js";
 import { SCHEMA_VERSION } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
 import { golden, goldenText } from "./golden.js";
@@ -247,6 +248,37 @@ describe("GET /current", () => {
     expect(body.station).toEqual({ mac: MAC, name: "Ambient Name" });
   });
 
+  it("never logs the Ambient keys when the fetch rejects", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new Request(input, init).url;
+        if (url.startsWith(STORJ)) return fakeFetch(input, init);
+        // What a network failure can look like: the URL, keys and all, in
+        // the message, the stack and the cause.
+        const error = new TypeError(`fetch failed: ${ENV.AMBIENT_API_KEY} ${url}`, {
+          cause: new Error(`connect ECONNREFUSED ${url}`),
+        });
+        return Promise.reject(error);
+      }),
+    );
+
+    const response = await currentGET(get("/current"));
+
+    expect(response.status).toBe(200);
+    expect(logged).toHaveBeenCalled();
+    for (const args of logged.mock.calls) {
+      for (const arg of args) {
+        expect(typeof arg).toBe("string");
+        expect(arg).not.toContain(ENV.AMBIENT_API_KEY);
+        expect(arg).not.toContain(ENV.AMBIENT_APPLICATION_KEY);
+      }
+    }
+    expect(logged.mock.calls.flat().join(" ")).toContain("fetch failed");
+    logged.mockRestore();
+  });
+
   it("answers 502 when neither source can be read", async () => {
     world.storjStatus = 500;
     world.ambientStatus = 500;
@@ -271,5 +303,20 @@ describe("GET /current", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(world.calls).toHaveLength(0);
+  });
+});
+
+describe("an error as a log line", () => {
+  it("is its name and message, key-shaped parameters redacted", () => {
+    const error = new TypeError("fetch failed: https://x.test/v1?apiKey=abc&applicationKey=def", {
+      cause: new Error("socket hang up"),
+    });
+    expect(describeError(error)).toBe(
+      "TypeError: fetch failed: https://x.test/v1?apiKey=[redacted]&applicationKey=[redacted]",
+    );
+  });
+
+  it("names a rejection that is not an Error", () => {
+    expect(describeError("boom")).toBe("non-Error: boom");
   });
 });

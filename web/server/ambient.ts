@@ -37,6 +37,25 @@ export class AmbientReadError extends Error {
   }
 }
 
+/**
+ * A rejected fetch's name and message with both keys, plain or URL-encoded,
+ * replaced by "[redacted]".
+ *
+ * @param error - What the fetch rejected with.
+ * @param config - Holds the keys to take out.
+ * @returns "<name>: <message>" without the keys.
+ */
+function redact(error: unknown, config: AmbientConfig): string {
+  let text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  for (const key of [config.apiKey, config.applicationKey]) {
+    if (!key) continue;
+    for (const form of new Set([key, encodeURIComponent(key)])) {
+      text = text.split(form).join("[redacted]");
+    }
+  }
+  return text;
+}
+
 /** The parts of an Ambient `/devices` entry this module reads. */
 interface AmbientDevice {
   macAddress?: unknown;
@@ -59,7 +78,15 @@ export function ambientReader(
     const url = new URL(`${config.endpoint.replace(/\/+$/, "")}/devices`);
     url.searchParams.set("apiKey", config.apiKey);
     url.searchParams.set("applicationKey", config.applicationKey);
-    const response = await fetchImpl(url);
+    let response: Response;
+    try {
+      response = await fetchImpl(url);
+    } catch (error) {
+      // A network error can carry the URL, and the URL carries the keys.
+      throw new AmbientReadError(
+        `Ambient /devices fetch failed: ${redact(error, config)}`,
+      );
+    }
     if (!response.ok) {
       throw new AmbientReadError(`Ambient ${response.status} on /devices`);
     }
