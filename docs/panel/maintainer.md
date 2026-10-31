@@ -30,3 +30,9 @@ Verdict: <ship | fix | rethink>
 - [ ] <blocker or fix, one line> — <where>
 - [x] <item from an earlier review, now fixed> — fixed in <sha or PR>
 -->
+
+### 2026-10-31 — goal PR #96 (spec #66, Move Lookout off Streamlit), QA
+Verdict: ship
+- [ ] note: streamlit still imported at `lookout/core/data_processing.py:9` and in legacy CLIs that bypass `get_secret`; clear with Retire Streamlit (#86)
+- [ ] note: no socket guard in `tests/conftest.py`
+- [ ] note: the Vercel Storj key's scope is not verifiable from code; confirm it is read-only on `snapshot/`

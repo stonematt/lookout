@@ -36,3 +36,11 @@ Verdict: <ship | fix | rethink>
 - [ ] <blocker or fix, one line> — <where>
 - [x] <item from an earlier review, now fixed> — fixed in <sha or PR>
 -->
+
+### 2026-10-31 — goal PR #96 served on real data (`?fixture=real`, 390px light), UAT
+Verdict: fix
+- [ ] "Rain so far" cumulative chart fills the area under the line; a cumulative total is a line — Rain Events
+- [ ] event table clips the Quality column at 390px — Rain Events
+- [ ] the "2024 ≈ 48.6 in" end label touches the right edge at 390px, and the x-axis has no Sep tick — Rain, water-year chart
+- [ ] "Rate between readings" ticks repeat "00:00 / 12:00"; use plain times with one date label — Rain Events
+- [ ] note: the Rain Events headline is a count, not a finding
