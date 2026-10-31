@@ -10,13 +10,18 @@
  *   the goldens are served as recorded, which is long stale.
  * - `/current` carries no live reading (`last_data: null`): Ambient is never
  *   called in dev.
+ * - `/event?start=<ms>` serves the golden curve files in
+ *   `tests/golden/snapshots/events/<scenario>.<start_ms>.json`, shifted by
+ *   the same offset (so a start read from a shifted `/dashboard` finds its
+ *   file, matched to the nearest recorded start).
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { Plugin } from "vite";
 
 import type { Env } from "./env.js";
+import { handleEvent } from "./event.js";
 import type { ReadSources } from "./handlers.js";
 import { errorResponse, handleCurrent, handleDashboard } from "./handlers.js";
 import type { SnapshotKind } from "./storj.js";
@@ -33,6 +38,33 @@ function goldenDoc(scenario: Scenario, kind: SnapshotKind): Record<string, unkno
   return JSON.parse(text) as Record<string, unknown>;
 }
 
+/**
+ * Each `age` request shifts by its own clock, so a start read from an
+ * earlier `/dashboard` is off by the time since; match within this.
+ */
+const CURVE_MATCH_MS = 6 * 60 * 60_000;
+
+/** The golden curve file nearest a recorded start, or null when none is near. */
+function goldenCurve(scenario: Scenario, startMs: number): string | null {
+  const dir = `${GOLDEN_DIR}/events`;
+  if (!existsSync(dir)) return null;
+  const starts = readdirSync(dir)
+    .map((name) => new RegExp(`^${scenario}\\.(\\d+)\\.json$`).exec(name)?.[1])
+    .filter((start): start is string => start !== undefined)
+    .map(Number);
+  const near = starts.find((start) => Math.abs(start - startMs) <= CURVE_MATCH_MS);
+  return near === undefined ? null : readFileSync(`${dir}/${scenario}.${near}.json`, "utf8");
+}
+
+/** A time, or each time in a list of times, plus `delta`. */
+function shiftTime(item: unknown, delta: number): unknown {
+  if (typeof item === "number") return item + delta;
+  if (Array.isArray(item) && item.every((t) => typeof t === "number")) {
+    return item.map((t: number) => t + delta);
+  }
+  return shiftTimes(item, delta);
+}
+
 /** Add `delta` to every number in a field ending `_ms`, at any depth. */
 function shiftTimes(value: unknown, delta: number): unknown {
   if (Array.isArray(value)) return value.map((item) => shiftTimes(item, delta));
@@ -40,9 +72,7 @@ function shiftTimes(value: unknown, delta: number): unknown {
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      key.endsWith("_ms") && typeof item === "number"
-        ? item + delta
-        : shiftTimes(item, delta),
+      key.endsWith("_ms") ? shiftTime(item, delta) : shiftTimes(item, delta),
     ]),
   );
 }
@@ -63,11 +93,15 @@ function fixtureSources(
     readSnapshot: async (asked, kind) =>
       asked === mac ? JSON.stringify(shiftTimes(goldenDoc(scenario, kind), delta)) : null,
     readLive: async () => null,
+    readCurve: async (asked, startMs) => {
+      const text = asked === mac ? goldenCurve(scenario, startMs - delta) : null;
+      return text === null ? null : JSON.stringify(shiftTimes(JSON.parse(text), delta));
+    },
   };
 }
 
 /**
- * Answer a lane-server request for `/dashboard` or `/current`.
+ * Answer a lane-server request for `/dashboard`, `/current` or `/event`.
  *
  * @param url - The request path and query, e.g. `/dashboard?fixture=raining`.
  * @param env - The environment (`LOOKOUT_FIXTURE`, `LOOKOUT_AGE_MIN`).
@@ -80,9 +114,11 @@ export async function devResponse(
   nowMs: number,
 ): Promise<Response | null> {
   const parsed = new URL(url, "http://lane.local");
-  const handler = { "/dashboard": handleDashboard, "/current": handleCurrent }[
-    parsed.pathname
-  ];
+  const handler = {
+    "/dashboard": handleDashboard,
+    "/current": handleCurrent,
+    "/event": handleEvent,
+  }[parsed.pathname];
   if (!handler) return null;
 
   const scenario = parsed.searchParams.get("fixture") ?? env.LOOKOUT_FIXTURE ?? "dry";
@@ -99,8 +135,8 @@ export async function devResponse(
 }
 
 /**
- * A Vite plugin serving `/dashboard` and `/current` from the goldens on the
- * dev server.
+ * A Vite plugin serving `/dashboard`, `/current` and `/event` from the
+ * goldens on the dev server.
  *
  * @returns The plugin.
  */

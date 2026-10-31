@@ -21,7 +21,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import pytest
@@ -36,6 +36,8 @@ from lookout.snapshot import (
     build_snapshot,
     stitch_live,
 )
+from lookout.snapshot.events import completed_curves
+from lookout.snapshot.model import EventCurve
 from tests.fixtures.ambient import load_devices, to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, build_archive
 from tests.fixtures.real import AMBIENT_END, load_real_slice
@@ -133,7 +135,7 @@ def assert_matches_golden(document: Dict, name: str) -> None:
     path = GOLDEN_DIR / f"{name}.json"
     text = json.dumps(document, indent=2, allow_nan=False) + "\n"
     if REGENERATE:
-        GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
     assert json.loads(text) == json.loads(path.read_text())
 
@@ -348,3 +350,44 @@ class TestDocuments:
                 station=STATION,
                 now=datetime(2025, 11, 19, 8, 0),
             )
+
+
+# ---------- event curve files (#84) ----------
+
+CURVE_DIR = GOLDEN_DIR / "events"
+
+
+def scenario_curves(scenario: str) -> List[EventCurve]:
+    """
+    The completed events' curves of a golden scenario, as the refresh run
+    writes them under `snapshot/<MAC>.events/`. The lane server serves these.
+    """
+    if scenario == "dry":
+        archive = load_real_slice()
+    else:
+        full = scenario_until("2026-01-09T00:30:00Z")
+        archive = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
+    return completed_curves(event_catalog(archive), archive)
+
+
+@pytest.mark.parametrize("scenario", sorted(SCENARIOS))
+def test_curve_files_match_the_golden_files(scenario):
+    curves = scenario_curves(scenario)
+    listed = {
+        row.start_ms
+        for row in SCENARIOS[scenario]().rain_events.events
+        if row.has_curve and not row.ongoing
+    }
+
+    assert {curve.start_ms for curve in curves} == listed
+    for curve in curves:
+        assert_matches_golden(
+            curve.document(STATION), f"events/{scenario}.{curve.start_ms}"
+        )
+
+
+def test_curve_golden_files_hold_no_real_station():
+    texts = [p.read_text() for p in sorted(CURVE_DIR.glob("*.json"))]
+
+    assert len(texts) == sum(len(scenario_curves(s)) for s in SCENARIOS)
+    assert not any(DEFAULT_MAC_ADDRESS in text for text in texts)

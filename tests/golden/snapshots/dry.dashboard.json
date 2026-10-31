@@ -694,5 +694,42 @@
     "temperature_high_f": 53.6,
     "rain_hours": 7.75,
     "known_hours": 43.5
+  },
+  "rain_events": {
+    "events": [
+      {
+        "start_ms": 1763366400000,
+        "end_ms": 1763481000000,
+        "duration_minutes": 1910.0,
+        "total_in": 0.665,
+        "peak_rate_in_hr": 0.432,
+        "quality": "poor",
+        "completeness_pct": 94.8,
+        "max_gap_minutes": 94.0,
+        "water_year": 2026,
+        "rank": 1,
+        "ongoing": false,
+        "live": false,
+        "has_curve": true
+      }
+    ],
+    "all_time": {
+      "count": 1,
+      "total_in": 0.665,
+      "median_in": 0.665,
+      "mean_duration_minutes": 1910.0
+    },
+    "seasons": [
+      {
+        "water_year": 2026,
+        "stats": {
+          "count": 1,
+          "total_in": 0.665,
+          "median_in": 0.665,
+          "mean_duration_minutes": 1910.0
+        }
+      }
+    ],
+    "ongoing_curve": null
   }
 }

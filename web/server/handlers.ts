@@ -18,7 +18,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import type { LiveReader } from "./ambient.js";
-import type { SnapshotReader } from "./storj.js";
+import type { CurveReader, SnapshotReader } from "./storj.js";
 
 /** `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes. */
 export const DASHBOARD_CACHE = "s-maxage=300, stale-while-revalidate=300";
@@ -36,6 +36,8 @@ export interface ReadSources {
   readSnapshot: SnapshotReader;
   /** Only `/current` needs it. */
   readLive?: LiveReader;
+  /** Only `/event` needs it (`server/event.ts`). */
+  readCurve?: CurveReader;
 }
 
 const MAC_PATTERN = /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/;
@@ -88,7 +90,7 @@ export function errorResponse(status: number, error: string): Response {
  * @param sources - Holds the default station.
  * @returns The upper-case MAC, or a 400 response for a malformed one.
  */
-function stationOf(request: Request, sources: ReadSources): string | Response {
+export function stationOf(request: Request, sources: ReadSources): string | Response {
   const asked = new URL(request.url).searchParams.get("station");
   if (asked === null) return sources.defaultMac;
   return normaliseMac(asked) ?? errorResponse(400, "station must be a MAC address");

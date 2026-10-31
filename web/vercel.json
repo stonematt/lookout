@@ -6,7 +6,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/dashboard", "destination": "/api/dashboard" },
-    { "source": "/current", "destination": "/api/current" }
+    { "source": "/current", "destination": "/api/current" },
+    { "source": "/event", "destination": "/api/event" }
   ],
   "headers": [
     {

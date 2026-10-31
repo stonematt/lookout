@@ -27,6 +27,12 @@ export interface StorjConfig {
  */
 export type SnapshotReader = (mac: string, kind: SnapshotKind) => Promise<string | null>;
 
+/**
+ * Read one completed event's curve file; null when it is not written yet.
+ * Rejects with a `StorjReadError` on any other failure.
+ */
+export type CurveReader = (mac: string, startMs: number) => Promise<string | null>;
+
 /** Storj answered, but not with the document. */
 export class StorjReadError extends Error {
   constructor(message: string) {
@@ -48,6 +54,64 @@ export function snapshotKey(mac: string, kind: SnapshotKind): string {
 }
 
 /**
+ * The Storj key of one event's curve file, as `lookout/snapshot/curves.py`
+ * writes it.
+ *
+ * @param mac - The station's MAC address.
+ * @param startMs - The event's start, its key.
+ * @returns e.g. `snapshot/00:11:22:33:44:55.events/1767758400000.json`.
+ */
+export function eventCurveKey(mac: string, startMs: number): string {
+  return `${SNAPSHOT_PREFIX}${mac}.events/${startMs}.json`;
+}
+
+/**
+ * Read any key under `snapshot/` from Storj.
+ *
+ * @param config - The read-only credential, endpoint and bucket.
+ * @param fetchImpl - The fetch to send signed requests with.
+ * @returns A reader: the key's text, or null when Storj has no such key.
+ */
+function storjKeyReader(
+  config: StorjConfig,
+  fetchImpl: typeof fetch,
+): (key: string) => Promise<string | null> {
+  const client = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    service: "s3",
+    // Storj ignores the region; the Python client signs with this one too.
+    region: "us-east-1",
+  });
+  const base = config.endpointUrl.replace(/\/+$/, "");
+  return async (key) => {
+    const url = `${base}/${config.bucket}/${encodeURIComponent(key).replace(/%2F/g, "/")}`;
+    const request = await client.sign(url, { method: "GET" });
+    const response = await fetchImpl(request);
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new StorjReadError(`Storj ${response.status} reading ${key}`);
+    }
+    return response.text();
+  };
+}
+
+/**
+ * A reader for event curve files on Storj.
+ *
+ * @param config - The read-only credential, endpoint and bucket.
+ * @param fetchImpl - The fetch to send signed requests with.
+ * @returns The reader.
+ */
+export function storjCurveReader(
+  config: StorjConfig,
+  fetchImpl: typeof fetch = fetch,
+): CurveReader {
+  const read = storjKeyReader(config, fetchImpl);
+  return (mac, startMs) => read(eventCurveKey(mac, startMs));
+}
+
+/**
  * A reader for snapshot documents on Storj.
  *
  * @param config - The read-only credential, endpoint and bucket.
@@ -58,23 +122,6 @@ export function storjReader(
   config: StorjConfig,
   fetchImpl: typeof fetch = fetch,
 ): SnapshotReader {
-  const client = new AwsClient({
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
-    service: "s3",
-    // Storj ignores the region; the Python client signs with this one too.
-    region: "us-east-1",
-  });
-  const base = config.endpointUrl.replace(/\/+$/, "");
-  return async (mac, kind) => {
-    const key = snapshotKey(mac, kind);
-    const url = `${base}/${config.bucket}/${encodeURIComponent(key).replace(/%2F/g, "/")}`;
-    const request = await client.sign(url, { method: "GET" });
-    const response = await fetchImpl(request);
-    if (response.status === 404) return null;
-    if (!response.ok) {
-      throw new StorjReadError(`Storj ${response.status} reading ${key}`);
-    }
-    return response.text();
-  };
+  const read = storjKeyReader(config, fetchImpl);
+  return (mac, kind) => read(snapshotKey(mac, kind));
 }

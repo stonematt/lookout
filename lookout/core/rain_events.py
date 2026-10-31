@@ -30,7 +30,7 @@ Usage:
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -662,9 +662,65 @@ class RainEventCatalog:
         return False
 
 
+def filter_events(
+    events: pd.DataFrame,
+    start: Optional[pd.Timestamp] = None,
+    end: Optional[pd.Timestamp] = None,
+    qualities: Optional[Sequence[str]] = None,
+    min_rainfall: float = 0.0,
+) -> pd.DataFrame:
+    """
+    The Rain Events tab's filters, applied to an Event Catalog.
+
+    :param events: The catalog (or any frame with its columns).
+    :param start: Keep events starting at or after this time, tz-aware.
+    :param end: Keep events starting before this time, tz-aware.
+    :param qualities: Keep only these `quality_rating` values; None keeps all.
+    :param min_rainfall: Keep events with at least this `total_rainfall`.
+    :return: The kept rows, in their original order.
+    """
+    if events.empty:
+        return events.copy()
+    mask = pd.Series(True, index=events.index)
+    starts = pd.to_datetime(events["start_time"], utc=True)
+    if start is not None:
+        mask &= starts >= start
+    if end is not None:
+        mask &= starts < end
+    if qualities is not None:
+        mask &= events["quality_rating"].isin(list(qualities))
+    mask &= events["total_rainfall"] >= min_rainfall
+    return events.loc[mask].copy()
+
+
+def summarize_events(events: pd.DataFrame) -> Dict[str, Optional[float]]:
+    """
+    The Rain Events tab's summary metrics over a set of events.
+
+    :param events: Catalog rows, usually from `filter_events`.
+    :return: `count`, `total_in`, `median_in` and `mean_duration_minutes`;
+        the median and mean are None when there are no events.
+    """
+    if events.empty:
+        return {
+            "count": 0,
+            "total_in": 0.0,
+            "median_in": None,
+            "mean_duration_minutes": None,
+        }
+    return {
+        "count": int(len(events)),
+        "total_in": float(events["total_rainfall"].sum()),
+        "median_in": float(events["total_rainfall"].median()),
+        "mean_duration_minutes": float(events["duration_minutes"].mean()),
+    }
+
+
 __all__ = [
     "RainEventCatalog",
     "detect_rain_events",
     "classify_event_quality",
+    "filter_events",
     "is_event_ongoing",
+    "summarize_events",
 ]

@@ -36,3 +36,25 @@ export function goldenText(scenario: Scenario, kind: DocumentKind): string {
 export function golden(scenario: Scenario, kind: DocumentKind): unknown {
   return JSON.parse(goldenText(scenario, kind));
 }
+
+/**
+ * The raw text of one golden event curve file, as Storj would serve it.
+ *
+ * @param scenario - "dry" or "raining".
+ * @param startMs - The event's start.
+ * @returns The file's text.
+ */
+export function goldenCurveText(scenario: Scenario, startMs: number): string {
+  return readFileSync(`${GOLDEN_DIR}events/${scenario}.${startMs}.json`, "utf8");
+}
+
+/**
+ * One golden event curve file, parsed.
+ *
+ * @param scenario - "dry" or "raining".
+ * @param startMs - The event's start.
+ * @returns The parsed JSON, untyped.
+ */
+export function goldenCurve(scenario: Scenario, startMs: number): unknown {
+  return JSON.parse(goldenCurveText(scenario, startMs));
+}

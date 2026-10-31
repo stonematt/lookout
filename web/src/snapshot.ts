@@ -122,6 +122,81 @@ export interface ConditionRibbon {
   known_hours: number;
 }
 
+/** Event Catalog quality: "invalid" means no archive data in its range. */
+export type EventQuality = "excellent" | "good" | "fair" | "poor" | "invalid";
+
+/**
+ * One Event Catalog event as the Rain Events tab lists it. Keyed by
+ * `start_ms`, which is stable across refresh runs (the catalog's id is not).
+ */
+export interface RainEventRow {
+  start_ms: number;
+  end_ms: number;
+  duration_minutes: number;
+  /** The live event total while `live`. */
+  total_in: number;
+  peak_rate_in_hr: number | null;
+  quality: EventQuality;
+  completeness_pct: number | null;
+  max_gap_minutes: number | null;
+  /** The water year it started in, named by the year it ends in. */
+  water_year: number;
+  /** 1 for the wettest listed event. */
+  rank: number;
+  ongoing: boolean;
+  live: boolean;
+  /** False: the archive has no readings for it; show totals only. */
+  has_curve: boolean;
+}
+
+/** Summary metrics over a set of events. */
+export interface EventStats {
+  count: number;
+  total_in: number;
+  median_in: number | null;
+  mean_duration_minutes: number | null;
+}
+
+/** One water year's events, summarised. */
+export interface EventSeason {
+  water_year: number;
+  stats: EventStats;
+}
+
+/**
+ * One event's readings, oldest first, as parallel arrays. A reading after a
+ * gap of more than 10 minutes carries `gap_minutes` and no rate.
+ */
+export interface EventCurve {
+  start_ms: number;
+  end_ms: number;
+  t_ms: number[];
+  event_in: (number | null)[];
+  rate_in_hr: (number | null)[];
+  gap_minutes: (number | null)[];
+}
+
+/** The Rain Events tab's section of the dashboard. */
+export interface RainEvents {
+  /** Newest first. */
+  events: RainEventRow[];
+  all_time: EventStats;
+  /** Newest first. */
+  seasons: EventSeason[];
+  /** The ongoing event's curve, live stitched; null with none ongoing. */
+  ongoing_curve: EventCurve | null;
+}
+
+/**
+ * `snapshot/<MAC>.events/<start_ms>.json`: one completed event's curve,
+ * written once by the refresh run and served by `/event`.
+ */
+export interface EventCurveDocument extends EventCurve {
+  schema_version: number;
+  kind: "event_curve";
+  station: Station;
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -143,6 +218,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   gaps: Gaps;
   /** The 48-hour condition ribbon, or null without an observation. */
   condition_ribbon: ConditionRibbon | null;
+
+  rain_events: RainEvents;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -245,6 +322,10 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
     );
   }
   checkRibbon(head.condition_ribbon);
+  const events = head.rain_events;
+  if (!isRecord(events) || !Array.isArray(events.events)) {
+    throw new SnapshotContractError("dashboard: rain_events.events missing");
+  }
   return head as unknown as DashboardSnapshot;
 }
 
@@ -258,6 +339,38 @@ function checkRibbon(ribbon: unknown): void {
   if (!Array.isArray(slots) || !parallel.every((a) => Array.isArray(a) && a.length === slots.length)) {
     throw new SnapshotContractError("dashboard: condition_ribbon slots not parallel");
   }
+}
+
+/**
+ * Check a parsed curve file against the contract and type it.
+ *
+ * @param doc - The parsed JSON.
+ * @returns The same object, typed.
+ * @throws SnapshotContractError when the version, kind or arrays are wrong.
+ */
+export function parseEventCurve(doc: unknown): EventCurveDocument {
+  if (!isRecord(doc) || doc.kind !== "event_curve") {
+    throw new SnapshotContractError('expected kind "event_curve"');
+  }
+  if (doc.schema_version !== SCHEMA_VERSION) {
+    throw new SnapshotContractError(
+      `event_curve: schema_version ${String(doc.schema_version)}, ` +
+        `this site reads ${SCHEMA_VERSION}`,
+    );
+  }
+  if (!isTime(doc.start_ms) || !isTime(doc.end_ms)) {
+    throw new SnapshotContractError("event_curve: start_ms or end_ms not an integer");
+  }
+  const t = doc.t_ms;
+  const columns = [doc.event_in, doc.rate_in_hr, doc.gap_minutes];
+  if (
+    !Array.isArray(t) ||
+    !t.every(isTime) ||
+    !columns.every((c) => Array.isArray(c) && c.length === t.length)
+  ) {
+    throw new SnapshotContractError("event_curve: arrays missing or uneven");
+  }
+  return doc as unknown as EventCurveDocument;
 }
 
 /**
