@@ -96,7 +96,14 @@ a {
   letter-spacing: 0.005em;
 }
 
-.masthead-reading {
+/* the reading, and under it, only when they lag, the figures' own age */
+.masthead-ages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.masthead-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -116,6 +123,7 @@ a {
 
 .masthead-age {
   color: var(--ink);
+  white-space: nowrap;
 }
 
 .masthead-age:not(:empty)::before {
@@ -125,12 +133,12 @@ a {
 }
 
 /* stale: past 15 minutes. The words say it; the hollow dot and hatch back it */
-.masthead-reading[data-stale="true"] .masthead-dot {
+.masthead-line[data-stale="true"] .masthead-dot {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--ink-3);
 }
 
-.masthead-reading[data-stale="true"] .masthead-age:not(:empty) {
+.masthead-line[data-stale="true"] .masthead-age:not(:empty) {
   font-weight: 650;
   padding: 0 var(--s-2);
   border: 1px solid var(--rule-strong);
@@ -138,8 +146,12 @@ a {
   background: var(--gap-hatch);
 }
 
-.masthead-reading[data-stale="true"] .masthead-age::before {
+.masthead-line[data-stale="true"] .masthead-age::before {
   content: none;
+}
+
+.masthead-line[hidden] {
+  display: none;
 }
 
 .masthead-retry {

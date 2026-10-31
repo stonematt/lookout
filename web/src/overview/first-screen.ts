@@ -1,12 +1,13 @@
 /**
  * The Overview's first screen (DESIGN.md, "The Phone First-Screen Rule"):
- * under the header's station name and live timestamp, the current
+ * under the header's station name and reading time, the current
  * temperature with its condition sentence beside it, the Right-now strip
  * (feels like, wind, rain today), then the 48-hour condition ribbon.
  *
  * Every value is the snapshot's live-stitched `current`, the one value every
- * view reads. The archive lag goes in the source line under the ribbon,
- * never in the sentence.
+ * view reads, and the source line dates it by the snapshot's own reading, so
+ * it never borrows the freshness of a newer `/current`. The archive lag goes
+ * in the source line under the ribbon, never in the sentence.
  */
 import "./first-screen.css";
 
@@ -63,23 +64,30 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
 }
 
 /**
- * The source line: where the numbers came from, and the archive lag.
+ * The source line: where the numbers came from and when they were read, and
+ * the archive lag.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The sentence.
  */
 export function firstScreenSource(snapshot: DashboardSnapshot): string {
-  const live = "Temperature, feels like, wind and rain today are the live reading.";
-  const ribbon = snapshot.condition_ribbon;
-  if (!ribbon) return live;
-  const slots = `The ribbon is the archive in ${ribbon.slot_minutes}-minute slots`;
   const { archive_newest_ms: archived, observed_at_ms: observed } = snapshot;
-  if (archived === null) return `${live} ${slots}; nothing is archived yet.`;
+  // Dated by the snapshot's own reading: a fresher `/current` in the header
+  // lends these figures nothing.
+  const strip = "Temperature, feels like, wind and rain today";
+  const reading =
+    observed === null
+      ? `${strip} have no reading yet.`
+      : `${strip} are the station's reading at ${formatStamp(observed)}.`;
+  const ribbon = snapshot.condition_ribbon;
+  if (!ribbon) return reading;
+  const slots = `The ribbon is the archive in ${ribbon.slot_minutes}-minute slots`;
+  if (archived === null) return `${reading} ${slots}; nothing is archived yet.`;
   // Name the lag only when the ribbon hatches its end for it.
   const lag = observed === null ? 0 : observed - archived;
-  if (lag <= 0 || ribbon.rain_in.at(-1) !== null) return `${live} ${slots}.`;
+  if (lag <= 0 || ribbon.rain_in.at(-1) !== null) return `${reading} ${slots}.`;
   return (
-    `${live} ${slots}, to ${formatStamp(archived)}; the ${formatDuration(lag)} ` +
+    `${reading} ${slots}, to ${formatStamp(archived)}; the ${formatDuration(lag)} ` +
     "after it is hatched, as only the live total is known there."
   );
 }

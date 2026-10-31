@@ -109,7 +109,7 @@ describe("the current temperature and its condition sentence", () => {
 });
 
 describe("the Right-now strip", () => {
-  it("lists feels like, wind and rain today from the live reading", () => {
+  it("lists feels like, wind and rain today from the snapshot's reading", () => {
     renderOverview(panel, raining);
 
     const items = all("[data-part=right-now] > div").map((div) => [
@@ -237,12 +237,28 @@ describe("the 48-hour condition ribbon", () => {
     renderOverview(panel, raining);
 
     expect(text(".ov-source")).toBe(
-      "Temperature, feels like, wind and rain today are the live reading. " +
+      "Temperature, feels like, wind and rain today are the station's reading at " +
+        "Jan 8, 4:25 pm. " +
         "The ribbon is the archive in 15-minute slots, to Jan 8, 3:55 pm; " +
         "the 30 m after it is hatched, as only the live total is known there.",
     );
     expect(panel.querySelector("[data-part=condition]")?.textContent).not.toMatch(
       /archive/,
+    );
+  });
+
+  it("dates the strip's reading itself, so it never borrows a fresher one", () => {
+    renderOverview(panel, raining);
+    expect(text(".ov-source")).toMatch(
+      /^Temperature, feels like, wind and rain today are the station's reading at Jan 8, 4:25 pm\./,
+    );
+    expect(text(".ov-source")).not.toMatch(/live reading/);
+  });
+
+  it("says when the strip has no reading at all", () => {
+    renderOverview(panel, { ...dry, observed_at_ms: null, condition_ribbon: null });
+    expect(text(".ov-source")).toBe(
+      "Temperature, feels like, wind and rain today have no reading yet.",
     );
   });
 
