@@ -3,7 +3,7 @@ Functional Energy Catalog Management
 
 Ultra-simplified pure functions for managing energy period catalogs.
 Reuses existing storage patterns from storj.py - no reinvention needed.
-MAC address automatically determined from session state context.
+The station is the pinned one (`lookout.config.get_station_mac`).
 """
 
 import pandas as pd

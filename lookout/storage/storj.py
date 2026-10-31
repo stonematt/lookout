@@ -361,18 +361,27 @@ def backup_data(
 
 
 def backup_and_save_catalog(
-    df: pd.DataFrame, catalog_type: str, bucket: str = None
+    df: pd.DataFrame,
+    catalog_type: str,
+    bucket: Optional[str] = None,
+    mac_address: Optional[str] = None,
 ) -> None:
-    """Back up existing catalog and save new version using existing backup_data pattern."""
-    from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE
+    """
+    Back up the stored catalog, then save the new version over it.
+
+    :param df: The catalog to save.
+    :param catalog_type: The catalog's name, e.g. "energy".
+    :param bucket: The bucket; `DEFAULT_BUCKET` when None.
+    :param mac_address: The station; the pinned station
+        (`lookout.config.get_station_mac`) when None.
+    :raises RuntimeError: If the backup fails; nothing is saved then.
+    """
+    from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 
     if bucket is None:
         bucket = DEFAULT_BUCKET
-
-    # MAC from session state (always available if site works)
-    import streamlit as st
-
-    mac_address = st.session_state["device"]["macAddress"]
+    if mac_address is None:
+        mac_address = get_station_mac()
 
     # Create prefix and path for catalog files
     catalog_prefix = f"{mac_address}.{catalog_type}_catalog"
