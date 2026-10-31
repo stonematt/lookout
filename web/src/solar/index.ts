@@ -18,6 +18,7 @@ import { FALLBACK_WIDTH, drawSized } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { WINDOW_NAMES, listText } from "../rain/text.js";
+import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
 import {
   drawDailyBars,
@@ -365,6 +366,12 @@ export function renderSolar(
     history.replaceState(history.state, "", `${location.pathname}${query}${location.hash}`),
 ): void {
   panel.replaceChildren();
+  const stale = staleCatalogNote(snapshot, "energy");
+  if (stale) {
+    const note = make("p", "solar-source solar-stale", stale);
+    note.setAttribute("role", "status");
+    panel.append(note);
+  }
   const tab = snapshot.solar_tab;
   if (!tab || !tab.days.energy_kwh_m2.length) {
     panel.append(make("p", "standfirst", "The solar record is not in this snapshot yet."));

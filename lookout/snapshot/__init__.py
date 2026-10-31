@@ -24,6 +24,7 @@ from lookout.snapshot.model import (
     GapStatus,
     SnapshotConditions,
     Snapshot,
+    StaleCatalog,
     Station,
 )
 
@@ -35,6 +36,7 @@ __all__ = [
     "GapStatus",
     "SnapshotConditions",
     "Snapshot",
+    "StaleCatalog",
     "Station",
     "build_snapshot",
     "stitch_live",

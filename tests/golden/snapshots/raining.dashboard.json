@@ -13564,5 +13564,6 @@
       "energy_kwh_m2": 3.954,
       "previous_kwh_m2": 4.074
     }
-  }
+  },
+  "stale_catalogs": []
 }

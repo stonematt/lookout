@@ -17,6 +17,7 @@ import "./events.css";
 
 import { formatStamp, inches, inchesPerHour, waterYearSpan } from "../format.js";
 import { ReadError, fetchEventCurve } from "../load.js";
+import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
 import {
@@ -99,6 +100,7 @@ export function mountEvents(
   <header class="ev-head">
     <h2 class="ev-title"></h2>
     <p class="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>
+    <p class="ev-note ev-stale" role="status" hidden></p>
   </header>
   <div class="ev-controls">
     <div class="ev-seg" role="group" aria-label="Water year"></div>
@@ -115,6 +117,11 @@ export function mountEvents(
 </div>`;
   const $ = <T extends HTMLElement>(selector: string) => panel.querySelector<T>(selector)!;
   const seasons = $(".ev-seg[aria-label='Water year']");
+  const stale = staleCatalogNote(snapshot, "events");
+  if (stale) {
+    $(".ev-stale").textContent = stale;
+    $(".ev-stale").hidden = false;
+  }
 
   if (!all.length) {
     $(".ev-title").textContent = "No rain events in the catalog yet";

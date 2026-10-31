@@ -558,6 +558,20 @@ export interface SolarTab {
   last_24h: SolarTrace | null;
 }
 
+/** A catalog the refresh run could not update (#118). */
+export type CatalogName = "events" | "energy";
+
+/**
+ * A catalog the run built the snapshot from as last stored, because its
+ * update failed: the Event Catalog ("events", the Rain Events tab) or the
+ * energy catalog ("energy", the Solar tab).
+ */
+export interface StaleCatalog {
+  catalog: CatalogName;
+  /** The newest time the stored catalog covers; null when none is stored. */
+  as_of_ms: number | null;
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -591,6 +605,11 @@ export interface DashboardSnapshot extends SnapshotHead {
   almanac: Almanac;
   /** The Solar tab's data; null without an energy catalog. */
   solar_tab: SolarTab | null;
+  /**
+   * The catalogs this run could not update; empty on a normal run. Absent
+   * from documents published before #118, which the parse reads as empty.
+   */
+  stale_catalogs: StaleCatalog[];
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -706,7 +725,39 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
   checkSolarTab(head.solar_tab);
-  return head as unknown as DashboardSnapshot;
+  const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
+  return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
+}
+
+function checkStaleCatalogs(list: unknown): StaleCatalog[] {
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) {
+    throw new SnapshotContractError("dashboard: stale_catalogs not a list");
+  }
+  for (const item of list) {
+    if (
+      !isRecord(item) ||
+      (item.catalog !== "events" && item.catalog !== "energy") ||
+      (item.as_of_ms !== null && !isTime(item.as_of_ms))
+    ) {
+      throw new SnapshotContractError("dashboard: stale_catalogs malformed");
+    }
+  }
+  return list as StaleCatalog[];
+}
+
+/**
+ * The snapshot's stale mark for one catalog.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @param catalog - Which catalog.
+ * @returns Its mark, or null when the run updated it.
+ */
+export function staleCatalog(
+  snapshot: DashboardSnapshot,
+  catalog: CatalogName,
+): StaleCatalog | null {
+  return snapshot.stale_catalogs.find((s) => s.catalog === catalog) ?? null;
 }
 
 function checkSolarTab(tab: unknown): void {
