@@ -1,0 +1,204 @@
+"""
+refresh.py: One refresh run for the pinned station, as the VPS cron runs it.
+
+Runs catchup, loads the catalogs, builds the dashboard snapshot and publishes
+`snapshot/<MAC>.dashboard.json` and `snapshot/<MAC>.context.json` on Storj.
+It reads secrets only through `lookout.secrets_loader` (env vars, then
+`~/.config/lookout/secrets.toml`) and never imports Streamlit.
+
+Usage:
+    PYTHONPATH=. python lookout/cli/refresh.py [--bucket lookout] [--pages 20]
+    python -m lookout.cli.refresh [--bucket lookout] [--pages 20]
+
+The steps, each its own function, run in this order by `run`:
+
+1. `load_station()`: the pinned station's `/devices` entry; its `lastData` is
+   the live reading.
+2. `update_archive(device, bucket, pages)`: catchup; the archive as saved.
+3. `load_catalogs(station, bucket)`: the Event Catalog (and, later, the
+   energy catalog) as stored.
+4. `build(device, archive, catalogs, now)`: `build_snapshot`.
+5. `publish(snapshot, bucket)`: both documents under `snapshot/`.
+
+`main` is the shell entry point: it runs `run` and turns the outcome into an
+exit status, 0 or 1.
+"""
+
+import argparse
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Callable, Dict, List, Optional
+
+import pandas as pd
+
+from lookout.api.ambient_client import get_station_device
+from lookout.cli import catchup
+from lookout.config import DEFAULT_BUCKET
+from lookout.core.rain_events import RainEventCatalog
+from lookout.snapshot import Snapshot, Station, build_snapshot
+from lookout.snapshot.publish import publish_snapshot
+from lookout.utils.log_util import app_logger
+
+logger = app_logger(__name__, log_file="refresh.log")
+
+DEFAULT_PAGES = 20
+
+
+@dataclass
+class Catalogs:
+    """
+    The catalogs one run builds the snapshot from.
+
+    :param events: The Event Catalog; None when none is stored.
+    :param energy: The energy catalog; None until a step loads it.
+    """
+
+    events: Optional[pd.DataFrame] = None
+    energy: Optional[pd.DataFrame] = None
+
+
+def utc_now() -> datetime:
+    """
+    The wall clock, UTC; the default clock for `run`.
+
+    :return: Now, timezone-aware.
+    """
+    return datetime.now(timezone.utc)
+
+
+# ---------- the steps ----------
+
+
+def load_station() -> Dict:
+    """
+    Step 1: the pinned station, with its live reading.
+
+    :return: Its `/devices` entry.
+    :raises StationNotFoundError: If `STATION_MAC` is not on the account.
+    """
+    device = get_station_device()
+    station = Station.from_device(device)
+    logger.info(f"Refreshing {station.name or 'unnamed station'} ({station.mac})")
+    return device
+
+
+def update_archive(device: Dict, bucket: str, pages: int) -> pd.DataFrame:
+    """
+    Step 2: catchup, unchanged from the catchup CLI.
+
+    :param device: The station's `/devices` entry.
+    :param bucket: The bucket.
+    :param pages: Maximum Ambient pages to fetch.
+    :return: The archive as saved.
+    """
+    return catchup.update_archive(device, bucket, pages)
+
+
+def load_catalogs(station: Station, bucket: str) -> Catalogs:
+    """
+    Step 3: the catalogs as stored.
+
+    :param station: The station.
+    :param bucket: The bucket.
+    :return: The catalogs; the energy catalog is not loaded yet.
+    """
+    events = RainEventCatalog(station.mac, bucket=bucket).load_catalog()
+    return Catalogs(events=None if events.empty else events)
+
+
+def build(
+    device: Dict, archive: pd.DataFrame, catalogs: Catalogs, now: datetime
+) -> Snapshot:
+    """
+    Step 4: the snapshot.
+
+    :param device: The station's `/devices` entry; `lastData` is live.
+    :param archive: The archive after catchup.
+    :param catalogs: The catalogs.
+    :param now: The build time, timezone-aware.
+    :return: The snapshot.
+    """
+    return build_snapshot(
+        archive=archive,
+        live=device.get("lastData"),
+        event_catalog=catalogs.events,
+        energy_catalog=catalogs.energy,
+        station=Station.from_device(device),
+        now=now,
+    )
+
+
+def publish(snapshot: Snapshot, bucket: str) -> List[str]:
+    """
+    Step 5: write both documents under `snapshot/`.
+
+    :param snapshot: The snapshot.
+    :param bucket: The bucket.
+    :return: The keys written.
+    """
+    return publish_snapshot(snapshot, bucket)
+
+
+# ---------- the run ----------
+
+
+def run(
+    bucket: str = DEFAULT_BUCKET,
+    pages: int = DEFAULT_PAGES,
+    clock: Callable[[], datetime] = utc_now,
+) -> Snapshot:
+    """
+    One refresh run: every step, in order. Any failure raises.
+
+    :param bucket: The bucket.
+    :param pages: Maximum Ambient pages catchup fetches.
+    :param clock: Returns the build time; injected so tests can fix it.
+    :return: The published snapshot.
+    """
+    device = load_station()
+    archive = update_archive(device, bucket, pages)
+    catalogs = load_catalogs(Station.from_device(device), bucket)
+    snapshot = build(device, archive, catalogs, clock())
+    publish(snapshot, bucket)
+    return snapshot
+
+
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """
+    Read the command line.
+
+    :param argv: Arguments, without the program name; `sys.argv` when None.
+    :return: The parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Catch up the archive and publish the dashboard snapshot."
+    )
+    parser.add_argument("--bucket", default=DEFAULT_BUCKET, help="S3 bucket name")
+    parser.add_argument(
+        "--pages",
+        type=int,
+        default=DEFAULT_PAGES,
+        help="Max number of Ambient pages catchup fetches",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """
+    The shell entry point.
+
+    :param argv: Arguments, without the program name; `sys.argv` when None.
+    :return: The exit status: 0 when the snapshot was published, else 1.
+    """
+    args = parse_args(argv)
+    try:
+        run(bucket=args.bucket, pages=args.pages)
+    except Exception as e:
+        logger.exception(f"Refresh failed: {e}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
