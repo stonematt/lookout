@@ -16,9 +16,6 @@ import { conditionSentence } from "./condition.js";
 import type { OverviewSection } from "./index.js";
 import { renderRibbon } from "./ribbon.js";
 
-/** Below this lag the archive is treated as caught up. */
-const LAG_WORTH_NAMING_MS = 10 * 60_000;
-
 function fixed(value: number | null, digits: number, unit: string): string {
   return value === null ? "n/a" : `${value.toFixed(digits)}${unit}`;
 }
@@ -77,11 +74,12 @@ export function firstScreenSource(snapshot: DashboardSnapshot): string {
   const slots = `The ribbon is the archive in ${ribbon.slot_minutes}-minute slots`;
   const { archive_newest_ms: archived, observed_at_ms: observed } = snapshot;
   if (archived === null) return `${live} ${slots}; nothing is archived yet.`;
+  // Name the lag only when the ribbon hatches its end for it.
   const lag = observed === null ? 0 : observed - archived;
-  if (lag < LAG_WORTH_NAMING_MS) return `${live} ${slots}.`;
+  if (lag <= 0 || ribbon.rain_in.at(-1) !== null) return `${live} ${slots}.`;
   return (
-    `${live} ${slots}, to ${formatStamp(archived)}; ` +
-    `the ${formatDuration(lag)} after it is hatched until it is archived.`
+    `${live} ${slots}, to ${formatStamp(archived)}; the ${formatDuration(lag)} ` +
+    "after it is hatched, as only the live total is known there."
   );
 }
 

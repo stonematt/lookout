@@ -64,7 +64,7 @@ describe("the current temperature and its condition sentence", () => {
     renderOverview(panel, raining);
 
     expect(text("[data-part=condition]")).toBe(
-      "Mild and lightly breezy. Raining at 0.12 in/hr, 0.30 in so far today.",
+      "Mild and lightly breezy; raining at 0.12 in/hr, 0.30 in so far today.",
     );
   });
 
@@ -72,7 +72,7 @@ describe("the current temperature and its condition sentence", () => {
     renderOverview(panel, dry);
 
     expect(text("[data-part=condition]")).toBe(
-      "Cold, damp and still. No rain today; the last fell Nov 17, 9:03 am.",
+      "Cold, damp and still; no rain today, the last on Nov 17, 9:03 am.",
     );
   });
 
@@ -88,7 +88,7 @@ describe("the current temperature and its condition sentence", () => {
     });
 
     expect(sentence).toBe(
-      "Hot, dry and windy, warmer than this time yesterday. " +
+      "Hot, dry and windy, warmer than this time yesterday; " +
         "0.04 in of rain today, the last at Nov 18, 10:25 pm.",
     );
   });
@@ -203,7 +203,7 @@ describe("the 48-hour condition ribbon", () => {
     expect(text(".ov-source")).toBe(
       "Temperature, feels like, wind and rain today are the live reading. " +
         "The ribbon is the archive in 15-minute slots, to Jan 8, 3:55 pm; " +
-        "the 30 m after it is hatched until it is archived.",
+        "the 30 m after it is hatched, as only the live total is known there.",
     );
     expect(panel.querySelector("[data-part=condition]")?.textContent).not.toMatch(
       /archive/,

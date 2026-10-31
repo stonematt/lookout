@@ -1,6 +1,6 @@
 /**
  * The condition sentence beside the current temperature: what it feels like
- * outside, then what the rain is doing, in plain words.
+ * outside, then what the rain is doing, in one plain sentence.
  *
  * Every word comes from the snapshot's `current`, the live-stitched reading,
  * so it agrees with the temperature and the Right-now strip beside it. Rules,
@@ -67,31 +67,31 @@ function feel(c: SnapshotConditions): string | null {
     c.temperature_f !== null && (c.temp_trend === "rising" || c.temp_trend === "falling")
       ? `, ${TREND_WORDS[c.temp_trend]}`
       : "";
-  return `${capitalised(listed(words).toLowerCase())}${trend}.`;
+  return `${listed(words).toLowerCase()}${trend}`;
 }
 
 function rain(c: SnapshotConditions): string | null {
   const today = c.rain_today_in;
   if (c.rain_rate_in_hr !== null && c.rain_rate_in_hr > 0) {
     const sofar = today === null ? "" : `, ${today.toFixed(2)} in so far today`;
-    return `Raining at ${c.rain_rate_in_hr.toFixed(2)} in/hr${sofar}.`;
+    return `raining at ${c.rain_rate_in_hr.toFixed(2)} in/hr${sofar}`;
   }
   if (today !== null && today > 0) {
     const last = c.last_rain_ms === null ? "" : `, the last at ${formatStamp(c.last_rain_ms)}`;
-    return `${today.toFixed(2)} in of rain today${last}.`;
+    return `${today.toFixed(2)} in of rain today${last}`;
   }
   if (today === null) return null;
-  const last = c.last_rain_ms === null ? "" : `; the last fell ${formatStamp(c.last_rain_ms)}`;
-  return `No rain today${last}.`;
+  const last = c.last_rain_ms === null ? "" : `, the last on ${formatStamp(c.last_rain_ms)}`;
+  return `no rain today${last}`;
 }
 
 /**
  * The condition sentence for the current reading.
  *
  * @param current - The snapshot's current conditions.
- * @returns One or two sentences; "No conditions reported." with nothing known.
+ * @returns One sentence; "No conditions reported." with nothing known.
  */
 export function conditionSentence(current: SnapshotConditions): string {
   const parts = [feel(current), rain(current)].filter((p): p is string => p !== null);
-  return parts.length ? parts.join(" ") : "No conditions reported.";
+  return parts.length ? `${capitalised(parts.join("; "))}.` : "No conditions reported.";
 }

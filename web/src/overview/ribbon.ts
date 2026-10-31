@@ -169,6 +169,9 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const slotW = VIEW_W / n;
   const x = (i: number) => +(i * slotW).toFixed(2);
   const pct = (i: number) => (i / n) * 100;
+  // A run of slots as one full-height rect; 0.4 overlaps the next, no seam.
+  const runRect = (run: Run<unknown>) =>
+    svg("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
   const now = snapshot.current.temperature_f ?? ribbon.temperature_f.at(-1) ?? null;
 
   const block = el("div", "ribbon");
@@ -188,13 +191,13 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const fills = svg("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
   fills.setAttribute("aria-hidden", "true");
   for (const run of runs(ribbon.daylight.map((d) => (d ? "day" : "night")))) {
-    const rect = svg("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
+    const rect = runRect(run);
     rect.dataset.light = run.value;
     fills.append(rect);
   }
   for (const run of runs(ribbon.rain_in.map((r) => rainStep(r, ribbon.slot_minutes)))) {
     if (run.value === null) continue;
-    const rect = svg("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
+    const rect = runRect(run);
     rect.dataset.rain = String(run.value);
     fills.append(rect);
   }
