@@ -64,6 +64,13 @@ describe("the almanac's words", () => {
     expect(gridHeadline(almanac)).toBe("September 2025 had no rain, against 0.50 in (2024)");
   });
 
+  it("says an earlier dry month had no rain", () => {
+    const almanac = copy(october);
+    almanac.years[2]!.months[11]!.rain_in = 0;
+
+    expect(gridHeadline(almanac)).toBe("September 2025 had 0.70 in of rain, against no rain (2024)");
+  });
+
   it("names the last 30 days against the same days a year before", () => {
     expect(rollingHeadline(october)).toBe(
       "1.00 in of rain in the last 30 days, against 0.75 in (2024) over the same days",
@@ -218,6 +225,17 @@ describe("the almanac grid", () => {
     expect(cell("2024-12").getAttribute("aria-label")).toBe(
       "December 2024: 1.00 in of rain. Dec 1 to Dec 31, 2024: every day is in the record.",
     );
+  });
+});
+
+describe("the almanac grid with no rain to scale", () => {
+  it("drops the ramp's numbers and starts on the current month", () => {
+    const almanac = copy(october);
+    almanac.years = [almanac.years[0]!];
+    almanacGrid.render(host, withAlmanac(almanac));
+
+    expect(host.querySelector(".alm-key-ramp")).toBeNull();
+    expect(cell("2025-10").hasAttribute("data-selected")).toBe(true);
   });
 });
 

@@ -77,16 +77,18 @@ function rampKey(max: number): HTMLElement {
   const key = make("div", "alm-key");
   key.dataset.part = "key";
   key.setAttribute("aria-hidden", "true");
-  const ramp = make("span", "alm-key-ramp");
-  rampBounds(max).forEach((bound, step) => {
-    const item = make("span", "alm-key-step");
-    const swatch = make("span", "alm-key-swatch");
-    swatch.dataset.step = String(step);
-    item.append(swatch, make("span", "alm-key-text", step === 0 ? "0" : cellText(bound)));
-    ramp.append(item);
-  });
-  ramp.append(make("span", "alm-key-unit", "in"));
-  key.append(ramp);
+  if (max > 0) {
+    const ramp = make("span", "alm-key-ramp");
+    rampBounds(max).forEach((bound, step) => {
+      const item = make("span", "alm-key-step");
+      const swatch = make("span", "alm-key-swatch");
+      swatch.dataset.step = String(step);
+      item.append(swatch, make("span", "alm-key-text", step === 0 ? "0" : cellText(bound)));
+      ramp.append(item);
+    });
+    ramp.append(make("span", "alm-key-unit", "in"));
+    key.append(ramp);
+  }
   for (const [kind, text] of [
     ["invalid", "not compared"],
     ["before", "before the archive"],
@@ -196,7 +198,8 @@ function startingMark(rows: HTMLButtonElement[][]): HTMLButtonElement | undefine
     const found = [...row].reverse().find((m) => m.dataset.kind === "valid" || m.dataset.kind === "prorated");
     if (found) return found;
   }
-  return rows.flat()[0];
+  const marks = rows.flat();
+  return marks.find((m) => m.dataset.kind === "current") ?? marks[0];
 }
 
 /**

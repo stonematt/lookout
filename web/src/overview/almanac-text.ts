@@ -195,7 +195,7 @@ export function gridHeadline(almanac: Almanac): string {
         .map((other) => other.months[column])
         .filter((m): m is AlmanacMonth => m != null && m.rain_in !== null)
         .slice(0, NAMED_YEARS)
-        .map((m) => `${shown(m.status, m.rain_in!)} (${m.status.key.slice(0, 4)})`);
+        .map((m) => `${m.rain_in === 0 ? "no rain" : shown(m.status, m.rain_in!)} (${m.status.key.slice(0, 4)})`);
       return earlier.length ? `${lead}, against ${listText(earlier)}` : lead;
     }
   }

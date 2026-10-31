@@ -125,7 +125,12 @@ button.alm-cell {
   cursor: pointer;
 }
 
-.alm-cell[data-step="0"] { background: var(--rain-0); color: var(--alm-on-0); }
+.alm-cell[data-step="0"] {
+  background: var(--rain-0);
+  color: var(--alm-on-0);
+  /* a dry month must not read as a hole where rain-0 sits near the ground */
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+}
 .alm-cell[data-step="1"] { background: var(--rain-1); color: var(--alm-on-1); }
 .alm-cell[data-step="2"] { background: var(--rain-2); color: var(--alm-on-2); }
 .alm-cell[data-step="3"] { background: var(--rain-3); color: var(--alm-on-3); }
@@ -163,7 +168,7 @@ button.alm-cell {
   font-size: 0.75rem;
 }
 
-.alm-cell[data-selected] {
+.alm-grid .alm-cell[data-selected] {
   box-shadow: 0 0 0 2px var(--ink);
 }
 
