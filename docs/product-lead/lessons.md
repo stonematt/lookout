@@ -18,3 +18,9 @@ Each lesson carries a scope. A `[project]` lesson folds into this repo's product
 ## 2026-10-30 — first status run and spec #66 prep
 
 - [skill] **The brief existed only on the unmerged setup branch, so step 1's "no brief → run setup" nearly ran setup again.** PR #88 was still open; only a `git log --all -- docs/product-lead` check found it. Skill line to change: SKILL.md step 1.1 — before running setup, look for an open `docs(product-lead)` PR or branch, read the brief and lessons from it, and name the open PR as a waits-on-Matt item. rolled up https://github.com/stonematt/stonematt-skills/issues/137#issuecomment-6539983937
+
+## 2026-10-31 — #95 repair follow-ups and #132/#133 triage
+
+- [project] **A bug fix and the data cleanup it enables are separate tickets.** Matt wants the agent ticket to fix code only, and the cleanup filed as its own `ready-for-human` ticket, blocked by the fix, so the product lead remembers to queue it as an operations session (#132 → #143). Fold into: brief, "Where tickets live" — "When a fix leaves bad data in Storj, file the cleanup as a `ready-for-human` ticket blocked by the fix; queue it as its own session once the blockers merge." folded d16014f
+- [skill] **Issues go through full triage before reaching a swarm.** #132 and #133 went to a swarm untriaged and Matt corrected it: verify, check redundancy, recommend, wait for go. Skill line to change: SKILL.md step 4, "When he says go" — a ticket enters a build or swarm only with a posted triage brief and `ready-for-agent`.
+- [skill] **Multi-step operations threads get their own session from the start.** The 2026-10-30 session hit 250k tokens by running the #95 repair, three triage rounds and two swarms' traffic inline. Skill line to change: SKILL.md intro and step 4 — repairs, deploys and investigations with follow-ups go to a fresh session with a launch line; this session keeps decisions only.
