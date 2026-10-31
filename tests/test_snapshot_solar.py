@@ -308,3 +308,20 @@ class TestTheLast24Hours:
 class TestNoCatalog:
     def test_there_is_no_solar_tab_without_an_energy_catalog(self, june):
         assert build(june, None).solar_tab is None
+
+
+class TestDaylightSaving:
+    def test_the_repeated_hour_is_summed_into_its_clock_slots(self):
+        # Nov 1, 2026: clocks fall back at 2 am, so 1:00-1:59 am runs twice.
+        archive = build_archive("2026-10-25T07:00:00Z", "2026-11-02T20:05:00Z")
+        energy = catalog(
+            "2026-10-25", ms("2026-11-02T20:00:00Z"), sunny=("01:00", "02:00")
+        )
+        snapshot = build(archive, energy, now="2026-11-02T20:07:00Z")
+        recent = snapshot.solar_tab.recent
+        index = (pd.Timestamp("2026-11-01") - pd.Timestamp(recent.first_day)).days
+        day = recent.energy_wh_m2[index]
+        assert day[4] == pytest.approx(20.0)  # 1:00 am, both passes
+        assert day[7] == pytest.approx(20.0)  # 1:45 am, both passes
+        assert day_value(snapshot, "2026-11-01") == pytest.approx(0.08)
+        assert day_value(snapshot, "2026-10-31") == pytest.approx(0.04)

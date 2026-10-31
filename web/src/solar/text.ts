@@ -7,6 +7,7 @@
  * computed once in Python and gap-judged there. The browser only picks a
  * day, finds the brightest one, and words them.
  */
+import { STATION_TIME_ZONE } from "../format.js";
 import { gapValue } from "../gaps.js";
 import { addDays, dayText, windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, GapReason, SolarTab, SolarTrace, SolarWindow } from "../snapshot.js";
@@ -145,7 +146,7 @@ export function slotText(slot: number): string {
 /** A local time of an epoch ms, e.g. "1:05 pm". */
 export function clockText(ms: number): string {
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
+    timeZone: STATION_TIME_ZONE,
     hour: "numeric",
     minute: "2-digit",
   })

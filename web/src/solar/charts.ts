@@ -12,8 +12,8 @@
  * or Enter on the focused chart, picks the day under the readout.
  */
 import { gapLabel, gapSentence } from "../gaps.js";
-import { dayStatus, niceTicks } from "../rain/charts.js";
-import { el, runs, scrub } from "../rain/charts.js";
+import { STATION_TIME_ZONE } from "../format.js";
+import { dayStatus, el, niceTicks, runs, scrub } from "../rain/charts.js";
 import { addDays, dayText, hourText } from "../rain/text.js";
 import type { GapReason, GapStatus, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
@@ -136,19 +136,21 @@ function pickable(target: HTMLElement, current: () => string | null, pick: Pick)
 
 /** Local hour and minute of an epoch ms at the station. */
 const CLOCK = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "America/Los_Angeles",
+  timeZone: STATION_TIME_ZONE,
   hour: "2-digit",
   minute: "2-digit",
   hourCycle: "h23",
 });
 
 /** The station-local day of an epoch ms, "YYYY-MM-DD". */
-const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: STATION_TIME_ZONE });
 
+/** The station-local day of an epoch ms, as "YYYY-MM-DD". */
 function localDay(ms: number): string {
   return DAY.format(new Date(ms));
 }
 
+/** The station-local [hour, minute] of an epoch ms. */
 function localClock(ms: number): [number, number] {
   const [h, m] = CLOCK.format(new Date(ms)).split(":").map(Number);
   return [h ?? 0, m ?? 0];

@@ -900,7 +900,7 @@ class SolarTrace:
     The 24-hour view: the solar trace up to the newest observation, over
     the usual range for each time of day.
 
-    Slot `i` is the five minutes from `start_ms` plus `i` steps of `step_minutes`; the last is
+    Slot `i` starts `i * step_minutes` after `start_ms`; the last slot is
     the newest observation's, so it holds the live reading. A slot with no
     reading (a gap, or the span only the live reading covers) is None. The
     usual tuples are parallel to `solar_wm2`.
