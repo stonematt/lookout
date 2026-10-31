@@ -192,6 +192,40 @@ class Gaps:
 
 
 @dataclass(frozen=True)
+class ConditionRibbon:
+    """
+    The last 48 hours in 15-minute slots, for the Overview's first screen.
+
+    Slot `i` starts at `start_ms + i * slot_minutes` minutes; the last slot
+    holds the newest observation. The per-slot tuples are parallel; None
+    means the slot has no reading for that value. A slot without a rain
+    value is not known from the archive (a gap, or the span only the live
+    reading covers) and is hatched. See `lookout.snapshot.ribbon`.
+
+    :param start_ms: When the first slot starts.
+    :param slot_minutes: Each slot's length (15).
+    :param temperature_f: The newest outdoor temperature in each slot.
+    :param rain_in: The rain that fell in each slot, from the daily counter.
+    :param daylight: Whether the sun was up (any solar radiation) in each slot.
+    :param temperature_low_f: The lowest reading over the 48 hours, live
+        included.
+    :param temperature_high_f: The highest reading over the 48 hours.
+    :param rain_hours: Hours of slots with rain.
+    :param known_hours: Hours of slots with a rain value.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    temperature_f: Tuple[Optional[float], ...]
+    rain_in: Tuple[Optional[float], ...]
+    daylight: Tuple[Optional[bool], ...]
+    temperature_low_f: Optional[float]
+    temperature_high_f: Optional[float]
+    rain_hours: float
+    known_hours: float
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -205,6 +239,8 @@ class Snapshot:
     :param current: Current conditions.
     :param active_rain_event: The active rain event, or None.
     :param gaps: The gap status of each month and standard window.
+    :param condition_ribbon: The 48-hour condition ribbon, or None without
+        an observation.
     """
 
     station: Station
@@ -214,6 +250,7 @@ class Snapshot:
     current: SnapshotConditions
     active_rain_event: Optional[ActiveRainEvent]
     gaps: Gaps
+    condition_ribbon: Optional[ConditionRibbon]
 
     def dashboard(self) -> Dict[str, Any]:
         """

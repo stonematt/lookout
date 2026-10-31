@@ -10,6 +10,7 @@ import "./styles/base.css";
 
 import { mountHeader } from "./header.js";
 import { fetchCurrent, fetchDashboard } from "./load.js";
+import { renderOverview } from "./overview/index.js";
 import { mountTabs } from "./tabs.js";
 import { applyThemeOverride } from "./theme.js";
 
@@ -19,7 +20,7 @@ const CURRENT_EVERY_MS = 5 * 60_000;
 applyThemeOverride(location.search);
 
 const header = mountHeader(document.getElementById("masthead")!);
-mountTabs(document.getElementById("sections")!, (_id, panel) => {
+const tabs = mountTabs(document.getElementById("sections")!, (_id, panel) => {
   if (!panel.childElementCount) {
     panel.innerHTML =
       '<p class="standfirst">This section is still being built.</p>';
@@ -45,6 +46,7 @@ async function boot(): Promise<void> {
     const snapshot = await fetchDashboard(location.search);
     header.show({ station: snapshot.station, observedAtMs: snapshot.observed_at_ms });
     title(snapshot.station.name);
+    renderOverview(tabs.panel("overview"), snapshot);
   } catch (error) {
     console.error("Lookout: /dashboard could not be read", error);
     header.fail(() => void boot());
