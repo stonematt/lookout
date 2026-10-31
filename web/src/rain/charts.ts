@@ -11,203 +11,33 @@
  * says what the mark under it means, so nothing relies on a title (phones
  * do not show one).
  */
-import { gapLabel, gapSentence } from "../gaps.js";
+import { WATER_MONTHS, addDays, dayText, hourText, inches } from "../format.js";
+import {
+  LABEL_CHAR_PX,
+  NARROW,
+  type Readout,
+  canvas,
+  chartLabel,
+  hatchMissingDays,
+  monthTicks,
+  runs,
+  scrub,
+  yAxis,
+  zeroTicks,
+} from "../charts/svg.js";
+import { svgEl } from "../dom.js";
+import { dayStatus, gapSentence } from "../gaps.js";
 import { rainStep } from "../overview/ribbon.js";
-import type { GapReason, GapStatus, RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";
-import { addDays, curveValue, dayText, hourText, inches } from "./text.js";
-
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-/** Width used before the chart's host has been laid out (a hidden tab). */
-export const FALLBACK_WIDTH = 640;
-
-/** About how wide one character of a 12.5px chart label is. */
-const LABEL_CHAR_PX = 6.8;
-
-/** Below this chart width, month ticks thin out and labels shorten. */
-const NARROW = 520;
+import type { RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";
+import { curveValue } from "./text.js";
 
 /** Month starts as places in a water year, Oct first. */
 const MONTH_PLACES = [0, 31, 61, 92, 123, 151, 182, 212, 243, 273, 304, 335];
-const WATER_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"];
 
 /** Oct 1 of a non-leap water year: a place's month and day count from it. */
 const REFERENCE_OCT_1 = "2000-10-01";
 
-/** What a chart writes to its readout for one position. */
-export type Readout = (text: string) => void;
-
-let patternCount = 0;
-
-/** An SVG element with attributes. */
-export function el<K extends keyof SVGElementTagNameMap>(
-  name: K,
-  attrs: Record<string, string | number> = {},
-  text?: string,
-): SVGElementTagNameMap[K] {
-  const node = document.createElementNS(SVG_NS, name);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-/** A chart's SVG, with its own hatch pattern; returns the svg and the fill. */
-function canvas(width: number, height: number, label: string): { svg: SVGSVGElement; hatch: string } {
-  const svg = el("svg", {
-    class: "rain-svg",
-    width,
-    height,
-    viewBox: `0 0 ${width} ${height}`,
-    role: "img",
-    "aria-label": label,
-  });
-  const id = `rain-hatch-${++patternCount}`;
-  const pattern = el("pattern", {
-    id,
-    width: 8,
-    height: 8,
-    patternUnits: "userSpaceOnUse",
-    patternTransform: "rotate(45)",
-  });
-  pattern.append(el("rect", { width: 8, height: 8, class: "rain-hatch-b" }));
-  pattern.append(el("rect", { width: 4, height: 8, class: "rain-hatch-a" }));
-  const defs = el("defs");
-  defs.append(pattern);
-  svg.append(defs);
-  return { svg, hatch: `url(#${id})` };
-}
-
-/**
- * Round ticks from 0 up past `max`.
- *
- * @param max - The largest value to show.
- * @param count - About how many ticks.
- * @returns The ticks, ascending, starting at 0.
- */
-export function niceTicks(max: number, count = 4): number[] {
-  const top = max > 0 ? max : 0.1;
-  const raw = top / count;
-  const power = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= raw) ?? raw;
-  const ticks = [];
-  for (let v = 0; v < top + step - 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
-  return ticks;
-}
-
-/** "0.5", "1", "2.5": a tick value without trailing zeros. */
-function tickText(value: number): string {
-  return String(Math.round(value * 100) / 100);
-}
-
-/** A one-day gap status, so a day's reason reads like any window's. */
-export function dayStatus(day: string, reason: GapReason): GapStatus {
-  return {
-    key: day,
-    first_day: day,
-    last_day: day,
-    days: 1,
-    missing_days: 1,
-    status: "invalid",
-    reason,
-  };
-}
-
-/** Horizontal gridlines with their tick labels; the top one says the unit. */
-function yAxis(
-  svg: SVGSVGElement,
-  ticks: number[],
-  y: (v: number) => number,
-  left: number,
-  right: number,
-): void {
-  ticks.forEach((tick, i) => {
-    const at = y(tick);
-    svg.append(el("line", { x1: left, x2: right, y1: at, y2: at, class: i ? "rain-grid" : "rain-axis" }));
-    const unit = i === ticks.length - 1 ? " in" : "";
-    svg.append(el("text", { x: left - 6, y: at + 4, class: "rain-tick", "text-anchor": "end" }, tickText(tick) + unit));
-  });
-}
-
-/**
- * Make an element scrub through positions: hover, tap, or arrow keys.
- *
- * @param target - The focusable chart host.
- * @param count - How many positions (columns).
- * @param at - The position under a pointer x, given the target's box.
- * @param show - Writes the readout for a position.
- * @param rows - For a grid, how many rows; up and down move between them.
- * @param rowAt - The row under a pointer y.
- */
-export function scrub(
-  target: HTMLElement,
-  count: number,
-  at: (x: number) => number,
-  show: (index: number, row: number) => void,
-  rows = 1,
-  rowAt: (y: number) => number = () => 0,
-): void {
-  let index = count - 1;
-  let row = 0;
-  const update = (i: number, r: number) => {
-    index = Math.max(0, Math.min(count - 1, i));
-    row = Math.max(0, Math.min(rows - 1, r));
-    show(index, row);
-  };
-  target.tabIndex = 0;
-  target.onpointermove = target.onpointerdown = (event: PointerEvent) => {
-    const box = target.getBoundingClientRect();
-    update(at(event.clientX - box.left), rowAt(event.clientY - box.top));
-  };
-  target.onkeydown = (event: KeyboardEvent) => {
-    const moves: Record<string, [number, number]> = {
-      ArrowLeft: [-1, 0],
-      ArrowRight: [1, 0],
-      ArrowUp: [0, -1],
-      ArrowDown: [0, 1],
-    };
-    if (event.key === "Home") update(0, row);
-    else if (event.key === "End") update(count - 1, row);
-    else {
-      const move = moves[event.key];
-      if (!move) return;
-      update(index + move[0], row + move[1]);
-    }
-    event.preventDefault();
-  };
-}
-
-/** A label haloed in the ground, so it reads over marks. */
-function label(x: number, y: number, text: string, cls = "rain-label", anchor = "start"): SVGTextElement {
-  return el("text", { x, y, class: cls, "text-anchor": anchor }, text);
-}
-
-/** Runs of consecutive indices for which `keep` holds: [first, last]. */
-export function runs(count: number, keep: (i: number) => boolean): [number, number][] {
-  const found: [number, number][] = [];
-  let start = -1;
-  for (let i = 0; i <= count; i++) {
-    if (i < count && keep(i)) {
-      if (start < 0) start = i;
-    } else if (start >= 0) {
-      found.push([start, i - 1]);
-      start = -1;
-    }
-  }
-  return found;
-}
-
-/** Month ticks under a row of days starting at `first`. */
-function dayTicks(svg: SVGSVGElement, first: string, count: number, x: (i: number) => number, y: number): void {
-  for (let i = 0; i < count; i++) {
-    const day = addDays(first, i);
-    if (day.slice(8) !== "01") continue;
-    const month = dayText(day).split(" ")[0];
-    svg.append(el("line", { x1: x(i), x2: x(i), y1: y - 4, y2: y, class: "rain-axis" }));
-    svg.append(el("text", { x: x(i) + 2, y: y + 13, class: "rain-tick" }, month));
-  }
-}
-
-/** Hatch the days not in the record, with the reason in place where it fits. */
+/** Hatch the days not in the record; mark where the record begins. */
 function hatchDays(
   svg: SVGSVGElement,
   recent: RecentRain,
@@ -217,23 +47,15 @@ function hatchDays(
   top: number,
   bottom: number,
 ): void {
-  const missing = (i: number) => recent.reason[i] !== null && recent.reason[i] !== "before_archive";
-  for (const [a, b] of runs(recent.reason.length, missing)) {
-    const width = x(b) + step - x(a);
-    svg.append(el("rect", { x: x(a), y: top, width, height: bottom - top, fill: hatch, rx: 2 }));
-    const words = gapLabel(dayStatus(recent.first_day, recent.reason[a] as GapReason));
-    if (words && width >= words.length * LABEL_CHAR_PX + 8) {
-      svg.append(label(x(a) + width / 2, top + 14, words, "rain-label", "middle"));
-    }
-  }
+  hatchMissingDays(svg, recent.reason, hatch, x, step, top, bottom, "rain-label");
   const before = runs(recent.reason.length, (i) => recent.reason[i] === "before_archive");
   for (const [, b] of before) {
     if (b + 1 >= recent.reason.length) continue;
     const at = x(b + 1);
-    svg.append(el("line", { x1: at, x2: at, y1: top, y2: bottom, class: "rain-edge" }));
+    svg.append(svgEl("line", { x1: at, x2: at, y1: top, y2: bottom, class: "rain-edge" }));
     const words = `record begins ${dayText(addDays(recent.first_day, b + 1))}`;
     const anchor = at > 140 ? "end" : "start";
-    svg.append(label(anchor === "end" ? at - 4 : at + 4, top + 14, words, "rain-label", anchor));
+    svg.append(chartLabel(anchor === "end" ? at - 4 : at + 4, top + 14, words, "rain-label", anchor));
   }
 }
 
@@ -260,21 +82,21 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
   const height = 168;
   const [left, right, top, bottom] = [40, width - 6, 22, height - 22];
   const values = recent.rain_in.filter((v): v is number => v !== null);
-  const ticks = niceTicks(Math.max(0.1, ...values));
+  const ticks = zeroTicks(Math.max(0.1, ...values));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / count;
   const x = (i: number) => left + i * step;
   const pad = step > 4 ? 1 : 0;
 
-  const { svg, hatch } = canvas(width, height, `Rain each day, ${dayText(recent.first_day)} to today`);
-  yAxis(svg, ticks, y, left, right);
+  const { svg, hatch } = canvas(width, height, `Rain each day, ${dayText(recent.first_day)} to today`, "rain-svg");
+  yAxis(svg, ticks, y, left, right, "rain", { text: " in", place: "tick" });
   hatchDays(svg, recent, hatch, x, step, top, bottom);
   recent.rain_in.forEach((value, i) => {
     if (value === null || value <= 0) return;
     const isToday = i === count - 1;
     svg.append(
-      el("rect", {
+      svgEl("rect", {
         x: x(i) + pad / 2,
         y: y(value),
         width: Math.max(1, step - pad),
@@ -286,10 +108,10 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
   const today = recent.rain_in[count - 1];
   if (today !== null && today !== undefined) {
     const at = x(count - 1) + step / 2;
-    svg.append(el("line", { x1: at, x2: at, y1: top - 4, y2: bottom, class: "rain-now-rule" }));
-    svg.append(label(at, top - 8, `today ${inches(today)}`, "rain-now-label", "end"));
+    svg.append(svgEl("line", { x1: at, x2: at, y1: top - 4, y2: bottom, class: "rain-now-rule" }));
+    svg.append(chartLabel(at, top - 8, `today ${inches(today)}`, "rain-now-label", "end"));
   }
-  dayTicks(svg, recent.first_day, count, x, bottom + 4);
+  monthTicks(svg, recent.first_day, count, x, bottom + 4, "rain");
   host.replaceChildren(svg);
   scrub(host, count, (px) => Math.floor((px - left) / step), (i) => readout(daySentence(recent, i, i === count - 1)));
 }
@@ -310,18 +132,18 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
   const [left, right, top, bottom] = [40, width - (narrow ? 92 : 112), 18, height - 24];
   const shown = tab.water_years.filter((c) => c.cumulative_in.some((v) => v !== null));
   const values = shown.flatMap((c) => c.cumulative_in.filter((v): v is number => v !== null));
-  const ticks = niceTicks(Math.max(1, ...values));
+  const ticks = zeroTicks(Math.max(1, ...values));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / 364;
   const x = (place: number) => left + place * step;
 
-  const { svg } = canvas(width, height, "Rain since Oct 1, one line per water year");
-  yAxis(svg, ticks, y, left, right);
+  const { svg } = canvas(width, height, "Rain since Oct 1, one line per water year", "rain-svg");
+  yAxis(svg, ticks, y, left, right, "rain", { text: " in", place: "tick" });
   MONTH_PLACES.forEach((place, i) => {
-    svg.append(el("line", { x1: x(place), x2: x(place), y1: bottom, y2: bottom + 4, class: "rain-axis" }));
+    svg.append(svgEl("line", { x1: x(place), x2: x(place), y1: bottom, y2: bottom + 4, class: "rain-axis" }));
     if (narrow && i % 2) return;
-    svg.append(el("text", { x: x(place) + 2, y: bottom + 16, class: "rain-tick" }, WATER_MONTHS[i]));
+    svg.append(svgEl("text", { x: x(place) + 2, y: bottom + 16, class: "rain-tick" }, WATER_MONTHS[i]));
   });
 
   const current = tab.water_years[tab.water_years.length - 1];
@@ -332,7 +154,7 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
       const points = [];
       for (let i = a; i <= b; i++) points.push(`${x(i).toFixed(1)},${y(curve.cumulative_in[i]!).toFixed(1)}`);
       if (points.length === 1) points.push(points[0]);
-      svg.append(el("polyline", { points: points.join(" "), class: cls }));
+      svg.append(svgEl("polyline", { points: points.join(" "), class: cls }));
     }
   };
 
@@ -355,14 +177,14 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
     const room = text.length * LABEL_CHAR_PX;
     const anchor = x(stop) - 6 - room >= 0 ? "end" : "start";
     const lx = anchor === "end" ? x(stop) - 6 : Math.min(x(stop) + 6, width - room);
-    svg.append(label(lx, Math.max(top + 12, y(at) - 8), text, "rain-label", anchor));
+    svg.append(chartLabel(lx, Math.max(top + 12, y(at) - 8), text, "rain-label", anchor));
   });
   ends.sort((a, b) => a.y - b.y);
   let floor = -Infinity;
   for (const end of ends) {
     end.y = Math.max(end.y, floor + 15);
     floor = end.y;
-    svg.append(label(right + 6, end.y + 4, end.text));
+    svg.append(chartLabel(right + 6, end.y + 4, end.text, "rain-label"));
   }
 
   // The current year: the bold line, its dot and "now" over it.
@@ -372,10 +194,10 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
     const value = current.cumulative_in[place];
     if (value !== null && value !== undefined) {
       const cx = x(place);
-      svg.append(el("circle", { cx, cy: y(value), r: 5, class: "rain-now-dot" }));
+      svg.append(svgEl("circle", { cx, cy: y(value), r: 5, class: "rain-now-dot" }));
       const text = `${current.water_year} now ${curveValue(current, place)}`;
       const anchor = cx > (left + right) / 2 ? "end" : "start";
-      svg.append(label(cx + (anchor === "end" ? -8 : 8), Math.max(top + 4, y(value) - 10), text, "rain-now-label", anchor));
+      svg.append(chartLabel(cx + (anchor === "end" ? -8 : 8), Math.max(top + 4, y(value) - 10), text, "rain-now-label", anchor));
     }
   }
 
@@ -415,14 +237,14 @@ export function drawHourGrid(host: HTMLElement, recent: RecentRain, width: numbe
   const step = (right - left) / count;
   const x = (i: number) => left + i * step;
 
-  const { svg, hatch } = canvas(width, height, `Rain by the hour, ${dayText(recent.first_day)} to today`);
+  const { svg, hatch } = canvas(width, height, `Rain by the hour, ${dayText(recent.first_day)} to today`, "rain-svg");
   recent.hourly_in.forEach((hours, i) => {
     if (recent.reason[i] !== null) return;
     hours.forEach((rain, h) => {
       if (rain === null) return;
       const level = rainStep(rain, 60);
       svg.append(
-        el("rect", {
+        svgEl("rect", {
           x: x(i),
           y: top + h * row,
           width: Math.max(1, step - (step > 4 ? 1 : 0)),
@@ -434,9 +256,9 @@ export function drawHourGrid(host: HTMLElement, recent: RecentRain, width: numbe
   });
   hatchDays(svg, recent, hatch, x, step, top, bottom);
   HOUR_TICKS.forEach((h) => {
-    svg.append(el("text", { x: left - 6, y: top + h * row + row, class: "rain-tick", "text-anchor": "end" }, hourText(h)));
+    svg.append(svgEl("text", { x: left - 6, y: top + h * row + row, class: "rain-tick", "text-anchor": "end" }, hourText(h)));
   });
-  dayTicks(svg, recent.first_day, count, x, bottom + 4);
+  monthTicks(svg, recent.first_day, count, x, bottom + 4, "rain");
   host.replaceChildren(svg);
   scrub(
     host,
@@ -456,25 +278,3 @@ export function drawHourGrid(host: HTMLElement, recent: RecentRain, width: numbe
   );
 }
 
-/**
- * Draw a chart at its host's width, and again whenever that width changes
- * (a hidden tab has no width until it is opened).
- *
- * @param host - The chart's host.
- * @param draw - Draws at a width.
- */
-export function drawSized(host: HTMLElement, draw: (width: number) => void): void {
-  let drawn = 0;
-  const redraw = () => {
-    const width = Math.floor(host.clientWidth) || FALLBACK_WIDTH;
-    if (width === drawn) return;
-    drawn = width;
-    draw(width);
-  };
-  redraw();
-  if (typeof ResizeObserver === "function") {
-    new ResizeObserver(() => {
-      if (host.clientWidth > 0) redraw();
-    }).observe(host);
-  }
-}

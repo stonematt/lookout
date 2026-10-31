@@ -228,14 +228,6 @@
   fill: var(--note);
 }
 
-.solar-svg .solar-hatch-a {
-  fill: var(--gap-a);
-}
-
-.solar-svg .solar-hatch-b {
-  fill: var(--gap-b);
-}
-
 /* the 24-hour view: the usual band at the back, the bold now on top */
 .solar-svg .solar-band {
   fill: var(--sun-soft);

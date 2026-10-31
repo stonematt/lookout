@@ -5,16 +5,14 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { niceTicks } from "../src/rain/charts.js";
+import { dayText, hourText, inches } from "../src/format.js";
+import { zeroTicks as niceTicks } from "../src/charts/svg.js";
 import { renderOverview } from "../src/overview/index.js";
 import { renderRain } from "../src/rain/index.js";
 import {
   dailyHeadline,
-  dayText,
   dryHeadline,
-  hourText,
   hoursHeadline,
-  inches,
   windowsNote,
   yearLeftOut,
   yearsHeadline,

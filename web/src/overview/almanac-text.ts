@@ -11,7 +11,8 @@
  * the almanac's square-root rain ramp.
  */
 import { gapSentence, gapValue } from "../gaps.js";
-import { NAMED_YEARS, WINDOW_NAMES, dayText, inches, listText } from "../rain/text.js";
+import { dayText, inches, monthLongName } from "../format.js";
+import { NAMED_YEARS, WINDOW_NAMES, listText } from "../rain/text.js";
 import type {
   Almanac,
   AlmanacMonth,
@@ -20,16 +21,6 @@ import type {
   RollingWindow,
   RollingYear,
 } from "../snapshot.js";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-/** The grid's columns: a water year runs Oct through Sep. */
-export const WATER_MONTHS = [
-  "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
-];
 
 /** How many steps the rain ramp has: `rain-0` to `rain-4`. */
 export const RAMP_STEPS = 5;
@@ -64,7 +55,7 @@ export function cellKind(month: AlmanacMonth | null): CellKind {
  * @returns The month in words.
  */
 export function monthName(key: string): string {
-  return `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
+  return `${monthLongName(Number(key.slice(5, 7)))} ${key.slice(0, 4)}`;
 }
 
 /**
@@ -230,7 +221,7 @@ export function rollingHeadline(almanac: Almanac): string {
  */
 export function tableValue(status: GapStatus, rain: number | null): string | null {
   if (rain === null) return null;
-  return gapValue(status, inches(rain).replace(/ in$/, ""));
+  return gapValue(status, inches(rain, { unit: false }));
 }
 
 /**

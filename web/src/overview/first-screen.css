@@ -122,6 +122,11 @@
   display: none;
 }
 
+/* a tick the now label would run into (`clearNowLabel`) */
+.ribbon-tick.ribbon-tick-hidden {
+  visibility: hidden;
+}
+
 @media (min-width: 600px) {
   .ribbon-tick-late {
     display: block;

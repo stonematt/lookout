@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { conditionSentence } from "../src/overview/condition.js";
 import { renderOverview, SECTIONS } from "../src/overview/index.js";
-import { rainStep, ribbonClaim, ribbonTicks } from "../src/overview/ribbon.js";
+import { clearNowLabel, rainStep, ribbonClaim, ribbonTicks } from "../src/overview/ribbon.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -195,6 +195,42 @@ describe("the 48-hour condition ribbon", () => {
     expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.late)).toEqual([
       false, false, false, false, false, true,
     ]);
+  });
+
+  it("hides any tick label the now label would run into, at any width", () => {
+    renderOverview(panel, raining);
+    const row = panel.querySelector<HTMLElement>(".ribbon-ticks")!;
+    // Lay the row out by hand: ticks 30px wide every 80px, the now label at
+    // 420-490px, over the last tick (400-430px).
+    const box = (left: number, width: number) => () =>
+      ({ left, right: left + width, width, top: 0, bottom: 16, height: 16 }) as DOMRect;
+    const ticks = all(".ribbon-tick");
+    ticks.forEach((tick, i) => (tick.getBoundingClientRect = box(i * 80, 30)));
+    panel.querySelector<HTMLElement>(".ribbon-now")!.getBoundingClientRect = box(420, 70);
+
+    clearNowLabel(row);
+
+    // The one before it (320-350px) is clear by more than the 6px a label
+    // keeps from its neighbour.
+    expect(ticks.map((t) => t.classList.contains("ribbon-tick-hidden"))).toEqual([
+      false, false, false, false, false, true,
+    ]);
+
+    // A wider now label, from 354px: within 6px of the fifth tick too.
+    panel.querySelector<HTMLElement>(".ribbon-now")!.getBoundingClientRect = box(354, 136);
+    clearNowLabel(row);
+    expect(ticks.map((t) => t.classList.contains("ribbon-tick-hidden"))).toEqual([
+      false, false, false, false, true, true,
+    ]);
+  });
+
+  it("leaves the ticks alone before the row is laid out", () => {
+    renderOverview(panel, raining);
+    const row = panel.querySelector<HTMLElement>(".ribbon-ticks")!;
+
+    clearNowLabel(row);
+
+    expect(all(".ribbon-tick-hidden")).toHaveLength(0);
   });
 
   it("names the archive lag in the source line, not in a headline", () => {

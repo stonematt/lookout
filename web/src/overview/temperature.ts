@@ -15,7 +15,10 @@
  */
 import "./temperature.css";
 
-import { gapLabel, gapSentence, gapValue, isComparable } from "../gaps.js";
+import { degrees, inches } from "../format.js";
+import { niceTicks, scale } from "../charts/svg.js";
+import { svgEl } from "../dom.js";
+import { gapLabel, gapSentence, gapValue, isComparable, svgHatch } from "../gaps.js";
 import type {
   DashboardSnapshot,
   GapStatus,
@@ -23,7 +26,6 @@ import type {
   TemperatureDay,
   TemperaturePeriod,
 } from "../snapshot.js";
-import { hatchPattern, niceTicks, scale, svg } from "./hero.js";
 import type { OverviewSection } from "./index.js";
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
@@ -36,9 +38,6 @@ const DAY_LABEL = new Intl.DateTimeFormat("en-US", {
 
 // ---------- words ----------
 
-const deg = (v: number) => `${v.toFixed(1)}°`;
-const degWhole = (v: number) => `${Math.round(v)}°`;
-const inches = (v: number) => `${v.toFixed(2)} in`;
 
 /** An ISO day as a UTC date, so the zone cannot move it. */
 const dayDate = (day: string) => new Date(`${day}T12:00:00Z`);
@@ -73,9 +72,9 @@ function periodFinding(snapshot: DashboardSnapshot): string {
   const p = ctx.periods.find((x) => x.status.key === ctx.finding);
   if (p && p.position !== null) {
     const name = p.status.key === "yesterday" ? "yesterday" : `the last ${NAMES[p.status.key]}`;
-    return `${deg(now)} now is ${p.position} the middle half of readings over ${name}`;
+    return `${degrees(now)} now is ${p.position} the middle half of readings over ${name}`;
   }
-  return `${deg(now)} now, with no window complete enough to compare`;
+  return `${degrees(now)} now, with no window complete enough to compare`;
 }
 
 // ---------- chart plumbing ----------
@@ -100,7 +99,7 @@ function mountChart(host: HTMLElement, draw: (width: number) => SVGSVGElement | 
 }
 
 function root(width: number, height: number, label: string): SVGSVGElement {
-  const el = svg("svg", { width, height, viewBox: `0 0 ${width} ${height}`, class: "tc-svg" });
+  const el = svgEl("svg", { width, height, viewBox: `0 0 ${width} ${height}`, class: "tc-svg" });
   el.setAttribute("role", "img");
   el.setAttribute("aria-label", label);
   return el;
@@ -115,23 +114,23 @@ function axis(
   label: (v: number) => string,
 ): void {
   for (const v of ticks) {
-    g.append(svg("line", { class: "tc-grid", x1: x(v), x2: x(v), y1: 0, y2: h }));
-    g.append(svg("text", { class: "tc-tick", x: x(v), y: h + 17, "text-anchor": "middle" }, label(v)));
+    g.append(svgEl("line", { class: "tc-grid", x1: x(v), x2: x(v), y1: 0, y2: h }));
+    g.append(svgEl("text", { class: "tc-tick", x: x(v), y: h + 17, "text-anchor": "middle" }, label(v)));
   }
 }
 
 /** The hatch over a row whose window cannot be compared, with its reason. */
 function hatchRow(
   g: SVGGElement,
-  hatchId: string,
+  hatch: string,
   status: GapStatus,
   x0: number,
   x1: number,
   cy: number,
   half: number,
 ): void {
-  g.append(svg("rect", { class: "tc-hatch", x: x0, y: cy - half, width: Math.max(0, x1 - x0), height: half * 2, rx: 4, fill: `url(#${hatchId})` }));
-  const label = svg("text", { class: "tc-reason", x: (x0 + x1) / 2, y: cy + 4, "text-anchor": "middle" }, gapLabel(status) ?? "");
+  g.append(svgEl("rect", { class: "tc-hatch", x: x0, y: cy - half, width: Math.max(0, x1 - x0), height: half * 2, rx: 4, fill: hatch }));
+  const label = svgEl("text", { class: "tc-reason", x: (x0 + x1) / 2, y: cy + 4, "text-anchor": "middle" }, gapLabel(status) ?? "");
   g.append(label);
 }
 
@@ -155,8 +154,8 @@ export function periodSentence(p: TemperaturePeriod): string {
   }
   const approx = p.status.status === "prorated" ? "about " : "";
   return (
-    `${name} (${spanText(p.status)}): ${approx}low ${deg(p.low)}, middle half ${deg(p.q1)} to ${deg(p.q3)}, ` +
-    `high ${deg(p.high)}.${p.status.status === "prorated" ? ` ${gapSentence(p.status)}` : ""}`
+    `${name} (${spanText(p.status)}): ${approx}low ${degrees(p.low)}, middle half ${degrees(p.q1)} to ${degrees(p.q3)}, ` +
+    `high ${degrees(p.high)}.${p.status.status === "prorated" ? ` ${gapSentence(p.status)}` : ""}`
   );
 }
 
@@ -181,36 +180,36 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   const x = scale(lo, hi, 34, iw - 34);
 
   const el = root(width, height, periodFinding(snapshot));
-  const hatchId = hatchPattern(el);
-  const g = svg("g", { transform: `translate(${f.l},${f.t})` });
-  const labels = svg("g", { transform: `translate(0,${f.t})` });
+  const hatch = svgHatch(el);
+  const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
+  const labels = svgEl("g", { transform: `translate(0,${f.t})` });
   el.append(g, labels);
-  axis(g, ticks, x, ih, degWhole);
+  axis(g, ticks, x, ih, (v) => degrees(v, 0));
 
   if (now !== null) {
     const nx = x(now);
-    g.append(svg("line", { class: "tc-now", x1: nx, x2: nx, y1: -8, y2: ih }));
-    g.append(svg("circle", { class: "tc-now-dot", cx: nx, cy: -8, r: 4 }));
+    g.append(svgEl("line", { class: "tc-now", x1: nx, x2: nx, y1: -8, y2: ih }));
+    g.append(svgEl("circle", { class: "tc-now-dot", cx: nx, cy: -8, r: 4 }));
     const right = nx + 60 > iw + f.r;
-    g.append(svg("text", { class: "tc-note", x: right ? nx - 8 : nx + 8, y: -14, "text-anchor": right ? "end" : "start" }, `now ${deg(now)}`));
+    g.append(svgEl("text", { class: "tc-note", x: right ? nx - 8 : nx + 8, y: -14, "text-anchor": right ? "end" : "start" }, `now ${degrees(now)}`));
   }
   ctx.periods.forEach((p, i) => {
     const cy = i * rowH + rowH / 2;
     labels.append(
-      svg("text", { class: "tc-row", x: 2, y: cy - 2 }, NAMES[p.status.key] ?? p.status.key),
-      svg("text", { class: "tc-sub", x: 2, y: cy + 13 }, spanText(p.status)),
+      svgEl("text", { class: "tc-row", x: 2, y: cy - 2 }, NAMES[p.status.key] ?? p.status.key),
+      svgEl("text", { class: "tc-sub", x: 2, y: cy + 13 }, spanText(p.status)),
     );
     if (p.low === null || p.high === null || p.q1 === null || p.q3 === null) {
-      hatchRow(g, hatchId, p.status, 0, iw, cy, 15);
+      hatchRow(g, hatch, p.status, 0, iw, cy, 15);
       return;
     }
-    const lowText = gapValue(p.status, degWhole(p.low))!;
-    const highText = gapValue(p.status, degWhole(p.high))!;
-    g.append(svg("line", { class: "tc-whisker", x1: x(p.low), x2: x(p.high), y1: cy, y2: cy }));
-    g.append(svg("rect", { class: "tc-iqr", x: x(p.q1), y: cy - 6, width: Math.max(2, x(p.q3) - x(p.q1)), height: 12, rx: 3 }));
-    g.append(svg("circle", { class: "tc-end", cx: x(p.low), cy, r: 2.6 }), svg("circle", { class: "tc-end", cx: x(p.high), cy, r: 2.6 }));
-    g.append(svg("text", { class: "tc-value", x: x(p.low) - 7, y: cy + 4, "text-anchor": "end" }, lowText));
-    g.append(svg("text", { class: "tc-value", x: x(p.high) + 7, y: cy + 4, "text-anchor": "start" }, highText));
+    const lowText = gapValue(p.status, degrees(p.low, 0))!;
+    const highText = gapValue(p.status, degrees(p.high, 0))!;
+    g.append(svgEl("line", { class: "tc-whisker", x1: x(p.low), x2: x(p.high), y1: cy, y2: cy }));
+    g.append(svgEl("rect", { class: "tc-iqr", x: x(p.q1), y: cy - 6, width: Math.max(2, x(p.q3) - x(p.q1)), height: 12, rx: 3 }));
+    g.append(svgEl("circle", { class: "tc-end", cx: x(p.low), cy, r: 2.6 }), svgEl("circle", { class: "tc-end", cx: x(p.high), cy, r: 2.6 }));
+    g.append(svgEl("text", { class: "tc-value", x: x(p.low) - 7, y: cy + 4, "text-anchor": "end" }, lowText));
+    g.append(svgEl("text", { class: "tc-value", x: x(p.high) + 7, y: cy + 4, "text-anchor": "start" }, highText));
   });
 
   return el;
@@ -248,9 +247,9 @@ export function daySentence(d: TemperatureDay): string {
   }
   const usual =
     d.usual_low !== null && d.usual_high !== null
-      ? ` Usual for the date: ${deg(d.usual_low)} to ${deg(d.usual_high)}, over ${d.usual_days} days in ${yearsText(d.usual_years)}.`
+      ? ` Usual for the date: ${degrees(d.usual_low)} to ${degrees(d.usual_high)}, over ${d.usual_days} days in ${yearsText(d.usual_years)}.`
       : " No earlier year to set it against.";
-  return `${when}: low ${deg(d.low)}, high ${deg(d.high)}.${usual}`;
+  return `${when}: low ${degrees(d.low)}, high ${degrees(d.high)}.${usual}`;
 }
 
 function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
@@ -271,36 +270,36 @@ function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   const x = scale(lo, hi, 22, iw - 22);
 
   const el = root(width, f.t + ih + f.b, `The last ten days' lows and highs against the usual for each date in ${yearsText(ctx.ten_day_years)}`);
-  const hatchId = hatchPattern(el);
-  const g = svg("g", { transform: `translate(${f.l},${f.t})` });
-  const labels = svg("g", { transform: `translate(0,${f.t})` });
+  const hatch = svgHatch(el);
+  const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
+  const labels = svgEl("g", { transform: `translate(0,${f.t})` });
   el.append(g, labels);
-  axis(g, ticks, x, ih, degWhole);
+  axis(g, ticks, x, ih, (v) => degrees(v, 0));
 
   days.forEach((d, i) => {
     const cy = i * rowH + rowH / 2;
     const today = i === 0;
-    labels.append(svg("text", { class: `tc-row${today ? " tc-row-today" : ""}`, x: 2, y: cy + 4 }, DAY_LABEL.format(dayDate(d.day))));
+    labels.append(svgEl("text", { class: `tc-row${today ? " tc-row-today" : ""}`, x: 2, y: cy + 4 }, DAY_LABEL.format(dayDate(d.day))));
     if (d.usual_low !== null && d.usual_high !== null) {
-      g.append(svg("rect", { class: "tc-usual", x: x(d.usual_low), y: cy - 10, width: Math.max(2, x(d.usual_high) - x(d.usual_low)), height: 20, rx: 3 }));
+      g.append(svgEl("rect", { class: "tc-usual", x: x(d.usual_low), y: cy - 10, width: Math.max(2, x(d.usual_high) - x(d.usual_low)), height: 20, rx: 3 }));
     }
     if (d.low === null || d.high === null) {
-      hatchRow(g, hatchId, d.status, 0, iw, cy, 11);
+      hatchRow(g, hatch, d.status, 0, iw, cy, 11);
       return;
     }
-    const gradient = svg("linearGradient", { id: `tc-day-${i}-${d.day}`, x1: 0, x2: 1, y1: 0, y2: 0 });
+    const gradient = svgEl("linearGradient", { id: `tc-day-${i}-${d.day}`, x1: 0, x2: 1, y1: 0, y2: 0 });
     const stops = [d.low, d.high];
     for (let t = Math.ceil(d.low / 7) * 7; t < d.high; t += 7) stops.push(t);
     stops.sort((a, b) => a - b);
     for (const t of stops) {
-      const stop = svg("stop", { offset: d.high === d.low ? 0 : (t - d.low) / (d.high - d.low) });
+      const stop = svgEl("stop", { offset: d.high === d.low ? 0 : (t - d.low) / (d.high - d.low) });
       stop.setAttribute("style", `stop-color:${rampColour(t)}`);
       gradient.append(stop);
     }
     g.append(gradient);
-    g.append(svg("rect", { class: "tc-day", x: x(d.low), y: cy - 5, width: Math.max(4, x(d.high) - x(d.low)), height: 10, rx: 5, fill: `url(#${gradient.id})` }));
-    g.append(svg("text", { class: "tc-value", x: x(d.low) - 6, y: cy + 4, "text-anchor": "end" }, degWhole(d.low)));
-    g.append(svg("text", { class: "tc-value", x: x(d.high) + 6, y: cy + 4, "text-anchor": "start" }, degWhole(d.high)));
+    g.append(svgEl("rect", { class: "tc-day", x: x(d.low), y: cy - 5, width: Math.max(4, x(d.high) - x(d.low)), height: 10, rx: 5, fill: `url(#${gradient.id})` }));
+    g.append(svgEl("text", { class: "tc-value", x: x(d.low) - 6, y: cy + 4, "text-anchor": "end" }, degrees(d.low, 0)));
+    g.append(svgEl("text", { class: "tc-value", x: x(d.high) + 6, y: cy + 4, "text-anchor": "start" }, degrees(d.high, 0)));
   });
   return el;
 }
@@ -332,7 +331,7 @@ export function stripClaim(strip: NormalStrip): string {
 
 function nowLabel(strip: NormalStrip): string {
   const v = strip.now ?? 0;
-  return strip.kind === "rain" ? `today ${inches(v)} so far` : `now ${deg(v)}`;
+  return strip.kind === "rain" ? `today ${inches(v, { digits: 2 })} so far` : `now ${degrees(v)}`;
 }
 
 /** A spread for a dot that is the same on every draw. */
@@ -361,20 +360,20 @@ function stripChart(strip: NormalStrip, width: number): SVGSVGElement | null {
   const at = (v: number) => x(map(v));
 
   const el = root(width, 104, `${stripClaim(strip)} ${nowLabel(strip)}.`);
-  const g = svg("g", { transform: `translate(${f.l},${f.t})` });
+  const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
   el.append(g);
-  g.append(svg("line", { class: "tc-base", x1: 0, x2: iw, y1: ih, y2: ih }));
+  g.append(svgEl("line", { class: "tc-base", x1: 0, x2: iw, y1: ih, y2: ih }));
   for (const t of ticks) {
-    g.append(svg("line", { class: "tc-base", x1: at(t), x2: at(t), y1: ih, y2: ih + 4 }));
-    g.append(svg("text", { class: "tc-tick", x: at(t), y: ih + 18, "text-anchor": t === ticks[0] ? "start" : "middle" }, rain ? (t === 0 ? "0" : t === ticks.at(-1) ? `${t} in` : String(t)) : degWhole(t)));
+    g.append(svgEl("line", { class: "tc-base", x1: at(t), x2: at(t), y1: ih, y2: ih + 4 }));
+    g.append(svgEl("text", { class: "tc-tick", x: at(t), y: ih + 18, "text-anchor": t === ticks[0] ? "start" : "middle" }, rain ? (t === 0 ? "0" : t === ticks.at(-1) ? `${t} in` : String(t)) : degrees(t, 0)));
   }
   strip.values.forEach((v, i) => {
-    g.append(svg("circle", { class: `tc-dot tc-dot-${strip.kind}`, cx: at(v), cy: 6 + jitter(i) * (ih - 14), r: 4 }));
+    g.append(svgEl("circle", { class: `tc-dot tc-dot-${strip.kind}`, cx: at(v), cy: 6 + jitter(i) * (ih - 14), r: 4 }));
   });
   const nx = at(strip.now);
-  g.append(svg("line", { class: "tc-now", x1: nx, x2: nx, y1: -6, y2: ih }));
+  g.append(svgEl("line", { class: "tc-now", x1: nx, x2: nx, y1: -6, y2: ih }));
   const right = nx + 140 > iw + f.r;
-  g.append(svg("text", { class: "tc-note", x: right ? nx - 6 : nx + 6, y: -10, "text-anchor": right ? "end" : "start" }, nowLabel(strip)));
+  g.append(svgEl("text", { class: "tc-note", x: right ? nx - 6 : nx + 6, y: -10, "text-anchor": right ? "end" : "start" }, nowLabel(strip)));
   return el;
 }
 

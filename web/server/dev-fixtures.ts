@@ -6,8 +6,12 @@
  * - `?fixture=dry|raining` (or `LOOKOUT_FIXTURE`) picks the golden; `dry` by
  *   default.
  * - `?age=<minutes>` (or `LOOKOUT_AGE_MIN`) shifts every `_ms` time by one
- *   offset so the newest observation is that many minutes old. Without it
- *   the goldens are served as recorded, which is long stale.
+ *   offset so the newest observation is that many minutes old, and every
+ *   ISO day (a `_day` or `day` field, a day `key` or a `first..last` span)
+ *   by the Pacific days that offset crosses, so day labels agree with the
+ *   times. Month keys ("YYYY-MM"), water years and day indexes are not
+ *   moved. Without `age` the goldens are served as recorded, which is long
+ *   stale.
  * - `/current` carries no live reading (`last_data: null`): Ambient is never
  *   called in dev.
  * - `/event?start=<ms>` serves the golden curve files in
@@ -20,6 +24,7 @@ import { resolve } from "node:path";
 
 import type { Plugin } from "vite";
 
+import { DAY_MS, addDays, localDay } from "../src/format.js";
 import type { Env } from "./env.js";
 import { handleEvent } from "./event.js";
 import type { ReadSources } from "./handlers.js";
@@ -56,23 +61,50 @@ function goldenCurve(scenario: Scenario, startMs: number): string | null {
   return near === undefined ? null : readFileSync(`${dir}/${scenario}.${near}.json`, "utf8");
 }
 
-/** A time, or each time in a list of times, plus `delta`. */
-function shiftTime(item: unknown, delta: number): unknown {
-  if (typeof item === "number") return item + delta;
-  if (Array.isArray(item) && item.every((t) => typeof t === "number")) {
-    return item.map((t: number) => t + delta);
-  }
-  return shiftTimes(item, delta);
+/** How far a served golden moves: milliseconds, and the Pacific days that crosses. */
+interface Shift {
+  ms: number;
+  days: number;
 }
 
-/** Add `delta` to every number in a field ending `_ms`, at any depth. */
-function shiftTimes(value: unknown, delta: number): unknown {
-  if (Array.isArray(value)) return value.map((item) => shiftTimes(item, delta));
+/** The Pacific days between two times' calendar days. */
+function daysBetween(fromMs: number, toMs: number): number {
+  const day = (ms: number) => Date.parse(localDay(ms));
+  return Math.round((day(toMs) - day(fromMs)) / DAY_MS);
+}
+
+/** A time, or each time in a list of times, moved. */
+function shiftTime(item: unknown, shift: Shift): unknown {
+  if (typeof item === "number") return item + shift.ms;
+  if (Array.isArray(item) && item.every((t) => typeof t === "number")) {
+    return item.map((t: number) => t + shift.ms);
+  }
+  return shiftTimes(item, shift);
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_SPAN = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/;
+
+/** An ISO day, or a `first..last` span of them, moved; anything else as is. */
+function shiftDay(item: unknown, shift: Shift): unknown {
+  if (typeof item !== "string") return shiftTimes(item, shift);
+  if (ISO_DAY.test(item)) return addDays(item, shift.days);
+  const span = DAY_SPAN.exec(item);
+  return span ? `${addDays(span[1]!, shift.days)}..${addDays(span[2]!, shift.days)}` : item;
+}
+
+/** Move every `_ms` time and every ISO day, at any depth. */
+function shiftTimes(value: unknown, shift: Shift): unknown {
+  if (Array.isArray(value)) return value.map((item) => shiftTimes(item, shift));
   if (typeof value !== "object" || value === null) return value;
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      key.endsWith("_ms") ? shiftTime(item, delta) : shiftTimes(item, delta),
+      key.endsWith("_ms")
+        ? shiftTime(item, shift)
+        : key.endsWith("_day") || key === "day" || key === "key"
+          ? shiftDay(item, shift)
+          : shiftTimes(item, shift),
     ]),
   );
 }
@@ -88,14 +120,18 @@ function fixtureSources(
   const observed = head.observed_at_ms as number | null;
   const delta =
     ageMinutes === null || observed === null ? 0 : nowMs - ageMinutes * 60_000 - observed;
+  const shift: Shift = {
+    ms: delta,
+    days: observed === null ? 0 : daysBetween(observed, observed + delta),
+  };
   return {
     defaultMac: mac,
     readSnapshot: async (asked, kind) =>
-      asked === mac ? JSON.stringify(shiftTimes(goldenDoc(scenario, kind), delta)) : null,
+      asked === mac ? JSON.stringify(shiftTimes(goldenDoc(scenario, kind), shift)) : null,
     readLive: async () => null,
     readCurve: async (asked, startMs) => {
       const text = asked === mac ? goldenCurve(scenario, startMs - delta) : null;
-      return text === null ? null : JSON.stringify(shiftTimes(JSON.parse(text), delta));
+      return text === null ? null : JSON.stringify(shiftTimes(JSON.parse(text), shift));
     },
   };
 }

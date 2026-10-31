@@ -57,8 +57,12 @@ a {
 }
 
 /* the 135° hatch: the one visual word for "not valid" */
+:root {
+  --gap-hatch: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+}
+
 .gap-hatch {
-  background: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+  background: var(--gap-hatch);
 }
 
 .standfirst {
@@ -131,7 +135,7 @@ a {
   padding: 0 var(--s-2);
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-sm);
-  background: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+  background: var(--gap-hatch);
 }
 
 .masthead-reading[data-stale="true"] .masthead-age::before {

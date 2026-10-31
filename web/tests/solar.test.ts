@@ -6,12 +6,12 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { kwhPerM2 as kwh } from "../src/format.js";
 import { shade, shadeKey } from "../src/solar/charts.js";
 import { renderSolar } from "../src/solar/index.js";
 import {
   dailyHeadline,
   dayHeadline,
-  kwh,
   openingDay,
   readDay,
   selectedDay,

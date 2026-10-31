@@ -51,3 +51,12 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* The hatch as an SVG pattern (`svgHatch`): stripes over their ground. */
+.gap-hatch-a {
+  fill: var(--gap-a);
+}
+
+.gap-hatch-b {
+  fill: var(--gap-b);
+}

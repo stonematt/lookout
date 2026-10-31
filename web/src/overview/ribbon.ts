@@ -9,11 +9,11 @@
  * The band is drawn in a 1000 x 100 viewBox stretched to the band's width,
  * so it needs no measuring; ticks, hatches and the dot are positioned in %.
  */
-import { STATION_TIME_ZONE } from "../format.js";
+import { HOUR_MS, STATION_TIME_ZONE, degrees, formatHours, hourText, localHour } from "../format.js";
+import { make, svgEl } from "../dom.js";
+import { hatchSpan } from "../gaps.js";
 import type { ConditionRibbon, DashboardSnapshot } from "../snapshot.js";
 
-const HOUR_MS = 3_600_000;
-const SVG_NS = "http://www.w3.org/2000/svg";
 const VIEW_W = 1000;
 const VIEW_H = 100;
 
@@ -44,15 +44,9 @@ export function rainStep(rainIn: number | null, slotMinutes = 15): 1 | 2 | 3 | 4
   return (step === -1 ? 4 : step + 1) as 1 | 2 | 3 | 4;
 }
 
-/** Hours as `9 h`, `47 h 30 m` or `45 m` (never days: the span is 48 h). */
-function hoursText(hours: number): string {
-  const minutes = Math.round(hours * 60);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  // No-break spaces: a duration never wraps across lines.
-  if (!h) return `${m}\u00a0m`;
-  return m ? `${h}\u00a0h\u00a0${m}\u00a0m` : `${h}\u00a0h`;
-}
+/** Hours as `9 h`, `47 h 30 m` or `45 m`, on one line (the span is 48 h). */
+const hoursText = (hours: number) =>
+  formatHours(Math.round(hours * 60) * 60_000, { noBreak: true });
 
 /**
  * The one-line claim above the band: the range and the hours of rain.
@@ -66,7 +60,7 @@ export function ribbonClaim(ribbon: ConditionRibbon): string {
   const range =
     lo === null || hi === null
       ? "The last 48 hours"
-      : `${Math.round(lo)}° to ${Math.round(hi)}° over the last 48 hours`;
+      : `${degrees(lo, 0)} to ${degrees(hi, 0)} over the last 48 hours`;
   const whole = ribbon.known_hours >= 48;
   if (ribbon.rain_hours <= 0) {
     return whole
@@ -87,11 +81,6 @@ export interface RibbonTick {
   late: boolean;
 }
 
-const HOUR = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "numeric",
-  hourCycle: "h23",
-});
 const WEEKDAY = new Intl.DateTimeFormat("en-US", {
   timeZone: STATION_TIME_ZONE,
   weekday: "short",
@@ -107,15 +96,39 @@ export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
   const span = spanMs(ribbon);
   const ticks: RibbonTick[] = [];
   for (let t = Math.ceil(ribbon.start_ms / HOUR_MS) * HOUR_MS; t < ribbon.start_ms + span; t += HOUR_MS) {
-    const hour = Number(HOUR.format(t));
+    const hour = localHour(t);
     if (hour % 6) continue;
     const pct = ((t - ribbon.start_ms) / span) * 100;
     if (pct < TICK_MIN_PCT || pct > TICK_MAX_PCT) continue;
-    const label =
-      hour === 0 ? WEEKDAY.format(t) : hour === 12 ? "noon" : hour < 12 ? `${hour} am` : `${hour - 12} pm`;
+    const label = hour === 0 ? WEEKDAY.format(t) : hourText(hour);
     ticks.push({ pct, label, late: pct > TICK_LATE_PCT });
   }
   return ticks;
+}
+
+/** The room a tick label keeps from the now label. */
+const NOW_LABEL_GAP_PX = 6;
+
+/**
+ * Hide every tick label that would run into the "now" label (or come
+ * within 6px of it), and show the rest again. Ticks are placed by the time
+ * of day across a band of any width, so this reads the laid-out row; a row
+ * not laid out yet (a hidden tab) is left alone.
+ *
+ * @param row - The ribbon's `.ribbon-ticks` row.
+ */
+export function clearNowLabel(row: HTMLElement): void {
+  const now = row.querySelector<HTMLElement>(".ribbon-now")?.getBoundingClientRect();
+  if (!now || now.width === 0) return;
+  for (const tick of row.querySelectorAll<HTMLElement>(".ribbon-tick")) {
+    tick.classList.remove("ribbon-tick-hidden");
+    const box = tick.getBoundingClientRect();
+    const clear =
+      box.width === 0 ||
+      box.right + NOW_LABEL_GAP_PX <= now.left ||
+      box.left >= now.right + NOW_LABEL_GAP_PX;
+    tick.classList.toggle("ribbon-tick-hidden", !clear);
+  }
 }
 
 function spanMs(ribbon: ConditionRibbon): number {
@@ -139,23 +152,6 @@ function runs<T>(values: T[]): Run<T>[] {
   return out;
 }
 
-function svg(tag: string, attrs: Record<string, string | number>): SVGElement {
-  const el = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
-  return el;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
 /**
  * Draw the ribbon for a snapshot.
  *
@@ -171,15 +167,15 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const pct = (i: number) => (i / n) * 100;
   // A run of slots as one full-height rect; 0.4 overlaps the next, no seam.
   const runRect = (run: Run<unknown>) =>
-    svg("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
+    svgEl("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
   const now = snapshot.current.temperature_f ?? ribbon.temperature_f.at(-1) ?? null;
 
-  const block = el("div", "ribbon");
+  const block = make("div", "ribbon");
   block.dataset.part = "ribbon";
   const claim = ribbonClaim(ribbon);
-  block.append(el("p", "ribbon-claim", claim));
+  block.append(make("p", "ribbon-claim", claim));
 
-  const band = el("div", "ribbon-band");
+  const band = make("div", "ribbon-band");
   band.setAttribute("role", "img");
   band.setAttribute(
     "aria-label",
@@ -188,7 +184,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   );
 
   // Night and day, then rain over them.
-  const fills = svg("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
+  const fills = svgEl("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
   fills.setAttribute("aria-hidden", "true");
   for (const run of runs(ribbon.daylight.map((d) => (d ? "day" : "night")))) {
     const rect = runRect(run);
@@ -203,15 +199,15 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   }
   band.append(fills);
 
-  // Hatch what the archive cannot speak for (lane I's shared hatching
-  // component replaces this local one once it lands).
+  // Hatch what the archive cannot speak for.
   const archiveEnd = snapshot.archive_newest_ms;
   for (const run of runs(ribbon.rain_in.map((r) => r === null))) {
     if (!run.value) continue;
     const startMs = ribbon.start_ms + run.from * ribbon.slot_minutes * 60_000;
-    const hatch = el("div", "ribbon-hatch gap-hatch");
-    hatch.dataset.reason =
-      archiveEnd === null || startMs > archiveEnd ? "not archived yet" : "gap in record";
+    const hatch = hatchSpan(
+      archiveEnd === null || startMs > archiveEnd ? "not archived yet" : "gap in record",
+    );
+    hatch.classList.add("ribbon-hatch");
     // A span at the right edge is anchored there, so its minimum width
     // grows leftward and stays inside the band.
     if (run.to === n) hatch.style.right = "0";
@@ -227,7 +223,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     const lo = Math.min(...known) - 2;
     const hi = Math.max(...known) + 2;
     const y = (v: number) => +(12 + (1 - (v - lo) / (hi - lo)) * 76).toFixed(2);
-    const trace = svg("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
+    const trace = svgEl("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
     trace.setAttribute("aria-hidden", "true");
     trace.classList.add("ribbon-trace");
     const point = (i: number) => `${x(i + 0.5)},${y(temps[i]!)}`;
@@ -237,7 +233,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
       // A lone point still needs a length to show.
       if (pts.length === 1) pts.push(pts[0]!);
       for (const cls of ["ribbon-halo", "ribbon-line"]) {
-        trace.append(svg("polyline", { points: pts.join(" "), class: cls }));
+        trace.append(svgEl("polyline", { points: pts.join(" "), class: cls }));
       }
     }
     // The live point, alone after the unarchived span: join it dotted.
@@ -245,7 +241,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     const before = segments.at(-2);
     if (last && before && last.to === n && last.to - last.from === 1) {
       trace.append(
-        svg("polyline", {
+        svgEl("polyline", {
           points: `${point(before.to - 1)} ${point(n - 1)}`,
           class: "ribbon-live",
         }),
@@ -253,37 +249,44 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     }
     band.append(trace);
     if (now !== null) {
-      const dot = el("div", "ribbon-dot");
+      const dot = make("div", "ribbon-dot");
       dot.style.top = `${y(now)}%`;
       band.append(dot);
     }
   }
   block.append(band);
 
-  const ticks = el("div", "ribbon-ticks");
+  const ticks = make("div", "ribbon-ticks");
   ticks.setAttribute("aria-hidden", "true");
   for (const tick of ribbonTicks(ribbon)) {
-    const node = el("span", tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick", tick.label);
+    const node = make("span", tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick", tick.label);
     node.style.left = `${tick.pct}%`;
     ticks.append(node);
   }
-  if (now !== null) ticks.append(el("span", "ribbon-now", `now ${now.toFixed(1)}°`));
+  if (now !== null) ticks.append(make("span", "ribbon-now", `now ${degrees(now)}`));
   block.append(ticks);
+  // Where a tick falls depends on the time of day and the band's width, so
+  // only the laid-out row can say which run into the now label.
+  if (now !== null && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => clearNowLabel(ticks)).observe(ticks);
+    // The labels change width once the web font arrives; the row does not.
+    void document.fonts?.ready.then(() => clearNowLabel(ticks));
+  }
 
   block.append(ribbonKey());
   return block;
 }
 
 function ribbonKey(): HTMLElement {
-  const key = el("p", "ribbon-key");
+  const key = make("p", "ribbon-key");
   const swatch = (cls: string, label: string) => {
-    const item = el("span", "ribbon-key-item");
-    item.append(el("i", cls), label);
+    const item = make("span", "ribbon-key-item");
+    item.append(make("i", cls), label);
     return item;
   };
-  const ramp = el("span", "ribbon-key-item");
-  const steps = el("span", "ribbon-key-ramp");
-  RAIN_STEP_NAMES.forEach((_, i) => steps.append(el("i", `ribbon-key-rain-${i + 1}`)));
+  const ramp = make("span", "ribbon-key-item");
+  const steps = make("span", "ribbon-key-ramp");
+  RAIN_STEP_NAMES.forEach((_, i) => steps.append(make("i", `ribbon-key-rain-${i + 1}`)));
   ramp.append("rain, light", steps, "heavy");
   key.append(
     swatch("ribbon-key-night", "night"),
