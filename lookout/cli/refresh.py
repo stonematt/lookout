@@ -16,16 +16,20 @@ The steps, each its own function, run in this order by `run`:
    the live reading.
 2. `update_archive(device, bucket, pages)`: catchup; the archive as saved,
    raw.
-3. `correct_rain(station, bucket, archive)`: the stored rain corrections
-   applied once, in memory (#95). Every later step reads this frame; the
-   archive in storage stays raw.
+3. `correct_rain(station, bucket, archive, live)`: the stored rain
+   corrections applied once, in memory (#95), to the archive and to the
+   live reading alike (#118). Every later step reads these; the archive in
+   storage stays raw.
 4. `load_catalogs(station, bucket)`: the Event Catalog and the energy
    catalog as stored.
 5. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
    brought up to the caught-up archive. The Event Catalog is saved only when
    an event completed since the last save; the energy catalog only when the
-   stored one is more than `ENERGY_SAVE_AGE` old.
-6. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
+   stored one is more than `ENERGY_SAVE_AGE` old. A catalog whose update
+   raises is logged at ERROR and kept as stored, and marked stale (#118):
+   one catalog's bug never stops the snapshot from publishing.
+6. `build(station, live, archive, catalogs, now)`: `build_snapshot`, with
+   the stale catalogs marked on it.
 7. `publish(snapshot, bucket)`: both documents under `snapshot/`.
 8. `publish_curves(station, archive, catalogs, bucket)`: a curve file for
    each completed event that has none yet, under `snapshot/<MAC>.events/`,
@@ -37,9 +41,9 @@ exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
 
 import argparse
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -48,19 +52,22 @@ from lookout.cli import catchup
 from lookout.config import DEFAULT_BUCKET
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
-from lookout.core.rain_corrections import apply_corrections
+from lookout.core.rain_corrections import correct_counters, load_catalog
 from lookout.core.rain_events import RainEventCatalog
-from lookout.snapshot import Snapshot, Station, build_snapshot
+from lookout.snapshot import Snapshot, StaleCatalog, Station, build_snapshot
+from lookout.snapshot.current import to_ms
 from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
+from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
 
 DEFAULT_PAGES = 20
 ENERGY_SAVE_AGE = pd.Timedelta(days=2)
+RAIN_COUNTERS = ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin")
 
 
 @dataclass
@@ -70,10 +77,13 @@ class Catalogs:
 
     :param events: The Event Catalog; None when none is stored.
     :param energy: The energy catalog; None when none is stored.
+    :param stale: The catalogs whose update failed this run and are as last
+        stored ("events", "energy"); empty when both updated.
     """
 
     events: Optional[pd.DataFrame] = None
     energy: Optional[pd.DataFrame] = None
+    stale: Tuple[str, ...] = ()
 
 
 def utc_now() -> datetime:
@@ -112,21 +122,77 @@ def update_archive(device: Dict, bucket: str, pages: int) -> pd.DataFrame:
     return catchup.update_archive(device, bucket, pages)
 
 
-def correct_rain(station: Station, bucket: str, archive: pd.DataFrame) -> pd.DataFrame:
+def correct_rain(
+    station: Station,
+    bucket: str,
+    archive: pd.DataFrame,
+    live: Optional[Dict],
+) -> Tuple[pd.DataFrame, Optional[Dict]]:
     """
-    Step 3: the stored rain corrections, applied once to the raw archive.
+    Step 3: the stored rain corrections, applied once to the raw archive and
+    to the live reading.
 
     The archive in storage is always raw (#95), so this is the one place a
-    refresh run corrects it; every later step reads the frame it returns.
-    `build_snapshot` stays pure and applies nothing itself.
+    refresh run corrects it; every later step reads what it returns.
+    `build_snapshot` stays pure and applies nothing itself. The live reading
+    gets the same corrections by the same rules (`correct_counters`), dated
+    the way the archive is (#118).
 
     :param station: The station.
     :param bucket: The bucket holding `<MAC>.rain_corrections.json`.
     :param archive: The archive as saved, raw.
-    :return: The corrected archive, in memory; `archive` itself when the
-        station has no corrections.
+    :param live: The live `lastData`, raw, or None.
+    :return: The corrected archive and live reading, in memory; `archive`
+        and `live` themselves when the station has no corrections.
     """
-    return apply_corrections(archive, station.mac, bucket)
+    corrections = (load_catalog(station.mac, bucket) or {}).get("corrections")
+    if not corrections:
+        return archive, live
+    return correct_counters(archive, corrections), correct_live(
+        live, archive, corrections
+    )
+
+
+def correct_live(
+    live: Optional[Dict], archive: pd.DataFrame, corrections: List[Dict]
+) -> Optional[Dict]:
+    """
+    The live reading with the rain corrections applied to its counters.
+
+    It is corrected as a one-row frame through `correct_counters`, so it gets
+    exactly the archive's rules. Its day is its `dateutc` in the archive's
+    `date` time zone (the station's, `DEFAULT_TZ` without an archive), the
+    calendar day the archive's rows are corrected by.
+
+    :param live: The live `lastData`, raw, or None.
+    :param archive: The raw archive, for its time zone.
+    :param corrections: The stored corrections.
+    :return: A corrected copy; `live` itself when it has no time or no
+        counters.
+    """
+    if not live or live.get("dateutc") is None:
+        return live
+    present = [col for col in RAIN_COUNTERS if live.get(col) is not None]
+    if not present:
+        return live
+
+    dates = archive["date"] if "date" in archive.columns else None
+    tz = getattr(getattr(dates, "dt", None), "tz", None) or DEFAULT_TZ
+    observed = pd.Timestamp(to_ms(live["dateutc"]), unit="ms", tz="UTC")
+    row = pd.DataFrame(
+        [
+            {
+                "date": observed.tz_convert(tz),
+                **{col: float(live[col]) for col in present},
+            }
+        ]
+    )
+    for col in RAIN_COUNTERS:
+        if col not in row.columns:
+            row[col] = float("nan")
+
+    corrected = correct_counters(row, corrections).iloc[0]
+    return {**live, **{col: float(corrected[col]) for col in present}}
 
 
 def load_catalogs(station: Station, bucket: str) -> Catalogs:
@@ -160,6 +226,11 @@ def update_catalogs(
     decides. The energy catalog is saved only when a stored one is more
     than `ENERGY_SAVE_AGE` old.
 
+    Each catalog is updated on its own (#118): an error in one, its update
+    or its save, is logged at ERROR with the traceback, that catalog stays
+    as stored (the last good one) and is named in `stale`, and the other
+    still updates. The run goes on to publish and exits 0.
+
     :param station: The station.
     :param bucket: The bucket.
     :param archive: The archive after catchup, rain corrected (`correct_rain`).
@@ -167,51 +238,124 @@ def update_catalogs(
     :return: The updated catalogs, in memory; the stored ones are untouched
         unless a save rule above fired.
     """
+    stale: List[str] = []
+    try:
+        events = update_event_catalog(station, bucket, archive, catalogs.events)
+    except Exception as e:
+        logger.exception(f"Event Catalog not updated (using the stored one): {e}")
+        events, stale = catalogs.events, stale + ["events"]
+    try:
+        energy = update_energy_catalog(station, bucket, archive, catalogs.energy)
+    except Exception as e:
+        logger.exception(f"Energy catalog not updated (using the stored one): {e}")
+        energy, stale = catalogs.energy, stale + ["energy"]
+    return Catalogs(events=events, energy=energy, stale=tuple(stale))
+
+
+def update_event_catalog(
+    station: Station,
+    bucket: str,
+    archive: pd.DataFrame,
+    stored: Optional[pd.DataFrame],
+) -> Optional[pd.DataFrame]:
+    """
+    The Event Catalog brought up to the archive, saved when an event completed.
+
+    :param station: The station.
+    :param bucket: The bucket.
+    :param archive: The archive after catchup, rain corrected.
+    :param stored: The Event Catalog as stored, or None.
+    :return: The updated catalog; None when it holds no event.
+    """
     event_store = RainEventCatalog(station.mac, bucket=bucket)
-    stored = catalogs.events
     events = event_store.update_catalog_with_new_data(
         archive, pd.DataFrame() if stored is None else stored.copy()
     )
     event_store.save_if_events_completed(stored, events)
+    return None if events.empty else events
 
+
+def update_energy_catalog(
+    station: Station,
+    bucket: str,
+    archive: pd.DataFrame,
+    stored: Optional[pd.DataFrame],
+) -> pd.DataFrame:
+    """
+    The energy catalog brought up to the archive, saved when the stored one
+    is more than `ENERGY_SAVE_AGE` old.
+
+    :param station: The station.
+    :param bucket: The bucket.
+    :param archive: The archive after catchup, rain corrected.
+    :param stored: The energy catalog as stored, or None.
+    :return: The updated catalog.
+    """
     energy_store = EnergyCatalog(station.mac, bucket=bucket)
     energy = energy_store.update_catalog_with_new_data(
-        archive, pd.DataFrame() if catalogs.energy is None else catalogs.energy.copy()
+        archive, pd.DataFrame() if stored is None else stored.copy()
     )
-    if catalogs.energy is not None and (
-        energy_store.get_catalog_age() > ENERGY_SAVE_AGE
-    ):
+    if stored is not None and energy_store.get_catalog_age() > ENERGY_SAVE_AGE:
         backup_and_save_catalog(energy, ENERGY_TYPE, bucket, station.mac)
         logger.info(f"Energy catalog saved (stored one older than {ENERGY_SAVE_AGE})")
+    return energy
 
-    return Catalogs(events=None if events.empty else events, energy=energy)
+
+def stale_catalogs(catalogs: Catalogs) -> Tuple[StaleCatalog, ...]:
+    """
+    The snapshot's mark for each catalog the run could not update.
+
+    :param catalogs: The catalogs the snapshot is built from.
+    :return: One `StaleCatalog` per name in `catalogs.stale`, dated by the
+        newest time the stored catalog covers.
+    """
+    newest = {
+        "events": (catalogs.events, "end_time"),
+        "energy": (catalogs.energy, "period_end"),
+    }
+    marks = []
+    for name in catalogs.stale:
+        frame, column = newest[name]
+        as_of = None
+        if (
+            frame is not None
+            and column in frame.columns
+            and frame[column].notna().any()
+        ):
+            as_of = to_ms(pd.to_datetime(frame[column], utc=True).max())
+        marks.append(StaleCatalog(catalog=name, as_of_ms=as_of))
+    return tuple(marks)
 
 
 def build(
     station: Station,
-    device: Dict,
+    live: Optional[Dict],
     archive: pd.DataFrame,
     catalogs: Catalogs,
     now: datetime,
 ) -> Snapshot:
     """
-    Step 6: the snapshot.
+    Step 6: the snapshot, with the catalogs this run could not update
+    marked stale on it (`build_snapshot` itself never marks one).
 
     :param station: The station.
-    :param device: The station's `/devices` entry; `lastData` is live.
+    :param live: The live `lastData`, rain corrected (`correct_rain`).
     :param archive: The archive after catchup, rain corrected (`correct_rain`).
     :param catalogs: The catalogs.
     :param now: The build time, timezone-aware.
     :return: The snapshot.
     """
-    return build_snapshot(
+    snapshot = build_snapshot(
         archive=archive,
-        live=device.get("lastData"),
+        live=live,
         event_catalog=catalogs.events,
         energy_catalog=catalogs.energy,
         station=station,
         now=now,
     )
+    if not catalogs.stale:
+        return snapshot
+    return replace(snapshot, stale_catalogs=stale_catalogs(catalogs))
 
 
 def publish(snapshot: Snapshot, bucket: str) -> List[str]:
@@ -253,8 +397,10 @@ def run(
     clock: Callable[[], datetime] = utc_now,
 ) -> Snapshot:
     """
-    One refresh run: every step, in order. A failure raises, except a failure
-    writing curve files after the snapshot published: that is logged only.
+    One refresh run: every step, in order. A failure raises, except a
+    catalog's update failing (that catalog is used as stored and marked
+    stale) and a failure writing curve files after the snapshot published:
+    those are logged at ERROR only.
 
     :param bucket: The bucket.
     :param pages: Maximum Ambient pages catchup fetches.
@@ -263,10 +409,12 @@ def run(
     """
     device = load_station()
     station = Station.from_device(device)
-    archive = correct_rain(station, bucket, update_archive(device, bucket, pages))
+    archive, live = correct_rain(
+        station, bucket, update_archive(device, bucket, pages), device.get("lastData")
+    )
     catalogs = load_catalogs(station, bucket)
     catalogs = update_catalogs(station, bucket, archive, catalogs)
-    snapshot = build(station, device, archive, catalogs, clock())
+    snapshot = build(station, live, archive, catalogs, clock())
     publish(snapshot, bucket)
     try:
         publish_curves(station, archive, catalogs, bucket)

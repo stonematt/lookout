@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
@@ -798,3 +799,290 @@ class TestRainCorrections:
         assert len(merged) == len(station.weather)
         for col in ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"):
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
+
+
+# ---------- the live reading, corrected like the archive (#118) ----------
+
+CARRY_RAIN = (*SCENARIO.rain, RainSpell("2026-01-09T18:00:00Z", 2, 0.12))
+
+
+def carryover_week(end: str = SCENARIO.end) -> pd.DataFrame:
+    """
+    SCENARIO's week with more rain on the carryover day, Friday 2026-01-09
+    local (as `TestRainCorrections`), raw: newest first.
+    """
+    return build_archive(SCENARIO.start, end, rain=CARRY_RAIN, gaps=SCENARIO.gaps)
+
+
+def store_corrections(weather: pd.DataFrame) -> List[Dict]:
+    """Detect the week's carryovers and store them as the station's catalog."""
+    from lookout.core import rain_corrections
+
+    found = rain_corrections.detect_carryovers(weather)
+    rain_corrections.save_catalog({"corrections": found}, FAKE_MAC)
+    return found
+
+
+class TestLiveRainCorrection:
+    """
+    The live reading carries the stored corrections the archive does.
+
+    Ambient's history stops one reading short of the live one, so the live
+    reading is stitched in as the newest row (as on the VPS between runs).
+    """
+
+    CARRY = 0.48
+    FRIDAY = "2026-01-09"
+    LIVE = "2026-01-09T23:55:00Z"  # Friday 15:55 local
+    NOW = "2026-01-10T00:00:00Z"
+
+    @pytest.fixture
+    def station(self, seed) -> CatchupStation:
+        """Archived to Friday's start, Ambient's history to just before live."""
+        weather = carryover_week(self.NOW)
+        assert int(weather["dateutc"].iloc[0]) == ms(self.LIVE)
+        assert [c["affected_date"] for c in store_corrections(weather)] == [self.FRIDAY]
+        station = seed(
+            archive=weather[weather["dateutc"] < ms("2026-01-09T08:00:00Z")],
+            history=to_ambient_records(weather.iloc[1:]),
+            devices=reporting(weather),
+            now=self.NOW,
+        )
+        station.weather = weather
+        return station
+
+    def test_rain_today_is_the_live_counter_minus_the_carryover(self, station):
+        raw_live = float(station.weather["dailyrainin"].iloc[0])
+        assert raw_live == pytest.approx(self.CARRY + 0.24)
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.observed_at_ms == ms(self.LIVE)  # the live row is used
+        expected = max(raw_live - self.CARRY, 0.0)
+        assert snapshot.current.rain_today_in == pytest.approx(expected)
+        published = stored_json(station, DASHBOARD_KEY)
+        assert published["current"]["rain_today_in"] == pytest.approx(expected)
+
+    def test_the_rain_tabs_today_agrees(self, station):
+        run_refresh(station)
+
+        published = stored_json(station, DASHBOARD_KEY)
+        recent = published["rain_tab"]["recent"]
+        index = (pd.Timestamp(self.FRIDAY) - pd.Timestamp(recent["first_day"])).days
+        assert index == len(recent["rain_in"]) - 1  # Friday is today
+        assert recent["rain_in"][index] == pytest.approx(
+            published["current"]["rain_today_in"]
+        )
+
+    def test_the_stored_archive_stays_raw(self, station):
+        run_refresh(station)
+
+        merged = station.stored().merge(
+            station.weather, on="dateutc", suffixes=("", "_raw")
+        )
+        assert len(merged) == len(station.weather) - 1  # all but the live row
+        for col in refresh.RAIN_COUNTERS:
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
+
+
+class TestCorrectRain:
+    """`correct_rain` on the live reading: the archive's rules, its days."""
+
+    @pytest.fixture
+    def weather(self, fake_s3) -> pd.DataFrame:
+        weather = carryover_week()
+        store_corrections(weather)
+        return weather
+
+    STATION = refresh.Station(mac=FAKE_MAC, name=None)
+
+    @pytest.mark.parametrize(
+        "reading",
+        [
+            "2026-01-08T20:00:00Z",  # Thursday: no correction covers it
+            "2026-01-09T20:00:00Z",  # Friday, the affected day
+            "2026-01-11T00:00:00Z",  # Saturday: the week, month and year
+            "2026-01-11T07:55:00Z",  # Saturday 23:55 local, UTC Sunday
+        ],
+    )
+    def test_each_counter_gets_the_archive_rows_correction(self, weather, reading):
+        row = weather[weather["dateutc"] == ms(reading)]
+        live = to_ambient_records(row)[0]
+
+        archive, corrected = refresh.correct_rain(
+            self.STATION, BUCKET, weather, dict(live)
+        )
+
+        fixed = archive[archive["dateutc"] == ms(reading)].iloc[0]
+        for col in refresh.RAIN_COUNTERS:
+            assert corrected[col] == pytest.approx(float(fixed[col]))
+        assert {
+            k: v for k, v in corrected.items() if k not in refresh.RAIN_COUNTERS
+        } == {k: v for k, v in live.items() if k not in refresh.RAIN_COUNTERS}
+
+    def test_a_day_no_correction_covers_is_unchanged(self, weather):
+        live = to_ambient_records(
+            weather[weather["dateutc"] == ms("2026-01-08T20:00:00Z")]
+        )[0]
+
+        _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, dict(live))
+
+        assert corrected == live
+
+    def test_the_saturday_live_reading_keeps_its_daily_counter(self, weather):
+        reading = ms("2026-01-11T00:00:00Z")
+        live = to_ambient_records(weather[weather["dateutc"] == reading])[0]
+
+        _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, dict(live))
+
+        assert corrected["dailyrainin"] == live["dailyrainin"]
+        assert corrected["weeklyrainin"] == pytest.approx(
+            max(live["weeklyrainin"] - TestLiveRainCorrection.CARRY, 0)
+        )
+
+    def test_a_station_with_no_corrections_is_unchanged(self, fake_s3):
+        weather = carryover_week()
+        live = to_ambient_records(weather.head(1))[0]
+
+        archive, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, live)
+
+        assert archive is weather
+        assert corrected is live
+
+    def test_no_live_reading_stays_none(self, weather):
+        _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, None)
+
+        assert corrected is None
+
+
+# ---------- one catalog's failure never blocks the snapshot (#118) ----------
+
+
+class CatalogBroken(RuntimeError):
+    """The error a broken catalog update raises in these tests."""
+
+
+class TestCatalogFailureIsolation:
+    """
+    A catalog whose update raises is used as last stored and marked stale;
+    the snapshot still publishes and the run exits 0.
+    """
+
+    @pytest.fixture
+    def stored(self, seed) -> CatchupStation:
+        """Both catalogs stored from the first half of the archive."""
+        station = seed()
+        archive = station.archive
+        cut = (
+            archive["dateutc"].min()
+            + (archive["dateutc"].max() - archive["dateutc"].min()) // 2
+        )
+        half = archive[archive["dateutc"] < cut]
+        EnergyCatalog(FAKE_MAC).save_catalog(
+            EnergyCatalog(FAKE_MAC).detect_and_calculate_periods(half, auto_save=False)
+        )
+        RainEventCatalog(FAKE_MAC).save_catalog(
+            RainEventCatalog(FAKE_MAC).detect_and_catalog_events(half, auto_save=False)
+        )
+        return station
+
+    @pytest.fixture
+    def built_from(self, monkeypatch) -> Dict:
+        """The catalogs `build_snapshot` is handed, captured."""
+        seen: Dict = {}
+        real = refresh.build_snapshot
+
+        def spy(**kwargs):
+            seen.update(kwargs)
+            return real(**kwargs)
+
+        monkeypatch.setattr(refresh, "build_snapshot", spy)
+        return seen
+
+    @staticmethod
+    def breaks(monkeypatch, catalog: type) -> None:
+        def refuse(self, *args, **kwargs):
+            raise CatalogBroken(f"{catalog.__name__} update refused")
+
+        monkeypatch.setattr(catalog, "update_catalog_with_new_data", refuse)
+
+    def errors(self, caplog) -> List[str]:
+        return [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelname == "ERROR" and r.exc_info and r.exc_info[0] is CatalogBroken
+        ]
+
+    def test_an_energy_failure_publishes_with_the_stored_energy_catalog(
+        self, stored, built_from, monkeypatch, caplog, fake_healthchecks
+    ):
+        last_good = EnergyCatalog(FAKE_MAC).load_catalog()
+        before = stored_bytes(stored, ENERGY_CATALOG_KEY)
+        self.breaks(monkeypatch, EnergyCatalog)
+
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: stored.now) == 0
+
+        assert sorted(snapshot_keys(stored)) == sorted([DASHBOARD_KEY, CONTEXT_KEY])
+        pd.testing.assert_frame_equal(built_from["energy_catalog"], last_good)
+        assert built_from["event_catalog"] is not None  # the other still updated
+        assert stored_bytes(stored, ENERGY_CATALOG_KEY) == before
+        assert len(self.errors(caplog)) == 1
+        assert "Energy catalog" in self.errors(caplog)[0]
+        published = stored_json(stored, DASHBOARD_KEY)
+        assert published["stale_catalogs"] == [
+            {
+                "catalog": "energy",
+                "as_of_ms": refresh.to_ms(last_good["period_end"].max()),
+            }
+        ]
+        assert published["solar_tab"] is not None
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+
+    def test_an_event_failure_publishes_with_the_stored_event_catalog(
+        self, stored, built_from, monkeypatch, caplog, fake_healthchecks
+    ):
+        last_good = RainEventCatalog(FAKE_MAC).load_catalog()
+        before = stored_bytes(stored, EVENT_CATALOG_KEY)
+        self.breaks(monkeypatch, RainEventCatalog)
+
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: stored.now) == 0
+
+        assert sorted(snapshot_keys(stored)) == sorted([DASHBOARD_KEY, CONTEXT_KEY])
+        pd.testing.assert_frame_equal(built_from["event_catalog"], last_good)
+        assert built_from["energy_catalog"] is not None
+        assert stored_bytes(stored, EVENT_CATALOG_KEY) == before
+        assert len(self.errors(caplog)) == 1
+        assert "Event Catalog" in self.errors(caplog)[0]
+        published = stored_json(stored, DASHBOARD_KEY)
+        assert published["stale_catalogs"] == [
+            {
+                "catalog": "events",
+                "as_of_ms": refresh.to_ms(last_good["end_time"].max()),
+            }
+        ]
+        assert len(published["rain_events"]["events"]) == len(last_good)
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+
+    def test_a_failure_with_none_stored_marks_it_stale_without_a_date(
+        self, seed, monkeypatch, caplog
+    ):
+        station = seed()
+        self.breaks(monkeypatch, EnergyCatalog)
+
+        snapshot = run_refresh(station)
+
+        assert [asdict(s) for s in snapshot.stale_catalogs] == [
+            {"catalog": "energy", "as_of_ms": None}
+        ]
+        assert snapshot.solar_tab is None
+        assert len(self.errors(caplog)) == 1
+
+    def test_without_a_failure_no_catalog_is_stale(self, stored, caplog):
+        run_refresh(stored)
+
+        assert stored_json(stored, DASHBOARD_KEY)["stale_catalogs"] == []
+        assert not [
+            r
+            for r in caplog.records
+            if r.levelname == "ERROR" and r.name == refresh.logger.name
+        ]

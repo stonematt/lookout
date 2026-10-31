@@ -977,6 +977,28 @@ class SolarTab:
     last_24h: Optional[SolarTrace]
 
 
+CatalogName = Literal["events", "energy"]
+
+
+@dataclass(frozen=True)
+class StaleCatalog:
+    """
+    A catalog this run could not bring up to date (#118).
+
+    The run caught the catalog's update error, logged it and built the
+    snapshot from the last good catalog in storage; the site shows that
+    catalog's figures as old.
+
+    :param catalog: "events" (the Event Catalog, the Rain Events tab) or
+        "energy" (the energy catalog, the Solar tab).
+    :param as_of_ms: The newest time the last good catalog covers: its
+        latest event end or energy period end. None when none is stored.
+    """
+
+    catalog: CatalogName
+    as_of_ms: Optional[int]
+
+
 @dataclass(frozen=True)
 class Snapshot:
     """
@@ -1001,6 +1023,9 @@ class Snapshot:
     :param almanac: The Overview's almanac grid and rolling-window tables.
     :param solar_tab: The Solar tab's data, or None without an energy
         catalog.
+    :param stale_catalogs: The catalogs this run could not update and built
+        from as last stored; empty on a normal run. `build_snapshot` never
+        sets it: the refresh run does, after a caught catalog failure.
     """
 
     station: Station
@@ -1017,6 +1042,7 @@ class Snapshot:
     temperature_context: TemperatureContext
     almanac: Almanac
     solar_tab: Optional[SolarTab]
+    stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:
         """
