@@ -8,9 +8,12 @@ import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 
+import { mountEvents } from "./events/tab.js";
 import { mountHeader } from "./header.js";
 import { fetchCurrent, fetchDashboard } from "./load.js";
 import { renderOverview } from "./overview/index.js";
+import type { DashboardSnapshot } from "./snapshot.js";
+import type { TabId } from "./tabs.js";
 import { mountTabs } from "./tabs.js";
 import { applyThemeOverride } from "./theme.js";
 
@@ -20,12 +23,23 @@ const CURRENT_EVERY_MS = 5 * 60_000;
 applyThemeOverride(location.search);
 
 const header = mountHeader(document.getElementById("masthead")!);
-const tabs = mountTabs(document.getElementById("sections")!, (_id, panel) => {
+let dashboard: DashboardSnapshot | null = null;
+const rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
+
+/** Render a tab's panel from the snapshot, once per snapshot. */
+function renderTab(id: TabId, panel: HTMLElement): void {
+  if (id === "events" && dashboard) {
+    if (rendered.get(panel) !== dashboard) mountEvents(panel, dashboard);
+    rendered.set(panel, dashboard);
+    return;
+  }
   if (!panel.childElementCount) {
     panel.innerHTML =
       '<p class="standfirst">This section is still being built.</p>';
   }
-});
+}
+
+const tabs = mountTabs(document.getElementById("sections")!, renderTab);
 
 function title(name: string | null): void {
   document.title = name ? `${name} · Lookout` : "Lookout";
@@ -47,6 +61,8 @@ async function boot(): Promise<void> {
     header.show({ station: snapshot.station, observedAtMs: snapshot.observed_at_ms });
     title(snapshot.station.name);
     renderOverview(tabs.panel("overview"), snapshot);
+    dashboard = snapshot;
+    renderTab(tabs.current(), tabs.panel(tabs.current()));
   } catch (error) {
     console.error("Lookout: /dashboard could not be read", error);
     header.fail(() => void boot());
