@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { figuresLag, figuresTime, mountHeader } from "../src/header.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
-import { parseCurrent, parseDashboard } from "../src/snapshot.js";
+import { SCHEMA_VERSION, parseCurrent, parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
 
 const MIN = 60_000;
@@ -33,7 +33,7 @@ function live(
   station: DashboardSnapshot["station"] = raining.station,
 ): CurrentReading {
   return parseCurrent({
-    schema_version: 1,
+    schema_version: SCHEMA_VERSION,
     kind: "current",
     station,
     observed_at_ms: observedAtMs,
