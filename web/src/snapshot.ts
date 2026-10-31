@@ -725,8 +725,8 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
   checkSolarTab(head.solar_tab);
-  head.stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
-  return head as unknown as DashboardSnapshot;
+  const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
+  return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
 function checkStaleCatalogs(list: unknown): StaleCatalog[] {

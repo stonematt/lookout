@@ -890,7 +890,7 @@ class TestCorrectRain:
 
     @pytest.fixture
     def weather(self, fake_s3) -> pd.DataFrame:
-        weather = carryover_week()
+        weather = carryover_week("2026-01-11T12:00:00Z")  # into Sunday
         store_corrections(weather)
         return weather
 
@@ -903,6 +903,7 @@ class TestCorrectRain:
             "2026-01-09T20:00:00Z",  # Friday, the affected day
             "2026-01-11T00:00:00Z",  # Saturday: the week, month and year
             "2026-01-11T07:55:00Z",  # Saturday 23:55 local, UTC Sunday
+            "2026-01-11T10:00:00Z",  # Sunday: the week has reset
         ],
     )
     def test_each_counter_gets_the_archive_rows_correction(self, weather, reading):
@@ -939,6 +940,31 @@ class TestCorrectRain:
         assert corrected["weeklyrainin"] == pytest.approx(
             max(live["weeklyrainin"] - TestLiveRainCorrection.CARRY, 0)
         )
+
+    def test_after_the_week_resets_only_month_and_year_are_corrected(self, weather):
+        reading = ms("2026-01-11T10:00:00Z")
+        live = to_ambient_records(weather[weather["dateutc"] == reading])[0]
+
+        _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, dict(live))
+
+        carry = TestLiveRainCorrection.CARRY
+        assert corrected["dailyrainin"] == live["dailyrainin"]
+        assert corrected["weeklyrainin"] == live["weeklyrainin"]
+        for col in ("monthlyrainin", "yearlyrainin"):
+            assert corrected[col] == pytest.approx(max(live[col] - carry, 0))
+
+    def test_a_counter_that_is_not_a_number_is_left_alone(self, weather):
+        live = to_ambient_records(
+            weather[weather["dateutc"] == ms("2026-01-09T20:00:00Z")]
+        )[0]
+        live["dailyrainin"] = "n/a"
+        live["weeklyrainin"] = float("nan")
+
+        _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, dict(live))
+
+        assert corrected["dailyrainin"] == "n/a"
+        assert pd.isna(corrected["weeklyrainin"])
+        assert corrected["monthlyrainin"] < live["monthlyrainin"]
 
     def test_a_station_with_no_corrections_is_unchanged(self, fake_s3):
         weather = carryover_week()
@@ -1076,6 +1102,23 @@ class TestCatalogFailureIsolation:
         ]
         assert snapshot.solar_tab is None
         assert len(self.errors(caplog)) == 1
+
+    def test_a_failed_save_keeps_the_updated_catalog_fresh(
+        self, seed, built_from, monkeypatch, caplog
+    ):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+
+        def refuse(self, *args, **kwargs):
+            raise CatalogBroken("save refused")
+
+        monkeypatch.setattr(RainEventCatalog, "save_if_events_completed", refuse)
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.stale_catalogs == ()
+        last = built_from["event_catalog"].sort_values("start_time").iloc[-1]
+        assert not is_event_ongoing(last)  # the update, completed, not the stored
+        assert "Event Catalog not saved" in self.errors(caplog)[0]
 
     def test_without_a_failure_no_catalog_is_stale(self, stored, caplog):
         run_refresh(stored)

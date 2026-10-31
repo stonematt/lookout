@@ -55,6 +55,7 @@ from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
 from lookout.core.rain_corrections import correct_counters, load_catalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, StaleCatalog, Station, build_snapshot
+from lookout.snapshot.model import CatalogName
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
@@ -83,7 +84,7 @@ class Catalogs:
 
     events: Optional[pd.DataFrame] = None
     energy: Optional[pd.DataFrame] = None
-    stale: Tuple[str, ...] = ()
+    stale: Tuple[CatalogName, ...] = ()
 
 
 def utc_now() -> datetime:
@@ -172,12 +173,15 @@ def correct_live(
     """
     if not live or live.get("dateutc") is None:
         return live
-    present = [col for col in RAIN_COUNTERS if live.get(col) is not None]
+    present = [col for col in RAIN_COUNTERS if _is_reading(live.get(col))]
     if not present:
         return live
 
-    dates = archive["date"] if "date" in archive.columns else None
-    tz = getattr(getattr(dates, "dt", None), "tz", None) or DEFAULT_TZ
+    tz = DEFAULT_TZ
+    if "date" in archive.columns and isinstance(
+        archive["date"].dtype, pd.DatetimeTZDtype
+    ):
+        tz = archive["date"].dt.tz
     observed = pd.Timestamp(to_ms(live["dateutc"]), unit="ms", tz="UTC")
     row = pd.DataFrame(
         [
@@ -193,6 +197,18 @@ def correct_live(
 
     corrected = correct_counters(row, corrections).iloc[0]
     return {**live, **{col: float(corrected[col]) for col in present}}
+
+
+def _is_reading(value: object) -> bool:
+    """
+    Whether a live value is a usable counter reading: a finite number.
+
+    :param value: A `lastData` value.
+    :return: True for an int or float that is not NaN or infinite.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return bool(pd.notna(value)) and abs(value) != float("inf")
 
 
 def load_catalogs(station: Station, bucket: str) -> Catalogs:
@@ -226,10 +242,12 @@ def update_catalogs(
     decides. The energy catalog is saved only when a stored one is more
     than `ENERGY_SAVE_AGE` old.
 
-    Each catalog is updated on its own (#118): an error in one, its update
-    or its save, is logged at ERROR with the traceback, that catalog stays
-    as stored (the last good one) and is named in `stale`, and the other
-    still updates. The run goes on to publish and exits 0.
+    Each catalog is updated on its own (#118): an error in one's update is
+    logged at ERROR with the traceback, that catalog stays as stored (the
+    last good one) and is named in `stale`, and the other still updates. A
+    failed save is logged at ERROR and the updated catalog is still used (a
+    later run's save rule fires again). The run goes on to publish and
+    exits 0.
 
     :param station: The station.
     :param bucket: The bucket.
@@ -238,7 +256,7 @@ def update_catalogs(
     :return: The updated catalogs, in memory; the stored ones are untouched
         unless a save rule above fired.
     """
-    stale: List[str] = []
+    stale: List[CatalogName] = []
     try:
         events = update_event_catalog(station, bucket, archive, catalogs.events)
     except Exception as e:
@@ -271,7 +289,10 @@ def update_event_catalog(
     events = event_store.update_catalog_with_new_data(
         archive, pd.DataFrame() if stored is None else stored.copy()
     )
-    event_store.save_if_events_completed(stored, events)
+    try:
+        event_store.save_if_events_completed(stored, events)
+    except Exception as e:
+        logger.exception(f"Event Catalog not saved (the update is used): {e}")
     return None if events.empty else events
 
 
@@ -295,9 +316,14 @@ def update_energy_catalog(
     energy = energy_store.update_catalog_with_new_data(
         archive, pd.DataFrame() if stored is None else stored.copy()
     )
-    if stored is not None and energy_store.get_catalog_age() > ENERGY_SAVE_AGE:
-        backup_and_save_catalog(energy, ENERGY_TYPE, bucket, station.mac)
-        logger.info(f"Energy catalog saved (stored one older than {ENERGY_SAVE_AGE})")
+    try:
+        if stored is not None and energy_store.get_catalog_age() > ENERGY_SAVE_AGE:
+            backup_and_save_catalog(energy, ENERGY_TYPE, bucket, station.mac)
+            logger.info(
+                f"Energy catalog saved (stored one older than {ENERGY_SAVE_AGE})"
+            )
+    except Exception as e:
+        logger.exception(f"Energy catalog not saved (the update is used): {e}")
     return energy
 
 
