@@ -117,9 +117,8 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     _log_archive_range(new_archive_df, "Updated archive")
     logger.info(f"Total records after update: {len(new_archive_df)}")
 
-    # Save updated archive to S3
-    key = f"{mac}.parquet"
-    sj.save_df_to_s3(new_archive_df, bucket_name, key)
+    # Save updated archive to S3, newest first whatever came back (#133)
+    sj.save_archive(new_archive_df, bucket_name, mac)
     logger.info("Updated archive saved.")
     return new_archive_df
 
@@ -190,9 +189,8 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         logger.info("Dry-run: NOT saving repaired archive.")
         return
 
-    # Persist the repaired archive and exit
-    key = f"{mac}.parquet"
-    sj.save_df_to_s3(fixed, bucket_name, key)
+    # Persist the repaired archive, newest first (#133), and exit
+    sj.save_archive(fixed, bucket_name, mac)
     logger.info("Repaired archive saved.")
 
 
