@@ -19,6 +19,7 @@ from lookout.ui import header
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
     calculate_temperature_trend,
+    newest_row,
 )
 from tests.fixtures.ambient import load_devices
 from tests.fixtures.archive import (
@@ -149,6 +150,34 @@ class TestBarometerTrend:
         df = _baro_history(29.0).drop(columns="baromrelin")
 
         assert calculate_barometer_trend(df, 30.0) == STEADY
+
+
+class TestTrendsReadEitherOrder:
+    """#133: "now" is the newest `dateutc`, not the first row."""
+
+    def test_newest_row_is_the_greatest_dateutc_and_skips_a_missing_one(self):
+        df = pd.DataFrame(
+            {"dateutc": [1000.0, float("nan"), 3000.0, 2000.0], "tempf": [1, 2, 3, 4]},
+            index=[9, 8, 7, 6],
+        )
+
+        assert newest_row(df)["tempf"] == 3
+
+    @pytest.mark.parametrize("yesterday, arrow", [(45.0, UP), (55.0, DOWN)])
+    def test_temperature_trend_is_the_same_oldest_first(self, yesterday, arrow):
+        df = _temp_history(yesterday)
+        oldest_first = df.iloc[::-1].reset_index(drop=True)
+
+        assert calculate_temperature_trend(df, 50.0) == arrow
+        assert calculate_temperature_trend(oldest_first, 50.0) == arrow
+
+    @pytest.mark.parametrize("three_hours_ago, arrow", [(29.7, UP), (30.3, DOWN)])
+    def test_barometer_trend_is_the_same_oldest_first(self, three_hours_ago, arrow):
+        df = _baro_history(three_hours_ago)
+        oldest_first = df.iloc[::-1].reset_index(drop=True)
+
+        assert calculate_barometer_trend(df, 30.0) == arrow
+        assert calculate_barometer_trend(oldest_first, 30.0) == arrow
 
 
 # ---- active rain event ------------------------------------------------------

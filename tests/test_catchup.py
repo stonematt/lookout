@@ -304,6 +304,59 @@ class TestCatchupRun:
         assert_frame_equal(station.stored(), station.archive)
 
 
+# ---------- the stored order (#133) ----------
+
+
+def newest_first(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The frame's rows, newest `dateutc` first, index reset.
+
+    :param df: Archive rows, any order.
+    :return: The rows reordered.
+    """
+    return df.sort_values("dateutc", ascending=False).reset_index(drop=True)
+
+
+class TestStoredOrder:
+    """Whatever the run, the archive in storage is newest first (#133)."""
+
+    def test_a_run_with_nothing_new_stores_newest_first(self, catchup_station):
+        archive = load_real_slice()
+        station = catchup_station(
+            archive=archive, history=[], devices=reporting(archive)
+        )
+
+        station.run()
+
+        stored = station.stored()
+        assert stored["dateutc"].is_monotonic_decreasing
+        assert_frame_equal(stored, newest_first(archive))
+
+    def test_a_run_with_new_rows_stores_newest_first(self, catchup_station):
+        station = catchup_station()
+
+        station.run()
+
+        stored = station.stored()
+        assert stored["dateutc"].is_monotonic_decreasing
+        assert len(stored) == len(station.archive) + RECORDED_ROWS
+
+    def test_repair_archive_stores_newest_first_with_the_same_rows(
+        self, catchup_station
+    ):
+        from lookout.cli import catchup
+
+        archive = load_real_slice()
+        oldest_first = archive.iloc[::-1].reset_index(drop=True)
+        station = catchup_station(archive=oldest_first)
+
+        catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+
+        stored = station.stored()
+        assert stored["dateutc"].is_monotonic_decreasing
+        assert_frame_equal(stored, newest_first(archive))
+
+
 # ---------- paging over a longer outage ----------
 
 

@@ -180,6 +180,26 @@ def save_df_to_s3(
         logger.error(f"Failed to save {key} to bucket {bucket}: {e}")
 
 
+def save_archive(df: pd.DataFrame, bucket: str, mac: str) -> None:
+    """
+    Save a station's archive to `<mac>.<HISTORY_FILE_TYPE>`, newest first.
+
+    The one save step every archive writer goes through (#133): the stored
+    archive has a single defined order, newest `dateutc` first, whatever
+    order the caller built it in. The sort is stable and the index is reset;
+    the rows and columns are saved as handed.
+
+    :param df: The archive, any row order.
+    :param bucket: The bucket.
+    :param mac: The station's MAC address.
+    """
+    if "dateutc" in df.columns:
+        df = df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
+            drop=True
+        )
+    save_df_to_s3(df, bucket, f"{mac}.{HISTORY_FILE_TYPE}")
+
+
 def list_bucket_items(bucket_name: str, depth: int = 2) -> list:
     """
     List items in a specified S3 bucket up to a specified depth.
@@ -365,7 +385,6 @@ def backup_and_save_history(
 ) -> None:
     """Back up the old archive and save the updated DataFrame to S3."""
     mac = device["macAddress"]
-    key = f"{mac}.{HISTORY_FILE_TYPE}"
 
     try:
         backup_archive(bucket=bucket, mac=mac)
@@ -373,7 +392,7 @@ def backup_and_save_history(
         logger.error(f"Backup failed for {mac}: {e}")
         raise RuntimeError("Aborting save: backup failed.")
 
-    save_df_to_s3(df, bucket, key)
+    save_archive(df, bucket, mac)
 
 
 # Example usage

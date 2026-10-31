@@ -83,6 +83,29 @@ def test_save_history_backs_up_then_writes_mac_dot_parquet(fake_s3, frozen_today
     assert_frame_equal(storj.get_df_from_s3(BUCKET, backup_key, "parquet"), old)
 
 
+def test_save_history_stores_an_oldest_first_frame_newest_first(fake_s3, frozen_today):
+    # #133: the Diagnostics CLI `fill-gap`, the Streamlit Diagnostics save and
+    # the rain repair all save through here, in whatever order they built.
+    new = scenario_archive()
+    oldest_first = new.iloc[::-1].reset_index(drop=True)
+
+    storj.backup_and_save_history(oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET)
+
+    stored = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
+    assert stored["dateutc"].is_monotonic_decreasing
+    assert_frame_equal(stored, new)
+
+
+def test_save_archive_writes_mac_dot_parquet_newest_first(fake_s3):
+    new = scenario_archive()
+    shuffled = new.sample(frac=1, random_state=7)
+
+    storj.save_archive(shuffled, BUCKET, FAKE_MAC)
+
+    assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
+    assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), new)
+
+
 def test_archive_backup_copies_the_archive_and_not_the_catalogs(fake_s3, frozen_today):
     # Decided in #114: an archive backup is the archive only; catalogs are
     # backed up by their own catalog-specific path.

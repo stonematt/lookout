@@ -46,6 +46,7 @@ from lookout.utils.dateutc import normalize
 from lookout.utils.trend_utils import (
     calculate_temperature_trend,
     calculate_barometer_trend,
+    newest_row,
 )
 
 import lookout.storage.storj as sj
@@ -190,7 +191,7 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
 
         # Calculate trends for latest data point
         if not updated_df.empty:
-            latest_row = updated_df.iloc[0]  # Most recent (archive is reverse sorted)
+            latest_row = newest_row(updated_df)  # any row order (#133)
             temp_trend = calculate_temperature_trend(updated_df, latest_row["tempf"])
             barom_trend = calculate_barometer_trend(
                 updated_df, latest_row["baromrelin"]
