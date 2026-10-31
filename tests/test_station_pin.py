@@ -141,9 +141,7 @@ def test_clis_pick_the_pinned_station_not_the_first(cli, pinned, ambient_replay)
     assert _cli_station_mac(cli) == FAKE_MAC
 
 
-def test_manage_day_periods_exits_when_the_pin_is_missing(
-    monkeypatch, ambient_replay
-):
+def test_manage_day_periods_exits_when_the_pin_is_missing(monkeypatch, ambient_replay):
     from lookout.cli import manage_day_periods
 
     monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")

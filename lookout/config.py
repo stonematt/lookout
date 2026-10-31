@@ -32,6 +32,7 @@ def get_station_mac() -> str:
     """
     return get_setting("STATION_MAC", DEFAULT_MAC_ADDRESS).strip().upper()
 
+
 sensor_index = {
     "location1": {
         "name": "Outdoor",

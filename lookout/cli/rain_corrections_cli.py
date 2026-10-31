@@ -113,10 +113,10 @@ def handle_generate(args):
         return
 
     catalog_data = {
-        'version': '1.0',
-        'mac_address': mac,
-        'updated_at': pd.Timestamp.now(tz='UTC').isoformat(),
-        'corrections': carryovers,
+        "version": "1.0",
+        "mac_address": mac,
+        "updated_at": pd.Timestamp.now(tz="UTC").isoformat(),
+        "corrections": carryovers,
     }
 
     if lo_rc.save_catalog(catalog_data, mac, args.bucket):
@@ -143,38 +143,48 @@ def handle_show(args):
     print(f"Updated: {data.get('updated_at')}")
     print(f"Corrections: {len(data.get('corrections', []))}\n")
 
-    for c in data.get('corrections', []):
+    for c in data.get("corrections", []):
         print(f"  📅 {c['affected_date']}: {c['carryover_amount']:.3f}\"")
         print(f"     Gap: {c['gap_start']} → {c['gap_end']}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Rain carryover corrections management')
-    parser.add_argument('--bucket', default='lookout', help='S3 bucket name')
+    parser = argparse.ArgumentParser(
+        description="Rain carryover corrections management"
+    )
+    parser.add_argument("--bucket", default="lookout", help="S3 bucket name")
 
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # detect subcommand
-    detect_parser = subparsers.add_parser('detect', help='Scan archive for carryover gaps')
+    detect_parser = subparsers.add_parser(
+        "detect", help="Scan archive for carryover gaps"
+    )
 
     # generate subcommand
-    gen_parser = subparsers.add_parser('generate', help='Detect carryovers and save catalog to S3')
-    gen_parser.add_argument('--dry-run', action='store_true', help='Detect but do not save')
+    gen_parser = subparsers.add_parser(
+        "generate", help="Detect carryovers and save catalog to S3"
+    )
+    gen_parser.add_argument(
+        "--dry-run", action="store_true", help="Detect but do not save"
+    )
 
     # show subcommand
-    show_parser = subparsers.add_parser('show', help='Display current corrections catalog from S3')
+    show_parser = subparsers.add_parser(
+        "show", help="Display current corrections catalog from S3"
+    )
 
     args = parser.parse_args()
 
-    if args.command == 'detect':
+    if args.command == "detect":
         handle_detect(args)
-    elif args.command == 'generate':
+    elif args.command == "generate":
         handle_generate(args)
-    elif args.command == 'show':
+    elif args.command == "show":
         handle_show(args)
     else:
         parser.print_help()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
