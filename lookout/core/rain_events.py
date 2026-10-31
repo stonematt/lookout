@@ -27,6 +27,7 @@ Usage:
     catalog.save_catalog(events)
 """
 
+import json
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -39,6 +40,41 @@ from lookout.storage.storj import get_s3_client
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
+
+
+def _flag_set(value: object) -> bool:
+    """
+    Read one ongoing flag, treating None and NaN as not set.
+
+    :param value: The stored flag: a bool, None or NaN.
+    :return: True only for a set, truthy flag.
+    """
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return bool(value)
+
+
+def is_event_ongoing(event: Dict) -> bool:
+    """
+    Whether a catalog event is marked ongoing, at top level or in its flags.
+
+    Catalogs saved before #72 hold `ongoing` NaN on completed events; NaN is
+    read as not ongoing. `flags` may be a dict or its JSON text.
+
+    :param event: One catalog row (a dict or a pandas Series).
+    :return: True when either the `ongoing` column or `flags["ongoing"]` is set.
+    """
+    if _flag_set(event.get("ongoing")):
+        return True
+    flags = event.get("flags")
+    if isinstance(flags, str):
+        flags = json.loads(flags)
+    return isinstance(flags, dict) and _flag_set(flags.get("ongoing"))
 
 
 def detect_rain_events(
@@ -117,6 +153,7 @@ def detect_rain_events(
                 ).total_seconds()
                 / 60,
                 "data_point_count": len(current_event["data_points"]),
+                "ongoing": False,
                 "created_at": datetime.now(timezone.utc),
             }
 
@@ -389,8 +426,6 @@ class RainEventCatalog:
         :param existing_catalog: Existing catalog DataFrame (will load if None)
         :return: Updated catalog DataFrame
         """
-        import json
-
         if existing_catalog is None:
             existing_catalog = self.load_catalog()
 
@@ -410,15 +445,7 @@ class RainEventCatalog:
         )
         last_event = existing_catalog.iloc[-1]
 
-        # Check if last event is ongoing (check both top-level and flags dict)
-        is_ongoing = False
-        if "ongoing" in last_event and last_event["ongoing"]:
-            is_ongoing = True
-        elif "flags" in last_event and last_event["flags"]:
-            flags = last_event["flags"]
-            if isinstance(flags, str):
-                flags = json.loads(flags)
-            is_ongoing = flags.get("ongoing", False)
+        is_ongoing = is_event_ongoing(last_event)
 
         # Determine where to start re-detection
         archive_copy = archive_df.copy()
@@ -618,29 +645,8 @@ class RainEventCatalog:
         stored_last = stored_sorted.iloc[-1]
         updated_last = updated_sorted.iloc[-1]
 
-        # Check stored last event ongoing status
-        stored_ongoing = False
-        if "ongoing" in stored_last and stored_last["ongoing"]:
-            stored_ongoing = True
-        elif "flags" in stored_last and stored_last["flags"]:
-            flags = stored_last["flags"]
-            if isinstance(flags, str):
-                import json
-
-                flags = json.loads(flags)
-            stored_ongoing = flags.get("ongoing", False)
-
-        # Check updated last event ongoing status
-        updated_ongoing = False
-        if "ongoing" in updated_last and updated_last["ongoing"]:
-            updated_ongoing = True
-        elif "flags" in updated_last and updated_last["flags"]:
-            flags = updated_last["flags"]
-            if isinstance(flags, str):
-                import json
-
-                flags = json.loads(flags)
-            updated_ongoing = flags.get("ongoing", False)
+        stored_ongoing = is_event_ongoing(stored_last)
+        updated_ongoing = is_event_ongoing(updated_last)
 
         # Auto-save if ongoing event completed
         if stored_ongoing and not updated_ongoing:
@@ -656,4 +662,9 @@ class RainEventCatalog:
         return False
 
 
-__all__ = ["RainEventCatalog", "detect_rain_events", "classify_event_quality"]
+__all__ = [
+    "RainEventCatalog",
+    "detect_rain_events",
+    "classify_event_quality",
+    "is_event_ongoing",
+]
