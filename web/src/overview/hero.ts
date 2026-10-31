@@ -278,7 +278,7 @@ interface Frame {
   b: number;
 }
 
-function svg<K extends keyof SVGElementTagNameMap>(
+export function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string | number>,
   text?: string,
@@ -289,7 +289,7 @@ function svg<K extends keyof SVGElementTagNameMap>(
   return node;
 }
 
-const scale = (d0: number, d1: number, r0: number, r1: number) => (v: number) =>
+export const scale = (d0: number, d1: number, r0: number, r1: number) => (v: number) =>
   d1 === d0 ? r0 : r0 + ((v - d0) / (d1 - d0)) * (r1 - r0);
 
 /** Path segments through points, broken where a point is missing. */
@@ -329,7 +329,7 @@ function bandPath(xs: number[], lo: (number | null)[], hi: (number | null)[]): s
 
 let hatchSeq = 0;
 
-function hatchPattern(root: SVGSVGElement): string {
+export function hatchPattern(root: SVGSVGElement): string {
   const id = `hero-hatch-${++hatchSeq}`;
   const defs = svg("defs", {});
   const pattern = svg("pattern", {
@@ -346,7 +346,7 @@ function hatchPattern(root: SVGSVGElement): string {
 }
 
 /** Up to five round ticks over [lo, hi]. */
-function niceTicks(lo: number, hi: number): number[] {
+export function niceTicks(lo: number, hi: number): number[] {
   const span = hi - lo || 1;
   const raw = span / 4;
   const mag = 10 ** Math.floor(Math.log10(raw));
