@@ -3,10 +3,10 @@ storj.py: This module provides functionalities to interact with S3 storage,
 specifically for handling pandas DataFrames and JSON objects. It includes utilities
 for reading and writing data to/from S3 buckets using boto3. It also features
 logger setup for monitoring file operations and a backup mechanism for S3 data.
-The module integrates with Streamlit for secret management, enhancing the security
-aspect of S3 access. Designed for applications where S3 storage interaction is crucial,
-this module streamlines tasks like data backup, retrieval, and storage
-of structured data.
+Storj credentials come from `lookout.secrets_loader.get_secret`, read each time a
+client is built, never at import. Designed for applications where S3 storage
+interaction is crucial, this module streamlines tasks like data backup, retrieval,
+and storage of structured data.
 
 Functions:
 - Read and write JSON files to/from S3.
@@ -23,9 +23,9 @@ from typing import Optional
 
 import boto3
 import pandas as pd
-import streamlit as st
 
 from lookout.config import HISTORY_FILE_TYPE
+from lookout.secrets_loader import get_secret
 from lookout.utils.log_util import app_logger
 
 # For general logging with console output
@@ -35,18 +35,18 @@ logger = app_logger(__name__)
 backup_logger = app_logger("backup_logger", log_file="backup.log")
 
 
-# Retrieving secrets for S3 access
-ACCESS_KEY_ID = st.secrets["lookout_storage_options"]["ACCESS_KEY_ID"]
-SECRET_ACCESS_KEY = st.secrets["lookout_storage_options"]["SECRET_ACCESS_KEY"]
-ENDPOINT_URL = st.secrets["lookout_storage_options"]["ENDPOINT_URL"]
-
-
 def get_s3_client():
+    """
+    Build an S3 client for the Storj gateway, reading credentials at call time.
+
+    :return: A boto3 S3 client.
+    :raises MissingSecretError: If a Storj secret is not configured.
+    """
     return boto3.client(
         "s3",
-        endpoint_url=ENDPOINT_URL,
-        aws_access_key_id=ACCESS_KEY_ID,
-        aws_secret_access_key=SECRET_ACCESS_KEY,
+        endpoint_url=get_secret("STORJ_ENDPOINT_URL"),
+        aws_access_key_id=get_secret("STORJ_ACCESS_KEY_ID"),
+        aws_secret_access_key=get_secret("STORJ_SECRET_ACCESS_KEY"),
         region_name="us-east-1",
     )
 

@@ -75,14 +75,14 @@ pytest tests/
 - Typical behavior: 1-2 auto-saves per week during rainy season (when events end)
 
 **Configuration Management:**
-- Secrets stored in `.streamlit/secrets.toml` (API keys, storage credentials)
+- Secrets read by `lookout.secrets_loader.get_secret(name)`: env var, then `~/.config/lookout/secrets.toml`, then `st.secrets` while Streamlit is loaded; names listed in `secrets.example.toml`
 - Sensor mappings and UI configurations in `lookout/config.py`
 - Supports multiple sensor locations (outdoor, indoor, office)
 
 ### Import Conventions
 - Uses fully qualified imports: `lookout.api.ambient_client`
 - Centralized logging via `lookout.utils.log_util.app_logger`
-- Streamlit secrets accessed via `st.secrets`
+- Secrets read at first use via `get_secret`, never at import
 
 ### Code Standards
 - Type hints required for function parameters and returns
