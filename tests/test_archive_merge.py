@@ -289,6 +289,38 @@ class TestFillArchiveGap:
         assert filled["dateutc"].is_monotonic_decreasing
         assert set(filled["dateutc"]) == set(truth["dateutc"])
 
+    def test_an_interior_fill_drops_no_archive_row_and_warns_nothing(
+        self, fake_s3, ambient_replay, device, caplog
+    ):
+        """
+        The slice before the gap keeps `dateutc` as int ms.
+
+        It used to be sliced from a copy converted to Timestamps, so the
+        merge inside `get_history_since_last_archive` saw a mixed column
+        and `normalize` dropped every archive row ("dropped N of M").
+        """
+        archive = week()
+        serve(ambient_replay, week(gaps=(CARRY_GAP,)))
+        seen = []
+        real = awn.get_history_since_last_archive
+
+        def spy(device, archive_df, **kwargs):
+            seen.append(archive_df["dateutc"].dtype)
+            result = real(device, archive_df, **kwargs)
+            seen.append(len(result) >= len(archive_df))
+            return result
+
+        with caplog.at_level("WARNING", logger="lookout.utils.dateutc"):
+            with pytest.MonkeyPatch.context() as mp:
+                mp.setattr(awn, "get_history_since_last_archive", spy)
+                result = awn.fill_archive_gap(
+                    device, archive, PLAIN_GAP.start, PLAIN_GAP.end
+                )
+
+        assert result.status == "filled"
+        assert seen == ["int64", True]
+        assert not [r for r in caplog.records if "dateutc.normalize" in r.message]
+
     def test_fill_leaves_a_raw_archive_raw(self, fake_s3, ambient_replay, device):
         """
         A fill applies no rain corrections (#95), so a raw archive saves raw.

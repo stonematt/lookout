@@ -666,12 +666,11 @@ def fill_archive_gap(
         logger.warning("Invalid gap: start >= end")
         return GapFill(history_df, start, end, "refused")
 
-    # Trim to before the gap
-    working_history_df = history_df.copy()
-    working_history_df["dateutc"] = pd.to_datetime(
-        history_df["dateutc"], unit="ms", utc=True
-    )
-    archive_df = working_history_df[working_history_df["dateutc"] < start]
+    # Trim to before the gap, on the int ms column: a slice with Timestamp
+    # `dateutc` would meet the fetched int ms rows in one object column, and
+    # `normalize` would drop every archive row from the merge.
+    start_ms = int(start.value // 1_000_000)
+    archive_df = history_df[history_df["dateutc"] < start_ms]
 
     if archive_df.empty:
         logger.warning("No archive data before gap start; can't determine baseline.")
