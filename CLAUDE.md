@@ -24,6 +24,15 @@ lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
 # One refresh run: catchup, then publish the dashboard snapshot to Storj
 # (snapshot/<MAC>.dashboard.json and snapshot/<MAC>.context.json)
 PYTHONPATH=. python lookout/cli/refresh.py
+
+# Diagnostics (plain text; no Streamlit). Read-only unless noted.
+PYTHONPATH=. python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]
+PYTHONPATH=. python -m lookout.cli.diagnostics coverage [--days 14]
+PYTHONPATH=. python -m lookout.cli.diagnostics status          # archive newest vs device, and the lag
+PYTHONPATH=. python -m lookout.cli.diagnostics last-record     # the device's live reading
+# Writes: back up first, then save; --dry-run fetches and writes nothing
+PYTHONPATH=. python -m lookout.cli.diagnostics fill-gap (--index N | --start T --end T) [--dry-run]
+PYTHONPATH=. python -m lookout.cli.diagnostics energy-catalog [--save [--dry-run]]
 ```
 
 ### Environment Setup
