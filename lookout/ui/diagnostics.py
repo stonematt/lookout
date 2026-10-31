@@ -176,14 +176,25 @@ def render():
                 end_ts = pd.to_datetime(row["end"])
                 st.info(f"Filling gap: {start_ts} to {end_ts}")
 
-                updated_df = fill_archive_gap(
+                outcome = fill_archive_gap(
                     st.session_state["device"],
                     st.session_state["history_df"],
                     start_ts,
                     end_ts,
                 )
-                st.session_state["history_df"] = updated_df
-                st.success("Gap filled and archive updated.")
+                st.session_state["history_df"] = outcome.history_df
+                if outcome.skipped:
+                    # The tab keeps the skipped-gaps record (it is session
+                    # state); the core function no longer does.
+                    st.session_state.setdefault("skipped_gaps", []).append(
+                        {"start": outcome.start, "end": outcome.end}
+                    )
+                if outcome.status == "filled":
+                    st.success("Gap filled and archive updated.")
+                elif outcome.skipped:
+                    st.warning("No new data for that gap; marked as skipped.")
+                else:
+                    st.error("Gap refused: inverted, or no archive data before it.")
                 # st.rerun()
 
             if save_clicked:
