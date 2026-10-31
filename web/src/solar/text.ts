@@ -7,9 +7,9 @@
  * computed once in Python and gap-judged there. The browser only picks a
  * day, finds the brightest one, and words them.
  */
-import { MONTHS, STATION_TIME_ZONE, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
+import { MONTHS, STATION_TIME_ZONE, addDays, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
 import { gapValue } from "../gaps.js";
-import { addDays, windowStatus } from "../rain/text.js";
+import { windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, GapReason, SolarTab, SolarTrace, SolarWindow } from "../snapshot.js";
 
 /** The URL query parameter holding the selected solar day. */

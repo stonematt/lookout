@@ -1,7 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 
-import { gapElement, gapLabel, gapSentence, gapValue, hatchGap } from "../src/gaps.js";
+import {
+  gapElement,
+  gapLabel,
+  gapSentence,
+  gapValue,
+  hatchGap,
+  hatchSpan,
+  plotlyHatch,
+  svgHatch,
+} from "../src/gaps.js";
 import type { GapStatus } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -181,5 +190,43 @@ describe("hatching", () => {
     expect(block.tagName).toBe("SPAN");
     expect(block.classList.contains("gap-hatch")).toBe(true);
     expect(block.querySelector(".gap-label")?.textContent).toBe("not archived yet");
+  });
+});
+
+describe("the hatch in a chart", () => {
+  it("gives an SVG its own 135° hatch pattern, 4px stripes on an 8px repeat", () => {
+    const root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const fill = svgHatch(root);
+    const pattern = root.querySelector("defs > pattern")!;
+
+    expect(fill).toBe(`url(#${pattern.id})`);
+    expect(pattern.getAttribute("patternTransform")).toBe("rotate(45)");
+    expect(pattern.getAttribute("width")).toBe("8");
+    const [ground, stripe] = [...pattern.querySelectorAll("rect")];
+    expect(ground!.getAttribute("class")).toBe("gap-hatch-b");
+    expect(stripe!.getAttribute("class")).toBe("gap-hatch-a");
+    expect(stripe!.getAttribute("width")).toBe("4");
+  });
+
+  it("names each pattern apart, so two charts on a page never share one", () => {
+    const svg = () => document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    expect(svgHatch(svg())).not.toBe(svgHatch(svg()));
+  });
+
+  it("makes a hatched span carrying its reason, for a band to place", () => {
+    const span = hatchSpan("not archived yet");
+
+    expect(span.classList.contains("gap-hatch")).toBe(true);
+    expect(span.dataset.reason).toBe("not archived yet");
+  });
+
+  it("gives Plotly the same 135° hatch in the gap colours", () => {
+    expect(plotlyHatch("#aaa", "#fff")).toEqual({
+      shape: "\\",
+      fgcolor: "#aaa",
+      bgcolor: "#fff",
+      size: 8,
+      solidity: 0.45,
+    });
   });
 });

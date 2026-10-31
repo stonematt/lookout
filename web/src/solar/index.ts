@@ -13,10 +13,11 @@
  */
 import "./solar.css";
 
-import { dayText, formatStamp, kwhPerM2 } from "../format.js";
-import { gapElement, gapSentence, hatchGap } from "../gaps.js";
-import { FALLBACK_WIDTH, dayStatus, drawSized } from "../rain/charts.js";
-import { WINDOW_NAMES, addDays, listText, windowStatus } from "../rain/text.js";
+import { addDays, dayText, formatStamp, kwhPerM2 } from "../format.js";
+import { FALLBACK_WIDTH, drawSized } from "../charts/svg.js";
+import { make } from "../dom.js";
+import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
+import { WINDOW_NAMES, listText, windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
 import {
   drawDailyBars,
@@ -53,14 +54,6 @@ const VIEWS = [
 ] as const;
 
 type View = (typeof VIEWS)[number][0];
-
-/** An element with a class and, optionally, text. */
-function make<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 /** One section: headline, standfirst, and a body to fill. */
 function section(id: string, headline: string, standfirst: string): HTMLElement {

@@ -10,9 +10,11 @@
  * so it needs no measuring; ticks, hatches and the dot are positioned in %.
  */
 import { HOUR_MS, STATION_TIME_ZONE, degrees, formatHours, hourText, localHour } from "../format.js";
+import { svgEl } from "../charts/svg.js";
+import { make } from "../dom.js";
+import { hatchSpan } from "../gaps.js";
 import type { ConditionRibbon, DashboardSnapshot } from "../snapshot.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const VIEW_W = 1000;
 const VIEW_H = 100;
 
@@ -125,23 +127,6 @@ function runs<T>(values: T[]): Run<T>[] {
   return out;
 }
 
-function svg(tag: string, attrs: Record<string, string | number>): SVGElement {
-  const el = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
-  return el;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
 /**
  * Draw the ribbon for a snapshot.
  *
@@ -157,15 +142,15 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const pct = (i: number) => (i / n) * 100;
   // A run of slots as one full-height rect; 0.4 overlaps the next, no seam.
   const runRect = (run: Run<unknown>) =>
-    svg("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
+    svgEl("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
   const now = snapshot.current.temperature_f ?? ribbon.temperature_f.at(-1) ?? null;
 
-  const block = el("div", "ribbon");
+  const block = make("div", "ribbon");
   block.dataset.part = "ribbon";
   const claim = ribbonClaim(ribbon);
-  block.append(el("p", "ribbon-claim", claim));
+  block.append(make("p", "ribbon-claim", claim));
 
-  const band = el("div", "ribbon-band");
+  const band = make("div", "ribbon-band");
   band.setAttribute("role", "img");
   band.setAttribute(
     "aria-label",
@@ -174,7 +159,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   );
 
   // Night and day, then rain over them.
-  const fills = svg("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
+  const fills = svgEl("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
   fills.setAttribute("aria-hidden", "true");
   for (const run of runs(ribbon.daylight.map((d) => (d ? "day" : "night")))) {
     const rect = runRect(run);
@@ -189,15 +174,15 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   }
   band.append(fills);
 
-  // Hatch what the archive cannot speak for (lane I's shared hatching
-  // component replaces this local one once it lands).
+  // Hatch what the archive cannot speak for.
   const archiveEnd = snapshot.archive_newest_ms;
   for (const run of runs(ribbon.rain_in.map((r) => r === null))) {
     if (!run.value) continue;
     const startMs = ribbon.start_ms + run.from * ribbon.slot_minutes * 60_000;
-    const hatch = el("div", "ribbon-hatch gap-hatch");
-    hatch.dataset.reason =
-      archiveEnd === null || startMs > archiveEnd ? "not archived yet" : "gap in record";
+    const hatch = hatchSpan(
+      archiveEnd === null || startMs > archiveEnd ? "not archived yet" : "gap in record",
+    );
+    hatch.classList.add("ribbon-hatch");
     // A span at the right edge is anchored there, so its minimum width
     // grows leftward and stays inside the band.
     if (run.to === n) hatch.style.right = "0";
@@ -213,7 +198,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     const lo = Math.min(...known) - 2;
     const hi = Math.max(...known) + 2;
     const y = (v: number) => +(12 + (1 - (v - lo) / (hi - lo)) * 76).toFixed(2);
-    const trace = svg("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
+    const trace = svgEl("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
     trace.setAttribute("aria-hidden", "true");
     trace.classList.add("ribbon-trace");
     const point = (i: number) => `${x(i + 0.5)},${y(temps[i]!)}`;
@@ -223,7 +208,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
       // A lone point still needs a length to show.
       if (pts.length === 1) pts.push(pts[0]!);
       for (const cls of ["ribbon-halo", "ribbon-line"]) {
-        trace.append(svg("polyline", { points: pts.join(" "), class: cls }));
+        trace.append(svgEl("polyline", { points: pts.join(" "), class: cls }));
       }
     }
     // The live point, alone after the unarchived span: join it dotted.
@@ -231,7 +216,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     const before = segments.at(-2);
     if (last && before && last.to === n && last.to - last.from === 1) {
       trace.append(
-        svg("polyline", {
+        svgEl("polyline", {
           points: `${point(before.to - 1)} ${point(n - 1)}`,
           class: "ribbon-live",
         }),
@@ -239,21 +224,21 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     }
     band.append(trace);
     if (now !== null) {
-      const dot = el("div", "ribbon-dot");
+      const dot = make("div", "ribbon-dot");
       dot.style.top = `${y(now)}%`;
       band.append(dot);
     }
   }
   block.append(band);
 
-  const ticks = el("div", "ribbon-ticks");
+  const ticks = make("div", "ribbon-ticks");
   ticks.setAttribute("aria-hidden", "true");
   for (const tick of ribbonTicks(ribbon)) {
-    const node = el("span", tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick", tick.label);
+    const node = make("span", tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick", tick.label);
     node.style.left = `${tick.pct}%`;
     ticks.append(node);
   }
-  if (now !== null) ticks.append(el("span", "ribbon-now", `now ${degrees(now)}`));
+  if (now !== null) ticks.append(make("span", "ribbon-now", `now ${degrees(now)}`));
   block.append(ticks);
 
   block.append(ribbonKey());
@@ -261,15 +246,15 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
 }
 
 function ribbonKey(): HTMLElement {
-  const key = el("p", "ribbon-key");
+  const key = make("p", "ribbon-key");
   const swatch = (cls: string, label: string) => {
-    const item = el("span", "ribbon-key-item");
-    item.append(el("i", cls), label);
+    const item = make("span", "ribbon-key-item");
+    item.append(make("i", cls), label);
     return item;
   };
-  const ramp = el("span", "ribbon-key-item");
-  const steps = el("span", "ribbon-key-ramp");
-  RAIN_STEP_NAMES.forEach((_, i) => steps.append(el("i", `ribbon-key-rain-${i + 1}`)));
+  const ramp = make("span", "ribbon-key-item");
+  const steps = make("span", "ribbon-key-ramp");
+  RAIN_STEP_NAMES.forEach((_, i) => steps.append(make("i", `ribbon-key-rain-${i + 1}`)));
   ramp.append("rain, light", steps, "heavy");
   key.append(
     swatch("ribbon-key-night", "night"),

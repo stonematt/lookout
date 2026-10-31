@@ -18,6 +18,7 @@
 import "./almanac.css";
 
 import { WATER_MONTHS, dayText, formatStamp, inches } from "../format.js";
+import { make } from "../dom.js";
 import { hatchGap } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
 import type { Almanac, AlmanacMonth, AlmanacYear, DashboardSnapshot } from "../snapshot.js";
@@ -36,18 +37,6 @@ import {
   wettestMonth,
 } from "./almanac-text.js";
 import type { OverviewSection } from "./index.js";
-
-/** An element with a class and, optionally, text. */
-function make<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 /** Headline and standfirst, the section's first two parts. */
 function heading(host: HTMLElement, headline: string, standfirst: string): void {

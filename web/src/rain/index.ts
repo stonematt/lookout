@@ -13,7 +13,9 @@ import "./rain.css";
 import { dayText, formatDayCount, formatDays, formatStamp, inches } from "../format.js";
 import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
-import { drawDailyBars, drawHourGrid, drawSized, drawYearCurves } from "./charts.js";
+import { drawSized } from "../charts/svg.js";
+import { make } from "../dom.js";
+import { drawDailyBars, drawHourGrid, drawYearCurves } from "./charts.js";
 import {
   WINDOW_NAMES,
   calmRule,
@@ -36,18 +38,6 @@ const KEY_STEPS: [string, string][] = [
   ["steady", "up to 0.30 in"],
   ["heavy", "over 0.30 in"],
 ];
-
-/** An element with a class and, optionally, text. */
-function make<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 /** One section: headline, standfirst, and a body to fill. */
 function section(id: string, headline: string, standfirst: string): HTMLElement {

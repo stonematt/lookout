@@ -145,14 +145,6 @@
   stroke-width: 2;
 }
 
-.hero-hatch-a {
-  fill: var(--gap-a);
-}
-
-.hero-hatch-b {
-  fill: var(--gap-b);
-}
-
 /* ---------- Why this leads ---------- */
 .hero-why {
   margin-top: var(--s-4);

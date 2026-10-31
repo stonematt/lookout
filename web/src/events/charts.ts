@@ -14,6 +14,7 @@
  * known".
  */
 import { STATION_TIME_ZONE, inches } from "../format.js";
+import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
 
 type PlotlyModule = typeof import("plotly.js-dist-min");
@@ -160,7 +161,7 @@ function hatches(spans: GapSpan[], top: number): Plotly.Data {
     marker: {
       color: token("--gap-b"),
       line: { width: 0 },
-      pattern: { shape: "\\", fgcolor: token("--gap-a"), bgcolor: token("--gap-b"), size: 8, solidity: 0.45 },
+      pattern: plotlyHatch(token("--gap-a"), token("--gap-b")),
     },
     hoverinfo: "skip",
   };

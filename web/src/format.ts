@@ -167,6 +167,18 @@ export function dayText(iso: string, withYear = false): string {
   return withYear ? `${text}, ${iso.slice(0, 4)}` : text;
 }
 
+/**
+ * The day `offset` days after an ISO day.
+ *
+ * @param iso - "YYYY-MM-DD".
+ * @param offset - Days to add.
+ * @returns "YYYY-MM-DD".
+ */
+export function addDays(iso: string, offset: number): string {
+  const ms = Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+  return new Date(ms + offset * DAY_MS).toISOString().slice(0, 10);
+}
+
 // ---------- units ----------
 
 /**

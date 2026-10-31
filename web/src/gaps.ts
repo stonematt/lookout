@@ -16,6 +16,10 @@
  *
  * Every view that shows a month or window value goes through `gapValue`
  * (null means: draw nothing, hatch it) and `hatchGap`.
+ *
+ * The same hatch marks a span inside a chart: `svgHatch` gives an SVG chart
+ * its pattern, `hatchSpan` is a hatched span for an HTML band to place, and
+ * `plotlyHatch` is the pattern for a Plotly chart.
  */
 import "./styles/gaps.css";
 
@@ -33,6 +37,31 @@ const LABELS: Record<GapReason, string> = {
 
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
 const COMPACT_LABEL = "n/a";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** The hatch's repeat and its stripe (DESIGN.md: 4px on an 8px repeat). */
+const HATCH_REPEAT_PX = 8;
+const HATCH_STRIPE_PX = 4;
+
+/**
+ * A one-day gap status, so a day's reason reads like any window's.
+ *
+ * @param day - "YYYY-MM-DD".
+ * @param reason - Why the day is not in the record.
+ * @returns An invalid status over that day.
+ */
+export function dayStatus(day: string, reason: GapReason): GapStatus {
+  return {
+    key: day,
+    first_day: day,
+    last_day: day,
+    days: 1,
+    missing_days: 1,
+    status: "invalid",
+    reason,
+  };
+}
 
 /** Options for `hatchGap` and `gapElement`. */
 export interface HatchOptions {
@@ -59,7 +88,17 @@ export function isComparable(status: GapStatus): boolean {
  */
 export function gapLabel(status: GapStatus): string | null {
   if (isComparable(status)) return null;
-  return LABELS[status.reason ?? "gap"];
+  return reasonLabel(status.reason ?? "gap");
+}
+
+/**
+ * The short reason in place for a reason alone, e.g. a day's in a chart.
+ *
+ * @param reason - Why it is not in the record.
+ * @returns "n/a: gap in record", "not archived yet" and so on.
+ */
+export function reasonLabel(reason: GapReason): string {
+  return LABELS[reason];
 }
 
 /**
@@ -178,4 +217,72 @@ function daySpan(first: string, last: string): string {
   if (first === last) return end;
   const sameYear = first.slice(0, 4) === last.slice(0, 4);
   return `${dayText(first, !sameYear)} to ${end}`;
+}
+
+let patternCount = 0;
+
+/**
+ * Give an SVG chart the 135° hatch as a pattern of its own (`gap-hatch-a`
+ * stripes over `gap-hatch-b`, coloured in gaps.css), for the marks that
+ * stand for what is not in the record.
+ *
+ * @param root - The chart's SVG.
+ * @returns The fill that paints with it, `url(#...)`.
+ */
+export function svgHatch(root: SVGSVGElement): string {
+  const make = (tag: string, attrs: Record<string, string | number>) => {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    return node;
+  };
+  const id = `gap-hatch-${++patternCount}`;
+  const pattern = make("pattern", {
+    id,
+    width: HATCH_REPEAT_PX,
+    height: HATCH_REPEAT_PX,
+    patternUnits: "userSpaceOnUse",
+    patternTransform: "rotate(45)",
+  });
+  pattern.append(
+    make("rect", { width: HATCH_REPEAT_PX, height: HATCH_REPEAT_PX, class: "gap-hatch-b" }),
+    make("rect", { width: HATCH_STRIPE_PX, height: HATCH_REPEAT_PX, class: "gap-hatch-a" }),
+  );
+  const defs = make("defs", {});
+  defs.append(pattern);
+  root.append(defs);
+  return `url(#${id})`;
+}
+
+/**
+ * A hatched span for a band to place over the stretch it cannot speak for.
+ *
+ * @param reason - Why, e.g. "not archived yet"; kept as `data-reason`.
+ * @returns A `div.gap-hatch`, unpositioned.
+ */
+export function hatchSpan(reason: string): HTMLElement {
+  const span = document.createElement("div");
+  span.className = "gap-hatch";
+  span.dataset.reason = reason;
+  return span;
+}
+
+/** A Plotly bar's pattern. */
+export interface PlotlyHatch {
+  /** Plotly's backslash: stripes falling left to right, the 135° hatch. */
+  shape: "\\";
+  fgcolor: string;
+  bgcolor: string;
+  size: number;
+  solidity: number;
+}
+
+/**
+ * The 135° hatch as a Plotly bar pattern.
+ *
+ * @param gapA - The stripe colour (the `--gap-a` token's value).
+ * @param gapB - The ground colour (the `--gap-b` token's value).
+ * @returns The `marker.pattern`.
+ */
+export function plotlyHatch(gapA: string, gapB: string): PlotlyHatch {
+  return { shape: "\\", fgcolor: gapA, bgcolor: gapB, size: HATCH_REPEAT_PX, solidity: 0.45 };
 }

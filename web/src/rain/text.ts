@@ -35,18 +35,6 @@ export const WINDOW_NAMES: Record<string, string> = {
 };
 
 /**
- * The day `offset` days after an ISO day.
- *
- * @param iso - "YYYY-MM-DD".
- * @param offset - Days to add.
- * @returns "YYYY-MM-DD".
- */
-export function addDays(iso: string, offset: number): string {
-  const ms = Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
-  return new Date(ms + offset * 86_400_000).toISOString().slice(0, 10);
-}
-
-/**
  * A spell's length in the One Format Rule's duration style, e.g. "4 d",
  * "2.5 d" (a median can fall between two whole days).
  *

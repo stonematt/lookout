@@ -28,11 +28,11 @@ import {
   localHour,
   wattsPerM2,
 } from "../format.js";
-import { gapSentence } from "../gaps.js";
+import { niceTicks, scale, svgEl } from "../charts/svg.js";
+import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 /** A live reading further ahead of the archive than this is hatched. */
 const LAG_HATCH_MS = 15 * 60_000;
 
@@ -270,20 +270,6 @@ interface Frame {
   b: number;
 }
 
-export function svg<K extends keyof SVGElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string | number>,
-  text?: string,
-): SVGElementTagNameMap[K] {
-  const node = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-export const scale = (d0: number, d1: number, r0: number, r1: number) => (v: number) =>
-  d1 === d0 ? r0 : r0 + ((v - d0) / (d1 - d0)) * (r1 - r0);
-
 /** Path segments through points, broken where a point is missing. */
 function linePath(points: ([number, number] | null)[]): string {
   let d = "";
@@ -317,35 +303,6 @@ function bandPath(xs: number[], lo: (number | null)[], hi: (number | null)[]): s
   });
   flush();
   return d;
-}
-
-let hatchSeq = 0;
-
-export function hatchPattern(root: SVGSVGElement): string {
-  const id = `hero-hatch-${++hatchSeq}`;
-  const defs = svg("defs", {});
-  const pattern = svg("pattern", {
-    id,
-    width: 8,
-    height: 8,
-    patternUnits: "userSpaceOnUse",
-    patternTransform: "rotate(45)",
-  });
-  pattern.append(svg("rect", { width: 8, height: 8, class: "hero-hatch-b" }), svg("rect", { width: 3, height: 8, class: "hero-hatch-a" }));
-  defs.append(pattern);
-  root.append(defs);
-  return id;
-}
-
-/** Up to five round ticks over [lo, hi]. */
-export function niceTicks(lo: number, hi: number): number[] {
-  const span = hi - lo || 1;
-  const raw = span / 4;
-  const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= 5) ?? raw;
-  const ticks: number[] = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(Number(v.toPrecision(6)));
-  return ticks;
 }
 
 function lineColour(snapshot: DashboardSnapshot): string {
@@ -417,15 +374,15 @@ function timeChart(
 
   const x = scale(t0, t1, 0, iw);
   const y = scale(lo, hi, ih, 0);
-  const root = svg("svg", { width: f.w, height: f.h, viewBox: `0 0 ${f.w} ${f.h}`, class: "hero-svg" });
-  const hatchId = hatchPattern(root);
-  const g = svg("g", { transform: `translate(${f.l},${f.t})` });
+  const root = svgEl("svg", { width: f.w, height: f.h, viewBox: `0 0 ${f.w} ${f.h}`, class: "hero-svg" });
+  const hatch = svgHatch(root);
+  const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
   root.append(g);
 
   const unit = lead.unit === "f" ? "°" : "";
   for (const v of ticks) {
-    g.append(svg("line", { class: "hero-grid", x1: 0, x2: iw, y1: y(v), y2: y(v) }));
-    g.append(svg("text", { class: "hero-tick", x: -6, y: y(v) + 4, "text-anchor": "end" }, `${lead.unit === "in" ? inches(v, { digits: 2, unit: false }) : Math.round(v)}${unit}`));
+    g.append(svgEl("line", { class: "hero-grid", x1: 0, x2: iw, y1: y(v), y2: y(v) }));
+    g.append(svgEl("text", { class: "hero-tick", x: -6, y: y(v) + 4, "text-anchor": "end" }, `${lead.unit === "in" ? inches(v, { digits: 2, unit: false }) : Math.round(v)}${unit}`));
   }
   // Time ticks: every six hours of the day, or the event's start and now.
   if (hourly) {
@@ -433,11 +390,11 @@ function timeChart(
       const t = t0 + i * slotMs;
       const hour = localHour(t);
       if (hour % 6 || i === trace.values.length) continue;
-      g.append(svg("line", { class: "hero-grid", x1: x(t), x2: x(t), y1: ih, y2: ih + 4 }));
-      g.append(svg("text", { class: "hero-tick", x: x(t), y: ih + 18, "text-anchor": i === 0 ? "start" : "middle" }, hourName(t)));
+      g.append(svgEl("line", { class: "hero-grid", x1: x(t), x2: x(t), y1: ih, y2: ih + 4 }));
+      g.append(svgEl("text", { class: "hero-tick", x: x(t), y: ih + 18, "text-anchor": i === 0 ? "start" : "middle" }, hourName(t)));
     }
   } else {
-    g.append(svg("text", { class: "hero-tick", x: 0, y: ih + 18 }, `started ${hourName(t0)}`));
+    g.append(svgEl("text", { class: "hero-tick", x: 0, y: ih + 18 }, `started ${hourName(t0)}`));
   }
 
   // The usual range: per hour for temperature and solar, one band for rain.
@@ -446,35 +403,35 @@ function timeChart(
     const xs = trace.values.map((_, i) => x(at(i)));
     const yl = bandLo.map((v) => (v === null ? null : y(v)));
     const yh = bandHi.map((v) => (v === null ? null : y(v)));
-    g.append(svg("path", { class: band, d: bandPath(xs, yl, yh) }));
+    g.append(svgEl("path", { class: band, d: bandPath(xs, yl, yh) }));
     const median = trace.usual_median.map((v, i) => (v === null ? null : ([xs[i]!, y(v)] as [number, number])));
-    g.append(svg("path", { class: "hero-median", d: linePath(median) }));
+    g.append(svgEl("path", { class: "hero-median", d: linePath(median) }));
   } else if (lead.usual_low !== null && lead.usual_high !== null && lead.usual_median !== null) {
-    g.append(svg("rect", { class: band, x: 0, width: iw, y: y(lead.usual_high), height: Math.max(1, y(lead.usual_low) - y(lead.usual_high)) }));
-    g.append(svg("line", { class: "hero-median", x1: 0, x2: iw, y1: y(lead.usual_median), y2: y(lead.usual_median) }));
-    g.append(svg("text", { class: "hero-label", x: 4, y: y(lead.usual_high) - 6 }, `usual event ${inches(lead.usual_median, { digits: 2 })}`));
+    g.append(svgEl("rect", { class: band, x: 0, width: iw, y: y(lead.usual_high), height: Math.max(1, y(lead.usual_low) - y(lead.usual_high)) }));
+    g.append(svgEl("line", { class: "hero-median", x1: 0, x2: iw, y1: y(lead.usual_median), y2: y(lead.usual_median) }));
+    g.append(svgEl("text", { class: "hero-label", x: 4, y: y(lead.usual_high) - 6 }, `usual event ${inches(lead.usual_median, { digits: 2 })}`));
   }
 
   // The span only the live reading covers.
   if (lagging && archived >= t0) {
-    g.append(svg("rect", { class: "hero-hatch", x: x(archived), width: Math.max(0, x(nowMs) - x(archived)), y: 0, height: ih, fill: `url(#${hatchId})` }));
+    g.append(svgEl("rect", { class: "hero-hatch", x: x(archived), width: Math.max(0, x(nowMs) - x(archived)), y: 0, height: ih, fill: hatch }));
     g.append(
-      svg("text", { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" }, hourly ? "only the live reading is known" : "only the live total is known"),
+      svgEl("text", { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" }, hourly ? "only the live reading is known" : "only the live total is known"),
     );
   }
 
   const points = shown.map((v, i) => (v === null ? null : ([x(at(i)), y(v)] as [number, number])));
-  g.append(svg("path", { class: `hero-line hero-line-${lineColour(snapshot)}`, d: linePath(points) }));
+  g.append(svgEl("path", { class: `hero-line hero-line-${lineColour(snapshot)}`, d: linePath(points) }));
   const last = [...points].reverse().find((p) => p !== null);
   const dot: [number, number] = [x(nowMs), y(lead.now)];
   if (last) {
     const join = lagging ? "hero-join" : "hero-line";
-    g.append(svg("path", { class: `${join} hero-line-${lineColour(snapshot)}`, d: `M${last[0].toFixed(1)},${last[1].toFixed(1)}L${dot[0].toFixed(1)},${dot[1].toFixed(1)}` }));
+    g.append(svgEl("path", { class: `${join} hero-line-${lineColour(snapshot)}`, d: `M${last[0].toFixed(1)},${last[1].toFixed(1)}L${dot[0].toFixed(1)},${dot[1].toFixed(1)}` }));
   }
-  g.append(svg("circle", { class: "hero-dot", cx: dot[0], cy: dot[1], r: 5 }));
+  g.append(svgEl("circle", { class: "hero-dot", cx: dot[0], cy: dot[1], r: 5 }));
   const right = dot[0] + 8 + 110 > iw + f.r;
   g.append(
-    svg(
+    svgEl(
       "text",
       { class: "hero-note", x: right ? dot[0] - 8 : dot[0] + 8, y: dot[1] - 8, "text-anchor": right ? "end" : "start" },
       nowLabel(lead),
@@ -491,20 +448,20 @@ function spellChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement |
   const iw = f.w - f.l - f.r;
   const max = Math.max(lead.now, (lead.usual_high ?? 0) * 1.25, 7) * 1.1;
   const x = scale(0, max, 0, iw);
-  const root = svg("svg", { width: f.w, height: f.h, viewBox: `0 0 ${f.w} ${f.h}`, class: "hero-svg" });
-  const g = svg("g", { transform: `translate(${f.l},${f.t})` });
+  const root = svgEl("svg", { width: f.w, height: f.h, viewBox: `0 0 ${f.w} ${f.h}`, class: "hero-svg" });
+  const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
   root.append(g);
   if (lead.usual_low !== null && lead.usual_high !== null && lead.usual_median !== null) {
-    g.append(svg("rect", { class: "hero-band", x: x(lead.usual_low), width: Math.max(3, x(lead.usual_high) - x(lead.usual_low)), y: 0, height: 34, rx: 3 }));
-    g.append(svg("line", { class: "hero-median", x1: x(lead.usual_median), x2: x(lead.usual_median), y1: -2, y2: 36 }));
-    g.append(svg("text", { class: "hero-label", x: x(lead.usual_median) + 6, y: 52 }, `usual ${formatDayCount(lead.usual_median)}`));
+    g.append(svgEl("rect", { class: "hero-band", x: x(lead.usual_low), width: Math.max(3, x(lead.usual_high) - x(lead.usual_low)), y: 0, height: 34, rx: 3 }));
+    g.append(svgEl("line", { class: "hero-median", x1: x(lead.usual_median), x2: x(lead.usual_median), y1: -2, y2: 36 }));
+    g.append(svgEl("text", { class: "hero-label", x: x(lead.usual_median) + 6, y: 52 }, `usual ${formatDayCount(lead.usual_median)}`));
   }
-  g.append(svg("line", { class: "hero-line hero-line-calm", x1: 0, x2: x(lead.now), y1: 17, y2: 17 }));
-  g.append(svg("circle", { class: "hero-dot", cx: x(lead.now), cy: 17, r: 5 }));
+  g.append(svgEl("line", { class: "hero-line hero-line-calm", x1: 0, x2: x(lead.now), y1: 17, y2: 17 }));
+  g.append(svgEl("circle", { class: "hero-dot", cx: x(lead.now), cy: 17, r: 5 }));
   const right = x(lead.now) + 110 > iw;
-  g.append(svg("text", { class: "hero-note", x: right ? x(lead.now) - 10 : x(lead.now) + 10, y: 12, "text-anchor": right ? "end" : "start" }, nowLabel(lead)));
+  g.append(svgEl("text", { class: "hero-note", x: right ? x(lead.now) - 10 : x(lead.now) + 10, y: 12, "text-anchor": right ? "end" : "start" }, nowLabel(lead)));
   for (let d = 0; d <= max; d += max > 30 ? 10 : max > 14 ? 5 : 2) {
-    g.append(svg("text", { class: "hero-tick", x: x(d), y: 68, "text-anchor": d === 0 ? "start" : "middle" }, d === 0 ? "0 days" : String(d)));
+    g.append(svgEl("text", { class: "hero-tick", x: x(d), y: 68, "text-anchor": d === 0 ? "start" : "middle" }, d === 0 ? "0 days" : String(d)));
   }
   return root;
 }
