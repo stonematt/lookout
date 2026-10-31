@@ -156,7 +156,9 @@ export function eventFinding(row: RainEventRow, count: number): string {
 }
 
 /**
- * The list's finding headline for a water year or for all events.
+ * The list's finding headline for a water year or for all events. The rain
+ * is the events' totals added up, so it says "in those events": it is not
+ * the water year's rain, which counts showers outside any event too.
  *
  * @param stats - The summary.
  * @param season - A water year, or "all".
@@ -171,8 +173,8 @@ export function listFinding(
   const n = stats.count;
   const events = `${n} rain event${n === 1 ? "" : "s"}`;
   if (season !== "all") {
-    return `${events} in water year ${season}, ${inches(stats.total_in, { digits: 2 })} in all`;
+    return `${events} in water year ${season}, ${inches(stats.total_in, { digits: 2 })} of rain in those events`;
   }
   const since = oldestMs === null ? "" : ` since ${formatStamp(oldestMs).split(",")[0]}, ${YEAR.format(oldestMs)}`;
-  return `${events}${since}, ${inches(stats.total_in, { digits: 2 })} in all`;
+  return `${events}${since}, ${inches(stats.total_in, { digits: 2 })} of rain in those events`;
 }

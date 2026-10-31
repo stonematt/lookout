@@ -143,7 +143,10 @@ export interface RainEventRow {
   water_year: number;
   /** 1 for the wettest listed event. */
   rank: number;
-  ongoing: boolean;
+  /**
+   * It is the snapshot's `active_rain_event`: the one "raining now"
+   * decision, which the hero reads too.
+   */
   live: boolean;
   /** False: the archive has no readings for it; show totals only. */
   has_curve: boolean;
@@ -152,6 +155,12 @@ export interface RainEventRow {
 /** Summary metrics over a set of events. */
 export interface EventStats {
   count: number;
+  /**
+   * The events' totals added up: rain in events only, not a window's rain.
+   * Showers under the catalog's minimum are not in it, and an event counts
+   * whole in the water year it started in; the water year's rain is
+   * `RainTab.water_years`. Label it as rain in events.
+   */
   total_in: number;
   median_in: number | null;
   mean_duration_minutes: number | null;
@@ -183,8 +192,12 @@ export interface RainEvents {
   all_time: EventStats;
   /** Newest first. */
   seasons: EventSeason[];
-  /** The ongoing event's curve, live stitched; null with none ongoing. */
-  ongoing_curve: EventCurve | null;
+  /**
+   * The curve of the event the catalog still holds open, live stitched (its
+   * curve file is written once the catalog closes it); null with none open.
+   * Open is not live: the row's `live` says whether it is still raining.
+   */
+  open_curve: EventCurve | null;
 }
 
 /**
@@ -263,6 +276,12 @@ export interface HeroLead {
 /** The rain over one standard window; its gap status has the same key. */
 export interface RainWindow {
   key: string;
+  /**
+   * Its rain gap status: `gaps.windows`' with the same key, except that a
+   * day whose rain counter has no reading is missing here. Show the total
+   * by this status.
+   */
+  status: GapStatus;
   /** Prorated when its status is; null when invalid. */
   total_in: number | null;
 }
@@ -437,7 +456,7 @@ export interface AlmanacYear {
 export interface RollingYear {
   /** The calendar year the window ends in. */
   year: number;
-  /** The current year's is the `Gaps.windows` status with the same key. */
+  /** Its rain gap status; the current year's is the `RainTab.windows` status with the same key. */
   status: GapStatus;
   rain_in: number | null;
 }

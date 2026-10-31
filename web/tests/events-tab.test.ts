@@ -68,7 +68,7 @@ describe("the event list", () => {
     mountEvents(panel, raining(), deps);
 
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "3 rain events since Jan 4, 2026, 1.14 in in all",
+      "3 rain events since Jan 4, 2026, 1.14 in of rain in those events",
     );
     const stats = panel.querySelector(".ev-stats")!.textContent!;
     expect(stats).toContain("3");
@@ -100,7 +100,7 @@ describe("the event list", () => {
 
     expect(starts()).toEqual([EVENT_1]);
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "1 rain event in water year 2025, 0.36 in in all",
+      "1 rain event in water year 2025, 0.36 in of rain in those events",
     );
   });
 });
@@ -116,14 +116,27 @@ describe("the selected event", () => {
     expect(location.search).toBe("?fixture=raining");
   });
 
-  it("charts the live event from the snapshot's ongoing curve, not a fetch", async () => {
+  it("charts an event still open but no longer live from the open curve, unmarked", async () => {
+    // The catalog holds event 3 open; the live counter has ended it.
+    const snapshot = raining();
+    snapshot.rain_events.events[0]!.live = false;
+    mountEvents(panel, snapshot, deps);
+    await flush();
+
+    expect(deps.fetchCurve).not.toHaveBeenCalled();
+    expect(deps.draw.mock.calls[0]![1]).toBe(snapshot.rain_events.open_curve);
+    expect(panel.querySelector(".ev-detail .ev-live")).toBeNull();
+    expect(rows()[0]!.classList.contains("pin")).toBe(false);
+  });
+
+  it("charts the live event from the snapshot's open curve, not a fetch", async () => {
     const snapshot = raining();
     mountEvents(panel, snapshot, deps);
     await flush();
 
     expect(deps.fetchCurve).not.toHaveBeenCalled();
     expect(deps.draw).toHaveBeenCalledOnce();
-    expect(deps.draw.mock.calls[0]![1]).toBe(snapshot.rain_events.ongoing_curve);
+    expect(deps.draw.mock.calls[0]![1]).toBe(snapshot.rain_events.open_curve);
     expect(panel.querySelector(".ev-detail .ev-live")).not.toBeNull();
   });
 
@@ -226,7 +239,7 @@ describe("an empty catalog", () => {
       events: [],
       all_time: { count: 0, total_in: 0, median_in: null, mean_duration_minutes: null },
       seasons: [],
-      ongoing_curve: null,
+      open_curve: null,
     };
 
     mountEvents(panel, snapshot, deps);

@@ -5,9 +5,11 @@
  *
  * - The list renders from the snapshot's `rain_events`; a water-year picker
  *   and a sort reshape it in the browser.
- * - A completed event's detail renders from its curve file (`/event`); the
- *   live event's from the snapshot's `ongoing_curve`. An event with no
- *   archive data shows its totals only, with "n/a: gap in record".
+ * - A closed event's detail renders from its curve file (`/event`); the
+ *   event the catalog still holds open, live or not, from the snapshot's
+ *   `open_curve`, since its file is written only once the catalog closes
+ *   it. An event with no archive data shows its totals only, with "n/a: gap
+ *   in record".
  * - The event is keyed by its start, which is stable across refresh runs,
  *   so a link opened while it is live still opens it once it has completed.
  */
@@ -136,7 +138,7 @@ export function mountEvents(
     $(".ev-title").textContent = listFinding(stats, season, oldest);
     $(".ev-stats").innerHTML = [
       stat(String(stats.count), "events"),
-      stat(inches(stats.total_in, { digits: 2 }), "rain in all"),
+      stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
       stat(stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }), "median event"),
       stat(
         stats.mean_duration_minutes === null ? "n/a" : minutes(stats.mean_duration_minutes),
@@ -251,10 +253,13 @@ ${note}
         });
     };
 
-    if (row.live || row.ongoing) {
-      const curve = section.ongoing_curve;
-      if (curve && curve.start_ms === row.start_ms) show(curve);
-      else charts.innerHTML = '<p class="ev-note">This event\'s readings are not in the snapshot yet.</p>';
+    const open = section.open_curve;
+    if (open && open.start_ms === row.start_ms) {
+      show(open);
+      return;
+    }
+    if (row.live) {
+      charts.innerHTML = '<p class="ev-note">This event\'s readings are not in the snapshot yet.</p>';
       return;
     }
     charts.innerHTML = '<p class="ev-note">Loading the event\'s readings…</p>';

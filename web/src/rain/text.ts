@@ -70,21 +70,34 @@ export function windowStatus(snapshot: DashboardSnapshot, key: string): GapStatu
 }
 
 /**
- * A window's rain as its gap status allows it to be shown.
+ * A window's rain gap status by key: the archive's, with any day whose rain
+ * counter has no reading missing. Rain values use this, not `windowStatus`.
  *
  * @param snapshot - The dashboard snapshot.
+ * @param key - "today", "7d", "water_year", ...
+ * @returns Its rain status.
+ */
+export function rainStatus(snapshot: DashboardSnapshot, key: string): GapStatus {
+  const window = snapshot.rain_tab.windows.find((w) => w.key === key);
+  if (!window) throw new Error(`no rain window ${key}`);
+  return window.status;
+}
+
+/**
+ * A window's rain as its rain gap status allows it to be shown.
+ *
  * @param window - The Rain tab's window total.
  * @returns "0.30 in", "≈ 3.10 in", or null when it cannot be compared.
  */
-export function windowValue(snapshot: DashboardSnapshot, window: RainWindow): string | null {
+export function windowValue(window: RainWindow): string | null {
   if (window.total_in === null) return null;
-  return gapValue(windowStatus(snapshot, window.key), inches(window.total_in));
+  return gapValue(window.status, inches(window.total_in));
 }
 
 /** A window's total by key, as shown, or null. */
 function shown(snapshot: DashboardSnapshot, key: string): string | null {
   const window = snapshot.rain_tab.windows.find((w) => w.key === key);
-  return window ? windowValue(snapshot, window) : null;
+  return window ? windowValue(window) : null;
 }
 
 /**
@@ -212,7 +225,7 @@ export function hoursHeadline(snapshot: DashboardSnapshot): string {
   if (wet === null) return `Rain by the hour over ${span}`;
   if (wet === 0 || !wettest) return `No rain fell in ${span}`;
   const count = Math.round(wet);
-  const hours = gapValue(windowStatus(snapshot, recent.window), `${count} ${count === 1 ? "hour" : "hours"}`);
+  const hours = gapValue(rainStatus(snapshot, recent.window), `${count} ${count === 1 ? "hour" : "hours"}`);
   return (
     `Rain fell in ${hours} of ${span}, the heaviest ` +
     `${inches(wettest.rain_in)} at ${hourText(wettest.hour)} on ${dayText(wettest.day)}`
@@ -247,7 +260,7 @@ function notCompared(reason: string | null, many = false): string {
 export function windowsNote(snapshot: DashboardSnapshot): string | null {
   const groups = new Map<string, string[]>();
   for (const window of snapshot.rain_tab.windows) {
-    const status = windowStatus(snapshot, window.key);
+    const status = window.status;
     if (status.status !== "invalid") continue;
     const reason = status.reason ?? "gap";
     groups.set(reason, [...(groups.get(reason) ?? []), WINDOW_NAMES[window.key] ?? window.key]);

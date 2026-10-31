@@ -171,7 +171,7 @@ describe("the lane server's /event", () => {
   it("shifts the ongoing curve's times with the rest of the snapshot", async () => {
     const response = await devResponse("/dashboard?fixture=raining&age=3", {}, NOW);
     const dashboard = parseDashboard(await response!.json());
-    const curve = dashboard.rain_events.ongoing_curve!;
+    const curve = dashboard.rain_events.open_curve!;
 
     expect(curve.t_ms.at(-1)).toBe(NOW - 3 * MIN);
   });
@@ -205,7 +205,7 @@ describe("the curve contract", () => {
 
 describe("the chart helpers", () => {
   const ongoing = () =>
-    parseDashboard(golden("raining", "dashboard")).rain_events.ongoing_curve!;
+    parseDashboard(golden("raining", "dashboard")).rain_events.open_curve!;
 
   it("plots in Pacific time", () => {
     expect(pacific(EVENT_3)).toBe("2026-01-08 14:00:00");

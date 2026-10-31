@@ -23,6 +23,7 @@ import {
   daysText,
   dryHeadline,
   hoursHeadline,
+  rainStatus,
   windowStatus,
   windowsNote,
   windowValue,
@@ -88,16 +89,16 @@ function daily(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   );
   const strip = make("dl", "rain-stats rain-windows");
   for (const window of tab.windows) {
-    const dd = stat(strip, WINDOW_NAMES[window.key] ?? window.key, windowValue(snapshot, window));
+    const dd = stat(strip, WINDOW_NAMES[window.key] ?? window.key, windowValue(window));
     // Compact in the strip: the source line says why each one is not shown.
-    hatchGap(dd, windowStatus(snapshot, window.key), { compact: true });
+    hatchGap(dd, window.status, { compact: true });
   }
   host.append(strip);
   const { chart, readout } = figure(host, "Rain each day over the last 90 days");
   charts.push(() =>
     drawSized(chart, (width) => drawDailyBars(chart, tab.recent, width, (t) => (readout.textContent = t))),
   );
-  const todayStatus = windowStatus(snapshot, "today");
+  const todayStatus = rainStatus(snapshot, "today");
   const live = snapshot.current.rain_today_in;
   const liveNote =
     todayStatus.status === "invalid" && live !== null
@@ -134,7 +135,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
     longest ? daysText(longest.days) : null,
     longest ? `${dayText(longest.first_day)} to ${dayText(longest.last_day, true)}` : undefined,
   );
-  const wyStatus = windowStatus(snapshot, "water_year");
+  const wyStatus = rainStatus(snapshot, "water_year");
   const rainDays = spells.water_year_rain_days;
   const daysDd = stat(
     strip,

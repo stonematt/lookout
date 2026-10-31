@@ -69,11 +69,20 @@ describe("the current temperature and its condition sentence", () => {
   });
 
   it("names the last rain on a dry day", () => {
-    renderOverview(panel, dry);
+    const today = structuredClone(dry);
+    today.current.rain_today_in = 0;
+    renderOverview(panel, today);
 
     expect(text("[data-part=condition]")).toBe(
       "Cold, damp and still; no rain today, the last on Nov 17, 9:03 am.",
     );
+  });
+
+  it("says nothing of rain today when the newest reading is yesterday's", () => {
+    // Built at midnight from a 23:55 reading: rain today is not known.
+    renderOverview(panel, dry);
+
+    expect(text("[data-part=condition]")).toBe("Cold, damp and still.");
   });
 
   it("names the trend against a day before, and rain earlier today", () => {
