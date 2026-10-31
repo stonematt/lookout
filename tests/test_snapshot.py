@@ -27,6 +27,7 @@ import pandas as pd
 import pytest
 
 from lookout.config import DEFAULT_MAC_ADDRESS
+from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import (
     CONTEXT_FIELDS,
@@ -73,6 +74,13 @@ def event_catalog(archive: pd.DataFrame) -> pd.DataFrame:
     return catalog
 
 
+def energy_catalog(archive: pd.DataFrame) -> pd.DataFrame:
+    """The energy catalog computed from `archive`, as the refresh run does."""
+    return EnergyCatalog(FAKE_MAC).detect_and_calculate_periods(
+        archive, auto_save=False
+    )
+
+
 def build(
     archive: pd.DataFrame,
     live: Optional[Dict],
@@ -84,7 +92,7 @@ def build(
         archive=archive,
         live=live,
         event_catalog=catalog,
-        energy_catalog=None,
+        energy_catalog=energy_catalog(archive),
         station=STATION,
         now=pd.Timestamp(now),
     )

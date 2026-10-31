@@ -187,7 +187,9 @@ class TestUpdateRunAfterRun:
     @staticmethod
     def station(first: str, rows: int) -> pd.DataFrame:
         """Five-minute rows at a steady 600 W/m², newest first."""
-        dates = pd.date_range(first, periods=rows, freq="5min", tz="America/Los_Angeles")
+        dates = pd.date_range(
+            first, periods=rows, freq="5min", tz="America/Los_Angeles"
+        )
         return pd.DataFrame(
             {
                 "date": dates,
@@ -207,7 +209,9 @@ class TestUpdateRunAfterRun:
         catalog = EnergyCatalog("TEST_MAC")
         archive = self.station("2026-06-01 10:00", 12)  # 10:00 .. 10:55
 
-        stored = catalog.detect_and_calculate_periods(archive.iloc[-2:], auto_save=False)
+        stored = catalog.detect_and_calculate_periods(
+            archive.iloc[-2:], auto_save=False
+        )
         for newest in range(3, 13):  # one five-minute run at a time
             stored = catalog.update_catalog_with_new_data(
                 archive.iloc[-newest:], stored.copy()

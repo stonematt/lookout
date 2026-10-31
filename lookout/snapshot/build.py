@@ -28,6 +28,7 @@ from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
+from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.temperature import temperature_context
 
 
@@ -50,8 +51,8 @@ def build_snapshot(
         `dateutc` in ms).
     :param live: The live `lastData` from Ambient, or None.
     :param event_catalog: The Event Catalog, or None when there is none.
-    :param energy_catalog: The energy catalog, or None. Not read yet: the
-        Solar tab ticket (#85) is its first reader.
+    :param energy_catalog: The energy catalog, or None: the Solar tab's
+        source.
     :param station: The station.
     :param now: The build time, timezone-aware.
     :return: The snapshot.
@@ -86,4 +87,5 @@ def build_snapshot(
             archive, stitched, current, observed_at_ms, now
         ),
         almanac=almanac(archive, current, now),
+        solar_tab=solar_tab(energy_catalog, archive, stitched, observed_at_ms, now),
     )
