@@ -108,13 +108,13 @@ describe("the Rain tab's words", () => {
   it("compares the dry spell with the usual one for this date", () => {
     const spells = { ...raining.rain_tab.dry_spells, current_days: 12, usual_days: 4 };
     expect(dryHeadline({ ...raining.rain_tab, dry_spells: spells })).toBe(
-      "12 days since the last rain, against a usual dry spell of 4 days at this time of year",
+      "12 d since the last rain, against a usual dry spell of 4 d at this time of year",
     );
     expect(dryHeadline(raining.rain_tab)).toBe(
       "It has rained today, so no dry spell is running",
     );
     // Two days of record hold no completed spell to compare with.
-    expect(dryHeadline(dry.rain_tab)).toBe("2 days since the last rain");
+    expect(dryHeadline(dry.rain_tab)).toBe("2 d since the last rain");
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -136,22 +136,42 @@ describe("the Rain tab's words", () => {
     );
   });
 
+  it("says which earlier years the headline leaves out at this date", () => {
+    const cut = { ...year(2025, 364, 9.5), to_date_in: null };
+    cut.cumulative_in = cut.cumulative_in.map((v, i) => (i < 50 ? v : null));
+    const tab = withTab(raining, { day_index: 99, water_years: [year(2024, 364, 8), cut, year(2026, 99, 4.2)] });
+    renderRain(panel, tab);
+
+    expect(yearsHeadline(tab.rain_tab)).toBe(
+      "Water year 2026 has 4.20 in of rain since Oct 1, against 8.00 in (2024) by this date",
+    );
+    expect(text(section("years").querySelector(".rain-source"))).toContain(
+      "Not compared by this date, so left out of the headline: 2025.",
+    );
+  });
+
   it("does not compare a water year that cannot be", () => {
     expect(yearsHeadline(raining.rain_tab)).toBe("Water year 2026 cannot be compared yet");
     expect(yearLeftOut(raining.rain_tab.water_years[0]!)).toBe(
-      "Water year 2026 is left out: the archive begins inside it.",
+      "Water year 2026 is left out: it starts before the archive began.",
     );
   });
 
   it("names the wettest hour only when the 90 days can be compared", () => {
-    expect(hoursHeadline(raining.rain_tab)).toBe("Rain by the hour over the last 90 days");
-    const recent = {
-      ...raining.rain_tab.recent,
-      wet_hours: 18,
-      wettest_hour: { day: "2026-01-08", hour: 15, rain_in: 0.12 },
-    };
-    expect(hoursHeadline({ ...raining.rain_tab, recent })).toBe(
-      "Rain fell in 18 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
+    expect(hoursHeadline(raining)).toBe("Rain by the hour over the last 90 days");
+    const wet = withTab(raining, {
+      recent: {
+        ...raining.rain_tab.recent,
+        wet_hours: 18.4,
+        wettest_hour: { day: "2026-01-08", hour: 15, rain_in: 0.12 },
+      },
+    });
+    Object.assign(wet.gaps.windows.find((w) => w.key === "90d")!, {
+      status: "prorated",
+      reason: "gap",
+    });
+    expect(hoursHeadline(wet)).toBe(
+      "Rain fell in ≈ 18 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
     );
   });
 
@@ -278,7 +298,7 @@ describe("the Rain tab", () => {
 
   it("states the dry spell against the record", () => {
     renderRain(panel, dry);
-    const stats = [...section("dry").querySelectorAll(".rain-dry div")].map((item) => [
+    const stats = [...section("dry").querySelectorAll(".rain-dry-stats div")].map((item) => [
       text(item.querySelector("dt")),
       text(item.querySelector("dd")),
     ]);

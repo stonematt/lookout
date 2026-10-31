@@ -19,9 +19,9 @@ Functions:
 - daily_totals(archive, current, coverage): each day's total, today live.
 - window_total(status, totals, coverage): one window's rain, gap rules held.
 
-Lane-shared: other sections that total rain over a window (the Overview's
-rolling-window tables) should call `daily_totals` and `window_total` so the
-One Number Rule holds across tabs.
+Integration: any other section that totals rain over a window (the
+Overview's rolling-window tables) calls `daily_totals` and `window_total`, so
+each window has one rain total everywhere (the One Number Rule).
 """
 
 from datetime import date, datetime, timedelta
@@ -62,10 +62,13 @@ USUAL_SPELL_DAYS = 30
 of it, in any year."""
 
 HOURS = 24
+"""Local hours in a heatmap day."""
+
 PLACES = 365
 """Places in a water-year curve: Oct 1 to Sep 30, Feb 29 folded in."""
 
 _DIGITS = 3
+"""Inches are published to a thousandth."""
 
 
 def rain_tab(
@@ -92,7 +95,7 @@ def rain_tab(
     totals = daily_totals(archive, current, coverage)
     windows = coverage.standard_windows()
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
-    water_year_status = windows[-1]
+    water_year_status = next(s for s in windows if s.key == "water_year")
     return RainTab(
         windows=tuple(
             RainWindow(key=s.key, total_in=window_total(s, totals, coverage))
@@ -147,6 +150,7 @@ def window_total(
     """
 
     def total() -> Optional[float]:
+        """The sum over the counted days, prorated."""
         days = coverage.counted_days(_day(status.first_day), _day(status.last_day))
         return _round(prorate(status, sum(totals.get(d, 0.0) for d in days)))
 
@@ -161,7 +165,17 @@ def _recent(
     now: datetime,
     tz: str,
 ) -> RecentRain:
-    """Daily and hourly rain over the days of the recent window."""
+    """
+    Daily and hourly rain over the days of the recent window.
+
+    :param status: The recent window's gap status.
+    :param totals: `daily_totals`.
+    :param history: The stitched history, for the hours (today's included).
+    :param coverage: The archive's coverage.
+    :param now: The build time: hours after its hour today are still to come.
+    :param tz: The station-local zone.
+    :return: The recent days, with wet hours prorated like any window value.
+    """
     first, last = _day(status.first_day), _day(status.last_day)
     days = [first + timedelta(days=i) for i in range(status.days)]
     span = history
@@ -199,10 +213,12 @@ def _recent(
         if r is not None
     ]
 
-    def wet_hours() -> int:
-        return sum(1 for _, _, r in cells if r > 0)
+    def wet_hours() -> Optional[float]:
+        """Hours with rain, scaled over the window's missing days."""
+        return _round(prorate(status, float(sum(1 for _, _, r in cells if r > 0))))
 
     def wettest() -> Optional[RainHour]:
+        """The hour with the most rain; a maximum is not prorated."""
         wettest_cell = max(cells, key=lambda c: c[2], default=None)
         if wettest_cell is None or wettest_cell[2] <= 0:
             return None
@@ -227,7 +243,16 @@ def _dry_spells(
     coverage: ArchiveCoverage,
     tz: str,
 ) -> DrySpells:
-    """The current dry spell against the completed ones in the record."""
+    """
+    The current dry spell against the completed ones in the record.
+
+    :param totals: `daily_totals`: the counted days.
+    :param current: Current conditions, for the live last rain time.
+    :param water_year_status: The water year's gap status.
+    :param coverage: The archive's coverage.
+    :param tz: The station-local zone.
+    :return: The dry-spell stats.
+    """
     today = coverage.today
     current_days = None
     if current.last_rain_ms is not None:
@@ -259,10 +284,12 @@ def _dry_spells(
     wy_days = coverage.counted_days(first_wy, today)
 
     def rain_days() -> Optional[float]:
+        """Rain days, scaled over the water year's missing days."""
         wet = sum(1 for d in wy_days if totals.get(d, 0.0) >= WET_DAY_IN)
         return _round(prorate(water_year_status, float(wet)))
 
     def wettest() -> Optional[RainDay]:
+        """The day with the most rain; a maximum is not prorated."""
         best = max(wy_days, key=lambda d: totals.get(d, 0.0), default=None)
         if best is None or totals.get(best, 0.0) < WET_DAY_IN:
             return None
@@ -281,7 +308,16 @@ def _dry_spells(
 def _water_years(
     totals: Dict[date, float], coverage: ArchiveCoverage
 ) -> Tuple[WaterYearCurve, ...]:
-    """Every water year from the archive's first through the current one."""
+    """
+    Every water year from the archive's first through the current one.
+
+    Each place is the window from Oct 1 to that day, judged and prorated by
+    the gap rules, so a curve reads exactly as the window totals do.
+
+    :param totals: `daily_totals`: the counted days.
+    :param coverage: The archive's coverage.
+    :return: The curves, oldest first.
+    """
     first_day = coverage.first_day
     if first_day is None:
         return ()

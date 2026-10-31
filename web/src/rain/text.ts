@@ -84,14 +84,14 @@ export function hourText(hour: number): string {
 }
 
 /**
- * Days, e.g. "1 day", "3 days", "2.5 days".
+ * A spell's length in the One Format Rule's duration style, e.g. "4 d",
+ * "2.5 d" (a median can fall between two whole days).
  *
- * @param days - A count.
- * @returns The count in words.
+ * @param days - A count of days.
+ * @returns The duration.
  */
 export function daysText(days: number): string {
-  const rounded = Math.round(days * 10) / 10;
-  return `${rounded} ${rounded === 1 ? "day" : "days"}`;
+  return `${Math.round(days * 10) / 10} d`;
 }
 
 /**
@@ -178,11 +178,38 @@ export function currentYear(tab: RainTab): WaterYearCurve | null {
   return tab.water_years[tab.water_years.length - 1] ?? null;
 }
 
+/**
+ * A water-year curve's value at one place, as shown. Each place is a window
+ * from Oct 1 with its own state: ≈ when prorated, null when invalid.
+ *
+ * @param curve - The water year.
+ * @param place - Days after Oct 1.
+ * @returns E.g. "≈ 3.10 in", or null.
+ */
+export function curveValue(curve: WaterYearCurve, place: number): string | null {
+  const value = curve.cumulative_in[place];
+  if (value === null || value === undefined) return null;
+  return `${curve.prorated[place] ? "≈ " : ""}${inches(value)}`;
+}
+
 /** A curve's value at today's place, as shown, or null. */
 function toDate(tab: RainTab, curve: WaterYearCurve): string | null {
-  if (curve.to_date_in === null) return null;
-  const prorated = curve.prorated[tab.day_index] ?? false;
-  return `${prorated ? "≈ " : ""}${inches(curve.to_date_in)}`;
+  return curve.to_date_in === null ? null : curveValue(curve, tab.day_index);
+}
+
+/**
+ * Earlier water years that have a curve but cannot be compared at today's
+ * place, so the source line can say the headline leaves them out.
+ *
+ * @param tab - The Rain tab's data.
+ * @returns E.g. [2025], newest first.
+ */
+export function yearsSkipped(tab: RainTab): number[] {
+  return tab.water_years
+    .slice(0, -1)
+    .filter((c) => c.to_date_in === null && c.cumulative_in.some((v) => v !== null))
+    .map((c) => c.water_year)
+    .reverse();
 }
 
 /**
@@ -211,20 +238,42 @@ export function yearsHeadline(tab: RainTab): string {
 
 /**
  * The heatmap's finding: how many hours it rained, and the wettest hour.
+ * The hour count is a window value: ≈ when the window is prorated.
  *
- * @param tab - The Rain tab's data.
+ * @param snapshot - The dashboard snapshot.
  * @returns E.g. "Rain fell in 18 hours of the last 90 days, the heaviest
  *   0.25 in at 10 am on Jan 9".
  */
-export function hoursHeadline(tab: RainTab): string {
-  const { wet_hours: wet, wettest_hour: wettest } = tab.recent;
-  if (wet === null) return "Rain by the hour over the last 90 days";
-  if (wet === 0 || !wettest) return "No rain fell in the last 90 days";
-  const hours = `${wet} ${wet === 1 ? "hour" : "hours"}`;
+export function hoursHeadline(snapshot: DashboardSnapshot): string {
+  const { recent } = snapshot.rain_tab;
+  const { wet_hours: wet, wettest_hour: wettest } = recent;
+  const span = `the last ${recent.rain_in.length} days`;
+  if (wet === null) return `Rain by the hour over ${span}`;
+  if (wet === 0 || !wettest) return `No rain fell in ${span}`;
+  const count = Math.round(wet);
+  const hours = gapValue(windowStatus(snapshot, recent.window), `${count} ${count === 1 ? "hour" : "hours"}`);
   return (
-    `Rain fell in ${hours} of the last 90 days, the heaviest ` +
+    `Rain fell in ${hours} of ${span}, the heaviest ` +
     `${inches(wettest.rain_in)} at ${hourText(wettest.hour)} on ${dayText(wettest.day)}`
   );
+}
+
+/** Why a window or a water year is not compared: [one, many] verb phrases. */
+const NOT_COMPARED: Record<string, [string, string]> = {
+  not_archived: ["is not archived yet", "are not archived yet"],
+  before_archive: ["starts before the archive began", "start before the archive began"],
+  gap: ["has days missing from the record", "have days missing from the record"],
+  low_coverage: [
+    "has days with under 80% of their readings",
+    "have days with under 80% of their readings",
+  ],
+  in_progress: ["is not over yet", "are not over yet"],
+};
+
+/** The verb phrase for a reason, singular or plural. */
+function notCompared(reason: string | null, many = false): string {
+  const words = NOT_COMPARED[reason ?? "gap"] ?? NOT_COMPARED.gap!;
+  return words[many ? 1 : 0];
 }
 
 /**
@@ -243,17 +292,9 @@ export function windowsNote(snapshot: DashboardSnapshot): string | null {
     groups.set(reason, [...(groups.get(reason) ?? []), WINDOW_NAMES[window.key] ?? window.key]);
   }
   if (!groups.size) return null;
-  const why: Record<string, [string, string]> = {
-    not_archived: ["is not archived yet", "are not archived yet"],
-    before_archive: ["starts before the archive began", "start before the archive began"],
-    gap: ["has days missing from the record", "have days missing from the record"],
-    low_coverage: ["has days with under 80% of their readings", "have days with under 80% of their readings"],
-    in_progress: ["is not over yet", "are not over yet"],
-  };
   const parts = [...groups].map(([reason, names]) => {
-    const [one, many] = why[reason] ?? why.gap!;
     const lowered = names.map((n, i) => (i === 0 ? n : n.toLowerCase()));
-    return `${listText(lowered)} ${names.length === 1 ? one : many}`;
+    return `${listText(lowered)} ${notCompared(reason, names.length > 1)}`;
   });
   return `Not compared: ${parts.join("; ")}.`;
 }
@@ -262,15 +303,9 @@ export function windowsNote(snapshot: DashboardSnapshot): string | null {
  * Why a water year has no curve at all, for the source line.
  *
  * @param curve - A water year whose every value is invalid.
- * @returns E.g. "Water year 2024 is left out: the archive begins inside it."
+ * @returns E.g. "Water year 2024 is left out: it starts before the archive
+ *   began."
  */
 export function yearLeftOut(curve: WaterYearCurve): string {
-  const why: Record<string, string> = {
-    before_archive: "the archive begins inside it",
-    not_archived: "it is not archived yet",
-    gap: "too many of its days are missing from the record",
-    low_coverage: "too many of its days have under 80% of their readings",
-    in_progress: "it is not over yet",
-  };
-  return `Water year ${curve.water_year} is left out: ${why[curve.status.reason ?? "gap"]}.`;
+  return `Water year ${curve.water_year} is left out: it ${notCompared(curve.status.reason)}.`;
 }

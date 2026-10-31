@@ -14,7 +14,7 @@
 import { gapLabel, gapSentence } from "../gaps.js";
 import { rainStep } from "../overview/ribbon.js";
 import type { GapReason, GapStatus, RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";
-import { addDays, dayText, hourText, inches } from "./text.js";
+import { addDays, curveValue, dayText, hourText, inches } from "./text.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -292,13 +292,6 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
   dayTicks(svg, recent.first_day, count, x, bottom + 4);
   host.replaceChildren(svg);
   scrub(host, count, (px) => Math.floor((px - left) / step), (i) => readout(daySentence(recent, i, i === count - 1)));
-}
-
-/** A curve's value at a place, as shown: "≈ 3.10 in", or null. */
-function curveValue(curve: WaterYearCurve, place: number): string | null {
-  const value = curve.cumulative_in[place];
-  if (value === null || value === undefined) return null;
-  return `${curve.prorated[place] ? "≈ " : ""}${inches(value)}`;
 }
 
 /**

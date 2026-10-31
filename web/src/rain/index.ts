@@ -11,7 +11,7 @@
 import "./rain.css";
 
 import { formatStamp } from "../format.js";
-import { gapElement, hatchGap } from "../gaps.js";
+import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDailyBars, drawHourGrid, drawSized, drawYearCurves } from "./charts.js";
 import {
@@ -27,6 +27,7 @@ import {
   windowValue,
   yearLeftOut,
   yearsHeadline,
+  yearsSkipped,
 } from "./text.js";
 
 /** The rain steps the heatmap key decodes (`rainStep` at 60 minutes). */
@@ -130,7 +131,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
     dryHeadline(snapshot.rain_tab),
     "How long it has been since the last rain day, against dry spells that ended near this date in the record.",
   );
-  const strip = make("dl", "rain-stats rain-dry");
+  const strip = make("dl", "rain-stats rain-dry-stats");
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   stat(strip, "Usual spell at this time of year", spells.usual_days === null ? null : daysText(spells.usual_days));
@@ -146,7 +147,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   const daysDd = stat(
     strip,
     "Rain days this water year",
-    rainDays === null ? null : `${wyStatus.status === "prorated" ? "≈ " : ""}${Math.round(rainDays)}`,
+    rainDays === null ? null : gapValue(wyStatus, String(Math.round(rainDays))),
   );
   hatchGap(daysDd, wyStatus);
   const wettest = spells.water_year_wettest;
@@ -196,6 +197,9 @@ function years(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
     "Source: the station archive's daily totals, with today's live total.",
     "Feb 29 is folded into Feb 28 so the years line up by date; ≈ marks a total scaled up over a few missing days.",
     ...left,
+    yearsSkipped(tab).length
+      ? `Not compared by this date, so left out of the headline: ${yearsSkipped(tab).join(", ")}.`
+      : null,
   ]);
   return host;
 }
@@ -205,7 +209,7 @@ function hours(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   const tab = snapshot.rain_tab;
   const host = section(
     "hours",
-    hoursHeadline(tab),
+    hoursHeadline(snapshot),
     "Each column is a day of the last 90 and each row an hour, midnight at the top; the key shows the rain each shade stands for.",
   );
   const { chart, readout } = figure(host, "Rain by the hour over the last 90 days");

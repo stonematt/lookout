@@ -294,7 +294,7 @@ export interface RecentRain {
   reason: (GapReason | null)[];
   /** Each day's 24 local hours; null for an hour still to come today. */
   hourly_in: (number | null)[][];
-  /** Null when the window is invalid. */
+  /** Prorated when the window is; null when invalid. */
   wet_hours: number | null;
   wettest_hour: RainHour | null;
 }

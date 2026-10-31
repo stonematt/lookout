@@ -521,9 +521,9 @@ class RecentRain:
     :param rain_in: Each day's total.
     :param reason: Why a day cannot be counted, None when it can.
     :param hourly_in: Each day's 24 local hours, None for an hour still to
-        come today. A day's hours add up to its total.
-    :param wet_hours: Hours with any rain over the window; None when the
-        window is invalid.
+        come today. A day's hours add up to its total, to rounding.
+    :param wet_hours: Hours with any rain over the window; prorated when the
+        window is; None when it is invalid.
     :param wettest_hour: The hour with the most rain; None when the window is
         invalid or dry.
     """
@@ -533,7 +533,7 @@ class RecentRain:
     rain_in: Tuple[Optional[float], ...]
     reason: Tuple[Optional[GapReason], ...]
     hourly_in: Tuple[Tuple[Optional[float], ...], ...]
-    wet_hours: Optional[int]
+    wet_hours: Optional[float]
     wettest_hour: Optional[RainHour]
 
 
