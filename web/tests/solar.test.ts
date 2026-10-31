@@ -86,8 +86,8 @@ describe("the contract", () => {
 describe("daily energy", () => {
   it("shows each window's energy from the snapshot", () => {
     render(raining);
-    expect(text(stripValue("Today"))).toBe("3.79 kWh/m²");
-    expect(text(stripValue("Yesterday"))).toBe("4.07 kWh/m²");
+    expect(text(stripValue("Today"))).toBe("5.67 kWh/m²");
+    expect(text(stripValue("Yesterday"))).toBe("6.11 kWh/m²");
   });
 
   it("hatches a window that cannot be compared", () => {
@@ -102,7 +102,7 @@ describe("daily energy", () => {
     expect(copy.gaps.windows.find((w) => w.key === "today")?.status).toBe("valid");
     window.status = { ...window.status, status: "prorated", reason: "gap", missing_days: 1 };
     render(copy);
-    expect(text(stripValue("Today"))).toMatch(/^≈ 3\.79 kWh\/m²/);
+    expect(text(stripValue("Today"))).toMatch(/^≈ 5\.67 kWh\/m²/);
   });
 
   it("hatches a window the catalog leaves invalid though the archive is whole", () => {
@@ -125,7 +125,7 @@ describe("the 24-hour view", () => {
   it("leads with the energy over the last 24 hours against the 24 before", () => {
     render(raining);
     expect(text(section("now").querySelector("h2"))).toBe(
-      "3.95 kWh/m² of sun in the last 24 hours, about the same as 4.07 the 24 before",
+      "5.90 kWh/m² of sun in the last 24 hours, about the same as 6.11 the 24 before",
     );
   });
 
@@ -145,12 +145,12 @@ describe("the 24-hour view", () => {
 describe("the selected day in the URL", () => {
   it("opens on the day the URL names", () => {
     render(raining, "?fixture=raining&solar_day=2026-01-06");
-    expect(text(section("day").querySelector("h2"))).toBe("Jan 6, 2026: 4.07 kWh/m², brightest at noon");
+    expect(text(section("day").querySelector("h2"))).toBe("Jan 6, 2026: 6.11 kWh/m², brightest at 11:45 am");
   });
 
   it("opens on today without one, or with one outside the record", () => {
     render(raining, "?solar_day=2019-01-01");
-    expect(text(section("day").querySelector("h2"))).toMatch(/^Jan 8, 2026 so far: 3\.79 kWh\/m²/);
+    expect(text(section("day").querySelector("h2"))).toMatch(/^Jan 8, 2026 so far: 5\.67 kWh\/m²/);
     expect(openingDay(raining.solar_tab!, "")).toBe("2026-01-08");
   });
 
@@ -183,7 +183,7 @@ describe("the selected day in the URL", () => {
     tab.recent.energy_wh_m2 = tab.recent.energy_wh_m2.slice(-3);
     render(copy, "?solar_day=2026-01-05");
     expect(text(section("day").querySelector(".solar-older"))).toBe(
-      "Jan 5, 2026 gave 4.07 kWh/m². Its 15-minute energy is kept for the last 90 days only.",
+      "Jan 5, 2026 gave 6.11 kWh/m². Its 15-minute energy is kept for the last 90 days only.",
     );
   });
 });
@@ -195,7 +195,7 @@ describe("the heatmaps", () => {
     expect(buttons.map((b) => text(b))).toEqual(["Months", "Days", "15 minutes"]);
     expect(buttons[1]!.getAttribute("aria-pressed")).toBe("true");
     expect(text(section("heatmaps").querySelector("h2"))).toBe(
-      "The brightest day on record was Jan 4, 2026, at 4.07 kWh/m²",
+      "The brightest day on record was Jan 4, 2026, at 6.11 kWh/m²",
     );
     buttons[0]!.click();
     expect(buttons[0]!.getAttribute("aria-pressed")).toBe("true");
@@ -243,8 +243,9 @@ describe("words", () => {
   });
 
   it("names a day's brightest 15 minutes", () => {
+    // The synthetic sun peaks at noon, so 11:45 and 12:00 tie; the first is named.
     const day = readDay(raining.solar_tab!, "2026-01-05");
-    expect(dayHeadline(day)).toBe("Jan 5, 2026: 4.07 kWh/m², brightest at noon");
+    expect(dayHeadline(day)).toBe("Jan 5, 2026: 6.11 kWh/m², brightest at 11:45 am");
   });
 
   it("shades on five steps and keys them", () => {
