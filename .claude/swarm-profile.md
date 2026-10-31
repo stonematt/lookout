@@ -14,10 +14,10 @@
 
 | gate | command | baseline at `7592c37` | time |
 | --- | --- | --- | --- |
-| tests | `python -m pytest tests/ -q -p no:cacheprovider` (in `lookout-new`, from the worktree root) | **701 passed, 1 skipped, 1 xfailed at `dfff58b`** (goal branch end of the spec #66 run; clean worktree, no secrets; ~85s). At the goal cut `bef4bb7`: 356/1/1. Before #67: clean worktree: **2 collection errors** (`StreamlitSecretNotFound`, from import-time `st.secrets` reads — the defect #67 fixes). Main checkout with real secrets: 141 passed, 1 skipped. After #67 lands, the clean-worktree number is the baseline. | 28s |
+| tests | `python -m pytest tests/ -q -p no:cacheprovider` (in `lookout-new`, from the worktree root) | **738 passed, 1 skipped at `ce6c582`** (after the 2026-10-31 follow-ups; #114 deleted the one strict xfail). 701 passed, 1 skipped, 1 xfailed at `dfff58b` (goal branch end of the spec #66 run; clean worktree, no secrets; ~85s). At the goal cut `bef4bb7`: 356/1/1. Before #67: clean worktree: **2 collection errors** (`StreamlitSecretNotFound`, from import-time `st.secrets` reads — the defect #67 fixes). Main checkout with real secrets: 141 passed, 1 skipped. After #67 lands, the clean-worktree number is the baseline. | 28s |
 | format | `black --check <changed .py files>` | 14 files already fail on `dev`; gate is: every file you create or edit passes | 2s |
 | lint | `flake8 --max-line-length 88 <changed .py files>` | 375 lines on `dev`; gate is: files you create are clean, files you edit gain no new lines | 2s |
-| web | `cd web && npm ci && npm run build && npm test` (build runs `tsc --noEmit` then vite) | build ok, **287 passed** at `dfff58b` | 20s |
+| web | `cd web && npm ci && npm run build && npm test` (build runs `tsc --noEmit` then vite) | build ok, **301 passed** at `ce6c582` (287 at `dfff58b`) | 20s |
 
 **CI** `.github/workflows/tests.yml` (from #67): pytest on PRs into `dev` and `goal/**`, Python 3.12, 15-minute job timeout (a slow fixture once hit it). `.github/workflows/web.yml` (from #77): web build + test. Before #67 there was none. #67 added one workflow running pytest on PRs into `dev` and into `goal/off-streamlit`. Until #67 merges, the gates above are the only check.
 
@@ -43,3 +43,9 @@
 - `web/scripts/shots.mjs` waits for lazily loaded Plotly; screenshots taken another way show blank Rain Events charts.
 - The snapshot contract is `SCHEMA_VERSION` 2 on both sides; a web test reads each golden's `schema_version`, so bump both together.
 - The VPS catchup cron on itri was paused 2026-10-30 for #95 (`# paused for lookout#95`); #76 turns on the 5-minute refresh cron.
+
+**Repo facts learned in the follow-up run (2026-10-31)**
+- Lane-server ports can be held by a server left over from an earlier run (5190 was still serving `../lookout-baseline` at `dfff58b`). With `--strictPort`, the new server exits and the old one answers 200. Check the listening process's cwd (`lsof -p <pid> -a -d cwd`) before trusting a page.
+- Triage posts an **Agent Brief** comment on each issue (`gh issue view <n> --comments`). It can add acceptance criteria beyond the issue body, and it records owner decisions. Read it before briefing a lane.
+- `gh pr checks --watch` inside a lane can be moved to the background after about 180s. Poll `gh pr checks` in the foreground until each check reports.
+- The storage existence check is one helper, `storj.object_exists(bucket, key)`. The catalog classes' `catalog_exists` methods call it. A new catalog uses it too, rather than an inline `head_object`.
