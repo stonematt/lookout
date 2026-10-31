@@ -22,7 +22,7 @@ from typing import Callable, Optional
 
 import requests
 
-from lookout.secrets_loader import MissingSecretError, get_secret
+from lookout.secrets_loader import get_secret
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
@@ -99,7 +99,8 @@ class Heartbeat:
         """
         try:
             return cls(get_secret("HC_PING_KEY"))
-        except MissingSecretError:
+        except Exception as e:  # missing key or unreadable secrets file
+            logger.warning(f"HC_PING_KEY unavailable: {type(e).__name__}")
             return cls(None)
 
     def ping(self, slug: str, suffix: str = "") -> bool:

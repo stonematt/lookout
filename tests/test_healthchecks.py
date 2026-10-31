@@ -56,7 +56,7 @@ class TestHeartbeat:
     def test_a_missing_key_skips_pinging_with_a_warning(
         self, healthchecks, monkeypatch, caplog
     ):
-        def missing(name):
+        def missing(name: str) -> None:
             raise MissingSecretError(name)
 
         monkeypatch.setattr(hc, "get_secret", missing)
@@ -65,25 +65,21 @@ class TestHeartbeat:
         assert beat.start() is False
         assert beat.finish(0) is False
         assert healthchecks.pings == []
+        assert "HC_PING_KEY" in caplog.text
 
     def test_a_down_endpoint_is_swallowed(self, healthchecks):
         healthchecks.fail = True
 
         assert hc.Heartbeat("key").start() is False
 
-    def test_a_bad_status_is_swallowed(self, monkeypatch):
-        def refuse():
+    def test_a_bad_status_is_swallowed(self):
+        def refuse() -> None:
             raise RuntimeError("502")
 
-        monkeypatch.setattr(
-            hc,
-            "requests",
-            SimpleNamespace(
-                get=lambda *a, **k: SimpleNamespace(raise_for_status=refuse)
-            ),
-        )
+        response = SimpleNamespace(raise_for_status=refuse)
+        beat = hc.Heartbeat("key", get=lambda *a, **k: response)
 
-        assert hc.Heartbeat("key").start() is False
+        assert beat.start() is False
 
     def test_a_stale_reading_sends_no_station_ping(self, healthchecks):
         beat = hc.Heartbeat("key")

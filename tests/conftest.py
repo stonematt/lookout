@@ -14,7 +14,7 @@ archive builders and loaders they pair with live in `tests/fixtures/`.
 """
 
 import sys
-from typing import Iterator
+from typing import Iterator, List, Optional
 from types import SimpleNamespace
 
 import pytest
@@ -120,16 +120,19 @@ class FakeHealthchecks:
     """
     A stand-in for the Healthchecks ping endpoint.
 
-    :param pings: Each ping made, as the URL path after the ping key.
-    :param fail: When True every ping raises, as if Healthchecks were down.
+    Attributes: `urls` lists each full ping URL, `pings` each as
+    `<slug>[/<suffix>]`; set `fail` to True and every ping raises, as if
+    Healthchecks were down.
     """
 
     def __init__(self) -> None:
-        self.pings = []
-        self.urls = []
+        self.pings: List[str] = []
+        self.urls: List[str] = []
         self.fail = False
 
-    def __call__(self, url: str, params=None, timeout=None):
+    def __call__(
+        self, url: str, params: Optional[dict] = None, timeout: Optional[int] = None
+    ) -> SimpleNamespace:
         if self.fail:
             raise ConnectionError("healthchecks is down")
         self.urls.append(url)
