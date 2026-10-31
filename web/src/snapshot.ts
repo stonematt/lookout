@@ -98,6 +98,30 @@ export interface Gaps {
   windows: GapStatus[];
 }
 
+/**
+ * The last 48 hours in 15-minute slots, for the Overview's first screen.
+ * Slot `i` starts at `start_ms + i * slot_minutes` minutes; the last slot
+ * holds the newest observation. The per-slot arrays are parallel; null means
+ * no reading. A slot with a null `rain_in` is not known from the archive (a
+ * gap, or the span only the live reading covers) and is hatched.
+ */
+export interface ConditionRibbon {
+  start_ms: number;
+  slot_minutes: number;
+  /** The newest outdoor temperature in each slot; the last is the live one. */
+  temperature_f: (number | null)[];
+  /** The rain that fell in each slot, from the daily counter. */
+  rain_in: (number | null)[];
+  /** Whether the sun was up (any solar radiation) in each slot. */
+  daylight: (boolean | null)[];
+  /** The lowest and highest reading over the 48 hours, live included. */
+  temperature_low_f: number | null;
+  temperature_high_f: number | null;
+  /** Hours of slots with rain, and hours of slots with a rain value. */
+  rain_hours: number;
+  known_hours: number;
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -117,6 +141,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   archive_newest_ms: number | null;
   /** The gap status of each month and standard window. */
   gaps: Gaps;
+  /** The 48-hour condition ribbon, or null without an observation. */
+  condition_ribbon: ConditionRibbon | null;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -218,7 +244,20 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
       "dashboard: archive_newest_ms not an integer",
     );
   }
+  checkRibbon(head.condition_ribbon);
   return head as unknown as DashboardSnapshot;
+}
+
+function checkRibbon(ribbon: unknown): void {
+  if (ribbon === null || ribbon === undefined) return;
+  if (!isRecord(ribbon) || !isTime(ribbon.start_ms)) {
+    throw new SnapshotContractError("dashboard: condition_ribbon.start_ms missing");
+  }
+  const slots = ribbon.temperature_f;
+  const parallel = [ribbon.rain_in, ribbon.daylight];
+  if (!Array.isArray(slots) || !parallel.every((a) => Array.isArray(a) && a.length === slots.length)) {
+    throw new SnapshotContractError("dashboard: condition_ribbon slots not parallel");
+  }
 }
 
 /**
