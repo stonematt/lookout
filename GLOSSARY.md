@@ -27,6 +27,12 @@ to canonical form: int64 ms UTC, drops invalid rows (NaN, ≤ 0, below the
 post-2020 floor), de-duplicates, sorts ascending. Lives at
 `lookout/utils/dateutc.py`. All archive ingest and load paths go through it.
 
+Its ascending order is not the stored order. The archive in storage is
+newest first, whichever command saved it: every writer saves through
+`storj.save_archive`, which sorts it so. Readers that need the latest
+reading take the greatest `dateutc` (`trend_utils.newest_row`), not the
+first row.
+
 ### lookout post
 
 A physical Ambient Weather station. Each post owns its own IANA timezone
