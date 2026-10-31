@@ -418,6 +418,20 @@ class TestSaveIfEventsCompleted:
         ]
         assert len(backups) == 1
 
+    def test_a_failed_backup_leaves_the_stored_catalog_alone(
+        self, catalog, ongoing, completed, fake_s3, monkeypatch
+    ):
+        catalog.save_catalog(ongoing)
+        before = fake_s3.get_object(Bucket=catalog.bucket, Key=CATALOG_KEY)[
+            "Body"
+        ].read()
+        monkeypatch.setattr(RainEventCatalog, "backup_catalog", lambda self: None)
+
+        assert catalog.save_if_events_completed(ongoing, completed) is False
+
+        after = fake_s3.get_object(Bucket=catalog.bucket, Key=CATALOG_KEY)["Body"]
+        assert after.read() == before
+
 
 class TestNewlyCompleted:
     def test_names_the_completed_events_the_stored_catalog_lacks(self, catalog):

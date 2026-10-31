@@ -636,6 +636,8 @@ class RainEventCatalog:
         That covers a stored ongoing event that has completed, and an event
         that started (and completed) after the last save. With no stored
         catalog, the first completed event seeds one. See `newly_completed`.
+        If a stored catalog cannot be backed up, nothing is saved; the next
+        run finds the same events and tries again.
 
         :param stored_catalog: The catalog as stored; None or empty when none is.
         :param updated_catalog: The catalog brought up to the archive.
@@ -651,7 +653,9 @@ class RainEventCatalog:
                 f"{event['total_rainfall']:.3f}\" over "
                 f"{event['duration_minutes'] / 60:.1f}h"
             )
-        self.backup_catalog()
+        if self.catalog_exists() and self.backup_catalog() is None:
+            logger.error("Event Catalog backup failed; not saving (next run retries)")
+            return False
         saved = self.save_catalog(updated_catalog)
         if saved:
             logger.info(
