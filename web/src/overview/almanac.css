@@ -1,0 +1,356 @@
+/*
+ * The almanac grid and the rolling-window rain table (`almanac.ts`).
+ * DESIGN.md "Almanac grid": 44px cells, 4px corners, 3px gaps, the rain
+ * ramp on a square-root scale, ≈ for prorated, the hatch for invalid, a
+ * dashed outline before the archive, the current month outlined in `note`
+ * over a light hatch, the selected cell ringed 2px in `ink`. "Tables":
+ * 0.875rem tabular, 0.75rem/600 ink-2 headers over `rule-strong`, `rule`
+ * row dividers, numbers right-aligned.
+ */
+
+/*
+ * Text on a ramp cell, per step, whichever of near-black and near-white has
+ * more contrast with that step's fill (the AA Both Ways Rule; checked
+ * against tokens.css in tests/almanac.test.ts). The ramp runs light to
+ * dark by day and dark to light at night, so the choice flips with it.
+ */
+:root {
+  --alm-on-0: #1b1a18;
+  --alm-on-1: #1b1a18;
+  --alm-on-2: #1b1a18;
+  --alm-on-3: #f7f4ee;
+  --alm-on-4: #f7f4ee;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --alm-on-0: #f7f4ee;
+    --alm-on-1: #f7f4ee;
+    --alm-on-2: #1b1a18;
+    --alm-on-3: #1b1a18;
+    --alm-on-4: #1b1a18;
+  }
+}
+
+:root[data-theme="dark"] {
+  --alm-on-0: #f7f4ee;
+  --alm-on-1: #f7f4ee;
+  --alm-on-2: #1b1a18;
+  --alm-on-3: #1b1a18;
+  --alm-on-4: #1b1a18;
+}
+
+.alm-headline {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: 600;
+  line-height: 1.28;
+  max-width: 34ch;
+  text-wrap: balance;
+}
+
+.alm-headline + .standfirst {
+  margin-top: var(--s-1);
+}
+
+/* ---------- the grid ---------- */
+.alm-figure {
+  margin: var(--s-3) 0 0;
+  container-type: inline-size;
+}
+
+.alm-grid {
+  --cell: 44px;
+  width: 100%;
+  max-width: calc(48px + 12 * var(--cell) + 64px + 14 * 3px);
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 3px;
+  margin: 0 -3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.alm-corner,
+.alm-year {
+  width: 48px;
+}
+
+.alm-grid th {
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.alm-month {
+  text-align: center;
+  padding-bottom: var(--s-1);
+}
+
+.alm-short {
+  display: none;
+}
+
+.alm-year {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.alm-slot {
+  padding: 0;
+}
+
+.alm-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: var(--cell);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+
+button.alm-cell {
+  cursor: pointer;
+}
+
+.alm-cell[data-step="0"] { background: var(--rain-0); color: var(--alm-on-0); }
+.alm-cell[data-step="1"] { background: var(--rain-1); color: var(--alm-on-1); }
+.alm-cell[data-step="2"] { background: var(--rain-2); color: var(--alm-on-2); }
+.alm-cell[data-step="3"] { background: var(--rain-3); color: var(--alm-on-3); }
+.alm-cell[data-step="4"] { background: var(--rain-4); color: var(--alm-on-4); }
+
+/* before the archive began: a dashed outline, nothing inside */
+.alm-cell[data-kind="before"] {
+  border: 1px dashed var(--rule-strong);
+}
+
+/* the current month: outlined in `note`, lightly hatched, its rain so far */
+.alm-cell[data-kind="current"],
+.alm-season[data-kind="current"] .alm-value {
+  outline: 1.5px solid var(--note);
+  outline-offset: -1.5px;
+}
+
+.alm-cell[data-kind="current"] {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--gap-a) 45%, transparent) 0 4px,
+    transparent 4px 8px
+  );
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* an invalid month: the shared hatch, "n/a" in place */
+.alm-cell.gap-hatch .gap-label {
+  padding: 1px 3px;
+  font-size: 0.75rem;
+}
+
+.alm-cell[data-selected] {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.alm-cell:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.alm-season {
+  padding: 0 0 0 var(--s-2);
+  font-size: 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+th.alm-season {
+  width: 64px;
+}
+
+.alm-season .alm-value {
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: var(--r-xs);
+}
+
+.alm-season.gap-hatch {
+  padding: 0;
+}
+
+/* ---------- the key ---------- */
+.alm-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin-bottom: var(--s-3);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.alm-key-ramp {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.alm-key-step {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 30px;
+}
+
+.alm-key-ramp .alm-key-swatch {
+  width: 30px;
+  height: 10px;
+}
+
+.alm-key-unit {
+  align-self: flex-end;
+  margin-left: var(--s-1);
+}
+
+.alm-key-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.alm-key-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-xs);
+}
+
+.alm-key-swatch[data-step="0"] { background: var(--rain-0); }
+.alm-key-swatch[data-step="1"] { background: var(--rain-1); }
+.alm-key-swatch[data-step="2"] { background: var(--rain-2); }
+.alm-key-swatch[data-step="3"] { background: var(--rain-3); }
+.alm-key-swatch[data-step="4"] { background: var(--rain-4); }
+
+.alm-key-swatch[data-kind="invalid"] {
+  background: repeating-linear-gradient(135deg, var(--gap-a) 0 3px, var(--gap-b) 3px 6px);
+}
+
+.alm-key-swatch[data-kind="before"] {
+  border: 1px dashed var(--rule-strong);
+}
+
+.alm-key-swatch[data-kind="current"] {
+  outline: 1.5px solid var(--note);
+  outline-offset: -1.5px;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--gap-a) 45%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* ---------- the readout ---------- */
+.alm-readout {
+  margin-top: var(--s-3);
+  min-height: 3.2em;
+  max-width: 62ch;
+  font-size: var(--step--1);
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.alm-readout-month,
+.alm-readout-season {
+  display: block;
+}
+
+.alm-readout-season {
+  color: var(--ink-2);
+}
+
+/* ---------- narrow: under 520px of chart width ---------- */
+@container (max-width: 519px) {
+  .alm-grid {
+    max-width: none;
+  }
+
+  .alm-corner,
+  .alm-year {
+    width: 34px;
+  }
+
+  .alm-long,
+  .alm-cell .alm-value,
+  .alm-cell .gap-label,
+  .alm-season {
+    display: none;
+  }
+
+  .alm-short {
+    display: inline;
+  }
+}
+
+/* ---------- the rolling-window table ---------- */
+.alm-table-frame {
+  margin-top: var(--s-3);
+  max-width: 640px;
+}
+
+.alm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.alm-table th,
+.alm-table td {
+  padding: var(--s-2) var(--s-2);
+  border-bottom: 1px solid var(--rule);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.alm-table th:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.alm-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.alm-table tbody th {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.alm-table td.alm-now {
+  font-weight: 600;
+}
+
+.alm-table tr[data-window="water_year"] > * {
+  border-top: 1px solid var(--rule-strong);
+}
+
+.alm-table td.gap-hatch {
+  text-align: center;
+}
