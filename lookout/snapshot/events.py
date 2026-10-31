@@ -136,14 +136,14 @@ def _live_catalog(
     :param event_catalog: The Event Catalog.
     :param active: The active rain event, or None.
     :param observed_at_ms: The newest observation.
-    :return: A copy, with `start_ms`, `open` (still open in the catalog)
-        and `live` (the active rain event) columns.
+    :return: A copy, with `start_ms` and `live` (the active rain event)
+        columns. There is no second "open" flag: an event the catalog still
+        holds open but the live reading has ended is not live (#147).
     """
     events = event_catalog.copy()
     events["start_time"] = pd.to_datetime(events["start_time"], utc=True)
     events["end_time"] = pd.to_datetime(events["end_time"], utc=True)
     events["start_ms"] = [_ms(t) for t in events["start_time"]]
-    events["open"] = [is_event_ongoing(row) for _, row in events.iterrows()]
     events["live"] = False
     if active is not None:
         live = events["start_ms"] == active.start_ms
@@ -187,7 +187,7 @@ def rain_events_section(
     observed_at_ms: Optional[int],
 ) -> RainEvents:
     """
-    The Rain Events tab: every event, its summaries, the open event's curve.
+    The Rain Events tab: every event, its summaries, the live event's curve.
 
     :param event_catalog: The Event Catalog, or None.
     :param stitched: The archive with the live reading stitched in.
@@ -223,10 +223,14 @@ def rain_events_section(
         for year in years
     )
 
+    # The open curve is the live event's: the hero's one "raining now"
+    # decision. An event the catalog still holds open after the live reading
+    # has ended gets its curve file once the catalog closes it, from an
+    # archive that has caught up (`completed_curves` writes each file once).
     open_curve = None
-    still_open = events[events["open"]]
-    if not still_open.empty:
-        start_ms = int(still_open.iloc[0]["start_ms"])
+    live_now = events[events["live"]]
+    if not live_now.empty:
+        start_ms = int(live_now.iloc[0]["start_ms"])
         readings = history.span(start_ms, None)
         if not readings.empty:
             open_curve = _curve(readings, start_ms, int(readings["dateutc"].iloc[-1]))

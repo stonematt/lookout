@@ -108,12 +108,20 @@ class TestOneLiveDecision:
         assert rain_rule.value > 0  # the hero: the event has ended
         assert not any(row.live for row in snapshot.rain_events.events)
 
-    def test_the_open_events_curve_is_still_in_the_snapshot(self):
-        # Its curve file is written only once the catalog closes it.
+    def test_an_event_the_live_reading_has_ended_is_not_open(self):
+        # The Events tab reads the same decision as the hero (#147): no
+        # open curve rides in the snapshot for an event that is not live.
+        # Its curve file follows once the catalog closes it.
         snapshot = dry_live_snapshot()
-        newest = snapshot.rain_events.events[0]
 
-        assert snapshot.rain_events.open_curve.start_ms == newest.start_ms
+        assert snapshot.rain_events.open_curve is None
+
+    def test_the_live_event_is_the_open_one(self):
+        snapshot = raining_station()
+
+        assert snapshot.rain_events.open_curve.start_ms == (
+            snapshot.active_rain_event.start_ms
+        )
 
     def test_the_live_row_is_the_active_event(self):
         snapshot = raining_station()

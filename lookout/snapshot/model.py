@@ -544,7 +544,7 @@ class EventCurve:
 
     A completed event's curve is published once, as its own document
     (`EventCurve.document`, key from `lookout.snapshot.curves.curve_key`);
-    the curve of the event the catalog still holds open rides in the
+    the curve of the live event (`Snapshot.active_rain_event`) rides in the
     snapshot (`RainEvents.open_curve`).
 
     :param start_ms: The event's start; its key.
@@ -582,10 +582,11 @@ class RainEvents:
     :param events: Every event, newest first.
     :param all_time: The summary over every event.
     :param seasons: The summary per water year, newest first.
-    :param open_curve: The curve of the event the Event Catalog still holds
-        open, live stitched: its curve file is written only once the catalog
-        closes it. None when none is open. Open is not live: the row's
-        `live` says whether it is still raining.
+    :param open_curve: The curve of the live event, the snapshot's
+        `active_rain_event` (open in the Event Catalog and still reporting
+        event rain), live stitched; its curve file is written only once the
+        catalog closes it. None when no event is live, even while the catalog
+        still holds one open (#147): that event's file follows its close.
     """
 
     events: Tuple[RainEventRow, ...]

@@ -193,9 +193,10 @@ export interface RainEvents {
   /** Newest first. */
   seasons: EventSeason[];
   /**
-   * The curve of the event the catalog still holds open, live stitched (its
-   * curve file is written once the catalog closes it); null with none open.
-   * Open is not live: the row's `live` says whether it is still raining.
+   * The curve of the live event (the row with `live`, the snapshot's
+   * `active_rain_event`), live stitched; its curve file is written once the
+   * catalog closes it. Null when no event is live, even while the catalog
+   * still holds one open: that event's file follows its close.
    */
   open_curve: EventCurve | null;
 }
