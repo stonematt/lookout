@@ -178,7 +178,7 @@ function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation
       y: 0,
       yanchor: "bottom",
       yshift: 6,
-      text: s.liveTail ? "only the live<br>total is known" : "n/a: gap in record",
+      text: s.liveTail ? "only the live <br>total is known" : "n/a: gap in record",
       showarrow: false,
       font: { size: 12, color: token("--ink-2") },
       bgcolor: token("--ground"),

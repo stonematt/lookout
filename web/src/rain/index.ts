@@ -10,7 +10,7 @@
  */
 import "./rain.css";
 
-import { dayText, formatDayCount, formatDays, formatStamp, inches } from "../format.js";
+import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawSized } from "../charts/svg.js";
@@ -157,7 +157,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   host.append(strip);
   source(host, [
     "Source: the station archive's daily totals; the last rain is the station's own record.",
-    "A rain day has at least 0.01 in. Spells with a day missing from the record are left out, so a missing day is never read as dry.",
+    `A rain day has at least ${WET_DAY_IN} in. Spells with a day missing from the record are left out, so a missing day is never read as dry.`,
     "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
   ]);
   return host;

@@ -11,7 +11,7 @@
  * says what the mark under it means, so nothing relies on a title (phones
  * do not show one).
  */
-import { WATER_MONTHS, addDays, dayText, hourText, inches } from "../format.js";
+import { WATER_MONTHS, WATER_YEAR_START_MONTH, addDays, daysBetween, dayText, hourText, inches } from "../format.js";
 import {
   LABEL_CHAR_PX,
   NARROW,
@@ -31,11 +31,15 @@ import { rainStep } from "../overview/ribbon.js";
 import type { RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";
 import { curveValue } from "./text.js";
 
-/** Month starts as places in a water year, Oct first. */
-const MONTH_PLACES = [0, 31, 61, 92, 123, 151, 182, 212, 243, 273, 304, 335];
+/** A non-leap water year's first day: a place's date counts days from it. */
+const REFERENCE_START = `2000-${String(WATER_YEAR_START_MONTH).padStart(2, "0")}-01`;
 
-/** Oct 1 of a non-leap water year: a place's month and day count from it. */
-const REFERENCE_OCT_1 = "2000-10-01";
+/** Month starts as places in a water year, derived from a non-leap reference year. */
+const MONTH_PLACES = WATER_MONTHS.map((_, i) => {
+  const month = ((WATER_YEAR_START_MONTH - 1 + i) % 12) + 1;
+  const year = month >= WATER_YEAR_START_MONTH ? 2000 : 2001;
+  return daysBetween(REFERENCE_START, `${year}-${String(month).padStart(2, "0")}-01`);
+});
 
 /** Hatch the days not in the record; mark where the record begins. */
 function hatchDays(
@@ -211,7 +215,7 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
         .filter((c): c is WaterYearCurve => Boolean(c))
         .filter((c) => place < c.cumulative_in.length)
         .map((c) => `${c.water_year} ${curveValue(c, place) ?? "not compared"}`);
-      readout(`By ${dayText(addDays(REFERENCE_OCT_1, place))}: ${parts.length ? parts.join("; ") : "no year reaches this date yet"}.`);
+      readout(`By ${dayText(addDays(REFERENCE_START, place))}: ${parts.length ? parts.join("; ") : "no year reaches this date yet"}.`);
     },
   );
 }

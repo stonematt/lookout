@@ -42,6 +42,7 @@ from lookout.snapshot.model import (
     TemperatureDay,
     TemperaturePeriod,
 )
+from lookout.snapshot.values import number
 from lookout.utils.dateutc import DEFAULT_TZ
 
 SPREAD_DAYS = 7
@@ -52,11 +53,6 @@ TEN_DAYS = 10
 
 PERIOD_KEYS = ("today", "yesterday", "7d", "30d", "90d", "365d")
 """The standard windows the range bars show, in order."""
-
-
-def _round(value: Optional[float], digits: int = 1) -> Optional[float]:
-    """Round a value, keeping None."""
-    return None if value is None or pd.isna(value) else round(float(value), digits)
 
 
 def _same_date(year: int, day: date) -> date:
@@ -167,12 +163,12 @@ def _periods(
         periods.append(
             TemperaturePeriod(
                 status=status,
-                low=_round(values.min()),
-                q1=_round(q1),
-                q3=_round(q3),
-                high=_round(values.max()),
+                low=number(values.min(), 1),
+                q1=number(q1, 1),
+                q3=number(q3, 1),
+                high=number(values.max(), 1),
                 readings=int(len(values)),
-                position=_position(now, _round(q1), _round(q3)),
+                position=_position(now, number(q1, 1), number(q3, 1)),
             )
         )
     return tuple(periods)
@@ -205,7 +201,7 @@ def _normal_years(
 
 def _median(values: Sequence[float]) -> Optional[float]:
     """The median, or None when empty."""
-    return _round(float(np.median(values))) if len(values) else None
+    return number(float(np.median(values)), 1) if len(values) else None
 
 
 def _ten_days(
@@ -226,7 +222,7 @@ def _ten_days(
         extremes = comparable(status, lambda d=day: readings.daily_extremes([d]))
         low = high = None
         if extremes is not None and extremes[0]:
-            low, high = _round(extremes[0][0]), _round(extremes[1][0])
+            low, high = number(extremes[0][0], 1), number(extremes[1][0], 1)
         lows: List[float] = []
         highs: List[float] = []
         years: List[int] = []

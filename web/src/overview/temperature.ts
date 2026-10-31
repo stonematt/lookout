@@ -467,7 +467,13 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     "Each dot is a past day within a week of this date; the rule is now.",
   );
   const stripHosts: [NormalStrip, HTMLElement][] = [];
+  // Strips with no comparison share one sentence; say it once.
+  let saidNoComparison = false;
   for (const strip of ctx.strips) {
+    if (strip.missing === "no_comparison") {
+      if (saidNoComparison) continue;
+      saidNoComparison = true;
+    }
     const figure = document.createElement("figure");
     figure.className = "tc-strip";
     figure.dataset.strip = strip.kind;

@@ -33,8 +33,9 @@ from lookout.snapshot.model import (
     RainEventRow,
     RainEvents,
 )
+from lookout.snapshot.values import number
+from lookout.utils.dateutc import DEFAULT_TZ
 
-STATION_TZ = "America/Los_Angeles"
 
 # A reading more than this many minutes after the one before follows a gap
 # (the Event Catalog's quality rule and the Streamlit rate chart's).
@@ -75,17 +76,6 @@ class _History:
         return self.frame.iloc[lo:hi]
 
 
-def _number(value: Any, digits: int = 3) -> Optional[float]:
-    """A float rounded to `digits`, or None for a missing or NaN value."""
-    if value is None:
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return None if np.isnan(number) else round(number, digits)
-
-
 def _ms(value: Any) -> int:
     """A catalog time (a Timestamp or anything `to_datetime` reads) in ms."""
     return int(pd.Timestamp(pd.to_datetime(value, utc=True)).value // 10**6)
@@ -115,10 +105,8 @@ def _curve(readings: pd.DataFrame, start_ms: int, end_ms: int) -> EventCurve:
         start_ms=start_ms,
         end_ms=end_ms,
         t_ms=tuple(int(x) for x in t),
-        event_in=tuple(_number(x) for x in readings["eventrainin"]),
-        rate_in_hr=tuple(
-            None if gap else _number(r) for r, gap in zip(rate, after_gap)
-        ),
+        event_in=tuple(number(x) for x in readings["eventrainin"]),
+        rate_in_hr=tuple(None if gap else number(r) for r, gap in zip(rate, after_gap)),
         gap_minutes=tuple(
             float(m) if gap else None for m, gap in zip(minutes, after_gap)
         ),
@@ -131,8 +119,8 @@ def _stats(events: pd.DataFrame) -> EventStats:
     return EventStats(
         count=int(summary["count"]),
         total_in=round(float(summary["total_in"]), 3),
-        median_in=_number(summary["median_in"]),
-        mean_duration_minutes=_number(summary["mean_duration_minutes"], 1),
+        median_in=number(summary["median_in"]),
+        mean_duration_minutes=number(summary["mean_duration_minutes"], 1),
     )
 
 
@@ -174,18 +162,18 @@ def _row(event: pd.Series, rank: int, history: _History) -> RainEventRow:
     start_ms = int(event["start_ms"])
     end_ms = _ms(event["end_time"])
     has_curve = not history.span(start_ms, end_ms).empty
-    completeness = _number(event.get("data_completeness"))
+    completeness = number(event.get("data_completeness"))
     quality = event.get("quality_rating")
     return RainEventRow(
         start_ms=start_ms,
         end_ms=end_ms,
         duration_minutes=float(event["duration_minutes"]),
         total_in=float(event["total_rainfall"]),
-        peak_rate_in_hr=_number(event.get("max_hourly_rate")),
+        peak_rate_in_hr=number(event.get("max_hourly_rate")),
         quality=quality if isinstance(quality, str) and has_curve else NO_DATA,
         completeness_pct=None if completeness is None else round(completeness * 100, 1),
-        max_gap_minutes=_number(event.get("max_gap_minutes"), 1),
-        water_year=water_year(event["start_time"].tz_convert(STATION_TZ).date()),
+        max_gap_minutes=number(event.get("max_gap_minutes"), 1),
+        water_year=water_year(event["start_time"].tz_convert(DEFAULT_TZ).date()),
         rank=rank,
         live=bool(event["live"]),
         has_curve=has_curve,
@@ -227,8 +215,8 @@ def rain_events_section(
             stats=_stats(
                 filter_events(
                     events,
-                    start=pd.Timestamp(water_year_start(year), tz=STATION_TZ),
-                    end=pd.Timestamp(water_year_start(year + 1), tz=STATION_TZ),
+                    start=pd.Timestamp(water_year_start(year), tz=DEFAULT_TZ),
+                    end=pd.Timestamp(water_year_start(year + 1), tz=DEFAULT_TZ),
                 )
             ),
         )

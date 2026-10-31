@@ -60,6 +60,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
     WaterYearCurve,
 )
+from lookout.snapshot.values import iso_day, number
 from lookout.utils.dateutc import DEFAULT_TZ
 
 RECENT_WINDOW = "90d"
@@ -70,9 +71,6 @@ HOURS = 24
 
 PLACES = 365
 """Places in a water-year curve: Oct 1 to Sep 30, Feb 29 folded in."""
-
-_DIGITS = 3
-"""Inches are published to a thousandth."""
 
 
 class RainCoverage(ArchiveCoverage):
@@ -188,8 +186,10 @@ def window_total(
 
     def total() -> Optional[float]:
         """The sum over the counted days, prorated."""
-        days = coverage.counted_days(_day(status.first_day), _day(status.last_day))
-        return _round(prorate(status, sum(totals.get(d, 0.0) for d in days)))
+        days = coverage.counted_days(
+            iso_day(status.first_day), iso_day(status.last_day)
+        )
+        return number(prorate(status, sum(totals.get(d, 0.0) for d in days)))
 
     return comparable(status, total)
 
@@ -213,7 +213,7 @@ def _recent(
     :param tz: The station-local zone.
     :return: The recent days, with wet hours prorated like any window value.
     """
-    first, last = _day(status.first_day), _day(status.last_day)
+    first, last = iso_day(status.first_day), iso_day(status.last_day)
     days = [first + timedelta(days=i) for i in range(status.days)]
     span = history
     if not history.empty:
@@ -235,12 +235,12 @@ def _recent(
             reasons.append(reason or "gap")
             hourly.append((None,) * HOURS)
             continue
-        rain_in.append(_round(totals.get(d, 0.0)))
+        rain_in.append(number(totals.get(d, 0.0)))
         reasons.append(None)
         to_come = now_local.hour + 1 if d == last else HOURS
         hourly.append(
             tuple(
-                _round(by_hour.get((d, h), 0.0)) if h < to_come else None
+                number(by_hour.get((d, h), 0.0)) if h < to_come else None
                 for h in range(HOURS)
             )
         )
@@ -254,7 +254,7 @@ def _recent(
 
     def wet_hours() -> Optional[float]:
         """Hours with rain, scaled over the window's missing days."""
-        return _round(prorate(status, float(sum(1 for _, _, r in cells if r > 0))))
+        return number(prorate(status, float(sum(1 for _, _, r in cells if r > 0))))
 
     def wettest() -> Optional[RainHour]:
         """The hour with the most rain; a maximum is not prorated."""
@@ -306,20 +306,20 @@ def _dry_spells(
             days=int(row["days"]),
         )
 
-    first_wy = _day(water_year_status.first_day)
+    first_wy = iso_day(water_year_status.first_day)
     wy_days = coverage.counted_days(first_wy, today)
 
     def rain_days() -> Optional[float]:
         """Rain days, scaled over the water year's missing days."""
         wet = sum(1 for d in wy_days if totals.get(d, 0.0) >= WET_DAY_IN)
-        return _round(prorate(water_year_status, float(wet)))
+        return number(prorate(water_year_status, float(wet)))
 
     def wettest() -> Optional[RainDay]:
         """The day with the most rain; a maximum is not prorated."""
         best = max(wy_days, key=lambda d: totals.get(d, 0.0), default=None)
         if best is None or totals.get(best, 0.0) < WET_DAY_IN:
             return None
-        return RainDay(day=best.isoformat(), rain_in=_round(totals[best]))
+        return RainDay(day=best.isoformat(), rain_in=number(totals[best]))
 
     return DrySpells(
         longest=longest,
@@ -362,7 +362,7 @@ def _water_years(
             place = water_year_day_index(day)
             status = coverage.window(start, day, key=f"water_year_{year}")
             cumulative[place] = comparable(
-                status, lambda: _round(prorate(status, running))
+                status, lambda: number(prorate(status, running))
             )
             prorated[place] = status.status == PRORATED
             last_place = place
@@ -380,13 +380,3 @@ def _water_years(
             )
         )
     return tuple(curves)
-
-
-def _day(iso: str) -> date:
-    """A date from its ISO form."""
-    return date.fromisoformat(iso)
-
-
-def _round(value: Optional[float]) -> Optional[float]:
-    """Inches to a thousandth, None kept."""
-    return None if value is None else round(float(value), _DIGITS)

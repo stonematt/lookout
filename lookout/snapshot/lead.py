@@ -54,6 +54,7 @@ from lookout.snapshot.model import (
     LeadTrace,
     SnapshotConditions,
 )
+from lookout.snapshot.values import number
 from lookout.utils.dateutc import DEFAULT_TZ
 
 RAIN_HOURS = 12.0
@@ -81,11 +82,6 @@ _DAY_CHARTS: Dict[str, Tuple[str, int, LeadChartUnit, str]] = {
 
 _Usual = Tuple[Optional[float], Optional[float], Optional[float]]
 _NO_USUAL: _Usual = (None, None, None)
-
-
-def _round(value: Optional[float], digits: int) -> Optional[float]:
-    """Round a value, keeping None."""
-    return None if value is None else round(float(value), digits)
 
 
 def _quartiles(values: Sequence[float], digits: int) -> _Usual:
@@ -133,7 +129,7 @@ def _rain_rule(
     elif newest is not None and observed_at_ms is not None:
         hours = (observed_at_ms - to_ms(newest["end_time"])) / HOUR_MS
     # The threshold is tested on the exact value; the value is rounded to show.
-    value = _round(hours, 2)
+    value = number(hours, 2)
     return LeadRule(
         kind="rain",
         met=hours is not None and hours <= RAIN_HOURS,
@@ -169,7 +165,7 @@ def _rain_chart(
     elif newest is not None:
         event_id = str(newest["event_id"])
         start_ms, end_ms = to_ms(newest["start_time"]), to_ms(newest["end_time"])
-        now = _round(newest.get("total_rainfall"), 3)
+        now = number(newest.get("total_rainfall"), 3)
     else:
         return current.rain_event_in, _NO_USUAL, 0, None
 
@@ -188,7 +184,7 @@ def _rain_chart(
         index = (rows["dateutc"] - first) // _RAIN_SLOT_MS
         per_slot = rows["eventrainin"].groupby(index).max()
         values = tuple(
-            _round(per_slot.get(i), 3) if pd.notna(per_slot.get(i)) else None
+            number(per_slot.get(i), 3) if pd.notna(per_slot.get(i)) else None
             for i in range(int(slots))
         )
         trace = LeadTrace(
@@ -292,10 +288,10 @@ def _temperature_rule(
     return LeadRule(
         kind="temperature",
         met=diff is not None and abs(diff) >= TEMPERATURE_F,
-        value=_round(diff, 1),
+        value=number(diff, 1),
         unit="degrees_f",
         threshold=TEMPERATURE_F,
-        reference=_round(median, 1),
+        reference=number(median, 1),
         compared=month_hours.keys if median is not None else (),
         missing=missing,
     )

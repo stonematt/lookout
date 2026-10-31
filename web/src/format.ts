@@ -20,8 +20,22 @@ export const MONTHS: readonly string[] = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+/** The water year starts on Oct 1 (calendar month 10). */
+export const WATER_YEAR_START_MONTH = 10;
+
 /** The water year's months, short: it runs Oct through Sep. */
-export const WATER_MONTHS: readonly string[] = [...MONTHS.slice(9), ...MONTHS.slice(0, 9)];
+export const WATER_MONTHS: readonly string[] = [
+  ...MONTHS.slice(WATER_YEAR_START_MONTH - 1),
+  ...MONTHS.slice(0, WATER_YEAR_START_MONTH - 1),
+];
+
+/** A rain day has at least this many inches (`WET_DAY_IN` in Python). */
+export const WET_DAY_IN = 0.01;
+
+/** The water year's label, e.g. `Oct 2025 to Sep 2026`. */
+export function waterYearSpan(waterYear: number): string {
+  return `${WATER_MONTHS[0]} ${waterYear - 1} to ${WATER_MONTHS[11]} ${waterYear}`;
+}
 
 const LONG_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long" });
 
@@ -212,8 +226,23 @@ export function localDay(ms: number): string {
  * @returns "YYYY-MM-DD".
  */
 export function addDays(iso: string, offset: number): string {
-  const ms = Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
-  return new Date(ms + offset * DAY_MS).toISOString().slice(0, 10);
+  return new Date(dayMs(iso) + offset * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** A "YYYY-MM-DD" day as UTC midnight in ms. */
+function dayMs(iso: string): number {
+  return Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+}
+
+/**
+ * Whole days from `first` to `day`.
+ *
+ * @param first - "YYYY-MM-DD".
+ * @param day - "YYYY-MM-DD".
+ * @returns The days between them; negative when `day` is earlier.
+ */
+export function daysBetween(first: string, day: string): number {
+  return Math.round((dayMs(day) - dayMs(first)) / DAY_MS);
 }
 
 // ---------- units ----------

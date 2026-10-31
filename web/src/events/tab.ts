@@ -15,7 +15,7 @@
  */
 import "./events.css";
 
-import { formatStamp, inches, inchesPerHour } from "../format.js";
+import { formatStamp, inches, inchesPerHour, waterYearSpan } from "../format.js";
 import { ReadError, fetchEventCurve } from "../load.js";
 import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
@@ -25,7 +25,6 @@ import {
   lowQuality,
   minutes,
   qualityLabel,
-  seasonSpan,
   selectedStart,
   startLabel,
   statsFor,
@@ -128,7 +127,7 @@ export function mountEvents(
     `<button type="button" data-season="all">All</button>`,
     ...section.seasons.map(
       (s) =>
-        `<button type="button" data-season="${s.water_year}" title="${seasonSpan(s.water_year)}">${s.water_year}</button>`,
+        `<button type="button" data-season="${s.water_year}" title="${waterYearSpan(s.water_year)}">${s.water_year}</button>`,
     ),
   ].join("");
 

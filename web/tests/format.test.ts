@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  daysBetween,
+  waterYearSpan,
   MONTHS,
   STALE_AFTER_MS,
   WATER_MONTHS,
@@ -176,5 +178,16 @@ describe("dataAge", () => {
 
   it("treats a clock behind the observation as just now", () => {
     expect(dataAge(observed, observed - 2 * MIN).text).toBe("under 1 m ago");
+  });
+});
+
+describe("one definition each", () => {
+  it("labels a water year from its month names", () => {
+    expect(waterYearSpan(2026)).toBe("Oct 2025 to Sep 2026");
+  });
+
+  it("counts whole days between two ISO days, either way", () => {
+    expect(daysBetween("2026-03-01", "2026-03-04")).toBe(3);
+    expect(daysBetween("2026-03-04", "2026-03-01")).toBe(-3);
   });
 });

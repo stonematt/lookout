@@ -46,6 +46,7 @@ from lookout.snapshot.model import (
     SolarTrace,
     SolarWindow,
 )
+from lookout.snapshot.values import iso_day, number
 from lookout.utils.dateutc import DEFAULT_TZ
 
 WINDOW_KEYS = ("today", "yesterday", "7d", "30d", "90d", "365d")
@@ -72,7 +73,6 @@ TRACE_STEP_MS = 5 * 60 * 1000
 TRACE_SLOTS = 24 * 60 * 60 * 1000 // TRACE_STEP_MS
 """Steps in 24 hours; the trace holds one more, the newest observation's."""
 
-_KWH_DIGITS = 3
 _WH_DIGITS = 1
 
 
@@ -240,8 +240,10 @@ def _window_total(
 
     def total() -> Optional[float]:
         """The sum over the counted days, prorated."""
-        days = coverage.counted_days(_day(status.first_day), _day(status.last_day))
-        return _kwh(prorate(status, sum(totals[d] for d in days)))
+        days = coverage.counted_days(
+            iso_day(status.first_day), iso_day(status.last_day)
+        )
+        return number(prorate(status, sum(totals[d] for d in days)))
 
     return comparable(status, total)
 
@@ -263,7 +265,7 @@ def _days(totals: Dict[date, float], coverage: ArchiveCoverage) -> SolarDays:
     reasons = []
     for d in _span(first, coverage.today):
         if d in totals:
-            energy.append(_kwh(totals[d]))
+            energy.append(number(totals[d]))
             reasons.append(None)
         else:
             energy.append(None)
@@ -284,7 +286,7 @@ def _recent(
     :param totals: `_daily_totals`: only these days get slots.
     :return: The recent days.
     """
-    first, last = _day(status.first_day), _day(status.last_day)
+    first, last = iso_day(status.first_day), iso_day(status.last_day)
     days = _span(first, last)
     inside = periods[(periods["day"] >= first) & (periods["day"] <= last)]
     # A repeated hour on the day daylight saving ends is summed into its slot.
@@ -408,9 +410,11 @@ def _usual_band(
     :param start: The trace's first slot.
     :return: (low, median, high), each parallel to the trace.
     """
-    counted = set(coverage.counted_days(_day(usual.first_day), _day(usual.last_day)))
-    first_ms = _midnight_ms(_day(usual.first_day), coverage.tz)
-    last_ms = _midnight_ms(_day(usual.last_day) + timedelta(days=1), coverage.tz)
+    counted = set(
+        coverage.counted_days(iso_day(usual.first_day), iso_day(usual.last_day))
+    )
+    first_ms = _midnight_ms(iso_day(usual.first_day), coverage.tz)
+    last_ms = _midnight_ms(iso_day(usual.last_day) + timedelta(days=1), coverage.tz)
     stamps = archive["dateutc"].astype("int64")
     rows = archive[(stamps >= first_ms) & (stamps < last_ms)]
     local = pd.to_datetime(rows["dateutc"], unit="ms", utc=True).dt.tz_convert(
@@ -452,7 +456,7 @@ def _energy_between(
     def total() -> Optional[float]:
         """The periods' sum."""
         inside = (periods["start_ms"] >= first_ms) & (periods["start_ms"] < end_ms)
-        return _kwh(float(periods.loc[inside, "kwh"].sum()))
+        return number(float(periods.loc[inside, "kwh"].sum()))
 
     return total
 
@@ -471,16 +475,6 @@ def _midnight_ms(day: date, tz: str) -> int:
 def _span(first: date, last: date) -> List[date]:
     """Every day from `first` to `last`, inclusive."""
     return [first + timedelta(days=i) for i in range((last - first).days + 1)]
-
-
-def _day(iso: str) -> date:
-    """A date from its ISO form."""
-    return date.fromisoformat(iso)
-
-
-def _kwh(value: Optional[float]) -> Optional[float]:
-    """kWh to a thousandth, None kept."""
-    return None if value is None else round(float(value), _KWH_DIGITS)
 
 
 def _wh(kwh: float) -> float:
