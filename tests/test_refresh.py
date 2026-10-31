@@ -261,26 +261,26 @@ class TestHeartbeats:
         return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
 
     def test_a_published_run_sends_start_then_station_then_zero(
-        self, seed, healthchecks
+        self, seed, fake_healthchecks
     ):
         station = seed()
 
         assert self.run_main(station) == 0
-        assert healthchecks.pings[0] == "lookout-refresh/start"
-        assert healthchecks.pings[-1] == "lookout-refresh/0"
-        assert len(healthchecks.pings) == 3
-        assert healthchecks.pings[1].startswith("station-")
+        assert fake_healthchecks.pings[0] == "lookout-refresh/start"
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+        assert len(fake_healthchecks.pings) == 3
+        assert fake_healthchecks.pings[1].startswith("station-")
 
     def test_a_failed_run_sends_a_non_zero_status_and_no_station_ping(
-        self, seed, healthchecks, monkeypatch
+        self, seed, fake_healthchecks, monkeypatch
     ):
         station = seed()
         monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
 
         assert self.run_main(station) == 1
-        assert healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
 
-    def test_a_stale_live_reading_skips_the_station_ping(self, seed, healthchecks):
+    def test_a_stale_live_reading_skips_the_station_ping(self, seed, fake_healthchecks):
         station = seed()
 
         assert (
@@ -289,11 +289,11 @@ class TestHeartbeats:
             )
             == 0
         )
-        assert healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/0"]
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/0"]
 
-    def test_a_healthchecks_outage_does_not_fail_the_run(self, seed, healthchecks):
+    def test_a_healthchecks_outage_does_not_fail_the_run(self, seed, fake_healthchecks):
         station = seed()
-        healthchecks.fail = True
+        fake_healthchecks.fail = True
 
         assert self.run_main(station) == 0
         assert len(snapshot_keys(station)) == 2

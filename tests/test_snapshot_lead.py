@@ -32,7 +32,7 @@ import pytest
 from lookout.snapshot.model import _plain
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import RainSpell, build_archive
-from tests.test_snapshot import (
+from tests.snapshot_helpers import (
     REGENERATE,
     build,
     dry_station,

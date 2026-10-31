@@ -21,11 +21,12 @@ PYTHONPATH=. python lookout/cli/catchup.py
 # Run with cron (includes logging and jitter)
 lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
 
-# One refresh run: catchup, then publish the dashboard snapshot to Storj
-# (snapshot/<MAC>.dashboard.json and snapshot/<MAC>.context.json)
-PYTHONPATH=. python lookout/cli/refresh.py
+# One refresh run (lookout/cli/refresh.py): catchup, catalogs, then publish
+# the dashboard snapshot to Storj (snapshot/<MAC>.dashboard.json, .context.json)
+PYTHONPATH=. python lookout/cli/refresh.py [--bucket lookout] [--pages N]
 
-# Diagnostics (plain text; no Streamlit). Read-only unless noted.
+# Diagnostics (lookout/cli/diagnostics.py; plain text, no Streamlit).
+# Read-only unless noted; exit 1 when refused or failed.
 PYTHONPATH=. python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]
 PYTHONPATH=. python -m lookout.cli.diagnostics coverage [--days 14]
 PYTHONPATH=. python -m lookout.cli.diagnostics status          # archive newest vs device, and the lag
@@ -33,6 +34,10 @@ PYTHONPATH=. python -m lookout.cli.diagnostics last-record     # the device's li
 # Writes: back up first, then save; --dry-run fetches and writes nothing
 PYTHONPATH=. python -m lookout.cli.diagnostics fill-gap (--index N | --start T --end T) [--dry-run]
 PYTHONPATH=. python -m lookout.cli.diagnostics energy-catalog [--save [--dry-run]]
+
+# Rain repair (lookout/cli/repair_rain.py): restore the raw rain counters in
+# the windows #95 damaged. Dry run unless --write; see --help before running
+PYTHONPATH=. python -m lookout.cli.repair_rain [--window FIRST LAST] [--write]
 ```
 
 ### Environment Setup
@@ -79,14 +84,12 @@ pytest tests/
 - Archive repair functionality normalizes schema inconsistencies
 
 **Event Catalog Management Strategy:**
-- Archive data persisted immediately (catchup CLI writes to Storj on every run)
-- Event catalog uses lazy persistence to minimize Storj I/O costs:
-  - Loads from Storj on first UI access
-  - Updates in-memory when new archive data detected
-  - Auto-saves to Storj only when ongoing events complete (eventrainin=0)
-  - Manual save available via "Save to Storj" button in UI
-- Rationale: Archive is critical raw data; catalog is derived and regenerable
-- Typical behavior: 1-2 auto-saves per week during rainy season (when events end)
+- The refresh run (`lookout/cli/refresh.py`) is the only automatic writer of the Event Catalog. Until Streamlit is retired, its Rain Events tab keeps manual "Save to Storage" and "Regenerate" buttons
+- Archive: saved after a backup on every catchup, whether run alone or as the refresh run's first step. It is stored **raw**: rain carryover corrections are never written back; they apply once, on read (`apply_corrections` after loading), so the refresh run and Streamlit both see corrected counters (#95, PR #113)
+- Event Catalog: brought up to the archive in memory on every refresh run, saved only when it holds a completed event the stored catalog lacks, matched by start time (`RainEventCatalog.save_if_events_completed`, `newly_completed`). The stored catalog is backed up first; if the backup fails, nothing is saved and the next run retries
+- No stored catalog: the first completed event seeds one
+- An ongoing event is re-detected under a new `event_id` every run; key events on their start (`start_ms`), never on `event_id`
+- Rationale: the archive is critical raw data; the catalog is derived and regenerable, so it is written only when its completed events change
 
 **Configuration Management:**
 - Secrets read by `lookout.secrets_loader.get_secret(name)`: env var, then `~/.config/lookout/secrets.toml`, then `st.secrets` while Streamlit is loaded; names listed in `secrets.example.toml`
@@ -135,3 +138,7 @@ Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 ### Domain docs
 
 Single-context: `GLOSSARY.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Operations
+
+Touching Storj, the VPS (`itri`), Vercel, Healthchecks or the Ambient API → `docs/agents/operations.md` first.

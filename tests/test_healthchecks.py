@@ -1,7 +1,7 @@
 """
 Healthchecks heartbeats: slugs, freshness and the ping sender.
 
-The endpoint is the conftest `healthchecks` fake; nothing reaches the web.
+The endpoint is the conftest `fake_healthchecks` fixture; nothing reaches the web.
 """
 
 from types import SimpleNamespace
@@ -39,22 +39,22 @@ class TestFreshness:
 
 
 class TestHeartbeat:
-    def test_pings_use_the_key_from_get_secret(self, healthchecks, stub_secrets):
+    def test_pings_use_the_key_from_get_secret(self, fake_healthchecks, stub_secrets):
         hc.Heartbeat.from_secrets().start()
 
-        assert healthchecks.urls == [
+        assert fake_healthchecks.urls == [
             f"https://hc-ping.com/{stub_secrets['HC_PING_KEY']}/lookout-refresh/start"
         ]
 
-    def test_the_exit_status_is_the_suffix(self, healthchecks):
+    def test_the_exit_status_is_the_suffix(self, fake_healthchecks):
         beat = hc.Heartbeat.from_secrets()
         beat.finish(0)
         beat.finish(1)
 
-        assert healthchecks.pings == ["lookout-refresh/0", "lookout-refresh/1"]
+        assert fake_healthchecks.pings == ["lookout-refresh/0", "lookout-refresh/1"]
 
     def test_a_missing_key_skips_pinging_with_a_warning(
-        self, healthchecks, monkeypatch, caplog
+        self, fake_healthchecks, monkeypatch, caplog
     ):
         def missing(name: str) -> None:
             raise MissingSecretError(name)
@@ -64,11 +64,11 @@ class TestHeartbeat:
 
         assert beat.start() is False
         assert beat.finish(0) is False
-        assert healthchecks.pings == []
+        assert fake_healthchecks.pings == []
         assert "HC_PING_KEY" in caplog.text
 
-    def test_a_down_endpoint_is_swallowed(self, healthchecks):
-        healthchecks.fail = True
+    def test_a_down_endpoint_is_swallowed(self, fake_healthchecks):
+        fake_healthchecks.fail = True
 
         assert hc.Heartbeat("key").start() is False
 
@@ -81,12 +81,12 @@ class TestHeartbeat:
 
         assert beat.start() is False
 
-    def test_a_stale_reading_sends_no_station_ping(self, healthchecks):
+    def test_a_stale_reading_sends_no_station_ping(self, fake_healthchecks):
         beat = hc.Heartbeat("key")
 
         assert beat.station("Home", "AA", NOW - 20 * MINUTE, NOW) is False
-        assert healthchecks.pings == []
+        assert fake_healthchecks.pings == []
 
-    def test_a_fresh_reading_pings_the_station_slug(self, healthchecks):
+    def test_a_fresh_reading_pings_the_station_slug(self, fake_healthchecks):
         assert hc.Heartbeat("key").station("Home", "AA", NOW - MINUTE, NOW) is True
-        assert healthchecks.pings == ["station-home"]
+        assert fake_healthchecks.pings == ["station-home"]

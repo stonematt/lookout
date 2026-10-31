@@ -141,7 +141,7 @@ class FakeHealthchecks:
 
 
 @pytest.fixture(autouse=True)
-def healthchecks(monkeypatch: pytest.MonkeyPatch) -> FakeHealthchecks:
+def fake_healthchecks(monkeypatch: pytest.MonkeyPatch) -> FakeHealthchecks:
     """
     Answer `lookout.utils.healthchecks` from a fake, so no test pings the web.
 

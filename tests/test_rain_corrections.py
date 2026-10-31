@@ -9,7 +9,7 @@ import pytest
 import pandas as pd
 
 from lookout.cli.rain_corrections_cli import (
-    get_primary_device,
+    get_station,
     load_archive_s3,
     handle_detect,
     handle_generate,
@@ -39,34 +39,39 @@ class TestDeviceDiscovery:
         ]
         mock_get_devices.return_value = mock_devices
 
-        device, mac, name = get_primary_device()
+        device, mac, name = get_station()
         assert mac == "98:CD:AC:22:0D:E5"
         assert name == "Test Station"
         assert device == mock_devices[0]
 
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_multiple_devices_uses_first(self, mock_get_devices):
-        """Test that first device is used when multiple devices exist."""
+    def test_multiple_devices_uses_the_pinned_station(
+        self, mock_get_devices, monkeypatch
+    ):
+        """The pinned STATION_MAC is used, even when it is listed second."""
+        monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
         mock_devices = [
-            {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "First Station"}},
-            {"macAddress": "12:34:56:78:9A:BC", "info": {"name": "Second Station"}},
+            {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Other Station"}},
+            {"macAddress": "12:34:56:78:9A:BC", "info": {"name": "Pinned Station"}},
         ]
         mock_get_devices.return_value = mock_devices
 
-        device, mac, name = get_primary_device()
-        assert mac == "98:CD:AC:22:0D:E5"
-        assert name == "First Station"
-        assert device == mock_devices[0]
+        device, mac, name = get_station()
+        assert mac == "12:34:56:78:9A:BC"
+        assert name == "Pinned Station"
+        assert device == mock_devices[1]
 
+    @mock.patch("builtins.print")
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_no_devices_error(self, mock_get_devices):
-        """Test error handling when no devices found."""
+    def test_no_devices_exits_with_the_reason(self, mock_get_devices, mock_print):
+        """No device list: exit 1, saying why the station was not found."""
         mock_get_devices.return_value = []
 
-        device, mac, name = get_primary_device()
-        assert device is None
-        assert mac is None
-        assert name is None
+        with pytest.raises(SystemExit) as exited:
+            get_station()
+
+        assert exited.value.code == 1
+        assert "Ambient returned no devices" in str(mock_print.call_args)
 
 
 class TestArchiveLoading:
@@ -101,24 +106,30 @@ class TestCliCommands:
     """Test CLI command handlers."""
 
     @mock.patch("builtins.print")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
-    def test_detect_no_device(self, mock_get_primary_device, mock_print):
-        """Test detect command when no device found."""
-        mock_get_primary_device.return_value = (None, None, None)
+    @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
+    def test_detect_no_device(self, mock_get_devices, mock_print, monkeypatch):
+        """detect exits 1 with the reason when the pinned station is missing."""
+        monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
+        mock_get_devices.return_value = [
+            {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Other"}}
+        ]
 
-        args = mock.Mock()
-        handle_detect(args)
+        with pytest.raises(SystemExit) as exited:
+            handle_detect(mock.Mock())
 
-        mock_print.assert_called_with("❌ No devices found in Ambient account.")
+        assert exited.value.code == 1
+        assert "Station 12:34:56:78:9A:BC is not on this Ambient account" in str(
+            mock_print.call_args
+        )
 
     @mock.patch("builtins.print")
     @mock.patch("lookout.cli.rain_corrections_cli.load_archive_s3")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_detect_empty_archive(
-        self, mock_get_primary_device, mock_load_archive_s3, mock_print
+        self, mock_get_station, mock_load_archive_s3, mock_print
     ):
         """Test detect command with empty archive."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",
@@ -134,16 +145,16 @@ class TestCliCommands:
     @mock.patch("builtins.print")
     @mock.patch("lookout.core.rain_corrections.detect_carryovers")
     @mock.patch("lookout.cli.rain_corrections_cli.load_archive_s3")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_detect_no_carryovers(
         self,
-        mock_get_primary_device,
+        mock_get_station,
         mock_load_archive_s3,
         mock_detect_carryovers,
         mock_print,
     ):
         """Test detect command when no carryovers found."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",
@@ -160,16 +171,16 @@ class TestCliCommands:
     @mock.patch("builtins.print")
     @mock.patch("lookout.core.rain_corrections.detect_carryovers")
     @mock.patch("lookout.cli.rain_corrections_cli.load_archive_s3")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_detect_with_carryovers(
         self,
-        mock_get_primary_device,
+        mock_get_station,
         mock_load_archive_s3,
         mock_detect_carryovers,
         mock_print,
     ):
         """Test detect command with carryovers found."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",
@@ -198,17 +209,17 @@ class TestCliCommands:
     @mock.patch("lookout.core.rain_corrections.save_catalog")
     @mock.patch("lookout.core.rain_corrections.detect_carryovers")
     @mock.patch("lookout.cli.rain_corrections_cli.load_archive_s3")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_generate_dry_run(
         self,
-        mock_get_primary_device,
+        mock_get_station,
         mock_load_archive_s3,
         mock_detect_carryovers,
         mock_save_catalog,
         mock_print,
     ):
         """Test generate command with dry-run flag."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",
@@ -238,17 +249,17 @@ class TestCliCommands:
     @mock.patch("lookout.core.rain_corrections.save_catalog")
     @mock.patch("lookout.core.rain_corrections.detect_carryovers")
     @mock.patch("lookout.cli.rain_corrections_cli.load_archive_s3")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_generate_save_success(
         self,
-        mock_get_primary_device,
+        mock_get_station,
         mock_load_archive_s3,
         mock_detect_carryovers,
         mock_save_catalog,
         mock_print,
     ):
         """Test generate command saving to S3 successfully."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",
@@ -275,29 +286,35 @@ class TestCliCommands:
         mock_save_catalog.assert_called_once()
 
     @mock.patch("builtins.print")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
-    def test_show_no_device(self, mock_get_primary_device, mock_print):
-        """Test show command when no device found."""
-        mock_get_primary_device.return_value = (None, None, None)
+    @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
+    def test_show_no_device(self, mock_get_devices, mock_print, monkeypatch):
+        """show exits 1 with the reason when the pinned station is missing."""
+        monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
+        mock_get_devices.return_value = [
+            {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Other"}}
+        ]
 
-        args = mock.Mock()
-        handle_show(args)
+        with pytest.raises(SystemExit) as exited:
+            handle_show(mock.Mock())
 
-        mock_print.assert_called_with("❌ No devices found in Ambient account.")
+        assert exited.value.code == 1
+        assert "Station 12:34:56:78:9A:BC is not on this Ambient account" in str(
+            mock_print.call_args
+        )
 
     @mock.patch("builtins.print")
     @mock.patch("lookout.core.rain_corrections.load_catalog")
     @mock.patch("lookout.core.rain_corrections.catalog_exists")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_show_no_catalog(
         self,
-        mock_get_primary_device,
+        mock_get_station,
         mock_catalog_exists,
         mock_load_catalog,
         mock_print,
     ):
         """Test show command when no catalog exists."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",
@@ -316,16 +333,16 @@ class TestCliCommands:
     @mock.patch("builtins.print")
     @mock.patch("lookout.core.rain_corrections.load_catalog")
     @mock.patch("lookout.core.rain_corrections.catalog_exists")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_primary_device")
+    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
     def test_show_with_catalog(
         self,
-        mock_get_primary_device,
+        mock_get_station,
         mock_catalog_exists,
         mock_load_catalog,
         mock_print,
     ):
         """Test show command displaying catalog."""
-        mock_get_primary_device.return_value = (
+        mock_get_station.return_value = (
             {"macAddress": "98:CD:AC:22:0D:E5"},
             "98:CD:AC:22:0D:E5",
             "Test Station",

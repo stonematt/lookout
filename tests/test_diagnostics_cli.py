@@ -159,7 +159,7 @@ class TestFillGap:
         for col in RAIN_COUNTERS:
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
-    def test_a_gap_ambient_cannot_fill_saves_nothing(self, seed, capsys):
+    def test_a_gap_ambient_cannot_fill_fails_and_saves_nothing(self, seed, capsys):
         station = seed()
 
         status, out = run(
@@ -173,7 +173,7 @@ class TestFillGap:
             capsys,
         )
 
-        assert status == 0
+        assert status == 1
         assert "no new data" in out
         assert len(station.stored()) == len(station.archive)
         assert BACKUP_KEY not in station.keys()
@@ -213,6 +213,16 @@ class TestEnergyCatalog:
 
         assert status == 0
         assert "Dry run" in out
+        assert CATALOG_KEY not in station.keys()
+
+    def test_dry_run_without_save_is_refused(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["energy-catalog", "--dry-run"], capsys)
+
+        assert status == 1
+        assert "--dry-run only applies with --save" in out
+        assert "Regenerated:" not in out
         assert CATALOG_KEY not in station.keys()
 
     def test_save_backs_up_the_stored_catalog_then_replaces_it(self, seed, capsys):

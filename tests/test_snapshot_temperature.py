@@ -18,7 +18,6 @@ that the TypeScript side renders. Regenerate with
 """
 
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, Sequence
 
@@ -26,10 +25,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from lookout.snapshot.model import _plain
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import Gap, RainSpell, build_archive
-from tests.test_snapshot import REGENERATE, build
+from tests.snapshot_helpers import REGENERATE, build
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "temperature"
 NOW = "2026-01-06T20:02:00Z"  # Tue noon local; the newest row is 11:55
@@ -91,7 +89,7 @@ def local_days(archive: pd.DataFrame) -> pd.Series:
 def assert_golden(snapshot, case: str) -> None:
     """Compare the section with `tests/golden/temperature/<case>.json`."""
     path = GOLDEN_DIR / f"{case}.json"
-    text = json.dumps(_plain(asdict(section(snapshot))), indent=2) + "\n"
+    text = json.dumps(snapshot.dashboard()["temperature_context"], indent=2) + "\n"
     if REGENERATE:
         GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
         path.write_text(text)

@@ -12,7 +12,6 @@ Functions:
 - rain_events_section(event_catalog, stitched, active): The tab's section.
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
-- water_year(when): The water year a time falls in.
 """
 
 from typing import Any, Collection, Iterator, List, Optional, Tuple
@@ -25,6 +24,7 @@ from lookout.core.rain_events import (
     is_event_ongoing,
     summarize_events,
 )
+from lookout.core.rainfall_analysis import water_year, water_year_start
 from lookout.snapshot.model import (
     ActiveRainEvent,
     EventCurve,
@@ -41,18 +41,6 @@ STATION_TZ = "America/Los_Angeles"
 GAP_MINUTES = 10.0
 
 NO_DATA = "invalid"
-
-
-def water_year(when: pd.Timestamp) -> int:
-    """
-    The water year a time falls in: Oct 1 to Sep 30, station-local, named
-    by the year it ends in (GLOSSARY.md).
-
-    :param when: A tz-aware time.
-    :return: The water year.
-    """
-    local = when.tz_convert(STATION_TZ)
-    return local.year + 1 if local.month >= 10 else local.year
 
 
 class _History:
@@ -196,7 +184,7 @@ def _row(event: pd.Series, rank: int, history: _History) -> RainEventRow:
         quality=quality if isinstance(quality, str) and has_curve else NO_DATA,
         completeness_pct=None if completeness is None else round(completeness * 100, 1),
         max_gap_minutes=_number(event.get("max_gap_minutes"), 1),
-        water_year=water_year(event["start_time"]),
+        water_year=water_year(event["start_time"].tz_convert(STATION_TZ).date()),
         rank=rank,
         ongoing=bool(event["ongoing_now"]),
         live=bool(event["live"]),
@@ -239,8 +227,8 @@ def rain_events_section(
             stats=_stats(
                 filter_events(
                     events,
-                    start=pd.Timestamp(f"{year - 1}-10-01", tz=STATION_TZ),
-                    end=pd.Timestamp(f"{year}-10-01", tz=STATION_TZ),
+                    start=pd.Timestamp(water_year_start(year), tz=STATION_TZ),
+                    end=pd.Timestamp(water_year_start(year + 1), tz=STATION_TZ),
                 )
             ),
         )

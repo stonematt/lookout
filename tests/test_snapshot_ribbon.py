@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from lookout.snapshot import build_snapshot
-from tests.test_snapshot import (
+from tests.snapshot_helpers import (
     RAIN_LIVE,
     STATION,
     build,

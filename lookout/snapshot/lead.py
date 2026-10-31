@@ -17,10 +17,11 @@ Adaptive Lead Rule"), and the first that holds leads:
 3. **solar**: the current radiation is at least `SOLAR_WM2`.
 4. **calm**, otherwise: the days since it last rained (`lastRain`) against
    the usual dry spell, the median completed dry spell in the last 365 days.
-   A dry spell is a run of dry days between two rain days (at least
-   `RAIN_DAY_IN`); a day the archive cannot count breaks the run, so a gap
-   never reads as dry. With the 365-day window invalid, calm still leads,
-   without a usual dry spell ("no_comparison").
+   A dry spell is a run of dry days between two rain days
+   (`lookout.core.rainfall_analysis.dry_spells`); a day the archive cannot
+   count breaks the run, so a gap never reads as dry. With the 365-day
+   window invalid, calm still leads, without a usual dry spell
+   ("no_comparison").
 
 Values are measured at the newest observation, read from the live-stitched
 history, so they agree with the first screen. Gap statuses read the archive
@@ -41,6 +42,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from lookout.core.rainfall_analysis import dry_spells
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.gaps import ArchiveCoverage, comparable
 from lookout.snapshot.model import (
@@ -62,9 +64,6 @@ TEMPERATURE_F = 10.0
 
 SOLAR_WM2 = 400.0
 """Solar leads at or above this radiation."""
-
-RAIN_DAY_IN = 0.01
-"""A day with at least this much rain (one bucket tip) ends a dry spell."""
 
 DRY_SPELL_WINDOW = "365d"
 """The window the usual dry spell is measured over."""
@@ -373,20 +372,13 @@ def _dry_spells(
             days = _local(stitched["dateutc"], coverage.tz).dt.date
             rain = pd.to_numeric(stitched["dailyrainin"], errors="coerce")
             daily = rain.groupby(days).max().to_dict()
-        lengths: List[int] = []
-        run: Optional[int] = None  # dry days since a rain day; None: unbounded
-        day = first
-        while day <= last:
-            if day not in counted:
-                run = None
-            elif daily.get(day, 0.0) >= RAIN_DAY_IN:
-                if run:
-                    lengths.append(run)
-                run = 0
-            elif run is not None:
-                run += 1
-            day += timedelta(days=1)
-        return lengths
+        index = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+        series = pd.Series(
+            [daily.get(day, 0.0) if day in counted else np.nan for day in index],
+            index=index,
+            dtype=float,
+        )
+        return [int(days) for days in dry_spells(series)["days"]]
 
     lengths = comparable(status, spells)
     return lengths, ((status.key,) if lengths is not None else ())
