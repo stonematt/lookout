@@ -169,11 +169,11 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
       ];
     }
     case "solar": {
-      const peak = Math.max(...(lead.trace?.values.filter((v): v is number => v !== null) ?? [0]));
+      const known = lead.trace?.values.filter((v): v is number => v !== null) ?? [];
       return [
         [lead.now === null ? na : watts(lead.now), "now"],
         [lead.usual_median === null ? na : watts(lead.usual_median), `usual at ${hourOf(snapshot)}`],
-        [watts(peak), "brightest hour today"],
+        [known.length ? watts(Math.max(...known)) : na, "brightest hour today"],
       ];
     }
     case "calm": {
@@ -209,10 +209,10 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
         : r.value === null
           ? "no rain event on record"
           : `the last event ended ${sinceText(r.value)} ago`;
-      return `Rain event live or ended in the last 12 h: ${value}`;
+      return `Rain event live or ended in the last ${r.threshold ?? 12} h: ${value}`;
     }
     case "temperature": {
-      const head = `Temperature at least 10° from the ${month} median at ${hourOf(snapshot)}`;
+      const head = `Temperature at least ${r.threshold ?? 10}° from the ${month} median at ${hourOf(snapshot)}`;
       if (r.missing === "no_comparison") {
         return `${head}: not compared, as no earlier ${month} is complete in the record`;
       }
@@ -220,7 +220,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
       return `${head}: ${signed(r.value)} now, against ${f1(r.reference)}° (${years(r.compared)})`;
     }
     case "solar":
-      return `Sun at least 400 W/m²: ${r.value === null ? "no reading" : `${watts(r.value)} now`}`;
+      return `Sun at least ${watts(r.threshold ?? 400)}: ${r.value === null ? "no reading" : `${watts(r.value)} now`}`;
     case "calm": {
       if (r.value === null) return "Otherwise, calm: no last rain on record";
       const usual =

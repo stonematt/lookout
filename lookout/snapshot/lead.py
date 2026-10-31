@@ -128,14 +128,16 @@ def _rain_rule(
     observed_at_ms: Optional[int],
 ) -> LeadRule:
     """The rain rule: live, or the hours since the newest event ended."""
-    value: Optional[float] = None
+    hours: Optional[float] = None
     if active is not None:
-        value = 0.0
+        hours = 0.0
     elif newest is not None and observed_at_ms is not None:
-        value = round((observed_at_ms - to_ms(newest["end_time"])) / HOUR_MS, 2)
+        hours = (observed_at_ms - to_ms(newest["end_time"])) / HOUR_MS
+    # The threshold is tested on the exact value; the value is rounded to show.
+    value = _round(hours, 2)
     return LeadRule(
         kind="rain",
-        met=value is not None and value <= RAIN_HOURS,
+        met=hours is not None and hours <= RAIN_HOURS,
         value=value,
         unit="hours",
         threshold=RAIN_HOURS,
@@ -208,11 +210,14 @@ class _MonthHours:
 
     :param archive: The archive as stored.
     :param coverage: Its coverage as of `now`.
+    :param today: The local day of the newest observation: its month is the
+        one compared.
     """
 
-    def __init__(self, archive: pd.DataFrame, coverage: ArchiveCoverage) -> None:
+    def __init__(
+        self, archive: pd.DataFrame, coverage: ArchiveCoverage, today: date
+    ) -> None:
         self.tz = coverage.tz
-        today = coverage.today
         first = coverage.first_day
         keys: List[str] = []
         frames: List[pd.DataFrame] = []
@@ -238,6 +243,15 @@ class _MonthHours:
             return 0
         return int(_local(self.rows["dateutc"], self.tz).dt.date.nunique())
 
+    def median_at(self, column: str, hour: Optional[int]) -> Optional[float]:
+        """The unrounded median of `column` at one local hour, or None."""
+        if hour is None or self.rows.empty or column not in self.rows:
+            return None
+        hours = _local(self.rows["dateutc"], self.tz).dt.hour
+        values = pd.to_numeric(self.rows[column], errors="coerce")[hours == hour]
+        values = values.dropna()
+        return None if values.empty else float(values.median())
+
     def by_hour(self, column: str, digits: int) -> Dict[int, _Usual]:
         """The quartiles of `column` at each local hour of day."""
         if self.rows.empty or column not in self.rows:
@@ -252,14 +266,21 @@ class _MonthHours:
 
 def _temperature_rule(
     current: SnapshotConditions,
-    usual_now: _Usual,
+    median: Optional[float],
     month_hours: _MonthHours,
 ) -> LeadRule:
-    """The temperature rule: degrees from this hour's month median."""
-    temperature, median = current.temperature_f, usual_now[1]
-    value = None
+    """
+    The temperature rule: degrees from this hour's month median.
+
+    :param current: Current conditions.
+    :param median: The unrounded month median at this hour, or None.
+    :param month_hours: The compared months.
+    :return: The rule; met is tested on the exact difference.
+    """
+    temperature = current.temperature_f
+    diff = None
     if temperature is not None and median is not None:
-        value = round(temperature - median, 1)
+        diff = temperature - median
     missing = None
     if median is None:
         missing = "no_comparison"
@@ -267,11 +288,11 @@ def _temperature_rule(
         missing = "no_reading"
     return LeadRule(
         kind="temperature",
-        met=value is not None and abs(value) >= TEMPERATURE_F,
-        value=value,
+        met=diff is not None and abs(diff) >= TEMPERATURE_F,
+        value=_round(diff, 1),
         unit="degrees_f",
         threshold=TEMPERATURE_F,
-        reference=median,
+        reference=_round(median, 1),
         compared=month_hours.keys if median is not None else (),
         missing=missing,
     )
@@ -426,14 +447,17 @@ def hero_lead(
     :return: The `HeroLead` section.
     """
     coverage = ArchiveCoverage(archive, now, tz)
-    month_hours = _MonthHours(archive, coverage)
-    temperature_by_hour = month_hours.by_hour("tempf", 1)
-    observed_hour = (
+    # Today and this hour are the newest observation's, so a stale reading
+    # is compared with its own month and hour.
+    observed = (
         None
         if observed_at_ms is None
-        else pd.Timestamp(observed_at_ms, unit="ms", tz="UTC").tz_convert(tz).hour
+        else pd.Timestamp(observed_at_ms, unit="ms", tz="UTC").tz_convert(tz)
     )
-    temperature_now = temperature_by_hour.get(observed_hour, _NO_USUAL)
+    today = coverage.today if observed is None else observed.date()
+    observed_hour = None if observed is None else observed.hour
+    month_hours = _MonthHours(archive, coverage, today)
+    temperature_by_hour = month_hours.by_hour("tempf", 1)
 
     newest = _newest_event(event_catalog, observed_at_ms)
     spells, spell_window = _dry_spells(stitched, coverage)
@@ -441,13 +465,19 @@ def hero_lead(
 
     rules = [
         _rain_rule(newest, active, observed_at_ms),
-        _temperature_rule(current, temperature_now, month_hours),
+        _temperature_rule(
+            current, month_hours.median_at("tempf", observed_hour), month_hours
+        ),
         _solar_rule(current),
     ]
-    calm_met = not any(r.met for r in rules)
-    rules.append(
-        _calm_rule(current, observed_at_ms, spell_usual, spell_window, calm_met)
+    calm = _calm_rule(
+        current,
+        observed_at_ms,
+        spell_usual,
+        spell_window,
+        not any(r.met for r in rules),
     )
+    rules.append(calm)
     kind: LeadKind = next(r.kind for r in rules if r.met)
 
     if kind == "rain":
@@ -456,7 +486,7 @@ def hero_lead(
         )
         unit = "in"
     elif kind == "calm":
-        now_value, usual, trace = rules[3].value, spell_usual, None
+        now_value, usual, trace = calm.value, spell_usual, None
         sample = len(spells or [])
         unit = "days"
     else:
@@ -469,7 +499,7 @@ def hero_lead(
         now_value = getattr(current, field)
         usual = by_hour.get(observed_hour, _NO_USUAL)
         sample = month_hours.days()
-        trace = _day_trace(stitched, column, by_hour, coverage.today, tz, digits)
+        trace = _day_trace(stitched, column, by_hour, today, tz, digits)
 
     return HeroLead(
         kind=kind,

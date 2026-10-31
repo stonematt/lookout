@@ -246,6 +246,21 @@ class TestBoundaries:
         assert rule(snapshot, "rain").value == pytest.approx(after_hours, abs=0.01)
         assert snapshot.hero_lead.kind == leads
 
+    def test_rain_does_not_lead_past_12_hours_though_shown_as_12(self, first_event):
+        archive, catalog, ended_ms = first_event
+        at_12_ms = ended_ms + 12 * HOUR_MS
+        cut = archive[archive["dateutc"] < at_12_ms]
+        row = archive[archive["dateutc"] == at_12_ms]
+        live = to_ambient_records(row)[0]
+        live["dateutc"] = at_12_ms + 10_000  # 12 h 10 s: shown as 12.0 h
+        now = pd.Timestamp(at_12_ms + 60_000, unit="ms", tz="UTC").isoformat()
+
+        snapshot = build(cut, live, now, catalog)
+
+        assert rule(snapshot, "rain").value == 12.0
+        assert rule(snapshot, "rain").met is False
+        assert snapshot.hero_lead.kind == "calm"
+
     @pytest.mark.parametrize(
         "tempf, leads",
         [(60.0, "temperature"), (59.9, "calm"), (40.0, "temperature"), (40.1, "calm")],
