@@ -151,7 +151,7 @@ Examples:
     if args.list:
         logger.info("📋 Listing existing day periods catalogs...")
 
-        # Get first device to check for catalogs
+        # Get the pinned station to check for catalogs
         try:
             mac_address, device = get_station()
             device_name = device.get("info", {}).get("name", "Unknown")
@@ -179,7 +179,7 @@ Examples:
     if args.delete:
         logger.info("🗑️  Delete operation requested")
 
-        # Get first device automatically
+        # Get the pinned station (STATION_MAC)
         mac_address, device = get_station()
 
         # Create backup
@@ -200,7 +200,7 @@ Examples:
     if args.dry_run:
         logger.info("🔍 Dry run mode - showing what would be generated...")
 
-        # Get first device automatically
+        # Get the pinned station (STATION_MAC)
         mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
@@ -261,7 +261,7 @@ Examples:
     if args.generate:
         logger.info("🌅 Generating day periods catalog...")
 
-        # Get first device automatically
+        # Get the pinned station (STATION_MAC)
         mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)

@@ -58,8 +58,8 @@ def test_find_station_matches_the_mac_case_insensitively(monkeypatch):
 def test_an_unset_pin_means_the_station_the_archive_is_keyed_under(monkeypatch):
     monkeypatch.delenv("STATION_MAC", raising=False)
     devices = _two_stations()
-    devices[0]["macAddress"] = "98:CD:AC:22:0D:E5"
-    assert ambient_client.find_station(devices) is devices[0]
+    devices[1]["macAddress"] = "98:CD:AC:22:0D:E5"  # listed second
+    assert ambient_client.find_station(devices) is devices[1]
 
 
 def test_get_station_device_reads_the_account_device_list(pinned, ambient_replay):

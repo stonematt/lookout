@@ -15,6 +15,7 @@ Requires:
   lookout.secrets_loader.get_secret on each request, never at import.
 """
 
+import sys
 import time
 from datetime import datetime, timezone
 from pprint import pprint
@@ -207,8 +208,8 @@ def main():
     try:
         device = get_station_device()
     except StationNotFoundError as e:
-        print(f"❌ {e}")
-        return
+        logger.error(f"❌ {e}")
+        sys.exit(1)
 
     print("✅ Pinned station:")
     pprint(device)
