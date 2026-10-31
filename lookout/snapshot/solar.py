@@ -12,6 +12,13 @@ to the new site's rules:
   (`lookout.snapshot.gaps`): a total is summed over the counted days and
   prorated; an invalid one is None and never computed. Streamlit summed
   whatever periods there were, so a gap read as a dark day.
+- A day counts for solar only when the archive counts it *and* the catalog
+  holds it (#123): the catalog only extends forward from its newest period,
+  so a gap later backfilled into the archive is still missing from it. Such
+  a day is missing by the same rule: no periods is a gap, under 80% of the
+  archive's 15-minute slots is low coverage, before the catalog's first day
+  is before the record, after its last is not archived yet. Each window and
+  month carries this status, since it can differ from the archive's.
 - The 24-hour view is the solar trace from the live-stitched history, so its
   newest point is the live reading (`SnapshotConditions.solar_wm2`), over the
   usual range for each time of day across the 30 days before today.
@@ -29,7 +36,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from lookout.snapshot.gaps import ArchiveCoverage, comparable, prorate
+from lookout.snapshot.gaps import LOW_COVERAGE, ArchiveCoverage, comparable, prorate
 from lookout.snapshot.model import (
     GapStatus,
     SolarDays,
@@ -53,6 +60,8 @@ SLOT_MINUTES = 15
 
 SLOTS = 24 * 60 // SLOT_MINUTES
 """Slots in a local day, by clock."""
+
+SLOT_MS = SLOT_MINUTES * 60 * 1000
 
 USUAL_DAYS = 30
 """The days before today the 24-hour view's usual range is drawn from."""
@@ -91,23 +100,34 @@ def solar_tab(
     """
     if energy_catalog is None:
         return None
-    coverage = ArchiveCoverage(archive, now, tz)
+    archived = ArchiveCoverage(archive, now, tz)
     periods = _periods(energy_catalog, tz)
+    coverage = archived.excluding(_uncatalogued(periods, archive, archived))
     totals = _daily_totals(periods, coverage)
     windows = [s for s in coverage.standard_windows() if s.key in WINDOW_KEYS]
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     return SolarTab(
         windows=tuple(
-            SolarWindow(key=s.key, energy_kwh_m2=_window_total(s, totals, coverage))
+            SolarWindow(
+                key=s.key,
+                energy_kwh_m2=_window_total(s, totals, coverage),
+                status=s,
+            )
             for s in windows
         ),
         days=_days(totals, coverage),
         months=tuple(
-            SolarMonth(key=s.key, energy_kwh_m2=_window_total(s, totals, coverage))
+            SolarMonth(
+                key=s.key,
+                energy_kwh_m2=_window_total(s, totals, coverage),
+                status=s,
+            )
             for s in coverage.months()
         ),
         recent=_recent(recent_status, periods, totals),
-        last_24h=_last_24h(archive, history, periods, observed_at_ms, coverage),
+        last_24h=_last_24h(
+            archive, history, periods, observed_at_ms, archived, coverage
+        ),
     )
 
 
@@ -136,25 +156,69 @@ def _periods(catalog: pd.DataFrame, tz: str) -> pd.DataFrame:
     return frame.dropna(subset=["kwh"]).sort_values("start_ms")
 
 
+def _uncatalogued(
+    periods: pd.DataFrame, archive: pd.DataFrame, coverage: ArchiveCoverage
+) -> Dict[date, str]:
+    """
+    The days the archive counts but the catalog does not hold, and why.
+
+    A day is held when the catalog has a period for at least `LOW_COVERAGE`
+    of the 15-minute slots the archive has rows in that day.
+
+    :param periods: `_periods`.
+    :param archive: The archive as stored.
+    :param coverage: The archive's coverage.
+    :return: Day -> "gap" (no periods), "low" (too few), "before_archive"
+        (before the catalog's first day) or "not_archived" (after its last).
+    """
+    first = coverage.first_day
+    if first is None:
+        return {}
+    days = _span(first, coverage.today)
+    if periods.empty:
+        return {d: "not_archived" for d in days}
+    held = periods.groupby("day")["start_ms"].nunique().to_dict()
+    stamps = pd.Series(archive["dateutc"], dtype="int64")
+    stamps = stamps[stamps <= coverage.now_ms]
+    slots = pd.Series((stamps // SLOT_MS).unique() * SLOT_MS)
+    local = pd.to_datetime(slots, unit="ms", utc=True).dt.tz_convert(coverage.tz)
+    due = local.dt.date.value_counts().to_dict()
+    first_held, last_held = min(held), max(held)
+
+    missing: Dict[date, str] = {}
+    for d in days:
+        # A day with no archived slots yet (today, just begun) needs none.
+        if held.get(d, 0) >= LOW_COVERAGE * due.get(d, 0):
+            continue
+        if d < first_held:
+            missing[d] = "before_archive"
+        elif d > last_held:
+            missing[d] = "not_archived"
+        else:
+            missing[d] = "low" if d in held else "gap"
+    return missing
+
+
 def _daily_totals(
     periods: pd.DataFrame, coverage: ArchiveCoverage
 ) -> Dict[date, float]:
     """
     Each counted day's energy: the sum of its periods.
 
-    Only days the gap rules count ("ok" days) and the catalog covers are
-    present, so a day missing from the record is never read as a dark one.
+    Every day the gap rules count ("ok" days) is present, and only those.
+    `coverage` already judges a day the catalog lacks as missing, so a day
+    missing from the record is never read as a dark one; a counted day with
+    no periods has nothing due yet (today, just begun) and holds 0.
 
     :param periods: `_periods`.
-    :param coverage: The archive's coverage as of the build time.
+    :param coverage: The coverage for solar (`_uncatalogued` excluded).
     :return: Day -> kWh per m².
     """
-    sums = periods.groupby("day")["kwh"].sum() if len(periods) else {}
-    return {
-        d: float(total)
-        for d, total in dict(sums).items()
-        if coverage.day_kind(d) == "ok"
-    }
+    if coverage.first_day is None:
+        return {}
+    sums = dict(periods.groupby("day")["kwh"].sum()) if len(periods) else {}
+    counted = coverage.counted_days(coverage.first_day, coverage.today)
+    return {d: float(sums.get(d, 0.0)) for d in counted}
 
 
 def _window_total(
@@ -172,7 +236,7 @@ def _window_total(
     def total() -> Optional[float]:
         """The sum over the counted days, prorated."""
         days = coverage.counted_days(_day(status.first_day), _day(status.last_day))
-        return _kwh(prorate(status, sum(totals.get(d, 0.0) for d in days)))
+        return _kwh(prorate(status, sum(totals[d] for d in days)))
 
     return comparable(status, total)
 
@@ -197,9 +261,8 @@ def _days(totals: Dict[date, float], coverage: ArchiveCoverage) -> SolarDays:
             energy.append(_kwh(totals[d]))
             reasons.append(None)
         else:
-            # Counted by the archive but not catalogued: not caught up yet.
             energy.append(None)
-            reasons.append(coverage.window(d, d).reason or "not_archived")
+            reasons.append(coverage.window(d, d).reason)
     return SolarDays(
         first_day=first.isoformat(), energy_kwh_m2=tuple(energy), reason=tuple(reasons)
     )
@@ -245,6 +308,7 @@ def _last_24h(
     history: pd.DataFrame,
     periods: pd.DataFrame,
     observed_at_ms: Optional[int],
+    archived: ArchiveCoverage,
     coverage: ArchiveCoverage,
 ) -> Optional[SolarTrace]:
     """
@@ -254,7 +318,9 @@ def _last_24h(
     :param history: The live-stitched history, for the trace.
     :param periods: `_periods`, for the energy.
     :param observed_at_ms: The newest observation.
-    :param coverage: The archive's coverage.
+    :param archived: The archive's coverage, for the usual range: it is
+        drawn from the archive's readings, not the catalog.
+    :param coverage: The coverage for solar, for the energy.
     :return: The trace; None without an observation.
     """
     if observed_at_ms is None or history.empty:
@@ -264,12 +330,12 @@ def _last_24h(
     solar = _trace(history, start, end)
 
     today = coverage.today
-    usual = coverage.window(
+    usual = archived.window(
         today - timedelta(days=USUAL_DAYS),
         today - timedelta(days=1),
         key="solar_usual",
     )
-    band = comparable(usual, lambda: _usual_band(archive, usual, coverage, start))
+    band = comparable(usual, lambda: _usual_band(archive, usual, archived, start))
 
     day_ms = TRACE_SLOTS * TRACE_STEP_MS
     energy = coverage.window(today - timedelta(days=1), today, key="last_24h")

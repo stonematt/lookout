@@ -325,3 +325,122 @@ class TestDaylightSaving:
         assert day[7] == pytest.approx(20.0)  # 1:45 am, both passes
         assert day_value(snapshot, "2026-11-01") == pytest.approx(0.08)
         assert day_value(snapshot, "2026-10-31") == pytest.approx(0.04)
+
+
+def solar_status(snapshot: Snapshot, key: str):
+    """A solar window's or month's own gap status."""
+    for item in (*snapshot.solar_tab.windows, *snapshot.solar_tab.months):
+        if item.key == key:
+            return item.status
+    raise KeyError(key)
+
+
+def day_reason(snapshot: Snapshot, day: str) -> Optional[str]:
+    """One day's reason from the tab's daily totals."""
+    days = snapshot.solar_tab.days
+    return days.reason[(pd.Timestamp(day) - pd.Timestamp(days.first_day)).days]
+
+
+class TestCatalogCoverage:
+    """
+    A day counts for solar only when the energy catalog has it (#123).
+
+    The archive is whole in every case here; only the catalog lacks days, as
+    after a gap backfilled into the archive the catalog never went back for.
+    """
+
+    @pytest.fixture(scope="class")
+    def backfilled(self, june) -> Snapshot:
+        """Jun 10 is in the archive but not the catalog."""
+        energy = catalog(
+            "2026-05-01", ms(ARCHIVE_END) - FIVE_MIN_MS, skip_days=["2026-06-10"]
+        )
+        return build(june, energy)
+
+    def test_an_archived_day_the_catalog_lacks_is_not_a_dark_day(self, backfilled):
+        assert day_value(backfilled, "2026-06-10") is None
+        assert day_reason(backfilled, "2026-06-10") == "gap"
+
+    def test_a_window_over_it_is_prorated_not_summed_as_zero(self, backfilled):
+        # Read as 0 kWh it would be 28 * 0.16 + 0.08, valid.
+        assert windows(backfilled)["30d"] == pytest.approx(
+            (28 * 0.16 + 0.08) * 30 / 29, abs=1e-3
+        )
+        status = solar_status(backfilled, "30d")
+        assert (status.status, status.reason, status.missing_days) == (
+            "prorated",
+            "gap",
+            1,
+        )
+
+    def test_the_archive_s_own_status_is_unchanged(self, backfilled):
+        archive_30d = next(w for w in backfilled.gaps.windows if w.key == "30d")
+        assert archive_30d.status == "valid"
+
+    def test_a_short_window_over_it_is_not_computed(self, june):
+        energy = catalog(
+            "2026-05-01", ms(ARCHIVE_END) - FIVE_MIN_MS, skip_days=["2026-06-18"]
+        )
+        snapshot = build(june, energy)
+        assert windows(snapshot)["7d"] is None
+        assert solar_status(snapshot, "7d").reason == "gap"
+        assert snapshot.solar_tab.last_24h.previous_kwh_m2 is None
+
+    def test_a_month_missing_too_many_catalog_days_is_not_computed(self, june):
+        skip = [f"2026-05-{d:02d}" for d in range(10, 15)]  # 5 of 31 days
+        energy = catalog("2026-05-01", ms(ARCHIVE_END) - FIVE_MIN_MS, skip_days=skip)
+        snapshot = build(june, energy)
+        months = {m.key: m.energy_kwh_m2 for m in snapshot.solar_tab.months}
+        assert months["2026-05"] is None
+        assert solar_status(snapshot, "2026-05").reason == "gap"
+
+    def test_a_month_missing_one_catalog_day_is_prorated(self, june):
+        energy = catalog(
+            "2026-05-01", ms(ARCHIVE_END) - FIVE_MIN_MS, skip_days=["2026-05-10"]
+        )
+        snapshot = build(june, energy)
+        months = {m.key: m.energy_kwh_m2 for m in snapshot.solar_tab.months}
+        assert months["2026-05"] == pytest.approx(30 * 0.16 * 31 / 30)
+        assert solar_status(snapshot, "2026-05").status == "prorated"
+
+    def test_a_day_the_catalog_holds_too_little_of_is_low_coverage(self, june):
+        energy = catalog("2026-05-01", ms(ARCHIVE_END) - FIVE_MIN_MS)
+        start = pd.to_datetime(energy["period_start"])
+        morning = (start.dt.strftime("%Y-%m-%d") == "2026-06-10") & (start.dt.hour < 12)
+        snapshot = build(june, energy[~morning])
+        assert day_value(snapshot, "2026-06-10") is None
+        assert day_reason(snapshot, "2026-06-10") == "low_coverage"
+
+    def test_days_before_the_catalog_begins_are_before_the_record(self, june):
+        energy = catalog("2026-05-05", ms(ARCHIVE_END) - FIVE_MIN_MS)
+        snapshot = build(june, energy)
+        assert day_reason(snapshot, "2026-05-04") == "before_archive"
+        assert day_reason(snapshot, "2026-05-05") is None
+        assert solar_status(snapshot, "2026-05").reason == "before_archive"
+
+    def test_days_after_the_catalog_ends_are_not_archived_yet(self, june):
+        energy = catalog("2026-05-01", ms("2026-06-18T07:00:00Z"))
+        snapshot = build(june, energy)
+        assert day_reason(snapshot, "2026-06-17") is None
+        assert day_reason(snapshot, "2026-06-18") == "not_archived"
+        assert windows(snapshot)["today"] is None
+        assert solar_status(snapshot, "today").reason == "not_archived"
+        assert snapshot.solar_tab.last_24h.energy_kwh_m2 is None
+
+    def test_a_whole_catalog_gives_the_archive_s_statuses(self, june_snapshot):
+        archive = {s.key: s for s in june_snapshot.gaps.windows}
+        for window in june_snapshot.solar_tab.windows:
+            assert window.status == archive[window.key]
+        months = {s.key: s for s in june_snapshot.gaps.months}
+        for month in june_snapshot.solar_tab.months:
+            assert month.status == months[month.key]
+
+    def test_a_day_with_nothing_due_yet_needs_no_periods(self):
+        # Ten minutes past midnight, the newest row 11:55 pm: today is counted
+        # with nothing due, so the catalog owes it nothing.
+        archive = build_archive(START, "2026-06-20T07:00:00Z")
+        energy = catalog("2026-05-01", ms("2026-06-20T07:00:00Z"))
+        snapshot = build(archive, energy, now="2026-06-20T07:10:00Z")
+        assert day_value(snapshot, "2026-06-20") == 0.0
+        assert day_reason(snapshot, "2026-06-20") is None
+        assert windows(snapshot)["7d"] == pytest.approx(6 * 0.16)
