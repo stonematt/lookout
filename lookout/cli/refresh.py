@@ -253,7 +253,8 @@ def run(
     clock: Callable[[], datetime] = utc_now,
 ) -> Snapshot:
     """
-    One refresh run: every step, in order. Any failure raises.
+    One refresh run: every step, in order. A failure raises, except a failure
+    writing curve files after the snapshot published: that is logged only.
 
     :param bucket: The bucket.
     :param pages: Maximum Ambient pages catchup fetches.
@@ -267,7 +268,13 @@ def run(
     catalogs = update_catalogs(station, bucket, archive, catalogs)
     snapshot = build(station, device, archive, catalogs, clock())
     publish(snapshot, bucket)
-    publish_curves(station, archive, catalogs, bucket)
+    try:
+        publish_curves(station, archive, catalogs, bucket)
+    except Exception as e:
+        # The snapshot is out; curve files are retried by the next run (the
+        # bounded backfill writes whatever is missing), so this is not a
+        # failed run.
+        logger.exception(f"Event curve files not written (snapshot published): {e}")
     return snapshot
 
 
