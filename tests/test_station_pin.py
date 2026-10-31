@@ -130,7 +130,7 @@ def _cli_station_mac(cli: str) -> str:
         return pull_archive.get_device_info()[0]
     from lookout.cli import rain_corrections_cli
 
-    return rain_corrections_cli.get_primary_device()[1]
+    return rain_corrections_cli.get_station()[1]
 
 
 @pytest.mark.parametrize(

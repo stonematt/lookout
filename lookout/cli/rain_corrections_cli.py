@@ -7,16 +7,18 @@ spanning midnight. When the station is offline at midnight, dailyrainin
 fails to reset, carrying forward the previous day's total.
 
 Usage:
-    python rain_corrections_cli.py detect [--data-dir data]
-    python rain_corrections_cli.py generate [--dry-run] [--bucket lookout]
-    python rain_corrections_cli.py show [--bucket lookout]
+    python -m lookout.cli.rain_corrections_cli [--bucket lookout] detect
+    python -m lookout.cli.rain_corrections_cli [--bucket lookout] generate [--dry-run]
+    python -m lookout.cli.rain_corrections_cli [--bucket lookout] show
+
+Exits 1 when the pinned station (STATION_MAC) is not on the Ambient account.
 """
 
 import argparse
-from pathlib import Path
+import sys
+from typing import Tuple
 
 import pandas as pd
-import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
 import lookout.core.rain_corrections as lo_rc
@@ -26,18 +28,20 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
-def get_primary_device():
+def get_station() -> Tuple[dict, str, str]:
     """
-    Get the pinned station (STATION_MAC) from the Ambient API.
+    Get the pinned station (STATION_MAC) from the Ambient API, or exit 1.
 
-    :return: (device, mac, name), or (None, None, None) after logging why the
-        station was not found.
+    :return: (device, mac, name).
+    :raises SystemExit: With code 1, after printing why the station was not
+        found (`StationNotFoundError`'s message).
     """
     try:
         device = ambient_client.get_station_device()
     except ambient_client.StationNotFoundError as e:
         logger.error(str(e))
-        return None, None, None
+        print(f"❌ {e}")
+        sys.exit(1)
 
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
@@ -57,11 +61,8 @@ def load_archive_s3(mac_address: str, bucket: str = "lookout") -> pd.DataFrame:
 
 
 def handle_detect(args):
-    """Handle detect command with auto-discovered device."""
-    device, mac, name = get_primary_device()
-    if not device or not mac:
-        print("❌ No devices found in Ambient account.")
-        return
+    """Handle detect command for the pinned station."""
+    device, mac, name = get_station()
 
     print(f"🔍 Scanning archive for: {name} ({mac})")
 
@@ -84,11 +85,8 @@ def handle_detect(args):
 
 
 def handle_generate(args):
-    """Handle generate command with auto-discovered device."""
-    device, mac, name = get_primary_device()
-    if not device or not mac:
-        print("❌ No devices found in Ambient account.")
-        return
+    """Handle generate command for the pinned station."""
+    device, mac, name = get_station()
 
     print(f"🔍 Scanning archive for: {name} ({mac})")
 
@@ -126,11 +124,8 @@ def handle_generate(args):
 
 
 def handle_show(args):
-    """Handle show command with auto-discovered device."""
-    device, mac, name = get_primary_device()
-    if not device or not mac:
-        print("❌ No devices found in Ambient account.")
-        return
+    """Handle show command for the pinned station."""
+    device, mac, name = get_station()
 
     print(f"📋 Showing catalog for: {name} ({mac})")
 
