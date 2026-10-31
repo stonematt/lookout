@@ -13,10 +13,10 @@
  */
 import "./solar.css";
 
-import { formatStamp } from "../format.js";
+import { dayText, formatStamp, kwhPerM2 } from "../format.js";
 import { gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { FALLBACK_WIDTH, dayStatus, drawSized } from "../rain/charts.js";
-import { WINDOW_NAMES, addDays, dayText, listText, windowStatus } from "../rain/text.js";
+import { WINDOW_NAMES, addDays, listText, windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
 import {
   drawDailyBars,
@@ -34,7 +34,6 @@ import {
   brightestMonth,
   dailyHeadline,
   dayHeadline,
-  kwh,
   lastDay,
   monthText,
   openingDay,
@@ -240,7 +239,7 @@ function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) =
       return;
     }
     if (day.slots === null) {
-      body.replaceChildren(make("p", "solar-older", `${dayText(day.day, true)} gave ${kwh(day.energy)}. Its 15-minute energy is kept for the last 90 days only.`));
+      body.replaceChildren(make("p", "solar-older", `${dayText(day.day, true)} gave ${kwhPerM2(day.energy)}. Its 15-minute energy is kept for the last 90 days only.`));
       note.textContent = "Source: the energy catalog's daily sum.";
       return;
     }
@@ -317,13 +316,13 @@ function heatmapSection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day
     readout.textContent = "";
     if (view === "months") {
       const best = brightestMonth(tab);
-      title.textContent = best ? `${monthText(best.key)} is the brightest month on record, at ${kwh(best.energy)}` : "Solar energy each month";
+      title.textContent = best ? `${monthText(best.key)} is the brightest month on record, at ${kwhPerM2(best.energy)}` : "Solar energy each month";
       standfirst.textContent = "One row per year, one column per month; the deeper the shade, the more energy. The month under way is not compared yet.";
       fillKey(Math.max(1, ...tab.months.map((m) => m.energy_kwh_m2 ?? 0)), "kWh/m²");
       note.textContent = "Source: the energy catalog's daily sums. ≈ marks a month scaled up over a few missing days; a hatched month has too many.";
     } else if (view === "days") {
       const best = brightestDay(tab);
-      title.textContent = best ? `The brightest day on record was ${dayText(best.day, true)}, at ${kwh(best.energy)}` : "Solar energy each day";
+      title.textContent = best ? `The brightest day on record was ${dayText(best.day, true)}, at ${kwhPerM2(best.energy)}` : "Solar energy each day";
       standfirst.textContent = "One row per month, newest at the top, one column per day; select a day to see its 15 minutes.";
       fillKey(Math.max(1, ...tab.days.energy_kwh_m2.map((v) => v ?? 0)), "kWh/m²");
       note.textContent = "Source: the energy catalog's daily sums. The outlined day is the one selected.";

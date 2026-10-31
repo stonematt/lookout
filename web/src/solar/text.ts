@@ -7,9 +7,9 @@
  * computed once in Python and gap-judged there. The browser only picks a
  * day, finds the brightest one, and words them.
  */
-import { STATION_TIME_ZONE } from "../format.js";
+import { MONTHS, STATION_TIME_ZONE, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
 import { gapValue } from "../gaps.js";
-import { addDays, dayText, windowStatus } from "../rain/text.js";
+import { addDays, windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, GapReason, SolarTab, SolarTrace, SolarWindow } from "../snapshot.js";
 
 /** The URL query parameter holding the selected solar day. */
@@ -18,8 +18,6 @@ export const SOLAR_DAY_PARAM = "solar_day";
 /** The slots a day's 15-minute chart and the day heatmap show: 4 am to 10 pm. */
 export const FIRST_SLOT = 16;
 export const LAST_SLOT = 87;
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
  * The selected day from a page query, or null.
@@ -102,31 +100,11 @@ export function readDay(tab: SolarTab, day: string): SolarDay {
   };
 }
 
-/**
- * Energy per m² in kWh: two decimals, one from 10 up, none from 100 up.
- *
- * @param value - kWh per m².
- * @returns E.g. "2.41 kWh/m²".
- */
-export function kwh(value: number): string {
-  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(digits)} kWh/m²`;
-}
-
-/** A number of kWh without the unit, as a cell or a "against" clause uses it. */
-export function kwhNumber(value: number): string {
-  return kwh(value).replace(" kWh/m²", "");
-}
-
 /** 15 minutes' energy in Wh per m², e.g. "37 Wh/m²". */
 export function wh(value: number): string {
   return `${Math.round(value)} Wh/m²`;
 }
 
-/** Solar radiation, e.g. "412 W/m²". */
-export function wm2(value: number): string {
-  return `${Math.round(value)} W/m²`;
-}
 
 /**
  * A slot's clock time in the One Format Rule, e.g. "10:15 am", "noon".
@@ -169,7 +147,7 @@ export function monthText(key: string): string {
  */
 export function windowValue(snapshot: DashboardSnapshot, window: SolarWindow): string | null {
   if (window.energy_kwh_m2 === null) return null;
-  return gapValue(windowStatus(snapshot, window.key), kwh(window.energy_kwh_m2));
+  return gapValue(windowStatus(snapshot, window.key), kwhPerM2(window.energy_kwh_m2));
 }
 
 /** A window's energy per day, from its total, or null. */
@@ -195,11 +173,11 @@ function change(now: number, before: number): string {
 export function traceHeadline(trace: SolarTrace, liveWm2: number | null): string {
   const now = trace.energy_kwh_m2;
   if (now === null) {
-    return liveWm2 === null ? "The last 24 hours cannot be totalled yet" : `Solar radiation is ${wm2(liveWm2)} now`;
+    return liveWm2 === null ? "The last 24 hours cannot be totalled yet" : `Solar radiation is ${wattsPerM2(liveWm2)} now`;
   }
   const before = trace.previous_kwh_m2;
-  const head = `${kwh(now)} of sun in the last 24 hours`;
-  return before === null ? head : `${head}, ${change(now, before)} ${kwhNumber(before)} the 24 before`;
+  const head = `${kwhPerM2(now)} of sun in the last 24 hours`;
+  return before === null ? head : `${head}, ${change(now, before)} ${kwhPerM2(before, { unit: false })} the 24 before`;
 }
 
 /** How many earlier years the daily headline names, newest first. */
@@ -261,15 +239,15 @@ export function dailyHeadline(snapshot: DashboardSnapshot): string {
         : week.now > usual
           ? "Brighter than this week in earlier years"
           : "Duller than this week in earlier years";
-    const against = named.map((y) => `${kwhNumber(y.perDay)} (${y.year})`);
+    const against = named.map((y) => `${kwhPerM2(y.perDay, { unit: false })} (${y.year})`);
     const list = against.length > 1 ? `${against.slice(0, -1).join(", ")} and ${against[against.length - 1]}` : against[0];
-    return `${lead}: ${kwh(week.now)} a day over the last 7 full days, against ${list}`;
+    return `${lead}: ${kwhPerM2(week.now)} a day over the last 7 full days, against ${list}`;
   }
   const month = perDay(snapshot, "30d");
   if (week && month !== null) {
-    return `${kwh(week.now)} a day over the last 7 full days, against ${kwhNumber(month)} over 30 days`;
+    return `${kwhPerM2(week.now)} a day over the last 7 full days, against ${kwhPerM2(month, { unit: false })} over 30 days`;
   }
-  if (month !== null) return `${kwh(month)} of sun a day over the last 30 days`;
+  if (month !== null) return `${kwhPerM2(month)} of sun a day over the last 30 days`;
   return "Sun each day over the last 90 days";
 }
 
@@ -292,7 +270,7 @@ export function dayHeadline(day: SolarDay): string {
   const when = `${dayText(day.day, true)}${day.isToday ? " so far" : ""}`;
   if (day.energy === null) return `${when}: not in the record`;
   const peak = day.slots ? peakSlot(day.slots) : null;
-  const total = `${when}: ${kwh(day.energy)}`;
+  const total = `${when}: ${kwhPerM2(day.energy)}`;
   return peak ? `${total}, brightest at ${slotText(peak[0])}` : total;
 }
 

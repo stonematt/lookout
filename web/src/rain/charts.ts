@@ -11,10 +11,11 @@
  * says what the mark under it means, so nothing relies on a title (phones
  * do not show one).
  */
+import { WATER_MONTHS, dayText, hourText, inches } from "../format.js";
 import { gapLabel, gapSentence } from "../gaps.js";
 import { rainStep } from "../overview/ribbon.js";
 import type { GapReason, GapStatus, RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";
-import { addDays, curveValue, dayText, hourText, inches } from "./text.js";
+import { addDays, curveValue } from "./text.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -29,7 +30,6 @@ const NARROW = 520;
 
 /** Month starts as places in a water year, Oct first. */
 const MONTH_PLACES = [0, 31, 61, 92, 123, 151, 182, 212, 243, 273, 304, 335];
-const WATER_MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"];
 
 /** Oct 1 of a non-leap water year: a place's month and day count from it. */
 const REFERENCE_OCT_1 = "2000-10-01";

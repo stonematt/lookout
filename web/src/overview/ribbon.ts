@@ -9,10 +9,9 @@
  * The band is drawn in a 1000 x 100 viewBox stretched to the band's width,
  * so it needs no measuring; ticks, hatches and the dot are positioned in %.
  */
-import { STATION_TIME_ZONE } from "../format.js";
+import { HOUR_MS, STATION_TIME_ZONE, degrees, formatHours, hourText, localHour } from "../format.js";
 import type { ConditionRibbon, DashboardSnapshot } from "../snapshot.js";
 
-const HOUR_MS = 3_600_000;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const VIEW_W = 1000;
 const VIEW_H = 100;
@@ -44,15 +43,8 @@ export function rainStep(rainIn: number | null, slotMinutes = 15): 1 | 2 | 3 | 4
   return (step === -1 ? 4 : step + 1) as 1 | 2 | 3 | 4;
 }
 
-/** Hours as `9 h`, `47 h 30 m` or `45 m` (never days: the span is 48 h). */
-function hoursText(hours: number): string {
-  const minutes = Math.round(hours * 60);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  // No-break spaces: a duration never wraps across lines.
-  if (!h) return `${m}\u00a0m`;
-  return m ? `${h}\u00a0h\u00a0${m}\u00a0m` : `${h}\u00a0h`;
-}
+/** Hours as `9 h`, `47 h 30 m` or `45 m`, on one line (the span is 48 h). */
+const hoursText = (hours: number) => formatHours(hours * HOUR_MS, { noBreak: true });
 
 /**
  * The one-line claim above the band: the range and the hours of rain.
@@ -66,7 +58,7 @@ export function ribbonClaim(ribbon: ConditionRibbon): string {
   const range =
     lo === null || hi === null
       ? "The last 48 hours"
-      : `${Math.round(lo)}° to ${Math.round(hi)}° over the last 48 hours`;
+      : `${degrees(lo, 0)} to ${degrees(hi, 0)} over the last 48 hours`;
   const whole = ribbon.known_hours >= 48;
   if (ribbon.rain_hours <= 0) {
     return whole
@@ -87,11 +79,6 @@ export interface RibbonTick {
   late: boolean;
 }
 
-const HOUR = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "numeric",
-  hourCycle: "h23",
-});
 const WEEKDAY = new Intl.DateTimeFormat("en-US", {
   timeZone: STATION_TIME_ZONE,
   weekday: "short",
@@ -107,12 +94,11 @@ export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
   const span = spanMs(ribbon);
   const ticks: RibbonTick[] = [];
   for (let t = Math.ceil(ribbon.start_ms / HOUR_MS) * HOUR_MS; t < ribbon.start_ms + span; t += HOUR_MS) {
-    const hour = Number(HOUR.format(t));
+    const hour = localHour(t);
     if (hour % 6) continue;
     const pct = ((t - ribbon.start_ms) / span) * 100;
     if (pct < TICK_MIN_PCT || pct > TICK_MAX_PCT) continue;
-    const label =
-      hour === 0 ? WEEKDAY.format(t) : hour === 12 ? "noon" : hour < 12 ? `${hour} am` : `${hour - 12} pm`;
+    const label = hour === 0 ? WEEKDAY.format(t) : hourText(hour);
     ticks.push({ pct, label, late: pct > TICK_LATE_PCT });
   }
   return ticks;
@@ -267,7 +253,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     node.style.left = `${tick.pct}%`;
     ticks.append(node);
   }
-  if (now !== null) ticks.append(el("span", "ribbon-now", `now ${now.toFixed(1)}°`));
+  if (now !== null) ticks.append(el("span", "ribbon-now", `now ${degrees(now)}`));
   block.append(ticks);
 
   block.append(ribbonKey());

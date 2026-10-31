@@ -6,7 +6,7 @@
  * and the per-water-year summaries are computed once in Python. The browser
  * only picks, sorts and words them.
  */
-import { formatDuration, formatStamp, STATION_TIME_ZONE } from "../format.js";
+import { formatDuration, formatStamp, inches, STATION_TIME_ZONE } from "../format.js";
 import type { EventStats, RainEventRow, RainEvents } from "../snapshot.js";
 
 /** The URL query parameter holding the selected event's start. */
@@ -86,16 +86,6 @@ export function statsFor(section: RainEvents, season: Season): EventStats {
   );
 }
 
-/** Inches with two decimals, e.g. `0.48 in`. */
-export function inches(value: number): string {
-  return `${value.toFixed(2)} in`;
-}
-
-/** A rate, e.g. `0.12 in/hr`. */
-export function rate(value: number): string {
-  return `${value.toFixed(2)} in/hr`;
-}
-
 /** A duration given in minutes, in the One Format Rule's words. */
 export function minutes(value: number): string {
   return formatDuration(value * 60_000);
@@ -159,10 +149,10 @@ export function lowQuality(row: RainEventRow): boolean {
  */
 export function eventFinding(row: RainEventRow, count: number): string {
   if (row.live) {
-    return `${inches(row.total_in)} so far over ${minutes(row.duration_minutes)}, and still raining`;
+    return `${inches(row.total_in, { digits: 2 })} so far over ${minutes(row.duration_minutes)}, and still raining`;
   }
   const place = row.rank === 1 ? "the wettest" : `the ${ordinal(row.rank)} wettest`;
-  return `${inches(row.total_in)} over ${minutes(row.duration_minutes)}, ${place} of ${count} events`;
+  return `${inches(row.total_in, { digits: 2 })} over ${minutes(row.duration_minutes)}, ${place} of ${count} events`;
 }
 
 /**
@@ -181,8 +171,8 @@ export function listFinding(
   const n = stats.count;
   const events = `${n} rain event${n === 1 ? "" : "s"}`;
   if (season !== "all") {
-    return `${events} in water year ${season}, ${inches(stats.total_in)} in all`;
+    return `${events} in water year ${season}, ${inches(stats.total_in, { digits: 2 })} in all`;
   }
   const since = oldestMs === null ? "" : ` since ${formatStamp(oldestMs).split(",")[0]}, ${YEAR.format(oldestMs)}`;
-  return `${events}${since}, ${inches(stats.total_in)} in all`;
+  return `${events}${since}, ${inches(stats.total_in, { digits: 2 })} in all`;
 }

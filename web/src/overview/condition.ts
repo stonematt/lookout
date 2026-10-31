@@ -15,7 +15,7 @@
  *    rain earlier today gives the total and when the last fell; a dry day
  *    names when it last rained.
  */
-import { formatStamp } from "../format.js";
+import { formatStamp, inches, inchesPerHour } from "../format.js";
 import type { SnapshotConditions } from "../snapshot.js";
 
 function temperatureWord(f: number): string {
@@ -73,12 +73,12 @@ function feel(c: SnapshotConditions): string | null {
 function rain(c: SnapshotConditions): string | null {
   const today = c.rain_today_in;
   if (c.rain_rate_in_hr !== null && c.rain_rate_in_hr > 0) {
-    const sofar = today === null ? "" : `, ${today.toFixed(2)} in so far today`;
-    return `raining at ${c.rain_rate_in_hr.toFixed(2)} in/hr${sofar}`;
+    const sofar = today === null ? "" : `, ${inches(today, { digits: 2 })} so far today`;
+    return `raining at ${inchesPerHour(c.rain_rate_in_hr)}${sofar}`;
   }
   if (today !== null && today > 0) {
     const last = c.last_rain_ms === null ? "" : `, the last at ${formatStamp(c.last_rain_ms)}`;
-    return `${today.toFixed(2)} in of rain today${last}`;
+    return `${inches(today, { digits: 2 })} of rain today${last}`;
   }
   if (today === null) return null;
   const last = c.last_rain_ms === null ? "" : `, the last on ${formatStamp(c.last_rain_ms)}`;

@@ -10,7 +10,7 @@
  */
 import "./rain.css";
 
-import { formatStamp } from "../format.js";
+import { dayText, formatDayCount, formatDays, formatStamp, inches } from "../format.js";
 import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDailyBars, drawHourGrid, drawSized, drawYearCurves } from "./charts.js";
@@ -18,13 +18,9 @@ import {
   WINDOW_NAMES,
   calmRule,
   dailyHeadline,
-  dayText,
   daysText,
   dryHeadline,
   hoursHeadline,
-  inches,
-  sinceText,
-  spellText,
   windowStatus,
   windowsNote,
   windowValue,
@@ -138,8 +134,8 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   const calm = calmRule(snapshot);
-  stat(strip, "Since it last rained", calm?.value == null ? null : sinceText(calm.value));
-  const usualDd = stat(strip, "Usual dry spell", calm?.reference == null ? null : spellText(calm.reference));
+  stat(strip, "Since it last rained", calm?.value == null ? null : formatDays(calm.value));
+  const usualDd = stat(strip, "Usual dry spell", calm?.reference == null ? null : formatDayCount(calm.reference));
   if (calm?.reference == null) hatchGap(usualDd, windowStatus(snapshot, "365d"));
   const longest = spells.longest;
   stat(

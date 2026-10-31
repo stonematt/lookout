@@ -13,18 +13,16 @@
  */
 import "./events.css";
 
-import { formatStamp } from "../format.js";
+import { formatStamp, inches, inchesPerHour } from "../format.js";
 import { ReadError, fetchEventCurve } from "../load.js";
 import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
 import {
   eventFinding,
-  inches,
   listFinding,
   lowQuality,
   minutes,
   qualityLabel,
-  rate,
   seasonSpan,
   selectedStart,
   startLabel,
@@ -138,8 +136,8 @@ export function mountEvents(
     $(".ev-title").textContent = listFinding(stats, season, oldest);
     $(".ev-stats").innerHTML = [
       stat(String(stats.count), "events"),
-      stat(inches(stats.total_in), "rain in all"),
-      stat(stats.median_in === null ? "n/a" : inches(stats.median_in), "median event"),
+      stat(inches(stats.total_in, { digits: 2 }), "rain in all"),
+      stat(stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }), "median event"),
       stat(
         stats.mean_duration_minutes === null ? "n/a" : minutes(stats.mean_duration_minutes),
         "mean length",
@@ -212,9 +210,9 @@ ${note}
 <h3 class="ev-finding">${esc(eventFinding(row, all.length))}</h3>
 <p class="standfirst">${esc(span)} ${esc(quality)}</p>
 <dl class="ev-facts">
-  ${stat(inches(row.total_in), row.live ? "so far (live)" : "total")}
+  ${stat(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
   ${stat(minutes(row.duration_minutes), "length")}
-  ${stat(row.peak_rate_in_hr === null || !row.has_curve ? "n/a" : rate(row.peak_rate_in_hr), "peak rate")}
+  ${stat(row.peak_rate_in_hr === null || !row.has_curve ? "n/a" : inchesPerHour(row.peak_rate_in_hr), "peak rate")}
 </dl>
 <div class="ev-charts"></div>
 <p class="ev-source"></p>`;
@@ -235,9 +233,9 @@ ${note}
       if (ticket !== drawn) return;
       charts.innerHTML = `
 <p class="ev-chart-label">Rain so far</p>
-<div class="ev-chart ev-acc" role="img" aria-label="${esc(`Rain so far in this event, rising to ${inches(row.total_in)}`)}"></div>
+<div class="ev-chart ev-acc" role="img" aria-label="${esc(`Rain so far in this event, rising to ${inches(row.total_in, { digits: 2 })}`)}"></div>
 <p class="ev-chart-label">Rate between readings</p>
-<div class="ev-chart ev-rate" role="img" aria-label="${esc(row.peak_rate_in_hr === null ? "Rain rate between readings" : `Rain rate between readings, peaking at ${rate(row.peak_rate_in_hr)}`)}"></div>`;
+<div class="ev-chart ev-rate" role="img" aria-label="${esc(row.peak_rate_in_hr === null ? "Rain rate between readings" : `Rain rate between readings, peaking at ${inchesPerHour(row.peak_rate_in_hr)}`)}"></div>`;
       deps
         .draw(
           {

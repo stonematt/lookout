@@ -19,6 +19,7 @@
  */
 import "./styles/gaps.css";
 
+import { dayText } from "./format.js";
 import type { GapReason, GapStatus } from "./snapshot.js";
 
 /** The short reason shown in place on the hatch. */
@@ -32,11 +33,6 @@ const LABELS: Record<GapReason, string> = {
 
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
 const COMPACT_LABEL = "n/a";
-
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 
 /** Options for `hatchGap` and `gapElement`. */
 export interface HatchOptions {
@@ -178,14 +174,8 @@ function spokenSentence(status: GapStatus): HTMLElement {
 
 /** "Jan 8, 2026", "Jan 1 to Jan 31, 2026" or "Dec 13, 2025 to Jan 11, 2026". */
 function daySpan(first: string, last: string): string {
-  const end = `${monthDay(last)}, ${last.slice(0, 4)}`;
+  const end = dayText(last, true);
   if (first === last) return end;
   const sameYear = first.slice(0, 4) === last.slice(0, 4);
-  const start = sameYear ? monthDay(first) : `${monthDay(first)}, ${first.slice(0, 4)}`;
-  return `${start} to ${end}`;
-}
-
-/** "Jan 8" from "2026-01-08". */
-function monthDay(day: string): string {
-  return `${MONTHS[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}`;
+  return `${dayText(first, !sameYear)} to ${end}`;
 }

@@ -12,9 +12,9 @@
  * or Enter on the focused chart, picks the day under the readout.
  */
 import { gapLabel, gapSentence } from "../gaps.js";
-import { STATION_TIME_ZONE } from "../format.js";
+import { STATION_TIME_ZONE, dayText, hourText, kwhPerM2, wattsPerM2 } from "../format.js";
 import { dayStatus, el, niceTicks, runs, scrub } from "../rain/charts.js";
-import { addDays, dayText, hourText } from "../rain/text.js";
+import { addDays } from "../rain/text.js";
 import type { GapReason, GapStatus, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
 import {
@@ -22,14 +22,11 @@ import {
   clockText,
   LAST_SLOT,
   daysBetween,
-  kwh,
-  kwhNumber,
   lastDay,
   monthText,
   peakSlot,
   slotText,
   wh,
-  wm2,
 } from "./text.js";
 
 /** What a chart writes to its readout for one position. */
@@ -252,7 +249,7 @@ export function drawTrace(
   const now = values[n - 1];
   if (now !== null && now !== undefined) {
     svg.append(el("circle", { cx: x(n - 1), cy: y(now), r: 5, class: "solar-now-dot" }));
-    svg.append(label(x(n - 1) - 8, Math.max(top + 4, y(now) - 10), `now ${wm2(now)}`, "solar-now-label", "end"));
+    svg.append(label(x(n - 1) - 8, Math.max(top + 4, y(now) - 10), `now ${wattsPerM2(now)}`, "solar-now-label", "end"));
   }
 
   host.replaceChildren(svg);
@@ -266,12 +263,12 @@ export function drawTrace(
       const value = values[i];
       const usual =
         median && low && trace.usual_high_wm2 && median[i] !== null && median[i] !== undefined
-          ? `; usually ${wm2(median[i]!)} (${Math.round(low[i] ?? 0)} to ${Math.round(trace.usual_high_wm2[i] ?? 0)})`
+          ? `; usually ${wattsPerM2(median[i]!)} (${Math.round(low[i] ?? 0)} to ${Math.round(trace.usual_high_wm2[i] ?? 0)})`
           : "";
-      if (i === n - 1 && value !== null && value !== undefined) return readout(`Now, ${clock}: ${wm2(value)}, the live reading${usual}.`);
+      if (i === n - 1 && value !== null && value !== undefined) return readout(`Now, ${clock}: ${wattsPerM2(value)}, the live reading${usual}.`);
       if (i > archived) return readout(`${clock}: not archived yet; only the live reading is known${usual}.`);
       if (value === null || value === undefined) return readout(`${clock}: no reading in the record.`);
-      readout(`${when}, ${clock}: ${wm2(value)}${usual}.`);
+      readout(`${when}, ${clock}: ${wattsPerM2(value)}${usual}.`);
     },
   );
 }
@@ -312,7 +309,7 @@ function dayTicks(svg: SVGSVGElement, first: string, count: number, x: (i: numbe
 function daySentence(day: string, energy: number | null, reason: GapReason | null, isToday: boolean): string {
   if (reason) return gapSentence(dayStatus(day, reason));
   const when = `${dayText(day, true)}${isToday ? " (today, so far)" : ""}`;
-  return energy === null ? `${when}: not in the record.` : `${when}: ${kwh(energy)}. Select to see its 15 minutes.`;
+  return energy === null ? `${when}: not in the record.` : `${when}: ${kwhPerM2(energy)}. Select to see its 15 minutes.`;
 }
 
 /**
@@ -531,7 +528,7 @@ export function drawYearMonth(host: HTMLElement, tab: SolarTab, statuses: GapSta
       const value = energy.get(key) ?? null;
       if (!status) return readout(`${monthText(key)}: not in the record.`);
       if (value === null) return readout(gapSentence(status));
-      readout(`${monthText(key)}: ${status.status === "prorated" ? "≈ " : ""}${kwh(value)}.`);
+      readout(`${monthText(key)}: ${status.status === "prorated" ? "≈ " : ""}${kwhPerM2(value)}.`);
     },
     years.length,
     (py) => Math.floor((py - top) / (rowH + gap)),
@@ -703,7 +700,7 @@ export function shadeKey(max: number, unit: string): [string, string][] {
   const out: [string, string][] = [];
   for (let s = 1; s <= STEPS; s++) {
     const upTo = (max * s) / STEPS;
-    const text = unit === "Wh/m²" ? String(Math.round(upTo)) : kwhNumber(upTo);
+    const text = unit === "Wh/m²" ? String(Math.round(upTo)) : kwhPerM2(upTo, { unit: false });
     out.push([`solar-step-${s}`, `up to ${text} ${unit}`]);
   }
   return out;

@@ -10,14 +10,15 @@
  */
 import "./first-screen.css";
 
-import { formatDuration, formatStamp } from "../format.js";
+import { degrees, formatDuration, formatStamp, inches, mph } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import { conditionSentence } from "./condition.js";
 import type { OverviewSection } from "./index.js";
 import { renderRibbon } from "./ribbon.js";
 
-function fixed(value: number | null, digits: number, unit: string): string {
-  return value === null ? "n/a" : `${value.toFixed(digits)}${unit}`;
+/** A value in its unit, or "n/a" with none. */
+function shown(value: number | null, format: (v: number) => string): string {
+  return value === null ? "n/a" : format(value);
 }
 
 function part(tag: keyof HTMLElementTagNameMap, name: string, className: string): HTMLElement {
@@ -45,9 +46,9 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
   const list = part("dl", "right-now", "right-now");
   list.setAttribute("aria-label", "Right now");
   const items: [string, string][] = [
-    ["feels like", fixed(c.feels_like_f, 1, "°")],
-    ["wind", fixed(c.wind_speed_mph, 1, " mph")],
-    ["rain today", fixed(c.rain_today_in, 2, " in")],
+    ["feels like", shown(c.feels_like_f, degrees)],
+    ["wind", shown(c.wind_speed_mph, mph)],
+    ["rain today", shown(c.rain_today_in, (v) => inches(v, { digits: 2 }))],
   ];
   for (const [label, value] of items) {
     const item = document.createElement("div");

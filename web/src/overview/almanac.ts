@@ -17,13 +17,12 @@
  */
 import "./almanac.css";
 
-import { formatStamp } from "../format.js";
+import { WATER_MONTHS, dayText, formatStamp, inches } from "../format.js";
 import { hatchGap } from "../gaps.js";
-import { NAMED_YEARS, dayText, inches } from "../rain/text.js";
+import { NAMED_YEARS } from "../rain/text.js";
 import type { Almanac, AlmanacMonth, AlmanacYear, DashboardSnapshot } from "../snapshot.js";
 import {
   ROLLING_NAMES,
-  WATER_MONTHS,
   cellKind,
   cellText,
   gridHeadline,

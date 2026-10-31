@@ -9,7 +9,7 @@
  * window's value is never shown, a prorated one carries ≈), and the One
  * Format Rule (Pacific time, imperial units).
  */
-import { formatDuration } from "../format.js";
+import { dayText, formatDayCount, formatDays, hourText, inches } from "../format.js";
 import { gapValue } from "../gaps.js";
 import type {
   DashboardSnapshot,
@@ -19,13 +19,6 @@ import type {
   RainWindow,
   WaterYearCurve,
 } from "../snapshot.js";
-
-const DAY_MS = 86_400_000;
-
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 
 /** At most this many earlier years are named in the year-over-year headline. */
 export const NAMED_YEARS = 3;
@@ -42,28 +35,6 @@ export const WINDOW_NAMES: Record<string, string> = {
 };
 
 /**
- * Inches as the tab writes them: two decimals, one from 10 in up.
- *
- * @param value - Inches.
- * @returns E.g. "0.30 in", "12.4 in".
- */
-export function inches(value: number): string {
-  return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)} in`;
-}
-
-/**
- * A station-local day, e.g. "Jan 8", or "Jan 8, 2026" with the year.
- *
- * @param iso - "YYYY-MM-DD".
- * @param withYear - Add the year.
- * @returns The day in words.
- */
-export function dayText(iso: string, withYear = false): string {
-  const text = `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
-  return withYear ? `${text}, ${iso.slice(0, 4)}` : text;
-}
-
-/**
  * The day `offset` days after an ISO day.
  *
  * @param iso - "YYYY-MM-DD".
@@ -73,18 +44,6 @@ export function dayText(iso: string, withYear = false): string {
 export function addDays(iso: string, offset: number): string {
   const ms = Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
   return new Date(ms + offset * 86_400_000).toISOString().slice(0, 10);
-}
-
-/**
- * An hour of the day, e.g. "midnight", "3 am", "noon", "9 pm".
- *
- * @param hour - 0 to 23.
- * @returns The hour in words.
- */
-export function hourText(hour: number): string {
-  if (hour === 0) return "midnight";
-  if (hour === 12) return "noon";
-  return hour < 12 ? `${hour} am` : `${hour - 12} pm`;
 }
 
 /**
@@ -173,26 +132,6 @@ export function calmRule(snapshot: DashboardSnapshot): LeadRule | null {
 }
 
 /**
- * Days since it last rained, as the Overview's calm lead writes them.
- *
- * @param days - Fractional days.
- * @returns E.g. "1 d 22 h".
- */
-export function sinceText(days: number): string {
-  return formatDuration(days * DAY_MS);
-}
-
-/**
- * A usual dry spell, as the Overview's calm lead writes it.
- *
- * @param days - The median spell, in days.
- * @returns E.g. "2 days", "1.5 days", "1 day".
- */
-export function spellText(days: number): string {
-  return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
-}
-
-/**
  * The dry-spell section's finding: the calm lead's days since it last
  * rained, against its usual dry spell.
  *
@@ -203,8 +142,8 @@ export function spellText(days: number): string {
 export function dryHeadline(snapshot: DashboardSnapshot): string {
   const calm = calmRule(snapshot);
   if (!calm || calm.value === null) return "Dry spells in the record";
-  const usual = calm.reference === null ? "" : `, against a usual dry spell of ${spellText(calm.reference)}`;
-  return `${sinceText(calm.value)} since it last rained${usual}`;
+  const usual = calm.reference === null ? "" : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
+  return `${formatDays(calm.value)} since it last rained${usual}`;
 }
 
 /** The current water year's curve: the newest one. */

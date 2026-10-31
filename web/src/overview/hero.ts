@@ -15,41 +15,33 @@
  */
 import "./hero.css";
 
-import { formatDuration, formatStamp, STATION_TIME_ZONE } from "../format.js";
+import {
+  HOUR_MS,
+  STATION_TIME_ZONE,
+  degrees,
+  formatDayCount,
+  formatDays,
+  formatDuration,
+  formatStamp,
+  hourName,
+  inches,
+  localHour,
+  wattsPerM2,
+} from "../format.js";
 import { gapSentence } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
 
-const HOUR_MS = 3_600_000;
-const DAY_MS = 24 * HOUR_MS;
 const SVG_NS = "http://www.w3.org/2000/svg";
 /** A live reading further ahead of the archive than this is hatched. */
 const LAG_HATCH_MS = 15 * 60_000;
 
 const MONTH = new Intl.DateTimeFormat("en-US", { timeZone: STATION_TIME_ZONE, month: "long" });
-const HOUR = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "numeric",
-  hourCycle: "h23",
-});
 
 // ---------- words ----------
 
-const f1 = (v: number) => v.toFixed(1);
-const f2 = (v: number) => v.toFixed(2);
-const watts = (v: number) => `${Math.round(v)} W/m²`;
-const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${f1(Math.abs(v))}°`;
-const spellDays = (v: number) => `${Number.isInteger(v) ? v : f1(v)} ${v === 1 ? "day" : "days"}`;
+const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${degrees(Math.abs(v))}`;
 const sinceText = (hours: number) => formatDuration(hours * HOUR_MS);
-const daysText = (days: number) => formatDuration(days * DAY_MS);
-
-/** "noon", "3 pm", "midnight" for a time's Pacific hour. */
-function hourName(ms: number): string {
-  const hour = Number(HOUR.format(ms));
-  if (hour === 0) return "midnight";
-  if (hour === 12) return "noon";
-  return hour < 12 ? `${hour} am` : `${hour - 12} pm`;
-}
 
 function rule(lead: HeroLead, kind: LeadKind): LeadRule {
   return lead.rules.find((r) => r.kind === kind)!;
@@ -80,16 +72,16 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
   const now = lead.now;
   switch (lead.kind) {
     case "rain": {
-      const usual = lead.usual_median === null ? "" : `, against ${f2(lead.usual_median)} in for a usual event`;
-      if (snapshot.active_rain_event) return `Raining now: ${f2(now ?? 0)} in so far${usual}`;
+      const usual = lead.usual_median === null ? "" : `, against ${inches(lead.usual_median, { digits: 2 })} for a usual event`;
+      if (snapshot.active_rain_event) return `Raining now: ${inches(now ?? 0, { digits: 2 })} so far${usual}`;
       const since = rule(lead, "rain").value ?? 0;
-      return `Rain ended ${sinceText(since)} ago, after ${f2(now ?? 0)} in${usual}`;
+      return `Rain ended ${sinceText(since)} ago, after ${inches(now ?? 0, { digits: 2 })}${usual}`;
     }
     case "temperature": {
       const t = rule(lead, "temperature");
       const dev = t.value ?? 0;
       return (
-        `${f1(Math.abs(dev))}° ${dev > 0 ? "warmer" : "cooler"} than usual for ` +
+        `${degrees(Math.abs(dev))} ${dev > 0 ? "warmer" : "cooler"} than usual for ` +
         `${hourOf(snapshot)} in ${monthOf(snapshot)} (${years(t.compared)})`
       );
     }
@@ -97,14 +89,14 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
       const usual =
         lead.usual_median === null
           ? ""
-          : `, against a usual ${watts(lead.usual_median)} at ${hourOf(snapshot)}`;
-      return `Strong sun: ${watts(now ?? 0)} now${usual}`;
+          : `, against a usual ${wattsPerM2(lead.usual_median)} at ${hourOf(snapshot)}`;
+      return `Strong sun: ${wattsPerM2(now ?? 0)} now${usual}`;
     }
     case "calm": {
       const calm = rule(lead, "calm");
       if (calm.value === null) return "No rain on record to count a dry spell from";
-      const usual = calm.reference === null ? "" : `, against a usual dry spell of ${spellDays(calm.reference)}`;
-      return `${daysText(calm.value)} since it last rained${usual}`;
+      const usual = calm.reference === null ? "" : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
+      return `${formatDays(calm.value)} since it last rained${usual}`;
     }
   }
 }
@@ -153,8 +145,8 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
       const active = snapshot.active_rain_event;
       const since = rule(lead, "rain").value;
       return [
-        [lead.now === null ? na : `${f2(lead.now)} in`, active ? "so far" : "event total"],
-        [lead.usual_median === null ? na : `${f2(lead.usual_median)} in`, "usual event"],
+        [lead.now === null ? na : `${inches(lead.now, { digits: 2 })}`, active ? "so far" : "event total"],
+        [lead.usual_median === null ? na : `${inches(lead.usual_median, { digits: 2 })}`, "usual event"],
         active
           ? [formatDuration(active.duration_minutes * 60_000), "running for"]
           : [since === null ? na : `${sinceText(since)} ago`, "ended"],
@@ -163,22 +155,22 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
     case "temperature": {
       const t = rule(lead, "temperature");
       return [
-        [lead.now === null ? na : `${f1(lead.now)}°`, "now"],
-        [t.reference === null ? na : `${f1(t.reference)}°`, `${monthOf(snapshot)} median at ${hourOf(snapshot)}`],
+        [lead.now === null ? na : `${degrees(lead.now)}`, "now"],
+        [t.reference === null ? na : `${degrees(t.reference)}`, `${monthOf(snapshot)} median at ${hourOf(snapshot)}`],
         [t.value === null ? na : signed(t.value), "from the median"],
       ];
     }
     case "solar": {
       const known = lead.trace?.values.filter((v): v is number => v !== null) ?? [];
       return [
-        [lead.now === null ? na : watts(lead.now), "now"],
-        [lead.usual_median === null ? na : watts(lead.usual_median), `usual at ${hourOf(snapshot)}`],
-        [known.length ? watts(Math.max(...known)) : na, "brightest hour today"],
+        [lead.now === null ? na : wattsPerM2(lead.now), "now"],
+        [lead.usual_median === null ? na : wattsPerM2(lead.usual_median), `usual at ${hourOf(snapshot)}`],
+        [known.length ? wattsPerM2(Math.max(...known)) : na, "brightest hour today"],
       ];
     }
     case "calm": {
       const calm = rule(lead, "calm");
-      const since: [string, string] = [calm.value === null ? na : daysText(calm.value), "since rain"];
+      const since: [string, string] = [calm.value === null ? na : formatDays(calm.value), "since rain"];
       if (calm.reference === null) {
         // No usual spell to compare: say when it last rained instead.
         const last = snapshot.current.last_rain_ms;
@@ -186,7 +178,7 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
       }
       return [
         since,
-        [spellDays(calm.reference), "usual dry spell"],
+        [formatDayCount(calm.reference), "usual dry spell"],
         [String(lead.sample), "dry spells compared"],
       ];
     }
@@ -217,17 +209,17 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
         return `${head}: not compared, as no earlier ${month} is complete in the record`;
       }
       if (r.value === null || r.reference === null) return `${head}: no reading`;
-      return `${head}: ${signed(r.value)} now, against ${f1(r.reference)}° (${years(r.compared)})`;
+      return `${head}: ${signed(r.value)} now, against ${degrees(r.reference)} (${years(r.compared)})`;
     }
     case "solar":
-      return `Sun at least ${watts(r.threshold ?? 400)}: ${r.value === null ? "no reading" : `${watts(r.value)} now`}`;
+      return `Sun at least ${wattsPerM2(r.threshold ?? 400)}: ${r.value === null ? "no reading" : `${wattsPerM2(r.value)} now`}`;
     case "calm": {
       if (r.value === null) return "Otherwise, calm: no last rain on record";
       const usual =
         r.reference === null
           ? "; the usual dry spell is not compared"
-          : `, against a usual dry spell of ${spellDays(r.reference)}`;
-      return `Otherwise, calm: ${daysText(r.value)} since it last rained${usual}`;
+          : `, against a usual dry spell of ${formatDayCount(r.reference)}`;
+      return `Otherwise, calm: ${formatDays(r.value)} since it last rained${usual}`;
     }
   }
 }
@@ -366,13 +358,13 @@ function nowLabel(lead: HeroLead): string {
   const v = lead.now ?? 0;
   switch (lead.unit) {
     case "in":
-      return `now ${f2(v)} in`;
+      return `now ${inches(v, { digits: 2 })}`;
     case "f":
-      return `now ${f1(v)}°`;
+      return `now ${degrees(v)}`;
     case "wm2":
-      return `now ${watts(v)}`;
+      return `now ${wattsPerM2(v)}`;
     case "days":
-      return `now ${daysText(v)}`;
+      return `now ${formatDays(v)}`;
   }
 }
 
@@ -433,13 +425,13 @@ function timeChart(
   const unit = lead.unit === "f" ? "°" : "";
   for (const v of ticks) {
     g.append(svg("line", { class: "hero-grid", x1: 0, x2: iw, y1: y(v), y2: y(v) }));
-    g.append(svg("text", { class: "hero-tick", x: -6, y: y(v) + 4, "text-anchor": "end" }, `${lead.unit === "in" ? f2(v) : Math.round(v)}${unit}`));
+    g.append(svg("text", { class: "hero-tick", x: -6, y: y(v) + 4, "text-anchor": "end" }, `${lead.unit === "in" ? inches(v, { digits: 2, unit: false }) : Math.round(v)}${unit}`));
   }
   // Time ticks: every six hours of the day, or the event's start and now.
   if (hourly) {
     for (let i = 0; i <= trace.values.length; i += 1) {
       const t = t0 + i * slotMs;
-      const hour = Number(HOUR.format(t));
+      const hour = localHour(t);
       if (hour % 6 || i === trace.values.length) continue;
       g.append(svg("line", { class: "hero-grid", x1: x(t), x2: x(t), y1: ih, y2: ih + 4 }));
       g.append(svg("text", { class: "hero-tick", x: x(t), y: ih + 18, "text-anchor": i === 0 ? "start" : "middle" }, hourName(t)));
@@ -460,7 +452,7 @@ function timeChart(
   } else if (lead.usual_low !== null && lead.usual_high !== null && lead.usual_median !== null) {
     g.append(svg("rect", { class: band, x: 0, width: iw, y: y(lead.usual_high), height: Math.max(1, y(lead.usual_low) - y(lead.usual_high)) }));
     g.append(svg("line", { class: "hero-median", x1: 0, x2: iw, y1: y(lead.usual_median), y2: y(lead.usual_median) }));
-    g.append(svg("text", { class: "hero-label", x: 4, y: y(lead.usual_high) - 6 }, `usual event ${f2(lead.usual_median)} in`));
+    g.append(svg("text", { class: "hero-label", x: 4, y: y(lead.usual_high) - 6 }, `usual event ${inches(lead.usual_median, { digits: 2 })}`));
   }
 
   // The span only the live reading covers.
@@ -505,7 +497,7 @@ function spellChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement |
   if (lead.usual_low !== null && lead.usual_high !== null && lead.usual_median !== null) {
     g.append(svg("rect", { class: "hero-band", x: x(lead.usual_low), width: Math.max(3, x(lead.usual_high) - x(lead.usual_low)), y: 0, height: 34, rx: 3 }));
     g.append(svg("line", { class: "hero-median", x1: x(lead.usual_median), x2: x(lead.usual_median), y1: -2, y2: 36 }));
-    g.append(svg("text", { class: "hero-label", x: x(lead.usual_median) + 6, y: 52 }, `usual ${spellDays(lead.usual_median)}`));
+    g.append(svg("text", { class: "hero-label", x: x(lead.usual_median) + 6, y: 52 }, `usual ${formatDayCount(lead.usual_median)}`));
   }
   g.append(svg("line", { class: "hero-line hero-line-calm", x1: 0, x2: x(lead.now), y1: 17, y2: 17 }));
   g.append(svg("circle", { class: "hero-dot", cx: x(lead.now), cy: 17, r: 5 }));
