@@ -121,6 +121,22 @@ def save_json_to_s3(dict_data: dict, bucket: str, key: str) -> bool:
         return False
 
 
+def object_exists(bucket: str, key: str) -> bool:
+    """
+    Check whether an object exists in an S3-compatible bucket.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The object's key.
+    :return: True if `head_object` finds it, False on any error.
+    """
+    try:
+        s3 = get_s3_client()
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:
+        return False
+
+
 def json_exists_in_s3(bucket: str, key: str) -> bool:
     """
     Check if JSON file exists in S3-compatible bucket.
@@ -129,12 +145,7 @@ def json_exists_in_s3(bucket: str, key: str) -> bool:
     :param key: The key of the JSON file in the S3 bucket.
     :return: True if exists, False otherwise.
     """
-    try:
-        s3 = get_s3_client()
-        s3.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:
-        return False
+    return object_exists(bucket, key)
 
 
 def save_df_to_s3(
