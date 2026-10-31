@@ -749,6 +749,89 @@ class RainTab:
 
 
 @dataclass(frozen=True)
+class AlmanacMonth:
+    """
+    One calendar month's rain in the almanac grid (`lookout.snapshot.almanac`).
+
+    :param status: The month's gap status, keyed "YYYY-MM"; the current month
+        is invalid, "in_progress", until its last day has ended.
+    :param rain_in: Its rain; prorated when its status is; None when invalid.
+    :param to_date: For the current month only, the window from its first
+        day to today; None for every other month.
+    :param to_date_in: The rain over `to_date`, live today included; None
+        when that window is invalid or there is none.
+    """
+
+    status: GapStatus
+    rain_in: Optional[float]
+    to_date: Optional[GapStatus]
+    to_date_in: Optional[float]
+
+
+@dataclass(frozen=True)
+class AlmanacYear:
+    """
+    One water year's row of the almanac grid: Oct through Sep.
+
+    :param water_year: Named by the year it ends in (GLOSSARY.md).
+    :param months: Twelve months, Oct first; None for a month not begun.
+    :param season: The whole water year, Oct 1 to Sep 30, keyed
+        "water_year_<year>"; invalid, "in_progress", while it runs.
+    :param season_in: Its rain; None when invalid. The current season's
+        rain so far is `Almanac.rolling`'s "water_year" window.
+    """
+
+    water_year: int
+    months: Tuple[Optional[AlmanacMonth], ...]
+    season: GapStatus
+    season_in: Optional[float]
+
+
+@dataclass(frozen=True)
+class RollingYear:
+    """
+    One year's rain over a rolling window ending on today's date that year.
+
+    :param year: The calendar year the window ends in.
+    :param status: The window's gap status. The current year's is the
+        `Gaps.windows` status with the same key.
+    :param rain_in: Its rain; prorated when its status is; None when invalid.
+    """
+
+    year: int
+    status: GapStatus
+    rain_in: Optional[float]
+
+
+@dataclass(frozen=True)
+class RollingWindow:
+    """
+    One row of the rolling-window rain table.
+
+    :param key: "7d", "30d", "90d", "365d" or "water_year" (since Oct 1).
+    :param years: The window ending today, then the same window ending on
+        the same date in each earlier year the archive reaches, newest first.
+    """
+
+    key: str
+    years: Tuple[RollingYear, ...]
+
+
+@dataclass(frozen=True)
+class Almanac:
+    """
+    The Overview's almanac grid and rolling-window rain table (#82). Every
+    total is an archive sum with today's live total stitched in.
+
+    :param years: Water-year rows, newest first.
+    :param rolling: The rolling windows, shortest first, the season last.
+    """
+
+    years: Tuple[AlmanacYear, ...]
+    rolling: Tuple[RollingWindow, ...]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -769,6 +852,7 @@ class Snapshot:
     :param rain_tab: The Rain tab's data.
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
+    :param almanac: The Overview's almanac grid and rolling-window tables.
     """
 
     station: Station
@@ -783,6 +867,7 @@ class Snapshot:
     hero_lead: HeroLead
     rain_tab: RainTab
     temperature_context: TemperatureContext
+    almanac: Almanac
 
     def dashboard(self) -> Dict[str, Any]:
         """

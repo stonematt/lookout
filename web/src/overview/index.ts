@@ -13,6 +13,7 @@
 import "./overview.css";
 
 import type { DashboardSnapshot } from "../snapshot.js";
+import { almanacGrid, rollingRain } from "./almanac.js";
 import { firstScreen } from "./first-screen.js";
 import { heroLead } from "./hero.js";
 import { temperatureContext } from "./temperature.js";
@@ -37,7 +38,8 @@ export const SECTIONS: readonly OverviewSection[] = [
   firstScreen, // #78
   heroLead, // #79 the hero lead and "Why this leads"
   temperatureContext, // #81 temperature across periods, the 10-day list, "now against normal"
-  // #82 the almanac grid and the rolling-window rain tables
+  almanacGrid, // #82 the almanac grid
+  rollingRain, // #82 the rolling-window rain table
 ];
 
 /**

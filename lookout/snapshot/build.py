@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from lookout.snapshot.almanac import almanac
 from lookout.snapshot.current import (
     active_rain_event,
     current_conditions,
@@ -82,4 +83,5 @@ def build_snapshot(
         temperature_context=temperature_context(
             archive, stitched, current, observed_at_ms, now
         ),
+        almanac=almanac(archive, current, now),
     )

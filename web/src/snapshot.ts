@@ -407,6 +407,57 @@ export interface TemperatureContext {
   strips: NormalStrip[];
 }
 
+/**
+ * One calendar month in the almanac grid: an archive sum with today's live
+ * total in it (`lookout/snapshot/almanac.py`).
+ */
+export interface AlmanacMonth {
+  /** Keyed "YYYY-MM"; the current month is invalid, "in_progress". */
+  status: GapStatus;
+  /** Prorated when its status is; null when invalid. */
+  rain_in: number | null;
+  /** The current month only: its first day to today. */
+  to_date: GapStatus | null;
+  /** The rain over `to_date`; null when invalid or there is none. */
+  to_date_in: number | null;
+}
+
+/** One water year's row: Oct through Sep. */
+export interface AlmanacYear {
+  /** Named by the year it ends in. */
+  water_year: number;
+  /** Twelve months, Oct first; null for a month not begun. */
+  months: (AlmanacMonth | null)[];
+  /** Oct 1 to Sep 30; invalid, "in_progress", while it runs. */
+  season: GapStatus;
+  season_in: number | null;
+}
+
+/** One year's rain over a rolling window ending on today's date that year. */
+export interface RollingYear {
+  /** The calendar year the window ends in. */
+  year: number;
+  /** The current year's is the `Gaps.windows` status with the same key. */
+  status: GapStatus;
+  rain_in: number | null;
+}
+
+/** One row of the rolling-window rain table. */
+export interface RollingWindow {
+  /** "7d", "30d", "90d", "365d" or "water_year" (since Oct 1). */
+  key: string;
+  /** The window ending today, then the same days in earlier years. */
+  years: RollingYear[];
+}
+
+/** The Overview's almanac grid and rolling-window rain table. */
+export interface Almanac {
+  /** Newest first. */
+  years: AlmanacYear[];
+  /** Shortest first, the season last. */
+  rolling: RollingWindow[];
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -436,6 +487,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   rain_tab: RainTab;
   /** Temperature across periods, the ten-day list and the strips. */
   temperature_context: TemperatureContext;
+  /** The Overview's almanac grid and rolling-window rain table. */
+  almanac: Almanac;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -545,6 +598,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkLead(head.hero_lead);
   checkRainTab(head.rain_tab);
   checkTemperature(head.temperature_context);
+  checkAlmanac(head.almanac);
   return head as unknown as DashboardSnapshot;
 }
 
@@ -561,6 +615,18 @@ function checkRainTab(tab: unknown): void {
     recent.hourly_in.length !== recent.rain_in.length
   ) {
     throw new SnapshotContractError("dashboard: rain_tab.recent days not parallel");
+  }
+}
+
+function checkAlmanac(almanac: unknown): void {
+  if (almanac === undefined) return;
+  if (!isRecord(almanac) || !Array.isArray(almanac.years) || !Array.isArray(almanac.rolling)) {
+    throw new SnapshotContractError("dashboard: almanac malformed");
+  }
+  for (const year of almanac.years) {
+    if (!isRecord(year) || !Array.isArray(year.months) || year.months.length !== 12) {
+      throw new SnapshotContractError("dashboard: almanac year is not twelve months");
+    }
   }
 }
 
