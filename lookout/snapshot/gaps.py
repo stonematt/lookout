@@ -59,6 +59,7 @@ from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 
 import pandas as pd
 
+from lookout.core.rainfall_analysis import water_year, water_year_start
 from lookout.snapshot.model import Gaps, GapStatus
 from lookout.utils.dateutc import DEFAULT_TZ
 
@@ -79,9 +80,6 @@ MAX_MISSING_SHARE = 0.10
 
 ARCHIVE_LAG = pd.Timedelta(hours=1)
 """How far the archive may trail `now` before today is "not archived yet"."""
-
-WATER_YEAR_START_MONTH = 10
-"""The water year starts on Oct 1 (GLOSSARY.md, "water year")."""
 
 STANDARD_WINDOWS: Tuple[Tuple[str, int, int], ...] = (
     ("today", 0, 0),
@@ -250,10 +248,8 @@ class ArchiveCoverage:
         :param key: Its name in the snapshot.
         :return: Its status.
         """
-        year = self.today.year
-        if self.today.month < WATER_YEAR_START_MONTH:
-            year -= 1
-        return self.window(date(year, WATER_YEAR_START_MONTH, 1), self.today, key)
+        start = water_year_start(water_year(self.today))
+        return self.window(start, self.today, key)
 
     def months(self) -> Tuple[GapStatus, ...]:
         """
