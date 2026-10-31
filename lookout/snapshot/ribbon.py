@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from lookout.snapshot.model import ConditionRibbon
+from lookout.utils.dateutc import DEFAULT_TZ
 
 SLOT_MINUTES = 15
 SLOTS = 48 * 60 // SLOT_MINUTES
@@ -32,15 +33,20 @@ SLOT_MS = SLOT_MINUTES * 60 * 1000
 
 # Readings further apart than this cannot place a rain increment in a slot.
 _MAX_STEP_MS = SLOT_MS
+# A fall in the daily counter this soon after local midnight is its reset.
+_RESET_WINDOW = pd.Timedelta(hours=1)
 
 
 def _rain_increments(ordered: pd.DataFrame) -> pd.Series:
     """
     The rain each reading adds to the daily counter, NaN where it is unknown.
 
-    The counter resets at local midnight, so a fall means the new value is
-    all new rain. An increment after a silence longer than one slot is
-    unknown: it cannot be placed in one slot.
+    Each reading is compared with the last one that reported the counter,
+    so one missing reading does not void the next. The counter resets at
+    local midnight, a few minutes late on a real station, so a fall in the
+    first hour of the local day is all new rain; a fall later in the day is a
+    correction, not rain. An increment after a silence longer than one slot
+    is unknown: it cannot be placed in one slot.
 
     :param ordered: The stitched history, oldest first.
     :return: One increment per row, aligned with `ordered`.
@@ -48,9 +54,13 @@ def _rain_increments(ordered: pd.DataFrame) -> pd.Series:
     if "dailyrainin" not in ordered.columns:
         return pd.Series(np.nan, index=ordered.index)
     daily = pd.to_numeric(ordered["dailyrainin"], errors="coerce")
-    step = daily.diff()
-    # The oldest reading has nothing before it to rise from: unknown.
-    increment = step.where(step.isna() | (step >= 0), daily)
+    step = daily - daily.ffill().shift()
+    local = pd.to_datetime(ordered["dateutc"], unit="ms", utc=True).dt.tz_convert(
+        DEFAULT_TZ
+    )
+    reset = local - local.dt.normalize() < _RESET_WINDOW
+    # The oldest reading has nothing before it to rise from: unknown (NaN).
+    increment = step.where(step.isna() | (step >= 0), daily.where(reset, 0.0))
     after_silence = ordered["dateutc"].diff() > _MAX_STEP_MS
     return increment.mask(after_silence)
 
@@ -98,7 +108,9 @@ def condition_ribbon(
             if solar.notna().any():
                 daylight[i] = bool((solar > 0).any())
 
-    temps = rows["tempf"].dropna() if "tempf" in rows.columns else pd.Series()
+    temps = (
+        rows["tempf"].dropna() if "tempf" in rows.columns else pd.Series(dtype=float)
+    )
     known = [value for value in rain if value is not None]
     return ConditionRibbon(
         start_ms=int(start_ms),

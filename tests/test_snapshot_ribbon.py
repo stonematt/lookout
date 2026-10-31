@@ -171,3 +171,29 @@ def test_slot_values_are_json_ready(scenario):
 
     assert all(v is None or isinstance(v, float) for v in ribbon["rain_in"])
     assert all(v is None or isinstance(v, bool) for v in ribbon["daylight"])
+
+
+class TestCounter:
+    def counter_archive(self, values):
+        """Five-minute rows from 20:00Z (noon local) with these daily totals."""
+        archive = scenario_until("2026-01-06T21:00:00Z").sort_values("dateutc")
+        archive = archive.tail(len(values)).reset_index(drop=True)
+        archive["dailyrainin"] = values
+        return archive
+
+    def test_a_fall_in_the_counter_is_new_rain_only_at_local_midnight(self):
+        # A mid-day fall (a correction) is not a reset: no phantom rain.
+        archive = self.counter_archive([0.50, 0.50, 0.50, 0.45, 0.45, 0.45])
+
+        ribbon = build(archive, None, "2026-01-06T21:00:00Z").condition_ribbon
+
+        assert ribbon.rain_in[-1] == 0.0
+        assert ribbon.rain_hours == 0.0
+
+    def test_one_missing_counter_reading_does_not_void_the_next(self):
+        archive = self.counter_archive([0.10, 0.10, None, 0.12, 0.13, 0.13])
+
+        ribbon = build(archive, None, "2026-01-06T21:00:00Z").condition_ribbon
+
+        # 20:30Z-20:45Z: 0.10 -> (missing) -> 0.12 -> 0.13.
+        assert ribbon.rain_in[-1] == 0.03
