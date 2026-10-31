@@ -17,11 +17,11 @@ The steps, each its own function, run in this order by `run`:
 2. `update_archive(device, bucket, pages)`: catchup; the archive as saved.
 3. `load_catalogs(station, bucket)`: the Event Catalog (and, later, the
    energy catalog) as stored.
-4. `build(device, archive, catalogs, now)`: `build_snapshot`.
+4. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
 5. `publish(snapshot, bucket)`: both documents under `snapshot/`.
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
-exit status, 0 or 1.
+exit status, 0 or 1. The heartbeats (#74) belong there, around `run`.
 """
 
 import argparse
@@ -78,8 +78,7 @@ def load_station() -> Dict:
     :raises StationNotFoundError: If `STATION_MAC` is not on the account.
     """
     device = get_station_device()
-    station = Station.from_device(device)
-    logger.info(f"Refreshing {station.name or 'unnamed station'} ({station.mac})")
+    logger.info(f"Refreshing {device.get('macAddress')}")
     return device
 
 
@@ -108,11 +107,16 @@ def load_catalogs(station: Station, bucket: str) -> Catalogs:
 
 
 def build(
-    device: Dict, archive: pd.DataFrame, catalogs: Catalogs, now: datetime
+    station: Station,
+    device: Dict,
+    archive: pd.DataFrame,
+    catalogs: Catalogs,
+    now: datetime,
 ) -> Snapshot:
     """
     Step 4: the snapshot.
 
+    :param station: The station.
     :param device: The station's `/devices` entry; `lastData` is live.
     :param archive: The archive after catchup.
     :param catalogs: The catalogs.
@@ -124,7 +128,7 @@ def build(
         live=device.get("lastData"),
         event_catalog=catalogs.events,
         energy_catalog=catalogs.energy,
-        station=Station.from_device(device),
+        station=station,
         now=now,
     )
 
@@ -157,9 +161,10 @@ def run(
     :return: The published snapshot.
     """
     device = load_station()
+    station = Station.from_device(device)
     archive = update_archive(device, bucket, pages)
-    catalogs = load_catalogs(Station.from_device(device), bucket)
-    snapshot = build(device, archive, catalogs, clock())
+    catalogs = load_catalogs(station, bucket)
+    snapshot = build(station, device, archive, catalogs, clock())
     publish(snapshot, bucket)
     return snapshot
 

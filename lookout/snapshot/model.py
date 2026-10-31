@@ -69,13 +69,31 @@ class Station:
 
 
 @dataclass(frozen=True)
-class CurrentConditions:
+class SnapshotConditions:
     """
     The newest reading, live where the live reading reports it.
 
     Each value is read once, from the newest row of the stitched history
     (`lookout.snapshot.current.stitch_live`), so every view shows the same
-    number. None when the station did not report that quantity.
+    number. None when the station did not report that quantity. Ambient
+    names in brackets.
+
+    :param temperature_f: Outdoor temperature (`tempf`).
+    :param feels_like_f: Feels-like temperature (`feelsLike`).
+    :param dew_point_f: Dew point (`dewPoint`).
+    :param humidity_pct: Outdoor relative humidity (`humidity`).
+    :param barometer_inhg: Relative barometric pressure (`baromrelin`).
+    :param wind_speed_mph: Wind speed (`windspeedmph`).
+    :param wind_gust_mph: Wind gust (`windgustmph`).
+    :param wind_dir_deg: Wind direction in degrees (`winddir`).
+    :param rain_rate_in_hr: Rain over the last hour (`hourlyrainin`).
+    :param rain_today_in: Rain since local midnight (`dailyrainin`).
+    :param rain_event_in: Rain in the current event (`eventrainin`).
+    :param solar_wm2: Solar radiation (`solarradiation`).
+    :param uv_index: UV index (`uv`).
+    :param last_rain_ms: When it last rained (`lastRain`).
+    :param temp_trend: Against 24 h before: "rising", "falling", "steady".
+    :param barometer_trend: Against 3 h before: "rising", "falling", "steady".
     """
 
     temperature_f: Optional[float]
@@ -135,7 +153,7 @@ class Snapshot:
     built_at_ms: int
     observed_at_ms: Optional[int]
     archive_newest_ms: Optional[int]
-    current: CurrentConditions
+    current: SnapshotConditions
     active_rain_event: Optional[ActiveRainEvent]
 
     def dashboard(self) -> Dict[str, Any]:

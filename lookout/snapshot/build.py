@@ -15,8 +15,12 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from lookout.snapshot.current import active_rain_event, current_conditions, stitch_live
-from lookout.snapshot.current import to_ms
+from lookout.snapshot.current import (
+    active_rain_event,
+    current_conditions,
+    stitch_live,
+    to_ms,
+)
 from lookout.snapshot.model import Snapshot, Station
 
 

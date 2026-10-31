@@ -13,7 +13,7 @@ from lookout.snapshot.model import (
     CONTEXT_FIELDS,
     SCHEMA_VERSION,
     ActiveRainEvent,
-    CurrentConditions,
+    SnapshotConditions,
     Snapshot,
     Station,
 )
@@ -22,7 +22,7 @@ __all__ = [
     "CONTEXT_FIELDS",
     "SCHEMA_VERSION",
     "ActiveRainEvent",
-    "CurrentConditions",
+    "SnapshotConditions",
     "Snapshot",
     "Station",
     "build_snapshot",

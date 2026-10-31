@@ -12,12 +12,12 @@ Functions:
 - active_rain_event(event_catalog, current, observed_at_ms): The live event.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
 
 from lookout.core.weather_events import find_active_rain_event
-from lookout.snapshot.model import ActiveRainEvent, CurrentConditions
+from lookout.snapshot.model import ActiveRainEvent, SnapshotConditions
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
     calculate_temperature_trend,
@@ -136,18 +136,25 @@ def _value(row: pd.Series, column: str) -> Optional[float]:
     return float(value)
 
 
-def _trend(arrow: str, current: Optional[float]) -> Optional[str]:
+def _trend(
+    calculate: Callable[[pd.DataFrame, float], str],
+    stitched: pd.DataFrame,
+    current: Optional[float],
+) -> Optional[str]:
     """
-    Name a trend arrow, None when there is no current value to compare.
+    One trend as a word, None when there is no current value to compare.
 
-    :param arrow: The trend utility's arrow.
+    :param calculate: The trend utility (temperature or barometer).
+    :param stitched: The stitched history, newest first.
     :param current: The value the trend is about.
     :return: "rising", "falling", "steady" or None.
     """
-    return None if current is None else TREND_WORDS[arrow]
+    if current is None:
+        return None
+    return TREND_WORDS[calculate(stitched, current)]
 
 
-def current_conditions(stitched: pd.DataFrame) -> CurrentConditions:
+def current_conditions(stitched: pd.DataFrame) -> SnapshotConditions:
     """
     Current conditions from the stitched history's newest row.
 
@@ -160,32 +167,21 @@ def current_conditions(stitched: pd.DataFrame) -> CurrentConditions:
     newest = stitched.iloc[0] if not stitched.empty else pd.Series(dtype=object)
     values = {field: _value(newest, column) for field, column in LIVE_FIELDS.items()}
 
-    temp = values["temperature_f"]
-    barometer = values["barometer_inhg"]
-    temp_trend = _trend(
-        calculate_temperature_trend(stitched, temp) if temp is not None else "→",
-        temp,
-    )
-    barometer_trend = _trend(
-        (
-            calculate_barometer_trend(stitched, barometer)
-            if barometer is not None
-            else "→"
-        ),
-        barometer,
-    )
-
-    return CurrentConditions(
+    return SnapshotConditions(
         **values,
         last_rain_ms=to_ms(newest.get("lastRain")),
-        temp_trend=temp_trend,
-        barometer_trend=barometer_trend,
+        temp_trend=_trend(
+            calculate_temperature_trend, stitched, values["temperature_f"]
+        ),
+        barometer_trend=_trend(
+            calculate_barometer_trend, stitched, values["barometer_inhg"]
+        ),
     )
 
 
 def active_rain_event(
     event_catalog: Optional[pd.DataFrame],
-    current: CurrentConditions,
+    current: SnapshotConditions,
     observed_at_ms: Optional[int],
 ) -> Optional[ActiveRainEvent]:
     """
