@@ -626,40 +626,71 @@ class RainEventCatalog:
         event_slice = event_slice.drop(columns=["timestamp"])
         return event_slice.copy()
 
-    def check_and_auto_save_ongoing_event(
-        self, stored_catalog: pd.DataFrame, updated_catalog: pd.DataFrame
+    def save_if_events_completed(
+        self, stored_catalog: Optional[pd.DataFrame], updated_catalog: pd.DataFrame
     ) -> bool:
         """
-        Check if ongoing event completed and auto-save if needed.
+        Save the updated catalog when it holds a completed event the stored
+        one does not, backing up the stored one first.
 
-        :param stored_catalog: Previously stored catalog
-        :param updated_catalog: Updated catalog with new data
-        :return: True if auto-saved, False otherwise
+        That covers a stored ongoing event that has completed, and an event
+        that started (and completed) after the last save. With no stored
+        catalog, the first completed event seeds one. See `newly_completed`.
+        If a stored catalog cannot be backed up, nothing is saved; the next
+        run finds the same events and tries again.
+
+        :param stored_catalog: The catalog as stored; None or empty when none is.
+        :param updated_catalog: The catalog brought up to the archive.
+        :return: True if saved, False otherwise.
         """
-        if len(stored_catalog) == 0 or len(updated_catalog) == 0:
+        completed = newly_completed(stored_catalog, updated_catalog)
+        if completed.empty:
             return False
 
-        stored_sorted = stored_catalog.sort_values("start_time")
-        updated_sorted = updated_catalog.sort_values("start_time")
-
-        stored_last = stored_sorted.iloc[-1]
-        updated_last = updated_sorted.iloc[-1]
-
-        stored_ongoing = is_event_ongoing(stored_last)
-        updated_ongoing = is_event_ongoing(updated_last)
-
-        # Auto-save if ongoing event completed
-        if stored_ongoing and not updated_ongoing:
+        for _, event in completed.iterrows():
             logger.info(
-                f"Ongoing event completed: {updated_last.get('event_id', 'unknown')[:8]}, "
-                f"{updated_last['total_rainfall']:.3f}\" over "
-                f"{updated_last['duration_minutes']/60:.1f}h"
+                f"Event completed: started {event['start_time']}, "
+                f"{event['total_rainfall']:.3f}\" over "
+                f"{event['duration_minutes'] / 60:.1f}h"
             )
-            self.save_catalog(updated_catalog)
-            logger.info("Catalog auto-saved to Storj (ongoing event completed)")
-            return True
+        if self.catalog_exists() and self.backup_catalog() is None:
+            logger.error("Event Catalog backup failed; not saving (next run retries)")
+            return False
+        saved = self.save_catalog(updated_catalog)
+        if saved:
+            logger.info(
+                f"Catalog auto-saved to Storj ({len(completed)} event(s) completed)"
+            )
+        return saved
 
-        return False
+
+def _completed_starts(catalog: Optional[pd.DataFrame]) -> pd.Series:
+    """The start of each completed event in a catalog, UTC; empty if none."""
+    if catalog is None or catalog.empty:
+        return pd.Series([], dtype="datetime64[ns, UTC]")
+    completed = [not is_event_ongoing(row) for _, row in catalog.iterrows()]
+    return pd.to_datetime(catalog.loc[completed, "start_time"], utc=True)
+
+
+def newly_completed(
+    stored: Optional[pd.DataFrame], updated: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    The completed events in `updated` that `stored` has no completed event for.
+
+    Events are matched by `start_time`, not `event_id`: re-detecting an
+    ongoing event mints a new id every run, while its start stays put.
+
+    :param stored: The catalog as stored; None or empty when none is.
+    :param updated: The catalog brought up to the archive.
+    :return: Those rows of `updated`, in start order; empty when none.
+    """
+    if updated is None or updated.empty:
+        return pd.DataFrame()
+    known = set(_completed_starts(stored))
+    starts = _completed_starts(updated)
+    new = starts[~starts.isin(known)]
+    return updated.loc[new.sort_values().index]
 
 
 def filter_events(
@@ -722,5 +753,6 @@ __all__ = [
     "classify_event_quality",
     "filter_events",
     "is_event_ongoing",
+    "newly_completed",
     "summarize_events",
 ]

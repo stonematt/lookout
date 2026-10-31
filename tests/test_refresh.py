@@ -25,8 +25,9 @@ from lookout.cli import refresh
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
+from lookout.storage import storj
 from tests.fixtures.ambient import to_ambient_records
-from tests.fixtures.archive import FAKE_MAC, SCENARIO, build_archive
+from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
 from tests.fixtures.real import AMBIENT_END
 from tests.fixtures.storage import BUCKET
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
@@ -379,21 +380,181 @@ class TestCatalogUpdatesAndSaves:
         # The stored catalog says 0.24 at 00:00Z; the run re-detected to 00:25Z.
         assert snapshot.active_rain_event.total_in == 0.3
 
-    def test_no_stored_event_catalog_is_detected_but_not_saved(self, seed):
+    def test_no_stored_event_catalog_is_seeded_from_its_completed_events(self, seed):
+        station = seed()  # the real slice holds completed events
+
+        run_refresh(station)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is not None
+        assert stored_ongoing() and not any(stored_ongoing())
+
+    def test_after_seeding_a_run_with_nothing_new_saves_nothing(self, seed):
         station = seed()
 
+        run_refresh(station)  # seeds the Event Catalog
+        seeded = stored_bytes(station, EVENT_CATALOG_KEY)
         run_refresh(station)
 
-        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
-
-    def test_no_run_saves_an_event_catalog_when_nothing_is_stored(self, seed):
-        station = seed()
-
-        run_refresh(station)
-        run_refresh(station)
-
-        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == seeded
         assert stored_bytes(station, ENERGY_CATALOG_KEY) is None
+
+
+# Two events after SCENARIO's three: event 4 starts and completes between two
+# runs; event 5 is still wet at one run and completed by the next.
+EVENT_4 = RainSpell("2026-01-10T02:00:00Z", hours=2, inches_per_hour=0.12)
+EVENT_5 = RainSpell("2026-01-11T00:00:00Z", hours=2, inches_per_hour=0.12)
+STEADY_STATE_RAIN = SCENARIO.rain + (EVENT_4, EVENT_5)
+STEADY_STATE_END = "2026-01-11T12:00:00Z"
+
+
+def storj_archive() -> pd.DataFrame:
+    """The archive as the bucket holds it now."""
+    return storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, file_type="parquet")
+
+
+def stored_starts() -> List[int]:
+    """The stored Event Catalog's event starts, epoch ms, in order."""
+    stored = RainEventCatalog(FAKE_MAC).load_catalog()
+    starts = pd.to_datetime(stored["start_time"], utc=True).sort_values()
+    return [int(ts.value // 1_000_000) for ts in starts]
+
+
+def stored_ongoing() -> List[bool]:
+    """Whether each stored event is ongoing, in start order."""
+    stored = RainEventCatalog(FAKE_MAC).load_catalog().sort_values("start_time")
+    return [is_event_ongoing(row) for _, row in stored.iterrows()]
+
+
+def event_backups(station: CatchupStation) -> List[str]:
+    """The Event Catalog's backup keys."""
+    prefix = f"backups/{FAKE_MAC}.event_catalog"
+    return [key for key in station.keys() if key.startswith(prefix)]
+
+
+class TestEventCatalogSavesRunAfterRun:
+    """
+    The refresh run is the Event Catalog's only writer (#76 removes the save
+    button), so every completed event must reach Storj, run after run.
+    """
+
+    @pytest.fixture
+    def weather(self) -> pd.DataFrame:
+        """SCENARIO's week and events 4 and 5, as Ambient would report them."""
+        return build_archive(
+            SCENARIO.start,
+            STEADY_STATE_END,
+            rain=STEADY_STATE_RAIN,
+            gaps=SCENARIO.gaps,
+        )
+
+    def run_at(
+        self,
+        seed,
+        weather: pd.DataFrame,
+        now: str,
+        archive: Optional[pd.DataFrame] = None,
+    ) -> CatchupStation:
+        """
+        One refresh run at `now`, with Ambient reporting up to then.
+
+        :param archive: The archive to start from; what the bucket holds
+            when None, so a later run carries on from the one before.
+        """
+        if archive is None:
+            archive = storj_archive()
+        reported = weather[weather["dateutc"] < ms(now)]
+        station = seed(
+            archive=archive,
+            history=to_ambient_records(reported),
+            devices=reporting(reported),
+            now=now,
+        )
+        run_refresh(station)
+        return station
+
+    def first_run(self, seed, weather: pd.DataFrame) -> CatchupStation:
+        """
+        Run 1: event 3 ongoing in the stored catalog at 00:00Z on the 9th;
+        by 00:00Z on the 10th it has completed and nothing else has started.
+        """
+        archive = weather[weather["dateutc"] < ms("2026-01-09T00:00:00Z")]
+        catalog = RainEventCatalog(FAKE_MAC).detect_and_catalog_events(
+            archive, auto_save=False
+        )
+        assert is_event_ongoing(catalog.sort_values("start_time").iloc[-1])
+        seed(archive=archive)
+        RainEventCatalog(FAKE_MAC).save_catalog(catalog)
+        return self.run_at(seed, weather, "2026-01-10T00:00:00Z", archive)
+
+    def test_run_one_saves_when_the_stored_ongoing_event_completes(self, seed, weather):
+        station = self.first_run(seed, weather)
+
+        assert stored_starts() == [
+            ms("2026-01-04T18:00:00Z"),
+            ms("2026-01-07T04:00:00Z"),
+            ms("2026-01-08T22:00:00Z"),
+        ]
+        assert stored_ongoing() == [False, False, False]
+        assert event_backups(station)  # the stored one was backed up first
+
+    def test_a_new_event_that_starts_and_completes_between_runs_is_saved(
+        self, seed, weather
+    ):
+        station = self.first_run(seed, weather)
+        after_run_1 = stored_bytes(station, EVENT_CATALOG_KEY)
+
+        station = self.run_at(seed, weather, "2026-01-10T12:00:00Z")
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) != after_run_1
+        assert stored_starts()[-2:] == [
+            ms("2026-01-08T22:00:00Z"),
+            ms("2026-01-10T02:00:00Z"),
+        ]
+        assert stored_ongoing() == [False] * 4
+        stored = RainEventCatalog(FAKE_MAC).load_catalog().sort_values("start_time")
+        assert stored.iloc[-1]["total_rainfall"] == pytest.approx(0.24, abs=0.01)
+
+    def test_a_run_with_nothing_new_writes_nothing(self, seed, weather):
+        self.first_run(seed, weather)
+        station = self.run_at(seed, weather, "2026-01-10T12:00:00Z")
+        after_run_2 = stored_bytes(station, EVENT_CATALOG_KEY)
+        backups = event_backups(station)
+
+        station = self.run_at(seed, weather, "2026-01-10T18:00:00Z")
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == after_run_2
+        assert event_backups(station) == backups
+
+    def test_an_event_still_ongoing_is_not_saved_until_it_completes(
+        self, seed, weather
+    ):
+        self.first_run(seed, weather)
+        station = self.run_at(seed, weather, "2026-01-10T12:00:00Z")
+        after_run_2 = stored_bytes(station, EVENT_CATALOG_KEY)
+
+        station = self.run_at(seed, weather, "2026-01-11T01:00:00Z")  # 5 is wet
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == after_run_2
+        assert len(stored_starts()) == 4
+
+        self.run_at(seed, weather, STEADY_STATE_END)  # event 5 has completed
+
+        assert stored_starts()[-1] == ms("2026-01-11T00:00:00Z")
+        assert stored_ongoing() == [False] * 5
+
+    def test_with_no_stored_catalog_the_first_completed_event_seeds_one(
+        self, seed, weather
+    ):
+        dry = weather[weather["dateutc"] < ms("2026-01-04T12:00:00Z")]
+
+        station = self.run_at(seed, weather, "2026-01-04T19:00:00Z", dry)
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None  # event 1 wet
+
+        self.run_at(seed, weather, "2026-01-05T08:00:00Z")  # event 1 done
+
+        assert stored_starts() == [ms("2026-01-04T18:00:00Z")]
+        assert stored_ongoing() == [False]
 
 
 class TestEnergyCatalog:
