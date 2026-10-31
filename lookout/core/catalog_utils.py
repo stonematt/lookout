@@ -13,7 +13,7 @@ from lookout.storage.storj import (
     backup_data,
     get_s3_client,
 )
-from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, DEFAULT_MAC_ADDRESS
+from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -24,19 +24,9 @@ def get_catalog_path(mac_address: str, catalog_type: str) -> str:
     return f"{mac_address}.{catalog_type}_catalog.{DEFAULT_FILE_TYPE}"
 
 
-def _get_mac_address() -> str:
-    """Get MAC address from session state or default."""
-    try:
-        import streamlit as st
-
-        return st.session_state.get("device", {}).get("macAddress", DEFAULT_MAC_ADDRESS)
-    except Exception:
-        return DEFAULT_MAC_ADDRESS
-
-
 def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
     """Check if catalog exists in storage."""
-    mac_address = _get_mac_address()
+    mac_address = get_station_mac()
 
     try:
         catalog_path = get_catalog_path(mac_address, catalog_type)
@@ -49,7 +39,7 @@ def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
 
 def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
     """Load catalog from storage."""
-    mac_address = _get_mac_address()
+    mac_address = get_station_mac()
     catalog_path = get_catalog_path(mac_address, catalog_type)
 
     try:
@@ -65,7 +55,7 @@ def save_catalog(
     df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
 ) -> bool:
     """Save catalog to storage with metadata."""
-    mac_address = _get_mac_address()
+    mac_address = get_station_mac()
 
     try:
         if df.empty:
@@ -93,7 +83,7 @@ def backup_catalog(
     df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
 ) -> Optional[str]:
     """Create backup using existing backup infrastructure."""
-    mac_address = _get_mac_address()
+    mac_address = get_station_mac()
     backup_prefix = f"{mac_address}.{catalog_type}_catalog"
 
     # Use existing backup_data with daily deduplication logic

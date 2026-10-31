@@ -13,7 +13,6 @@ import pytest
 import streamlit as st
 from pandas.testing import assert_frame_equal
 
-from lookout.config import DEFAULT_MAC_ADDRESS
 from lookout.core import catalog_utils, day_periods, rain_corrections
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
@@ -24,16 +23,20 @@ from tests.fixtures.storage import BUCKET, bucket_keys
 
 @pytest.fixture
 def station(monkeypatch):
-    """Put the fake station in Streamlit session state, as the UI does."""
+    """
+    Pin the fake station, and put it in session state as the UI does.
+
+    `storj.backup_and_save_catalog` still takes the station from session state.
+    """
+    monkeypatch.setenv("STATION_MAC", FAKE_MAC)
     monkeypatch.setitem(st.session_state, "device", {"macAddress": FAKE_MAC})
     return FAKE_MAC
 
 
 @pytest.fixture
 def no_station(monkeypatch):
-    """Make sure no device is in session state."""
-    if "device" in st.session_state:
-        monkeypatch.delitem(st.session_state, "device")
+    """Leave STATION_MAC unset."""
+    monkeypatch.delenv("STATION_MAC", raising=False)
 
 
 def _periods() -> pd.DataFrame:
@@ -87,17 +90,19 @@ def test_rain_corrections_catalog_lives_at_mac_dot_rain_corrections_json(fake_s3
     assert rain_corrections.load_catalog(FAKE_MAC, BUCKET) == catalog
 
 
-# ---------- catalog_utils: the station comes from session state ----------
+# ---------- catalog_utils: the station is the pinned one ----------
 
 
-def test_generic_catalog_is_keyed_by_the_session_station(fake_s3, station):
+def test_generic_catalog_is_keyed_by_the_pinned_station(fake_s3, station, monkeypatch):
+    # Whatever device the UI put in session state, the pin decides the key.
+    monkeypatch.setitem(st.session_state, "device", {"macAddress": "AA:BB"})
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
     assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
 
 
-def test_generic_catalog_falls_back_to_the_default_station(fake_s3, no_station):
+def test_generic_catalog_unpinned_uses_the_default_station(fake_s3, no_station):
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
-    assert bucket_keys(fake_s3) == [f"{DEFAULT_MAC_ADDRESS}.energy_catalog.parquet"]
+    assert bucket_keys(fake_s3) == ["98:CD:AC:22:0D:E5.energy_catalog.parquet"]
 
 
 def test_generic_catalog_exists_load_and_save(fake_s3, station):

@@ -7,14 +7,31 @@ across the application, such as Streamlit visualization settings and data
 processing parameters.
 """
 
+from lookout.secrets_loader import get_setting
+
 HISTORY_FILE_TYPE = "parquet"
 
 # Storage configuration
 DEFAULT_BUCKET = "lookout"
 DEFAULT_FILE_TYPE = "parquet"
 
-# Default MAC address for testing (backup for when session state unavailable)
+# The station the archive has always been keyed under; the pin when
+# STATION_MAC is unset.
 DEFAULT_MAC_ADDRESS = "98:CD:AC:22:0D:E5"
+
+
+def get_station_mac() -> str:
+    """
+    Return the MAC address of the one station Lookout archives.
+
+    Read from the `STATION_MAC` setting (env var, then the secrets file, then
+    st.secrets), falling back to `DEFAULT_MAC_ADDRESS`. Never taken from
+    Ambient's device order, so a second station on the account cannot take over.
+
+    :return: The pinned MAC address, upper-cased.
+    """
+    return get_setting("STATION_MAC", DEFAULT_MAC_ADDRESS).strip().upper()
+
 
 sensor_index = {
     "location1": {

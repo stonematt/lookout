@@ -17,8 +17,12 @@ and Healthchecks names are top-level keys, and the three Storj names map to
 keys in the `[lookout_storage_options]` table. `secrets.example.toml` at the
 repo root lists every name with no values.
 
+Non-secret settings (`SETTING_NAMES`, e.g. `STATION_MAC`) come from the same
+sources in the same order, through `get_setting(name, default)`.
+
 Functions:
 - get_secret(name): Return the value of one secret, or raise MissingSecretError.
+- get_setting(name, default): Return one setting, or the default when unset.
 
 Example:
     from lookout.secrets_loader import get_secret
@@ -55,6 +59,14 @@ SECRET_PATHS: Dict[str, Tuple[str, ...]] = {
 }
 
 SECRET_NAMES: Tuple[str, ...] = tuple(SECRET_PATHS)
+
+# Non-secret settings, read from the same sources as the secrets. Kept apart
+# from SECRET_NAMES because a setting may be unset (its reader has a default).
+SETTING_PATHS: Dict[str, Tuple[str, ...]] = {
+    "STATION_MAC": ("STATION_MAC",),
+}
+
+SETTING_NAMES: Tuple[str, ...] = tuple(SETTING_PATHS)
 
 
 class MissingSecretError(KeyError):
@@ -126,6 +138,25 @@ def _lookup_streamlit(path: Tuple[str, ...]) -> Optional[str]:
         return None
 
 
+def _resolve(name: str, path: Tuple[str, ...]) -> Optional[str]:
+    """
+    Look one name up in the env var, then the secrets file, then st.secrets.
+
+    :param name: The flat name, also the env var's name.
+    :param path: Keys to follow inside the file and st.secrets.
+    :return: The first value found, or None.
+    """
+    value = os.environ.get(name)
+    if value:
+        return value
+
+    value = _lookup(_read_file(SECRETS_FILE), path)
+    if value is not None:
+        return value
+
+    return _lookup_streamlit(path)
+
+
 def get_secret(name: str) -> str:
     """
     Return one secret, from the env var, then the secrets file, then st.secrets.
@@ -138,16 +169,8 @@ def get_secret(name: str) -> str:
     if name not in SECRET_PATHS:
         raise ValueError(f"Unknown secret name {name!r}; known: {SECRET_NAMES}")
 
-    value = os.environ.get(name)
-    if value:
-        return value
-
     path = SECRET_PATHS[name]
-    value = _lookup(_read_file(SECRETS_FILE), path)
-    if value is not None:
-        return value
-
-    value = _lookup_streamlit(path)
+    value = _resolve(name, path)
     if value is not None:
         return value
 
@@ -155,3 +178,19 @@ def get_secret(name: str) -> str:
         f"Secret {name} not found: set the {name} env var or add "
         f"{'.'.join(path)} to {SECRETS_FILE}"
     )
+
+
+def get_setting(name: str, default: Optional[str] = None) -> Optional[str]:
+    """
+    Return one setting, from the same sources and in the same order as secrets.
+
+    :param name: A flat setting name from SETTING_NAMES, e.g. "STATION_MAC".
+    :param default: Returned when no source holds a value.
+    :return: The setting's value, or `default`.
+    :raises ValueError: If the name is not a known Lookout setting.
+    """
+    if name not in SETTING_PATHS:
+        raise ValueError(f"Unknown setting name {name!r}; known: {SETTING_NAMES}")
+
+    value = _resolve(name, SETTING_PATHS[name])
+    return default if value is None else value
