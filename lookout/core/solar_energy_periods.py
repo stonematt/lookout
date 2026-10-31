@@ -26,7 +26,8 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
 
     Every pair of consecutive rows is integrated. A pair that crosses a period
     boundary is split at the boundary and each part is credited to the period
-    it lies in, so a day's periods add up to the trapezoid of its whole curve.
+    it lies in, so over unbroken rows the periods add up to the trapezoid of
+    the whole curve.
     A pair more than one period apart is a gap and credits nothing; so does a
     pair with missing radiation.
 
@@ -98,7 +99,7 @@ def _credit_row_pairs(times: pd.Series, watts: pd.Series) -> pd.Series:
 
     :param times: Row times in UTC, ascending, index 0..n-1
     :param watts: Solar radiation in W/m² at each row, same index
-    :return: Wh/m² credited to each UTC period start (only periods credited)
+    :return: Wh/m² credited to each UTC period start that begins or ends a pair
     """
     hour = np.timedelta64(1, "h")
     start, end = times.iloc[:-1].values, times.iloc[1:].values
@@ -130,6 +131,32 @@ def _credit_row_pairs(times: pd.Series, watts: pd.Series) -> pd.Series:
         ]
     )
     return credited.groupby(level=0).sum()
+
+
+def recompute_from_period(
+    rows: pd.DataFrame, period_start: pd.Timestamp
+) -> pd.DataFrame:
+    """
+    Energy periods from `period_start` on, as a full calculation would give.
+
+    The interval from the last row before `period_start` into it is part of
+    that period's energy, so that row is integrated too; the period it falls
+    in is left out of the result. A catalog update replaces its stored periods
+    from `period_start` on with these.
+
+    :param rows: DataFrame with datetime and solarradiation columns
+    :param period_start: TZ-aware start of the first period to recompute
+    :return: Periods as from `calculate_15min_energy_periods`, starting at or
+             after `period_start`; empty when no row is that late
+    """
+    from_start = rows["datetime"] >= period_start
+    if not from_start.any():
+        return calculate_15min_energy_periods(rows.iloc[0:0])
+    earlier_times = rows.loc[~from_start, "datetime"]
+    if not earlier_times.empty:
+        from_start |= rows["datetime"] == earlier_times.max()
+    periods = calculate_15min_energy_periods(rows[from_start])
+    return periods[periods["period_start"] >= period_start].reset_index(drop=True)
 
 
 _cached_calculation: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None

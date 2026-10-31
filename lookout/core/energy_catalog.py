@@ -22,7 +22,10 @@ from typing import Optional
 
 import pandas as pd
 
-from lookout.core.solar_energy_periods import calculate_15min_energy_periods
+from lookout.core.solar_energy_periods import (
+    calculate_15min_energy_periods,
+    recompute_from_period,
+)
 from lookout.storage.storj import get_s3_client
 from lookout.utils.log_util import app_logger
 
@@ -267,26 +270,7 @@ class EnergyCatalog:
         # Use 'date' column which is already TZ-aware datetime
         archive_df["datetime"] = archive_df["date"]
 
-        from_last = archive_df["datetime"] >= last_period_start
-        if not from_last.any():
-            logger.debug("No new data to process for energy periods")
-            return existing_catalog
-
-        # The interval from the last row before the period into it is part of
-        # the period's energy, so that row is integrated too; the period it
-        # falls in is stored already and is not replaced.
-        earlier_times = archive_df.loc[~from_last, "datetime"]
-        if not earlier_times.empty:
-            from_last |= archive_df["datetime"] == earlier_times.max()
-        new_data = archive_df[from_last].copy()
-
-        logger.debug(f"Processing {len(new_data)} records from {last_period_start}")
-
-        # Calculate new periods from the new data
-        new_periods_df = calculate_15min_energy_periods(new_data)
-        new_periods_df = new_periods_df[
-            new_periods_df["period_start"] >= last_period_start
-        ].copy()
+        new_periods_df = recompute_from_period(archive_df, last_period_start)
 
         if new_periods_df.empty:
             logger.debug("No new energy periods calculated")

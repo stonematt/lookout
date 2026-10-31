@@ -8,7 +8,10 @@ import pytest
 from datetime import datetime
 import pytz
 
-from lookout.core.solar_energy_periods import calculate_15min_energy_periods
+from lookout.core.solar_energy_periods import (
+    calculate_15min_energy_periods,
+    calculate_15min_energy_periods_cached,
+)
 from tests.fixtures.archive import build_archive
 
 
@@ -233,6 +236,43 @@ class TestEnergyAcrossPeriodBoundaries:
 
         assert len(result) == 96
         assert result["energy_kwh"].sum() == pytest.approx(6.0)
+
+    def test_a_constant_sun_reads_its_exact_energy(self):
+        # 400 W/m² from 06:00 to 18:00 is 400 x 12 Wh/m² = 4.8 kWh/m².
+        times = pd.date_range("2026-06-01 06:00", "2026-06-01 18:00", freq="5min")
+
+        result = calculate_15min_energy_periods(self.rows(times, 400.0))
+
+        assert result["energy_kwh"].sum() == pytest.approx(4.8)
+        # Every whole period holds its 15 minutes; 18:00 holds no interval
+        assert list(result["energy_kwh"].round(6).unique()) == [0.1, 0.0]
+
+    def test_a_day_with_an_extra_hour_reads_it(self):
+        # 2026-11-01 falls back: 25 local hours, 300 periods of 5-minute rows.
+        # 100 W/m² for 25 hours is 2.5 kWh/m².
+        times = pd.date_range(
+            "2026-11-01 00:00",
+            "2026-11-02 00:00",
+            freq="5min",
+            tz="America/Los_Angeles",
+        )
+        rows = pd.DataFrame({"datetime": times, "solarradiation": 100.0})
+        end = times[-1]
+
+        result = calculate_15min_energy_periods(rows)
+        day = result[result["period_start"] < end]
+
+        assert len(day) == 100
+        assert day["energy_kwh"].sum() == pytest.approx(2.5)
+
+    def test_the_cached_variant_gives_the_same_periods(self):
+        archive = build_archive("2026-06-01 07:00", "2026-06-02 07:00")
+        day = archive.assign(datetime=archive["date"])
+
+        pd.testing.assert_frame_equal(
+            calculate_15min_energy_periods_cached(day),
+            calculate_15min_energy_periods(day),
+        )
 
     def test_the_synthetic_station_day_reads_its_sun_curve(self):
         # The shared fixture's sun is 800 W/m² x sin over 06:00-18:00, which
