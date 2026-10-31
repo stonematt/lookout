@@ -15,7 +15,7 @@
  */
 import "./hero.css";
 
-import { formatDuration, STATION_TIME_ZONE } from "../format.js";
+import { formatDuration, formatStamp, STATION_TIME_ZONE } from "../format.js";
 import { gapSentence } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
@@ -178,10 +178,16 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
     }
     case "calm": {
       const calm = rule(lead, "calm");
+      const since: [string, string] = [calm.value === null ? na : daysText(calm.value), "since rain"];
+      if (calm.reference === null) {
+        // No usual spell to compare: say when it last rained instead.
+        const last = snapshot.current.last_rain_ms;
+        return [since, [last === null ? na : formatStamp(last), "last rain"], ["not compared", "usual dry spell"]];
+      }
       return [
-        [calm.value === null ? na : daysText(calm.value), "since rain"],
-        [calm.reference === null ? na : spellDays(calm.reference), "usual dry spell"],
-        [calm.reference === null ? na : String(lead.sample), "dry spells compared"],
+        since,
+        [spellDays(calm.reference), "usual dry spell"],
+        [String(lead.sample), "dry spells compared"],
       ];
     }
   }
@@ -384,7 +390,7 @@ function timeChart(
   const t0 = trace.start_ms;
   const t1 = hourly ? t0 + trace.values.length * slotMs : nowMs;
   const narrow = width < 520;
-  const f: Frame = { w: width, h: narrow ? 220 : 260, l: 40, r: narrow ? 72 : 92, t: 16, b: 28 };
+  const f: Frame = { w: width, h: narrow ? 220 : 260, l: 40, r: 12, t: 24, b: 28 };
   const iw = f.w - f.l - f.r;
   const ih = f.h - f.t - f.b;
 
@@ -460,9 +466,9 @@ function timeChart(
   // The span only the live reading covers.
   if (lagging && archived >= t0) {
     g.append(svg("rect", { class: "hero-hatch", x: x(archived), width: Math.max(0, x(nowMs) - x(archived)), y: 0, height: ih, fill: `url(#${hatchId})` }));
-    if (x(nowMs) - x(archived) > 90) {
-      g.append(svg("text", { class: "hero-label", x: x(archived) + 6, y: ih - 8 }, "only the live total is known"));
-    }
+    g.append(
+      svg("text", { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" }, hourly ? "only the live reading is known" : "only the live total is known"),
+    );
   }
 
   const points = shown.map((v, i) => (v === null ? null : ([x(at(i)), y(v)] as [number, number])));
@@ -474,7 +480,7 @@ function timeChart(
     g.append(svg("path", { class: `${join} hero-line-${lineColour(snapshot)}`, d: `M${last[0].toFixed(1)},${last[1].toFixed(1)}L${dot[0].toFixed(1)},${dot[1].toFixed(1)}` }));
   }
   g.append(svg("circle", { class: "hero-dot", cx: dot[0], cy: dot[1], r: 5 }));
-  const right = dot[0] + 8 + 90 > iw + f.r;
+  const right = dot[0] + 8 + 110 > iw + f.r;
   g.append(
     svg(
       "text",

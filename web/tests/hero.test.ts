@@ -210,6 +210,7 @@ describe("the hero chart", () => {
     heroLead.render(host, dry);
 
     expect(host.querySelector(".hero-band")).toBeNull();
+    expect(host.querySelectorAll("[data-part=facts] dd")[2]?.textContent).toBe("not compared");
     // The 365-day window's own gap sentence.
     expect(text("[data-part=source]")).toContain(
       "Nov 20, 2024 to Nov 19, 2025: the archive does not reach this far yet.",
