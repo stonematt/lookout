@@ -64,7 +64,7 @@ function source(host: HTMLElement, snapshot: DashboardSnapshot, method: string):
   const lag =
     snapshot.archive_newest_ms === null
       ? null
-      : `Archived through ${formatStamp(snapshot.archive_newest_ms)}; today is the live total.`;
+      : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`;
   const line = make("p", "ov-source", [method, lag].filter(Boolean).join(" "));
   line.dataset.part = "source";
   host.append(line);
@@ -297,7 +297,7 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
   source(
     host,
     snapshot,
-    "Source: the station archive, each day's highest daily rain counter summed by month. " +
+    "Source: the station archive, each day's highest daily rain counter summed by month, with today's live total. " +
       "≈ marks a month scaled up over a few missing days.",
   );
 }

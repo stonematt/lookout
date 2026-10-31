@@ -57,6 +57,13 @@ describe("the almanac's words", () => {
     expect(gridHeadline(october)).toBe("September 2025 had 0.70 in of rain, against 0.50 in (2024)");
   });
 
+  it("says a dry month had no rain", () => {
+    const almanac = copy(october);
+    almanac.years[1]!.months[11]!.rain_in = 0;
+
+    expect(gridHeadline(almanac)).toBe("September 2025 had no rain, against 0.50 in (2024)");
+  });
+
   it("names the last 30 days against the same days a year before", () => {
     expect(rollingHeadline(october)).toBe(
       "1.00 in of rain in the last 30 days, against 0.75 in (2024) over the same days",

@@ -188,7 +188,8 @@ export function gridHeadline(almanac: Almanac): string {
     for (let column = 11; column >= 0; column--) {
       const month = year.months[column];
       if (!month || month.rain_in === null) continue;
-      const lead = `${monthName(month.status.key)} had ${shown(month.status, month.rain_in)} of rain`;
+      const amount = month.rain_in === 0 ? "no rain" : `${shown(month.status, month.rain_in)} of rain`;
+      const lead = `${monthName(month.status.key)} had ${amount}`;
       const earlier = almanac.years
         .slice(row + 1)
         .map((other) => other.months[column])
