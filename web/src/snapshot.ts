@@ -306,13 +306,11 @@ export interface DrySpell {
   days: number;
 }
 
-/** How long it has been dry, against the record. */
+/**
+ * Dry spells and rain days in the record. The days since it last rained and
+ * the usual dry spell are the calm lead rule's (`HeroLead.rules`).
+ */
 export interface DrySpells {
-  /** Whole days since the last rain day; 0 when it rained today. */
-  current_days: number | null;
-  /** Median completed spell ending within 30 days of this date, any year. */
-  usual_days: number | null;
-  usual_sample: number;
   longest: DrySpell | null;
   /** Prorated when the water year is; null when invalid. */
   water_year_rain_days: number | null;

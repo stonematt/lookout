@@ -9,14 +9,18 @@
  * window's value is never shown, a prorated one carries ≈), and the One
  * Format Rule (Pacific time, imperial units).
  */
+import { formatDuration } from "../format.js";
 import { gapValue } from "../gaps.js";
 import type {
   DashboardSnapshot,
   GapStatus,
+  LeadRule,
   RainTab,
   RainWindow,
   WaterYearCurve,
 } from "../snapshot.js";
+
+const DAY_MS = 86_400_000;
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -157,20 +161,50 @@ export function dailyHeadline(snapshot: DashboardSnapshot): string {
 }
 
 /**
- * The dry-spell section's finding: days since the last rain against the
- * usual dry spell for this date.
+ * The calm lead rule: the days since it last rained and the usual dry
+ * spell. The Rain tab reads them from the hero lead so the Overview and the
+ * Rain tab show one number for each.
  *
- * @param tab - The Rain tab's data.
- * @returns E.g. "4 days since the last rain, against a usual dry spell of
- *   2 days at this time of year".
+ * @param snapshot - The dashboard snapshot.
+ * @returns The rule.
  */
-export function dryHeadline(tab: RainTab): string {
-  const { current_days: days, usual_days: usual } = tab.dry_spells;
-  if (days === null) return "Dry spells in the record";
-  const usualWords = usual === null ? null : `a usual dry spell of ${daysText(usual)} at this time of year`;
-  if (days === 0) return "It has rained today, so no dry spell is running";
-  const since = `${daysText(days)} since the last rain`;
-  return usualWords ? `${since}, against ${usualWords}` : since;
+export function calmRule(snapshot: DashboardSnapshot): LeadRule | null {
+  return snapshot.hero_lead.rules.find((r) => r.kind === "calm") ?? null;
+}
+
+/**
+ * Days since it last rained, as the Overview's calm lead writes them.
+ *
+ * @param days - Fractional days.
+ * @returns E.g. "1 d 22 h".
+ */
+export function sinceText(days: number): string {
+  return formatDuration(days * DAY_MS);
+}
+
+/**
+ * A usual dry spell, as the Overview's calm lead writes it.
+ *
+ * @param days - The median spell, in days.
+ * @returns E.g. "2 days", "1.5 days", "1 day".
+ */
+export function spellText(days: number): string {
+  return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+}
+
+/**
+ * The dry-spell section's finding: the calm lead's days since it last
+ * rained, against its usual dry spell.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "1 d 22 h since it last rained, against a usual dry spell
+ *   of 2 days".
+ */
+export function dryHeadline(snapshot: DashboardSnapshot): string {
+  const calm = calmRule(snapshot);
+  if (!calm || calm.value === null) return "Dry spells in the record";
+  const usual = calm.reference === null ? "" : `, against a usual dry spell of ${spellText(calm.reference)}`;
+  return `${sinceText(calm.value)} since it last rained${usual}`;
 }
 
 /** The current water year's curve: the newest one. */

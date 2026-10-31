@@ -555,16 +555,13 @@ class DrySpell:
 @dataclass(frozen=True)
 class DrySpells:
     """
-    How long it has been dry, against the record.
+    Dry spells and rain days in the record, for the Rain tab.
 
     A rain day has at least 0.01 in. Spells with a day not in the record are
-    left out, so a missing day is never read as dry.
+    left out, so a missing day is never read as dry. The days since it last
+    rained and the usual dry spell are the calm lead rule's
+    (`HeroLead.rules`), so the Overview and the Rain tab show one number.
 
-    :param current_days: Whole days since the last rain day (from the
-        station's live `lastRain`), 0 when it rained today; None unknown.
-    :param usual_days: The median length of the completed dry spells that
-        ended within 30 days of this date, any year; None with none.
-    :param usual_sample: How many spells `usual_days` is the median of.
     :param longest: The longest completed dry spell in the record.
     :param water_year_rain_days: Rain days this water year; prorated when
         its status is; None when invalid.
@@ -572,9 +569,6 @@ class DrySpells:
         the water year is invalid or dry.
     """
 
-    current_days: Optional[int]
-    usual_days: Optional[float]
-    usual_sample: int
     longest: Optional[DrySpell]
     water_year_rain_days: Optional[float]
     water_year_wettest: Optional[RainDay]

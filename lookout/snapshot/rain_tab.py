@@ -57,10 +57,6 @@ from lookout.utils.dateutc import DEFAULT_TZ
 RECENT_WINDOW = "90d"
 """The standard window the daily bars and the heatmap cover."""
 
-USUAL_SPELL_DAYS = 30
-"""A spell is "usual for this date" when it ended this many days either side
-of it, in any year."""
-
 HOURS = 24
 """Local hours in a heatmap day."""
 
@@ -102,7 +98,7 @@ def rain_tab(
             for s in windows
         ),
         recent=_recent(recent_status, totals, history, coverage, now, tz),
-        dry_spells=_dry_spells(totals, current, water_year_status, coverage, tz),
+        dry_spells=_dry_spells(totals, water_year_status, coverage),
         day_index=water_year_day_index(coverage.today),
         water_years=_water_years(totals, coverage),
     )
@@ -238,26 +234,18 @@ def _recent(
 
 def _dry_spells(
     totals: Dict[date, float],
-    current: SnapshotConditions,
     water_year_status: GapStatus,
     coverage: ArchiveCoverage,
-    tz: str,
 ) -> DrySpells:
     """
-    The current dry spell against the completed ones in the record.
+    The longest dry spell in the record, and this water year's rain days.
 
     :param totals: `daily_totals`: the counted days.
-    :param current: Current conditions, for the live last rain time.
     :param water_year_status: The water year's gap status.
     :param coverage: The archive's coverage.
-    :param tz: The station-local zone.
     :return: The dry-spell stats.
     """
     today = coverage.today
-    current_days = None
-    if current.last_rain_ms is not None:
-        last_rain = pd.Timestamp(current.last_rain_ms, unit="ms", tz="UTC")
-        current_days = max(0, (today - last_rain.tz_convert(tz).date()).days)
 
     spells = pd.DataFrame(columns=["first_day", "last_day", "days"])
     if totals:
@@ -266,11 +254,6 @@ def _dry_spells(
         series = pd.Series([totals.get(d, np.nan) for d in index], index=index)
         spells = dry_spells(series)
 
-    near = [
-        int(row.days)
-        for row in spells.itertuples(index=False)
-        if _days_apart(row.last_day, today) <= USUAL_SPELL_DAYS
-    ]
     longest = None
     if not spells.empty:
         row = spells.loc[spells["days"].idxmax()]
@@ -296,9 +279,6 @@ def _dry_spells(
         return RainDay(day=best.isoformat(), rain_in=_round(totals[best]))
 
     return DrySpells(
-        current_days=current_days,
-        usual_days=float(np.median(near)) if near else None,
-        usual_sample=len(near),
         longest=longest,
         water_year_rain_days=comparable(water_year_status, rain_days),
         water_year_wettest=comparable(water_year_status, wettest),
@@ -355,12 +335,6 @@ def _water_years(
             )
         )
     return tuple(curves)
-
-
-def _days_apart(a: date, b: date) -> int:
-    """Days between two dates' places in the year, either way round."""
-    gap = abs(water_year_day_index(a) - water_year_day_index(b))
-    return min(gap, PLACES - gap)
 
 
 def _day(iso: str) -> date:

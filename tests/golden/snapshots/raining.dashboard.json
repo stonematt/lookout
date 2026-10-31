@@ -3514,9 +3514,6 @@
       "wettest_hour": null
     },
     "dry_spells": {
-      "current_days": 0,
-      "usual_days": 1.0,
-      "usual_sample": 1,
       "longest": {
         "first_day": "2026-01-05",
         "last_day": "2026-01-05",

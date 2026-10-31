@@ -16,12 +16,15 @@ import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDailyBars, drawHourGrid, drawSized, drawYearCurves } from "./charts.js";
 import {
   WINDOW_NAMES,
+  calmRule,
   dailyHeadline,
   dayText,
   daysText,
   dryHeadline,
   hoursHeadline,
   inches,
+  sinceText,
+  spellText,
   windowStatus,
   windowsNote,
   windowValue,
@@ -128,13 +131,16 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   const spells = snapshot.rain_tab.dry_spells;
   const host = section(
     "dry",
-    dryHeadline(snapshot.rain_tab),
-    "How long it has been since the last rain day, against dry spells that ended near this date in the record.",
+    dryHeadline(snapshot),
+    "How long it has been since it last rained, against the dry spells of the last 365 days, and the longest in the record.",
   );
   const strip = make("dl", "rain-stats rain-dry-stats");
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
-  stat(strip, "Usual spell at this time of year", spells.usual_days === null ? null : daysText(spells.usual_days));
+  const calm = calmRule(snapshot);
+  stat(strip, "Since it last rained", calm?.value == null ? null : sinceText(calm.value));
+  const usualDd = stat(strip, "Usual dry spell", calm?.reference == null ? null : spellText(calm.reference));
+  if (calm?.reference == null) hatchGap(usualDd, windowStatus(snapshot, "365d"));
   const longest = spells.longest;
   stat(
     strip,
@@ -165,9 +171,7 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   source(host, [
     "Source: the station archive's daily totals; the last rain is the station's own record.",
     "A rain day has at least 0.01 in. Spells with a day missing from the record are left out, so a missing day is never read as dry.",
-    spells.usual_sample
-      ? `The usual spell is the median of ${spells.usual_sample} ${spells.usual_sample === 1 ? "spell" : "spells"} that ended within 30 days of this date in any year.`
-      : "No completed dry spell ended within 30 days of this date yet.",
+    "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
   ]);
   return host;
 }

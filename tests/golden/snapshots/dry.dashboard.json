@@ -3349,9 +3349,6 @@
       "wettest_hour": null
     },
     "dry_spells": {
-      "current_days": 2,
-      "usual_days": null,
-      "usual_sample": 0,
       "longest": null,
       "water_year_rain_days": null,
       "water_year_wettest": null

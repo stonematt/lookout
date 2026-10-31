@@ -105,16 +105,14 @@ describe("the Rain tab's words", () => {
     );
   });
 
-  it("compares the dry spell with the usual one for this date", () => {
-    const spells = { ...raining.rain_tab.dry_spells, current_days: 12, usual_days: 4 };
-    expect(dryHeadline({ ...raining.rain_tab, dry_spells: spells })).toBe(
-      "12 d since the last rain, against a usual dry spell of 4 d at this time of year",
+  it("states the dry spell with the calm lead's own numbers", () => {
+    const calm = structuredClone(dry);
+    Object.assign(calm.hero_lead.rules.find((r) => r.kind === "calm")!, { value: 12.5, reference: 4 });
+    expect(dryHeadline(calm)).toBe(
+      "12 d 12 h since it last rained, against a usual dry spell of 4 days",
     );
-    expect(dryHeadline(raining.rain_tab)).toBe(
-      "It has rained today, so no dry spell is running",
-    );
-    // Two days of record hold no completed spell to compare with.
-    expect(dryHeadline(dry.rain_tab)).toBe("2 d since the last rain");
+    // The 365 days are not archived, so there is no usual spell to compare.
+    expect(dryHeadline(dry)).toBe("1 d 14 h since it last rained");
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -204,6 +202,16 @@ describe("the Rain tab", () => {
 
     expect(onRain).toBe("0.30 in");
     expect(text(rightNow?.querySelector("dd"))).toBe(onRain);
+  });
+
+  it("states days since rain as the same number as the Overview's calm lead", () => {
+    renderRain(panel, dry);
+    const overview = document.createElement("div");
+    renderOverview(overview, dry);
+
+    expect(dry.hero_lead.kind).toBe("calm");
+    expect(text(overview)).toContain("1 d 14 h since it last rained");
+    expect(text(section("dry").querySelector("h2"))).toBe("1 d 14 h since it last rained");
   });
 
   it("hatches each window that cannot be compared, with its reason", () => {
@@ -304,9 +312,10 @@ describe("the Rain tab", () => {
     ]);
 
     expect(stats[0]).toEqual(["Last rain", "Nov 17, 9:03 am"]);
-    expect(stats[1]).toEqual(["Usual spell at this time of year", "not known"]);
-    expect(text(section("dry").querySelector(".rain-source"))).toContain(
-      "No completed dry spell ended within 30 days of this date yet.",
+    expect(stats[1]).toEqual(["Since it last rained", "1 d 14 h"]);
+    expect(stats[2]?.[0]).toBe("Usual dry spell");
+    expect(text(section("dry").querySelectorAll(".rain-dry-stats dd")[2]?.querySelector(".gap-label"))).toBe(
+      "not archived yet",
     );
   });
 });

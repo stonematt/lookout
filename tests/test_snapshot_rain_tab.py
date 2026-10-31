@@ -171,19 +171,7 @@ class TestRecentDays:
 
 
 class TestDrySpells:
-    def test_the_current_spell_counts_days_since_the_live_last_rain(self):
-        archive = build_archive(
-            "2025-12-01T08:00:00Z", "2026-01-09T08:00:00Z", rain=JAN_RAIN[:2]
-        )
-        # Live, Jan 8 at 23:30 local; it last rained Jan 5 at 12:55 local.
-        live = {"dateutc": ms("2026-01-09T07:30:00Z")}
-        live["lastRain"] = "2026-01-05T20:55:00Z"
-
-        spells = build(archive, "2026-01-09T07:31:00Z", live).rain_tab.dry_spells
-
-        assert spells.current_days == 3
-
-    def test_the_usual_spell_is_the_median_of_those_near_this_date(self):
+    def test_the_longest_spell_on_record(self):
         # Spells: Jan 3-4 (2 d) and Jan 6-8 (3 d), Jan 10-14 (5 d).
         rain = [
             *JAN_RAIN,
@@ -195,8 +183,6 @@ class TestDrySpells:
 
         spells = build(archive, "2026-01-17T07:59:00Z").rain_tab.dry_spells
 
-        assert spells.usual_sample == 3
-        assert spells.usual_days == 3.0
         assert (spells.longest.first_day, spells.longest.days) == ("2026-01-10", 5)
 
     def test_a_spell_across_a_gap_is_not_counted(self):
@@ -209,8 +195,8 @@ class TestDrySpells:
 
         spells = build(archive, "2026-01-10T07:59:00Z").rain_tab.dry_spells
 
-        assert spells.usual_sample == 1  # only Jan 3-4
-        assert spells.longest.days == 2
+        # Jan 6-8 holds the missing Jan 7: only Jan 3-4 is left.
+        assert (spells.longest.first_day, spells.longest.days) == ("2026-01-03", 2)
 
     def test_water_year_rain_days_and_wettest_day(self):
         archive = build_archive(
