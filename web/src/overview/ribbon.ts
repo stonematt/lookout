@@ -106,6 +106,31 @@ export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
   return ticks;
 }
 
+/** The room a tick label keeps from the now label. */
+const NOW_LABEL_GAP_PX = 6;
+
+/**
+ * Hide every tick label that would run into the "now" label (or come
+ * within 6px of it), and show the rest again. Ticks are placed by the time
+ * of day across a band of any width, so this reads the laid-out row; a row
+ * not laid out yet (a hidden tab) is left alone.
+ *
+ * @param row - The ribbon's `.ribbon-ticks` row.
+ */
+export function clearNowLabel(row: HTMLElement): void {
+  const now = row.querySelector<HTMLElement>(".ribbon-now")?.getBoundingClientRect();
+  if (!now || now.width === 0) return;
+  for (const tick of row.querySelectorAll<HTMLElement>(".ribbon-tick")) {
+    tick.classList.remove("ribbon-tick-hidden");
+    const box = tick.getBoundingClientRect();
+    const clear =
+      box.width === 0 ||
+      box.right + NOW_LABEL_GAP_PX <= now.left ||
+      box.left >= now.right + NOW_LABEL_GAP_PX;
+    tick.classList.toggle("ribbon-tick-hidden", !clear);
+  }
+}
+
 function spanMs(ribbon: ConditionRibbon): number {
   return ribbon.temperature_f.length * ribbon.slot_minutes * 60_000;
 }
@@ -240,6 +265,13 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   }
   if (now !== null) ticks.append(make("span", "ribbon-now", `now ${degrees(now)}`));
   block.append(ticks);
+  // Where a tick falls depends on the time of day and the band's width, so
+  // only the laid-out row can say which run into the now label.
+  if (now !== null && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => clearNowLabel(ticks)).observe(ticks);
+    // The labels change width once the web font arrives; the row does not.
+    void document.fonts?.ready.then(() => clearNowLabel(ticks));
+  }
 
   block.append(ribbonKey());
   return block;
