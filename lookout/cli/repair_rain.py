@@ -4,10 +4,21 @@ repair_rain.py: Restore the raw rain counters in the damaged windows (#95).
 Until #95, every catchup run subtracted each known rain carryover from the
 stored archive again, so the rows from a carryover day to the end of its
 year hold counters that are too low (clipped at 0 at worst). Rows from 2026
-on are not affected. The repair reuses gap fill: for each window it drops
-the archive's rows in it, refills it with `fill_archive_gap` (raw, as
-Ambient reports it), and cross-checks the refilled rain counters against the
-protected raw backup. A dry run is the default.
+on are not affected.
+
+For each window the repair:
+
+1. restores the rain counters of every row the protected raw backup holds
+   (matched on `dateutc`) from the backup, at its 3-decimal precision, and
+   leaves every other column as stored;
+2. drops the rest of the window's rows (those past the backup's end, and
+   any inside its range that it lacks, which are reported) and refills them
+   from Ambient through gap fill, raw;
+3. cross-checks the refilled rows the backup holds at 2 decimals, the
+   precision Ambient serves now, and checks the restored rows equal the
+   backup exactly.
+
+A dry run is the default.
 
 Usage:
     python -m lookout.cli.repair_rain [--bucket lookout] [--write]
@@ -17,9 +28,10 @@ Usage:
 import argparse
 import math
 import sys
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 import lookout.api.awn_controller as awn
@@ -36,70 +48,103 @@ DEFAULT_WINDOWS: List[Tuple[str, str]] = [
 ]
 # The newest backup with raw counters, kept out of `.backups/` rotation.
 REFERENCE_KEY = "backups/{mac}.raw-pre-95_20251222.parquet"
-RAIN_COLUMNS = ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin")
-DEFAULT_TOLERANCE = 0.001  # inches
+# Every rain counter: the four `apply_corrections` touches, plus the event
+# and hourly totals, so a restored row's rain columns all come from one place.
+RAIN_COLUMNS = (
+    "dailyrainin",
+    "weeklyrainin",
+    "monthlyrainin",
+    "yearlyrainin",
+    "eventrainin",
+    "hourlyrainin",
+)
+# The counters the per-day report shows.
+REPORT_COLUMNS = ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin")
+DEFAULT_TOLERANCE = 0.001  # inches, after rounding both sides to 2 decimals
 # One Ambient page brings about this many new five-minute readings; the
 # slack covers pages spent seeking over the station's own outages.
 PAGE_ROWS = 246
 SLACK_PAGES = 10
 FIVE_MIN_MS = 5 * 60 * 1000
+# Rows the backup lacks that lie closer together than this share one refill.
+STRAY_JOIN_MS = 60 * 60 * 1000
+# How many rows the backup lacks to list by time.
+STRAYS_LISTED = 10
 
 RUN_NOTES = """\
 How to run it (after the #95 fix is deployed, with live secrets, on a host
 that can reach Ambient and Storj; never while a catchup or refresh cron run
 could save the archive at the same time):
 
-  1. Dry run, the default. Refills both windows in memory, prints each day's
-     rows and day-end rain counters before -> after, and the cross-check
-     against the raw backup. Writes nothing:
+  1. Dry run, the default. Repairs both windows in memory and writes
+     nothing. For each window it prints how many rows were restored from
+     the raw backup and how many were refilled from Ambient, any row inside
+     the backup's range that the backup lacks (refilled from Ambient), each
+     day's rows and day-end rain counters before -> after, the cross-check
+     of the refilled rows, and the check that restored rows equal the
+     backup:
 
          PYTHONPATH=. python -m lookout.cli.repair_rain
 
-  2. Read the diff. Every day should show "rows N -> N" (or more after), no
-     "short" line, and "0 over tolerance". The exit status is 1 if not.
+  2. Read it. Every day should show "rows N -> N" (or more after) with no
+     "short" line, the cross-check "0 mismatched", and "0 differ from the
+     backup". The exit status is 1 if not.
 
-  3. The real run. Same checks; if any day refills short or the cross-check
-     fails, nothing is written. Otherwise it backs the live archive up to
+  3. The real run. Same checks; if any day refills short or a check fails,
+     nothing is written. Otherwise it backs the live archive up to
      .backups/<MAC>/<today>/ and saves the repaired archive:
 
          PYTHONPATH=. python -m lookout.cli.repair_rain --write
 
-  A window can be given instead of the defaults, as station-local days
-  (repeatable): --window 2025-10-14 2025-12-31. The fill waits a second per
-  Ambient page; the 2025 window is about 90 pages.
+  The backup ends 2025-12-22, so only the last days of 2025 are refilled
+  from Ambient (about 3 pages, waiting a second per page). A window can be
+  given instead of the defaults, as station-local days (repeatable):
+  --window 2025-10-14 2025-12-31.
 """
+
+Numeric = Union[pd.Series, pd.DataFrame]
 
 
 @dataclass
-class WindowRefill:
+class WindowRepair:
     """
-    One window refilled in memory.
+    One window repaired in memory.
 
     :param first_day: Its first station-local day, ISO.
     :param last_day: Its last station-local day, ISO, inclusive.
     :param dropped: The archive rows in the window, as stored.
-    :param refilled: The rows gap fill brought back for it, raw.
-    :param status: The fill's status (`GapFill.status`).
+    :param restored: Window rows whose rain counters came from the backup.
+    :param refilled: Rows gap fill brought back for the rest, raw.
+    :param strays: Window rows inside the backup's range that it lacks, as
+        stored; they were dropped and refilled.
+    :param statuses: Each gap fill's status (`GapFill.status`).
     """
 
     first_day: str
     last_day: str
     dropped: pd.DataFrame
+    restored: pd.DataFrame
     refilled: pd.DataFrame
-    status: str
+    strays: pd.DataFrame
+    statuses: List[str] = field(default_factory=list)
+
+    @property
+    def after(self) -> pd.DataFrame:
+        """The window's rows after the repair."""
+        return pd.concat([self.restored, self.refilled], ignore_index=True)
 
 
 @dataclass
 class DayDiff:
     """
-    One day of a window, before and after the refill.
+    One day of a window, before and after the repair.
 
     :param day: The station-local day, ISO.
     :param rows_before: Rows the archive held for it.
-    :param rows_after: Rows the refill brought back.
+    :param rows_after: Rows it holds after the repair.
     :param before: Day-end rain counters as stored (daily is the day's
         highest); None when there were no rows.
-    :param after: The same after the refill.
+    :param after: The same after the repair.
     """
 
     day: str
@@ -110,7 +155,7 @@ class DayDiff:
 
     @property
     def short(self) -> bool:
-        """True when the refill brought back fewer rows than were dropped."""
+        """True when the repair left fewer rows than were stored."""
         return self.rows_after < self.rows_before
 
 
@@ -120,16 +165,29 @@ class CrossCheck:
     The refilled rows against the raw reference, matched on `dateutc`.
 
     :param compared: Rows found in both.
-    :param over: Rows where a rain counter differs by more than the tolerance.
-    :param max_diff: The largest difference seen, inches.
-    :param unchecked: Refilled rows the reference does not hold (it ends
-        2025-12-22, so the last days of 2025 cannot be checked).
+    :param over: Rows where a rain counter differs by more than the
+        tolerance at 2 decimals, or is missing on one side only.
+    :param max_diff: The largest difference seen at 2 decimals, inches.
+    :param unchecked: Refilled rows the reference does not hold.
     """
 
     compared: int
     over: int
     max_diff: float
     unchecked: int = 0
+
+
+def round_half_up(values: Numeric) -> Numeric:
+    """
+    Round to 2 decimals, halves up, as Ambient serves rain counters now.
+
+    The epsilon keeps a stored 3-decimal half (1.005, held as 1.00499...)
+    rounding up as its decimal form does.
+
+    :param values: Inches.
+    :return: The same shape, to the hundredth.
+    """
+    return np.floor(values * 100 + 0.5 + 1e-6) / 100
 
 
 def window_bounds(first_day: str, last_day: str) -> Tuple[int, int]:
@@ -146,21 +204,74 @@ def window_bounds(first_day: str, last_day: str) -> Tuple[int, int]:
     return from_local_date(first_day), from_local_date(end_day)
 
 
-def refill_window(
+def restore_from_reference(rows: pd.DataFrame, reference: pd.DataFrame) -> pd.DataFrame:
+    """
+    Set the rain counters of `rows` from the reference, matched on `dateutc`.
+
+    :param rows: Archive rows, every one held by the reference.
+    :param reference: The raw backup.
+    :return: A copy of `rows`; its rain columns the reference also has are
+        the reference's values, every other column as it was.
+    """
+    out = rows.copy()
+    columns = [c for c in RAIN_COLUMNS if c in out and c in reference]
+    source = reference.drop_duplicates("dateutc", keep="last").set_index("dateutc")
+    for col in columns:
+        out[col] = out["dateutc"].map(source[col]).to_numpy()
+    return out
+
+
+def refill_spans(
+    strays: Iterable[int], start_ms: int, end_ms: int, covered: Optional[Tuple]
+) -> List[Tuple[int, int]]:
+    """
+    The stretches of a window to refill from Ambient.
+
+    :param strays: `dateutc` of window rows inside the backup's range that
+        the backup lacks.
+    :param start_ms: The window's start, inclusive.
+    :param end_ms: Its end, exclusive.
+    :param covered: The backup's first and last `dateutc`, or None when
+        there is no backup.
+    :return: (start, end exclusive) pairs, epoch ms, oldest first: the
+        window outside the backup's range, and each cluster of strays.
+    """
+    if covered is None:
+        return [(start_ms, end_ms)]
+    lo, hi = covered
+    spans = []
+    if lo > start_ms:
+        spans.append((start_ms, min(lo, end_ms)))
+    cluster: List[int] = []
+    for ms in sorted(strays):
+        if cluster and ms - cluster[-1] >= STRAY_JOIN_MS:
+            spans.append((cluster[0], cluster[-1] + 1))
+            cluster = []
+        cluster.append(ms)
+    if cluster:
+        spans.append((cluster[0], cluster[-1] + 1))
+    if hi + 1 < end_ms:
+        spans.append((max(hi + 1, start_ms), end_ms))
+    return sorted(spans)
+
+
+def repair_window(
     device: Dict,
     archive: pd.DataFrame,
+    reference: pd.DataFrame,
     first_day: str,
     last_day: str,
     sleep: bool = True,
-) -> Tuple[pd.DataFrame, WindowRefill]:
+) -> Tuple[pd.DataFrame, WindowRepair]:
     """
-    Drop a window's rows and refill them through gap fill, in memory.
+    Restore a window from the backup and refill the rest, in memory.
 
-    Only rows inside the window are taken from the fill, so rows outside it
-    stay exactly as stored even where a fetched page reached past it.
+    Rows outside the window stay exactly as stored, even where a fetched
+    page reached past it.
 
     :param device: The station's `/devices` entry.
     :param archive: The archive, `dateutc` in epoch ms.
+    :param reference: The protected raw backup; may be empty.
     :param first_day: The window's first station-local day.
     :param last_day: Its last day, inclusive.
     :param sleep: Wait a second per Ambient page.
@@ -168,23 +279,55 @@ def refill_window(
     """
     start_ms, end_ms = window_bounds(first_day, last_day)
     inside = (archive["dateutc"] >= start_ms) & (archive["dateutc"] < end_ms)
-    dropped = archive[inside]
-    kept = archive[~inside]
+    window = archive[inside]
 
-    pages = math.ceil((end_ms - start_ms) / FIVE_MIN_MS / PAGE_ROWS) + SLACK_PAGES
-    outcome = awn.fill_archive_gap(
-        device,
-        kept,
-        pd.to_datetime(start_ms, unit="ms", utc=True),
-        pd.to_datetime(end_ms, unit="ms", utc=True),
-        pages=pages,
-        sleep=sleep,
-    )
-    filled = outcome.history_df
-    refilled = filled[(filled["dateutc"] >= start_ms) & (filled["dateutc"] < end_ms)]
-    repaired = awn.combine_full_history(kept, refilled)
-    return repaired, WindowRefill(
-        first_day, last_day, dropped, refilled.copy(), outcome.status
+    covered = None
+    in_range = pd.Series(False, index=window.index)
+    matched = in_range
+    if not reference.empty:
+        covered = (int(reference["dateutc"].min()), int(reference["dateutc"].max()))
+        in_range = window["dateutc"].between(*covered)
+        matched = in_range & window["dateutc"].isin(reference["dateutc"])
+    restored = restore_from_reference(window[matched], reference)
+    strays = window[in_range & ~matched]
+
+    base = awn.combine_full_history(archive[~inside], restored)
+    statuses = []
+    parts = []
+    for span_start, span_end in refill_spans(
+        strays["dateutc"], start_ms, end_ms, covered
+    ):
+        pages = (
+            math.ceil((span_end - span_start) / FIVE_MIN_MS / PAGE_ROWS) + SLACK_PAGES
+        )
+        outcome = awn.fill_archive_gap(
+            device,
+            base,
+            pd.to_datetime(span_start, unit="ms", utc=True),
+            pd.to_datetime(span_end, unit="ms", utc=True),
+            pages=pages,
+            sleep=sleep,
+        )
+        statuses.append(outcome.status)
+        filled = outcome.history_df
+        parts.append(
+            filled[
+                (filled["dateutc"] >= span_start)
+                & (filled["dateutc"] < span_end)
+                & ~filled["dateutc"].isin(restored["dateutc"])
+            ]
+        )
+    refilled = pd.concat(parts, ignore_index=True) if parts else window.iloc[0:0]
+    refilled = refilled.drop_duplicates("dateutc", keep="last")
+    repaired = awn.combine_full_history(base, refilled)
+    return repaired, WindowRepair(
+        first_day,
+        last_day,
+        window,
+        restored,
+        refilled.reset_index(drop=True),
+        strays,
+        statuses,
     )
 
 
@@ -199,26 +342,27 @@ def _day_end(rows: pd.DataFrame) -> Optional[Dict[str, float]]:
     if rows.empty:
         return None
     last = rows.sort_values("dateutc").iloc[-1]
-    values = {col: float(last[col]) for col in RAIN_COLUMNS if col in rows}
+    values = {col: float(last[col]) for col in REPORT_COLUMNS if col in rows}
     if "dailyrainin" in rows:
         values["dailyrainin"] = float(rows["dailyrainin"].max())
     return values
 
 
-def day_diffs(refill: WindowRefill) -> List[DayDiff]:
+def day_diffs(repair: WindowRepair) -> List[DayDiff]:
     """
     Every day of the window, before and after.
 
-    :param refill: The window refilled.
+    :param repair: The window repaired.
     :return: One `DayDiff` per station-local day, oldest first.
     """
-    days = pd.date_range(refill.first_day, refill.last_day, freq="D")
-    before_day = _local_day(refill.dropped)
-    after_day = _local_day(refill.refilled)
+    days = pd.date_range(repair.first_day, repair.last_day, freq="D")
+    after_rows = repair.after
+    before_day = _local_day(repair.dropped)
+    after_day = _local_day(after_rows)
     diffs = []
     for day in days.strftime("%Y-%m-%d"):
-        before = refill.dropped[before_day == day]
-        after = refill.refilled[after_day == day]
+        before = repair.dropped[before_day == day]
+        after = after_rows[after_day == day]
         diffs.append(
             DayDiff(day, len(before), len(after), _day_end(before), _day_end(after))
         )
@@ -229,11 +373,15 @@ def cross_check(
     refilled: pd.DataFrame, reference: pd.DataFrame, tolerance: float
 ) -> CrossCheck:
     """
-    Compare the refilled rain counters with the raw reference.
+    Compare refilled rain counters with the raw reference, at 2 decimals.
 
-    :param refilled: The refilled rows.
+    Ambient serves 2 decimals now and the reference holds 3, so both sides
+    are rounded (halves up) before comparing. A value missing on one side
+    only is a mismatch; missing on both is not.
+
+    :param refilled: The rows refilled from Ambient.
     :param reference: The protected raw backup; may be empty.
-    :param tolerance: Largest difference allowed, inches.
+    :param tolerance: Largest difference allowed after rounding, inches.
     :return: The comparison.
     """
     columns = [c for c in RAIN_COLUMNS if c in refilled and c in reference]
@@ -245,12 +393,40 @@ def cross_check(
     unchecked = len(refilled) - len(merged)
     if merged.empty:
         return CrossCheck(0, 0, 0.0, unchecked)
-    diffs = pd.concat(
-        [(merged[c] - merged[c + "_ref"]).abs() for c in columns], axis=1
-    ).max(axis=1)
-    return CrossCheck(
-        len(merged), int((diffs > tolerance).sum()), float(diffs.max()), unchecked
-    )
+    got = round_half_up(merged[columns].astype(float))
+    want = round_half_up(merged[[c + "_ref" for c in columns]].astype(float))
+    want.columns = columns
+    diffs = (got - want).abs()
+    one_sided = got.isna() ^ want.isna()
+    bad = ((diffs > tolerance) | one_sided).any(axis=1)
+    max_diff = float(np.nan_to_num(diffs.to_numpy(), nan=0.0).max())
+    return CrossCheck(len(merged), int(bad.sum()), max_diff, unchecked)
+
+
+def verify_restored(
+    repaired: pd.DataFrame, reference: pd.DataFrame, dateutcs: Iterable[int]
+) -> Tuple[int, int]:
+    """
+    Check the restored rows of the repaired archive equal the backup exactly.
+
+    :param repaired: The repaired archive.
+    :param reference: The protected raw backup.
+    :param dateutcs: The restored rows' `dateutc`.
+    :return: (rows checked, rows whose rain counters differ). A row the
+        repaired archive lost, or NaN on one side only, counts as differing.
+    """
+    wanted = pd.Index(list(dateutcs))
+    if wanted.empty:
+        return 0, 0
+    columns = [c for c in RAIN_COLUMNS if c in repaired and c in reference]
+    got = repaired.drop_duplicates("dateutc").set_index("dateutc")
+    want = reference.drop_duplicates("dateutc").set_index("dateutc")
+    got = got.reindex(wanted)[columns]
+    want = want.reindex(wanted)[columns]
+    same = (got == want) | (got.isna() & want.isna())
+    lost = ~wanted.isin(repaired["dateutc"])
+    differ = ~same.all(axis=1).to_numpy() | lost
+    return len(wanted), int(differ.sum())
 
 
 def _pair(
@@ -273,12 +449,71 @@ def day_line(diff: DayDiff) -> str:
     """
     counters = "  ".join(
         f"{col.replace('rainin', '')} {_pair(diff.before, diff.after, col)}"
-        for col in RAIN_COLUMNS
+        for col in REPORT_COLUMNS
     )
     line = f"{diff.day}  rows {diff.rows_before} -> {diff.rows_after}  {counters}"
     if diff.short:
         line += f"  short by {diff.rows_before - diff.rows_after}"
     return line
+
+
+def _rows(n: int) -> str:
+    """`1 row`, `2 rows`."""
+    return f"{n} row" if n == 1 else f"{n} rows"
+
+
+def report_window(
+    repair: WindowRepair,
+    repaired: pd.DataFrame,
+    reference: pd.DataFrame,
+    reference_key: str,
+    tolerance: float,
+) -> List[str]:
+    """
+    Print one window's report.
+
+    :param repair: The window repaired.
+    :param repaired: The repaired archive.
+    :param reference: The protected raw backup; may be empty.
+    :param reference_key: Its key, for the report.
+    :param tolerance: The cross-check tolerance.
+    :return: The window's problems; empty when it checks out.
+    """
+    first, last = repair.first_day, repair.last_day
+    problems = []
+    fills = ", ".join(repair.statuses) or "not needed"
+    emit(
+        f"Window {first} to {last}: restored {len(repair.restored)} from the "
+        f"backup, refilled {len(repair.refilled)} from Ambient (gap fill: {fills})"
+    )
+    if not repair.strays.empty:
+        emit(
+            f"{_rows(len(repair.strays))} in the backup's range but not in it; "
+            "dropped and refilled from Ambient:"
+        )
+        stamps = pd.to_datetime(repair.strays["dateutc"], unit="ms", utc=True)
+        for stamp in stamps.sort_values().iloc[:STRAYS_LISTED]:
+            emit(f"  {stamp.isoformat()}")
+        if len(stamps) > STRAYS_LISTED:
+            emit(f"  ... and {len(stamps) - STRAYS_LISTED} more")
+    for diff in day_diffs(repair):
+        emit(day_line(diff))
+        if diff.short:
+            problems.append(f"{diff.day} refilled short")
+    check = cross_check(repair.refilled, reference, tolerance)
+    emit(
+        f"Cross-check of refilled rows against {reference_key}, at 2 decimals: "
+        f"{check.compared} compared, {check.over} mismatched "
+        f"(max diff {check.max_diff:.3f}), {check.unchecked} not in the reference"
+    )
+    if check.over:
+        problems.append(f"{check.over} refilled rows mismatched in {first}..{last}")
+    checked, differ = verify_restored(repaired, reference, repair.restored["dateutc"])
+    emit(f"{checked} restored rows checked, {differ} differ from the backup")
+    if differ:
+        problems.append(f"{differ} restored rows differ from the backup")
+    emit()
+    return problems
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -291,9 +526,10 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m lookout.cli.repair_rain",
         description=(
-            "Restore the raw rain counters in the windows #95 damaged: drop "
-            "each window's rows, refill them through gap fill, cross-check "
-            "against the raw backup. Dry run unless --write."
+            "Restore the raw rain counters in the windows #95 damaged: set "
+            "the rain columns of rows the raw backup holds from the backup, "
+            "refill the rest through gap fill, and check both. Dry run "
+            "unless --write."
         ),
         epilog=RUN_NOTES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -311,7 +547,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--tolerance",
         type=float,
         default=DEFAULT_TOLERANCE,
-        help="Largest cross-check difference allowed, inches (default 0.001)",
+        help="Largest difference allowed when checking refilled rows "
+        "against the backup, after rounding both to 2 decimals, inches "
+        "(default 0.001)",
     )
     parser.add_argument(
         "--write",
@@ -330,8 +568,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :return: 0 when the repair checks out (and, with --write, was saved);
-        1 when a day refilled short, the cross-check failed, or the raw
-        reference is missing.
+        1 when a day refilled short, a check failed, or the raw reference is
+        missing.
     """
     args = parse_args(argv)
     device, archive = load_station(args.bucket)
@@ -345,23 +583,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     repaired = archive
     for first, last in args.window:
-        repaired, refill = refill_window(device, repaired, first, last)
-        emit(f"Window {first} to {last}: gap fill {refill.status}")
-        for diff in day_diffs(refill):
-            emit(day_line(diff))
-            if diff.short:
-                problems.append(f"{diff.day} refilled short")
-        check = cross_check(refill.refilled, reference, args.tolerance)
-        emit(
-            f"Cross-check against {reference_key}: {check.compared} rows compared, "
-            f"{check.over} over tolerance (max diff {check.max_diff:.3f}), "
-            f"{check.unchecked} not in the reference"
+        repaired, repair = repair_window(device, repaired, reference, first, last)
+        problems += report_window(
+            repair, repaired, reference, reference_key, args.tolerance
         )
-        if check.over:
-            problems.append(f"{check.over} rows over tolerance in {first}..{last}")
-        if not check.compared and not reference.empty:
-            problems.append(f"no refilled row in {first}..{last} could be checked")
-        emit()
 
     for problem in problems:
         emit(f"Problem: {problem}")
