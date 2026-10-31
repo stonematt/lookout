@@ -74,6 +74,16 @@ describe("the header", () => {
     expect(text(".masthead-age")).toBe("1 m ago");
   });
 
+  it("keeps a known station name when a later reading has none", () => {
+    const header = mountHeader(host, () => clock);
+    header.show({ station: raining.station, observedAtMs: raining.observed_at_ms });
+    header.show({
+      station: { mac: raining.station.mac, name: null },
+      observedAtMs: RAINING_OBSERVED,
+    });
+    expect(text("h1")).toBe("Fixture Station");
+  });
+
   it("names an unnamed station Lookout", () => {
     const header = mountHeader(host, () => clock);
     header.show({ station: { mac: "00:11:22:33:44:55", name: null }, observedAtMs: null });

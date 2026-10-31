@@ -26,6 +26,9 @@ export const DASHBOARD_CACHE = "s-maxage=300, stale-while-revalidate=300";
 /** `/current`: short, so the live reading stays live and Ambient is spared. */
 export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60";
 
+/** A `/current` missing one half is not cached, so a blip is not served on. */
+export const PARTIAL_CACHE = "no-store";
+
 /** What the read functions read from. */
 export interface ReadSources {
   /** The configured station's MAC address, upper case. */
@@ -78,6 +81,13 @@ export function errorResponse(status: number, error: string): Response {
   return jsonResponse({ error }, status, "no-store");
 }
 
+/**
+ * The station a request asks for: its `station` parameter, else the default.
+ *
+ * @param request - The incoming request.
+ * @param sources - Holds the default station.
+ * @returns The upper-case MAC, or a 400 response for a malformed one.
+ */
 function stationOf(request: Request, sources: ReadSources): string | Response {
   const asked = new URL(request.url).searchParams.get("station");
   if (asked === null) return sources.defaultMac;
@@ -117,6 +127,9 @@ export async function handleDashboard(
 
 /**
  * GET /current: the live reading plus the context block.
+ *
+ * Cached for a minute when both halves were read; not cached when one is
+ * missing.
  *
  * @param request - The incoming request; `?station=<MAC>` is optional.
  * @param sources - Where to read; needs `readLive`.
@@ -163,5 +176,6 @@ export async function handleCurrent(
     last_data: lastData,
     context,
   };
-  return jsonResponse(body, 200, CURRENT_CACHE);
+  const whole = context !== null && lastData !== null;
+  return jsonResponse(body, 200, whole ? CURRENT_CACHE : PARTIAL_CACHE);
 }

@@ -27,6 +27,7 @@ const GOLDEN_DIR = resolve(import.meta.dirname, "../../tests/golden/snapshots");
 const SCENARIOS = ["dry", "raining"] as const;
 type Scenario = (typeof SCENARIOS)[number];
 
+/** One golden document, parsed. */
 function goldenDoc(scenario: Scenario, kind: SnapshotKind): Record<string, unknown> {
   const text = readFileSync(`${GOLDEN_DIR}/${scenario}.${kind}.json`, "utf8");
   return JSON.parse(text) as Record<string, unknown>;
@@ -46,6 +47,7 @@ function shiftTimes(value: unknown, delta: number): unknown {
   );
 }
 
+/** Read sources over one golden, shifted so it is `ageMinutes` old. */
 function fixtureSources(
   scenario: Scenario,
   ageMinutes: number | null,

@@ -79,9 +79,10 @@ Both take an optional `?station=<MAC>`. Without it they use `STATION_MAC`.
   built_at_ms, last_data, context}`. `last_data` is Ambient's live `lastData`,
   and `context` is `snapshot/<MAC>.context.json`. Either can be null when its
   source fails; it answers 502 only when both fail. `observed_at_ms` is the
-  newer of the live `dateutc` and the context's observation. It is cached with
-  `s-maxage=60, stale-while-revalidate=60` so that Ambient is called at most
-  about once a minute per region.
+  newer of the live `dateutc` and the context's observation. When both halves are
+  read, it is cached with `s-maxage=60, stale-while-revalidate=60` so that
+  Ambient is called at most about once a minute per region. A partial body
+  is `no-store`, so the CDN does not keep serving a blip.
 
 ## Environment variables
 

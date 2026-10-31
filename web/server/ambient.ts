@@ -37,6 +37,7 @@ export class AmbientReadError extends Error {
   }
 }
 
+/** The parts of an Ambient `/devices` entry this module reads. */
 interface AmbientDevice {
   macAddress?: unknown;
   info?: { name?: unknown } | null;

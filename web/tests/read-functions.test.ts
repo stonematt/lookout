@@ -218,9 +218,11 @@ describe("GET /current", () => {
     expect(body.observed_at_ms).toBe(ctx.observed_at_ms);
   });
 
-  it("still serves the context when Ambient fails", async () => {
+  it("still serves the context when Ambient fails, uncached", async () => {
     world.ambientStatus = 429;
-    const body = await (await currentGET(get("/current"))).json();
+    const response = await currentGET(get("/current"));
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.json();
     expect(body.last_data).toBeNull();
     expect(body.context).toEqual(golden("raining", "context"));
     expect(body.observed_at_ms).toBe(context("raining").observed_at_ms);
@@ -231,6 +233,7 @@ describe("GET /current", () => {
     world.devices = [ambientDevice(1_767_918_000_000)];
     const response = await currentGET(get("/current"));
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
     expect(body.context).toBeNull();
     expect(body.built_at_ms).toBeNull();

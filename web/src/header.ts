@@ -77,7 +77,8 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
 
   return {
     show(next) {
-      station = next.station ?? station;
+      // A reading without a name (Ambient unnamed) never erases a known one.
+      if (next.station && (next.station.name || !station?.name)) station = next.station;
       observedAtMs = newestObservation(observedAtMs, next.observedAtMs);
       shown = true;
       render();

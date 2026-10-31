@@ -10,7 +10,6 @@ import "./styles/base.css";
 
 import { mountHeader } from "./header.js";
 import { fetchCurrent, fetchDashboard } from "./load.js";
-import type { DashboardSnapshot } from "./snapshot.js";
 import { mountTabs } from "./tabs.js";
 import { applyThemeOverride } from "./theme.js";
 
@@ -26,8 +25,6 @@ mountTabs(document.getElementById("sections")!, (_id, panel) => {
       '<p class="standfirst">This section is still being built.</p>';
   }
 });
-
-let snapshot: DashboardSnapshot | null = null;
 
 function title(name: string | null): void {
   document.title = name ? `${name} · Lookout` : "Lookout";
@@ -45,7 +42,7 @@ async function loadCurrent(): Promise<void> {
 
 async function boot(): Promise<void> {
   try {
-    snapshot = await fetchDashboard(location.search);
+    const snapshot = await fetchDashboard(location.search);
     header.show({ station: snapshot.station, observedAtMs: snapshot.observed_at_ms });
     title(snapshot.station.name);
   } catch (error) {

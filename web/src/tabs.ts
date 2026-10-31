@@ -35,6 +35,7 @@ export interface Tabs {
   current(): TabId;
 }
 
+/** Whether a URL hash names one of the tabs. */
 function isTabId(id: string): id is TabId {
   return TABS.some((tab) => tab.id === id);
 }
@@ -89,6 +90,7 @@ export function mountTabs(
 
   let open: TabId = "overview";
 
+  /** Open a tab: selection, tab stop, panel, hash, then the caller. */
   function select(id: string, focus = false): void {
     open = isTabId(id) ? id : "overview";
     for (const { id: tab } of TABS) {

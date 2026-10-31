@@ -28,6 +28,7 @@ export function readUrl(path: "/dashboard" | "/current", pageSearch: string): st
   return text ? `${path}?${text}` : path;
 }
 
+/** GET a URL as JSON, rejecting on a non-2xx status. */
 async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
   const response = await fetchImpl(url, { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`${url} answered ${response.status}`);

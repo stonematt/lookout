@@ -12,7 +12,7 @@ import { errorResponse, normaliseMac } from "./handlers.js";
 import { storjReader } from "./storj.js";
 
 /** What every read function needs. */
-export const STORJ_NAMES = [
+export const REQUIRED_NAMES = [
   "STORJ_ACCESS_KEY_ID",
   "STORJ_SECRET_ACCESS_KEY",
   "STORJ_ENDPOINT_URL",
@@ -21,7 +21,7 @@ export const STORJ_NAMES = [
 ] as const;
 
 /** What `/current` needs on top. */
-export const AMBIENT_NAMES = ["AMBIENT_API_KEY", "AMBIENT_APPLICATION_KEY"] as const;
+export const LIVE_NAMES = ["AMBIENT_API_KEY", "AMBIENT_APPLICATION_KEY"] as const;
 
 /** Environment variables, as `process.env` holds them. */
 export type Env = Record<string, string | undefined>;
@@ -48,7 +48,7 @@ export function sourcesFromEnv(
   live: boolean,
   fetchImpl: typeof fetch = fetch,
 ): ReadSources {
-  const needed: readonly string[] = live ? [...STORJ_NAMES, ...AMBIENT_NAMES] : STORJ_NAMES;
+  const needed: readonly string[] = live ? [...REQUIRED_NAMES, ...LIVE_NAMES] : REQUIRED_NAMES;
   const missing = needed.filter((name) => !env[name]?.trim());
   if (missing.length) throw new MissingEnvError(missing);
   const value = (name: string) => env[name]!.trim();
@@ -99,8 +99,8 @@ export function serveFromEnv(
 ): Promise<Response> {
   let sources: ReadSources;
   try {
-    // Read `fetch` per request so a test's stub (or Vercel's) is the one used.
-    sources = sourcesFromEnv(env, live, (input, init) => fetch(input, init));
+    // The default `fetch` is read per request, so a test's stub is the one used.
+    sources = sourcesFromEnv(env, live);
   } catch (error) {
     if (error instanceof MissingEnvError) {
       console.error(error.message);
