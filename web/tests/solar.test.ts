@@ -70,6 +70,12 @@ describe("the contract", () => {
     expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
   });
 
+  it("rejects a Solar window without its own gap status", () => {
+    const doc = golden("raining", "dashboard") as { solar_tab: { windows: { status?: unknown }[] } };
+    delete doc.solar_tab.windows[0]!.status;
+    expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
+  });
+
   it("allows a snapshot with no energy catalog", () => {
     const doc = golden("dry", "dashboard") as { solar_tab: unknown };
     doc.solar_tab = null;
@@ -87,6 +93,26 @@ describe("daily energy", () => {
   it("hatches a window that cannot be compared", () => {
     render(raining);
     expect(stripValue("7 days")?.classList.contains("gap-hatch")).toBe(true);
+  });
+
+  it("judges a window by solar's own status, which counts the catalog's missing days", () => {
+    // The archive's status says valid; solar's says prorated.
+    const copy = structuredClone(raining);
+    const window = copy.solar_tab!.windows.find((w) => w.key === "today")!;
+    expect(copy.gaps.windows.find((w) => w.key === "today")?.status).toBe("valid");
+    window.status = { ...window.status, status: "prorated", reason: "gap", missing_days: 1 };
+    render(copy);
+    expect(text(stripValue("Today"))).toMatch(/^≈ 3\.79 kWh\/m²/);
+  });
+
+  it("hatches a window the catalog leaves invalid though the archive is whole", () => {
+    const copy = structuredClone(raining);
+    const window = copy.solar_tab!.windows.find((w) => w.key === "yesterday")!;
+    expect(copy.gaps.windows.find((w) => w.key === "yesterday")?.status).toBe("valid");
+    window.energy_kwh_m2 = null;
+    window.status = { ...window.status, status: "invalid", reason: "gap", missing_days: 1 };
+    render(copy);
+    expect(stripValue("Yesterday")?.classList.contains("gap-hatch")).toBe(true);
   });
 
   it("draws the daily bars", () => {

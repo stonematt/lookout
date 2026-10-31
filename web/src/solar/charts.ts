@@ -26,7 +26,7 @@ import {
 import { svgEl } from "../dom.js";
 import { MONTHS, STATION_TIME_ZONE, addDays, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
-import type { GapReason, GapStatus, SolarTab, SolarTrace } from "../snapshot.js";
+import type { GapReason, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
 import {
   FIRST_SLOT,
@@ -383,12 +383,11 @@ export function drawDaySlots(host: HTMLElement, day: SolarDay, width: number, re
  *
  * @param host - The figure; its contents are replaced.
  * @param tab - The Solar tab's data.
- * @param statuses - `Gaps.months`, for each month's gap status.
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
  */
-export function drawYearMonth(host: HTMLElement, tab: SolarTab, statuses: GapStatus[], width: number, readout: Readout): void {
-  const byKey = new Map(statuses.map((s) => [s.key, s]));
+export function drawYearMonth(host: HTMLElement, tab: SolarTab, width: number, readout: Readout): void {
+  const byKey = new Map(tab.months.map((m) => [m.key, m.status]));
   const energy = new Map(tab.months.map((m) => [m.key, m.energy_kwh_m2]));
   const years = [...new Set(tab.months.map((m) => Number(m.key.slice(0, 4))))].sort((a, b) => b - a);
   const left = 44;

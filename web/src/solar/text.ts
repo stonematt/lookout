@@ -9,7 +9,6 @@
  */
 import { DAY_MS, MONTHS, addDays, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
 import { gapValue } from "../gaps.js";
-import { windowStatus } from "../rain/text.js";
 import type { DashboardSnapshot, GapReason, SolarTab, SolarTrace, SolarWindow } from "../snapshot.js";
 
 /** The URL query parameter holding the selected solar day. */
@@ -127,22 +126,22 @@ export function monthText(key: string): string {
 }
 
 /**
- * A window's energy as its gap status allows it to be shown.
+ * A window's energy as its own gap status allows it to be shown: solar's
+ * status, which also counts the days the energy catalog lacks.
  *
- * @param snapshot - The dashboard snapshot.
  * @param window - The Solar tab's window total.
  * @returns "2.41 kWh/m²", "≈ 61.2 kWh/m²", or null when not compared.
  */
-export function windowValue(snapshot: DashboardSnapshot, window: SolarWindow): string | null {
+export function windowValue(window: SolarWindow): string | null {
   if (window.energy_kwh_m2 === null) return null;
-  return gapValue(windowStatus(snapshot, window.key), kwhPerM2(window.energy_kwh_m2));
+  return gapValue(window.status, kwhPerM2(window.energy_kwh_m2));
 }
 
 /** A window's energy per day, from its total, or null. */
 function perDay(snapshot: DashboardSnapshot, key: string): number | null {
   const window = snapshot.solar_tab?.windows.find((w) => w.key === key);
   if (!window || window.energy_kwh_m2 === null) return null;
-  return window.energy_kwh_m2 / windowStatus(snapshot, key).days;
+  return window.energy_kwh_m2 / window.status.days;
 }
 
 /** "up from", "down from" or "about the same as": a change in words. */
