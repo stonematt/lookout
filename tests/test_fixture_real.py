@@ -11,15 +11,20 @@ import pandas as pd
 from lookout.api import ambient_client
 from lookout.config import DEFAULT_MAC_ADDRESS
 from tests.conftest import FAKE_SECRETS
-from tests.fixtures.ambient import load_devices, load_history
-from tests.fixtures.archive import FAKE_MAC, STATION_TZ
-from tests.fixtures.make_real_fixtures import FAKE_PASSKEY
-from tests.fixtures.real import SLICE_END, SLICE_START, load_real_slice
+from tests.fixtures.ambient import (
+    devices_body,
+    load_devices,
+    load_history,
+    to_ambient_records,
+)
+from tests.fixtures.archive import FAKE_MAC, STATION_TZ, build_archive
+from tests.fixtures.real import FAKE_PASSKEY, SLICE_END, SLICE_START, load_real_slice
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 
 def _ms(iso: str) -> int:
+    """Epoch ms of an ISO-8601 time."""
     return pd.Timestamp(iso).value // 1_000_000
 
 
@@ -58,23 +63,50 @@ def test_devices_body_names_the_fake_station():
     (device,) = load_devices()
     assert device["macAddress"] == FAKE_MAC
     assert device["info"]["name"] == "Fixture Station"
-    assert device["lastData"]["dateutc"] == load_history()[0]["dateutc"]
+    assert device["lastData"]["dateutc"] == 1763538900000  # 2025-11-19 07:55Z
     assert device["lastData"]["tz"] == STATION_TZ
+
+
+def _fixture_texts() -> list:
+    """Each committed fixture as searchable text: JSON as is, parquet by cell."""
+    texts = []
+    for path in sorted(FIXTURE_DIR.rglob("*")):
+        if path.suffix == ".json":
+            texts.append((path, path.read_text()))
+        elif path.suffix == ".parquet":
+            df = pd.read_parquet(path)
+            cells = df.astype(str).to_numpy().ravel().tolist()
+            texts.append((path, "\n".join(map(str, df.columns)) + "\n".join(cells)))
+    return texts
 
 
 def test_fixtures_hold_no_station_identifier_or_key():
     real_macs = {DEFAULT_MAC_ADDRESS, DEFAULT_MAC_ADDRESS.replace(":", "-")}
-    hex32 = re.compile(rb"[0-9a-f]{32}")
-    for path in FIXTURE_DIR.rglob("*"):
-        if path.suffix not in (".json", ".parquet"):
-            continue
-        blob = path.read_bytes()
+    hex32 = re.compile(r"[0-9a-fA-F]{32}")
+    texts = _fixture_texts()
+    assert len(texts) == 3
+    for path, text in texts:
         for mac in real_macs:
-            assert mac.encode() not in blob, path
-        for found in hex32.findall(blob):
-            assert found == FAKE_PASSKEY.encode(), path
+            assert mac.lower() not in text.lower(), path
+        for found in hex32.findall(text):
+            assert found == FAKE_PASSKEY, path
         for value in FAKE_SECRETS.values():
-            assert value.encode() not in blob, path
+            assert value not in text, path
+
+
+def test_synthetic_rows_reshape_as_ambient_bodies():
+    rows = build_archive("2026-01-05T08:00:00Z", "2026-01-05T08:10:00Z")
+    records = to_ambient_records(rows)
+
+    assert [r["dateutc"] for r in records] == [1767600300000, 1767600000000]
+    assert records[0]["date"] == "2026-01-05T08:05:00.000Z"
+    assert "lastRain" not in records[0]  # NaT before any rain is omitted
+    assert isinstance(records[0]["tempf"], float)
+
+    (device,) = devices_body(records[0])
+    assert device["macAddress"] == FAKE_MAC
+    assert device["lastData"]["dateutc"] == 1767600300000
+    assert device["lastData"]["tz"] == STATION_TZ
 
 
 def test_replay_serves_the_ambient_client(ambient_replay):

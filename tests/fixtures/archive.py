@@ -108,7 +108,8 @@ def _carryover_offsets(
     local: pd.DatetimeIndex, daily: pd.Series, gaps: Sequence[Gap]
 ) -> dict:
     """Extra amount each counter carries for every carryover gap."""
-    offsets = {name: np.zeros(len(local)) for name in ("d", "w", "m", "y")}
+    names = ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin")
+    offsets = {name: np.zeros(len(local)) for name in names}
     day = local.normalize()
     for gap in gaps:
         if not gap.carryover:
@@ -123,8 +124,12 @@ def _carryover_offsets(
             raise ValueError(f"Carryover gap {gap} starts before the archive")
         amount = float(daily[before].iloc[-1])
         after = local >= midnight
-        offsets["d"] += np.where(after & (day == midnight), amount, 0.0)
-        for key, freq in (("w", "W-SAT"), ("m", "M"), ("y", "Y")):
+        offsets["dailyrainin"] += np.where(after & (day == midnight), amount, 0.0)
+        for key, freq in (
+            ("weeklyrainin", "W-SAT"),
+            ("monthlyrainin", "M"),
+            ("yearlyrainin", "Y"),
+        ):
             period = local.tz_localize(None).to_period(freq)
             target = midnight.tz_localize(None).to_period(freq)
             offsets[key] += np.where(after & (period == target), amount, 0.0)
@@ -182,10 +187,10 @@ def build_archive(
         s1 = s0 + pd.Timedelta(hours=spell.hours)
         active = (utc >= s0) & (utc < s1)
         fallen += np.where(active, spell.inches_per_hour * interval_minutes / 60, 0)
-    fallen_s = pd.Series(fallen, index=utc)
+    rain_series = pd.Series(fallen, index=utc)
 
     def _since_reset(key: np.ndarray) -> pd.Series:
-        return fallen_s.groupby(key).cumsum()
+        return rain_series.groupby(key).cumsum()
 
     naive = local.tz_localize(None)
     daily = _since_reset(naive.normalize().values)
@@ -193,11 +198,11 @@ def build_archive(
     monthly = _since_reset(naive.to_period("M").astype(str).values)
     yearly = _since_reset(naive.year.values)
 
-    hourly = fallen_s.rolling(pd.Timedelta(hours=1), closed="right").sum()
+    hourly = rain_series.rolling(pd.Timedelta(hours=1), closed="right").sum()
 
     event, last_rain = _event_counter(utc, fallen, event_reset_hours)
 
-    off = _carryover_offsets(local, daily, gaps)
+    carried = _carryover_offsets(local, daily, gaps)
 
     df = pd.DataFrame(
         {
@@ -205,10 +210,10 @@ def build_archive(
             **_weather(local),
             "hourlyrainin": np.round(hourly.values, 3),
             "eventrainin": np.round(event, 3),
-            "dailyrainin": np.round(daily.values + off["d"], 3),
-            "weeklyrainin": np.round(weekly.values + off["w"], 3),
-            "monthlyrainin": np.round(monthly.values + off["m"], 3),
-            "yearlyrainin": np.round(yearly.values + off["y"], 3),
+            "dailyrainin": np.round(daily.values + carried["dailyrainin"], 3),
+            "weeklyrainin": np.round(weekly.values + carried["weeklyrainin"], 3),
+            "monthlyrainin": np.round(monthly.values + carried["monthlyrainin"], 3),
+            "yearlyrainin": np.round(yearly.values + carried["yearlyrainin"], 3),
             "lastRain": last_rain.tz_convert(STATION_TZ),
             "date": local,
         }

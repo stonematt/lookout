@@ -7,8 +7,6 @@ Event detection and catalog merging are pinned elsewhere; this is storage only.
 """
 
 import re
-import datetime as real_datetime
-from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -21,16 +19,7 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC
-
-BUCKET = "lookout"
-
-
-class _FrozenDatetime(real_datetime.datetime):
-    """`datetime.datetime` whose `now()` is fixed at 2026-01-05 12:00."""
-
-    @classmethod
-    def now(cls, tz=None):
-        return cls(2026, 1, 5, 12, 0, 0, tzinfo=tz)
+from tests.fixtures.storage import BUCKET, bucket_keys
 
 
 @pytest.fixture
@@ -45,11 +34,6 @@ def no_station(monkeypatch):
     """Make sure no device is in session state."""
     if "device" in st.session_state:
         monkeypatch.delitem(st.session_state, "device")
-
-
-def _keys(client) -> list:
-    listing = client.list_objects_v2(Bucket=BUCKET)
-    return sorted(obj["Key"] for obj in listing.get("Contents", []))
 
 
 def _periods() -> pd.DataFrame:
@@ -98,7 +82,7 @@ def test_rain_corrections_catalog_lives_at_mac_dot_rain_corrections_json(fake_s3
 
     assert rain_corrections.save_catalog(catalog, FAKE_MAC, BUCKET) is True
 
-    assert _keys(fake_s3) == ["00:11:22:33:44:55.rain_corrections.json"]
+    assert bucket_keys(fake_s3) == ["00:11:22:33:44:55.rain_corrections.json"]
     assert rain_corrections.catalog_exists(FAKE_MAC, BUCKET) is True
     assert rain_corrections.load_catalog(FAKE_MAC, BUCKET) == catalog
 
@@ -108,12 +92,12 @@ def test_rain_corrections_catalog_lives_at_mac_dot_rain_corrections_json(fake_s3
 
 def test_generic_catalog_is_keyed_by_the_session_station(fake_s3, station):
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
-    assert _keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
+    assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
 
 
 def test_generic_catalog_falls_back_to_the_default_station(fake_s3, no_station):
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
-    assert _keys(fake_s3) == [f"{DEFAULT_MAC_ADDRESS}.energy_catalog.parquet"]
+    assert bucket_keys(fake_s3) == [f"{DEFAULT_MAC_ADDRESS}.energy_catalog.parquet"]
 
 
 def test_generic_catalog_exists_load_and_save(fake_s3, station):
@@ -138,29 +122,29 @@ def test_generic_catalog_exists_load_and_save(fake_s3, station):
 
 def test_generic_catalog_refuses_an_empty_save(fake_s3, station):
     assert catalog_utils.save_catalog(pd.DataFrame(), "energy", BUCKET) is False
-    assert _keys(fake_s3) == []
+    assert bucket_keys(fake_s3) == []
 
 
-def test_generic_catalog_backup_copies_to_a_dated_folder(fake_s3, station, monkeypatch):
-    monkeypatch.setattr(storj, "datetime", SimpleNamespace(datetime=_FrozenDatetime))
+def test_generic_catalog_backup_copies_to_a_dated_folder(
+    fake_s3, station, frozen_today
+):
     catalog_utils.save_catalog(_periods(), "energy", BUCKET)
 
     result = catalog_utils.backup_catalog(_periods(), "energy", BUCKET)
 
     prefix = f"{FAKE_MAC}.energy_catalog"
     assert result == f"backed_up_{prefix}"
-    assert f".backups/{prefix}/20260105/{prefix}.parquet" in _keys(fake_s3)
+    assert f".backups/{prefix}/{frozen_today}/{prefix}.parquet" in bucket_keys(fake_s3)
 
 
-def test_catalog_save_with_backup_writes_both(fake_s3, station, monkeypatch):
-    monkeypatch.setattr(storj, "datetime", SimpleNamespace(datetime=_FrozenDatetime))
+def test_catalog_save_with_backup_writes_both(fake_s3, station, frozen_today):
     prefix = f"{FAKE_MAC}.energy_catalog"
     storj.save_df_to_s3(_periods().iloc[:1], BUCKET, f"{prefix}.parquet")
 
     storj.backup_and_save_catalog(_periods(), "energy", bucket=BUCKET)
 
-    assert _keys(fake_s3) == [
-        f".backups/{prefix}/20260105/{prefix}.parquet",
+    assert bucket_keys(fake_s3) == [
+        f".backups/{prefix}/{frozen_today}/{prefix}.parquet",
         f"{prefix}.parquet",
     ]
     stored = storj.get_df_from_s3(BUCKET, f"{prefix}.parquet", "parquet")
@@ -178,7 +162,7 @@ def test_event_catalog_exists_load_and_save(fake_s3):
     assert catalog.save_catalog(_events()) is True
 
     assert catalog.catalog_exists() is True
-    assert _keys(fake_s3) == [f"{FAKE_MAC}.event_catalog.parquet"]
+    assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.event_catalog.parquet"]
     loaded = catalog.load_catalog()
     # Event times are stored as UTC timestamps, whatever they arrived as.
     assert str(loaded["start_time"].dtype) == "datetime64[ns, UTC]"
@@ -191,7 +175,7 @@ def test_event_catalog_refuses_an_empty_save(fake_s3):
     assert (
         RainEventCatalog(FAKE_MAC, bucket=BUCKET).save_catalog(pd.DataFrame()) is False
     )
-    assert _keys(fake_s3) == []
+    assert bucket_keys(fake_s3) == []
 
 
 def test_event_catalog_backup_is_a_timestamped_copy(fake_s3):
@@ -203,7 +187,7 @@ def test_event_catalog_backup_is_a_timestamped_copy(fake_s3):
 
     pattern = rf"backups/{re.escape(FAKE_MAC)}\.event_catalog_\d{{8}}_\d{{6}}\.parquet"
     assert re.fullmatch(pattern, path)
-    assert path in _keys(fake_s3)
+    assert path in bucket_keys(fake_s3)
     original = fake_s3.get_object(Bucket=BUCKET, Key=catalog.catalog_path)
     copy = fake_s3.get_object(Bucket=BUCKET, Key=path)
     assert copy["Body"].read() == original["Body"].read()

@@ -10,7 +10,6 @@ import pandas as pd
 import pytest
 
 from tests.fixtures.archive import (
-    FAKE_MAC,
     SCENARIO,
     STATION_TZ,
     Gap,
@@ -184,5 +183,12 @@ def test_scenario_has_the_named_shapes():
     assert any(not g.carryover for g in SCENARIO.gaps)
 
 
-def test_fake_mac_is_not_a_real_station():
-    assert FAKE_MAC == "00:11:22:33:44:55"
+def test_plain_gap_across_midnight_still_resets_the_daily_counter():
+    df = build_archive(
+        "2026-01-05T08:00:00Z",
+        "2026-01-07T08:00:00Z",
+        rain=(RainSpell("2026-01-05T18:00:00Z", hours=3, inches_per_hour=0.12),),
+        gaps=(Gap("2026-01-06T07:00:00Z", "2026-01-06T09:00:00Z"),),
+    )
+    assert _at(df, "2026-01-06 01:00")["dailyrainin"] == 0
+    assert _at(df, "2026-01-06 23:55")["weeklyrainin"] == pytest.approx(0.36)

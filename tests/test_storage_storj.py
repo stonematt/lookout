@@ -5,9 +5,6 @@ the parquet round trip, the archive's key path, and the backup layout.
 These pin today's behaviour, quirks included; a test that reads oddly says so.
 """
 
-import datetime as real_datetime
-from types import SimpleNamespace
-
 import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
@@ -16,30 +13,9 @@ import lookout.api.awn_controller as awn
 from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC, scenario_archive
 from tests.fixtures.real import load_real_slice
+from tests.fixtures.storage import BUCKET, bucket_keys
 
-BUCKET = "lookout"
 ARCHIVE_KEY = f"{FAKE_MAC}.parquet"
-
-
-class _FrozenDatetime(real_datetime.datetime):
-    """`datetime.datetime` whose `now()` is fixed at 2026-01-05 12:00."""
-
-    @classmethod
-    def now(cls, tz=None):
-        return cls(2026, 1, 5, 12, 0, 0, tzinfo=tz)
-
-
-@pytest.fixture
-def frozen_today(monkeypatch):
-    """Fix the date `backup_data` stamps its folder with; return it."""
-    monkeypatch.setattr(storj, "datetime", SimpleNamespace(datetime=_FrozenDatetime))
-    return "20260105"
-
-
-def _keys(client) -> list:
-    """Every key in the bucket, sorted."""
-    listing = client.list_objects_v2(Bucket=BUCKET)
-    return sorted(obj["Key"] for obj in listing.get("Contents", []))
 
 
 @pytest.mark.parametrize(
@@ -111,7 +87,7 @@ def test_save_history_backs_up_then_writes_mac_dot_parquet(fake_s3, frozen_today
     storj.backup_and_save_history(new, {"macAddress": FAKE_MAC}, bucket=BUCKET)
 
     backup_key = f".backups/{FAKE_MAC}/{frozen_today}/{ARCHIVE_KEY}"
-    assert _keys(fake_s3) == sorted([ARCHIVE_KEY, backup_key])
+    assert bucket_keys(fake_s3) == sorted([ARCHIVE_KEY, backup_key])
     assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), new)
     assert_frame_equal(storj.get_df_from_s3(BUCKET, backup_key, "parquet"), old)
 
@@ -128,7 +104,7 @@ def test_archive_backup_sweeps_in_everything_sharing_the_mac_prefix(
     storj.backup_data(bucket=BUCKET, prefix=FAKE_MAC)
 
     folder = f".backups/{FAKE_MAC}/{frozen_today}/"
-    assert [k for k in _keys(fake_s3) if k.startswith(folder)] == [
+    assert [k for k in bucket_keys(fake_s3) if k.startswith(folder)] == [
         f"{folder}{FAKE_MAC}.event_catalog.parquet",
         f"{folder}{ARCHIVE_KEY}",
     ]
@@ -152,7 +128,7 @@ def test_backup_runs_once_a_day_unless_forced(fake_s3, frozen_today):
 def test_dry_run_backup_copies_nothing(fake_s3, frozen_today):
     fake_s3.put_object(Bucket=BUCKET, Key=ARCHIVE_KEY, Body=b"x")
     storj.backup_data(bucket=BUCKET, prefix=FAKE_MAC, dry_run=True)
-    assert _keys(fake_s3) == [ARCHIVE_KEY]
+    assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
 
 
 def test_list_bucket_items_respects_depth(fake_s3):

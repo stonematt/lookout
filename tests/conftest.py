@@ -7,12 +7,14 @@ loader's secrets file at a path that does not exist, so a developer's
 `~/.config/lookout/secrets.toml` or `.streamlit/secrets.toml` is never read
 through `get_secret`. Add new fixtures below; keep this one autouse.
 
-`fake_s3` serves the Storj gateway from moto, with the `lookout` bucket made.
+`fake_s3` serves the Storj gateway from moto, with the `lookout` bucket made;
+`frozen_today` fixes the date `storj.backup_data` stamps its folders with.
 `ambient_replay` answers the Ambient client from recorded responses. The
 archive builders and loaders they pair with live in `tests/fixtures/`.
 """
 
 import sys
+from typing import Iterator
 from types import SimpleNamespace
 
 import pytest
@@ -20,6 +22,7 @@ from moto import mock_aws
 
 from lookout import secrets_loader
 from tests.fixtures.ambient import AmbientReplay
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, FrozenDatetime
 
 FAKE_SECRETS = {
     "AMBIENT_API_KEY": "test-ambient-api-key",
@@ -61,7 +64,7 @@ def no_secrets(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def fake_s3(monkeypatch):
+def fake_s3(monkeypatch: pytest.MonkeyPatch) -> Iterator[object]:
     """
     Fake the Storj gateway with moto and create the `lookout` bucket.
 
@@ -75,12 +78,12 @@ def fake_s3(monkeypatch):
     monkeypatch.setenv("MOTO_S3_CUSTOM_ENDPOINTS", FAKE_SECRETS["STORJ_ENDPOINT_URL"])
     with mock_aws():
         client = storj.get_s3_client()
-        client.create_bucket(Bucket="lookout")
+        client.create_bucket(Bucket=BUCKET)
         yield client
 
 
 @pytest.fixture
-def ambient_replay(monkeypatch):
+def ambient_replay(monkeypatch: pytest.MonkeyPatch) -> AmbientReplay:
     """
     Answer `lookout.api.ambient_client` from recorded responses, with no sleeps.
 
@@ -98,3 +101,16 @@ def ambient_replay(monkeypatch):
     monkeypatch.setattr(ambient_client, "requests", SimpleNamespace(get=replay))
     monkeypatch.setattr(ambient_client, "time", SimpleNamespace(sleep=lambda _s: None))
     return replay
+
+
+@pytest.fixture
+def frozen_today(monkeypatch: pytest.MonkeyPatch) -> str:
+    """
+    Fix the date `lookout.storage.storj.backup_data` names its folder with.
+
+    :return: That date as `YYYYMMDD`.
+    """
+    from lookout.storage import storj
+
+    monkeypatch.setattr(storj, "datetime", SimpleNamespace(datetime=FrozenDatetime))
+    return FROZEN_DAY

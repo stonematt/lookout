@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from tests.fixtures.make_real_fixtures import SLICE_END, SLICE_START
-
 REAL_SLICE_PATH = Path(__file__).parent / "real_slice.parquet"
-
-__all__ = ["REAL_SLICE_PATH", "SLICE_END", "SLICE_START", "load_real_slice"]
+SLICE_START = "2025-11-17T08:00:00Z"  # 2025-11-17 00:00 local
+SLICE_END = "2025-11-19T05:00:00Z"  # 2025-11-18 21:00 local
+AMBIENT_END = "2025-11-19T08:00:00Z"  # end of the recorded history
+FAKE_PASSKEY = "0" * 32
 
 
 def load_real_slice() -> pd.DataFrame:
