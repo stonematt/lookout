@@ -4,8 +4,7 @@ Converts raw solar radiation measurements into 15-minute energy periods.
 """
 
 import pandas as pd
-import streamlit as st
-from typing import Dict
+from typing import Callable, Dict, Optional
 from lookout.core.solar_analysis import LOCATION
 from lookout.utils.log_util import app_logger
 
@@ -111,8 +110,30 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
-@st.cache_data(show_spinner=False, max_entries=20, ttl=7200)
+_cached_calculation: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None
+
+
 def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Streamlit-cached `_calculate_15min_energy_periods_vectorized`.
+
+    Streamlit is imported on first call, so importing this module (and the
+    refresh command that depends on it) never loads Streamlit.
+
+    :param df: DataFrame with datetime and solarradiation columns
+    :return: DataFrame with period_start, period_end, energy_kwh columns
+    """
+    global _cached_calculation
+    if _cached_calculation is None:
+        import streamlit as st
+
+        _cached_calculation = st.cache_data(
+            show_spinner=False, max_entries=20, ttl=7200
+        )(_calculate_15min_energy_periods_vectorized)
+    return _cached_calculation(df)
+
+
+def _calculate_15min_energy_periods_vectorized(df: pd.DataFrame) -> pd.DataFrame:
     """
     Optimized version of calculate_15min_energy_periods with vectorized operations and caching.
 
@@ -287,6 +308,3 @@ def aggregate_to_hourly(periods_df: pd.DataFrame, date: str) -> pd.DataFrame:
     result_df = result_df.sort_values("hour").reset_index(drop=True)
 
     return result_df
-
-
-
