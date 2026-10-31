@@ -40,7 +40,7 @@ export type Readout = (text: string) => void;
 let patternCount = 0;
 
 /** An SVG element with attributes. */
-function el<K extends keyof SVGElementTagNameMap>(
+export function el<K extends keyof SVGElementTagNameMap>(
   name: K,
   attrs: Record<string, string | number> = {},
   text?: string,
@@ -138,7 +138,7 @@ function yAxis(
  * @param rows - For a grid, how many rows; up and down move between them.
  * @param rowAt - The row under a pointer y.
  */
-function scrub(
+export function scrub(
   target: HTMLElement,
   count: number,
   at: (x: number) => number,
@@ -182,7 +182,7 @@ function label(x: number, y: number, text: string, cls = "rain-label", anchor = 
 }
 
 /** Runs of consecutive indices for which `keep` holds: [first, last]. */
-function runs(count: number, keep: (i: number) => boolean): [number, number][] {
+export function runs(count: number, keep: (i: number) => boolean): [number, number][] {
   const found: [number, number][] = [];
   let start = -1;
   for (let i = 0; i <= count; i++) {
