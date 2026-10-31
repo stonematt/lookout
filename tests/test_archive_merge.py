@@ -12,6 +12,8 @@ Archives come from `tests/fixtures/archive.py`, Ambient pages from
 catalog lives in the moto bucket.
 """
 
+from typing import Sequence
+
 import pandas as pd
 import pytest
 import streamlit as st
@@ -39,7 +41,7 @@ def ms(when: str) -> int:
     return int(pd.Timestamp(when).value // 10**6)
 
 
-def week(gaps=SCENARIO.gaps) -> pd.DataFrame:
+def week(gaps: Sequence[Gap] = SCENARIO.gaps) -> pd.DataFrame:
     """The SCENARIO week with the given gaps, newest first."""
     return build_archive(SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=gaps)
 
@@ -106,6 +108,7 @@ class TestCombine:
 
         combined = awn.combine_df(good, pd.concat([junk, missing]))
 
+        assert len(combined) == 2
         assert set(combined["dateutc"]) == set(good["dateutc"])
 
     def test_full_history_without_interim_returns_the_archive_untouched(self):
@@ -175,7 +178,8 @@ class TestHistorySinceLastArchive:
 
         assert result["dateutc"].is_unique
         assert result["dateutc"].is_monotonic_decreasing
-        assert len(result) > len(archive)
+        # One page of 250 records, four of which the archive already had.
+        assert len(result) == len(archive) + 246
         # Every row the archive had is still there, unchanged.
         kept = result[result.dateutc < ms("2026-01-08T00:00:00Z")]
         pd.testing.assert_frame_equal(
@@ -204,7 +208,8 @@ class TestHistorySinceLastArchive:
 
         result = awn.get_history_since_last_archive(device, archive, end_date=end_date)
 
-        assert result["dateutc"].max() > ms("2026-01-08T03:00:00Z")
+        # The page ends at cursor + 1235 minutes, 2026-01-08T20:25Z at the last row.
+        assert result["dateutc"].max() == ms("2026-01-08T20:25:00Z")
 
     def test_archive_already_at_end_date_merges_one_page_ending_now(
         self, fake_s3, ambient_replay, device
@@ -231,7 +236,9 @@ class TestHistorySinceLastArchive:
             device, archive, end_date=pd.Timestamp("2026-01-12T00:00:00Z")
         )
 
-        assert list(result["dateutc"]) == list(archive["dateutc"])
+        pd.testing.assert_frame_equal(
+            result[archive.columns].reset_index(drop=True), archive, check_dtype=False
+        )
 
     def test_known_corrections_are_applied_to_the_combined_archive(
         self, fake_s3, ambient_replay, device

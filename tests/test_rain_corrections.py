@@ -527,10 +527,6 @@ class TestCorrectionsIntegration:
         assert result.equals(combined_df)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
-
-
 COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
 TZ = "America/Los_Angeles"
 
@@ -541,7 +537,7 @@ def carryover_free_scenario() -> pd.DataFrame:
     return build_archive(SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=gaps)
 
 
-def counter_frame(rows) -> pd.DataFrame:
+def counter_frame(rows: list) -> pd.DataFrame:
     """
     Build an archive-shaped frame from `(local time, value)` rows, newest first.
 
@@ -554,7 +550,7 @@ def counter_frame(rows) -> pd.DataFrame:
     return df.sort_values("dateutc", ascending=False).reset_index(drop=True)
 
 
-def stored(catalog_rows) -> dict:
+def stored(catalog_rows: list) -> dict:
     """A corrections catalog with one entry per `(affected_date, amount)`."""
     return {
         "corrections": [
