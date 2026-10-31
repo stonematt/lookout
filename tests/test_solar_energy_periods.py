@@ -248,7 +248,8 @@ class TestEnergyAcrossPeriodBoundaries:
         assert list(result["energy_kwh"].round(6).unique()) == [0.1, 0.0]
 
     def test_a_day_with_an_extra_hour_reads_it(self):
-        # 2026-11-01 falls back: 25 local hours, 300 periods of 5-minute rows.
+        # 2026-11-01 falls back: 25 local hours, 300 five-minute rows and 100
+        # periods.
         # 100 W/m² for 25 hours is 2.5 kWh/m².
         times = pd.date_range(
             "2026-11-01 00:00",

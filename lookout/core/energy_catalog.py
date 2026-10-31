@@ -288,7 +288,8 @@ class EnergyCatalog:
         )
 
         logger.info(
-            f"Added {len(new_periods_df)} new energy periods to catalog (total: {len(updated_catalog)})"
+            f"Recomputed {len(new_periods_df)} energy periods "
+            f"(total: {len(updated_catalog)})"
         )
 
         return updated_catalog
