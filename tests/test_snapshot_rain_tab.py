@@ -17,7 +17,7 @@ import pytest
 from lookout.snapshot import Station, build_snapshot
 from lookout.snapshot.model import Snapshot
 from tests.fixtures.archive import Gap, RainSpell, build_archive
-from tests.test_snapshot import raining_station
+from tests.snapshot_helpers import raining_station
 
 STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station")
 

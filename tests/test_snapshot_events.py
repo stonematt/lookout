@@ -17,7 +17,7 @@ import pytest
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot.events import completed_curves
 from tests.fixtures.archive import FAKE_MAC, Gap, RainSpell, build_archive
-from tests.test_snapshot import (
+from tests.snapshot_helpers import (
     STATION,
     build,
     dry_station,
