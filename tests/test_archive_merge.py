@@ -323,7 +323,9 @@ class TestGapSeekAcrossAnOutage:
         self, fake_s3, ambient_replay, device
     ):
         now = pd.Timestamp.now(tz="UTC").floor("5min")
-        archive = build_archive(now - pd.Timedelta(days=2), now - pd.Timedelta(hours=30))
+        archive = build_archive(
+            now - pd.Timedelta(days=2), now - pd.Timedelta(hours=30)
+        )
         serve(ambient_replay, archive)
 
         awn.get_history_since_last_archive(device, archive, pages=20)
