@@ -32,6 +32,7 @@ Helper Functions:
 
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -564,28 +565,65 @@ def _should_stop_for_future(next_dt, now_utc) -> bool:
     return False
 
 
-def fill_archive_gap(device, history_df, start, end):
-    """Fetch missing data for a specified gap and append it to the in-memory history."""
+@dataclass
+class GapFill:
+    """
+    The outcome of `fill_archive_gap`.
+
+    :param history_df: The archive after the fill; the very frame passed in
+        when nothing was added.
+    :param start: The gap's start, UTC (the argument as parsed).
+    :param end: The gap's end, UTC.
+    :param status: "filled" (rows were added), "no_new_data" (Ambient had
+        nothing for the gap) or "refused" (inverted gap, or no archive data
+        before it).
+    :param rows_added: How many rows the fill added.
+    """
+
+    history_df: pd.DataFrame
+    start: pd.Timestamp
+    end: pd.Timestamp
+    status: str
+    rows_added: int = 0
+
+    @property
+    def skipped(self) -> bool:
+        """True when the gap was tried and Ambient had no data for it."""
+        return self.status == "no_new_data"
+
+
+def fill_archive_gap(device, history_df, start, end) -> GapFill:
+    """
+    Fetch missing data for a specified gap and append it to the history.
+
+    Touches no session state: a caller that keeps a list of skipped gaps
+    (the Diagnostics tab) records the ones that come back `skipped`.
+
+    :param device: The station's `/devices` entry.
+    :param history_df: The archive, `dateutc` in epoch ms.
+    :param start: The gap's start; anything `pd.to_datetime` reads, as UTC.
+    :param end: The gap's end.
+    :return: A `GapFill`; its `history_df` is the merged archive on "filled".
+    """
     logger.info(f"*** Attempting to fill gap from {start} to {end} ***")
 
-    # Normalize input
-    working_history_df = history_df.copy()
-    working_history_df["dateutc"] = pd.to_datetime(
-        history_df["dateutc"], unit="ms", utc=True
-    )
     start = pd.to_datetime(start, utc=True)
     end = pd.to_datetime(end, utc=True)
 
     if start >= end:
         logger.warning("Invalid gap: start >= end")
-        return history_df
+        return GapFill(history_df, start, end, "refused")
 
     # Trim to before the gap
+    working_history_df = history_df.copy()
+    working_history_df["dateutc"] = pd.to_datetime(
+        history_df["dateutc"], unit="ms", utc=True
+    )
     archive_df = working_history_df[working_history_df["dateutc"] < start]
 
     if archive_df.empty:
         logger.warning("No archive data before gap start; can't determine baseline.")
-        return history_df
+        return GapFill(history_df, start, end, "refused")
 
     # Fetch new records to fill the gap
     new_data_df = get_history_since_last_archive(
@@ -604,15 +642,12 @@ def fill_archive_gap(device, history_df, start, end):
         # Continue with uncorrected data
 
     if len(full_combined) == len(history_df):
-        logger.info("No new data found. Marking gap as skipped.")
-        import streamlit as st  # only the Diagnostics tab calls this
+        logger.info("No new data found. Gap skipped.")
+        return GapFill(history_df, start, end, "no_new_data")
 
-        if "skipped_gaps" not in st.session_state:
-            st.session_state["skipped_gaps"] = []
-        st.session_state["skipped_gaps"].append({"start": start, "end": end})
-        return history_df
-
-    return full_combined
+    return GapFill(
+        full_combined, start, end, "filled", len(full_combined) - len(history_df)
+    )
 
 
 def validate_archive(archive_df):
