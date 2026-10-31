@@ -5,6 +5,8 @@ testable, and debuggable calls.
 
 Functions:
 - get_devices()
+- find_station(devices, mac) / get_station_device(mac): the pinned station
+  (STATION_MAC), or StationNotFoundError
 - get_device_by_mac(mac)
 - get_device_history(mac, limit, end_date)
 
@@ -21,6 +23,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 import requests
 
+from lookout.config import get_station_mac
 from lookout.secrets_loader import get_secret
 from lookout.utils.log_util import app_logger
 
@@ -66,6 +69,46 @@ def get_devices() -> List[Dict]:
         logger.error(f"Device list failed: {resp.status_code} {resp.text}")
         return []
     return resp.json()
+
+
+class StationNotFoundError(RuntimeError):
+    """Raised when the pinned station is not in the account's device list."""
+
+
+def find_station(devices: List[Dict], mac: Optional[str] = None) -> Dict:
+    """
+    Pick the pinned station out of a device list, never by list position.
+
+    :param devices: The `/devices` body, as `get_devices()` returns it.
+    :param mac: The station's MAC address; defaults to `get_station_mac()`.
+    :return: That station's device dict.
+    :raises StationNotFoundError: If the list is empty or lacks the station.
+    """
+    mac = (mac or get_station_mac()).strip().upper()
+    if not devices:
+        raise StationNotFoundError(
+            f"Ambient returned no devices, so station {mac} cannot be found "
+            "(API error, wrong keys, or no station on the account)"
+        )
+    for device in devices:
+        if str(device.get("macAddress", "")).upper() == mac:
+            return device
+    listed = ", ".join(str(d.get("macAddress")) for d in devices)
+    raise StationNotFoundError(
+        f"Station {mac} is not on this Ambient account (it lists: {listed}); "
+        "set STATION_MAC to the station to archive"
+    )
+
+
+def get_station_device(mac: Optional[str] = None) -> Dict:
+    """
+    Fetch the device list and return the pinned station from it.
+
+    :param mac: The station's MAC address; defaults to `get_station_mac()`.
+    :return: That station's device dict, including `lastData`.
+    :raises StationNotFoundError: If the account does not list the station.
+    """
+    return find_station(get_devices(), mac)
 
 
 def get_device_by_mac(mac: str) -> Optional[Dict]:
@@ -161,13 +204,13 @@ def get_device_history_raw(
 
 
 def main():
-    devices = get_devices()
-    if not devices:
-        print("❌ No devices found.")
+    try:
+        device = get_station_device()
+    except StationNotFoundError as e:
+        print(f"❌ {e}")
         return
 
-    device = devices[0]
-    print("✅ First device:")
+    print("✅ Pinned station:")
     pprint(device)
 
     mac = device.get("macAddress")

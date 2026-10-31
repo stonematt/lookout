@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from lookout import secrets_loader
-from lookout.secrets_loader import MissingSecretError, get_secret
+from lookout.secrets_loader import MissingSecretError, get_secret, get_setting
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -159,6 +159,7 @@ def test_example_file_lists_every_name_with_no_values():
         "AMBIENT_APPLICATION_KEY": "",
         "AMBIENT_ENDPOINT": "",
         "HC_PING_KEY": "",
+        "STATION_MAC": "",
     }
 
 
@@ -178,3 +179,39 @@ def test_default_file_is_under_user_config():
     assert secrets_loader.DEFAULT_SECRETS_FILE == (
         Path(os.path.expanduser("~")) / ".config" / "lookout" / "secrets.toml"
     )
+
+
+# ---------- settings: same sources, but optional ----------
+
+
+def test_setting_falls_back_to_its_default_when_unset(no_secrets, monkeypatch):
+    monkeypatch.delenv("STATION_MAC", raising=False)
+    assert get_setting("STATION_MAC") is None
+    assert get_setting("STATION_MAC", "fallback") == "fallback"
+
+
+def test_setting_read_from_env_then_file(no_secrets, monkeypatch):
+    monkeypatch.delenv("STATION_MAC", raising=False)
+    path = _write_file(no_secrets / "secrets.toml", 'STATION_MAC = "AA:01"\n')
+    monkeypatch.setattr(secrets_loader, "SECRETS_FILE", path)
+    assert get_setting("STATION_MAC", "fallback") == "AA:01"
+    monkeypatch.setenv("STATION_MAC", "AA:02")
+    assert get_setting("STATION_MAC", "fallback") == "AA:02"
+
+
+def test_setting_read_from_streamlit_secrets(no_secrets, monkeypatch):
+    monkeypatch.delenv("STATION_MAC", raising=False)
+    fake_st = types.ModuleType("streamlit")
+    fake_st.secrets = {"STATION_MAC": "AA:03"}
+    monkeypatch.setitem(sys.modules, "streamlit", fake_st)
+    assert get_setting("STATION_MAC") == "AA:03"
+
+
+def test_unknown_setting_name_is_rejected():
+    with pytest.raises(ValueError):
+        get_setting("STATION_NAME")
+
+
+def test_settings_are_not_secret_names():
+    assert secrets_loader.SETTING_NAMES == ("STATION_MAC",)
+    assert not set(secrets_loader.SETTING_NAMES) & set(secrets_loader.SECRET_NAMES)

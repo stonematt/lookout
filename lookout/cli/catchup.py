@@ -11,13 +11,14 @@ Usage:
 """
 
 import argparse
+import sys
 from typing import Dict, Tuple
 
 import pandas as pd
 
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
-from lookout.api.ambient_client import get_devices
+from lookout.api.ambient_client import get_station_device
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
@@ -100,13 +101,10 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
     :param dry_run: If True, simulate actions without modifying data.
     :param pages: Maximum number of pages to retrieve during update.
     :param repair_archive: If True, validate/fix archive only (optionally dry-run).
+    :raises StationNotFoundError: If the pinned station (STATION_MAC) is not on
+        the Ambient account; raised before anything is read or written.
     """
-    devices = get_devices()
-    if not devices:
-        logger.error("No devices found.")
-        return
-
-    device = devices[0]
+    device = get_station_device()
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
     logger.info(f"Selected device: {name} ({mac})")
@@ -191,3 +189,4 @@ if __name__ == "__main__":
         main(args.bucket, args.dry_run, args.pages, args.repair_archive)
     except Exception as e:
         logger.exception(f"❌ Unhandled exception in catchup: {e}")
+        sys.exit(1)
