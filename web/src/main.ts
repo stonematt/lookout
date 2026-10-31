@@ -12,6 +12,7 @@ import { mountEvents } from "./events/tab.js";
 import { mountHeader } from "./header.js";
 import { fetchCurrent, fetchDashboard } from "./load.js";
 import { renderOverview } from "./overview/index.js";
+import { renderRain } from "./rain/index.js";
 import type { DashboardSnapshot } from "./snapshot.js";
 import type { TabId } from "./tabs.js";
 import { mountTabs } from "./tabs.js";
@@ -28,6 +29,11 @@ const rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
 
 /** Render a tab's panel from the snapshot, once per snapshot. */
 function renderTab(id: TabId, panel: HTMLElement): void {
+  if (id === "rain" && dashboard) {
+    if (rendered.get(panel) !== dashboard) renderRain(panel, dashboard);
+    rendered.set(panel, dashboard);
+    return;
+  }
   if (id === "events" && dashboard) {
     if (rendered.get(panel) !== dashboard) mountEvents(panel, dashboard);
     rendered.set(panel, dashboard);

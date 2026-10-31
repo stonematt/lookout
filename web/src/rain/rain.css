@@ -1,0 +1,255 @@
+/*
+ * The Rain tab (`src/rain/`). DESIGN.md: each section runs headline (Title
+ * type, max 36ch), standfirst, chart, source line; 48px between sections;
+ * flat paper, hairline rules; data colour from the rain ramp; one claret
+ * mark (`note`) for the headline's subject; the 135° hatch for what is not
+ * in the record; tabular digits only where numbers line up.
+ */
+.rain-section + .rain-section {
+  margin-top: var(--s-7);
+}
+
+.rain-title {
+  font-size: var(--step-1);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.005em;
+  max-width: 36ch;
+  margin-bottom: var(--s-1);
+  text-wrap: balance;
+}
+
+.rain-source {
+  margin-top: var(--s-3);
+  font-size: var(--source);
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+
+/* ---------- stat strips: value above its label ---------- */
+.rain-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--s-2) var(--s-3);
+  margin: var(--s-3) 0 0;
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+}
+
+.rain-dry {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.rain-stats div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rain-stats dt {
+  order: 2;
+  font-size: var(--source);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.rain-stats dd {
+  order: 1;
+  margin: 0;
+  font-size: var(--step-1);
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.rain-stats dd.rain-stat-note {
+  order: 3;
+  font-size: var(--label);
+  font-weight: 400;
+  color: var(--ink-2);
+  white-space: normal;
+}
+
+/* a hatched value keeps the strip's height */
+.rain-stats dd.gap-hatch {
+  min-height: 1.6em;
+  text-align: left;
+  padding-left: var(--s-1);
+}
+
+/* ---------- charts ---------- */
+.rain-chart {
+  margin: var(--s-3) 0 0;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+
+.rain-chart:focus-visible {
+  outline-offset: 4px;
+}
+
+.rain-svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  font-family: var(--sans);
+}
+
+.rain-readout {
+  min-height: 1.55em;
+  margin-top: var(--s-2);
+  font-size: var(--source);
+  color: var(--ink);
+  max-width: 62ch;
+}
+
+.rain-svg .rain-axis,
+.rain-svg .rain-grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.rain-svg .rain-axis {
+  stroke: var(--rule-strong);
+}
+
+.rain-svg .rain-edge {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.rain-svg .rain-tick {
+  font-size: 12px;
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rain-svg .rain-label,
+.rain-svg .rain-now-label {
+  font-size: 12.5px;
+  fill: var(--ink-2);
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.rain-svg .rain-now-label {
+  font-size: 13px;
+  font-weight: 650;
+  fill: var(--note);
+}
+
+.rain-svg .rain-hatch-a {
+  fill: var(--gap-a);
+}
+
+.rain-svg .rain-hatch-b {
+  fill: var(--gap-b);
+}
+
+/* daily bars */
+.rain-svg .rain-bar {
+  fill: var(--rain-3);
+}
+
+.rain-svg .rain-bar-now {
+  fill: var(--note);
+}
+
+.rain-svg .rain-now-rule {
+  stroke: var(--note);
+  stroke-width: 2.25;
+}
+
+/* water-year curves: earlier years thin, the current one bold */
+.rain-svg .rain-year {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.rain-svg .rain-year-0 {
+  stroke: var(--rain-2);
+}
+
+.rain-svg .rain-year-1,
+.rain-svg .rain-year-2 {
+  stroke: var(--rain-1);
+}
+
+.rain-svg .rain-year-now {
+  stroke: var(--rain-3);
+  stroke-width: 3.5;
+}
+
+.rain-svg .rain-now-dot {
+  fill: var(--note);
+  stroke: var(--ground);
+  stroke-width: 2;
+}
+
+/* heatmap cells and the key's swatches: the rain ramp in four steps */
+.rain-svg .rain-dry {
+  fill: var(--surface);
+}
+
+.rain-svg .rain-step-1,
+.rain-swatch.rain-step-1 {
+  fill: var(--rain-1);
+  background: var(--rain-1);
+}
+
+.rain-svg .rain-step-2,
+.rain-swatch.rain-step-2 {
+  fill: var(--rain-2);
+  background: var(--rain-2);
+}
+
+.rain-svg .rain-step-3,
+.rain-swatch.rain-step-3 {
+  fill: var(--rain-3);
+  background: var(--rain-3);
+}
+
+.rain-svg .rain-step-4,
+.rain-swatch.rain-step-4 {
+  fill: var(--rain-4);
+  background: var(--rain-4);
+}
+
+.rain-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--label);
+  color: var(--ink-2);
+}
+
+.rain-key li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.rain-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-xs);
+  flex: none;
+}
+
+@media (min-width: 1024px) {
+  .rain-title {
+    font-size: var(--step-2);
+  }
+}
