@@ -27,12 +27,13 @@ def get_historical_value(
     if df.empty or field not in df.columns:
         return None
 
-    # Calculate time differences from target
-    time_diffs = abs(df["dateutc"] - target_time)
+    # Calculate time differences from target, by position so that any index
+    # (rows dropped, a concat not reset) reads the row it found
+    time_diffs = (df["dateutc"] - target_time).abs().to_numpy()
 
     # Find closest match
-    closest_idx = time_diffs.idxmin()
-    time_diff = time_diffs.iloc[closest_idx]
+    closest_idx = int(time_diffs.argmin())
+    time_diff = time_diffs[closest_idx]
 
     # Only use if within reasonable time window (±30 minutes)
     max_time_diff = 30 * 60 * 1000  # 30 minutes in milliseconds

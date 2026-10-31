@@ -1,0 +1,232 @@
+/*
+ * Page chrome: base type, the page column, the header and the tabs.
+ * DESIGN.md rules this file keeps: one family, upright and left-aligned;
+ * a 12px text floor; tabular digits only where numbers line up; flat paper
+ * (no shadows, no tinted cards); a 3px focus ring on everything focusable.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 100%;
+  line-height: 1.55;
+  letter-spacing: 0.012em;
+  word-spacing: 0.08em;
+  -webkit-text-size-adjust: 100%;
+  font-variant-numeric: normal;
+  text-align: left;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+a {
+  color: var(--rain-3);
+  text-underline-offset: 3px;
+}
+
+::selection {
+  background: var(--rain-1);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--rain-3);
+  outline-offset: 2px;
+}
+
+/* the 135° hatch: the one visual word for "not valid" */
+:root {
+  --gap-hatch: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+}
+
+.gap-hatch {
+  background: var(--gap-hatch);
+}
+
+.standfirst {
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+
+/* ---------- the page column ---------- */
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 var(--gutter) 96px;
+}
+
+/* ---------- the header ---------- */
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-4);
+  padding: var(--s-4) 0 var(--s-2);
+}
+
+.masthead-station {
+  font-size: var(--step-1);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.005em;
+}
+
+/* the reading, and under it, only when they lag, the figures' own age */
+.masthead-ages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.masthead-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  font-size: var(--step--1);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.masthead-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rain-3);
+  flex: none;
+}
+
+.masthead-age {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.masthead-age:not(:empty)::before {
+  content: "·";
+  color: var(--ink-3);
+  margin-right: var(--s-2);
+}
+
+/* stale: past 15 minutes. The words say it; the hollow dot and hatch back it */
+.masthead-line[data-stale="true"] .masthead-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+
+.masthead-line[data-stale="true"] .masthead-age:not(:empty) {
+  font-weight: 650;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  background: var(--gap-hatch);
+}
+
+.masthead-line[data-stale="true"] .masthead-age::before {
+  content: none;
+}
+
+.masthead-line[hidden] {
+  display: none;
+}
+
+.masthead-retry {
+  min-height: 32px;
+  margin-left: var(--s-1);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- the tabs ---------- */
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--ground);
+  border-bottom: 1px solid var(--rule);
+  margin: 0 calc(-1 * var(--gutter)) var(--s-5);
+  padding: 0 var(--gutter);
+}
+
+.tabs-list {
+  display: flex;
+  gap: var(--s-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs-list::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex: none;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--step-0);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 transparent;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow: inset 0 -3px 0 var(--rain-3);
+}
+
+/* the focus ring sits inside the bar so the sticky edge never clips it */
+.tab:focus-visible {
+  outline-offset: -3px;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panel:focus-visible {
+  outline-offset: 4px;
+}
+
+@media (min-width: 1024px) {
+  .tabs {
+    margin-bottom: var(--s-6);
+  }
+}

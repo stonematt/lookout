@@ -34,3 +34,17 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 - `GET https://rt.ambientweather.net/v1/devices/<MAC>?endDate=…&limit=288` returns up to 288 five-minute records ending at `endDate`, about 1 request per second. Raw history reaches back to at least 2022-05; `lookout/cli/find_earliest_ambient.py` finds the earliest.
 - Ambient serves raw rain counters, carryovers included.
+
+## Lookout commands against live services
+
+Each of these reads live secrets and Storj (and most call Ambient). Run them from the repo root with `PYTHONPATH=.`, on the VPS or a checkout with real secrets, never from a test worktree. Only one writer at a time: never run a writing command while a catchup or refresh cron run could save the archive.
+
+- **Refresh run**, the VPS cron's job: catchup, catalogs, snapshot publish. `python lookout/cli/refresh.py [--bucket lookout] [--pages N]`. Pings Healthchecks `lookout-refresh` (start, then the exit status) and the station check.
+- **Diagnostics**, plain text, exit 1 when refused or failed. Read-only: `python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]`, `coverage [--days 14]`, `status`, `last-record`.
+- **Diagnostics writes**, each backs up before it saves:
+  - `python -m lookout.cli.diagnostics fill-gap (--index N | --start T --end T) --dry-run` says what it would fetch and writes nothing; drop `--dry-run` to fill and save. Exits 1 when Ambient has no data for the gap.
+  - `python -m lookout.cli.diagnostics energy-catalog` reports only; `--save --dry-run` says what a save would do; `--save` backs up and replaces the stored energy catalog. `--dry-run` without `--save` is refused.
+- **Rain repair** (#95), restores the raw rain counters in the damaged windows from Ambient and cross-checks them against the raw backup. Read `python -m lookout.cli.repair_rain --help` first.
+  - Dry run, the default, writes nothing: `python -m lookout.cli.repair_rain`. Every day should read `rows N -> N` (or more), no `short` line, and `0 over tolerance`; it exits 1 if not.
+  - Real run: `python -m lookout.cli.repair_rain --write`. Same checks; it writes nothing if any fail, else backs the live archive up to `.backups/<MAC>/<today>/` and saves the repair.
+  - Other windows, as station-local days (repeatable): `--window 2025-10-14 2025-12-31`. The 2025 window is about 90 Ambient pages, a second each.

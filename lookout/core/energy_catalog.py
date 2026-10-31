@@ -22,7 +22,10 @@ from typing import Optional
 
 import pandas as pd
 
-from lookout.core.solar_energy_periods import calculate_15min_energy_periods
+from lookout.core.solar_energy_periods import (
+    calculate_15min_energy_periods,
+    recompute_from_period,
+)
 from lookout.storage.storj import get_s3_client
 from lookout.utils.log_util import app_logger
 
@@ -229,8 +232,11 @@ class EnergyCatalog:
         """
         Update existing catalog with new energy periods from recent archive data.
 
-        For energy catalogs, this is simpler than rain events since we just need to
-        calculate periods for any new data that extends beyond the last period.
+        The newest stored period may still have been filling, so it is
+        recomputed together with every period after it, and replaces its stored
+        value. The archived row just before that period is integrated too,
+        since the interval from it into the period is part of the period's
+        energy; the earlier period that row falls in is kept as stored.
 
         :param archive_df: Complete weather archive DataFrame
         :param existing_catalog: Existing catalog DataFrame (will load if None)
@@ -253,27 +259,18 @@ class EnergyCatalog:
         existing_catalog = existing_catalog.sort_values("period_start").reset_index(
             drop=True
         )
-        last_period = existing_catalog.iloc[-1]
-        last_period_end = last_period["period_end"]
+        # The newest period may still have been filling when it was stored
+        # (the refresh run updates every five minutes), so it is recomputed
+        # from every archived row in it, together with what came after.
+        last_period_start = existing_catalog.iloc[-1]["period_start"]
 
-        logger.info(f"Last energy period ends at {last_period_end}")
+        logger.info(f"Recomputing energy periods from {last_period_start}")
 
-        # Filter archive data to only what's after the last period
         archive_df = archive_df.copy()
         # Use 'date' column which is already TZ-aware datetime
         archive_df["datetime"] = archive_df["date"]
 
-        # Get data that starts after the last period end
-        new_data = archive_df[archive_df["datetime"] > last_period_end].copy()
-
-        if new_data.empty:
-            logger.debug("No new data to process for energy periods")
-            return existing_catalog
-
-        logger.debug(f"Processing {len(new_data)} new records after {last_period_end}")
-
-        # Calculate new periods from the new data
-        new_periods_df = calculate_15min_energy_periods(new_data)
+        new_periods_df = recompute_from_period(archive_df, last_period_start)
 
         if new_periods_df.empty:
             logger.debug("No new energy periods calculated")
@@ -283,16 +280,16 @@ class EnergyCatalog:
         new_periods_df["updated_at"] = datetime.now(timezone.utc)
         new_periods_df["catalog_version"] = "1.0"
 
-        # Merge with existing catalog
-        updated_catalog = pd.concat(
-            [existing_catalog, new_periods_df], ignore_index=True
-        )
+        # Replace the recomputed periods, keep every earlier one
+        kept = existing_catalog[existing_catalog["period_start"] < last_period_start]
+        updated_catalog = pd.concat([kept, new_periods_df], ignore_index=True)
         updated_catalog = updated_catalog.sort_values("period_start").reset_index(
             drop=True
         )
 
         logger.info(
-            f"Added {len(new_periods_df)} new energy periods to catalog (total: {len(updated_catalog)})"
+            f"Recomputed {len(new_periods_df)} energy periods "
+            f"(total: {len(updated_catalog)})"
         )
 
         return updated_catalog

@@ -261,6 +261,15 @@ class TestCatchupRun:
         assert station.keys() == [BACKUP_KEY, ARCHIVE_KEY]
         assert_frame_equal(station.stored(BACKUP_KEY), station.archive)
 
+    def test_the_archive_backup_leaves_the_catalogs_out(self, catchup_station, fake_s3):
+        station = catchup_station()
+        catalog_key = f"{FAKE_MAC}.event_catalog.parquet"
+        fake_s3.put_object(Bucket=BUCKET, Key=catalog_key, Body=b"x")
+
+        station.run()
+
+        assert station.keys() == sorted([BACKUP_KEY, ARCHIVE_KEY, catalog_key])
+
     def test_asks_ambient_for_one_page_ending_now(self, catchup_station):
         station = catchup_station()
 
@@ -347,13 +356,13 @@ class TestPaging:
 # ---------- rain corrections ----------
 
 
-def test_each_run_subtracts_the_known_carryovers_again(catchup_station):
+def test_each_run_keeps_the_stored_rain_counters_raw(catchup_station):
     """
-    Held finding: catchup compounds rain corrections in the stored archive.
+    Catchup saves the archive raw (#95): corrections are applied on read.
 
-    The run corrects the whole combined archive and saves it, so rows already
-    corrected lose the carryover again on every run. With one carryover on
-    2026-01-09, that day's weekly counter falls by it on every run.
+    With one carryover on 2026-01-09 in the catalog, three runs in a row
+    leave that day's stored weekly counter at its raw value, and the rows
+    each run fetched are stored raw too.
     """
     full = scenario_archive()
     rain_corrections.save_catalog(
@@ -365,13 +374,13 @@ def test_each_run_subtracts_the_known_carryovers_again(catchup_station):
         devices=reporting(full),
         now="2026-01-11T08:00:00Z",
     )
-    noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local
-    raw = full.set_index("dateutc").loc[noon, "weeklyrainin"]
-    carry = 0.48  # SCENARIO's carryover: the 2026-01-08 daily total
+    noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local, archived
+    fetched = ms("2026-01-10T14:00:00Z")  # Saturday 06:00 local, fetched
+    raw = full.set_index("dateutc")
 
-    weekly = []
     for _ in range(3):
         station.run()
-        weekly.append(station.stored().set_index("dateutc").loc[noon, "weeklyrainin"])
-
-    assert weekly == pytest.approx([raw - carry, raw - 2 * carry, raw - 3 * carry])
+        stored = station.stored().set_index("dateutc")
+        for row in (noon, fetched):
+            for col in ("dailyrainin", "weeklyrainin", "monthlyrainin"):
+                assert stored.loc[row, col] == pytest.approx(raw.loc[row, col])

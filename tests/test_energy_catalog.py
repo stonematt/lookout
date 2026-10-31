@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import MagicMock, patch, mock_open
 from datetime import datetime, timezone
 
+from lookout.core import energy_catalog_func
 from lookout.core.energy_catalog import EnergyCatalog
 
 
@@ -175,3 +176,78 @@ class TestEnergyCatalog:
         with patch.object(catalog, "catalog_exists", return_value=False):
             age = catalog.get_catalog_age()
             assert age == pd.Timedelta(days=999)
+
+
+class TestUpdateRunAfterRun:
+    """
+    The refresh run updates the catalog every five minutes, so its newest
+    period is usually still filling. Each run must leave the catalog equal to
+    one computed from the whole archive at once.
+    """
+
+    @staticmethod
+    def station(first: str, rows: int) -> pd.DataFrame:
+        """Five-minute rows at a steady 600 W/m², newest first."""
+        dates = pd.date_range(
+            first, periods=rows, freq="5min", tz="America/Los_Angeles"
+        )
+        return pd.DataFrame(
+            {
+                "date": dates,
+                "dateutc": [int(d.timestamp() * 1000) for d in dates],
+                "solarradiation": [600.0] * rows,
+            }
+        ).iloc[::-1]
+
+    def energy(self, periods: pd.DataFrame) -> dict:
+        """Each period's start (as a local "HH:MM") -> its kWh, rounded."""
+        return {
+            p.strftime("%H:%M"): round(e, 6)
+            for p, e in zip(periods["period_start"], periods["energy_kwh"])
+        }
+
+    @staticmethod
+    def class_update(archive: pd.DataFrame, stored: pd.DataFrame) -> pd.DataFrame:
+        """The refresh run's update: `EnergyCatalog.update_catalog_with_new_data`."""
+        return EnergyCatalog("TEST_MAC").update_catalog_with_new_data(archive, stored)
+
+    @staticmethod
+    def func_update(archive: pd.DataFrame, stored: pd.DataFrame) -> pd.DataFrame:
+        """The Streamlit app's update: `energy_catalog_func.update_energy_catalog`."""
+        return energy_catalog_func.update_energy_catalog(archive, stored)
+
+    @pytest.mark.parametrize("update", ["class_update", "func_update"])
+    @pytest.mark.parametrize(
+        "first, expected",
+        [
+            # 600 W/m² over a whole period is 0.15 kWh/m². The newest period
+            # has no row after 10:55 yet, so it holds its 10 minutes: 0.1.
+            (
+                "2026-06-01 10:00",  # 10:00 .. 10:55
+                {"10:00": 0.15, "10:15": 0.15, "10:30": 0.15, "10:45": 0.1},
+            ),
+            # Rows at :02, :07, :12: each period's first three minutes come
+            # from the interval that starts in the period before it. 10:00
+            # starts at its 10:02 row (0.13), 10:45 ends at 10:57 (0.12).
+            (
+                "2026-06-01 10:02",  # 10:02 .. 10:57
+                {"10:00": 0.13, "10:15": 0.15, "10:30": 0.15, "10:45": 0.12},
+            ),
+        ],
+        ids=["on-the-period-grid", "off-the-period-grid"],
+    )
+    def test_a_period_still_filling_is_completed_by_later_runs(
+        self, update: str, first: str, expected: dict
+    ):
+        catalog = EnergyCatalog("TEST_MAC")
+        archive = self.station(first, 12)
+
+        stored = catalog.detect_and_calculate_periods(
+            archive.iloc[-2:], auto_save=False
+        )
+        for newest in range(3, 13):  # one five-minute run at a time
+            stored = getattr(self, update)(archive.iloc[-newest:], stored.copy())
+
+        assert self.energy(stored) == expected
+        whole = catalog.detect_and_calculate_periods(archive, auto_save=False)
+        assert self.energy(stored) == self.energy(whole)

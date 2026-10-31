@@ -24,7 +24,6 @@ Regenerate the golden files, then review the diff:
 import json
 import os
 import re
-import warnings
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
@@ -59,10 +58,7 @@ LONG_MINUTES = 3 * 24 * 60
 # Fields stamped from the wall clock or a fresh UUID on every run.
 UNSTABLE_EVENT_FIELDS = ("event_id", "created_at", "updated_at")
 
-with warnings.catch_warnings():
-    # No pytest config registers marks; this module is the only user.
-    warnings.simplefilter("ignore", pytest.PytestUnknownMarkWarning)
-    pytestmark = pytest.mark.temporary
+pytestmark = pytest.mark.temporary  # registered in pytest.ini
 
 
 # ---------- summarising the session ----------
@@ -341,8 +337,13 @@ def test_initial_load_updates_a_stored_event_catalog(station, session):
 
 def test_golden_files_hold_no_station_identifier_or_key():
     """The leak scan `test_fixture_real.py` runs on tests/fixtures/, here."""
-    texts = [p.read_text() for p in sorted(GOLDEN_DIR.glob("*.json"))]
-    assert len(texts) == 3
+    paths = sorted(GOLDEN_DIR.glob("*.json"))
+    assert {
+        "load_path_incremental.json",
+        "load_path_initial.json",
+        "load_path_stored_catalog.json",
+    } <= {p.name for p in paths}
+    texts = [p.read_text() for p in paths]
     for text in texts:
         assert DEFAULT_MAC_ADDRESS.lower() not in text.lower()
         assert DEFAULT_MAC_ADDRESS.replace(":", "-").lower() not in text.lower()

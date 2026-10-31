@@ -32,13 +32,15 @@ Helper Functions:
 
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-import streamlit as st
 
+from lookout.config import DEFAULT_BUCKET
+from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
 
 from lookout.utils.trend_utils import (
@@ -141,9 +143,14 @@ def is_dev_mode() -> bool:
     """
     Check if application is running in development mode.
 
+    Read from the `DEV_MODE` setting (env var, the secrets file, then
+    Streamlit's `[environment] dev`), so a run with no Streamlit secrets is
+    simply not in dev mode.
+
     :return: True if dev mode is enabled
     """
-    return st.secrets.get("environment", {}).get("dev", False)
+    value = get_setting("DEV_MODE", "") or ""
+    return value.strip().lower() in ("1", "true", "yes", "on")
 
 
 # Core Functions
@@ -159,6 +166,10 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
     :param pages: int - Number of pages to fetch, default 10.
     :return: None.
     """
+    # The Streamlit UI's entry point; imported here so the refresh run, which
+    # never calls it, never loads Streamlit.
+    import streamlit as st
+
     try:
         # Use provided or session state history
         current_df = (
@@ -167,9 +178,14 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
             else st.session_state.get("history_df", pd.DataFrame())
         )
 
-        # Fetch updated history
-        updated_df = get_history_since_last_archive(
-            device, current_df, limit=limit, pages=pages
+        # Fetch updated history; the session history is already corrected,
+        # so only the fetched rows get the rain corrections (#95)
+        updated_df = extend_corrected(
+            current_df,
+            get_history_since_last_archive(
+                device, current_df, limit=limit, pages=pages
+            ),
+            device["macAddress"],
         )
 
         # Calculate trends for latest data point
@@ -460,6 +476,10 @@ def get_history_since_last_archive(
     """
     Retrieves device history from the last archive forward, avoiding duplicate fetches,
     handling gaps, and skipping future timestamps.
+
+    The result is raw: the archive rows as handed, the fetched rows as Ambient
+    reported them. Rain corrections are not applied; a reader applies them
+    once, after loading (#95), so the archive written to storage stays raw.
     """
     if not validate_archive(archive_df):
         return archive_df
@@ -523,15 +543,43 @@ def get_history_since_last_archive(
         logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
         log_interim_progress(page + 1, pages, interim_df)
 
-    combined = combine_full_history(archive_df, interim_df)
+    # Raw, as Ambient reported it: rain corrections are applied on read,
+    # never before a save (#95).
+    return combine_full_history(archive_df, interim_df)
 
-    # Apply rain carryover corrections
-    try:
-        corrected = apply_corrections(combined, device["macAddress"], "lookout")
+
+def extend_corrected(
+    corrected: pd.DataFrame,
+    extended: pd.DataFrame,
+    mac_address: str,
+    bucket: str = DEFAULT_BUCKET,
+) -> pd.DataFrame:
+    """
+    Add the rows of `extended` that `corrected` lacks, rain corrected once.
+
+    For a frame whose rain counters are already corrected (the Streamlit
+    session history) and a raw extension of it (what
+    `get_history_since_last_archive` or `fill_archive_gap` returns for it).
+    Corrections are per row, by date, so correcting only the new rows gives
+    the same counters as correcting a raw archive whole, and no row is
+    corrected twice. Rows `corrected` already holds are kept as they are.
+    Only for frames that are read, never saved: storage stays raw.
+
+    :param corrected: The rain-corrected frame, `dateutc` in epoch ms.
+    :param extended: A raw frame holding `corrected`'s rows and new ones.
+    :param mac_address: The station, whose corrections catalog applies.
+    :param bucket: The bucket holding the catalog.
+    :return: `corrected` itself when nothing is new; else the union, newest
+        first.
+    """
+    if extended.empty or "dateutc" not in extended.columns:
         return corrected
-    except Exception as e:
-        logger.error(f"Failed to apply corrections: {e}")
-        return combined
+    if corrected.empty or "dateutc" not in corrected.columns:
+        return apply_corrections(extended, mac_address, bucket)
+    new_rows = extended[~extended["dateutc"].isin(corrected["dateutc"])]
+    if new_rows.empty:
+        return corrected
+    return combine_df(corrected, apply_corrections(new_rows, mac_address, bucket))
 
 
 # Helper Functions
@@ -555,53 +603,94 @@ def _should_stop_for_future(next_dt, now_utc) -> bool:
     return False
 
 
-def fill_archive_gap(device, history_df, start, end):
-    """Fetch missing data for a specified gap and append it to the in-memory history."""
+@dataclass
+class GapFill:
+    """
+    The outcome of `fill_archive_gap`.
+
+    :param history_df: The archive after the fill; the very frame passed in
+        when nothing was added.
+    :param start: The gap's start, UTC (the argument as parsed).
+    :param end: The gap's end, UTC.
+    :param status: "filled" (rows were added), "no_new_data" (Ambient had
+        nothing for the gap) or "refused" (inverted gap, or no archive data
+        before it).
+    :param rows_added: How many rows the fill added.
+    """
+
+    history_df: pd.DataFrame
+    start: pd.Timestamp
+    end: pd.Timestamp
+    status: str
+    rows_added: int = 0
+
+    @property
+    def skipped(self) -> bool:
+        """True when the gap was tried and Ambient had no data for it."""
+        return self.status == "no_new_data"
+
+
+def fill_archive_gap(
+    device: dict,
+    history_df: pd.DataFrame,
+    start,
+    end,
+    pages: int = 20,
+    sleep: bool = False,
+) -> GapFill:
+    """
+    Fetch missing data for a specified gap and merge it into the history, raw.
+
+    Touches no session state: a caller that keeps a list of skipped gaps
+    (the Diagnostics tab) records the ones that come back `skipped`.
+
+    :param device: The station's `/devices` entry.
+    :param history_df: The archive, raw (as stored), `dateutc` in epoch ms.
+        The fill applies no rain corrections, so a raw archive saves raw.
+    :param start: The gap's start; anything `pd.to_datetime` reads, as UTC.
+    :param end: The gap's end.
+    :param pages: Most Ambient pages to fetch (about 246 new readings
+        each); a long window, like the rain repair's, needs more than the
+        default.
+    :param sleep: Wait a second before each page, to stay under Ambient's
+        rate limit on a long fill.
+    :return: A `GapFill`; its `history_df` is the merged archive on "filled".
+    """
     logger.info(f"*** Attempting to fill gap from {start} to {end} ***")
 
-    # Normalize input
-    working_history_df = history_df.copy()
-    working_history_df["dateutc"] = pd.to_datetime(
-        history_df["dateutc"], unit="ms", utc=True
-    )
     start = pd.to_datetime(start, utc=True)
     end = pd.to_datetime(end, utc=True)
 
     if start >= end:
         logger.warning("Invalid gap: start >= end")
-        return history_df
+        return GapFill(history_df, start, end, "refused")
 
     # Trim to before the gap
+    working_history_df = history_df.copy()
+    working_history_df["dateutc"] = pd.to_datetime(
+        history_df["dateutc"], unit="ms", utc=True
+    )
     archive_df = working_history_df[working_history_df["dateutc"] < start]
 
     if archive_df.empty:
         logger.warning("No archive data before gap start; can't determine baseline.")
-        return history_df
+        return GapFill(history_df, start, end, "refused")
 
     # Fetch new records to fill the gap
     new_data_df = get_history_since_last_archive(
-        device, archive_df, end_date=end, pages=20
+        device, archive_df, end_date=end, pages=pages, sleep=sleep
     )
 
-    # Merge new data back into full archive
+    # Merge new data back into full archive; raw, like the fetched rows
     full_combined = combine_full_history(history_df, new_data_df)
 
-    # Apply rain carryover corrections
-    try:
-        corrected = apply_corrections(full_combined, device["macAddress"], "lookout")
-        full_combined = corrected
-    except Exception as e:
-        logger.error(f"Failed to apply corrections in gap fill: {e}")
-        # Continue with uncorrected data
-
     if len(full_combined) == len(history_df):
-        logger.info("No new data found. Marking gap as skipped.")
-        if "skipped_gaps" not in st.session_state:
-            st.session_state["skipped_gaps"] = []
-        st.session_state["skipped_gaps"].append({"start": start, "end": end})
-        return history_df
+        logger.info("No new data found. Gap skipped.")
+        return GapFill(history_df, start, end, "no_new_data")
 
-    return full_combined
+    return GapFill(
+        full_combined, start, end, "filled", len(full_combined) - len(history_df)
+    )
 
 
 def validate_archive(archive_df):

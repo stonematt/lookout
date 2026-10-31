@@ -23,13 +23,8 @@ from tests.fixtures.storage import BUCKET, bucket_keys
 
 @pytest.fixture
 def station(monkeypatch):
-    """
-    Pin the fake station, and put it in session state as the UI does.
-
-    `storj.backup_and_save_catalog` still takes the station from session state.
-    """
+    """Pin the fake station; nothing is put in session state."""
     monkeypatch.setenv("STATION_MAC", FAKE_MAC)
-    monkeypatch.setitem(st.session_state, "device", {"macAddress": FAKE_MAC})
     return FAKE_MAC
 
 
@@ -88,6 +83,46 @@ def test_rain_corrections_catalog_lives_at_mac_dot_rain_corrections_json(fake_s3
     assert bucket_keys(fake_s3) == ["00:11:22:33:44:55.rain_corrections.json"]
     assert rain_corrections.catalog_exists(FAKE_MAC, BUCKET) is True
     assert rain_corrections.load_catalog(FAKE_MAC, BUCKET) == catalog
+
+
+def _day_periods() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-05", "2026-01-06"], utc=True),
+            "sunrise_utc": pd.to_datetime(
+                ["2026-01-05 15:50", "2026-01-06 15:50"], utc=True
+            ),
+        }
+    )
+
+
+def test_day_periods_catalog_exists_only_once_saved(fake_s3):
+    assert day_periods.catalog_exists(FAKE_MAC, BUCKET) is False
+
+    assert day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
+
+    assert day_periods.catalog_exists(FAKE_MAC, BUCKET) is True
+
+
+def test_missing_day_periods_catalog_loads_empty_by_the_no_catalog_path(
+    fake_s3, caplog
+):
+    caplog.set_level("INFO")
+
+    assert day_periods.load_day_periods_catalog(FAKE_MAC, BUCKET).empty
+
+    assert f"No day periods catalog found for {FAKE_MAC}" in caplog.text
+    assert "Failed to load DataFrame" not in caplog.text  # no read was tried
+
+
+def test_day_periods_catalog_listing_follows_existence(fake_s3):
+    assert day_periods.list_day_periods_catalogs(FAKE_MAC, BUCKET) == []
+
+    day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
+
+    assert day_periods.list_day_periods_catalogs(FAKE_MAC, BUCKET) == [
+        "00:11:22:33:44:55.day_periods_catalog.parquet"
+    ]
 
 
 # ---------- catalog_utils: the station is the pinned one ----------
@@ -154,6 +189,18 @@ def test_catalog_save_with_backup_writes_both(fake_s3, station, frozen_today):
     ]
     stored = storj.get_df_from_s3(BUCKET, f"{prefix}.parquet", "parquet")
     assert_frame_equal(stored, _periods())
+
+
+def test_catalog_save_with_backup_takes_the_station_as_a_parameter(
+    fake_s3, no_station, frozen_today
+):
+    other = "AA:BB:CC:DD:EE:FF"
+
+    storj.backup_and_save_catalog(
+        _periods(), "energy", bucket=BUCKET, mac_address=other
+    )
+
+    assert bucket_keys(fake_s3) == [f"{other}.energy_catalog.parquet"]
 
 
 # ---------- the Event Catalog ----------

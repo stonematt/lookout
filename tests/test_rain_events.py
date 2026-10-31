@@ -10,7 +10,11 @@ import json
 import pandas as pd
 import pytest
 
-from lookout.core.rain_events import RainEventCatalog, detect_rain_events
+from lookout.core.rain_events import (
+    RainEventCatalog,
+    detect_rain_events,
+    newly_completed,
+)
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -86,7 +90,8 @@ class TestDetectRainEvents:
     def test_no_event_is_ongoing_when_the_archive_ends_dry(self):
         events = detect_rain_events(scenario_archive())
 
-        assert not any(e.get("ongoing") for e in events)
+        # Spelled out as False on every event, so no reader sees a NaN.
+        assert [e["ongoing"] for e in events] == [False, False, False]
 
     def test_result_does_not_depend_on_row_order(self):
         newest = _summary(detect_rain_events(scenario_archive(newest_first=True)))
@@ -201,24 +206,30 @@ class TestUpdateCatalogWithNewData:
             0.48,
         ]
 
-    def test_a_completed_last_event_is_redetected_with_a_new_id(self, catalog):
-        # NOTE (held finding): the last event of a freshly detected catalog has
-        # `ongoing` NaN, not False, because detect_rain_events only sets the key
-        # on the archive-end event. NaN is truthy, so the update treats a
-        # completed last event as ongoing: it re-detects from its start and the
-        # event gets a new id every update. Earlier events keep theirs.
+    def test_a_completed_last_event_keeps_its_id(self, catalog):
+        # Fixed in #72: detection used to leave `ongoing` NaN on completed
+        # events, NaN read as ongoing, and the last event was re-detected with
+        # a new id on every update.
         stored = catalog.detect_and_catalog_events(
             _scenario_until(BETWEEN_2_AND_3), auto_save=False
         )
 
         updated = catalog.update_catalog_with_new_data(scenario_archive(), stored)
 
-        stored_ids, updated_ids = _ids(stored), _ids(updated)
-        assert updated_ids[0] == stored_ids[0]
-        assert updated_ids[1] != stored_ids[1]
-        assert updated.sort_values("start_time").iloc[1]["start_time"] == (
-            stored.sort_values("start_time").iloc[1]["start_time"]
+        assert _ids(updated)[:2] == _ids(stored)
+        assert len(updated) == 3
+
+    def test_a_stored_catalog_with_nan_ongoing_reads_as_completed(self, catalog):
+        # Catalogs saved before #72 carry NaN; it must not mean ongoing.
+        stored = catalog.detect_and_catalog_events(
+            _scenario_until(BETWEEN_2_AND_3), auto_save=False
         )
+        stored["ongoing"] = float("nan")
+        stored["flags"] = [{"ongoing": None}] * len(stored)
+
+        updated = catalog.update_catalog_with_new_data(scenario_archive(), stored)
+
+        assert _ids(updated)[:2] == _ids(stored)
 
     def test_ongoing_last_event_is_replaced_by_the_completed_version(self, catalog):
         stored = catalog.detect_and_catalog_events(
@@ -297,55 +308,150 @@ class TestUpdateCatalogWithNewData:
         assert len(updated) == 3
 
 
-class TestAutoSaveOngoingEvent:
+CATALOG_KEY = f"{FAKE_MAC}.event_catalog.parquet"
+
+
+class TestSaveIfEventsCompleted:
+    """
+    The refresh run's Event Catalog save rule: save when the updated catalog
+    holds a completed event the stored one lacks, matched by start.
+    """
+
     @pytest.fixture
     def ongoing(self, catalog):
+        """Events 1 and 2 completed, event 3 ongoing."""
         return catalog.detect_and_catalog_events(
             _scenario_until(MID_EVENT_3), auto_save=False
         )
 
     @pytest.fixture
     def completed(self, catalog):
+        """All three events completed."""
         return catalog.detect_and_catalog_events(scenario_archive(), auto_save=False)
 
     def test_saves_when_the_ongoing_event_completes(
         self, catalog, ongoing, completed, fake_s3
     ):
-        # Spell out False where detection leaves NaN (see the note below).
-        completed = completed.assign(
-            ongoing=False, flags=[{"ongoing": False}] * len(completed)
-        )
+        assert catalog.save_if_events_completed(ongoing, completed) is True
 
-        assert catalog.check_and_auto_save_ongoing_event(ongoing, completed) is True
+        assert CATALOG_KEY in bucket_keys(fake_s3)
 
-        assert f"{FAKE_MAC}.event_catalog.parquet" in bucket_keys(fake_s3)
-
-    def test_the_updated_catalog_from_a_real_update_never_triggers_a_save(
+    def test_the_updated_catalog_from_a_real_update_triggers_the_save(
         self, catalog, ongoing, fake_s3
     ):
-        # NOTE (held finding): update_catalog_with_new_data leaves `ongoing` NaN
-        # on the re-detected completed event, and NaN reads as ongoing, so the
-        # ongoing -> completed hand-off the CLAUDE.md describes does not fire.
+        # Fixed in #72: the re-detected completed event used to carry `ongoing`
+        # NaN, which read as ongoing, so this hand-off never fired.
         updated = catalog.update_catalog_with_new_data(scenario_archive(), ongoing)
 
-        assert catalog.check_and_auto_save_ongoing_event(ongoing, updated) is False
-        assert bucket_keys(fake_s3) == []
+        assert catalog.save_if_events_completed(ongoing, updated) is True
+        assert CATALOG_KEY in bucket_keys(fake_s3)
+
+    def test_saves_a_new_completed_event_after_a_completed_last_event(
+        self, catalog, completed, fake_s3
+    ):
+        # The steady state: the stored last event completed at the last save,
+        # and event 3 started and completed since.
+        stored = catalog.detect_and_catalog_events(
+            _scenario_until(BETWEEN_2_AND_3), auto_save=False
+        )
+        assert len(stored) == 2
+
+        assert catalog.save_if_events_completed(stored, completed) is True
+        assert CATALOG_KEY in bucket_keys(fake_s3)
 
     def test_does_not_save_while_the_event_is_still_ongoing(
         self, catalog, ongoing, fake_s3
     ):
-        assert catalog.check_and_auto_save_ongoing_event(ongoing, ongoing) is False
+        assert catalog.save_if_events_completed(ongoing, ongoing) is False
 
         assert bucket_keys(fake_s3) == []
 
-    def test_does_not_save_when_nothing_was_ongoing(self, catalog, completed, fake_s3):
-        assert catalog.check_and_auto_save_ongoing_event(completed, completed) is False
+    def test_does_not_save_when_nothing_new_completed(
+        self, catalog, completed, fake_s3
+    ):
+        assert catalog.save_if_events_completed(completed, completed) is False
 
         assert bucket_keys(fake_s3) == []
 
-    def test_does_not_save_from_an_empty_catalog(self, catalog, completed, fake_s3):
-        empty = pd.DataFrame()
+    def test_matches_events_by_start_not_by_event_id(self, catalog, completed, fake_s3):
+        redetected = completed.copy()
+        redetected["event_id"] = [f"new-{i}" for i in range(len(redetected))]
 
-        assert catalog.check_and_auto_save_ongoing_event(empty, completed) is False
-        assert catalog.check_and_auto_save_ongoing_event(completed, empty) is False
+        assert catalog.save_if_events_completed(completed, redetected) is False
         assert bucket_keys(fake_s3) == []
+
+    def test_with_none_stored_the_first_completed_event_seeds_it(
+        self, catalog, completed, fake_s3
+    ):
+        assert catalog.save_if_events_completed(None, completed) is True
+
+        assert CATALOG_KEY in bucket_keys(fake_s3)
+
+    def test_with_none_stored_an_ongoing_event_alone_seeds_nothing(
+        self, catalog, fake_s3
+    ):
+        wet = catalog.detect_and_catalog_events(
+            _scenario_until("2026-01-04T19:00:00Z"), auto_save=False
+        )
+        assert len(wet) == 1
+
+        assert catalog.save_if_events_completed(pd.DataFrame(), wet) is False
+        assert catalog.save_if_events_completed(None, wet) is False
+        assert bucket_keys(fake_s3) == []
+
+    def test_does_not_save_an_empty_update(self, catalog, completed, fake_s3):
+        assert catalog.save_if_events_completed(completed, pd.DataFrame()) is False
+
+        assert bucket_keys(fake_s3) == []
+
+    def test_backs_up_the_stored_catalog_before_saving(
+        self, catalog, ongoing, completed, fake_s3
+    ):
+        catalog.save_catalog(ongoing)
+
+        catalog.save_if_events_completed(ongoing, completed)
+
+        backups = [
+            key
+            for key in bucket_keys(fake_s3)
+            if key.startswith(f"backups/{FAKE_MAC}.event_catalog")
+        ]
+        assert len(backups) == 1
+
+    def test_a_failed_backup_leaves_the_stored_catalog_alone(
+        self, catalog, ongoing, completed, fake_s3, monkeypatch
+    ):
+        catalog.save_catalog(ongoing)
+        before = fake_s3.get_object(Bucket=catalog.bucket, Key=CATALOG_KEY)[
+            "Body"
+        ].read()
+        monkeypatch.setattr(RainEventCatalog, "backup_catalog", lambda self: None)
+
+        assert catalog.save_if_events_completed(ongoing, completed) is False
+
+        after = fake_s3.get_object(Bucket=catalog.bucket, Key=CATALOG_KEY)["Body"]
+        assert after.read() == before
+
+
+class TestNewlyCompleted:
+    def test_names_the_completed_events_the_stored_catalog_lacks(self, catalog):
+        stored = catalog.detect_and_catalog_events(
+            _scenario_until(MID_EVENT_3), auto_save=False
+        )
+        updated = catalog.update_catalog_with_new_data(scenario_archive(), stored)
+
+        new = newly_completed(stored, updated)
+
+        assert list(new["start_time"]) == [pd.Timestamp("2026-01-08T22:00:00Z")]
+
+    def test_with_nothing_stored_every_completed_event_is_new(self, catalog):
+        updated = catalog.detect_and_catalog_events(
+            _scenario_until(MID_EVENT_3), auto_save=False
+        )
+
+        new = newly_completed(None, updated)
+
+        assert list(new["start_time"]) == [
+            pd.Timestamp("2026-01-04T18:00:00Z"),
+            pd.Timestamp("2026-01-07T04:00:00Z"),
+        ]

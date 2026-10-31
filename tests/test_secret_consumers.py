@@ -8,6 +8,7 @@ reaches the outgoing client call, at the boundary (boto3, requests).
 import pytest
 
 import lookout.api.ambient_client as ambient_client
+import lookout.api.awn_controller as awn
 import lookout.storage.storj as storj
 from lookout.secrets_loader import MissingSecretError
 
@@ -83,3 +84,20 @@ def test_device_history_request_carries_keys_and_limit(monkeypatch, captured_get
         "limit": 5,
         "endDate": 1700000000000,
     }
+
+
+@pytest.mark.parametrize(
+    "value, dev", [("true", True), ("1", True), ("True", True), ("false", False)]
+)
+def test_dev_mode_comes_from_the_dev_mode_setting(monkeypatch, value, dev):
+    monkeypatch.setenv("DEV_MODE", value)
+
+    assert awn.is_dev_mode() is dev
+
+
+def test_dev_mode_is_off_with_no_setting_and_no_streamlit_secrets(
+    monkeypatch, no_secrets
+):
+    monkeypatch.delenv("DEV_MODE", raising=False)
+
+    assert awn.is_dev_mode() is False
