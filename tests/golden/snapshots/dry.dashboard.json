@@ -731,5 +731,58 @@
       }
     ],
     "ongoing_curve": null
+  },
+  "hero_lead": {
+    "kind": "calm",
+    "rules": [
+      {
+        "kind": "rain",
+        "met": false,
+        "value": 16.08,
+        "unit": "hours",
+        "threshold": 12.0,
+        "reference": null,
+        "compared": [],
+        "missing": null
+      },
+      {
+        "kind": "temperature",
+        "met": false,
+        "value": null,
+        "unit": "degrees_f",
+        "threshold": 10.0,
+        "reference": null,
+        "compared": [],
+        "missing": "no_comparison"
+      },
+      {
+        "kind": "solar",
+        "met": false,
+        "value": 0.0,
+        "unit": "wm2",
+        "threshold": 400.0,
+        "reference": null,
+        "compared": [],
+        "missing": null
+      },
+      {
+        "kind": "calm",
+        "met": true,
+        "value": 1.62,
+        "unit": "days",
+        "threshold": null,
+        "reference": null,
+        "compared": [],
+        "missing": "no_comparison"
+      }
+    ],
+    "unit": "days",
+    "now": 1.62,
+    "now_ms": 1763538900000,
+    "usual_low": null,
+    "usual_median": null,
+    "usual_high": null,
+    "sample": 0,
+    "trace": null
   }
 }
