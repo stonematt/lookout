@@ -249,10 +249,11 @@ class TestLiveStitching:
 
     def test_rain_corrections_are_not_applied_again(self):
         """
-        `build_snapshot` reads the archive as handed (#95: catchup already
-        corrects it). Friday's raw daily counter still holds Thursday's 0.48"
-        after the carryover gap, where a correction would make it 0; the
-        snapshot keeps it.
+        `build_snapshot` reads the archive as handed: the refresh run applies
+        the corrections once before building (#95), so the builder must not
+        apply them again. Friday's daily counter here still holds Thursday's
+        0.48" after the carryover gap, where a correction would make it 0;
+        the snapshot keeps it.
         """
         archive = scenario_until("2026-01-09T12:00:00Z")
         assert archive.iloc[0]["dailyrainin"] == 0.48

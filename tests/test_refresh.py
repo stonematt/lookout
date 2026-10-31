@@ -687,3 +687,74 @@ class TestEventCurveFiles:
         assert sorted(curve_key(row["start_ms"]) for row in listed) == (
             curve_keys(station)
         )
+
+
+# ---------- rain corrections, applied once on read (#95) ----------
+
+
+class TestRainCorrections:
+    """
+    The run saves the archive raw and publishes it corrected, once.
+
+    The weather is SCENARIO's week with more rain on the carryover day
+    (Friday 2026-01-09, local), so a second correction would show: Friday's
+    raw daily counter peaks at 0.48" carried over plus 0.24" of its own rain.
+    Corrected once it is 0.24"; corrected twice, 0.
+    """
+
+    CARRY = 0.48
+    FRIDAY = "2026-01-09"
+    FRIDAY_NOON = "2026-01-09T20:00:00Z"
+    NOW = "2026-01-11T08:00:00Z"
+
+    @pytest.fixture
+    def station(self, seed) -> CatchupStation:
+        """Archived to Friday's start; Ambient reports the rest of the week."""
+        from lookout.core import rain_corrections
+
+        weather = build_archive(
+            SCENARIO.start,
+            SCENARIO.end,
+            rain=(*SCENARIO.rain, RainSpell("2026-01-09T18:00:00Z", 2, 0.12)),
+            gaps=SCENARIO.gaps,
+        )
+        rain_corrections.save_catalog(
+            {"corrections": rain_corrections.detect_carryovers(weather)}, FAKE_MAC
+        )
+        station = seed(
+            archive=weather[weather["dateutc"] < ms("2026-01-09T08:00:00Z")],
+            history=to_ambient_records(weather),
+            devices=reporting(weather),
+            now=self.NOW,
+        )
+        station.weather = weather
+        return station
+
+    def published_friday(self, station: CatchupStation) -> float:
+        """Friday's daily rain as the published Rain tab has it."""
+        recent = stored_json(station, DASHBOARD_KEY)["rain_tab"]["recent"]
+        index = (pd.Timestamp(self.FRIDAY) - pd.Timestamp(recent["first_day"])).days
+        return recent["rain_in"][index]
+
+    def test_two_runs_publish_raw_minus_the_carryover_once(self, station):
+        raw = station.weather.set_index("dateutc")
+        raw_friday = raw.loc[ms(self.FRIDAY_NOON) + 6 * 3600 * 1000, "dailyrainin"]
+        assert raw_friday == pytest.approx(self.CARRY + 0.24)
+
+        run_refresh(station)
+        first = self.published_friday(station)
+        run_refresh(station)
+        second = self.published_friday(station)
+
+        assert first == second == pytest.approx(raw_friday - self.CARRY)
+
+    def test_two_runs_leave_the_stored_counters_raw(self, station):
+        run_refresh(station)
+        run_refresh(station)
+
+        merged = station.stored().merge(
+            station.weather, on="dateutc", suffixes=("", "_raw")
+        )
+        assert len(merged) == len(station.weather)
+        for col in ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"):
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9

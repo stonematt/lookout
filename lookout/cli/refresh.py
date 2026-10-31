@@ -14,16 +14,20 @@ The steps, each its own function, run in this order by `run`:
 
 1. `load_station()`: the pinned station's `/devices` entry; its `lastData` is
    the live reading.
-2. `update_archive(device, bucket, pages)`: catchup; the archive as saved.
-3. `load_catalogs(station, bucket)`: the Event Catalog and the energy
+2. `update_archive(device, bucket, pages)`: catchup; the archive as saved,
+   raw.
+3. `correct_rain(station, bucket, archive)`: the stored rain corrections
+   applied once, in memory (#95). Every later step reads this frame; the
+   archive in storage stays raw.
+4. `load_catalogs(station, bucket)`: the Event Catalog and the energy
    catalog as stored.
-4. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
+5. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
    brought up to the caught-up archive. The Event Catalog is saved only when
    an event completed since the last save; the energy catalog only when the
    stored one is more than `ENERGY_SAVE_AGE` old.
-5. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
-6. `publish(snapshot, bucket)`: both documents under `snapshot/`.
-7. `publish_curves(station, archive, catalogs, bucket)`: a curve file for
+6. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
+7. `publish(snapshot, bucket)`: both documents under `snapshot/`.
+8. `publish_curves(station, archive, catalogs, bucket)`: a curve file for
    each completed event that has none yet, under `snapshot/<MAC>.events/`,
    at most `curves.CURVE_BACKFILL_LIMIT` per run (#84).
 
@@ -44,6 +48,7 @@ from lookout.cli import catchup
 from lookout.config import DEFAULT_BUCKET
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
+from lookout.core.rain_corrections import apply_corrections
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, Station, build_snapshot
 from lookout.snapshot.curves import publish_event_curves
@@ -102,14 +107,31 @@ def update_archive(device: Dict, bucket: str, pages: int) -> pd.DataFrame:
     :param device: The station's `/devices` entry.
     :param bucket: The bucket.
     :param pages: Maximum Ambient pages to fetch.
-    :return: The archive as saved.
+    :return: The archive as saved: raw, no rain corrections applied.
     """
     return catchup.update_archive(device, bucket, pages)
 
 
+def correct_rain(station: Station, bucket: str, archive: pd.DataFrame) -> pd.DataFrame:
+    """
+    Step 3: the stored rain corrections, applied once to the raw archive.
+
+    The archive in storage is always raw (#95), so this is the one place a
+    refresh run corrects it; every later step reads the frame it returns.
+    `build_snapshot` stays pure and applies nothing itself.
+
+    :param station: The station.
+    :param bucket: The bucket holding `<MAC>.rain_corrections.json`.
+    :param archive: The archive as saved, raw.
+    :return: The corrected archive, in memory; `archive` itself when the
+        station has no corrections.
+    """
+    return apply_corrections(archive, station.mac, bucket)
+
+
 def load_catalogs(station: Station, bucket: str) -> Catalogs:
     """
-    Step 3: the catalogs as stored.
+    Step 4: the catalogs as stored.
 
     :param station: The station.
     :param bucket: The bucket.
@@ -127,7 +149,7 @@ def update_catalogs(
     station: Station, bucket: str, archive: pd.DataFrame, catalogs: Catalogs
 ) -> Catalogs:
     """
-    Step 4: bring both catalogs up to the caught-up archive.
+    Step 5: bring both catalogs up to the caught-up archive.
 
     The Event Catalog is saved, after a backup of the stored one, only when
     the updated catalog holds a completed event (`eventrainin` back to 0)
@@ -140,7 +162,7 @@ def update_catalogs(
 
     :param station: The station.
     :param bucket: The bucket.
-    :param archive: The archive after catchup.
+    :param archive: The archive after catchup, rain corrected (`correct_rain`).
     :param catalogs: The catalogs as stored.
     :return: The updated catalogs, in memory; the stored ones are untouched
         unless a save rule above fired.
@@ -173,11 +195,11 @@ def build(
     now: datetime,
 ) -> Snapshot:
     """
-    Step 5: the snapshot.
+    Step 6: the snapshot.
 
     :param station: The station.
     :param device: The station's `/devices` entry; `lastData` is live.
-    :param archive: The archive after catchup.
+    :param archive: The archive after catchup, rain corrected (`correct_rain`).
     :param catalogs: The catalogs.
     :param now: The build time, timezone-aware.
     :return: The snapshot.
@@ -194,7 +216,7 @@ def build(
 
 def publish(snapshot: Snapshot, bucket: str) -> List[str]:
     """
-    Step 6: write both documents under `snapshot/`.
+    Step 7: write both documents under `snapshot/`.
 
     :param snapshot: The snapshot.
     :param bucket: The bucket.
@@ -207,14 +229,14 @@ def publish_curves(
     station: Station, archive: pd.DataFrame, catalogs: Catalogs, bucket: str
 ) -> List[str]:
     """
-    Step 7: write the curve files completed events do not have yet.
+    Step 8: write the curve files completed events do not have yet.
 
     Each is written once, by the first run that sees its event completed
     (or, for events completed before this step existed, by a later run of
     the bounded backfill), and never rewritten.
 
     :param station: The station.
-    :param archive: The archive after catchup.
+    :param archive: The archive after catchup, rain corrected (`correct_rain`).
     :param catalogs: The updated catalogs.
     :param bucket: The bucket.
     :return: The keys written.
@@ -240,7 +262,7 @@ def run(
     """
     device = load_station()
     station = Station.from_device(device)
-    archive = update_archive(device, bucket, pages)
+    archive = correct_rain(station, bucket, update_archive(device, bucket, pages))
     catalogs = load_catalogs(station, bucket)
     catalogs = update_catalogs(station, bucket, archive, catalogs)
     snapshot = build(station, device, archive, catalogs, clock())
