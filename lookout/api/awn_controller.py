@@ -470,6 +470,10 @@ def get_history_since_last_archive(
     """
     Retrieves device history from the last archive forward, avoiding duplicate fetches,
     handling gaps, and skipping future timestamps.
+
+    The result is raw: the archive rows as handed, the fetched rows as Ambient
+    reported them. Rain corrections are not applied; a reader applies them
+    once, after loading (#95), so the archive written to storage stays raw.
     """
     if not validate_archive(archive_df):
         return archive_df
@@ -533,15 +537,9 @@ def get_history_since_last_archive(
         logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
         log_interim_progress(page + 1, pages, interim_df)
 
-    combined = combine_full_history(archive_df, interim_df)
-
-    # Apply rain carryover corrections
-    try:
-        corrected = apply_corrections(combined, device["macAddress"], "lookout")
-        return corrected
-    except Exception as e:
-        logger.error(f"Failed to apply corrections: {e}")
-        return combined
+    # Raw, as Ambient reported it: rain corrections are applied on read,
+    # never before a save (#95).
+    return combine_full_history(archive_df, interim_df)
 
 
 # Helper Functions
@@ -600,7 +598,8 @@ def fill_archive_gap(device: dict, history_df: pd.DataFrame, start, end) -> GapF
     (the Diagnostics tab) records the ones that come back `skipped`.
 
     :param device: The station's `/devices` entry.
-    :param history_df: The archive, `dateutc` in epoch ms.
+    :param history_df: The archive, raw (as stored), `dateutc` in epoch ms.
+        The fill applies no rain corrections, so a raw archive saves raw.
     :param start: The gap's start; anything `pd.to_datetime` reads, as UTC.
     :param end: The gap's end.
     :return: A `GapFill`; its `history_df` is the merged archive on "filled".
@@ -630,16 +629,8 @@ def fill_archive_gap(device: dict, history_df: pd.DataFrame, start, end) -> GapF
         device, archive_df, end_date=end, pages=20
     )
 
-    # Merge new data back into full archive
+    # Merge new data back into full archive; raw, like the fetched rows
     full_combined = combine_full_history(history_df, new_data_df)
-
-    # Apply rain carryover corrections
-    try:
-        corrected = apply_corrections(full_combined, device["macAddress"], "lookout")
-        full_combined = corrected
-    except Exception as e:
-        logger.error(f"Failed to apply corrections in gap fill: {e}")
-        # Continue with uncorrected data
 
     if len(full_combined) == len(history_df):
         logger.info("No new data found. Gap skipped.")

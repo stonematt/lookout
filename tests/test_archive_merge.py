@@ -240,51 +240,32 @@ class TestHistorySinceLastArchive:
             result[archive.columns].reset_index(drop=True), archive, check_dtype=False
         )
 
-    def test_known_corrections_are_applied_to_the_combined_archive(
+    def test_known_corrections_are_not_applied_to_what_it_returns(
         self, fake_s3, ambient_replay, device
     ):
+        """
+        The combined archive comes back raw, catalog or not (#95).
+
+        Rows the archive had come back as handed; rows fetched come back as
+        the station reported them. The carryover day keeps its raw counters.
+        """
         carried = scenario_archive()
         rain_corrections.save_catalog(
             {"corrections": rain_corrections.detect_carryovers(carried)}, FAKE_MAC
         )
-        archive = carried[carried.dateutc < ms("2026-01-09T00:00:00Z")]
+        archive = carried[carried.dateutc < ms("2026-01-09T12:00:00Z")]
         serve(ambient_replay, carried)
 
         result = awn.get_history_since_last_archive(
             device, archive, end_date=pd.Timestamp("2026-01-10T12:00:00Z")
         )
 
-        corrected = week(gaps=(NO_CARRY_GAP, PLAIN_GAP))
-        merged = result.merge(corrected, on="dateutc", suffixes=("", "_ok"))
+        merged = result.merge(carried, on="dateutc", suffixes=("", "_raw"))
         assert len(merged) == len(result)
+        assert merged["dateutc"].min() < ms("2026-01-09T12:00:00Z")
+        assert merged["dateutc"].max() >= ms("2026-01-10T00:00:00Z")
         for col in COUNTERS:
-            assert (merged[col] - merged[col + "_ok"]).abs().max() < 1e-9
-
-    def test_a_catalog_applied_to_rows_already_corrected_subtracts_again(
-        self, fake_s3, ambient_replay, device
-    ):
-        """
-        Held finding: corrections are not idempotent.
-
-        The combined archive is corrected as a whole, so rows that were
-        already corrected lose the carryover a second time.
-        """
-        carried = scenario_archive()
-        rain_corrections.save_catalog(
-            {"corrections": rain_corrections.detect_carryovers(carried)}, FAKE_MAC
-        )
-        corrected = week(gaps=(NO_CARRY_GAP, PLAIN_GAP))
-        archive = corrected[corrected.dateutc < ms("2026-01-10T00:00:00Z")]
-        serve(ambient_replay, carried)
-
-        result = awn.get_history_since_last_archive(
-            device, archive, end_date=pd.Timestamp("2026-01-10T12:00:00Z")
-        )
-
-        noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local, archive row
-        got = result.set_index("dateutc").loc[noon, "weeklyrainin"]
-        was = corrected.set_index("dateutc").loc[noon, "weeklyrainin"]
-        assert was - got == pytest.approx(0.48)
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
 
 class TestFillArchiveGap:
@@ -308,43 +289,28 @@ class TestFillArchiveGap:
         assert filled["dateutc"].is_monotonic_decreasing
         assert set(filled["dateutc"]) == set(truth["dateutc"])
 
-    def test_fill_corrects_the_archive_and_the_fetched_rows_twice(
-        self, fake_s3, ambient_replay, device
-    ):
+    def test_fill_leaves_a_raw_archive_raw(self, fake_s3, ambient_replay, device):
         """
-        Held finding: rows fetched during a fill are corrected twice.
+        A fill applies no rain corrections (#95), so a raw archive saves raw.
 
-        `get_history_since_last_archive` corrects what it returns and
-        `fill_archive_gap` corrects the merged result again. Archive rows get
-        the catalog once; the fetched page, here Saturday 03:15 local to the
-        end of the week, loses the carryover from weekly, monthly and yearly a
-        second time (daily is already at its floor).
+        Neither the archive rows nor the fetched page (Saturday 03:15 local
+        to the end of the week) lose the carryover in the catalog.
         """
         carried = scenario_archive()
         rain_corrections.save_catalog(
             {"corrections": rain_corrections.detect_carryovers(carried)}, FAKE_MAC
         )
-        serve(ambient_replay, week(gaps=(CARRY_GAP,)))
+        truth = week(gaps=(CARRY_GAP,))
+        serve(ambient_replay, truth)
 
         filled = awn.fill_archive_gap(
             device, carried, PLAIN_GAP.start, PLAIN_GAP.end
         ).history_df
 
-        corrected = week(gaps=(NO_CARRY_GAP,))
-        merged = filled.merge(corrected, on="dateutc", suffixes=("", "_ok"))
-        assert len(merged) == len(filled) == len(corrected)
-        assert (merged["dailyrainin"] == merged["dailyrainin_ok"]).all()
-        # Rows the page overlapped may be corrected once or twice (which
-        # duplicate survives is undefined), so only the earliest day is exact.
-        early = merged["dateutc"] < ms("2026-01-09T12:00:00Z")
-        late = merged["dateutc"] >= ms("2026-01-10T11:15:00Z")
-        for col in COUNTERS[1:]:
-            off = merged[col + "_ok"] - merged[col]
-            assert off[early].abs().max() < 1e-9
-            # Sunday's weekly counter has reset, so its rows are not off.
-            assert set(off[late].round(9)) <= {0.0, 0.48}
-            assert off[late].max() == pytest.approx(0.48)
-
+        merged = filled.merge(truth, on="dateutc", suffixes=("", "_raw"))
+        assert len(merged) == len(filled) == len(truth)
+        for col in COUNTERS:
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
     def test_a_gap_with_no_new_data_comes_back_skipped(
         self, fake_s3, ambient_replay, device
     ):
