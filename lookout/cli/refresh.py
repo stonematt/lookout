@@ -21,7 +21,7 @@ The steps, each its own function, run in this order by `run`:
 5. `publish(snapshot, bucket)`: both documents under `snapshot/`.
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
-exit status, 0 or 1. The heartbeats (#74) belong there, around `run`.
+exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
 """
 
 import argparse
@@ -38,6 +38,7 @@ from lookout.config import DEFAULT_BUCKET
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, Station, build_snapshot
 from lookout.snapshot.publish import publish_snapshot
+from lookout.utils.healthchecks import Heartbeat
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
@@ -189,20 +190,40 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(
+    argv: Optional[List[str]] = None,
+    clock: Callable[[], datetime] = utc_now,
+) -> int:
     """
-    The shell entry point.
+    The shell entry point, wrapped in the Healthchecks heartbeats.
+
+    `/start` goes out first; the exit status goes out from a `finally` after
+    the run, so a failed run (or an interrupt) reports a non-zero status at
+    once. The station heartbeat goes out after a published run. A heartbeat
+    that cannot be sent never changes the exit status.
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
+    :param clock: Returns the build time; injected so tests can fix it.
     :return: The exit status: 0 when the snapshot was published, else 1.
     """
     args = parse_args(argv)
+    heartbeat = Heartbeat.from_secrets()
+    heartbeat.start()
+    status = 1
     try:
-        run(bucket=args.bucket, pages=args.pages)
+        snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
+        status = 0
+        heartbeat.station(
+            snapshot.station.name,
+            snapshot.station.mac,
+            snapshot.observed_at_ms,
+            snapshot.built_at_ms,
+        )
     except Exception as e:
         logger.exception(f"Refresh failed: {e}")
-        return 1
-    return 0
+    finally:
+        heartbeat.finish(status)
+    return status
 
 
 if __name__ == "__main__":

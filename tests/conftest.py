@@ -14,7 +14,7 @@ archive builders and loaders they pair with live in `tests/fixtures/`.
 """
 
 import sys
-from typing import Iterator
+from typing import Iterator, List, Optional
 from types import SimpleNamespace
 
 import pytest
@@ -114,3 +114,44 @@ def frozen_today(monkeypatch: pytest.MonkeyPatch) -> str:
 
     monkeypatch.setattr(storj, "datetime", SimpleNamespace(datetime=FrozenDatetime))
     return FROZEN_DAY
+
+
+class FakeHealthchecks:
+    """
+    A stand-in for the Healthchecks ping endpoint.
+
+    Attributes: `urls` lists each full ping URL, `pings` each as
+    `<slug>[/<suffix>]`; set `fail` to True and every ping raises, as if
+    Healthchecks were down.
+    """
+
+    def __init__(self) -> None:
+        self.pings: List[str] = []
+        self.urls: List[str] = []
+        self.fail = False
+
+    def __call__(
+        self, url: str, params: Optional[dict] = None, timeout: Optional[int] = None
+    ) -> SimpleNamespace:
+        if self.fail:
+            raise ConnectionError("healthchecks is down")
+        self.urls.append(url)
+        self.pings.append(url.split("/", 4)[4])
+        return SimpleNamespace(raise_for_status=lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def healthchecks(monkeypatch: pytest.MonkeyPatch) -> FakeHealthchecks:
+    """
+    Answer `lookout.utils.healthchecks` from a fake, so no test pings the web.
+
+    Only the module's own `requests` name is replaced. `.pings` lists each
+    ping as `<slug>[/<suffix>]`; set `.fail = True` to simulate an outage.
+
+    :return: The `FakeHealthchecks`.
+    """
+    from lookout.utils import healthchecks as hc
+
+    fake = FakeHealthchecks()
+    monkeypatch.setattr(hc, "requests", SimpleNamespace(get=fake))
+    return fake
