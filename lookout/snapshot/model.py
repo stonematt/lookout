@@ -332,6 +332,118 @@ class HeroLead:
 
 
 @dataclass(frozen=True)
+class TemperaturePeriod:
+    """
+    The temperature across one window: the Overview's range bars.
+
+    Computed from the live-stitched readings over the window's counted days,
+    only when its gap status allows (the five values are null for an invalid
+    window; a prorated one is shown with a tilde, its readings those of the
+    counted days).
+
+    :param status: The window's gap status; `status.key` names it ("today",
+        "yesterday", "7d", "30d", "90d", "365d").
+    :param low: The lowest reading.
+    :param q1: The 25th percentile of readings.
+    :param q3: The 75th percentile of readings.
+    :param high: The highest reading.
+    :param readings: How many readings the values are over.
+    """
+
+    status: GapStatus
+    low: Optional[float]
+    q1: Optional[float]
+    q3: Optional[float]
+    high: Optional[float]
+    readings: int
+
+
+@dataclass(frozen=True)
+class TemperatureDay:
+    """
+    One day of the ten-day high-low list, against normal.
+
+    Normal for a day is the median daily low and median daily high over the
+    days within 7 either side of this date in earlier years, each year used
+    only when that 15-day window's gap status allows.
+
+    :param day: The station-local day, "YYYY-MM-DD".
+    :param status: The day's own gap status; its low and high are null when
+        invalid.
+    :param low: The day's lowest reading (so far, for today).
+    :param high: The day's highest reading.
+    :param usual_low: The median daily low in earlier years; null with none.
+    :param usual_high: The median daily high.
+    :param usual_years: The earlier years it is over, newest first.
+    :param usual_days: How many days it is over.
+    """
+
+    day: str
+    status: GapStatus
+    low: Optional[float]
+    high: Optional[float]
+    usual_low: Optional[float]
+    usual_high: Optional[float]
+    usual_years: Tuple[int, ...]
+    usual_days: int
+
+
+@dataclass(frozen=True)
+class NormalStrip:
+    """
+    One "now against normal" strip: the current value among past days.
+
+    The past days are those within 7 either side of today's date in earlier
+    years, each year used only when its 15-day window's gap status allows.
+    A temperature dot is that day's mean at this local hour; a rain dot is
+    that day's rain by this time of day, so "so far" compares like with like.
+
+    :param kind: "temperature" or "rain".
+    :param unit: "f" or "in".
+    :param now: The current value (temperature, rain so far today).
+    :param now_ms: When it was observed.
+    :param values: One value per past day, ascending.
+    :param below_pct: The whole percent of `values` strictly below `now`.
+    :param equal_pct: The whole percent equal to `now` (rain ties at zero).
+    :param years: The earlier years used, newest first.
+    :param missing: "no_reading" or "no_comparison" when the strip cannot
+        be drawn; else null.
+    """
+
+    kind: Literal["temperature", "rain"]
+    unit: Literal["f", "in"]
+    now: Optional[float]
+    now_ms: Optional[int]
+    values: Tuple[float, ...]
+    below_pct: Optional[int]
+    equal_pct: Optional[int]
+    years: Tuple[int, ...]
+    missing: Optional[Literal["no_reading", "no_comparison"]]
+
+
+@dataclass(frozen=True)
+class TemperatureContext:
+    """
+    The Overview's temperature context (#81).
+
+    :param now: The current temperature (the range bars' now rule).
+    :param now_ms: When it was observed.
+    :param periods: Today, yesterday, 7, 30, 90 and 365 days, in that order.
+    :param ten_days: The last ten local days, oldest first, ending today.
+    :param ten_day_years: Every earlier year the list's normal is over,
+        newest first.
+    :param strips: The temperature strip, then the rain strip.
+    """
+
+    now: Optional[float]
+    now_ms: Optional[int]
+    periods: Tuple[TemperaturePeriod, ...]
+    ten_days: Tuple[TemperatureDay, ...]
+    ten_day_years: Tuple[int, ...]
+    strips: Tuple[NormalStrip, ...]
+
+
+@dataclass(frozen=True)
 class RainEventRow:
     """
     One Event Catalog event, as the Rain Events tab lists it.
@@ -645,6 +757,8 @@ class Snapshot:
     :param rain_events: The Rain Events tab's list and summaries.
     :param hero_lead: The hero lead and every lead rule's live value.
     :param rain_tab: The Rain tab's data.
+    :param temperature_context: The Overview's temperature across periods,
+        ten-day list and "now against normal" strips.
     """
 
     station: Station
@@ -658,6 +772,7 @@ class Snapshot:
     rain_events: RainEvents
     hero_lead: HeroLead
     rain_tab: RainTab
+    temperature_context: TemperatureContext
 
     def dashboard(self) -> Dict[str, Any]:
         """

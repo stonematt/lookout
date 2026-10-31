@@ -1,0 +1,411 @@
+{
+  "now": 55.0,
+  "now_ms": 1767729360000,
+  "periods": [
+    {
+      "status": {
+        "key": "today",
+        "first_day": "2026-01-06",
+        "last_day": "2026-01-06",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 45.7,
+      "q1": 46.5,
+      "q3": 55.5,
+      "high": 62.6,
+      "readings": 145
+    },
+    {
+      "status": {
+        "key": "yesterday",
+        "first_day": "2026-01-05",
+        "last_day": "2026-01-05",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 45.1,
+      "q1": 48.0,
+      "q3": 62.2,
+      "high": 65.1,
+      "readings": 288
+    },
+    {
+      "status": {
+        "key": "7d",
+        "first_day": "2025-12-31",
+        "last_day": "2026-01-06",
+        "days": 7,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 45.1,
+      "q1": 51.0,
+      "q3": 64.5,
+      "high": 70.9,
+      "readings": 1873
+    },
+    {
+      "status": {
+        "key": "30d",
+        "first_day": "2025-12-08",
+        "last_day": "2026-01-06",
+        "days": 30,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 41.1,
+      "q1": 48.1,
+      "q3": 61.3,
+      "high": 70.9,
+      "readings": 8497
+    },
+    {
+      "status": {
+        "key": "90d",
+        "first_day": "2025-10-09",
+        "last_day": "2026-01-06",
+        "days": 90,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 41.1,
+      "q1": 47.5,
+      "q3": 60.9,
+      "high": 70.9,
+      "readings": 25789
+    },
+    {
+      "status": {
+        "key": "365d",
+        "first_day": "2025-01-07",
+        "last_day": "2026-01-06",
+        "days": 365,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 41.0,
+      "q1": 47.4,
+      "q3": 60.8,
+      "high": 70.9,
+      "readings": 104977
+    }
+  ],
+  "ten_days": [
+    {
+      "day": "2025-12-28",
+      "status": {
+        "key": "2025-12-28",
+        "first_day": "2025-12-28",
+        "last_day": "2025-12-28",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 41.6,
+      "high": 61.6,
+      "usual_low": 41.4,
+      "usual_high": 61.4,
+      "usual_years": [
+        2024,
+        2023
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2025-12-29",
+      "status": {
+        "key": "2025-12-29",
+        "first_day": "2025-12-29",
+        "last_day": "2025-12-29",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 43.9,
+      "high": 63.9,
+      "usual_low": 41.4,
+      "usual_high": 61.4,
+      "usual_years": [
+        2024,
+        2023
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2025-12-30",
+      "status": {
+        "key": "2025-12-30",
+        "first_day": "2025-12-30",
+        "last_day": "2025-12-30",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 46.3,
+      "high": 66.3,
+      "usual_low": 41.4,
+      "usual_high": 61.4,
+      "usual_years": [
+        2024,
+        2023
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2025-12-31",
+      "status": {
+        "key": "2025-12-31",
+        "first_day": "2025-12-31",
+        "last_day": "2025-12-31",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 46.9,
+      "high": 66.9,
+      "usual_low": 41.4,
+      "usual_high": 61.4,
+      "usual_years": [
+        2024,
+        2023
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2026-01-01",
+      "status": {
+        "key": "2026-01-01",
+        "first_day": "2026-01-01",
+        "last_day": "2026-01-01",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 50.3,
+      "high": 70.3,
+      "usual_low": 41.4,
+      "usual_high": 61.4,
+      "usual_years": [
+        2025,
+        2024
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2026-01-02",
+      "status": {
+        "key": "2026-01-02",
+        "first_day": "2026-01-02",
+        "last_day": "2026-01-02",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 50.9,
+      "high": 70.9,
+      "usual_low": 42.0,
+      "usual_high": 62.0,
+      "usual_years": [
+        2025,
+        2024
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2026-01-03",
+      "status": {
+        "key": "2026-01-03",
+        "first_day": "2026-01-03",
+        "last_day": "2026-01-03",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 49.3,
+      "high": 69.3,
+      "usual_low": 42.3,
+      "usual_high": 62.3,
+      "usual_years": [
+        2025,
+        2024
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2026-01-04",
+      "status": {
+        "key": "2026-01-04",
+        "first_day": "2026-01-04",
+        "last_day": "2026-01-04",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 46.7,
+      "high": 66.7,
+      "usual_low": 42.3,
+      "usual_high": 62.3,
+      "usual_years": [
+        2025,
+        2024
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2026-01-05",
+      "status": {
+        "key": "2026-01-05",
+        "first_day": "2026-01-05",
+        "last_day": "2026-01-05",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 45.1,
+      "high": 65.1,
+      "usual_low": 42.3,
+      "usual_high": 62.3,
+      "usual_years": [
+        2025,
+        2024
+      ],
+      "usual_days": 30
+    },
+    {
+      "day": "2026-01-06",
+      "status": {
+        "key": "2026-01-06",
+        "first_day": "2026-01-06",
+        "last_day": "2026-01-06",
+        "days": 1,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null
+      },
+      "low": 45.7,
+      "high": 62.6,
+      "usual_low": 42.3,
+      "usual_high": 62.3,
+      "usual_years": [
+        2025,
+        2024
+      ],
+      "usual_days": 30
+    }
+  ],
+  "ten_day_years": [
+    2025,
+    2024,
+    2023
+  ],
+  "strips": [
+    {
+      "kind": "temperature",
+      "unit": "f",
+      "now": 55.0,
+      "now_ms": 1767729360000,
+      "values": [
+        53.092,
+        53.092,
+        53.692,
+        53.692,
+        54.592,
+        54.692,
+        56.092,
+        57.092,
+        57.092,
+        57.192,
+        57.292,
+        57.392,
+        57.692,
+        57.692,
+        58.292,
+        58.292,
+        58.392,
+        58.592,
+        58.692,
+        58.892,
+        58.892,
+        58.892,
+        58.892,
+        60.092,
+        61.192,
+        61.292,
+        62.292,
+        62.392,
+        62.892,
+        62.892
+      ],
+      "below_pct": 20,
+      "equal_pct": 0,
+      "years": [
+        2025,
+        2024
+      ],
+      "missing": null
+    },
+    {
+      "kind": "rain",
+      "unit": "in",
+      "now": 0.0,
+      "now_ms": 1767729360000,
+      "values": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1,
+        0.2,
+        0.3
+      ],
+      "below_pct": 0,
+      "equal_pct": 90,
+      "years": [
+        2025,
+        2024
+      ],
+      "missing": null
+    }
+  ]
+}
