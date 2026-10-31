@@ -190,6 +190,13 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   el.append(g, labels);
   axis(g, ticks, x, ih, degWhole);
 
+  if (now !== null) {
+    const nx = x(now);
+    g.append(svg("line", { class: "tc-now", x1: nx, x2: nx, y1: -8, y2: ih }));
+    g.append(svg("circle", { class: "tc-now-dot", cx: nx, cy: -8, r: 4 }));
+    const right = nx + 60 > iw + f.r;
+    g.append(svg("text", { class: "tc-note", x: right ? nx - 8 : nx + 8, y: -14, "text-anchor": right ? "end" : "start" }, `now ${deg(now)}`));
+  }
   ctx.periods.forEach((p, i) => {
     const cy = i * rowH + rowH / 2;
     labels.append(
@@ -209,13 +216,6 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
     g.append(svg("text", { class: "tc-value", x: x(p.high) + 7, y: cy + 4, "text-anchor": "start" }, highText));
   });
 
-  if (now !== null) {
-    const nx = x(now);
-    g.append(svg("line", { class: "tc-now", x1: nx, x2: nx, y1: -8, y2: ih }));
-    g.append(svg("circle", { class: "tc-now-dot", cx: nx, cy: -8, r: 4 }));
-    const right = nx + 60 > iw + f.r;
-    g.append(svg("text", { class: "tc-note", x: right ? nx + 6 : nx + 8, y: -14, "text-anchor": right ? "end" : "start" }, `now ${deg(now)}`));
-  }
   return el;
 }
 
@@ -360,7 +360,7 @@ function stripChart(strip: NormalStrip, width: number): SVGSVGElement | null {
   }
   // Rain is on a square-root scale, so the many dry and light days spread.
   const map = rain ? (v: number) => Math.sqrt(v) : (v: number) => v;
-  const x = scale(map(lo), map(hi), 0, iw);
+  const x = scale(map(lo) - (rain ? 0.03 * map(hi) : 0), map(hi), 0, iw);
   const at = (v: number) => x(map(v));
 
   const el = root(width, 104, `${stripClaim(strip)} ${nowLabel(strip)}.`);
@@ -369,7 +369,7 @@ function stripChart(strip: NormalStrip, width: number): SVGSVGElement | null {
   g.append(svg("line", { class: "tc-base", x1: 0, x2: iw, y1: ih, y2: ih }));
   for (const t of ticks) {
     g.append(svg("line", { class: "tc-base", x1: at(t), x2: at(t), y1: ih, y2: ih + 4 }));
-    g.append(svg("text", { class: "tc-tick", x: at(t), y: ih + 18, "text-anchor": t === ticks[0] ? "start" : "middle" }, rain ? (t === 0 ? "0" : `${t} in`) : degWhole(t)));
+    g.append(svg("text", { class: "tc-tick", x: at(t), y: ih + 18, "text-anchor": t === ticks[0] ? "start" : "middle" }, rain ? (t === 0 ? "0" : t === ticks.at(-1) ? `${t} in` : String(t)) : degWhole(t)));
   }
   strip.values.forEach((v, i) => {
     g.append(svg("circle", { class: `tc-dot tc-dot-${strip.kind}`, cx: at(v), cy: 6 + jitter(i) * (ih - 14), r: 4 }));
@@ -480,9 +480,12 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     claim.dataset.part = "claim";
     claim.textContent = stripClaim(strip);
     const chart = chartHost(`${strip.kind}-strip`);
-    figure.append(claim, chart);
+    figure.append(claim);
+    if (strip.missing === null) {
+      figure.append(chart);
+      stripHosts.push([strip, chart]);
+    }
     strips.append(figure);
-    stripHosts.push([strip, chart]);
   }
   strips.append(
     source(
