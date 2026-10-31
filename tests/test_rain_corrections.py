@@ -17,10 +17,7 @@ from lookout.cli.rain_corrections_cli import (
 )
 from lookout.core import rain_corrections
 from lookout.core.rain_corrections import apply_corrections, detect_carryovers
-from lookout.api.awn_controller import (
-    combine_full_history,
-    get_history_since_last_archive,
-)
+from lookout.api.awn_controller import combine_full_history
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -462,69 +459,6 @@ class TestCombineFullHistoryIntegration:
         # Should return archive data unchanged
         assert len(result) == 1
         assert result.iloc[0]["test"] == 1
-
-
-class TestCorrectionsIntegration:
-    """Test corrections integration in get_history_since_last_archive."""
-
-    @mock.patch("lookout.api.awn_controller.apply_corrections")
-    @mock.patch("lookout.api.awn_controller.combine_full_history")
-    @mock.patch("lookout.api.awn_controller.validate_archive")
-    def test_corrections_applied_in_get_history_since_last_archive(
-        self, mock_validate_archive, mock_combine_full_history, mock_apply_corrections
-    ):
-        """Test that corrections are applied at the end of get_history_since_last_archive."""
-        # Mock validation to pass
-        mock_validate_archive.return_value = True
-
-        # Mock combine_full_history to return combined data
-        combined_df = pd.DataFrame({"dateutc": [1640995200000], "test": [1]})
-        mock_combine_full_history.return_value = combined_df
-
-        # Mock apply_corrections to return corrected data
-        corrected_df = pd.DataFrame({"dateutc": [1640995200000], "test": [2]})
-        mock_apply_corrections.return_value = corrected_df
-
-        device = {"macAddress": "98:CD:AC:22:0D:E5"}
-        archive_df = pd.DataFrame({"dateutc": [1640995200000], "test": [1]})
-
-        result = get_history_since_last_archive(device, archive_df, limit=1, pages=1)
-
-        # Verify corrections were called with correct parameters
-        mock_apply_corrections.assert_called_once_with(
-            combined_df, "98:CD:AC:22:0D:E5", "lookout"
-        )
-
-        # Verify the corrected data was returned
-        assert result.equals(corrected_df)
-
-    @mock.patch("lookout.api.awn_controller.apply_corrections")
-    @mock.patch("lookout.api.awn_controller.combine_full_history")
-    @mock.patch("lookout.api.awn_controller.validate_archive")
-    def test_corrections_fallback_on_error(
-        self, mock_validate_archive, mock_combine_full_history, mock_apply_corrections
-    ):
-        """Test fallback to uncorrected data when corrections fail."""
-        # Mock validation to pass
-        mock_validate_archive.return_value = True
-
-        # Mock combine_full_history to return combined data
-        combined_df = pd.DataFrame({"dateutc": [1640995200000], "test": [1]})
-        mock_combine_full_history.return_value = combined_df
-
-        # Mock apply_corrections to raise exception
-        mock_apply_corrections.side_effect = Exception("Correction failed")
-
-        device = {"macAddress": "98:CD:AC:22:0D:E5"}
-        archive_df = pd.DataFrame({"dateutc": [1640995200000], "test": [1]})
-
-        result = get_history_since_last_archive(device, archive_df, limit=1, pages=1)
-
-        # Verify corrections were attempted
-        mock_apply_corrections.assert_called_once()
-
-        # Verify the uncorrected combined data was returned as fallback
-        assert result.equals(combined_df)
 
 
 COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]

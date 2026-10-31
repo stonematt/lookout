@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 
 from lookout.cli import diagnostics
+from lookout.core import rain_corrections
 from lookout.storage import storj
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
@@ -39,6 +40,7 @@ CATALOG_KEY = f"{FAKE_MAC}.energy_catalog.parquet"
 CATALOG_BACKUP_KEY = f".backups/{FAKE_MAC}.energy_catalog/{FROZEN_DAY}/{CATALOG_KEY}"
 CARRY_GAP_LINE = "2026-01-09 06:55  2026-01-09 09:00"
 PLAIN_GAP_LINE = "2026-01-10 17:55  2026-01-10 22:00"
+RAIN_COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
 
 
 @pytest.fixture
@@ -135,6 +137,27 @@ class TestFillGap:
         assert BACKUP_KEY in station.keys()
         backed_up = storj.get_df_from_s3(BUCKET, BACKUP_KEY, file_type="parquet")
         assert len(backed_up) == before
+
+    def test_a_fill_saves_the_rain_counters_raw(self, seed, capsys):
+        """
+        With a corrections catalog stored, a fill and save leaves every
+        stored rain counter raw (#95), archived rows and fetched rows alike.
+        """
+        truth = build_archive(
+            SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+        )
+        station = seed(history=truth)
+        rain_corrections.save_catalog(
+            {"corrections": rain_corrections.detect_carryovers(truth)}, FAKE_MAC
+        )
+
+        status, _ = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 0
+        merged = station.stored().merge(truth, on="dateutc", suffixes=("", "_raw"))
+        assert len(merged) == len(truth)
+        for col in RAIN_COUNTERS:
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
     def test_a_gap_ambient_cannot_fill_saves_nothing(self, seed, capsys):
         station = seed()

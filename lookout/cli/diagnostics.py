@@ -282,9 +282,7 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         )
         emit("Dry run: nothing fetched, nothing written.")
         emit(f"Would fetch Ambient history after {baseline}, up to the gap's end.")
-        emit(
-            f"At most {MAX_FILL_PAGES} pages, then merge, correct rain, back up, save."
-        )
+        emit(f"At most {MAX_FILL_PAGES} pages, then merge (raw), back up, save.")
         return 0
 
     outcome = awn.fill_archive_gap(device, archive, start, end)

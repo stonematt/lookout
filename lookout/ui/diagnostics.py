@@ -7,7 +7,14 @@ import streamlit as st
 
 import lookout.core.data_processing as lo_dp
 import lookout.ui.rain as rain_module
-from lookout.api.awn_controller import fill_archive_gap
+from lookout.config import DEFAULT_BUCKET
+from lookout.api.awn_controller import (
+    GapFill,
+    combine_full_history,
+    extend_corrected,
+    fill_archive_gap,
+    load_archive_for_device,
+)
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history
@@ -28,6 +35,60 @@ from lookout.utils.memory_utils import (
 )
 
 logger = app_logger(__name__)
+
+# The raw archive the gap fills extend; what "Save Archive" writes (#95).
+RAW_HISTORY_KEY = "raw_history_df"
+BUCKET = DEFAULT_BUCKET
+
+
+def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
+    """
+    Fill one gap in the raw archive and show it in the session history.
+
+    The session's `history_df` has its rain corrected for display, so it is
+    never what gets saved. The fill extends the raw archive instead (loaded
+    from storage on the first fill, then kept in the session), and only the
+    rows it added are corrected into `history_df`.
+
+    :param start: The gap's start, UTC.
+    :param end: The gap's end, UTC.
+    :return: The fill's outcome.
+    """
+    device = st.session_state["device"]
+    raw = st.session_state.get(RAW_HISTORY_KEY)
+    if raw is None:
+        raw = load_archive_for_device(device, BUCKET, "parquet")
+    outcome = fill_archive_gap(device, raw, start, end)
+    if outcome.status == "filled":
+        st.session_state[RAW_HISTORY_KEY] = outcome.history_df
+        st.session_state["history_df"] = extend_corrected(
+            st.session_state["history_df"],
+            outcome.history_df,
+            device["macAddress"],
+            BUCKET,
+        )
+    return outcome
+
+
+def save_filled_archive() -> bool:
+    """
+    Back up the stored archive and save it with this session's fills added.
+
+    The fills are merged into the archive as stored now, not as loaded at
+    the first fill, so rows catchup saved in between are kept. All raw.
+
+    :return: True when saved; False when no gap was filled this session, so
+        there is nothing new to save.
+    """
+    raw = st.session_state.get(RAW_HISTORY_KEY)
+    if raw is None:
+        return False
+    device = st.session_state["device"]
+    stored = load_archive_for_device(device, BUCKET, "parquet")
+    backup_and_save_history(
+        df=combine_full_history(stored, raw), device=device, bucket=BUCKET
+    )
+    return True
 
 
 def analyze_cache_usage():
@@ -176,13 +237,7 @@ def render():
                 end_ts = pd.to_datetime(row["end"])
                 st.info(f"Filling gap: {start_ts} to {end_ts}")
 
-                outcome = fill_archive_gap(
-                    st.session_state["device"],
-                    st.session_state["history_df"],
-                    start_ts,
-                    end_ts,
-                )
-                st.session_state["history_df"] = outcome.history_df
+                outcome = fill_gap(start_ts, end_ts)
                 if outcome.skipped:
                     # The tab keeps the skipped-gaps record (it is session
                     # state); the core function no longer does.
@@ -198,11 +253,10 @@ def render():
                 # st.rerun()
 
             if save_clicked:
-                backup_and_save_history(
-                    df=st.session_state["history_df"],
-                    device=st.session_state["device"],
-                )
-                st.success("Archive saved to Storj.")
+                if save_filled_archive():
+                    st.success("Archive saved to Storj.")
+                else:
+                    st.info("No gap filled yet; the stored archive is unchanged.")
 
     # 3. Data Coverage Heatmap
     st.subheader("Data Coverage")

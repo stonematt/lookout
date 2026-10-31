@@ -42,10 +42,12 @@ def build_snapshot(
     """
     Build the dashboard snapshot for one station.
 
-    The archive is used as handed: rain corrections are not applied again
-    (catchup has already applied them, see #95).
+    The archive is used as handed: rain corrections are not applied here.
+    Storage holds the archive raw; the caller applies the corrections once
+    before building (the refresh run's `correct_rain`, #95).
 
-    :param archive: The station's archive (Ambient columns, `dateutc` in ms).
+    :param archive: The station's archive, rain corrected (Ambient columns,
+        `dateutc` in ms).
     :param live: The live `lastData` from Ambient, or None.
     :param event_catalog: The Event Catalog, or None when there is none.
     :param energy_catalog: The energy catalog, or None. Not read yet: the
