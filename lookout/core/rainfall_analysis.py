@@ -4,16 +4,34 @@ Rainfall data processing and statistical analysis.
 This module provides core rainfall data processing functions including daily
 rainfall extraction, accumulation calculations, rolling window analysis, and
 statistical metrics. All functions are pure data processing with no UI dependencies.
+
+The Rain tab's prep (#83), read by `lookout.snapshot.rain_tab`:
+- water_year / water_year_start / water_year_day_index: the water year
+  (GLOSSARY.md), Oct 1 to Sep 30, named by the year it ends in.
+- dry_spells: completed dry spells in a series of daily totals.
+- hourly_rain: the rain that fell in each station-local hour.
 """
 
+from datetime import date
 from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
+
+WATER_YEAR_START_MONTH = 10
+"""The water year starts on Oct 1 (GLOSSARY.md, "water year")."""
+
+WET_DAY_IN = 0.01
+"""A day with at least this much rain is a rain day: one tip of the gauge."""
+
+# The water year 2001 (Oct 1, 2000 to Sep 30, 2001) has no Feb 29, so every
+# day of any water year has a place in its 365 days.
+_REFERENCE_WATER_YEAR = 2001
 
 
 def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
@@ -594,3 +612,102 @@ def prepare_rain_tab_data(
         }
 
     return daily_rain_df, stats, current_values, context_df
+
+
+def water_year(day: date) -> int:
+    """
+    The water year a station-local day falls in, named by the year it ends in.
+
+    :param day: The day.
+    :return: E.g. 2026 for Oct 1, 2025 to Sep 30, 2026.
+    """
+    return day.year + 1 if day.month >= WATER_YEAR_START_MONTH else day.year
+
+
+def water_year_start(year: int) -> date:
+    """
+    The first day of a water year.
+
+    :param year: The water year, named by the year it ends in.
+    :return: Oct 1 of the year before.
+    """
+    return date(year - 1, WATER_YEAR_START_MONTH, 1)
+
+
+def water_year_day_index(day: date) -> int:
+    """
+    A day's place in its water year, so years line up day for day.
+
+    Feb 29 shares Feb 28's place, so every water year has 365 places and
+    Mar 1 is at the same place in every year.
+
+    :param day: The day.
+    :return: 0 for Oct 1 through 364 for Sep 30.
+    """
+    month_day = (day.month, min(day.day, 28) if day.month == 2 else day.day)
+    year = _REFERENCE_WATER_YEAR - (1 if day.month >= WATER_YEAR_START_MONTH else 0)
+    place = date(year, *month_day)
+    return (place - water_year_start(_REFERENCE_WATER_YEAR)).days
+
+
+def dry_spells(daily: pd.Series, wet_in: float = WET_DAY_IN) -> pd.DataFrame:
+    """
+    The completed dry spells in a run of daily totals.
+
+    A dry spell is a run of dry days (under `wet_in`) with a rain day on
+    each side. A run that holds a day not known (NaN) is left out, so a
+    missing day is never read as a dry one; so are the runs still open at
+    either end of the series.
+
+    :param daily: Daily rain totals in inches, indexed by consecutive days,
+        oldest first; NaN for a day not known.
+    :param wet_in: The least rain that makes a rain day.
+    :return: One row per spell, oldest first: `first_day`, `last_day`, `days`.
+    """
+    spells = []
+    run_start: Optional[int] = None
+    known = True
+    seen_wet = False
+    days = list(daily.index)
+    for i, value in enumerate(daily.to_numpy(dtype=float)):
+        if np.isnan(value):
+            known = False
+            continue
+        if value >= wet_in:
+            if seen_wet and run_start is not None and known:
+                spells.append((days[run_start], days[i - 1], i - run_start))
+            seen_wet, run_start, known = True, None, True
+        elif run_start is None:
+            run_start, known = i, known and seen_wet
+    return pd.DataFrame(spells, columns=["first_day", "last_day", "days"])
+
+
+def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
+    """
+    The rain that fell in each station-local hour, from the daily counter.
+
+    Each reading's rain is the rise in `dailyrainin` since the reading before
+    it on the same local day; the day's first reading counts in full, since
+    the counter starts the day at zero. So each day's hours add up to its
+    highest counter, the day's total. Rain the station counted during a gap
+    lands in the hour of the first reading after it. Hours with no reading
+    are left out.
+
+    :param df: Readings with `dateutc` (epoch ms) and `dailyrainin`, any order.
+    :param tz: The station-local zone.
+    :return: `date`, `hour` (0-23 local) and `rain_in`, oldest first.
+    """
+    columns = ["date", "hour", "rain_in"]
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+    rows = df[["dateutc", "dailyrainin"]].sort_values("dateutc")
+    local = pd.to_datetime(rows["dateutc"], unit="ms", utc=True).dt.tz_convert(tz)
+    counter = rows["dailyrainin"].astype(float)
+    local_day = local.dt.date
+    rise = counter.groupby(local_day).diff().fillna(counter).clip(lower=0)
+    hours = (
+        pd.DataFrame({"date": local_day, "hour": local.dt.hour, "rain_in": rise})
+        .groupby(["date", "hour"], as_index=False)["rain_in"]
+        .sum()
+    )
+    return hours[columns]
