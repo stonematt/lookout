@@ -60,6 +60,44 @@ export interface ActiveRainEvent {
   avg_rate_in_hr: number | null;
 }
 
+/** A month's or window's gap status: valid, prorated (≈) or invalid. */
+export type GapState = "valid" | "prorated" | "invalid";
+
+/** Why a month or window is not valid. */
+export type GapReason =
+  | "gap"
+  | "low_coverage"
+  | "not_archived"
+  | "before_archive"
+  | "in_progress";
+
+/**
+ * One month's or one window's gap status (`lookout/snapshot/gaps.py` holds
+ * the rules). An invalid one has no value anywhere in the snapshot.
+ */
+export interface GapStatus {
+  /** "YYYY-MM" for a month, else the window's name ("7d", "water_year"). */
+  key: string;
+  /** Its first station-local day, "YYYY-MM-DD". */
+  first_day: string;
+  /** Its last station-local day, inclusive. */
+  last_day: string;
+  days: number;
+  /** Days that cannot be counted, whatever the reason. */
+  missing_days: number;
+  status: GapState;
+  /** Null when valid; for a prorated one, why days are missing. */
+  reason: GapReason | null;
+}
+
+/** The gap status of every archive month and every standard window. */
+export interface Gaps {
+  /** Oldest first, from the archive's first month through the current one. */
+  months: GapStatus[];
+  /** today, yesterday, 7d, 30d, 90d, 365d, water_year, in that order. */
+  windows: GapStatus[];
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -77,6 +115,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   kind: "dashboard";
   /** The archive's newest row, so the site can name the archive lag. */
   archive_newest_ms: number | null;
+  /** The gap status of each month and standard window. */
+  gaps: Gaps;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
