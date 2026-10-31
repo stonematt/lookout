@@ -51,80 +51,6 @@ def get_s3_client():
     )
 
 
-def read_json_from_path(file_path: str, local: bool = False) -> dict:
-    """
-    Reads a JSON file from a given path and returns its content as a dictionary.
-
-    :param file_path: Full S3 key or local path.
-    :param local: Flag to indicate if the file is local or from S3.
-    :return: Dictionary containing the JSON file content.
-    """
-    if local:
-        try:
-            with open(file_path, "rb") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logger.error(f"Local file not found: {file_path}")
-            return {}
-    else:
-        try:
-            # Extract bucket and key
-            if file_path.startswith("s3://"):
-                _, bucket, *key_parts = file_path.split("/")
-                key = "/".join(key_parts)
-            else:
-                logger.error(f"Invalid S3 path: {file_path}")
-                return {}
-
-            s3 = get_s3_client()
-
-            obj = s3.get_object(Bucket=bucket, Key=key)
-            return json.load(obj["Body"])
-        except Exception as e:
-            logger.error(f"Failed to read JSON from {file_path}: {e}")
-            return {}
-
-
-def save_json_to_path(dict_data: dict, file_path: str, local: bool = False) -> bool:
-    """
-    Saves a dictionary as a JSON file to a specified path.
-
-    :param dict_data: Dictionary to save.
-    :param file_path: File path to save the dictionary to.
-    :param local: Flag to indicate if the file should be saved locally or in S3.
-    :return: True if the save operation was successful, False otherwise.
-    """
-    if local:
-        try:
-            with open(file_path, "w") as f:
-                json.dump(dict_data, f)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save JSON locally: {e}")
-            return False
-    else:
-        try:
-            # Extract bucket and key
-            if file_path.startswith("s3://"):
-                _, bucket, *key_parts = file_path.split("/")
-                key = "/".join(key_parts)
-            else:
-                logger.error(f"Invalid S3 path: {file_path}")
-                return False
-
-            s3 = get_s3_client()
-            s3.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=json.dumps(dict_data),
-                ContentType="application/json",
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save JSON to {file_path}: {e}")
-            return False
-
-
 def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFrame:
     """
     Retrieves a pandas DataFrame from a JSON or Parquet file stored in an S3 bucket.
@@ -195,6 +121,22 @@ def save_json_to_s3(dict_data: dict, bucket: str, key: str) -> bool:
         return False
 
 
+def object_exists(bucket: str, key: str) -> bool:
+    """
+    Check whether an object exists in an S3-compatible bucket.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The object's key.
+    :return: True if `head_object` finds it, False on any error.
+    """
+    try:
+        s3 = get_s3_client()
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:
+        return False
+
+
 def json_exists_in_s3(bucket: str, key: str) -> bool:
     """
     Check if JSON file exists in S3-compatible bucket.
@@ -203,12 +145,7 @@ def json_exists_in_s3(bucket: str, key: str) -> bool:
     :param key: The key of the JSON file in the S3 bucket.
     :return: True if exists, False otherwise.
     """
-    try:
-        s3 = get_s3_client()
-        s3.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:
-        return False
+    return object_exists(bucket, key)
 
 
 def save_df_to_s3(
@@ -293,6 +230,8 @@ def backup_data(
     force_backup: bool = False,
     dry_run: bool = False,
     backup_root: str = ".backups",
+    folder: Optional[str] = None,
+    exact_key: bool = False,
 ):
     """
     Backs up all files with a given prefix in an S3 bucket to a specified backup folder
@@ -303,9 +242,11 @@ def backup_data(
     :param force_backup: Boolean flag to force backup even if the folder exists.
     :param dry_run: Boolean flag for a dry run without actual file copying.
     :param backup_root: Root directory for backups, default to '.backups'.
+    :param folder: Name of the folder under `backup_root`; the prefix when None.
+    :param exact_key: Back up only the object whose key is exactly `prefix`.
     """
     today = datetime.datetime.now().strftime("%Y%m%d")
-    backup_folder = f"{backup_root}/{prefix}/{today}/"
+    backup_folder = f"{backup_root}/{folder or prefix}/{today}/"
     backup_logger.info(f"Starting Backup of {backup_folder}")
 
     s3 = get_s3_client()
@@ -328,6 +269,8 @@ def backup_data(
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
             for obj in page.get("Contents", []):
                 key = obj["Key"]
+                if exact_key and key != prefix:
+                    continue
                 file_name = os.path.basename(key)
                 backup_key = f"{backup_folder}{file_name}"
                 file_size = obj["Size"]
@@ -358,6 +301,31 @@ def backup_data(
 
     except Exception as e:
         backup_logger.error(f"Error listing or copying files for backup: {e}")
+
+
+def backup_archive(
+    bucket: str, mac: str, force_backup: bool = False, dry_run: bool = False
+) -> None:
+    """
+    Back up the station's archive, and only the archive, to its dated folder.
+
+    The copy lands at `.backups/<mac>/<YYYYMMDD>/<mac>.<HISTORY_FILE_TYPE>`,
+    once a day unless forced. Catalogs share the bare-MAC prefix but are not
+    copied: they are backed up by `backup_and_save_catalog` (decided in #114).
+
+    :param bucket: Name of the S3 bucket.
+    :param mac: The station's MAC address.
+    :param force_backup: Back up even if today's folder already exists.
+    :param dry_run: Log what would be copied without copying it.
+    """
+    backup_data(
+        bucket=bucket,
+        prefix=f"{mac}.{HISTORY_FILE_TYPE}",
+        force_backup=force_backup,
+        dry_run=dry_run,
+        folder=mac,
+        exact_key=True,
+    )
 
 
 def backup_and_save_catalog(
@@ -406,7 +374,7 @@ def backup_and_save_history(
     key = f"{mac}.{HISTORY_FILE_TYPE}"
 
     try:
-        backup_data(bucket=bucket, prefix=mac)
+        backup_archive(bucket=bucket, mac=mac)
     except Exception as e:
         logger.error(f"Backup failed for {mac}: {e}")
         raise RuntimeError("Aborting save: backup failed.")
@@ -427,7 +395,7 @@ def main() -> None:
     print(f"Items in bucket: {len(bucket_items)}")
 
     # Perform dry run backup for the device
-    backup_data(bucket=bucket_name, prefix=device_id)
+    backup_archive(bucket=bucket_name, mac=device_id)
 
     # Test saving a dummy DataFrame to S3
     test_df = pd.DataFrame(

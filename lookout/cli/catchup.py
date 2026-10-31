@@ -107,7 +107,7 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     mac = device["macAddress"]
 
     # Always back up before mutating the current archive
-    sj.backup_data(bucket=bucket_name, prefix=mac, dry_run=False)
+    sj.backup_archive(bucket=bucket_name, mac=mac)
 
     archive_df = _load_archive(device, bucket_name)
 
@@ -172,7 +172,7 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         return
 
     # Back up before repairing (skipped in dry-run)
-    sj.backup_data(bucket=bucket_name, prefix=mac, dry_run=dry_run)
+    sj.backup_archive(bucket=bucket_name, mac=mac, dry_run=dry_run)
     archive_df = _load_archive(device, bucket_name)
 
     fixed, m = _repair_archive_df(archive_df)
