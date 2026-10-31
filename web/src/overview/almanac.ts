@@ -284,7 +284,7 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
     host,
     gridHeadline(almanac),
     "Each row is a water year, Oct through Sep, named by the year it ends in. " +
-      "The more rain, the stronger the blue, on a square-root scale so drier months still differ.",
+      "The more rain, the stronger a cell's fill, on a square-root scale so drier months still differ; the key reads it.",
   );
   const figure = make("figure", "alm-figure");
   figure.dataset.part = "chart";

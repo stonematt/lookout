@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from lookout.core.rainfall_analysis import water_year, water_year_start
-from lookout.snapshot.gaps import ArchiveCoverage
+from lookout.snapshot.gaps import STANDARD_WINDOWS, ArchiveCoverage
 from lookout.snapshot.model import (
     Almanac,
     AlmanacMonth,
@@ -35,14 +35,14 @@ from lookout.snapshot.model import (
 from lookout.snapshot.rain_tab import daily_totals, window_total
 from lookout.utils.dateutc import DEFAULT_TZ
 
-ROLLING_DAYS: Tuple[Tuple[str, int], ...] = (
-    ("7d", 7),
-    ("30d", 30),
-    ("90d", 90),
-    ("365d", 365),
+ROLLING_DAYS: Tuple[Tuple[str, int], ...] = tuple(
+    (key, first_back + 1)
+    for key, first_back, last_back in STANDARD_WINDOWS
+    if last_back == 0 and first_back > 0
 )
-"""The rolling windows, keyed as `Gaps.windows` keys them; the season
-("water_year") follows them."""
+"""The standard windows that end today and span more than a day (7, 30,
+90 and 365 days), as `Gaps.windows` keys them; the season ("water_year")
+follows them."""
 
 SEASON = "water_year"
 
@@ -182,11 +182,9 @@ def _same_dates(coverage: ArchiveCoverage) -> List[date]:
     first_day = coverage.first_day
     if first_day is None:
         return ends
+    day = 28 if (today.month, today.day) == (2, 29) else today.day
     year = today.year - 1
     while True:
-        day = today.day
-        if today.month == 2 and day == 29:
-            day = 28
         end = date(year, today.month, day)
         if end < first_day:
             return ends
@@ -195,6 +193,12 @@ def _same_dates(coverage: ArchiveCoverage) -> List[date]:
 
 
 def _add_months(day: date, months: int) -> date:
-    """The first of the month `months` after `day`'s."""
+    """
+    The first of a month counted from another.
+
+    :param day: Any day of the month to count from.
+    :param months: How many months later.
+    :return: The first day of that month.
+    """
     index = day.year * 12 + day.month - 1 + months
     return date(index // 12, index % 12 + 1, 1)

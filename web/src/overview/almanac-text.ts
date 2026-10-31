@@ -11,7 +11,7 @@
  * the almanac's square-root rain ramp.
  */
 import { gapSentence, gapValue } from "../gaps.js";
-import { NAMED_YEARS, dayText, inches, listText } from "../rain/text.js";
+import { NAMED_YEARS, WINDOW_NAMES, dayText, inches, listText } from "../rain/text.js";
 import type {
   Almanac,
   AlmanacMonth,
@@ -36,10 +36,7 @@ export const RAMP_STEPS = 5;
 
 /** The rolling windows' names, as the table's rows read them. */
 export const ROLLING_NAMES: Record<string, string> = {
-  "7d": "7 days",
-  "30d": "30 days",
-  "90d": "90 days",
-  "365d": "365 days",
+  ...WINDOW_NAMES,
   water_year: "Since Oct 1",
 };
 
@@ -246,7 +243,13 @@ function shownYears(window: RollingWindow): { year: number; text: string }[] {
     .map((y) => ({ year: y.year, text: shown(y.status, y.rain_in!) }));
 }
 
-/** A value as its gap status shows it: "0.70 in" or "≈ 0.70 in". */
+/**
+ * A value as its gap status shows it, for a headline.
+ *
+ * @param status - The month's or window's gap status.
+ * @param value - Its rain.
+ * @returns "0.70 in" or "≈ 0.70 in".
+ */
 function shown(status: GapStatus, value: number): string {
   return gapValue(status, inches(value)) ?? inches(value);
 }

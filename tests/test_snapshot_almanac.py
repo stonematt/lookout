@@ -270,6 +270,22 @@ class TestEveryTotalIsAnArchiveSum:
 
         assert build(archive, NOW).almanac == honest
 
+    def test_a_lagging_archive_leaves_todays_windows_uncompared(self):
+        # The archive stops a day before now: today is not archived, so no
+        # window ending today is computed, while complete months still are.
+        archive = build_archive(START, "2025-10-11T19:00:00Z", rain=RAIN)
+        almanac = build(archive, NOW).almanac
+        now = window(almanac, "7d").years[0]
+
+        assert (now.status.last_day, now.status.reason) == (
+            "2025-10-12",
+            "not_archived",
+        )
+        assert now.rain_in is None
+        assert by_year(almanac, "7d")[2024] == approx(0.0)
+        assert row(almanac, 2025).months[11].rain_in == approx(0.7)
+        assert row(almanac, 2026).months[0].to_date.reason == "not_archived"
+
     def test_an_empty_archive_has_no_rows_and_nothing_compared(self):
         empty = build_archive(START, START)
         almanac = build(empty, NOW).almanac
