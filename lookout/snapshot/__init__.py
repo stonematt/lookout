@@ -6,6 +6,8 @@ The dashboard snapshot: built in Python, published on Storj, read by the site.
 - `current`: live stitching, current conditions and the active rain event.
 - `gaps`: the gap status of months and windows, and the guard that keeps
   invalid comparisons uncomputed.
+- `rain_tab`: the Rain tab's section: window totals, daily and hourly rain,
+  dry spells and the water-year curves.
 - `publish`: the Storj keys and the write.
 - `events`: the Rain Events tab's section and event curves (#84).
 - `curves`: each completed event's curve file, written once.

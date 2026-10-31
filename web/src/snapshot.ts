@@ -260,6 +260,93 @@ export interface HeroLead {
   trace: LeadTrace | null;
 }
 
+/** The rain over one standard window; its gap status has the same key. */
+export interface RainWindow {
+  key: string;
+  /** Prorated when its status is; null when invalid. */
+  total_in: number | null;
+}
+
+/** One station-local hour's rain. */
+export interface RainHour {
+  day: string;
+  /** The hour it starts, 0 to 23 local. */
+  hour: number;
+  rain_in: number;
+}
+
+/** One station-local day's rain. */
+export interface RainDay {
+  day: string;
+  rain_in: number;
+}
+
+/**
+ * Daily and hourly rain over the days of one standard window ("90d").
+ * Per-day arrays are parallel, oldest first, from `first_day`; a day that
+ * cannot be counted has a null total, its reason and 24 null hours. Today's
+ * total is the live one.
+ */
+export interface RecentRain {
+  window: string;
+  first_day: string;
+  rain_in: (number | null)[];
+  reason: (GapReason | null)[];
+  /** Each day's 24 local hours; null for an hour still to come today. */
+  hourly_in: (number | null)[][];
+  /** Prorated when the window is; null when invalid. */
+  wet_hours: number | null;
+  wettest_hour: RainHour | null;
+}
+
+/** A run of dry days with a rain day on each side. */
+export interface DrySpell {
+  first_day: string;
+  last_day: string;
+  days: number;
+}
+
+/**
+ * Dry spells and rain days in the record. The days since it last rained and
+ * the usual dry spell are the calm lead rule's (`HeroLead.rules`).
+ */
+export interface DrySpells {
+  longest: DrySpell | null;
+  /** Prorated when the water year is; null when invalid. */
+  water_year_rain_days: number | null;
+  water_year_wettest: RainDay | null;
+}
+
+/**
+ * One water year's cumulative rain from Oct 1. Place `i` is `i` days after
+ * Oct 1 with Feb 29 folded into Feb 28, so years line up; null where the
+ * window from Oct 1 is invalid.
+ */
+export interface WaterYearCurve {
+  /** Named by the year it ends in. */
+  water_year: number;
+  first_day: string;
+  cumulative_in: (number | null)[];
+  prorated: boolean[];
+  /** The whole year so far. */
+  status: GapStatus;
+  total_in: number | null;
+  /** The value at `RainTab.day_index`: the same date as today. */
+  to_date_in: number | null;
+}
+
+/** Everything the Rain tab shows. */
+export interface RainTab {
+  /** In `Gaps.windows` order. */
+  windows: RainWindow[];
+  recent: RecentRain;
+  dry_spells: DrySpells;
+  /** Today's place in the water-year curves. */
+  day_index: number;
+  /** Oldest first. */
+  water_years: WaterYearCurve[];
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -285,6 +372,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   rain_events: RainEvents;
   /** The hero lead and every lead rule's live value. */
   hero_lead: HeroLead;
+  /** The Rain tab's data. */
+  rain_tab: RainTab;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -392,7 +481,24 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
     throw new SnapshotContractError("dashboard: rain_events.events missing");
   }
   checkLead(head.hero_lead);
+  checkRainTab(head.rain_tab);
   return head as unknown as DashboardSnapshot;
+}
+
+function checkRainTab(tab: unknown): void {
+  if (tab === undefined) return;
+  if (!isRecord(tab) || !Array.isArray(tab.windows) || !Array.isArray(tab.water_years)) {
+    throw new SnapshotContractError("dashboard: rain_tab malformed");
+  }
+  const recent = tab.recent;
+  if (
+    !isRecord(recent) ||
+    !Array.isArray(recent.rain_in) ||
+    !Array.isArray(recent.hourly_in) ||
+    recent.hourly_in.length !== recent.rain_in.length
+  ) {
+    throw new SnapshotContractError("dashboard: rain_tab.recent days not parallel");
+  }
 }
 
 function checkRibbon(ribbon: unknown): void {

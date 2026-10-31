@@ -463,6 +463,170 @@ class RainEvents:
 
 
 @dataclass(frozen=True)
+class RainWindow:
+    """
+    The rain over one standard window: an archive sum with today's live
+    total in it (`lookout.snapshot.rain_tab`).
+
+    :param key: The window, as `Gaps.windows` names it ("today", "7d",
+        "water_year", ...); its gap status is the one with the same key.
+    :param total_in: Its rain; prorated when its status is; None when invalid.
+    """
+
+    key: str
+    total_in: Optional[float]
+
+
+@dataclass(frozen=True)
+class RainHour:
+    """
+    One station-local hour's rain.
+
+    :param day: The day.
+    :param hour: The hour it starts, 0 to 23 local.
+    :param rain_in: The rain that fell in it.
+    """
+
+    day: str
+    hour: int
+    rain_in: float
+
+
+@dataclass(frozen=True)
+class RainDay:
+    """
+    One station-local day's rain.
+
+    :param day: The day.
+    :param rain_in: Its total.
+    """
+
+    day: str
+    rain_in: float
+
+
+@dataclass(frozen=True)
+class RecentRain:
+    """
+    Daily and hourly rain over the days of one standard window, for the
+    Rain tab's daily bars and its accumulation heatmap.
+
+    Per-day tuples are parallel, oldest first, from `first_day`. A day that
+    cannot be counted (its one-day gap status is invalid) has a None total,
+    its reason, and 24 None hours. Today's total is the live one.
+
+    :param window: The standard window the days are ("90d"); its gap status
+        and its total are the ones with that key.
+    :param first_day: The first day.
+    :param rain_in: Each day's total.
+    :param reason: Why a day cannot be counted, None when it can.
+    :param hourly_in: Each day's 24 local hours, None for an hour still to
+        come today. A day's hours add up to its total, to rounding.
+    :param wet_hours: Hours with any rain over the window; prorated when the
+        window is; None when it is invalid.
+    :param wettest_hour: The hour with the most rain; None when the window is
+        invalid or dry.
+    """
+
+    window: str
+    first_day: str
+    rain_in: Tuple[Optional[float], ...]
+    reason: Tuple[Optional[GapReason], ...]
+    hourly_in: Tuple[Tuple[Optional[float], ...], ...]
+    wet_hours: Optional[float]
+    wettest_hour: Optional[RainHour]
+
+
+@dataclass(frozen=True)
+class DrySpell:
+    """
+    A run of dry days with a rain day on each side.
+
+    :param first_day: Its first dry day.
+    :param last_day: Its last dry day.
+    :param days: How many days it ran.
+    """
+
+    first_day: str
+    last_day: str
+    days: int
+
+
+@dataclass(frozen=True)
+class DrySpells:
+    """
+    Dry spells and rain days in the record, for the Rain tab.
+
+    A rain day has at least 0.01 in. Spells with a day not in the record are
+    left out, so a missing day is never read as dry. The days since it last
+    rained and the usual dry spell are the calm lead rule's
+    (`HeroLead.rules`), so the Overview and the Rain tab show one number.
+
+    :param longest: The longest completed dry spell in the record.
+    :param water_year_rain_days: Rain days this water year; prorated when
+        its status is; None when invalid.
+    :param water_year_wettest: The wettest day this water year; None when
+        the water year is invalid or dry.
+    """
+
+    longest: Optional[DrySpell]
+    water_year_rain_days: Optional[float]
+    water_year_wettest: Optional[RainDay]
+
+
+@dataclass(frozen=True)
+class WaterYearCurve:
+    """
+    One water year's cumulative rain, day by day from Oct 1.
+
+    Place `i` is the day `i` days after Oct 1, with Feb 29 folded into
+    Feb 28 (`lookout.core.rainfall_analysis.water_year_day_index`), so every
+    year has the same 365 places. Each value is the window from Oct 1 to
+    that day, through the gap rules: prorated when that window is, None when
+    it is invalid.
+
+    :param water_year: Named by the year it ends in.
+    :param first_day: Its Oct 1.
+    :param cumulative_in: The rain from Oct 1 through each day so far.
+    :param prorated: Whether each value is prorated (≈).
+    :param status: The gap status of the whole year so far.
+    :param total_in: The rain over the whole year so far: the last value.
+    :param to_date_in: The value at `RainTab.day_index`, the place of today,
+        so years compare to the same date; None when it is invalid or the
+        year has not reached it.
+    """
+
+    water_year: int
+    first_day: str
+    cumulative_in: Tuple[Optional[float], ...]
+    prorated: Tuple[bool, ...]
+    status: GapStatus
+    total_in: Optional[float]
+    to_date_in: Optional[float]
+
+
+@dataclass(frozen=True)
+class RainTab:
+    """
+    Everything the Rain tab shows (`lookout.snapshot.rain_tab`). Every rain
+    total is an archive sum with today's live total stitched in.
+
+    :param windows: The rain over each standard window, in `Gaps.windows`
+        order.
+    :param recent: Daily and hourly rain over the last 90 days.
+    :param dry_spells: The current dry spell against the record.
+    :param day_index: Today's place in the water-year curves.
+    :param water_years: Every water year the archive reaches, oldest first.
+    """
+
+    windows: Tuple[RainWindow, ...]
+    recent: RecentRain
+    dry_spells: DrySpells
+    day_index: int
+    water_years: Tuple[WaterYearCurve, ...]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -480,6 +644,7 @@ class Snapshot:
         an observation.
     :param rain_events: The Rain Events tab's list and summaries.
     :param hero_lead: The hero lead and every lead rule's live value.
+    :param rain_tab: The Rain tab's data.
     """
 
     station: Station
@@ -492,6 +657,7 @@ class Snapshot:
     condition_ribbon: Optional[ConditionRibbon]
     rain_events: RainEvents
     hero_lead: HeroLead
+    rain_tab: RainTab
 
     def dashboard(self) -> Dict[str, Any]:
         """

@@ -25,6 +25,7 @@ from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
+from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 
 
@@ -76,4 +77,5 @@ def build_snapshot(
         hero_lead=hero_lead(
             archive, stitched, event_catalog, active, current, observed_at_ms, now
         ),
+        rain_tab=rain_tab(archive, stitched, current, now),
     )
