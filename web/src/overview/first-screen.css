@@ -114,6 +114,18 @@
   position: absolute;
   top: 0;
   bottom: 0;
+  /* a half-hour lag is 2 of 192 slots: keep it visible on a phone */
+  min-width: 6px;
+}
+
+.ribbon-tick-late {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .ribbon-tick-late {
+    display: block;
+  }
 }
 
 .ribbon-trace polyline {

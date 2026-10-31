@@ -163,8 +163,9 @@ describe("the 48-hour condition ribbon", () => {
     const hatches = all(".ribbon-hatch");
     expect(hatches).toHaveLength(1);
     expect(hatches[0]?.dataset.reason).toBe("not archived yet");
-    // The last two of 192 slots.
-    expect(hatches[0]?.style.left).toBe(`${(190 / 192) * 100}%`);
+    // The last two of 192 slots, anchored at the right edge.
+    expect(hatches[0]?.style.right).toBe("0px");
+    expect(parseFloat(hatches[0]!.style.width)).toBeCloseTo((2 / 192) * 100);
   });
 
   it("hatches a gap in the record as a gap", () => {
@@ -177,7 +178,7 @@ describe("the 48-hour condition ribbon", () => {
 
   it("states the range and the rain hours above the band", () => {
     expect(ribbonClaim(raining.condition_ribbon!)).toBe(
-      "40° to 60° over the last 48 hours, with rain in 9 h of the 47 h 30 m on record.",
+      "40° to 60° over the last 48 hours, with rain in 9\u00a0h of the 47\u00a0h\u00a030\u00a0m on record.",
     );
     expect(ribbonClaim({ ...raining.condition_ribbon!, rain_hours: 0, known_hours: 48 })).toBe(
       "40° to 60° over the last 48 hours, with no rain.",
@@ -188,8 +189,12 @@ describe("the 48-hour condition ribbon", () => {
     const ticks = ribbonTicks(raining.condition_ribbon!).map((t) => t.label);
 
     // Jan 6, 4:30 pm to Jan 8, 4:30 pm Pacific.
-    // Thursday 6 am (78% across) would run into the "now" label.
-    expect(ticks).toEqual(["Wed", "6 am", "noon", "6 pm", "Thu"]);
+    // Thursday noon (91% across) sits under the "now" label.
+    expect(ticks).toEqual(["Wed", "6 am", "noon", "6 pm", "Thu", "6 am"]);
+    // Thursday 6 am (78%) would run into it on a phone: marked late.
+    expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.late)).toEqual([
+      false, false, false, false, false, true,
+    ]);
   });
 
   it("names the archive lag in the source line, not in a headline", () => {

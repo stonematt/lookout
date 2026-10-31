@@ -21,9 +21,14 @@ const VIEW_H = 100;
 const RAIN_STEPS = [0.05, 0.1, 0.3] as const;
 const RAIN_STEP_NAMES = ["light", "moderate", "steady", "heavy"] as const;
 
-/** Ticks are dropped this close to either edge, clear of the "now" label. */
+/**
+ * Ticks are dropped this close to either edge. Past `TICK_LATE_PCT` a tick
+ * would run into the "now" label on a phone, so it is marked late and shown
+ * only on wider screens.
+ */
 const TICK_MIN_PCT = 4;
-const TICK_MAX_PCT = 74;
+const TICK_LATE_PCT = 74;
+const TICK_MAX_PCT = 90;
 
 /**
  * The rain-ramp step for one slot's rain, by its rate.
@@ -44,8 +49,9 @@ function hoursText(hours: number): string {
   const minutes = Math.round(hours * 60);
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (!h) return `${m} m`;
-  return m ? `${h} h ${m} m` : `${h} h`;
+  // No-break spaces: a duration never wraps across lines.
+  if (!h) return `${m}\u00a0m`;
+  return m ? `${h}\u00a0h\u00a0${m}\u00a0m` : `${h}\u00a0h`;
 }
 
 /**
@@ -77,6 +83,8 @@ export interface RibbonTick {
   pct: number;
   /** "6 am", "noon", "6 pm", or the weekday at midnight. */
   label: string;
+  /** Close to the "now" label: shown only where the band is wide. */
+  late: boolean;
 }
 
 const HOUR = new Intl.DateTimeFormat("en-US", {
@@ -105,7 +113,7 @@ export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
     if (pct < TICK_MIN_PCT || pct > TICK_MAX_PCT) continue;
     const label =
       hour === 0 ? WEEKDAY.format(t) : hour === 12 ? "noon" : hour < 12 ? `${hour} am` : `${hour - 12} pm`;
-    ticks.push({ pct, label });
+    ticks.push({ pct, label, late: pct > TICK_LATE_PCT });
   }
   return ticks;
 }
@@ -201,7 +209,10 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     const hatch = el("div", "ribbon-hatch gap-hatch");
     hatch.dataset.reason =
       archiveEnd === null || startMs > archiveEnd ? "not archived yet" : "gap in record";
-    hatch.style.left = `${pct(run.from)}%`;
+    // A span at the right edge is anchored there, so its minimum width
+    // grows leftward and stays inside the band.
+    if (run.to === n) hatch.style.right = "0";
+    else hatch.style.left = `${pct(run.from)}%`;
     hatch.style.width = `${pct(run.to) - pct(run.from)}%`;
     band.append(hatch);
   }
@@ -249,7 +260,7 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const ticks = el("div", "ribbon-ticks");
   ticks.setAttribute("aria-hidden", "true");
   for (const tick of ribbonTicks(ribbon)) {
-    const node = el("span", "ribbon-tick", tick.label);
+    const node = el("span", tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick", tick.label);
     node.style.left = `${tick.pct}%`;
     ticks.append(node);
   }
