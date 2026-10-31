@@ -83,22 +83,39 @@ def test_save_history_backs_up_then_writes_mac_dot_parquet(fake_s3, frozen_today
     assert_frame_equal(storj.get_df_from_s3(BUCKET, backup_key, "parquet"), old)
 
 
-def test_archive_backup_sweeps_in_everything_sharing_the_mac_prefix(
-    fake_s3, frozen_today
-):
-    # Quirk: the archive's prefix is the bare MAC, so catalogs come along.
+def test_archive_backup_copies_the_archive_and_not_the_catalogs(fake_s3, frozen_today):
+    # Decided in #114: an archive backup is the archive only; catalogs are
+    # backed up by their own catalog-specific path.
     storj.save_df_to_s3(scenario_archive(), BUCKET, ARCHIVE_KEY)
     fake_s3.put_object(
         Bucket=BUCKET, Key=f"{FAKE_MAC}.event_catalog.parquet", Body=b"x"
     )
 
-    storj.backup_data(bucket=BUCKET, prefix=FAKE_MAC)
+    storj.backup_archive(bucket=BUCKET, mac=FAKE_MAC)
 
     folder = f".backups/{FAKE_MAC}/{frozen_today}/"
     assert [k for k in bucket_keys(fake_s3) if k.startswith(folder)] == [
-        f"{folder}{FAKE_MAC}.event_catalog.parquet",
-        f"{folder}{ARCHIVE_KEY}",
+        f"{folder}{ARCHIVE_KEY}"
     ]
+
+
+def test_save_history_backup_leaves_the_catalogs_out(fake_s3, frozen_today):
+    storj.save_df_to_s3(scenario_archive(), BUCKET, ARCHIVE_KEY)
+    catalog_key = f"{FAKE_MAC}.energy_catalog.parquet"
+    fake_s3.put_object(Bucket=BUCKET, Key=catalog_key, Body=b"x")
+
+    storj.backup_and_save_history(
+        scenario_archive(), {"macAddress": FAKE_MAC}, bucket=BUCKET
+    )
+
+    backup_key = f".backups/{FAKE_MAC}/{frozen_today}/{ARCHIVE_KEY}"
+    assert bucket_keys(fake_s3) == sorted([ARCHIVE_KEY, backup_key, catalog_key])
+
+
+def test_dry_run_archive_backup_copies_nothing(fake_s3, frozen_today):
+    fake_s3.put_object(Bucket=BUCKET, Key=ARCHIVE_KEY, Body=b"x")
+    storj.backup_archive(bucket=BUCKET, mac=FAKE_MAC, dry_run=True)
+    assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
 
 
 def test_backup_runs_once_a_day_unless_forced(fake_s3, frozen_today):

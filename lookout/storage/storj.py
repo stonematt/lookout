@@ -230,6 +230,7 @@ def backup_data(
     force_backup: bool = False,
     dry_run: bool = False,
     backup_root: str = ".backups",
+    folder: Optional[str] = None,
 ):
     """
     Backs up all files with a given prefix in an S3 bucket to a specified backup folder
@@ -240,9 +241,10 @@ def backup_data(
     :param force_backup: Boolean flag to force backup even if the folder exists.
     :param dry_run: Boolean flag for a dry run without actual file copying.
     :param backup_root: Root directory for backups, default to '.backups'.
+    :param folder: Name of the folder under `backup_root`; the prefix when None.
     """
     today = datetime.datetime.now().strftime("%Y%m%d")
-    backup_folder = f"{backup_root}/{prefix}/{today}/"
+    backup_folder = f"{backup_root}/{folder or prefix}/{today}/"
     backup_logger.info(f"Starting Backup of {backup_folder}")
 
     s3 = get_s3_client()
@@ -297,6 +299,30 @@ def backup_data(
         backup_logger.error(f"Error listing or copying files for backup: {e}")
 
 
+def backup_archive(
+    bucket: str, mac: str, force_backup: bool = False, dry_run: bool = False
+) -> None:
+    """
+    Back up the station's archive, and only the archive, to its dated folder.
+
+    The copy lands at `.backups/<mac>/<YYYYMMDD>/<mac>.<HISTORY_FILE_TYPE>`,
+    once a day unless forced. Catalogs share the bare-MAC prefix but are not
+    copied: they are backed up by `backup_and_save_catalog` (decided in #114).
+
+    :param bucket: Name of the S3 bucket.
+    :param mac: The station's MAC address.
+    :param force_backup: Back up even if today's folder already exists.
+    :param dry_run: Log what would be copied without copying it.
+    """
+    backup_data(
+        bucket=bucket,
+        prefix=f"{mac}.{HISTORY_FILE_TYPE}",
+        force_backup=force_backup,
+        dry_run=dry_run,
+        folder=mac,
+    )
+
+
 def backup_and_save_catalog(
     df: pd.DataFrame,
     catalog_type: str,
@@ -343,7 +369,7 @@ def backup_and_save_history(
     key = f"{mac}.{HISTORY_FILE_TYPE}"
 
     try:
-        backup_data(bucket=bucket, prefix=mac)
+        backup_archive(bucket=bucket, mac=mac)
     except Exception as e:
         logger.error(f"Backup failed for {mac}: {e}")
         raise RuntimeError("Aborting save: backup failed.")
@@ -364,7 +390,7 @@ def main() -> None:
     print(f"Items in bucket: {len(bucket_items)}")
 
     # Perform dry run backup for the device
-    backup_data(bucket=bucket_name, prefix=device_id)
+    backup_archive(bucket=bucket_name, mac=device_id)
 
     # Test saving a dummy DataFrame to S3
     test_df = pd.DataFrame(

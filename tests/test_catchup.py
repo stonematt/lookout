@@ -261,6 +261,15 @@ class TestCatchupRun:
         assert station.keys() == [BACKUP_KEY, ARCHIVE_KEY]
         assert_frame_equal(station.stored(BACKUP_KEY), station.archive)
 
+    def test_the_archive_backup_leaves_the_catalogs_out(self, catchup_station, fake_s3):
+        station = catchup_station()
+        catalog_key = f"{FAKE_MAC}.event_catalog.parquet"
+        fake_s3.put_object(Bucket=BUCKET, Key=catalog_key, Body=b"x")
+
+        station.run()
+
+        assert station.keys() == sorted([BACKUP_KEY, ARCHIVE_KEY, catalog_key])
+
     def test_asks_ambient_for_one_page_ending_now(self, catchup_station):
         station = catchup_station()
 
