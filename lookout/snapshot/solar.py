@@ -278,7 +278,7 @@ def _last_24h(
     )
     return SolarTrace(
         start_ms=int(start),
-        step_ms=TRACE_STEP_MS,
+        step_minutes=TRACE_STEP_MS // 60_000,
         solar_wm2=solar,
         usual=usual,
         usual_low_wm2=band[0] if band else None,

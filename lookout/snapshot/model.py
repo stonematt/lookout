@@ -900,13 +900,14 @@ class SolarTrace:
     The 24-hour view: the solar trace up to the newest observation, over
     the usual range for each time of day.
 
-    Slot `i` is the five minutes from `start_ms + i * step_ms`; the last is
+    Slot `i` is the five minutes from `start_ms` plus `i` steps of `step_minutes`; the last is
     the newest observation's, so it holds the live reading. A slot with no
     reading (a gap, or the span only the live reading covers) is None. The
     usual tuples are parallel to `solar_wm2`.
 
     :param start_ms: The first slot.
-    :param step_ms: The slot length, five minutes.
+    :param step_minutes: The slot length, 5 (a duration, so not an `_ms`
+        field: those are epoch times).
     :param solar_wm2: Each slot's solar radiation.
     :param usual: The gap status of the comparison days: the 30 before today.
     :param usual_low_wm2: The 25th percentile at each slot's time of day over
@@ -922,7 +923,7 @@ class SolarTrace:
     """
 
     start_ms: int
-    step_ms: int
+    step_minutes: int
     solar_wm2: Tuple[Optional[float], ...]
     usual: GapStatus
     usual_low_wm2: Optional[Tuple[Optional[float], ...]]

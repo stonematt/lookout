@@ -505,7 +505,8 @@ export interface SolarRecent {
  */
 export interface SolarTrace {
   start_ms: number;
-  step_ms: number;
+  /** A duration, so not an `_ms` field (those are epoch times). */
+  step_minutes: number;
   /** W/m²; null where nothing was read (a gap, or the span only live covers). */
   solar_wm2: (number | null)[];
   /** The comparison days' gap status. */

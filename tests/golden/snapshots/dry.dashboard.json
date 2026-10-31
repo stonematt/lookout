@@ -12351,7 +12351,7 @@
     },
     "last_24h": {
       "start_ms": 1763452500000,
-      "step_ms": 300000,
+      "step_minutes": 5,
       "solar_wm2": [
         0.0,
         0.0,

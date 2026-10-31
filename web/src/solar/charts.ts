@@ -88,9 +88,12 @@ function yAxis(svg: SVGSVGElement, ticks: number[], y: (v: number) => number, le
   ticks.forEach((tick, i) => {
     const at = y(tick);
     svg.append(el("line", { x1: left, x2: right, y1: at, y2: at, class: i ? "solar-grid" : "solar-axis" }));
-    const text = String(Math.round(tick * 100) / 100) + (i === ticks.length - 1 ? ` ${unit}` : "");
+    const text = String(Math.round(tick * 100) / 100);
     svg.append(el("text", { x: left - 6, y: at + 4, class: "solar-tick", "text-anchor": "end" }, text));
   });
+  // The unit sits above the axis, where it never clips at phone width.
+  const topTick = ticks[ticks.length - 1] ?? 0;
+  svg.append(el("text", { x: 0, y: Math.max(12, y(topTick) - 12), class: "solar-tick" }, unit));
 }
 
 /**
@@ -181,7 +184,8 @@ export function drawTrace(
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / (n - 1);
   const x = (i: number) => left + i * step;
-  const at = (i: number) => trace.start_ms + i * trace.step_ms;
+  const stepMs = trace.step_minutes * 60_000;
+  const at = (i: number) => trace.start_ms + i * stepMs;
 
   const { svg, hatch } = canvas(width, height, "Solar radiation over the last 24 hours against its usual range");
   yAxis(svg, ticks, y, left, right, "W/m²");
@@ -211,7 +215,7 @@ export function drawTrace(
 
   // The archived span ends at the archive's newest slot; after it, only live.
   const archived =
-    archiveNewestMs === null ? n - 1 : Math.min(n - 1, Math.floor((archiveNewestMs - trace.start_ms) / trace.step_ms));
+    archiveNewestMs === null ? n - 1 : Math.min(n - 1, Math.floor((archiveNewestMs - trace.start_ms) / stepMs));
   if (archived < n - 1) {
     const from = Math.max(0, archived);
     svg.append(el("rect", { x: x(from), y: top, width: x(n - 1) - x(from), height: bottom - top, fill: hatch, rx: 2 }));

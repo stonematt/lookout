@@ -48,9 +48,9 @@ import {
 
 /** The heatmap views, as the segmented control names them. */
 const VIEWS = [
-  ["months", "Year by month"],
-  ["days", "Month by day"],
-  ["slots", "Day by 15 minutes"],
+  ["months", "Months"],
+  ["days", "Days"],
+  ["slots", "15 minutes"],
 ] as const;
 
 type View = (typeof VIEWS)[number][0];

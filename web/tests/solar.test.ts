@@ -166,7 +166,7 @@ describe("the heatmaps", () => {
   it("switches between its three views", () => {
     render(raining);
     const buttons = [...section("heatmaps").querySelectorAll<HTMLButtonElement>(".solar-seg button")];
-    expect(buttons.map((b) => text(b))).toEqual(["Year by month", "Month by day", "Day by 15 minutes"]);
+    expect(buttons.map((b) => text(b))).toEqual(["Months", "Days", "15 minutes"]);
     expect(buttons[1]!.getAttribute("aria-pressed")).toBe("true");
     expect(text(section("heatmaps").querySelector("h2"))).toBe(
       "The brightest day on record was Jan 4, 2026, at 4.07 kWh/m²",

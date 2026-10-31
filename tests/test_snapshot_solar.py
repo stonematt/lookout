@@ -262,13 +262,13 @@ class TestTheLast24Hours:
         trace = live.solar_tab.last_24h
         assert live.current.solar_wm2 == 912.0
         assert trace.solar_wm2[-1] == 912.0
-        assert trace.start_ms + (len(trace.solar_wm2) - 1) * trace.step_ms == ms(
+        assert trace.start_ms + (len(trace.solar_wm2) - 1) * FIVE_MIN_MS == ms(
             "2026-06-20T19:25:00Z"
         )
 
     def test_it_covers_24_hours_in_five_minute_steps(self, live):
         trace = live.solar_tab.last_24h
-        assert trace.step_ms == FIVE_MIN_MS
+        assert trace.step_minutes == 5
         assert len(trace.solar_wm2) == 24 * 12 + 1
         assert trace.start_ms == ms("2026-06-19T19:25:00Z")
 
@@ -282,7 +282,7 @@ class TestTheLast24Hours:
         trace = live.solar_tab.last_24h
         # Every synthetic day is the same: at local noon (19:00Z) each holds
         # 800 W/m², so the band's quartiles and median are all 800.
-        noon = (ms("2026-06-20T19:00:00Z") - trace.start_ms) // trace.step_ms
+        noon = (ms("2026-06-20T19:00:00Z") - trace.start_ms) // FIVE_MIN_MS
         assert trace.usual.status == "valid"
         assert trace.usual.first_day == "2026-05-21"
         assert trace.usual.last_day == "2026-06-19"
