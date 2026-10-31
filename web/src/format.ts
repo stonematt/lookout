@@ -20,11 +20,14 @@ export const MONTHS: readonly string[] = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-/** The water year's months, short: it runs Oct through Sep. */
-export const WATER_MONTHS: readonly string[] = [...MONTHS.slice(9), ...MONTHS.slice(0, 9)];
-
 /** The water year starts on Oct 1 (calendar month 10). */
 export const WATER_YEAR_START_MONTH = 10;
+
+/** The water year's months, short: it runs Oct through Sep. */
+export const WATER_MONTHS: readonly string[] = [
+  ...MONTHS.slice(WATER_YEAR_START_MONTH - 1),
+  ...MONTHS.slice(0, WATER_YEAR_START_MONTH - 1),
+];
 
 /** A rain day has at least this many inches (`WET_DAY_IN` in Python). */
 export const WET_DAY_IN = 0.01;
