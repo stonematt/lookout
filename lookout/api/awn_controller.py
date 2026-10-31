@@ -54,9 +54,6 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 # Constants
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 sec_in_hour = 3600 * 1000
 
 # Local cache configuration
@@ -530,7 +527,7 @@ def get_history_since_last_archive(
 
     # Apply rain carryover corrections
     try:
-        corrected = apply_corrections(combined, device['macAddress'], "lookout")
+        corrected = apply_corrections(combined, device["macAddress"], "lookout")
         return corrected
     except Exception as e:
         logger.error(f"Failed to apply corrections: {e}")
@@ -591,7 +588,7 @@ def fill_archive_gap(device, history_df, start, end):
 
     # Apply rain carryover corrections
     try:
-        corrected = apply_corrections(full_combined, device['macAddress'], "lookout")
+        corrected = apply_corrections(full_combined, device["macAddress"], "lookout")
         full_combined = corrected
     except Exception as e:
         logger.error(f"Failed to apply corrections in gap fill: {e}")

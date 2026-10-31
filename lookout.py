@@ -1,12 +1,12 @@
 from ambient_api.ambientapi import AmbientAPI
-import streamlit as st
+from lookout.secrets_loader import get_secret
 
 
 # %%
 # open Ambient Weather Network
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
+AMBIENT_ENDPOINT = get_secret("AMBIENT_ENDPOINT")
+AMBIENT_API_KEY = get_secret("AMBIENT_API_KEY")
+AMBIENT_APPLICATION_KEY = get_secret("AMBIENT_APPLICATION_KEY")
 
 # api = AmbientAPI()
 api = AmbientAPI(

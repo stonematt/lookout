@@ -19,16 +19,6 @@ from lookout.secrets_loader import MissingSecretError, get_secret
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-@pytest.fixture
-def no_secrets(monkeypatch, tmp_path):
-    """Clear every secret source, so each test sets only what it needs."""
-    for name in secrets_loader.SECRET_NAMES:
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(secrets_loader, "SECRETS_FILE", tmp_path / "absent.toml")
-    monkeypatch.delitem(sys.modules, "streamlit", raising=False)
-    return tmp_path
-
-
 def _write_file(path: Path, text: str) -> Path:
     path.write_text(text)
     path.chmod(0o600)

@@ -14,7 +14,6 @@ import argparse
 from typing import Dict, Tuple
 
 import pandas as pd
-import streamlit as st
 
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
@@ -23,10 +22,6 @@ from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="catchup.log")
-
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 
 
 # ---------- archive utilities ----------

@@ -8,6 +8,7 @@ from ambient_api.ambientapi import AmbientAPI
 from dateutil import parser
 
 import lookout.api.awn_controller as awn
+from lookout.secrets_loader import get_secret
 
 # my modules
 import lookout.storage.storj as sj
@@ -22,9 +23,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
+AMBIENT_ENDPOINT = get_secret("AMBIENT_ENDPOINT")
+AMBIENT_API_KEY = get_secret("AMBIENT_API_KEY")
+AMBIENT_APPLICATION_KEY = get_secret("AMBIENT_APPLICATION_KEY")
 
 api = AmbientAPI(
     # log_level="INFO",

@@ -9,7 +9,8 @@ Functions:
 - get_device_history(mac, limit, end_date)
 
 Requires:
-- Streamlit secrets: AMBIENT_API_KEY, AMBIENT_APPLICATION_KEY
+- Secrets AMBIENT_ENDPOINT, AMBIENT_API_KEY, AMBIENT_APPLICATION_KEY, read via
+  lookout.secrets_loader.get_secret on each request, never at import.
 """
 
 import time
@@ -19,17 +20,24 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 import requests
-import streamlit as st
 
+from lookout.secrets_loader import get_secret
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
-# Secrets
-# BASE_URL = "https://rt.ambientweather.net/v1"
-BASE_URL = st.secrets["AMBIENT_ENDPOINT"].rstrip("/")
-API_KEY = st.secrets["AMBIENT_API_KEY"]
-APP_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
+
+def _base_url() -> str:
+    """Return the Ambient endpoint (e.g. https://rt.ambientweather.net/v1)."""
+    return get_secret("AMBIENT_ENDPOINT").rstrip("/")
+
+
+def _auth_params() -> Dict[str, str]:
+    """Return the Ambient API and application keys as request params."""
+    return {
+        "apiKey": get_secret("AMBIENT_API_KEY"),
+        "applicationKey": get_secret("AMBIENT_APPLICATION_KEY"),
+    }
 
 
 def format_ts_utc(ms_ts: Optional[int]) -> str:
@@ -50,11 +58,8 @@ def get_devices() -> List[Dict]:
 
     :return: List of device dicts.
     """
-    url = f"{BASE_URL}/devices"
-    params = {
-        "apiKey": API_KEY,
-        "applicationKey": APP_KEY,
-    }
+    url = f"{_base_url()}/devices"
+    params = _auth_params()
     time.sleep(1)
     resp = requests.get(url, params=params)
     if resp.status_code != 200:
@@ -123,12 +128,8 @@ def get_device_history_raw(
     :param end_date: Optional end timestamp (ms).
     :return: List of raw data records (dict).
     """
-    url = f"{BASE_URL}/devices/{mac}"
-    params = {
-        "apiKey": API_KEY,
-        "applicationKey": APP_KEY,
-        "limit": limit,
-    }
+    url = f"{_base_url()}/devices/{mac}"
+    params = {**_auth_params(), "limit": limit}
     if end_date is not None:
         params["endDate"] = end_date
 
