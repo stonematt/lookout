@@ -318,7 +318,9 @@ def _water_years(
             running += totals.get(day, 0.0)
             place = water_year_day_index(day)
             status = coverage.window(start, day, key=f"water_year_{year}")
-            cumulative[place] = _round(prorate(status, running))
+            cumulative[place] = comparable(
+                status, lambda: _round(prorate(status, running))
+            )
             prorated[place] = status.status == PRORATED
             last_place = place
             day += timedelta(days=1)
