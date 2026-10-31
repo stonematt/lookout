@@ -41,7 +41,13 @@ from tests.fixtures.archive import FAKE_MAC
 from tests.conftest import FAKE_SECRETS
 from tests.fixtures.real import FAKE_PASSKEY, load_real_slice
 from tests.fixtures.storage import BUCKET
-from tests.test_catchup import ARCHIVE_KEY, CatchupStation
+from tests.test_catchup import (
+    ARCHIVE_KEY,
+    RECORDED_ROWS,
+    CatchupStation,
+    ms,
+    recorded_pages,
+)
 from tests.test_catchup import catchup_station  # noqa: F401 (a fixture)
 
 # Not under tests/fixtures/: test_fixture_real.py counts the files there.
@@ -260,7 +266,7 @@ def test_initial_load(station, session):
     assert_matches_golden(summary, "load_path_initial")
 
 
-def test_incremental_update(station, session):
+def test_incremental_update(catchup_station, session):  # noqa: F811
     """
     A later run whose lastData is three hours ahead fetches and stitches.
 
@@ -268,13 +274,17 @@ def test_incremental_update(station, session):
     newest fetched reading, and the trends are taken again from it. The
     Event Catalog is not rebuilt: it is already in the session.
     """
+    # The newest reading jumps, so fresh trends differ from the first load's.
+    pages = recorded_pages()
+    newest = max(pages, key=lambda r: r["dateutc"])
+    newest["tempf"] += 10.0
+    newest["baromrelin"] += 0.5
+    station = catchup_station(history=pages)
+    assert newest["dateutc"] - archive_max(station) == 3 * 3600 * 1000
+
     load(session, device_at(archive_max(station)))
     catalog_before = session["rain_events_catalog"]
     assert (session["temp_trend"], session["barom_trend"]) == ("→", "→")
-    # The newest reading jumps, so fresh trends differ from the first load's.
-    newest = station.replay.history[0]
-    newest["tempf"] += 10.0
-    newest["baromrelin"] += 0.5
 
     load(session, device_at())
 
@@ -289,13 +299,31 @@ def test_incremental_update(station, session):
     assert_matches_golden(summary, "load_path_incremental")
 
 
+def test_first_load_behind_the_station_loads_then_fetches(station, session):
+    """
+    A first run whose archive is behind lastData loads it, then fetches.
+
+    The archive max records the archive as loaded; the history max the
+    newest fetched reading.
+    """
+    load(session, device_at())
+
+    assert session["archive_max_dateutc"] == archive_max(station)
+    assert session["cloud_max_dateutc"] == archive_max(station)
+    assert session["history_max_dateutc"] == device_at()["lastData"]["dateutc"]
+    assert session["session_counter"] == 1
+    assert len(session["history_df"]) == len(station.archive) + RECORDED_ROWS
+    assert session["history_df"]["dateutc"].is_unique
+    assert len(session["rain_events_catalog"]) == 1
+
+
 def test_initial_load_updates_a_stored_event_catalog(station, session):
     """
     A stored catalog whose last event was still ongoing is re-detected from
     that event's start over the loaded history, and is not saved back.
     """
     real = station.archive
-    cut = int(pd.Timestamp("2025-11-18T06:00:00Z").value // 10**6)
+    cut = ms("2025-11-18T06:00:00Z")
     catalog = RainEventCatalog(FAKE_MAC)
     stored = catalog.detect_and_catalog_events(real[real["dateutc"] < cut])
     stored_key = catalog.catalog_path

@@ -55,6 +55,16 @@ def ms(when: str) -> int:
     return int(pd.Timestamp(when).value // 10**6)
 
 
+def reporting(df: pd.DataFrame) -> List[Dict]:
+    """
+    A `/devices` body whose `lastData` is the newest row of `df`.
+
+    :param df: Archive rows, newest first.
+    :return: The one-device body.
+    """
+    return devices_body(to_ambient_records(df.head(1))[0])
+
+
 def frozen_clock(now: pd.Timestamp) -> type:
     """
     A `datetime.datetime` whose `now()` is fixed.
@@ -289,7 +299,11 @@ class TestCatchupRun:
 
 
 OUTAGE_START = "2026-01-02T00:00:00Z"
-OUTAGE_END = "2026-01-04T00:00:00Z"  # two days: 576 readings
+OUTAGE_END = "2026-01-04T00:00:00Z"
+OUTAGE_ROWS = 2 * 288  # two days of five-minute readings
+# One page ends 247 intervals past the cursor, exclusive; the cursor's own
+# reading is already archived, so a page brings 246 new ones.
+PAGE_ROWS = 246
 
 
 @pytest.fixture
@@ -304,7 +318,7 @@ def after_outage(catchup_station) -> CatchupStation:
     return catchup_station(
         archive=archive,
         history=to_ambient_records(live),
-        devices=devices_body(to_ambient_records(live.head(1))[0]),
+        devices=reporting(live),
         now=OUTAGE_END,
     )
 
@@ -314,23 +328,20 @@ class TestPaging:
         after_outage.run()
 
         stored = after_outage.stored()
-        assert len(stored) == len(after_outage.archive) + 576
+        assert len(stored) == len(after_outage.archive) + OUTAGE_ROWS
         assert stored["dateutc"].is_unique
         assert int(stored["dateutc"].max()) == ms(OUTAGE_END) - FIVE_MIN_MS
-        assert len(history_calls(after_outage)) == 3
+        assert len(history_calls(after_outage)) == -(-OUTAGE_ROWS // PAGE_ROWS)
 
     def test_the_pages_argument_caps_the_run(self, after_outage):
-        """
-        One page brings 246 readings past the archive, not 250.
-
-        The page ends 247 intervals after the cursor (the archive's newest
-        reading), exclusive, and the cursor's own reading is already stored.
-        """
+        """One page brings `PAGE_ROWS` readings past the archive, not 250."""
         after_outage.run(pages=1)
 
         stored = after_outage.stored()
-        assert len(stored) == len(after_outage.archive) + 246
-        assert int(stored["dateutc"].max()) == ms(OUTAGE_START) + 245 * FIVE_MIN_MS
+        assert len(stored) == len(after_outage.archive) + PAGE_ROWS
+        assert int(stored["dateutc"].max()) == (
+            ms(OUTAGE_START) + (PAGE_ROWS - 1) * FIVE_MIN_MS
+        )
 
 
 # ---------- rain corrections ----------
@@ -341,8 +352,8 @@ def test_each_run_subtracts_the_known_carryovers_again(catchup_station):
     Held finding: catchup compounds rain corrections in the stored archive.
 
     The run corrects the whole combined archive and saves it, so rows already
-    corrected lose the carryover again on every run. With one 0.48" carryover
-    on 2026-01-09, that day's weekly counter falls 0.48" per run.
+    corrected lose the carryover again on every run. With one carryover on
+    2026-01-09, that day's weekly counter falls by it on every run.
     """
     full = scenario_archive()
     rain_corrections.save_catalog(
@@ -351,15 +362,16 @@ def test_each_run_subtracts_the_known_carryovers_again(catchup_station):
     station = catchup_station(
         archive=full[full["dateutc"] < ms("2026-01-10T00:00:00Z")],
         history=to_ambient_records(full),
-        devices=devices_body(to_ambient_records(full.head(1))[0]),
+        devices=reporting(full),
         now="2026-01-11T08:00:00Z",
     )
     noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local
     raw = full.set_index("dateutc").loc[noon, "weeklyrainin"]
+    carry = 0.48  # SCENARIO's carryover: the 2026-01-08 daily total
 
     weekly = []
     for _ in range(3):
         station.run()
         weekly.append(station.stored().set_index("dateutc").loc[noon, "weeklyrainin"])
 
-    assert weekly == pytest.approx([raw - 0.48, raw - 0.96, raw - 1.44])
+    assert weekly == pytest.approx([raw - carry, raw - 2 * carry, raw - 3 * carry])
