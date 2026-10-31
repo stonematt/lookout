@@ -15,10 +15,14 @@ The steps, each its own function, run in this order by `run`:
 1. `load_station()`: the pinned station's `/devices` entry; its `lastData` is
    the live reading.
 2. `update_archive(device, bucket, pages)`: catchup; the archive as saved.
-3. `load_catalogs(station, bucket)`: the Event Catalog (and, later, the
-   energy catalog) as stored.
-4. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
-5. `publish(snapshot, bucket)`: both documents under `snapshot/`.
+3. `load_catalogs(station, bucket)`: the Event Catalog and the energy
+   catalog as stored.
+4. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
+   brought up to the caught-up archive. The Event Catalog is saved only when
+   an ongoing event completed in this run; the energy catalog only when the
+   stored one is more than `ENERGY_SAVE_AGE` old.
+5. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
+6. `publish(snapshot, bucket)`: both documents under `snapshot/`.
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
@@ -35,15 +39,19 @@ import pandas as pd
 from lookout.api.ambient_client import get_station_device
 from lookout.cli import catchup
 from lookout.config import DEFAULT_BUCKET
+from lookout.core.energy_catalog import EnergyCatalog
+from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, Station, build_snapshot
 from lookout.snapshot.publish import publish_snapshot
 from lookout.utils.healthchecks import Heartbeat
+from lookout.storage.storj import backup_and_save_catalog
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
 
 DEFAULT_PAGES = 20
+ENERGY_SAVE_AGE = pd.Timedelta(days=2)
 
 
 @dataclass
@@ -52,7 +60,7 @@ class Catalogs:
     The catalogs one run builds the snapshot from.
 
     :param events: The Event Catalog; None when none is stored.
-    :param energy: The energy catalog; None until a step loads it.
+    :param energy: The energy catalog; None when none is stored.
     """
 
     events: Optional[pd.DataFrame] = None
@@ -101,10 +109,54 @@ def load_catalogs(station: Station, bucket: str) -> Catalogs:
 
     :param station: The station.
     :param bucket: The bucket.
-    :return: The catalogs; the energy catalog is not loaded yet.
+    :return: The catalogs; a field is None when none is stored.
     """
     events = RainEventCatalog(station.mac, bucket=bucket).load_catalog()
-    return Catalogs(events=None if events.empty else events)
+    energy = EnergyCatalog(station.mac, bucket=bucket).load_catalog()
+    return Catalogs(
+        events=None if events.empty else events,
+        energy=None if energy.empty else energy,
+    )
+
+
+def update_catalogs(
+    station: Station, bucket: str, archive: pd.DataFrame, catalogs: Catalogs
+) -> Catalogs:
+    """
+    Step 4: bring both catalogs up to the caught-up archive.
+
+    The Event Catalog is saved only when its last event was ongoing in the
+    stored catalog and has completed (`eventrainin` back to 0), as
+    `RainEventCatalog.check_and_auto_save_ongoing_event` decides. A catalog
+    detected afresh because none is stored is not saved. The energy catalog
+    is saved only when a stored one is more than `ENERGY_SAVE_AGE` old.
+
+    :param station: The station.
+    :param bucket: The bucket.
+    :param archive: The archive after catchup.
+    :param catalogs: The catalogs as stored.
+    :return: The updated catalogs, in memory; the stored ones are untouched
+        unless a save rule above fired.
+    """
+    event_store = RainEventCatalog(station.mac, bucket=bucket)
+    stored = catalogs.events
+    events = event_store.update_catalog_with_new_data(
+        archive, pd.DataFrame() if stored is None else stored.copy()
+    )
+    if stored is not None:
+        event_store.check_and_auto_save_ongoing_event(stored, events)
+
+    energy_store = EnergyCatalog(station.mac, bucket=bucket)
+    energy = energy_store.update_catalog_with_new_data(
+        archive, pd.DataFrame() if catalogs.energy is None else catalogs.energy.copy()
+    )
+    if catalogs.energy is not None and (
+        energy_store.get_catalog_age() > ENERGY_SAVE_AGE
+    ):
+        backup_and_save_catalog(energy, ENERGY_TYPE, bucket, station.mac)
+        logger.info("Energy catalog saved (stored one older than 2 days)")
+
+    return Catalogs(events=None if events.empty else events, energy=energy)
 
 
 def build(
@@ -115,7 +167,7 @@ def build(
     now: datetime,
 ) -> Snapshot:
     """
-    Step 4: the snapshot.
+    Step 5: the snapshot.
 
     :param station: The station.
     :param device: The station's `/devices` entry; `lastData` is live.
@@ -136,7 +188,7 @@ def build(
 
 def publish(snapshot: Snapshot, bucket: str) -> List[str]:
     """
-    Step 5: write both documents under `snapshot/`.
+    Step 6: write both documents under `snapshot/`.
 
     :param snapshot: The snapshot.
     :param bucket: The bucket.
@@ -165,6 +217,7 @@ def run(
     station = Station.from_device(device)
     archive = update_archive(device, bucket, pages)
     catalogs = load_catalogs(station, bucket)
+    catalogs = update_catalogs(station, bucket, archive, catalogs)
     snapshot = build(station, device, archive, catalogs, clock())
     publish(snapshot, bucket)
     return snapshot
