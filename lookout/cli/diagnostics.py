@@ -14,14 +14,15 @@ Commands:
     fill-gap        Fill one gap, picked by --index (a row of `gaps`, same
                     window flags) or by --start and --end, then save the
                     archive after a backup. --dry-run fetches and writes
-                    nothing.
+                    nothing. Exits 1 when Ambient has no data for the gap.
     coverage        Samples per hour per day, as a text grid (--days N).
     status          The archive's newest record against the device's live
                     reading, and the lag between them.
     last-record     The device's live reading.
     energy-catalog  Regenerate the solar energy catalog from the archive.
                     Reports only; --save backs up the stored catalog and
-                    writes the new one. --dry-run says what --save would do.
+                    writes the new one. --save --dry-run says what --save
+                    would do; --dry-run alone is refused.
 
 Every command takes --bucket. Day windows end at the archive's newest record,
 not the wall clock, so a stalled station still shows its last good days.
@@ -291,7 +292,7 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         return 1
     if outcome.skipped:
         emit("Ambient had no new data for this gap. Nothing saved.")
-        return 0
+        return 1
 
     backup_and_save_history(df=outcome.history_df, device=device, bucket=args.bucket)
     emit(f"Added {outcome.rows_added} rows; archive backed up and saved.")
@@ -382,8 +383,12 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     Regenerate the energy catalog; save it only with --save.
 
     :param args: Parsed arguments.
-    :return: The exit status.
+    :return: The exit status; 1 for --dry-run without --save, which would
+        otherwise do nothing a plain report does not.
     """
+    if args.dry_run and not args.save:
+        emit("Refused: --dry-run only applies with --save.")
+        return 1
     device, archive = load_station(args.bucket)
     if archive.empty:
         emit("The archive is empty.")
