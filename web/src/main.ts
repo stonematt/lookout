@@ -13,6 +13,7 @@ import { mountHeader } from "./header.js";
 import { fetchCurrent, fetchDashboard } from "./load.js";
 import { renderOverview } from "./overview/index.js";
 import { renderRain } from "./rain/index.js";
+import { renderSolar } from "./solar/index.js";
 import type { DashboardSnapshot } from "./snapshot.js";
 import type { TabId } from "./tabs.js";
 import { mountTabs } from "./tabs.js";
@@ -36,6 +37,11 @@ function renderTab(id: TabId, panel: HTMLElement): void {
   }
   if (id === "events" && dashboard) {
     if (rendered.get(panel) !== dashboard) mountEvents(panel, dashboard);
+    rendered.set(panel, dashboard);
+    return;
+  }
+  if (id === "solar" && dashboard) {
+    if (rendered.get(panel) !== dashboard) renderSolar(panel, dashboard);
     rendered.set(panel, dashboard);
     return;
   }

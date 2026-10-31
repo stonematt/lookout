@@ -175,3 +175,52 @@ class TestEnergyCatalog:
         with patch.object(catalog, "catalog_exists", return_value=False):
             age = catalog.get_catalog_age()
             assert age == pd.Timedelta(days=999)
+
+
+class TestUpdateRunAfterRun:
+    """
+    The refresh run updates the catalog every five minutes, so its newest
+    period is usually still filling. Each run must leave the catalog equal to
+    one computed from the whole archive at once.
+    """
+
+    @staticmethod
+    def station(first: str, rows: int) -> pd.DataFrame:
+        """Five-minute rows at a steady 600 W/m², newest first."""
+        dates = pd.date_range(
+            first, periods=rows, freq="5min", tz="America/Los_Angeles"
+        )
+        return pd.DataFrame(
+            {
+                "date": dates,
+                "dateutc": [int(d.timestamp() * 1000) for d in dates],
+                "solarradiation": [600.0] * rows,
+            }
+        ).iloc[::-1]
+
+    def energy(self, periods: pd.DataFrame) -> dict:
+        """Each period's start (as a local "HH:MM") -> its kWh, rounded."""
+        return {
+            p.strftime("%H:%M"): round(e, 6)
+            for p, e in zip(periods["period_start"], periods["energy_kwh"])
+        }
+
+    def test_a_period_still_filling_is_completed_by_later_runs(self):
+        catalog = EnergyCatalog("TEST_MAC")
+        archive = self.station("2026-06-01 10:00", 12)  # 10:00 .. 10:55
+
+        stored = catalog.detect_and_calculate_periods(
+            archive.iloc[-2:], auto_save=False
+        )
+        for newest in range(3, 13):  # one five-minute run at a time
+            stored = catalog.update_catalog_with_new_data(
+                archive.iloc[-newest:], stored.copy()
+            )
+
+        # 600 W/m² over the 10 minutes between a period's three rows: 0.1 kWh.
+        assert self.energy(stored) == {
+            "10:00": 0.1,
+            "10:15": 0.1,
+            "10:30": 0.1,
+            "10:45": 0.1,
+        }

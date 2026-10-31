@@ -253,24 +253,24 @@ class EnergyCatalog:
         existing_catalog = existing_catalog.sort_values("period_start").reset_index(
             drop=True
         )
-        last_period = existing_catalog.iloc[-1]
-        last_period_end = last_period["period_end"]
+        # The newest period may still have been filling when it was stored
+        # (the refresh run updates every five minutes), so it is recomputed
+        # from every archived row in it, together with what came after.
+        last_period_start = existing_catalog.iloc[-1]["period_start"]
 
-        logger.info(f"Last energy period ends at {last_period_end}")
+        logger.info(f"Recomputing energy periods from {last_period_start}")
 
-        # Filter archive data to only what's after the last period
         archive_df = archive_df.copy()
         # Use 'date' column which is already TZ-aware datetime
         archive_df["datetime"] = archive_df["date"]
 
-        # Get data that starts after the last period end
-        new_data = archive_df[archive_df["datetime"] > last_period_end].copy()
+        new_data = archive_df[archive_df["datetime"] >= last_period_start].copy()
 
         if new_data.empty:
             logger.debug("No new data to process for energy periods")
             return existing_catalog
 
-        logger.debug(f"Processing {len(new_data)} new records after {last_period_end}")
+        logger.debug(f"Processing {len(new_data)} records from {last_period_start}")
 
         # Calculate new periods from the new data
         new_periods_df = calculate_15min_energy_periods(new_data)
@@ -283,10 +283,9 @@ class EnergyCatalog:
         new_periods_df["updated_at"] = datetime.now(timezone.utc)
         new_periods_df["catalog_version"] = "1.0"
 
-        # Merge with existing catalog
-        updated_catalog = pd.concat(
-            [existing_catalog, new_periods_df], ignore_index=True
-        )
+        # Replace the recomputed periods, keep every earlier one
+        kept = existing_catalog[existing_catalog["period_start"] < last_period_start]
+        updated_catalog = pd.concat([kept, new_periods_df], ignore_index=True)
         updated_catalog = updated_catalog.sort_values("period_start").reset_index(
             drop=True
         )

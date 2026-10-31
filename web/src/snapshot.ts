@@ -458,6 +458,83 @@ export interface Almanac {
   rolling: RollingWindow[];
 }
 
+/** The solar energy over one standard window. */
+export interface SolarWindow {
+  /** Its key in `Gaps.windows`. */
+  key: string;
+  /** kWh per m²; prorated when the window is; null when it is invalid. */
+  energy_kwh_m2: number | null;
+}
+
+/**
+ * Every day's solar energy from the archive's first day through today,
+ * parallel tuples, oldest first. Today's is the energy so far.
+ */
+export interface SolarDays {
+  first_day: string;
+  /** kWh per m²; null for a day that cannot be counted. */
+  energy_kwh_m2: (number | null)[];
+  /** Why a day cannot be counted, null when it can. */
+  reason: (GapReason | null)[];
+}
+
+/** One month's solar energy; null when the month is invalid or under way. */
+export interface SolarMonth {
+  /** "YYYY-MM", its key in `Gaps.months`. */
+  key: string;
+  energy_kwh_m2: number | null;
+}
+
+/** The last 90 days, 15 minutes at a time, for picking a day. */
+export interface SolarRecent {
+  /** The standard window the days are: "90d". */
+  window: string;
+  first_day: string;
+  slot_minutes: number;
+  /**
+   * Each day's slots by local clock from midnight (96), in Wh per m²; null
+   * for a day that cannot be counted, a slot with no period, a slot to come.
+   */
+  energy_wh_m2: (number | null)[][];
+}
+
+/**
+ * The 24-hour view: five-minute solar readings up to the newest
+ * observation (the last slot, the live reading), over the usual range at
+ * each time of day across the 30 days before today.
+ */
+export interface SolarTrace {
+  start_ms: number;
+  /** A duration, so not an `_ms` field (those are epoch times). */
+  step_minutes: number;
+  /** W/m²; null where nothing was read (a gap, or the span only live covers). */
+  solar_wm2: (number | null)[];
+  /** The comparison days' gap status. */
+  usual: GapStatus;
+  /** Parallel to `solar_wm2`; null when `usual` is invalid. */
+  usual_low_wm2: (number | null)[] | null;
+  usual_median_wm2: (number | null)[] | null;
+  usual_high_wm2: (number | null)[] | null;
+  /** Yesterday and today's gap status: the days the 24 hours reach. */
+  energy: GapStatus;
+  /** kWh per m² over the 24 hours; null when `energy` is invalid. */
+  energy_kwh_m2: number | null;
+  /** kWh per m² over the 24 hours before; null when not all counted. */
+  previous_kwh_m2: number | null;
+}
+
+/** Everything the Solar tab shows. */
+export interface SolarTab {
+  /** Today to 365 days, in `Gaps.windows` order. */
+  windows: SolarWindow[];
+  days: SolarDays;
+  /** In `Gaps.months` order. */
+  months: SolarMonth[];
+  recent: SolarRecent;
+  /** Null without an observation. */
+  last_24h: SolarTrace | null;
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -489,6 +566,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   temperature_context: TemperatureContext;
   /** The Overview's almanac grid and rolling-window rain table. */
   almanac: Almanac;
+  /** The Solar tab's data; null without an energy catalog. */
+  solar_tab: SolarTab | null;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -599,7 +678,27 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkRainTab(head.rain_tab);
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
+  checkSolarTab(head.solar_tab);
   return head as unknown as DashboardSnapshot;
+}
+
+function checkSolarTab(tab: unknown): void {
+  if (tab === null || tab === undefined) return;
+  const days = isRecord(tab) ? tab.days : null;
+  const recent = isRecord(tab) ? tab.recent : null;
+  if (
+    !isRecord(tab) ||
+    !Array.isArray(tab.windows) ||
+    !Array.isArray(tab.months) ||
+    !isRecord(days) ||
+    !Array.isArray(days.energy_kwh_m2) ||
+    !Array.isArray(days.reason) ||
+    days.reason.length !== days.energy_kwh_m2.length ||
+    !isRecord(recent) ||
+    !Array.isArray(recent.energy_wh_m2)
+  ) {
+    throw new SnapshotContractError("dashboard: solar_tab malformed");
+  }
 }
 
 function checkRainTab(tab: unknown): void {

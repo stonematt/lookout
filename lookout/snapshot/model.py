@@ -832,6 +832,132 @@ class Almanac:
 
 
 @dataclass(frozen=True)
+class SolarWindow:
+    """
+    The solar energy over one standard window.
+
+    :param key: The window's key in `Gaps.windows`.
+    :param energy_kwh_m2: kWh per m² from the energy catalog, prorated when
+        the window is; None when it is invalid.
+    """
+
+    key: str
+    energy_kwh_m2: Optional[float]
+
+
+@dataclass(frozen=True)
+class SolarDays:
+    """
+    Each day's solar energy, from the archive's first day through today.
+
+    Tuples are parallel, oldest first, from `first_day`. A day that cannot be
+    counted has a None total and its reason; today's is the energy so far.
+
+    :param first_day: The archive's first day.
+    :param energy_kwh_m2: Each day's kWh per m².
+    :param reason: Why a day cannot be counted, None when it can.
+    """
+
+    first_day: str
+    energy_kwh_m2: Tuple[Optional[float], ...]
+    reason: Tuple[Optional[GapReason], ...]
+
+
+@dataclass(frozen=True)
+class SolarMonth:
+    """
+    One month's solar energy.
+
+    :param key: "YYYY-MM", its key in `Gaps.months`.
+    :param energy_kwh_m2: kWh per m², prorated when the month is; None when
+        it is invalid (the month under way is).
+    """
+
+    key: str
+    energy_kwh_m2: Optional[float]
+
+
+@dataclass(frozen=True)
+class SolarRecent:
+    """
+    Each recent day's energy, 15 minutes at a time, for picking a day.
+
+    :param window: The standard window the days are ("90d").
+    :param first_day: The first day.
+    :param slot_minutes: The slot length, 15.
+    :param energy_wh_m2: Each day's slots by local clock, midnight first
+        (96: on a daylight-saving day the missing hour is None and the
+        repeated one is summed). A day that cannot be counted, a slot the
+        catalog has no period for, and a slot still to come are None.
+    """
+
+    window: str
+    first_day: str
+    slot_minutes: int
+    energy_wh_m2: Tuple[Tuple[Optional[float], ...], ...]
+
+
+@dataclass(frozen=True)
+class SolarTrace:
+    """
+    The 24-hour view: the solar trace up to the newest observation, over
+    the usual range for each time of day.
+
+    Slot `i` starts `i * step_minutes` after `start_ms`; the last slot is
+    the newest observation's, so it holds the live reading. A slot with no
+    reading (a gap, or the span only the live reading covers) is None. The
+    usual tuples are parallel to `solar_wm2`.
+
+    :param start_ms: The first slot.
+    :param step_minutes: The slot length, 5 (a duration, so not an `_ms`
+        field: those are epoch times).
+    :param solar_wm2: Each slot's solar radiation.
+    :param usual: The gap status of the comparison days: the 30 before today.
+    :param usual_low_wm2: The 25th percentile at each slot's time of day over
+        the comparison days; None when `usual` is invalid.
+    :param usual_median_wm2: The median, likewise.
+    :param usual_high_wm2: The 75th percentile, likewise.
+    :param energy: The gap status of yesterday and today, the days the 24
+        hours reach.
+    :param energy_kwh_m2: The energy over the 24 hours, from the catalog;
+        None when `energy` is invalid.
+    :param previous_kwh_m2: The energy over the 24 hours before; None when
+        the days they reach cannot all be counted.
+    """
+
+    start_ms: int
+    step_minutes: int
+    solar_wm2: Tuple[Optional[float], ...]
+    usual: GapStatus
+    usual_low_wm2: Optional[Tuple[Optional[float], ...]]
+    usual_median_wm2: Optional[Tuple[Optional[float], ...]]
+    usual_high_wm2: Optional[Tuple[Optional[float], ...]]
+    energy: GapStatus
+    energy_kwh_m2: Optional[float]
+    previous_kwh_m2: Optional[float]
+
+
+@dataclass(frozen=True)
+class SolarTab:
+    """
+    Everything the Solar tab shows (`lookout.snapshot.solar`), from the
+    energy catalog and, for the 24-hour view, the live-stitched history.
+
+    :param windows: The energy over each standard window but the water year.
+    :param days: Every day's energy, for the daily bars and day heatmaps.
+    :param months: Every month's energy, for the year-by-month heatmap.
+    :param recent: The last 90 days, 15 minutes at a time.
+    :param last_24h: The 24-hour view, or None without an observation.
+    """
+
+    windows: Tuple[SolarWindow, ...]
+    days: SolarDays
+    months: Tuple[SolarMonth, ...]
+    recent: SolarRecent
+    last_24h: Optional[SolarTrace]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -853,6 +979,8 @@ class Snapshot:
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
     :param almanac: The Overview's almanac grid and rolling-window tables.
+    :param solar_tab: The Solar tab's data, or None without an energy
+        catalog.
     """
 
     station: Station
@@ -868,6 +996,7 @@ class Snapshot:
     rain_tab: RainTab
     temperature_context: TemperatureContext
     almanac: Almanac
+    solar_tab: Optional[SolarTab]
 
     def dashboard(self) -> Dict[str, Any]:
         """
