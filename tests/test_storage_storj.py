@@ -89,9 +89,7 @@ def test_save_history_stores_an_oldest_first_frame_newest_first(fake_s3, frozen_
     new = scenario_archive()
     oldest_first = new.iloc[::-1].reset_index(drop=True)
 
-    storj.backup_and_save_history(
-        oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET
-    )
+    storj.backup_and_save_history(oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET)
 
     stored = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
     assert stored["dateutc"].is_monotonic_decreasing
