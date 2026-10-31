@@ -46,7 +46,7 @@ from lookout.snapshot.model import (
     SolarTrace,
     SolarWindow,
 )
-from lookout.snapshot.values import iso_day
+from lookout.snapshot.values import iso_day, number
 from lookout.utils.dateutc import DEFAULT_TZ
 
 WINDOW_KEYS = ("today", "yesterday", "7d", "30d", "90d", "365d")
@@ -73,7 +73,6 @@ TRACE_STEP_MS = 5 * 60 * 1000
 TRACE_SLOTS = 24 * 60 * 60 * 1000 // TRACE_STEP_MS
 """Steps in 24 hours; the trace holds one more, the newest observation's."""
 
-_KWH_DIGITS = 3
 _WH_DIGITS = 1
 
 
@@ -244,7 +243,7 @@ def _window_total(
         days = coverage.counted_days(
             iso_day(status.first_day), iso_day(status.last_day)
         )
-        return _kwh(prorate(status, sum(totals[d] for d in days)))
+        return number(prorate(status, sum(totals[d] for d in days)))
 
     return comparable(status, total)
 
@@ -266,7 +265,7 @@ def _days(totals: Dict[date, float], coverage: ArchiveCoverage) -> SolarDays:
     reasons = []
     for d in _span(first, coverage.today):
         if d in totals:
-            energy.append(_kwh(totals[d]))
+            energy.append(number(totals[d]))
             reasons.append(None)
         else:
             energy.append(None)
@@ -457,7 +456,7 @@ def _energy_between(
     def total() -> Optional[float]:
         """The periods' sum."""
         inside = (periods["start_ms"] >= first_ms) & (periods["start_ms"] < end_ms)
-        return _kwh(float(periods.loc[inside, "kwh"].sum()))
+        return number(float(periods.loc[inside, "kwh"].sum()))
 
     return total
 
@@ -476,11 +475,6 @@ def _midnight_ms(day: date, tz: str) -> int:
 def _span(first: date, last: date) -> List[date]:
     """Every day from `first` to `last`, inclusive."""
     return [first + timedelta(days=i) for i in range((last - first).days + 1)]
-
-
-def _kwh(value: Optional[float]) -> Optional[float]:
-    """kWh to a thousandth, None kept."""
-    return None if value is None else round(float(value), _KWH_DIGITS)
 
 
 def _wh(kwh: float) -> float:
