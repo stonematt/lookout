@@ -7,8 +7,10 @@ import streamlit as st
 
 import lookout.core.data_processing as lo_dp
 import lookout.ui.rain as rain_module
+from lookout.config import DEFAULT_BUCKET
 from lookout.api.awn_controller import (
     GapFill,
+    combine_full_history,
     extend_corrected,
     fill_archive_gap,
     load_archive_for_device,
@@ -36,7 +38,7 @@ logger = app_logger(__name__)
 
 # The raw archive the gap fills extend; what "Save Archive" writes (#95).
 RAW_HISTORY_KEY = "raw_history_df"
-BUCKET = "lookout"
+BUCKET = DEFAULT_BUCKET
 
 
 def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
@@ -70,7 +72,10 @@ def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
 
 def save_filled_archive() -> bool:
     """
-    Back up the stored archive and save the raw archive the fills extended.
+    Back up the stored archive and save it with this session's fills added.
+
+    The fills are merged into the archive as stored now, not as loaded at
+    the first fill, so rows catchup saved in between are kept. All raw.
 
     :return: True when saved; False when no gap was filled this session, so
         there is nothing new to save.
@@ -78,7 +83,11 @@ def save_filled_archive() -> bool:
     raw = st.session_state.get(RAW_HISTORY_KEY)
     if raw is None:
         return False
-    backup_and_save_history(df=raw, device=st.session_state["device"], bucket=BUCKET)
+    device = st.session_state["device"]
+    stored = load_archive_for_device(device, BUCKET, "parquet")
+    backup_and_save_history(
+        df=combine_full_history(stored, raw), device=device, bucket=BUCKET
+    )
     return True
 
 

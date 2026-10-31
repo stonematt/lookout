@@ -39,6 +39,7 @@ from typing import Optional
 
 import pandas as pd
 
+from lookout.config import DEFAULT_BUCKET
 from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
 
@@ -551,7 +552,7 @@ def extend_corrected(
     corrected: pd.DataFrame,
     extended: pd.DataFrame,
     mac_address: str,
-    bucket: str = "lookout",
+    bucket: str = DEFAULT_BUCKET,
 ) -> pd.DataFrame:
     """
     Add the rows of `extended` that `corrected` lacks, rain corrected once.
@@ -638,7 +639,7 @@ def fill_archive_gap(
     sleep: bool = False,
 ) -> GapFill:
     """
-    Fetch missing data for a specified gap and append it to the history.
+    Fetch missing data for a specified gap and merge it into the history, raw.
 
     Touches no session state: a caller that keeps a list of skipped gaps
     (the Diagnostics tab) records the ones that come back `skipped`.

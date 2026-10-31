@@ -122,18 +122,24 @@ class CrossCheck:
     :param compared: Rows found in both.
     :param over: Rows where a rain counter differs by more than the tolerance.
     :param max_diff: The largest difference seen, inches.
+    :param unchecked: Refilled rows the reference does not hold (it ends
+        2025-12-22, so the last days of 2025 cannot be checked).
     """
 
     compared: int
     over: int
     max_diff: float
+    unchecked: int = 0
 
 
 def window_bounds(first_day: str, last_day: str) -> Tuple[int, int]:
     """
     A window's `dateutc` bounds: local midnight starting `first_day` to
-    local midnight ending `last_day`.
+    local midnight ending `last_day`. Station-local days, because the stored
+    `date` column is station-local and `apply_corrections` dates rows by it.
 
+    :param first_day: The first station-local day, ISO.
+    :param last_day: The last day, inclusive.
     :return: Start (inclusive) and end (exclusive), epoch ms.
     """
     end_day = (pd.Timestamp(last_day) + pd.Timedelta(days=1)).date()
@@ -232,19 +238,24 @@ def cross_check(
     """
     columns = [c for c in RAIN_COLUMNS if c in refilled and c in reference]
     if reference.empty or not columns:
-        return CrossCheck(0, 0, 0.0)
+        return CrossCheck(0, 0, 0.0, len(refilled))
     merged = refilled[["dateutc", *columns]].merge(
         reference[["dateutc", *columns]], on="dateutc", suffixes=("", "_ref")
     )
+    unchecked = len(refilled) - len(merged)
     if merged.empty:
-        return CrossCheck(0, 0, 0.0)
+        return CrossCheck(0, 0, 0.0, unchecked)
     diffs = pd.concat(
         [(merged[c] - merged[c + "_ref"]).abs() for c in columns], axis=1
     ).max(axis=1)
-    return CrossCheck(len(merged), int((diffs > tolerance).sum()), float(diffs.max()))
+    return CrossCheck(
+        len(merged), int((diffs > tolerance).sum()), float(diffs.max()), unchecked
+    )
 
 
-def _pair(before: Optional[Dict[str, float]], after, col: str) -> str:
+def _pair(
+    before: Optional[Dict[str, float]], after: Optional[Dict[str, float]], col: str
+) -> str:
     """`before -> after` for one counter, `-` where a side has no rows."""
 
     def one(values: Optional[Dict[str, float]]) -> str:
@@ -254,7 +265,12 @@ def _pair(before: Optional[Dict[str, float]], after, col: str) -> str:
 
 
 def day_line(diff: DayDiff) -> str:
-    """One day of the report."""
+    """
+    One day of the report.
+
+    :param diff: The day.
+    :return: Rows and day-end counters, before -> after, and how short.
+    """
     counters = "  ".join(
         f"{col.replace('rainin', '')} {_pair(diff.before, diff.after, col)}"
         for col in RAIN_COLUMNS
@@ -338,10 +354,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         check = cross_check(refill.refilled, reference, args.tolerance)
         emit(
             f"Cross-check against {reference_key}: {check.compared} rows compared, "
-            f"{check.over} over tolerance (max diff {check.max_diff:.3f})"
+            f"{check.over} over tolerance (max diff {check.max_diff:.3f}), "
+            f"{check.unchecked} not in the reference"
         )
         if check.over:
             problems.append(f"{check.over} rows over tolerance in {first}..{last}")
+        if not check.compared and not reference.empty:
+            problems.append(f"no refilled row in {first}..{last} could be checked")
         emit()
 
     for problem in problems:

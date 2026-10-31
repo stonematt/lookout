@@ -185,3 +185,34 @@ def test_a_diagnostics_save_with_nothing_filled_writes_nothing(
 
     assert diagnostics.save_filled_archive() is False
     assert station.keys() == keys
+
+
+def test_a_diagnostics_save_keeps_rows_catchup_stored_since_the_fill(
+    catchup_station, session, weather  # noqa: F811
+):
+    """The fills merge into the archive as stored at save time."""
+    from lookout.storage import storj
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start,
+        SCENARIO.end,
+        rain=(*SCENARIO.rain, RainSpell("2026-01-09T18:00:00Z", 2, 0.12)),
+        gaps=SCENARIO.gaps[:1],
+    )
+    older = weather[weather["dateutc"] < ARCHIVED_UNTIL + 6 * 3600 * 1000]
+    station = catchup_station(
+        archive=older,
+        history=to_ambient_records(truth),
+        devices=reporting(older),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(older["dateutc"].max())))
+    diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
+    # Catchup saves the rest of the week before the Diagnostics save.
+    storj.save_df_to_s3(weather, BUCKET, f"{FAKE_MAC}.parquet")
+
+    assert diagnostics.save_filled_archive() is True
+
+    stored = station.stored()
+    assert set(stored["dateutc"]) == set(truth["dateutc"])

@@ -185,3 +185,17 @@ def test_a_cross_check_mismatch_aborts_the_write(seed, truth, capsys):
     assert "over tolerance" in out
     assert "Nothing written" in out
     assert station.keys() == keys
+
+
+def test_a_reference_that_covers_no_refilled_row_aborts_the_write(seed, truth, capsys):
+    """The cross-check must check something; zero overlap is not a pass."""
+    reference = truth[~in_window(truth)]
+    station = seed(truth, reference=reference)
+    keys = station.keys()
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert "could be checked" in out
+    assert "Nothing written" in out
+    assert station.keys() == keys
