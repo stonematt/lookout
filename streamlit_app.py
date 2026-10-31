@@ -174,11 +174,11 @@ st.sidebar.write(last_data)
 is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Create tab list based on environment
-names = tab_names(is_dev)
-tabs = st.tabs(names)
+tab_labels = tab_names(is_dev)
+tabs = st.tabs(tab_labels)
 
 # Render each tab with its corresponding module
-for tab, name in zip(tabs, names):
+for tab, name in zip(tabs, tab_labels):
     with tab:
         TAB_MODULES[name].render()
 

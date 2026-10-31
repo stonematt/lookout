@@ -9,7 +9,8 @@ Functions:
 - tab_names(is_dev): Tab names to show, with Diagnostics and Playground in dev.
 
 Constants:
-- TAB_MODULES: Tab name -> UI module exposing `render()`.
+- TAB_MODULES: Tab name -> UI module exposing `render()`, in display order.
+- DEV_ONLY_TABS: Tabs shown only in dev mode.
 """
 
 from types import ModuleType
@@ -17,9 +18,7 @@ from typing import Dict, List
 
 from lookout.ui import diagnostics, overview, playground, rain, rain_events, solar
 
-PROD_TABS = ["Overview", "Rain", "Rain Events", "Solar"]
-DEV_ONLY_TABS = ["Diagnostics", "Playground"]
-
+# Tab name -> UI module exposing render(), in display order.
 TAB_MODULES: Dict[str, ModuleType] = {
     "Overview": overview,
     "Rain": rain,
@@ -29,6 +28,8 @@ TAB_MODULES: Dict[str, ModuleType] = {
     "Playground": playground,
 }
 
+DEV_ONLY_TABS = frozenset({"Diagnostics", "Playground"})
+
 
 def tab_names(is_dev: bool) -> List[str]:
     """
@@ -37,4 +38,4 @@ def tab_names(is_dev: bool) -> List[str]:
     :param is_dev: True in dev mode, which adds the diagnostic tabs.
     :return: List of tab names, each a key of TAB_MODULES.
     """
-    return PROD_TABS + DEV_ONLY_TABS if is_dev else list(PROD_TABS)
+    return [name for name in TAB_MODULES if is_dev or name not in DEV_ONLY_TABS]

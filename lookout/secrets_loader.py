@@ -143,7 +143,7 @@ def get_secret(name: str) -> str:
         return value
 
     path = SECRET_PATHS[name]
-    value = _lookup(_read_file(Path(SECRETS_FILE)), path)
+    value = _lookup(_read_file(SECRETS_FILE), path)
     if value is not None:
         return value
 
