@@ -163,6 +163,18 @@ describe("hatching", () => {
     expect(cell.querySelectorAll(".gap-sr")).toHaveLength(1);
   });
 
+  it("lifts the hatch when a status becomes comparable", () => {
+    const cell = document.createElement("td");
+    hatchGap(cell, gapInRecord);
+
+    expect(hatchGap(cell, status({}))).toBe(false);
+
+    expect(cell.classList.contains("gap-hatch")).toBe(false);
+    expect(cell.title).toBe("");
+    expect(cell.textContent).toBe("");
+    expect(cell.dataset.gap).toBe("valid");
+  });
+
   it("builds a standalone hatched block for a chart row", () => {
     const block = gapElement(window(dry, "7d"));
 

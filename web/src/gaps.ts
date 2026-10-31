@@ -130,6 +130,10 @@ export function hatchGap(
 ): boolean {
   el.querySelector(":scope > .gap-sr")?.remove();
   if (isComparable(status)) {
+    // Undo an earlier hatch, so an element can follow a status that changes.
+    if (el.classList.contains("gap-hatch")) el.replaceChildren();
+    el.classList.remove("gap-hatch", "gap");
+    el.removeAttribute("title");
     el.dataset.gap = status.status;
     if (status.status === "prorated") {
       el.title = gapSentence(status);
