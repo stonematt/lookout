@@ -255,3 +255,26 @@ def test_the_completed_curve_matches_the_archive_slice():
     assert list(curve.t_ms) == list(readings["dateutc"])
     assert curve.event_in[-1] == pytest.approx(0.36)
     assert pd.Series(curve.event_in).is_monotonic_increasing
+
+
+def test_the_live_event_keeps_its_key_once_it_completes():
+    """
+    The link a viewer copies while an event is live names its start. The
+    next run re-detects the event under a new catalog id; once it completes,
+    its curve file is written under that same start.
+    """
+    full = scenario_until("2026-01-10T00:00:00Z")
+    early = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
+    store = RainEventCatalog(FAKE_MAC)
+    stored = store.detect_and_catalog_events(early, auto_save=False)
+    live_link = by_start(build(early, None, "2026-01-09T00:00:00Z", stored))
+    assert live_link[EVENT_3].ongoing
+
+    updated = store.update_catalog_with_new_data(full, stored.copy())
+    later = by_start(build(full, None, "2026-01-10T00:00:00Z", updated))
+
+    old_id = stored.sort_values("start_time").iloc[-1]["event_id"]
+    new_id = updated.sort_values("start_time").iloc[-1]["event_id"]
+    assert old_id != new_id  # the catalog's id moved ...
+    assert later[EVENT_3].ongoing is False  # ... the start did not
+    assert EVENT_3 in {c.start_ms for c in completed_curves(updated, full)}

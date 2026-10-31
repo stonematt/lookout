@@ -59,6 +59,11 @@ class _History:
     """The stitched or archived readings, oldest first, sliced by time."""
 
     def __init__(self, readings: pd.DataFrame) -> None:
+        """
+        Sort the readings once so each event's span is a binary search.
+
+        :param readings: Rows with `dateutc` (ms), in any order.
+        """
         ordered = readings.sort_values("dateutc") if not readings.empty else readings
         self.t = ordered["dateutc"].to_numpy(dtype="int64") if len(ordered) else None
         self.frame = ordered.reset_index(drop=True)

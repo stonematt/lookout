@@ -16,7 +16,7 @@ events: 8 runs, 40 minutes at the 5-minute cron) instead of in one burst.
 """
 
 import json
-from typing import List, Optional, Set
+from typing import Any, List, Optional, Set
 
 import pandas as pd
 
@@ -53,7 +53,7 @@ def curve_key(mac: str, start_ms: int) -> str:
     return f"{curve_prefix(mac)}{start_ms}.json"
 
 
-def stored_curve_starts(client: object, bucket: str, mac: str) -> Set[int]:
+def stored_curve_starts(client: Any, bucket: str, mac: str) -> Set[int]:
     """
     The starts of the events whose curve files are already stored.
 
