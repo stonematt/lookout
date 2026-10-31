@@ -4,6 +4,8 @@ The dashboard snapshot: built in Python, published on Storj, read by the site.
 - `model`: the `Snapshot` dataclass and its two JSON documents (the contract).
 - `build`: `build_snapshot`, pure, with an injected `now`.
 - `current`: live stitching, current conditions and the active rain event.
+- `gaps`: the gap status of months and windows, and the guard that keeps
+  invalid comparisons uncomputed.
 - `publish`: the Storj keys and the write.
 """
 
@@ -13,6 +15,8 @@ from lookout.snapshot.model import (
     CONTEXT_FIELDS,
     SCHEMA_VERSION,
     ActiveRainEvent,
+    Gaps,
+    GapStatus,
     SnapshotConditions,
     Snapshot,
     Station,
@@ -22,6 +26,8 @@ __all__ = [
     "CONTEXT_FIELDS",
     "SCHEMA_VERSION",
     "ActiveRainEvent",
+    "Gaps",
+    "GapStatus",
     "SnapshotConditions",
     "Snapshot",
     "Station",

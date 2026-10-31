@@ -1,0 +1,53 @@
+/*
+ * The gap hatch with its reason in place (`src/gaps.ts`).
+ * DESIGN.md: hatching is the one visual word for "not valid": 135° stripes,
+ * 4px on an 8px repeat, `gap-a` over `gap-b` (`.gap-hatch` in base.css),
+ * 4px corners, no value under it, and a short reason haloed in the ground.
+ */
+/* Two classes, so a table's own numeric alignment cannot push it aside. */
+.gap.gap-hatch {
+  position: relative;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-variant-numeric: normal;
+  line-height: 1.5;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.gap-label {
+  display: inline-block;
+  padding: 1px var(--s-1);
+  border-radius: var(--r-xs);
+  background: var(--ground);
+  white-space: nowrap;
+  /* A slot narrower than its reason cuts it short; the sentence is spoken. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* Anchors the spoken sentence a prorated value carries. */
+[data-gap="prorated"] {
+  position: relative;
+}
+
+/* A block of its own: a chart row or bar slot with nothing else in it. */
+.gap-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: var(--s-1) var(--s-2);
+}
+
+.gap-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

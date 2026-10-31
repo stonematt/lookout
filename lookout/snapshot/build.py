@@ -21,6 +21,7 @@ from lookout.snapshot.current import (
     stitch_live,
     to_ms,
 )
+from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.model import Snapshot, Station
 
 
@@ -63,4 +64,5 @@ def build_snapshot(
         archive_newest_ms=archive_newest_ms,
         current=current,
         active_rain_event=active_rain_event(event_catalog, current, observed_at_ms),
+        gaps=snapshot_gaps(archive, now),
     )

@@ -26,5 +26,83 @@
     "temp_trend": "steady",
     "barometer_trend": "steady"
   },
-  "active_rain_event": null
+  "active_rain_event": null,
+  "gaps": {
+    "months": [
+      {
+        "key": "2025-11",
+        "first_day": "2025-11-01",
+        "last_day": "2025-11-30",
+        "days": 30,
+        "missing_days": 29,
+        "status": "invalid",
+        "reason": "in_progress"
+      }
+    ],
+    "windows": [
+      {
+        "key": "today",
+        "first_day": "2025-11-19",
+        "last_day": "2025-11-19",
+        "days": 1,
+        "missing_days": 1,
+        "status": "invalid",
+        "reason": "not_archived"
+      },
+      {
+        "key": "yesterday",
+        "first_day": "2025-11-18",
+        "last_day": "2025-11-18",
+        "days": 1,
+        "missing_days": 1,
+        "status": "invalid",
+        "reason": "not_archived"
+      },
+      {
+        "key": "7d",
+        "first_day": "2025-11-13",
+        "last_day": "2025-11-19",
+        "days": 7,
+        "missing_days": 6,
+        "status": "invalid",
+        "reason": "not_archived"
+      },
+      {
+        "key": "30d",
+        "first_day": "2025-10-21",
+        "last_day": "2025-11-19",
+        "days": 30,
+        "missing_days": 29,
+        "status": "invalid",
+        "reason": "not_archived"
+      },
+      {
+        "key": "90d",
+        "first_day": "2025-08-22",
+        "last_day": "2025-11-19",
+        "days": 90,
+        "missing_days": 89,
+        "status": "invalid",
+        "reason": "not_archived"
+      },
+      {
+        "key": "365d",
+        "first_day": "2024-11-20",
+        "last_day": "2025-11-19",
+        "days": 365,
+        "missing_days": 364,
+        "status": "invalid",
+        "reason": "not_archived"
+      },
+      {
+        "key": "water_year",
+        "first_day": "2025-10-01",
+        "last_day": "2025-11-19",
+        "days": 50,
+        "missing_days": 49,
+        "status": "invalid",
+        "reason": "not_archived"
+      }
+    ]
+  }
 }
