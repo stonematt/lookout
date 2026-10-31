@@ -4,7 +4,8 @@
  * 4px on an 8px repeat, `gap-a` over `gap-b` (`.gap-hatch` in base.css),
  * 4px corners, no value under it, and a short reason haloed in the ground.
  */
-.gap {
+/* Two classes, so a table's own numeric alignment cannot push it aside. */
+.gap.gap-hatch {
   position: relative;
   border-radius: var(--r-sm);
   color: var(--ink-2);
@@ -21,6 +22,11 @@
   border-radius: var(--r-xs);
   background: var(--ground);
   white-space: nowrap;
+  /* A slot narrower than its reason cuts it short; the sentence is spoken. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 /* A block of its own: a chart row or bar slot with nothing else in it. */

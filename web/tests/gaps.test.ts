@@ -116,7 +116,9 @@ describe("hatching", () => {
     expect(cell.dataset.gap).toBe("gap");
     expect(cell.textContent).not.toContain("3.2");
     expect(cell.querySelector(".gap-label")?.textContent).toBe("n/a: gap in record");
-    expect(cell.querySelector(".gap-sr")?.textContent).toBe(gapSentence(gapInRecord));
+    expect(cell.querySelector(".gap-sr")?.textContent?.trim()).toBe(
+      gapSentence(gapInRecord),
+    );
     expect(cell.title).toBe(gapSentence(gapInRecord));
   });
 
@@ -127,7 +129,9 @@ describe("hatching", () => {
 
     expect(cell.querySelector(".gap-label")?.textContent).toBe("n/a");
     expect(cell.querySelector(".gap-label")?.getAttribute("aria-hidden")).toBe("true");
-    expect(cell.querySelector(".gap-sr")?.textContent).toBe(gapSentence(gapInRecord));
+    expect(cell.querySelector(".gap-sr")?.textContent?.trim()).toBe(
+      gapSentence(gapInRecord),
+    );
   });
 
   it("leaves a comparable cell's content, marking a prorated one", () => {
@@ -143,6 +147,20 @@ describe("hatching", () => {
     expect(valid.classList.contains("gap-hatch")).toBe(false);
     expect(scaled.dataset.gap).toBe("prorated");
     expect(scaled.title).toBe(gapSentence(prorated));
+    expect(scaled.querySelector(".gap-sr")?.textContent?.trim()).toBe(
+      gapSentence(prorated),
+    );
+    expect(valid.querySelector(".gap-sr")).toBeNull();
+  });
+
+  it("re-hatches an element without stacking its spoken text", () => {
+    const cell = document.createElement("td");
+    cell.textContent = "≈ 3.2 in";
+
+    hatchGap(cell, prorated);
+    hatchGap(cell, prorated);
+
+    expect(cell.querySelectorAll(".gap-sr")).toHaveLength(1);
   });
 
   it("builds a standalone hatched block for a chart row", () => {

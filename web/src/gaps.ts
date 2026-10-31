@@ -27,7 +27,7 @@ const LABELS: Record<GapReason, string> = {
   low_coverage: "n/a: low coverage",
   not_archived: "not archived yet",
   before_archive: "n/a: before the archive",
-  in_progress: "n/a: not over yet",
+  in_progress: "n/a: still running",
 };
 
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
@@ -115,7 +115,8 @@ export function gapValue(status: GapStatus, text: string): string | null {
  *
  * An invalid one loses its content for the hatch, the short reason and the
  * spoken sentence. A comparable one keeps its content; a prorated one is
- * marked `data-gap="prorated"` with the sentence in its title.
+ * marked `data-gap="prorated"`, with the sentence in its title and as
+ * screen-reader text.
  *
  * @param el - A table cell, almanac cell, bar slot or chart row.
  * @param status - Its gap status.
@@ -127,9 +128,13 @@ export function hatchGap(
   status: GapStatus,
   options: HatchOptions = {},
 ): boolean {
+  el.querySelector(":scope > .gap-sr")?.remove();
   if (isComparable(status)) {
     el.dataset.gap = status.status;
-    if (status.status === "prorated") el.title = gapSentence(status);
+    if (status.status === "prorated") {
+      el.title = gapSentence(status);
+      el.append(spokenSentence(status));
+    }
     return false;
   }
   const sentence = gapSentence(status);
@@ -137,11 +142,7 @@ export function hatchGap(
   label.className = "gap-label";
   label.setAttribute("aria-hidden", "true");
   label.textContent = options.compact ? COMPACT_LABEL : gapLabel(status);
-  const spoken = document.createElement("span");
-  spoken.className = "gap-sr";
-  spoken.textContent = sentence;
-
-  el.replaceChildren(label, spoken);
+  el.replaceChildren(label, spokenSentence(status));
   el.classList.add("gap-hatch", "gap");
   el.dataset.gap = status.reason ?? "gap";
   el.title = sentence;
@@ -161,6 +162,14 @@ export function gapElement(status: GapStatus, options: HatchOptions = {}): HTMLE
   block.classList.add("gap-block");
   hatchGap(block, status, options);
   return block;
+}
+
+/** The sentence as screen-reader text. */
+function spokenSentence(status: GapStatus): HTMLElement {
+  const spoken = document.createElement("span");
+  spoken.className = "gap-sr";
+  spoken.textContent = ` ${gapSentence(status)}`;
+  return spoken;
 }
 
 /** "Jan 8, 2026", "Jan 1 to Jan 31, 2026" or "Dec 13, 2025 to Jan 11, 2026". */
