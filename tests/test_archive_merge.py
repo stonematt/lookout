@@ -311,6 +311,7 @@ class TestFillArchiveGap:
         assert len(merged) == len(filled) == len(truth)
         for col in COUNTERS:
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
+
     def test_a_gap_with_no_new_data_comes_back_skipped(
         self, fake_s3, ambient_replay, device
     ):

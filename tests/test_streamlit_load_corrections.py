@@ -170,7 +170,9 @@ def test_a_diagnostics_fill_saves_raw_and_shows_corrected(
         assert (stored[col] - stored[col + "_raw"]).abs().max() < 1e-9
     for row in (FRIDAY, filled_row):
         got = counters(session, row)
-        assert got["weeklyrainin"] == pytest.approx(raw.loc[row, "weeklyrainin"] - CARRY)
+        assert got["weeklyrainin"] == pytest.approx(
+            raw.loc[row, "weeklyrainin"] - CARRY
+        )
 
 
 def test_a_diagnostics_save_with_nothing_filled_writes_nothing(
