@@ -2,7 +2,8 @@
  * Boot the page: the header and the tab shell, fed by `/dashboard` and then
  * `/current`. The data age ticks every 15 seconds from the browser clock,
  * and `/current` is re-read every 5 minutes and whenever the page comes back
- * into view.
+ * into view. `/current` only moves the header's reading forward; the page's
+ * figures, and their own age, stay the snapshot's.
  */
 import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
 import "./styles/tokens.css";
@@ -60,9 +61,10 @@ function title(name: string | null): void {
 async function loadCurrent(): Promise<void> {
   try {
     const current = await fetchCurrent(location.search);
-    header.show({ station: current.station, observedAtMs: current.observed_at_ms });
+    header.showCurrent(current);
   } catch (error) {
-    // The snapshot's own observation time stays on screen and keeps ageing.
+    // The snapshot's own observation time stays on screen and keeps ageing,
+    // stale on its own clock.
     console.warn("Lookout: /current could not be read", error);
   }
 }
@@ -70,7 +72,7 @@ async function loadCurrent(): Promise<void> {
 async function boot(): Promise<void> {
   try {
     const snapshot = await fetchDashboard(location.search);
-    header.show({ station: snapshot.station, observedAtMs: snapshot.observed_at_ms });
+    header.showSnapshot(snapshot);
     title(snapshot.station.name);
     renderOverview(tabs.panel("overview"), snapshot);
     dashboard = snapshot;
