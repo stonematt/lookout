@@ -133,16 +133,27 @@ class TestCombine:
 class TestSeekOverTimeGap:
     """`seek_over_time_gap`: how a page that does not advance moves the cursor."""
 
-    def test_each_attempt_jumps_five_minutes_per_record_per_attempt(self):
+    def test_every_empty_probe_moves_the_cursor_one_page(self):
+        """
+        Probes 1, 2 and 5 move the cursor by the same 1250 minutes (#132).
+
+        It used to move 5 minutes x records x attempt number from the last
+        cursor, so the offsets accumulated and skipped time.
+        """
         start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
 
-        first, attempts, stop = awn.seek_over_time_gap(start, 0, limit=250)
-        second, attempts2, stop2 = awn.seek_over_time_gap(start, 1, limit=250)
+        for done, attempt in ((0, 1), (1, 2), (4, 5)):
+            cursor, attempts, stop = awn.seek_over_time_gap(start, done, limit=250)
 
-        assert (attempts, stop) == (1, False)
-        assert first - start == pd.Timedelta(minutes=5 * 250 * 1)
-        assert (attempts2, stop2) == (2, False)
-        assert second - start == pd.Timedelta(minutes=5 * 250 * 2)
+            assert (attempts, stop) == (attempt, False)
+            assert cursor - start == pd.Timedelta(minutes=1250)
+
+    def test_the_step_is_one_page_at_any_limit(self):
+        start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
+
+        cursor, _, _ = awn.seek_over_time_gap(start, 3, limit=288)
+
+        assert cursor - start == pd.Timedelta(hours=24)
 
     def test_gives_up_on_the_tenth_attempt_without_moving(self):
         start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
