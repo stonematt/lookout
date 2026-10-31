@@ -33,7 +33,7 @@ Golden documents for the TypeScript tests live in `tests/golden/snapshots/`
 
 import math
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 SCHEMA_VERSION = 1
 
@@ -139,6 +139,12 @@ class ActiveRainEvent:
     avg_rate_in_hr: Optional[float]
 
 
+GapState = Literal["valid", "prorated", "invalid"]
+GapReason = Literal[
+    "gap", "low_coverage", "not_archived", "before_archive", "in_progress"
+]
+
+
 @dataclass(frozen=True)
 class GapStatus:
     """
@@ -165,8 +171,8 @@ class GapStatus:
     last_day: str
     days: int
     missing_days: int
-    status: str
-    reason: Optional[str]
+    status: GapState
+    reason: Optional[GapReason]
 
 
 @dataclass(frozen=True)

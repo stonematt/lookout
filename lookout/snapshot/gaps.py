@@ -54,7 +54,7 @@ The API, for every section that compares months or windows:
 """
 
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 
 import pandas as pd
@@ -83,19 +83,19 @@ ARCHIVE_LAG = pd.Timedelta(hours=1)
 WATER_YEAR_START_MONTH = 10
 """The water year starts on Oct 1 (GLOSSARY.md, "water year")."""
 
-STANDARD_WINDOWS: Tuple[Tuple[str, int], ...] = (
-    ("today", 1),
-    ("yesterday", 1),
-    ("7d", 7),
-    ("30d", 30),
-    ("90d", 90),
-    ("365d", 365),
+STANDARD_WINDOWS: Tuple[Tuple[str, int, int], ...] = (
+    ("today", 0, 0),
+    ("yesterday", 1, 1),
+    ("7d", 6, 0),
+    ("30d", 29, 0),
+    ("90d", 89, 0),
+    ("365d", 364, 0),
 )
-"""The rolling windows the snapshot carries, as (key, days ending today);
-"yesterday" is the one day before today. The water year follows them."""
+"""The windows the snapshot carries, as (key, first day, last day), each day
+counted back from today. The water year follows them."""
 
 _OK, _LOW, _GAP = "ok", "low", "gap"
-_NOT_ARCHIVED, _BEFORE, _FUTURE = "not_archived", "before_archive", "future"
+_NOT_ARCHIVED, _BEFORE_ARCHIVE, _FUTURE = "not_archived", "before_archive", "future"
 
 
 class ArchiveCoverage:
@@ -109,7 +109,7 @@ class ArchiveCoverage:
     """
 
     def __init__(
-        self, archive: pd.DataFrame, now: pd.Timestamp, tz: str = DEFAULT_TZ
+        self, archive: pd.DataFrame, now: datetime, tz: str = DEFAULT_TZ
     ) -> None:
         now = pd.Timestamp(now)
         if now.tzinfo is None:
@@ -169,7 +169,7 @@ class ArchiveCoverage:
         start = self._midnight_ms(day)
         end = min(self._midnight_ms(day + timedelta(days=1)), self.now_ms)
         if self._midnight_ms(day + timedelta(days=1)) <= self.oldest_ms:
-            return _BEFORE
+            return _BEFORE_ARCHIVE
         if end > self.newest_ms + ARCHIVE_LAG.value // 10**6:
             return _NOT_ARCHIVED
         # Within the allowed lag, the slots after the newest row are not due.
@@ -277,22 +277,22 @@ class ArchiveCoverage:
 
         :return: Their statuses, in that order.
         """
-        windows = []
-        for key, days in STANDARD_WINDOWS:
-            if key == "yesterday":
-                yesterday = self.today - timedelta(days=1)
-                windows.append(self.window(yesterday, yesterday, key))
-            else:
-                windows.append(self.rolling(days, key))
-        windows.append(self.water_year())
-        return tuple(windows)
+        windows = [
+            self.window(
+                self.today - timedelta(days=first_back),
+                self.today - timedelta(days=last_back),
+                key,
+            )
+            for key, first_back, last_back in STANDARD_WINDOWS
+        ]
+        return (*windows, self.water_year())
 
 
 def window_status(
     archive: pd.DataFrame,
     first_day: date,
     last_day: date,
-    now: pd.Timestamp,
+    now: datetime,
     key: Optional[str] = None,
 ) -> GapStatus:
     """
@@ -311,7 +311,7 @@ def window_status(
 
 
 def month_status(
-    archive: pd.DataFrame, year: int, month: int, now: pd.Timestamp
+    archive: pd.DataFrame, year: int, month: int, now: datetime
 ) -> GapStatus:
     """
     The gap status of one station-local calendar month.
@@ -354,7 +354,7 @@ def prorate(status: GapStatus, total: float) -> Optional[float]:
     return total * status.days / (status.days - status.missing_days)
 
 
-def snapshot_gaps(archive: pd.DataFrame, now: pd.Timestamp) -> Gaps:
+def snapshot_gaps(archive: pd.DataFrame, now: datetime) -> Gaps:
     """
     The snapshot's gap section: every month and every standard window.
 
@@ -376,7 +376,7 @@ def _judge_window(kinds: List[str]) -> Tuple[str, Optional[str]]:
     for kind, reason in (
         (_FUTURE, "in_progress"),
         (_NOT_ARCHIVED, "not_archived"),
-        (_BEFORE, "before_archive"),
+        (_BEFORE_ARCHIVE, "before_archive"),
     ):
         if kind in kinds:
             return INVALID, reason

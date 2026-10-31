@@ -64,5 +64,5 @@ def build_snapshot(
         archive_newest_ms=archive_newest_ms,
         current=current,
         active_rain_event=active_rain_event(event_catalog, current, observed_at_ms),
-        gaps=snapshot_gaps(archive, pd.Timestamp(now)),
+        gaps=snapshot_gaps(archive, now),
     )
