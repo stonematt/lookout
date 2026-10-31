@@ -3476,6 +3476,481 @@
       }
     ]
   },
+  "temperature_context": {
+    "now": 39.4,
+    "now_ms": 1763538900000,
+    "finding": null,
+    "periods": [
+      {
+        "status": {
+          "key": "today",
+          "first_day": "2025-11-19",
+          "last_day": "2025-11-19",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "yesterday",
+          "first_day": "2025-11-18",
+          "last_day": "2025-11-18",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "7d",
+          "first_day": "2025-11-13",
+          "last_day": "2025-11-19",
+          "days": 7,
+          "missing_days": 6,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "30d",
+          "first_day": "2025-10-21",
+          "last_day": "2025-11-19",
+          "days": 30,
+          "missing_days": 29,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "90d",
+          "first_day": "2025-08-22",
+          "last_day": "2025-11-19",
+          "days": 90,
+          "missing_days": 89,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "365d",
+          "first_day": "2024-11-20",
+          "last_day": "2025-11-19",
+          "days": 365,
+          "missing_days": 364,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      }
+    ],
+    "ten_days": [
+      {
+        "day": "2025-11-10",
+        "status": {
+          "key": "2025-11-10",
+          "first_day": "2025-11-10",
+          "last_day": "2025-11-10",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-11",
+        "status": {
+          "key": "2025-11-11",
+          "first_day": "2025-11-11",
+          "last_day": "2025-11-11",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-12",
+        "status": {
+          "key": "2025-11-12",
+          "first_day": "2025-11-12",
+          "last_day": "2025-11-12",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-13",
+        "status": {
+          "key": "2025-11-13",
+          "first_day": "2025-11-13",
+          "last_day": "2025-11-13",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-14",
+        "status": {
+          "key": "2025-11-14",
+          "first_day": "2025-11-14",
+          "last_day": "2025-11-14",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-15",
+        "status": {
+          "key": "2025-11-15",
+          "first_day": "2025-11-15",
+          "last_day": "2025-11-15",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-16",
+        "status": {
+          "key": "2025-11-16",
+          "first_day": "2025-11-16",
+          "last_day": "2025-11-16",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-17",
+        "status": {
+          "key": "2025-11-17",
+          "first_day": "2025-11-17",
+          "last_day": "2025-11-17",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.1,
+        "high": 53.6,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-18",
+        "status": {
+          "key": "2025-11-18",
+          "first_day": "2025-11-18",
+          "last_day": "2025-11-18",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-11-19",
+        "status": {
+          "key": "2025-11-19",
+          "first_day": "2025-11-19",
+          "last_day": "2025-11-19",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "not_archived"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      }
+    ],
+    "ten_day_years": [],
+    "strips": [
+      {
+        "kind": "temperature",
+        "unit": "f",
+        "now": 39.4,
+        "now_ms": 1763538900000,
+        "values": [],
+        "below_pct": null,
+        "equal_pct": null,
+        "above_pct": null,
+        "years": [],
+        "missing": "no_comparison"
+      },
+      {
+        "kind": "rain",
+        "unit": "in",
+        "now": 0.0,
+        "now_ms": 1763538900000,
+        "values": [],
+        "below_pct": null,
+        "equal_pct": null,
+        "above_pct": null,
+        "years": [],
+        "missing": "no_comparison"
+      }
+    ]
+  },
+  "almanac": {
+    "years": [
+      {
+        "water_year": 2026,
+        "months": [
+          {
+            "status": {
+              "key": "2025-10",
+              "first_day": "2025-10-01",
+              "last_day": "2025-10-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-11",
+              "first_day": "2025-11-01",
+              "last_day": "2025-11-30",
+              "days": 30,
+              "missing_days": 29,
+              "status": "invalid",
+              "reason": "in_progress"
+            },
+            "rain_in": null,
+            "to_date": {
+              "key": "2025-11-01..2025-11-19",
+              "first_day": "2025-11-01",
+              "last_day": "2025-11-19",
+              "days": 19,
+              "missing_days": 18,
+              "status": "invalid",
+              "reason": "not_archived"
+            },
+            "to_date_in": null
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "season": {
+          "key": "water_year_2026",
+          "first_day": "2025-10-01",
+          "last_day": "2026-09-30",
+          "days": 365,
+          "missing_days": 364,
+          "status": "invalid",
+          "reason": "in_progress"
+        },
+        "season_in": null
+      }
+    ],
+    "rolling": [
+      {
+        "key": "7d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "7d",
+              "first_day": "2025-11-13",
+              "last_day": "2025-11-19",
+              "days": 7,
+              "missing_days": 6,
+              "status": "invalid",
+              "reason": "not_archived"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "30d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "30d",
+              "first_day": "2025-10-21",
+              "last_day": "2025-11-19",
+              "days": 30,
+              "missing_days": 29,
+              "status": "invalid",
+              "reason": "not_archived"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "90d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "90d",
+              "first_day": "2025-08-22",
+              "last_day": "2025-11-19",
+              "days": 90,
+              "missing_days": 89,
+              "status": "invalid",
+              "reason": "not_archived"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "365d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "365d",
+              "first_day": "2024-11-20",
+              "last_day": "2025-11-19",
+              "days": 365,
+              "missing_days": 364,
+              "status": "invalid",
+              "reason": "not_archived"
+            },
+            "rain_in": null
+          }
+        ]
+      },
+      {
+        "key": "water_year",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "water_year",
+              "first_day": "2025-10-01",
+              "last_day": "2025-11-19",
+              "days": 50,
+              "missing_days": 49,
+              "status": "invalid",
+              "reason": "not_archived"
+            },
+            "rain_in": null
+          }
+        ]
+      }
+    ]
+  },
   "solar_tab": {
     "windows": [
       {

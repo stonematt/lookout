@@ -829,6 +829,9 @@ class Almanac:
 
     years: Tuple[AlmanacYear, ...]
     rolling: Tuple[RollingWindow, ...]
+
+
+@dataclass(frozen=True)
 class SolarWindow:
     """
     The solar energy over one standard window.
