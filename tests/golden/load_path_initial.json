@@ -14,7 +14,7 @@
     "first_period_start": "2025-11-17T00:00:00-08:00",
     "last_period_end": "2025-11-18T21:00:00-08:00",
     "periods": 175,
-    "total_kwh": 1.352695
+    "total_kwh": 2.021553
   },
   "history": {
     "dateutc_unique": true,
