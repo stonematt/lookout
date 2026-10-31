@@ -2,8 +2,9 @@
 Characterizes current conditions and the active Rain Event decision.
 
 Covers the temperature and barometer trend arrows, `get_active_rain_event` for
-an ongoing and an ended event, and `get_weather_data`, which assembles the
-header's current conditions from a fake Streamlit session state.
+an ongoing and an ended event (the Event Catalog passed in), and
+`get_weather_data`, which assembles the header's current conditions from a fake
+Streamlit session state and finds the catalog in session or storage.
 """
 
 import json
@@ -107,17 +108,15 @@ class TestTemperatureTrend:
 
         assert calculate_temperature_trend(df, 90.0) == STEADY
 
-    def test_a_history_with_holes_in_its_index_reads_the_wrong_row(self):
-        # NOTE (held finding): get_historical_value finds the closest row by
-        # index label (idxmin) but reads it by position (iloc). Whenever the
-        # frame's index is not 0..n-1 (rows dropped, a concat not reset), it
-        # reads a neighbouring row. Here the 24h-ago reading of 40F is missed.
+    def test_a_history_with_holes_in_its_index_reads_the_right_row(self):
+        # Fixed in #72: the closest row was found by label but read by
+        # position, so any index other than 0..n-1 read a neighbouring row.
         df = _temp_history(40.0)
         assert calculate_temperature_trend(df, 50.0) == UP
 
         holed = df.drop(index=[1, 2, 3])
 
-        assert calculate_temperature_trend(holed, 50.0) == STEADY
+        assert calculate_temperature_trend(holed, 50.0) == UP
 
 
 class TestBarometerTrend:
@@ -177,12 +176,8 @@ def _fully_ended(catalog: pd.DataFrame) -> pd.DataFrame:
 
 
 class TestGetActiveRainEvent:
-    def test_ongoing_event_is_active_while_it_is_still_raining(
-        self, session, ongoing_catalog
-    ):
-        session["rain_events_catalog"] = ongoing_catalog
-
-        active = get_active_rain_event(FAKE_MAC, "parquet", 0.24)
+    def test_ongoing_event_is_active_while_it_is_still_raining(self, ongoing_catalog):
+        active = get_active_rain_event(ongoing_catalog, 0.24)
 
         assert active["total_rain"] == pytest.approx(0.24)
         assert active["duration_h"] == pytest.approx(115 / 60)
@@ -196,92 +191,62 @@ class TestGetActiveRainEvent:
         }
 
     def test_ongoing_event_is_dropped_once_the_live_event_rain_is_zero(
-        self, session, ongoing_catalog
+        self, ongoing_catalog
     ):
-        session["rain_events_catalog"] = ongoing_catalog
+        assert get_active_rain_event(ongoing_catalog, 0) is None
+        assert get_active_rain_event(ongoing_catalog) is None
 
-        assert get_active_rain_event(FAKE_MAC, "parquet", 0) is None
-        assert get_active_rain_event(FAKE_MAC, "parquet") is None
-
-    def test_the_live_amount_only_gates_it_and_is_not_reported(
-        self, session, ongoing_catalog
-    ):
-        session["rain_events_catalog"] = ongoing_catalog
-
-        active = get_active_rain_event(FAKE_MAC, "parquet", 99.0)
+    def test_the_live_amount_only_gates_it_and_is_not_reported(self, ongoing_catalog):
+        active = get_active_rain_event(ongoing_catalog, 99.0)
 
         assert active["total_rain"] == pytest.approx(0.24)
 
-    def test_ended_events_are_not_active_even_while_it_rains(self, session):
-        session["rain_events_catalog"] = _fully_ended(_catalog_df(scenario_archive()))
+    def test_ended_events_are_not_active_even_while_it_rains(self):
+        catalog = _fully_ended(_catalog_df(scenario_archive()))
 
-        assert get_active_rain_event(FAKE_MAC, "parquet", 0.1) is None
-        assert get_active_rain_event(FAKE_MAC, "parquet", 0) is None
+        assert get_active_rain_event(catalog, 0.1) is None
+        assert get_active_rain_event(catalog, 0) is None
 
-    def test_a_freshly_detected_last_event_reads_as_ongoing_when_raining(self, session):
-        # NOTE (held finding): a completed last event has `ongoing` NaN, which is
-        # truthy, so with live rain it is reported as the active event. See the
-        # same cause in test_rain_events.py.
-        session["rain_events_catalog"] = _catalog_df(scenario_archive())
+    def test_a_freshly_detected_completed_last_event_is_not_active(self):
+        # Fixed in #72: a completed last event used to carry `ongoing` NaN,
+        # which read as ongoing, so live rain made it the active event.
+        assert get_active_rain_event(_catalog_df(scenario_archive()), 0.1) is None
 
-        active = get_active_rain_event(FAKE_MAC, "parquet", 0.1)
+    def test_a_nan_ongoing_from_an_older_catalog_is_not_active(self):
+        catalog = _catalog_df(scenario_archive())
+        catalog["ongoing"] = float("nan")
+        catalog["flags"] = [{"ongoing": None}] * len(catalog)
 
-        assert active["total_rain"] == pytest.approx(0.48)
-        assert active["duration_h"] == pytest.approx(535 / 60)
+        assert get_active_rain_event(catalog, 0.1) is None
 
-    def test_ongoing_can_be_marked_only_in_the_flags_dict(self, session):
+    def test_ongoing_can_be_marked_only_in_the_flags_dict(self):
         catalog = _fully_ended(_catalog_df(scenario_archive()))
         catalog["flags"] = [{"ongoing": i == 1} for i in range(3)]
-        session["rain_events_catalog"] = catalog
 
-        active = get_active_rain_event(FAKE_MAC, "parquet", 0.1)
+        active = get_active_rain_event(catalog, 0.1)
 
         assert active["total_rain"] == pytest.approx(0.48)
         assert active["duration_h"] == pytest.approx(950 / 60)
 
-    def test_flags_stored_as_json_text_are_read_too(self, session):
+    def test_flags_stored_as_json_text_are_read_too(self):
         catalog = _fully_ended(_catalog_df(scenario_archive()))
         catalog["flags"] = [json.dumps({"ongoing": i == 0}) for i in range(3)]
-        session["rain_events_catalog"] = catalog
 
-        active = get_active_rain_event(FAKE_MAC, "parquet", 0.1)
+        active = get_active_rain_event(catalog, 0.1)
 
         assert active["total_rain"] == pytest.approx(0.36)
 
-    def test_the_latest_of_several_ongoing_events_wins(self, session):
+    def test_the_latest_of_several_ongoing_events_wins(self):
         catalog = _fully_ended(_catalog_df(scenario_archive()))
         catalog["ongoing"] = True
 
-        session["rain_events_catalog"] = catalog.iloc[::-1].reset_index(drop=True)
-
-        active = get_active_rain_event(FAKE_MAC, "parquet", 0.1)
+        active = get_active_rain_event(catalog.iloc[::-1].reset_index(drop=True), 0.1)
 
         assert active["duration_h"] == pytest.approx(535 / 60)  # event 3
 
-    def test_empty_session_catalog_means_no_active_event(self, session, fake_s3):
-        session["rain_events_catalog"] = pd.DataFrame()
-
-        assert get_active_rain_event(FAKE_MAC, "parquet", 0.1) is None
-
-    def test_reads_the_stored_catalog_when_session_has_none(
-        self, session, fake_s3, ongoing_catalog
-    ):
-        RainEventCatalog(FAKE_MAC).save_catalog(ongoing_catalog)
-
-        active = get_active_rain_event(FAKE_MAC, "parquet", 0.24)
-
-        assert active["total_rain"] == pytest.approx(0.24)
-
-    def test_no_catalog_anywhere_means_no_active_event(self, session, fake_s3):
-        assert get_active_rain_event(FAKE_MAC, "parquet", 0.24) is None
-
-    def test_the_session_catalog_takes_precedence_over_storage(
-        self, session, fake_s3, ongoing_catalog
-    ):
-        RainEventCatalog(FAKE_MAC).save_catalog(ongoing_catalog)
-        session["rain_events_catalog"] = _fully_ended(ongoing_catalog)
-
-        assert get_active_rain_event(FAKE_MAC, "parquet", 0.24) is None
+    def test_an_empty_or_missing_catalog_means_no_active_event(self):
+        assert get_active_rain_event(pd.DataFrame(), 0.1) is None
+        assert get_active_rain_event(None, 0.1) is None
 
 
 # ---- current conditions as the header assembles them -----------------------
@@ -384,5 +349,37 @@ class TestWeatherData:
     ):
         last_data["eventrainin"] = 0.24
         session.update(last_data=last_data, rain_events_catalog=ongoing_catalog)
+
+        assert header.get_weather_data().active_event is None
+
+    def test_reads_the_stored_catalog_when_session_has_none(
+        self, session, last_data, fake_s3, ongoing_catalog
+    ):
+        RainEventCatalog(FAKE_MAC).save_catalog(ongoing_catalog)
+        last_data["eventrainin"] = 0.24
+        session.update(last_data=last_data, device={"macAddress": FAKE_MAC})
+
+        event = header.get_weather_data().active_event
+
+        assert event.total_rain == pytest.approx(0.24)
+
+    def test_no_catalog_anywhere_means_no_active_event(
+        self, session, last_data, fake_s3
+    ):
+        last_data["eventrainin"] = 0.24
+        session.update(last_data=last_data, device={"macAddress": FAKE_MAC})
+
+        assert header.get_weather_data().active_event is None
+
+    def test_the_session_catalog_takes_precedence_over_storage(
+        self, session, last_data, fake_s3, ongoing_catalog
+    ):
+        RainEventCatalog(FAKE_MAC).save_catalog(ongoing_catalog)
+        last_data["eventrainin"] = 0.24
+        session.update(
+            last_data=last_data,
+            device={"macAddress": FAKE_MAC},
+            rain_events_catalog=_fully_ended(ongoing_catalog),
+        )
 
         assert header.get_weather_data().active_event is None

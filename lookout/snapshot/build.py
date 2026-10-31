@@ -1,0 +1,66 @@
+"""
+build.py: `build_snapshot`, the one pure function behind the dashboard.
+
+It reads no storage, no clock and no session state: everything comes in as
+arguments, and the `Snapshot` goes out. The refresh command
+(`lookout.cli.refresh`) loads the inputs and publishes the result.
+
+Later tickets add their per-tab sections here: compute the section from the
+same `stitched` history (so live values are used once) and add its field to
+`lookout.snapshot.model.Snapshot`.
+"""
+
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+import pandas as pd
+
+from lookout.snapshot.current import (
+    active_rain_event,
+    current_conditions,
+    stitch_live,
+    to_ms,
+)
+from lookout.snapshot.model import Snapshot, Station
+
+
+def build_snapshot(
+    archive: pd.DataFrame,
+    live: Optional[Dict[str, Any]],
+    event_catalog: Optional[pd.DataFrame],
+    energy_catalog: Optional[pd.DataFrame],
+    station: Station,
+    now: datetime,
+) -> Snapshot:
+    """
+    Build the dashboard snapshot for one station.
+
+    The archive is used as handed: rain corrections are not applied again
+    (catchup has already applied them, see #95).
+
+    :param archive: The station's archive (Ambient columns, `dateutc` in ms).
+    :param live: The live `lastData` from Ambient, or None.
+    :param event_catalog: The Event Catalog, or None when there is none.
+    :param energy_catalog: The energy catalog, or None. Not read yet: the
+        Solar tab ticket (#85) is its first reader.
+    :param station: The station.
+    :param now: The build time, timezone-aware.
+    :return: The snapshot.
+    :raises ValueError: If `now` has no timezone.
+    """
+    if now.tzinfo is None:
+        raise ValueError("build_snapshot needs a timezone-aware `now`")
+
+    archive_newest_ms = int(archive["dateutc"].max()) if not archive.empty else None
+    stitched = stitch_live(archive, live)
+    observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
+    current = current_conditions(stitched)
+
+    return Snapshot(
+        station=station,
+        built_at_ms=to_ms(pd.Timestamp(now)),
+        observed_at_ms=observed_at_ms,
+        archive_newest_ms=archive_newest_ms,
+        current=current,
+        active_rain_event=active_rain_event(event_catalog, current, observed_at_ms),
+    )

@@ -153,6 +153,7 @@
       },
       "max_gap_minutes": 94.0,
       "max_hourly_rate": 0.432,
+      "ongoing": false,
       "quality_rating": "poor",
       "significant_gaps": 3,
       "start_time": "2025-11-17T08:00:00+00:00",

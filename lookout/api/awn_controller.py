@@ -37,8 +37,8 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-import streamlit as st
 
+from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
 
 from lookout.utils.trend_utils import (
@@ -141,9 +141,14 @@ def is_dev_mode() -> bool:
     """
     Check if application is running in development mode.
 
+    Read from the `DEV_MODE` setting (env var, the secrets file, then
+    Streamlit's `[environment] dev`), so a run with no Streamlit secrets is
+    simply not in dev mode.
+
     :return: True if dev mode is enabled
     """
-    return st.secrets.get("environment", {}).get("dev", False)
+    value = get_setting("DEV_MODE", "") or ""
+    return value.strip().lower() in ("1", "true", "yes", "on")
 
 
 # Core Functions
@@ -159,6 +164,10 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
     :param pages: int - Number of pages to fetch, default 10.
     :return: None.
     """
+    # The Streamlit UI's entry point; imported here so the refresh run, which
+    # never calls it, never loads Streamlit.
+    import streamlit as st
+
     try:
         # Use provided or session state history
         current_df = (
@@ -596,6 +605,8 @@ def fill_archive_gap(device, history_df, start, end):
 
     if len(full_combined) == len(history_df):
         logger.info("No new data found. Marking gap as skipped.")
+        import streamlit as st  # only the Diagnostics tab calls this
+
         if "skipped_gaps" not in st.session_state:
             st.session_state["skipped_gaps"] = []
         st.session_state["skipped_gaps"].append({"start": start, "end": end})

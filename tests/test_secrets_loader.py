@@ -212,6 +212,14 @@ def test_unknown_setting_name_is_rejected():
         get_setting("STATION_NAME")
 
 
+def test_dev_mode_setting_reads_streamlits_environment_table(no_secrets, monkeypatch):
+    monkeypatch.delenv("DEV_MODE", raising=False)
+    fake_st = types.ModuleType("streamlit")
+    fake_st.secrets = {"environment": {"dev": True}}
+    monkeypatch.setitem(sys.modules, "streamlit", fake_st)
+    assert get_setting("DEV_MODE") == "True"
+
+
 def test_settings_are_not_secret_names():
-    assert secrets_loader.SETTING_NAMES == ("STATION_MAC",)
+    assert secrets_loader.SETTING_NAMES == ("STATION_MAC", "DEV_MODE")
     assert not set(secrets_loader.SETTING_NAMES) & set(secrets_loader.SECRET_NAMES)

@@ -23,13 +23,8 @@ from tests.fixtures.storage import BUCKET, bucket_keys
 
 @pytest.fixture
 def station(monkeypatch):
-    """
-    Pin the fake station, and put it in session state as the UI does.
-
-    `storj.backup_and_save_catalog` still takes the station from session state.
-    """
+    """Pin the fake station; nothing is put in session state."""
     monkeypatch.setenv("STATION_MAC", FAKE_MAC)
-    monkeypatch.setitem(st.session_state, "device", {"macAddress": FAKE_MAC})
     return FAKE_MAC
 
 
@@ -154,6 +149,18 @@ def test_catalog_save_with_backup_writes_both(fake_s3, station, frozen_today):
     ]
     stored = storj.get_df_from_s3(BUCKET, f"{prefix}.parquet", "parquet")
     assert_frame_equal(stored, _periods())
+
+
+def test_catalog_save_with_backup_takes_the_station_as_a_parameter(
+    fake_s3, no_station, frozen_today
+):
+    other = "AA:BB:CC:DD:EE:FF"
+
+    storj.backup_and_save_catalog(
+        _periods(), "energy", bucket=BUCKET, mac_address=other
+    )
+
+    assert bucket_keys(fake_s3) == [f"{other}.energy_catalog.parquet"]
 
 
 # ---------- the Event Catalog ----------

@@ -86,7 +86,8 @@ class TestDetectRainEvents:
     def test_no_event_is_ongoing_when_the_archive_ends_dry(self):
         events = detect_rain_events(scenario_archive())
 
-        assert not any(e.get("ongoing") for e in events)
+        # Spelled out as False on every event, so no reader sees a NaN.
+        assert [e["ongoing"] for e in events] == [False, False, False]
 
     def test_result_does_not_depend_on_row_order(self):
         newest = _summary(detect_rain_events(scenario_archive(newest_first=True)))
@@ -201,24 +202,30 @@ class TestUpdateCatalogWithNewData:
             0.48,
         ]
 
-    def test_a_completed_last_event_is_redetected_with_a_new_id(self, catalog):
-        # NOTE (held finding): the last event of a freshly detected catalog has
-        # `ongoing` NaN, not False, because detect_rain_events only sets the key
-        # on the archive-end event. NaN is truthy, so the update treats a
-        # completed last event as ongoing: it re-detects from its start and the
-        # event gets a new id every update. Earlier events keep theirs.
+    def test_a_completed_last_event_keeps_its_id(self, catalog):
+        # Fixed in #72: detection used to leave `ongoing` NaN on completed
+        # events, NaN read as ongoing, and the last event was re-detected with
+        # a new id on every update.
         stored = catalog.detect_and_catalog_events(
             _scenario_until(BETWEEN_2_AND_3), auto_save=False
         )
 
         updated = catalog.update_catalog_with_new_data(scenario_archive(), stored)
 
-        stored_ids, updated_ids = _ids(stored), _ids(updated)
-        assert updated_ids[0] == stored_ids[0]
-        assert updated_ids[1] != stored_ids[1]
-        assert updated.sort_values("start_time").iloc[1]["start_time"] == (
-            stored.sort_values("start_time").iloc[1]["start_time"]
+        assert _ids(updated)[:2] == _ids(stored)
+        assert len(updated) == 3
+
+    def test_a_stored_catalog_with_nan_ongoing_reads_as_completed(self, catalog):
+        # Catalogs saved before #72 carry NaN; it must not mean ongoing.
+        stored = catalog.detect_and_catalog_events(
+            _scenario_until(BETWEEN_2_AND_3), auto_save=False
         )
+        stored["ongoing"] = float("nan")
+        stored["flags"] = [{"ongoing": None}] * len(stored)
+
+        updated = catalog.update_catalog_with_new_data(scenario_archive(), stored)
+
+        assert _ids(updated)[:2] == _ids(stored)
 
     def test_ongoing_last_event_is_replaced_by_the_completed_version(self, catalog):
         stored = catalog.detect_and_catalog_events(
@@ -311,25 +318,19 @@ class TestAutoSaveOngoingEvent:
     def test_saves_when_the_ongoing_event_completes(
         self, catalog, ongoing, completed, fake_s3
     ):
-        # Spell out False where detection leaves NaN (see the note below).
-        completed = completed.assign(
-            ongoing=False, flags=[{"ongoing": False}] * len(completed)
-        )
-
         assert catalog.check_and_auto_save_ongoing_event(ongoing, completed) is True
 
         assert f"{FAKE_MAC}.event_catalog.parquet" in bucket_keys(fake_s3)
 
-    def test_the_updated_catalog_from_a_real_update_never_triggers_a_save(
+    def test_the_updated_catalog_from_a_real_update_triggers_the_save(
         self, catalog, ongoing, fake_s3
     ):
-        # NOTE (held finding): update_catalog_with_new_data leaves `ongoing` NaN
-        # on the re-detected completed event, and NaN reads as ongoing, so the
-        # ongoing -> completed hand-off the CLAUDE.md describes does not fire.
+        # Fixed in #72: the re-detected completed event used to carry `ongoing`
+        # NaN, which read as ongoing, so this hand-off never fired.
         updated = catalog.update_catalog_with_new_data(scenario_archive(), ongoing)
 
-        assert catalog.check_and_auto_save_ongoing_event(ongoing, updated) is False
-        assert bucket_keys(fake_s3) == []
+        assert catalog.check_and_auto_save_ongoing_event(ongoing, updated) is True
+        assert f"{FAKE_MAC}.event_catalog.parquet" in bucket_keys(fake_s3)
 
     def test_does_not_save_while_the_event_is_still_ongoing(
         self, catalog, ongoing, fake_s3

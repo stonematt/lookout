@@ -20,6 +20,10 @@ PYTHONPATH=. python lookout/cli/catchup.py
 
 # Run with cron (includes logging and jitter)
 lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
+
+# One refresh run: catchup, then publish the dashboard snapshot to Storj
+# (snapshot/<MAC>.dashboard.json and snapshot/<MAC>.context.json)
+PYTHONPATH=. python lookout/cli/refresh.py
 ```
 
 ### Environment Setup
@@ -46,7 +50,8 @@ pytest tests/
 - `lookout/models/` - Data models and type definitions (dataclasses)
 - `lookout/storage/` - S3/Storj integration for data archival
 - `lookout/utils/` - Shared utilities (logging, date handling, dataframe helpers)
-- `lookout/cli/` - Command-line scripts for maintenance tasks
+- `lookout/snapshot/` - The dashboard snapshot: `build_snapshot` (pure), its dataclass and JSON contract, and the publish to `snapshot/` on Storj
+- `lookout/cli/` - Command-line scripts for maintenance tasks, and `refresh.py`, the VPS cron's run
 - `lookout/bin/` - Shell scripts for cron and operational tasks
 - `lookout/ui/` - Streamlit UI components (overview, diagnostics)
 - `lookout/config.py` - Shared configuration and sensor mappings
