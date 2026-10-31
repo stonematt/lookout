@@ -160,7 +160,7 @@ button.alm-cell {
 
 /* an invalid month: the shared hatch, "n/a" in place */
 .alm-cell.gap-hatch {
-  background: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+  background: var(--gap-hatch);
 }
 
 .alm-cell.gap-hatch .gap-label {

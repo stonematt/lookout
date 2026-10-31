@@ -12,12 +12,14 @@ import {
   formatDuration,
   formatHours,
   formatStamp,
+  formatTime,
   hourName,
   hourText,
   monthLongName,
   inches,
   inchesPerHour,
   localDay,
+  localMonthName,
   kwhPerM2,
   mph,
   wattsPerM2,
@@ -31,6 +33,18 @@ describe("formatStamp", () => {
     expect(formatStamp(Date.UTC(2026, 0, 9, 0, 45))).toBe("Jan 8, 4:45 pm");
     // 2025-07-04T18:05:00Z is Jul 4, 11:05 am in Pacific daylight time.
     expect(formatStamp(Date.UTC(2025, 6, 4, 18, 5))).toBe("Jul 4, 11:05 am");
+  });
+});
+
+describe("formatTime", () => {
+  it("writes a Pacific time of day", () => {
+    expect(formatTime(Date.UTC(2026, 0, 9, 0, 45))).toBe("4:45 pm");
+    expect(formatTime(Date.UTC(2025, 6, 4, 18, 5))).toBe("11:05 am");
+  });
+
+  it("names a time's Pacific month", () => {
+    // 2026-02-01T05:00:00Z is still Jan 31 in Pacific time.
+    expect(localMonthName(Date.UTC(2026, 1, 1, 5))).toBe("January");
   });
 });
 

@@ -23,6 +23,7 @@
  */
 import "./styles/gaps.css";
 
+import { svgEl } from "./dom.js";
 import { dayText } from "./format.js";
 import type { GapReason, GapStatus } from "./snapshot.js";
 
@@ -37,8 +38,6 @@ const LABELS: Record<GapReason, string> = {
 
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
 const COMPACT_LABEL = "n/a";
-
-const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** The hatch's repeat and its stripe (DESIGN.md: 4px on an 8px repeat). */
 const HATCH_REPEAT_PX = 8;
@@ -230,13 +229,8 @@ let patternCount = 0;
  * @returns The fill that paints with it, `url(#...)`.
  */
 export function svgHatch(root: SVGSVGElement): string {
-  const make = (tag: string, attrs: Record<string, string | number>) => {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
-    return node;
-  };
   const id = `gap-hatch-${++patternCount}`;
-  const pattern = make("pattern", {
+  const pattern = svgEl("pattern", {
     id,
     width: HATCH_REPEAT_PX,
     height: HATCH_REPEAT_PX,
@@ -244,10 +238,10 @@ export function svgHatch(root: SVGSVGElement): string {
     patternTransform: "rotate(45)",
   });
   pattern.append(
-    make("rect", { width: HATCH_REPEAT_PX, height: HATCH_REPEAT_PX, class: "gap-hatch-b" }),
-    make("rect", { width: HATCH_STRIPE_PX, height: HATCH_REPEAT_PX, class: "gap-hatch-a" }),
+    svgEl("rect", { width: HATCH_REPEAT_PX, height: HATCH_REPEAT_PX, class: "gap-hatch-b" }),
+    svgEl("rect", { width: HATCH_STRIPE_PX, height: HATCH_REPEAT_PX, class: "gap-hatch-a" }),
   );
-  const defs = make("defs", {});
+  const defs = svgEl("defs");
   defs.append(pattern);
   root.append(defs);
   return `url(#${id})`;

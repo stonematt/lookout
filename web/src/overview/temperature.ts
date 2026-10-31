@@ -16,7 +16,8 @@
 import "./temperature.css";
 
 import { degrees, inches } from "../format.js";
-import { niceTicks, scale, svgEl } from "../charts/svg.js";
+import { niceTicks, scale } from "../charts/svg.js";
+import { svgEl } from "../dom.js";
 import { gapLabel, gapSentence, gapValue, isComparable, svgHatch } from "../gaps.js";
 import type {
   DashboardSnapshot,

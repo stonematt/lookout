@@ -59,6 +59,31 @@ export function formatStamp(ms: number): string {
 }
 
 /**
+ * A time of day, e.g. `1:05 pm`.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns The time in Pacific time.
+ */
+export function formatTime(ms: number): string {
+  const parts = Object.fromEntries(
+    STAMP.formatToParts(ms).map((part) => [part.type, part.value]),
+  );
+  return `${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toLowerCase()}`;
+}
+
+const LOCAL_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: STATION_TIME_ZONE, month: "long" });
+
+/**
+ * The full name of a time's Pacific month, e.g. `January`.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns The month's name.
+ */
+export function localMonthName(ms: number): string {
+  return LOCAL_MONTH.format(ms);
+}
+
+/**
  * A duration, e.g. `45 m`, `5 h 12 m`, `1 d 10 h`; `under 1 m` below a minute.
  *
  * @param ms - The duration in milliseconds.

@@ -6,11 +6,10 @@
  * the Rain tab and the Solar tab draw with it; each passes its own class
  * prefix, so its stylesheet keeps its own look.
  */
+import { svgEl } from "../dom.js";
 import { MONTHS, addDays } from "../format.js";
 import { reasonLabel, svgHatch } from "../gaps.js";
 import type { GapReason } from "../snapshot.js";
-
-const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Width used before the chart's host has been laid out (a hidden tab). */
 export const FALLBACK_WIDTH = 640;
@@ -23,25 +22,6 @@ export const NARROW = 520;
 
 /** What a chart writes to its readout for one position. */
 export type Readout = (text: string) => void;
-
-/**
- * An SVG element with attributes and, optionally, text.
- *
- * @param tag - The element name.
- * @param attrs - Its attributes.
- * @param text - Its text.
- * @returns The element.
- */
-export function svgEl<K extends keyof SVGElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string | number> = {},
-  text?: string,
-): SVGElementTagNameMap[K] {
-  const node = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 /**
  * A chart's SVG at its pixel size, named for screen readers, with its own

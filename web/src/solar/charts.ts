@@ -20,17 +20,16 @@ import {
   monthTicks,
   runs,
   scrub,
-  svgEl,
   yAxis,
   zeroTicks,
 } from "../charts/svg.js";
-import { STATION_TIME_ZONE, addDays, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
+import { svgEl } from "../dom.js";
+import { MONTHS, STATION_TIME_ZONE, addDays, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
 import type { GapReason, GapStatus, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
 import {
   FIRST_SLOT,
-  clockText,
   LAST_SLOT,
   daysBetween,
   lastDay,
@@ -206,7 +205,7 @@ export function drawTrace(
     n,
     (px) => Math.round((px - left) / step),
     (i) => {
-      const clock = clockText(at(i));
+      const clock = formatTime(at(i));
       const when = dayText(localDay(at(i)));
       const value = values[i];
       const usual =
@@ -400,10 +399,9 @@ export function drawYearMonth(host: HTMLElement, tab: SolarTab, statuses: GapSta
   const height = top + years.length * (rowH + gap) + 4;
   const max = Math.max(1, ...tab.months.map((m) => m.energy_kwh_m2 ?? 0));
   const months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   const { svg, hatch } = canvas(width, height, "Solar energy each month, one row per year", "solar-svg");
-  names.forEach((name, m) => {
+  MONTHS.forEach((name, m) => {
     const cx = left + m * (cell + gap) + cell / 2;
     svg.append(svgEl("text", { x: cx, y: 12, class: "solar-tick", "text-anchor": "middle" }, cell >= 30 ? name : months[m]!));
   });

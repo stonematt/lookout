@@ -22,10 +22,10 @@ import {
   monthTicks,
   runs,
   scrub,
-  svgEl,
   yAxis,
   zeroTicks,
 } from "../charts/svg.js";
+import { svgEl } from "../dom.js";
 import { dayStatus, gapSentence } from "../gaps.js";
 import { rainStep } from "../overview/ribbon.js";
 import type { RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";

@@ -10,8 +10,7 @@
  * so it needs no measuring; ticks, hatches and the dot are positioned in %.
  */
 import { HOUR_MS, STATION_TIME_ZONE, degrees, formatHours, hourText, localHour } from "../format.js";
-import { svgEl } from "../charts/svg.js";
-import { make } from "../dom.js";
+import { make, svgEl } from "../dom.js";
 import { hatchSpan } from "../gaps.js";
 import type { ConditionRibbon, DashboardSnapshot } from "../snapshot.js";
 
@@ -46,7 +45,8 @@ export function rainStep(rainIn: number | null, slotMinutes = 15): 1 | 2 | 3 | 4
 }
 
 /** Hours as `9 h`, `47 h 30 m` or `45 m`, on one line (the span is 48 h). */
-const hoursText = (hours: number) => formatHours(hours * HOUR_MS, { noBreak: true });
+const hoursText = (hours: number) =>
+  formatHours(Math.round(hours * 60) * 60_000, { noBreak: true });
 
 /**
  * The one-line claim above the band: the range and the hours of rain.

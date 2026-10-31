@@ -17,7 +17,6 @@ import "./hero.css";
 
 import {
   HOUR_MS,
-  STATION_TIME_ZONE,
   degrees,
   formatDayCount,
   formatDays,
@@ -26,9 +25,11 @@ import {
   hourName,
   inches,
   localHour,
+  localMonthName,
   wattsPerM2,
 } from "../format.js";
-import { niceTicks, scale, svgEl } from "../charts/svg.js";
+import { niceTicks, scale } from "../charts/svg.js";
+import { svgEl } from "../dom.js";
 import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
@@ -36,7 +37,6 @@ import type { OverviewSection } from "./index.js";
 /** A live reading further ahead of the archive than this is hatched. */
 const LAG_HATCH_MS = 15 * 60_000;
 
-const MONTH = new Intl.DateTimeFormat("en-US", { timeZone: STATION_TIME_ZONE, month: "long" });
 
 // ---------- words ----------
 
@@ -54,7 +54,7 @@ function years(keys: string[]): string {
 }
 
 function monthOf(snapshot: DashboardSnapshot): string {
-  return MONTH.format(snapshot.observed_at_ms ?? snapshot.built_at_ms);
+  return localMonthName(snapshot.observed_at_ms ?? snapshot.built_at_ms);
 }
 
 function hourOf(snapshot: DashboardSnapshot): string {
