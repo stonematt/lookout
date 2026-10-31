@@ -121,3 +121,7 @@ Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 ### Domain docs
 
 Single-context: `GLOSSARY.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Operations
+
+Touching Storj, the VPS (`itri`), Vercel, Healthchecks or the Ambient API → `docs/agents/operations.md` first.
