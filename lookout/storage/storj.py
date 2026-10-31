@@ -231,6 +231,7 @@ def backup_data(
     dry_run: bool = False,
     backup_root: str = ".backups",
     folder: Optional[str] = None,
+    exact_key: bool = False,
 ):
     """
     Backs up all files with a given prefix in an S3 bucket to a specified backup folder
@@ -242,6 +243,7 @@ def backup_data(
     :param dry_run: Boolean flag for a dry run without actual file copying.
     :param backup_root: Root directory for backups, default to '.backups'.
     :param folder: Name of the folder under `backup_root`; the prefix when None.
+    :param exact_key: Back up only the object whose key is exactly `prefix`.
     """
     today = datetime.datetime.now().strftime("%Y%m%d")
     backup_folder = f"{backup_root}/{folder or prefix}/{today}/"
@@ -267,6 +269,8 @@ def backup_data(
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
             for obj in page.get("Contents", []):
                 key = obj["Key"]
+                if exact_key and key != prefix:
+                    continue
                 file_name = os.path.basename(key)
                 backup_key = f"{backup_folder}{file_name}"
                 file_size = obj["Size"]
@@ -320,6 +324,7 @@ def backup_archive(
         force_backup=force_backup,
         dry_run=dry_run,
         folder=mac,
+        exact_key=True,
     )
 
 

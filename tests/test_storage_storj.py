@@ -99,6 +99,18 @@ def test_archive_backup_copies_the_archive_and_not_the_catalogs(fake_s3, frozen_
     ]
 
 
+def test_archive_backup_copies_the_archive_key_exactly(fake_s3, frozen_today):
+    fake_s3.put_object(Bucket=BUCKET, Key=ARCHIVE_KEY, Body=b"x")
+    fake_s3.put_object(Bucket=BUCKET, Key=f"{ARCHIVE_KEY}.bak", Body=b"y")
+
+    storj.backup_archive(bucket=BUCKET, mac=FAKE_MAC)
+
+    folder = f".backups/{FAKE_MAC}/{frozen_today}/"
+    assert [k for k in bucket_keys(fake_s3) if k.startswith(folder)] == [
+        f"{folder}{ARCHIVE_KEY}"
+    ]
+
+
 def test_save_history_backup_leaves_the_catalogs_out(fake_s3, frozen_today):
     storj.save_df_to_s3(scenario_archive(), BUCKET, ARCHIVE_KEY)
     catalog_key = f"{FAKE_MAC}.energy_catalog.parquet"
