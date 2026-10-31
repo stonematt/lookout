@@ -17,6 +17,7 @@ import {
   monthLongName,
   inches,
   inchesPerHour,
+  localDay,
   kwhPerM2,
   mph,
   wattsPerM2,
@@ -93,6 +94,11 @@ describe("months and days", () => {
     expect(WATER_MONTHS.at(-1)).toBe("Sep");
     expect(monthLongName(10)).toBe("October");
     expect(monthLongName(1)).toBe("January");
+  });
+
+  it("finds a time's Pacific day", () => {
+    // 2026-01-09T07:30:00Z is Jan 8, 11:30 pm in Pacific standard time.
+    expect(localDay(Date.UTC(2026, 0, 9, 7, 30))).toBe("2026-01-08");
   });
 
   it("writes an ISO day", () => {

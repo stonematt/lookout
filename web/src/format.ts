@@ -167,6 +167,18 @@ export function dayText(iso: string, withYear = false): string {
   return withYear ? `${text}, ${iso.slice(0, 4)}` : text;
 }
 
+const LOCAL_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: STATION_TIME_ZONE });
+
+/**
+ * The Pacific calendar day of a time.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns "YYYY-MM-DD".
+ */
+export function localDay(ms: number): string {
+  return LOCAL_DAY.format(ms);
+}
+
 /**
  * The day `offset` days after an ISO day.
  *

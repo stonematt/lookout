@@ -24,7 +24,7 @@ import {
   yAxis,
   zeroTicks,
 } from "../charts/svg.js";
-import { STATION_TIME_ZONE, addDays, dayText, hourText, kwhPerM2, wattsPerM2 } from "../format.js";
+import { STATION_TIME_ZONE, addDays, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
 import type { GapReason, GapStatus, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
@@ -94,14 +94,6 @@ const CLOCK = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hourCycle: "h23",
 });
-
-/** The station-local day of an epoch ms, "YYYY-MM-DD". */
-const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: STATION_TIME_ZONE });
-
-/** The station-local day of an epoch ms, as "YYYY-MM-DD". */
-function localDay(ms: number): string {
-  return DAY.format(new Date(ms));
-}
 
 /** The station-local [hour, minute] of an epoch ms. */
 function localClock(ms: number): [number, number] {

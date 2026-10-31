@@ -24,7 +24,7 @@ import { resolve } from "node:path";
 
 import type { Plugin } from "vite";
 
-import { STATION_TIME_ZONE, addDays } from "../src/format.js";
+import { DAY_MS, addDays, localDay } from "../src/format.js";
 import type { Env } from "./env.js";
 import { handleEvent } from "./event.js";
 import type { ReadSources } from "./handlers.js";
@@ -67,12 +67,10 @@ interface Shift {
   days: number;
 }
 
-const PACIFIC_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: STATION_TIME_ZONE });
-
 /** The Pacific days between two times' calendar days. */
 function daysBetween(fromMs: number, toMs: number): number {
-  const day = (ms: number) => Date.parse(PACIFIC_DAY.format(ms));
-  return Math.round((day(toMs) - day(fromMs)) / 86_400_000);
+  const day = (ms: number) => Date.parse(localDay(ms));
+  return Math.round((day(toMs) - day(fromMs)) / DAY_MS);
 }
 
 /** A time, or each time in a list of times, moved. */
