@@ -24,7 +24,7 @@ from lookout.api import awn_controller as awn
 from lookout.cli import refresh
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
-from lookout.snapshot import Snapshot
+from lookout.snapshot import Snapshot, curves
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, build_archive
 from tests.fixtures.real import AMBIENT_END
@@ -40,6 +40,7 @@ from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
 
 DASHBOARD_KEY = f"snapshot/{FAKE_MAC}.dashboard.json"
 CONTEXT_KEY = f"snapshot/{FAKE_MAC}.context.json"
+CURVE_PREFIX = f"snapshot/{FAKE_MAC}.events/"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_IS_DEV_MODE = awn.is_dev_mode
 
@@ -67,8 +68,17 @@ def stored_json(station: CatchupStation, key: str) -> Dict:
 
 
 def snapshot_keys(station: CatchupStation) -> List[str]:
-    """Keys under the `snapshot/` prefix."""
-    return [key for key in station.keys() if key.startswith("snapshot/")]
+    """The snapshot documents' keys: under `snapshot/`, not curve files."""
+    return [
+        key
+        for key in station.keys()
+        if key.startswith("snapshot/") and not key.startswith(CURVE_PREFIX)
+    ]
+
+
+def curve_keys(station: CatchupStation) -> List[str]:
+    """The event curve files' keys, `snapshot/<MAC>.events/<start_ms>.json`."""
+    return [key for key in station.keys() if key.startswith(CURVE_PREFIX)]
 
 
 @pytest.fixture
@@ -423,3 +433,96 @@ class TestEnergyCatalog:
         saved = EnergyCatalog(FAKE_MAC).load_catalog()
         assert len(saved) > stored_len
         assert saved["period_start"].is_unique
+
+
+# ---------- event curve files, written once per completed event (#84) ----------
+
+EVENT_1 = ms("2026-01-04T18:00:00Z")
+EVENT_2 = ms("2026-01-07T04:00:00Z")
+EVENT_3 = ms("2026-01-08T22:00:00Z")
+
+
+def curve_key(start_ms: int) -> str:
+    """A curve file's key."""
+    return f"{CURVE_PREFIX}{start_ms}.json"
+
+
+class TestEventCurveFiles:
+    storm = TestCatalogUpdatesAndSaves.storm
+
+    def test_each_completed_event_gets_its_curve_file(self, seed):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+
+        run_refresh(station)
+
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_2, EVENT_3)
+        )
+        document = stored_json(station, curve_key(EVENT_3))
+        assert document["kind"] == "event_curve"
+        assert document["start_ms"] == EVENT_3
+        assert document["event_in"][-1] == pytest.approx(0.48)
+
+    def test_the_ongoing_event_gets_no_curve_file(self, seed):
+        station = self.storm(seed, "2026-01-09T00:30:00Z")
+
+        snapshot = run_refresh(station)
+
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_2)
+        )
+        # Its curve rides in the snapshot instead, under the same key.
+        assert snapshot.rain_events.ongoing_curve.start_ms == EVENT_3
+
+    def test_a_curve_file_is_written_once_and_never_rewritten(self, seed):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        run_refresh(station)
+        sentinel = b'{"written": "by the first run"}'
+        station.s3.put_object(Bucket=BUCKET, Key=curve_key(EVENT_2), Body=sentinel)
+
+        run_refresh(station)
+        run_refresh(station)
+
+        assert stored_bytes(station, curve_key(EVENT_2)) == sentinel
+
+    def test_a_later_run_writes_nothing_when_every_curve_is_stored(
+        self, seed, monkeypatch
+    ):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        run_refresh(station)
+        writes: List[str] = []
+        real_put = station.s3.put_object
+
+        def counting_put(**kwargs):
+            writes.append(kwargs["Key"])
+            return real_put(**kwargs)
+
+        monkeypatch.setattr(station.s3, "put_object", counting_put)
+        monkeypatch.setattr(curves, "get_s3_client", lambda: station.s3)
+
+        run_refresh(station)
+
+        assert [key for key in writes if key.startswith(CURVE_PREFIX)] == []
+
+    def test_the_backfill_is_bounded_per_run_newest_first(self, seed, monkeypatch):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        monkeypatch.setattr(curves, "CURVE_BACKFILL_LIMIT", 2)
+
+        run_refresh(station)
+        first = curve_keys(station)
+        run_refresh(station)
+
+        assert first == sorted(curve_key(start) for start in (EVENT_2, EVENT_3))
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_2, EVENT_3)
+        )
+
+    def test_the_event_list_and_the_curve_files_share_the_key(self, seed):
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+
+        run_refresh(station)
+
+        listed = stored_json(station, DASHBOARD_KEY)["rain_events"]["events"]
+        assert sorted(curve_key(row["start_ms"]) for row in listed) == (
+            curve_keys(station)
+        )

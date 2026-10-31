@@ -23,6 +23,9 @@ The steps, each its own function, run in this order by `run`:
    stored one is more than `ENERGY_SAVE_AGE` old.
 5. `build(station, device, archive, catalogs, now)`: `build_snapshot`.
 6. `publish(snapshot, bucket)`: both documents under `snapshot/`.
+7. `publish_curves(station, archive, catalogs, bucket)`: a curve file for
+   each completed event that has none yet, under `snapshot/<MAC>.events/`,
+   at most `curves.CURVE_BACKFILL_LIMIT` per run (#84).
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
@@ -43,6 +46,7 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, Station, build_snapshot
+from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
@@ -197,6 +201,25 @@ def publish(snapshot: Snapshot, bucket: str) -> List[str]:
     return publish_snapshot(snapshot, bucket)
 
 
+def publish_curves(
+    station: Station, archive: pd.DataFrame, catalogs: Catalogs, bucket: str
+) -> List[str]:
+    """
+    Step 7: write the curve files completed events do not have yet.
+
+    Each is written once, by the first run that sees its event completed
+    (or, for events completed before this step existed, by a later run of
+    the bounded backfill), and never rewritten.
+
+    :param station: The station.
+    :param archive: The archive after catchup.
+    :param catalogs: The updated catalogs.
+    :param bucket: The bucket.
+    :return: The keys written.
+    """
+    return publish_event_curves(station, catalogs.events, archive, bucket)
+
+
 # ---------- the run ----------
 
 
@@ -220,6 +243,7 @@ def run(
     catalogs = update_catalogs(station, bucket, archive, catalogs)
     snapshot = build(station, device, archive, catalogs, clock())
     publish(snapshot, bucket)
+    publish_curves(station, archive, catalogs, bucket)
     return snapshot
 
 
