@@ -27,6 +27,7 @@ from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
+from lookout.snapshot.temperature import temperature_context
 
 
 def build_snapshot(
@@ -78,4 +79,7 @@ def build_snapshot(
             archive, stitched, event_catalog, active, current, observed_at_ms, now
         ),
         rain_tab=rain_tab(archive, stitched, current, now),
+        temperature_context=temperature_context(
+            archive, stitched, current, observed_at_ms, now
+        ),
     )

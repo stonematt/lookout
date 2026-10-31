@@ -347,6 +347,66 @@ export interface RainTab {
   water_years: WaterYearCurve[];
 }
 
+/** One window's range bar: low, middle half and high of its readings. */
+export interface TemperaturePeriod {
+  /** `status.key` names it: today, yesterday, 7d, 30d, 90d, 365d. */
+  status: GapStatus;
+  low: number | null;
+  q1: number | null;
+  q3: number | null;
+  high: number | null;
+  readings: number;
+  /** Where `now` sits against the middle half; null when unknown. */
+  position: "above" | "below" | "inside" | null;
+}
+
+/** One day of the ten-day list against its usual low and high. */
+export interface TemperatureDay {
+  /** The station-local day, "YYYY-MM-DD". */
+  day: string;
+  status: GapStatus;
+  low: number | null;
+  high: number | null;
+  /** Median daily low and high on this date in earlier years. */
+  usual_low: number | null;
+  usual_high: number | null;
+  /** The earlier years that usual is over, newest first. */
+  usual_years: number[];
+  usual_days: number;
+}
+
+/** One "now against normal" strip. */
+export interface NormalStrip {
+  kind: "temperature" | "rain";
+  unit: "f" | "in";
+  now: number | null;
+  now_ms: number | null;
+  /** One value per past day, ascending. */
+  values: number[];
+  below_pct: number | null;
+  equal_pct: number | null;
+  above_pct: number | null;
+  /** The earlier years used, newest first. */
+  years: number[];
+  missing: "no_reading" | "no_comparison" | null;
+}
+
+/** The Overview's temperature context (#81). */
+export interface TemperatureContext {
+  now: number | null;
+  now_ms: number | null;
+  /** The window the headline places now in; null when none can be compared. */
+  finding: string | null;
+  /** Today, yesterday, 7, 30, 90 and 365 days, in that order. */
+  periods: TemperaturePeriod[];
+  /** The last ten local days, oldest first, ending today. */
+  ten_days: TemperatureDay[];
+  /** Every earlier year the list's usual is over, newest first. */
+  ten_day_years: number[];
+  /** The temperature strip, then the rain strip. */
+  strips: NormalStrip[];
+}
+
 /** The fields both documents share. */
 interface SnapshotHead {
   schema_version: number;
@@ -374,6 +434,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   hero_lead: HeroLead;
   /** The Rain tab's data. */
   rain_tab: RainTab;
+  /** Temperature across periods, the ten-day list and the strips. */
+  temperature_context: TemperatureContext;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -482,6 +544,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   }
   checkLead(head.hero_lead);
   checkRainTab(head.rain_tab);
+  checkTemperature(head.temperature_context);
   return head as unknown as DashboardSnapshot;
 }
 
@@ -510,6 +573,17 @@ function checkRibbon(ribbon: unknown): void {
   const parallel = [ribbon.rain_in, ribbon.daylight];
   if (!Array.isArray(slots) || !parallel.every((a) => Array.isArray(a) && a.length === slots.length)) {
     throw new SnapshotContractError("dashboard: condition_ribbon slots not parallel");
+  }
+}
+
+function checkTemperature(context: unknown): void {
+  if (
+    !isRecord(context) ||
+    !Array.isArray(context.periods) ||
+    !Array.isArray(context.ten_days) ||
+    !Array.isArray(context.strips)
+  ) {
+    throw new SnapshotContractError("dashboard: temperature_context missing");
   }
 }
 

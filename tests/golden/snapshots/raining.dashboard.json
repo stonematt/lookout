@@ -3744,5 +3744,323 @@
         "to_date_in": null
       }
     ]
+  },
+  "temperature_context": {
+    "now": 59.3,
+    "now_ms": 1767918300000,
+    "finding": "yesterday",
+    "periods": [
+      {
+        "status": {
+          "key": "today",
+          "first_day": "2026-01-08",
+          "last_day": "2026-01-08",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "q1": 41.3,
+        "q3": 57.1,
+        "high": 60.0,
+        "readings": 193,
+        "position": "above"
+      },
+      {
+        "status": {
+          "key": "yesterday",
+          "first_day": "2026-01-07",
+          "last_day": "2026-01-07",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "q1": 42.9,
+        "q3": 57.1,
+        "high": 60.0,
+        "readings": 288,
+        "position": "above"
+      },
+      {
+        "status": {
+          "key": "7d",
+          "first_day": "2026-01-02",
+          "last_day": "2026-01-08",
+          "days": 7,
+          "missing_days": 2,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "30d",
+          "first_day": "2025-12-10",
+          "last_day": "2026-01-08",
+          "days": 30,
+          "missing_days": 25,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "90d",
+          "first_day": "2025-10-11",
+          "last_day": "2026-01-08",
+          "days": 90,
+          "missing_days": 85,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      },
+      {
+        "status": {
+          "key": "365d",
+          "first_day": "2025-01-09",
+          "last_day": "2026-01-08",
+          "days": 365,
+          "missing_days": 360,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "q1": null,
+        "q3": null,
+        "high": null,
+        "readings": 0,
+        "position": null
+      }
+    ],
+    "ten_days": [
+      {
+        "day": "2025-12-30",
+        "status": {
+          "key": "2025-12-30",
+          "first_day": "2025-12-30",
+          "last_day": "2025-12-30",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2025-12-31",
+        "status": {
+          "key": "2025-12-31",
+          "first_day": "2025-12-31",
+          "last_day": "2025-12-31",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-01",
+        "status": {
+          "key": "2026-01-01",
+          "first_day": "2026-01-01",
+          "last_day": "2026-01-01",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-02",
+        "status": {
+          "key": "2026-01-02",
+          "first_day": "2026-01-02",
+          "last_day": "2026-01-02",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-03",
+        "status": {
+          "key": "2026-01-03",
+          "first_day": "2026-01-03",
+          "last_day": "2026-01-03",
+          "days": 1,
+          "missing_days": 1,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "low": null,
+        "high": null,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-04",
+        "status": {
+          "key": "2026-01-04",
+          "first_day": "2026-01-04",
+          "last_day": "2026-01-04",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "high": 60.0,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-05",
+        "status": {
+          "key": "2026-01-05",
+          "first_day": "2026-01-05",
+          "last_day": "2026-01-05",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "high": 60.0,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-06",
+        "status": {
+          "key": "2026-01-06",
+          "first_day": "2026-01-06",
+          "last_day": "2026-01-06",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "high": 60.0,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-07",
+        "status": {
+          "key": "2026-01-07",
+          "first_day": "2026-01-07",
+          "last_day": "2026-01-07",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "high": 60.0,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      },
+      {
+        "day": "2026-01-08",
+        "status": {
+          "key": "2026-01-08",
+          "first_day": "2026-01-08",
+          "last_day": "2026-01-08",
+          "days": 1,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "low": 40.0,
+        "high": 60.0,
+        "usual_low": null,
+        "usual_high": null,
+        "usual_years": [],
+        "usual_days": 0
+      }
+    ],
+    "ten_day_years": [],
+    "strips": [
+      {
+        "kind": "temperature",
+        "unit": "f",
+        "now": 59.3,
+        "now_ms": 1767918300000,
+        "values": [],
+        "below_pct": null,
+        "equal_pct": null,
+        "above_pct": null,
+        "years": [],
+        "missing": "no_comparison"
+      },
+      {
+        "kind": "rain",
+        "unit": "in",
+        "now": 0.3,
+        "now_ms": 1767918300000,
+        "values": [],
+        "below_pct": null,
+        "equal_pct": null,
+        "above_pct": null,
+        "years": [],
+        "missing": "no_comparison"
+      }
+    ]
   }
 }
