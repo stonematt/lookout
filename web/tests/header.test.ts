@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { figuresTime, mountHeader } from "../src/header.js";
+import { figuresLag, figuresTime, mountHeader } from "../src/header.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseCurrent, parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -128,6 +128,19 @@ describe("the header", () => {
     expect(retried).toBe(1);
   });
 
+  it("keeps the failure when only /current answers", () => {
+    const header = mountHeader(host, () => clock);
+    header.fail(() => undefined);
+    header.showCurrent(live(clock - MIN));
+    expect(text(".masthead-reading")).toContain("could not be loaded");
+    expect(host.querySelector(".masthead-retry")).not.toBeNull();
+    expect(text(".masthead-reading .masthead-age")).toBe("");
+
+    // The retry brings the snapshot; the live reading it kept is not lost.
+    header.showSnapshot(raining);
+    expect(text(".masthead-reading .masthead-age")).toBe("1 m ago");
+  });
+
   it("drops the failure once a reading arrives", () => {
     const header = mountHeader(host, () => clock);
     header.fail(() => undefined);
@@ -215,6 +228,16 @@ describe("the figures' own age", () => {
     expect(text(".masthead-reading .masthead-age")).toBe("Stale: 1 h old");
     expect(figuresShown()).toBe(true);
     expect(text(".masthead-figures .masthead-age")).toBe("Stale: 6 h old");
+  });
+
+  it("decides the figures' line from the two times alone", () => {
+    const now = RAINING_OBSERVED + HOUR;
+    expect(figuresLag(now - MIN, now - 10 * MIN, now)).toBe(false); // both fresh
+    expect(figuresLag(now - MIN, now - 16 * MIN, now)).toBe(true); // figures stale
+    expect(figuresLag(now - 20 * MIN, now - 30 * MIN, now)).toBe(false); // close
+    expect(figuresLag(now - 20 * MIN, now - 40 * MIN, now)).toBe(true); // far apart
+    expect(figuresLag(null, now - HOUR, now)).toBe(false);
+    expect(figuresLag(now, null, now)).toBe(false);
   });
 
   it("dates the figures by the snapshot's observation, else its build", () => {

@@ -8,7 +8,8 @@
  *   brought, the snapshot's or `/current`'s. It keeps counting when the
  *   snapshot itself has stopped updating (a dead VPS cannot hide behind a
  *   cached page).
- * - **The figures**: when the snapshot behind every value on the page was
+ * - **The figures** (the "numbers below" in the copy): when the snapshot
+ *   behind every value on the page was
  *   observed. The page's figures come only from `/dashboard`, so a fresh
  *   `/current` must not lend them its freshness. Their line appears only
  *   when they are stale and the reading line would otherwise suggest they
@@ -25,7 +26,10 @@ import { newestObservation } from "./snapshot.js";
 export interface Header {
   /** Show the snapshot from `/dashboard`: its station, reading and figures. */
   showSnapshot(snapshot: DashboardSnapshot): void;
-  /** Show `/current`'s reading; an older one than the reading shown is ignored. */
+  /**
+   * Show `/current`'s reading; an older one than the reading shown is
+   * ignored, and after `fail` it waits for the snapshot.
+   */
   showCurrent(current: CurrentReading): void;
   /** Say the snapshot could not be loaded, with a button that calls `retry`. */
   fail(retry: () => void): void;
@@ -46,6 +50,26 @@ export function figuresTime(snapshot: DashboardSnapshot): number {
   return snapshot.observed_at_ms ?? snapshot.built_at_ms;
 }
 
+/**
+ * Whether the figures need their own line: they are stale, and the reading
+ * line would otherwise suggest they are fresher than they are (the reading
+ * is fresh, or more than 15 minutes newer).
+ *
+ * @param readingMs - The newest observation from either source, or null.
+ * @param figuresMs - When the page's figures were observed, or null.
+ * @param nowMs - The browser's clock.
+ * @returns True to show the figures' line.
+ */
+export function figuresLag(
+  readingMs: number | null,
+  figuresMs: number | null,
+  nowMs: number,
+): boolean {
+  if (readingMs === null || figuresMs === null) return false;
+  if (!dataAge(figuresMs, nowMs).stale) return false;
+  return !dataAge(readingMs, nowMs).stale || readingMs - figuresMs > STALE_AFTER_MS;
+}
+
 /** One line of the header: a dot, a labelled time and an age. */
 interface AgeLine {
   root: HTMLElement;
@@ -53,6 +77,7 @@ interface AgeLine {
   age: HTMLElement;
 }
 
+/** The parts of one rendered header line. */
 function ageLine(root: HTMLElement): AgeLine {
   return {
     root,
@@ -101,6 +126,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
   let observedAtMs: number | null = null;
   let figuresAtMs: number | null = null;
   let shown = false;
+  let failed = false;
 
   function tick(): void {
     if (!shown) return;
@@ -109,14 +135,8 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     reading.age.textContent = age.text;
     reading.root.dataset.stale = String(age.stale);
 
-    const behind =
-      observedAtMs !== null && figuresAtMs !== null ? observedAtMs - figuresAtMs : 0;
     const own = dataAge(figuresAtMs, clock);
-    figures.root.hidden = !(
-      observedAtMs !== null &&
-      own.stale &&
-      (!age.stale || behind > STALE_AFTER_MS)
-    );
+    figures.root.hidden = !figuresLag(observedAtMs, figuresAtMs, clock);
     figures.age.textContent = own.text;
     figures.root.dataset.stale = String(own.stale);
     // With two lines, "Reading" alone could be taken for the figures' time.
@@ -143,14 +163,19 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
 
   return {
     showSnapshot(snapshot) {
+      failed = false;
       figuresAtMs = figuresTime(snapshot);
       take(snapshot.station, snapshot.observed_at_ms);
     },
     showCurrent(current) {
-      take(current.station, current.observed_at_ms);
+      // With no snapshot on the page, a live reading must not paper over the
+      // failure: keep it for when the snapshot arrives.
+      if (failed) observedAtMs = newestObservation(observedAtMs, current.observed_at_ms);
+      else take(current.station, current.observed_at_ms);
     },
     fail(retry) {
       shown = false;
+      failed = true;
       const button = document.createElement("button");
       button.type = "button";
       button.className = "masthead-retry";
