@@ -3,12 +3,19 @@ Solar Energy Period Calculations
 Converts raw solar radiation measurements into 15-minute energy periods.
 """
 
+import numpy as np
 import pandas as pd
 from typing import Callable, Dict, Optional
 from lookout.core.solar_analysis import LOCATION
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
+
+PERIOD = "15min"
+
+# Longest gap between two rows that is integrated: one period. Across a longer
+# gap the radiation between the rows is not known, so nothing is credited.
+MAX_INTERVAL_HOURS = 0.25
 
 
 def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
@@ -60,44 +67,50 @@ def calculate_15min_energy_periods(df: pd.DataFrame) -> pd.DataFrame:
 
     # Create 15-minute period buckets aligned to clock times
     # Convert to UTC to avoid DST issues, floor, then convert back to Pacific
-    utc_dt = df_sorted["datetime"].dt.tz_convert("UTC")
-    utc_floored = utc_dt.dt.floor("15min")
-    df_sorted["period_start"] = utc_floored.dt.tz_convert("America/Los_Angeles")
+    utc_dt = df_sorted["datetime"].dt.tz_convert("UTC").reset_index(drop=True)
+    utc_floored = utc_dt.dt.floor(PERIOD)
+    watts = df_sorted["solarradiation"].astype(float).reset_index(drop=True)
 
-    df_sorted["period_end"] = df_sorted["period_start"] + pd.Timedelta(minutes=15)
+    # Trapezoid over each pair of consecutive rows: (y0 + y1) / 2 * dx. A pair
+    # that crosses a period boundary is split there, at the radiation read off
+    # the straight line between the two rows, and each part is credited to the
+    # period it lies in. Splitting a trapezoid on its own line keeps its area,
+    # so the periods add up to the trapezoid of the whole curve.
+    t0, t1 = utc_dt.iloc[:-1].values, utc_dt.iloc[1:].values
+    y0, y1 = watts.iloc[:-1].values, watts.iloc[1:].values
+    p0 = utc_floored.iloc[:-1].values
+    boundary = utc_floored.iloc[1:].values  # start of the later row's period
+    span = (t1 - t0) / np.timedelta64(1, "h")
+    counted = (span > 0) & (span <= MAX_INTERVAL_HOURS)
+    crosses = counted & (boundary > t0) & (boundary < t1)
 
-    # Calculate energy for each period using trapezoidal integration
-    # Group by period_start and calculate energy for each group
-    period_energy_dict = {}
+    before = np.where(crosses, (boundary - t0) / np.timedelta64(1, "h"), span)
+    after = span - before
+    with np.errstate(divide="ignore", invalid="ignore"):
+        y_boundary = np.where(crosses, y0 + (y1 - y0) * before / span, y1)
+    first_wh = np.where(counted, (y0 + y_boundary) / 2 * before, 0.0)
+    second_wh = np.where(crosses, (y_boundary + y1) / 2 * after, 0.0)
 
-    grouped = df_sorted.groupby("period_start")
-    for period_start_val, group in grouped:
-        # Convert group to DataFrame and sort
-        period_df = pd.DataFrame(group)
-        period_df = period_df.sort_values("datetime")
+    credited = pd.concat(
+        [
+            pd.Series(first_wh, index=pd.DatetimeIndex(p0, tz="UTC")),
+            pd.Series(second_wh, index=pd.DatetimeIndex(boundary, tz="UTC")),
+        ]
+    )
+    # Missing radiation (NaN) contributes nothing, as pandas sum skips it
+    energy_wh = credited.groupby(level=0).sum()
 
-        if len(period_df) < 2:
-            period_energy_dict[period_start_val] = 0.0
-            continue
+    # Every period holding a row is reported, with 0.0 when nothing is credited
+    periods = pd.DatetimeIndex(utc_floored.unique())
+    energy_wh = energy_wh.reindex(periods, fill_value=0.0).fillna(0.0)
 
-        # Time differences in hours
-        time_diffs = period_df["datetime"].diff().dt.total_seconds() / 3600
-
-        # Trapezoidal rule: (y1 + y2) / 2 * dx
-        # Convert W/m² to Wh/m² by multiplying by time in hours
-        energy_wh = (
-            (period_df["solarradiation"].shift(1) + period_df["solarradiation"])
-            / 2
-            * time_diffs
-        ).sum()
-
-        # Convert Wh/m² to kWh/m²
-        period_energy_dict[period_start_val] = energy_wh / 1000
-
-    # Create result DataFrame
-    energy_series = pd.Series(period_energy_dict)
-    result_df = energy_series.reset_index()
-    result_df.columns = ["period_start", "energy_kwh"]
+    # Convert Wh/m² to kWh/m²
+    result_df = pd.DataFrame(
+        {
+            "period_start": energy_wh.index.tz_convert("America/Los_Angeles"),
+            "energy_kwh": (energy_wh / 1000).values,
+        }
+    )
     result_df["period_end"] = result_df["period_start"] + pd.Timedelta(minutes=15)
 
     # Reorder columns to match expected output
@@ -115,7 +128,7 @@ _cached_calculation: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None
 
 def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Streamlit-cached `_calculate_15min_energy_periods_vectorized`.
+    Streamlit-cached `calculate_15min_energy_periods`.
 
     Streamlit is imported on first call, so importing this module (and the
     refresh command that depends on it) never loads Streamlit.
@@ -129,108 +142,8 @@ def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
 
         _cached_calculation = st.cache_data(
             show_spinner=False, max_entries=20, ttl=7200
-        )(_calculate_15min_energy_periods_vectorized)
+        )(calculate_15min_energy_periods)
     return _cached_calculation(df)
-
-
-def _calculate_15min_energy_periods_vectorized(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Optimized version of calculate_15min_energy_periods with vectorized operations and caching.
-
-    Uses pandas resample() for O(n) vectorized processing instead of O(n²) groupby iteration.
-    Includes Streamlit caching to avoid recalculation on every page load.
-
-    :param df: DataFrame with datetime and solarradiation columns
-    :return: DataFrame with period_start, period_end, energy_kwh columns
-    """
-    # Input validation
-    required_cols = ["datetime", "solarradiation"]
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing required columns: {missing_cols}")
-
-    if df.empty:
-        logger.info("No solar data provided for cached period calculation")
-        empty_df = pd.DataFrame(
-            {
-                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "energy_kwh": pd.Series(dtype=float),
-            }
-        )
-        return empty_df
-
-    # Sort by datetime ascending (archive is reverse-sorted)
-    df_sorted = df.sort_values("datetime").copy()
-
-    if df_sorted.empty:
-        logger.info("No solar data after sorting for cached period calculation")
-        empty_df = pd.DataFrame(
-            {
-                "period_start": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "period_end": pd.Series(dtype="datetime64[ns, America/Los_Angeles]"),
-                "energy_kwh": pd.Series(dtype=float),
-            }
-        )
-        return empty_df
-
-    logger.debug(
-        f"Processing {len(df_sorted)} solar radiation records for cached 15-minute periods"
-    )
-
-    # Set datetime as index for resampling
-    df_indexed = df_sorted.set_index("datetime")
-
-    # Resample to 15-minute periods and calculate energy using vectorized trapezoidal integration
-    def vectorized_trapezoidal_integration(group):
-        """Vectorized trapezoidal integration for a 15-minute period"""
-        if len(group) < 2:
-            return 0.0
-
-        # Time differences in hours (vectorized)
-        time_diffs = group.index.to_series().diff().dt.total_seconds() / 3600
-
-        # Trapezoidal rule: (y1 + y2) / 2 * dx (vectorized)
-        energy_wh = (
-            (group["solarradiation"].shift(1) + group["solarradiation"])
-            / 2
-            * time_diffs
-        ).sum()
-
-        # Convert Wh/m² to kWh/m²
-        return energy_wh / 1000
-
-    # Resample and apply vectorized integration
-    resampled = df_indexed.resample("15min", origin="start")
-    energy_series = resampled.apply(vectorized_trapezoidal_integration)
-
-    # Convert to DataFrame with proper timezone handling
-    result_df = energy_series.reset_index()
-    result_df.columns = ["period_start", "energy_kwh"]
-
-    # Ensure period_start is in Pacific timezone
-    if result_df["period_start"].dt.tz is None:
-        # If naive, assume UTC and convert to Pacific
-        result_df["period_start"] = (
-            result_df["period_start"]
-            .dt.tz_localize("UTC")
-            .dt.tz_convert("America/Los_Angeles")
-        )
-    else:
-        # If already timezone-aware, convert to Pacific
-        result_df["period_start"] = result_df["period_start"].dt.tz_convert(
-            "America/Los_Angeles"
-        )
-
-    # Add period_end
-    result_df["period_end"] = result_df["period_start"] + pd.Timedelta(minutes=15)
-
-    # Reorder columns and sort
-    result_df = result_df[["period_start", "period_end", "energy_kwh"]]
-    result_df = result_df.sort_values("period_start").reset_index(drop=True)
-
-    logger.info(f"Generated {len(result_df)} cached 15-minute solar energy periods")
-    return result_df
 
 
 def aggregate_to_daily(periods_df: pd.DataFrame) -> pd.DataFrame:

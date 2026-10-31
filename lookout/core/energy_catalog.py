@@ -264,16 +264,26 @@ class EnergyCatalog:
         # Use 'date' column which is already TZ-aware datetime
         archive_df["datetime"] = archive_df["date"]
 
-        new_data = archive_df[archive_df["datetime"] >= last_period_start].copy()
-
-        if new_data.empty:
+        from_last = archive_df["datetime"] >= last_period_start
+        if not from_last.any():
             logger.debug("No new data to process for energy periods")
             return existing_catalog
+
+        # The interval from the last row before the period into it is part of
+        # the period's energy, so that row is integrated too; the period it
+        # falls in is stored already and is not replaced.
+        before = archive_df.loc[~from_last, "datetime"]
+        if not before.empty:
+            from_last |= archive_df["datetime"] == before.max()
+        new_data = archive_df[from_last].copy()
 
         logger.debug(f"Processing {len(new_data)} records from {last_period_start}")
 
         # Calculate new periods from the new data
         new_periods_df = calculate_15min_energy_periods(new_data)
+        new_periods_df = new_periods_df[
+            new_periods_df["period_start"] >= last_period_start
+        ]
 
         if new_periods_df.empty:
             logger.debug("No new energy periods calculated")

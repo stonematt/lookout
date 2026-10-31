@@ -217,10 +217,34 @@ class TestUpdateRunAfterRun:
                 archive.iloc[-newest:], stored.copy()
             )
 
-        # 600 W/m² over the 10 minutes between a period's three rows: 0.1 kWh.
+        # 600 W/m² over a whole period is 0.15 kWh/m². The newest period has
+        # no row after 10:55 yet, so it holds the 10 minutes it has: 0.1.
         assert self.energy(stored) == {
-            "10:00": 0.1,
-            "10:15": 0.1,
-            "10:30": 0.1,
+            "10:00": 0.15,
+            "10:15": 0.15,
+            "10:30": 0.15,
             "10:45": 0.1,
+        }
+
+    def test_rows_off_the_period_grid_match_the_whole_archive(self):
+        # Rows at :02, :07, :12: each period's first three minutes come from
+        # the interval that starts in the period before it.
+        catalog = EnergyCatalog("TEST_MAC")
+        archive = self.station("2026-06-01 10:02", 12)  # 10:02 .. 10:57
+
+        stored = catalog.detect_and_calculate_periods(
+            archive.iloc[-2:], auto_save=False
+        )
+        for newest in range(3, 13):
+            stored = catalog.update_catalog_with_new_data(
+                archive.iloc[-newest:], stored.copy()
+            )
+
+        # 600 W/m² over 15 minutes is 0.15 kWh/m². 10:00 starts at its 10:02
+        # row (0.13) and 10:45 ends at its 10:57 row (0.12).
+        assert self.energy(stored) == {
+            "10:00": 0.13,
+            "10:15": 0.15,
+            "10:30": 0.15,
+            "10:45": 0.12,
         }

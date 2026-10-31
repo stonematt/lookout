@@ -8,6 +8,7 @@ from datetime import datetime
 import pytz
 
 from lookout.core.solar_energy_periods import calculate_15min_energy_periods
+from tests.fixtures.archive import build_archive
 
 
 class TestCalculate15MinEnergyPeriods:
@@ -167,7 +168,7 @@ class TestCalculate15MinEnergyPeriods:
         pacific = pytz.timezone("America/Los_Angeles")
         base_time = pacific.localize(datetime(2023, 6, 15, 12, 0, 0))
 
-        # Create data for four separate periods (each observation starts its own 15-min period)
+        # Create data for four periods (each observation starts its own 15-min period)
         data = [
             # Period 1: 12:00-12:15 (observation at 12:00)
             {"datetime": base_time, "solarradiation": 500.0},
@@ -185,11 +186,13 @@ class TestCalculate15MinEnergyPeriods:
         df = pd.DataFrame(data)
         result = calculate_15min_energy_periods(df)
 
-        # Should have 4 periods (each single observation creates a period with 0 energy)
+        # Should have 4 periods, one per observation
         assert len(result) == 4
 
-        # All periods should have zero energy (single observations)
-        assert (result["energy_kwh"] == 0.0).all()
+        # 12:00 -> 12:15 is one period of 500 W/m² (0.125 kWh/m²) and
+        # 13:00 -> 13:15 one of 600 (0.15). The 45 minutes between 12:15 and
+        # 13:00 are a gap, and nothing follows 13:15, so those read 0.
+        assert list(result["energy_kwh"].round(6)) == [0.125, 0.0, 0.15, 0.0]
 
         # Check period timing
         assert result["period_start"].iloc[0] == base_time
@@ -198,3 +201,70 @@ class TestCalculate15MinEnergyPeriods:
         assert result["period_start"].iloc[3] == base_time + pd.Timedelta(
             hours=1, minutes=15
         )
+
+
+class TestEnergyAcrossPeriodBoundaries:
+    """
+    A day's periods add up to the integral of the whole curve: the interval
+    between the last row of one period and the first row of the next is
+    counted, split at the boundary between them.
+    """
+
+    @staticmethod
+    def rows(times, watts) -> pd.DataFrame:
+        """Rows at local station times with the given W/m²."""
+        return pd.DataFrame(
+            {
+                "datetime": pd.DatetimeIndex(times).tz_localize("America/Los_Angeles"),
+                "solarradiation": watts,
+            }
+        )
+
+    def test_a_day_of_five_minute_rows_sums_to_the_whole_curve(self):
+        # 0 W/m² at 06:00 rising straight to 1000 at 12:00 and back to 0 at
+        # 18:00: a triangle of 12 h x 1000 W/m² / 2 = 6.0 kWh/m², which the
+        # trapezoid rule reproduces exactly for a piecewise-linear curve.
+        times = pd.date_range("2026-06-01 00:00", "2026-06-01 23:55", freq="5min")
+        hours = times.hour + times.minute / 60
+        watts = [max(0.0, 1000 * (1 - abs(h - 12) / 6)) for h in hours]
+
+        result = calculate_15min_energy_periods(self.rows(times, watts))
+
+        assert len(result) == 96
+        assert result["energy_kwh"].sum() == pytest.approx(6.0)
+
+    def test_the_synthetic_station_day_reads_its_sun_curve(self):
+        # The shared fixture's sun is 800 W/m² x sin over 06:00-18:00, which
+        # integrates to 800 x 12 x 2 / pi Wh/m² = 6.11 kWh/m².
+        archive = build_archive("2026-06-01 07:00", "2026-06-02 07:00")
+        day = archive.assign(datetime=archive["date"])
+
+        result = calculate_15min_energy_periods(day)
+
+        assert round(result["energy_kwh"].sum(), 2) == 6.11
+
+    def test_the_boundary_interval_is_split_at_the_boundary(self):
+        # 600 W/m² at 12:10 rising to 1200 at 12:20: 750 over 12:10-12:15
+        # (0.0625 kWh/m²) and 1050 over 12:15-12:20 (0.0875 kWh/m²).
+        result = calculate_15min_energy_periods(
+            self.rows(["2026-06-01 12:10", "2026-06-01 12:20"], [600.0, 1200.0])
+        )
+
+        assert list(result["period_start"].dt.strftime("%H:%M")) == ["12:00", "12:15"]
+        assert list(result["energy_kwh"].round(6)) == [0.0625, 0.0875]
+
+    def test_a_row_on_the_boundary_closes_the_period_before_it(self):
+        # 12:10 -> 12:15 lies wholly in 12:00-12:15: 600 W/m² x 5 min.
+        result = calculate_15min_energy_periods(
+            self.rows(["2026-06-01 12:10", "2026-06-01 12:15"], [600.0, 600.0])
+        )
+
+        assert list(result["energy_kwh"].round(6)) == [0.05, 0.0]
+
+    def test_an_interval_longer_than_a_period_is_not_integrated(self):
+        # Rows 20 minutes apart: what the sun did between them is not known.
+        result = calculate_15min_energy_periods(
+            self.rows(["2026-06-01 12:10", "2026-06-01 12:30"], [600.0, 600.0])
+        )
+
+        assert list(result["energy_kwh"]) == [0.0, 0.0]
