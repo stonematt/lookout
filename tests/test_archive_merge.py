@@ -152,6 +152,63 @@ class TestSeekOverTimeGap:
         assert (cursor, attempts, stop) == (start, 10, True)
 
 
+PAGE = pd.Timedelta(minutes=5 * 250)
+OUTAGE_START = pd.Timestamp("2026-01-05T00:00:00Z")
+ARCHIVE_START = "2026-01-04T00:00:00Z"
+
+
+def outage(hours: float, after_days: float = 4) -> tuple:
+    """
+    An archive that ends where an outage of `hours` begins, and the truth.
+
+    :param hours: How long the station sent nothing.
+    :param after_days: Days of readings Ambient holds after the outage.
+    :return: `(archive, truth, end)`: the archive (rows before the outage),
+        everything Ambient holds, and the time after its last reading.
+    """
+    resume = OUTAGE_START + pd.Timedelta(hours=hours)
+    end = resume + pd.Timedelta(days=after_days)
+    truth = build_archive(ARCHIVE_START, end, gaps=(Gap(OUTAGE_START, resume),))
+    archive = build_archive(ARCHIVE_START, OUTAGE_START)
+    return archive, truth, end
+
+
+def windows(ambient_replay, limit: int = 250) -> list:
+    """
+    The span of readings each history request asked for, in request order.
+
+    A request ending at `endDate` for `limit` five-minute readings covers
+    `[endDate - limit * 5 min, endDate)`.
+
+    :return: `(start, end)` Timestamps, one pair per history request.
+    """
+    spans = []
+    for path, params in ambient_replay.calls:
+        if path == "/devices" or "endDate" not in params:
+            continue
+        end = pd.Timestamp(int(params["endDate"]), unit="ms", tz="UTC")
+        spans.append((end - pd.Timedelta(minutes=5 * limit), end))
+    return spans
+
+
+class TestGapSeekAcrossAnOutage:
+    """The forward walk across an outage requests every stretch of time (#132)."""
+
+    def test_windows_of_consecutive_empty_probes_touch(
+        self, fake_s3, ambient_replay, device
+    ):
+        archive, truth, end = outage(hours=150)
+        serve(ambient_replay, truth)
+
+        awn.get_history_since_last_archive(device, archive, pages=20, end_date=end)
+
+        spans = windows(ambient_replay)
+        assert len(spans) >= 6
+        for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
+            assert next_start <= prev_end, "unrequested time between windows"
+            assert prev_end - next_start <= PAGE, "more than a page of overlap"
+
+
 class TestHistorySinceLastArchive:
     """`get_history_since_last_archive`: page forward and merge into the archive."""
 
