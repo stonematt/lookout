@@ -84,7 +84,12 @@ def test_fixtures_hold_no_station_identifier_or_key():
     real_macs = {DEFAULT_MAC_ADDRESS, DEFAULT_MAC_ADDRESS.replace(":", "-")}
     hex32 = re.compile(r"[0-9a-fA-F]{32}")
     texts = _fixture_texts()
-    assert len(texts) == 3
+    scanned = {path.relative_to(FIXTURE_DIR).as_posix() for path, _ in texts}
+    assert {
+        "ambient/devices.json",
+        "ambient/history.json",
+        "real_slice.parquet",
+    } <= scanned
     for path, text in texts:
         for mac in real_macs:
             assert mac.lower() not in text.lower(), path

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import pandas as pd
 
-from lookout.storage.storj import get_df_from_s3, save_df_to_s3
+from lookout.storage.storj import get_df_from_s3, object_exists, save_df_to_s3
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -25,13 +25,14 @@ def get_catalog_path(mac_address: str, file_type: str = DEFAULT_FILE_TYPE) -> st
 
 
 def catalog_exists(mac_address: str, bucket: str = DEFAULT_BUCKET) -> bool:
-    """Check if day periods catalog exists in storage."""
-    try:
-        catalog_path = get_catalog_path(mac_address)
-        get_df_from_s3(bucket, catalog_path, DEFAULT_FILE_TYPE)
-        return True
-    except Exception:
-        return False
+    """
+    Check if the day periods catalog exists in storage.
+
+    :param mac_address: The station whose catalog to look for.
+    :param bucket: The bucket to look in.
+    :return: True if the catalog object is there, False otherwise.
+    """
+    return object_exists(bucket, get_catalog_path(mac_address))
 
 
 def load_day_periods_catalog(

@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import MagicMock, patch, mock_open
 from datetime import datetime, timezone
 
+from lookout.core import energy_catalog_func
 from lookout.core.energy_catalog import EnergyCatalog
 
 
@@ -42,27 +43,14 @@ class TestEnergyCatalog:
         assert catalog.bucket == "lookout"
         assert catalog.catalog_path == "TEST_MAC.energy_catalog.parquet"
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_catalog_exists_true(self, mock_get_client, catalog):
+    def test_catalog_exists_true(self, fake_s3, catalog):
         """Test catalog_exists when catalog exists"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.head_object.return_value = {
-            "LastModified": datetime.now(timezone.utc)
-        }
+        fake_s3.put_object(Bucket="lookout", Key=catalog.catalog_path, Body=b"x")
 
         assert catalog.catalog_exists() is True
-        mock_client.head_object.assert_called_once_with(
-            Bucket="lookout", Key="TEST_MAC.energy_catalog.parquet"
-        )
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_catalog_exists_false(self, mock_get_client, catalog):
+    def test_catalog_exists_false(self, fake_s3, catalog):
         """Test catalog_exists when catalog doesn't exist"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.head_object.side_effect = Exception("Not found")
-
         assert catalog.catalog_exists() is False
 
     @patch("lookout.core.energy_catalog.get_s3_client")
@@ -76,18 +64,14 @@ class TestEnergyCatalog:
         mock_body.read.return_value = sample_data.to_parquet()
         mock_client.get_object.return_value = {"Body": mock_body}
 
-        with patch("pandas.read_parquet", return_value=sample_data) as mock_read:
-            result = catalog.load_catalog()
-            assert not result.empty
-            mock_read.assert_called_once()
+        with patch("lookout.core.energy_catalog.object_exists", return_value=True):
+            with patch("pandas.read_parquet", return_value=sample_data) as mock_read:
+                result = catalog.load_catalog()
+                assert not result.empty
+                mock_read.assert_called_once()
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_load_catalog_not_exists(self, mock_get_client, catalog):
+    def test_load_catalog_not_exists(self, fake_s3, catalog):
         """Test loading catalog when it doesn't exist"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.head_object.side_effect = Exception("Not found")
-
         result = catalog.load_catalog()
         assert result.empty
 
@@ -175,3 +159,78 @@ class TestEnergyCatalog:
         with patch.object(catalog, "catalog_exists", return_value=False):
             age = catalog.get_catalog_age()
             assert age == pd.Timedelta(days=999)
+
+
+class TestUpdateRunAfterRun:
+    """
+    The refresh run updates the catalog every five minutes, so its newest
+    period is usually still filling. Each run must leave the catalog equal to
+    one computed from the whole archive at once.
+    """
+
+    @staticmethod
+    def station(first: str, rows: int) -> pd.DataFrame:
+        """Five-minute rows at a steady 600 W/m², newest first."""
+        dates = pd.date_range(
+            first, periods=rows, freq="5min", tz="America/Los_Angeles"
+        )
+        return pd.DataFrame(
+            {
+                "date": dates,
+                "dateutc": [int(d.timestamp() * 1000) for d in dates],
+                "solarradiation": [600.0] * rows,
+            }
+        ).iloc[::-1]
+
+    def energy(self, periods: pd.DataFrame) -> dict:
+        """Each period's start (as a local "HH:MM") -> its kWh, rounded."""
+        return {
+            p.strftime("%H:%M"): round(e, 6)
+            for p, e in zip(periods["period_start"], periods["energy_kwh"])
+        }
+
+    @staticmethod
+    def class_update(archive: pd.DataFrame, stored: pd.DataFrame) -> pd.DataFrame:
+        """The refresh run's update: `EnergyCatalog.update_catalog_with_new_data`."""
+        return EnergyCatalog("TEST_MAC").update_catalog_with_new_data(archive, stored)
+
+    @staticmethod
+    def func_update(archive: pd.DataFrame, stored: pd.DataFrame) -> pd.DataFrame:
+        """The Streamlit app's update: `energy_catalog_func.update_energy_catalog`."""
+        return energy_catalog_func.update_energy_catalog(archive, stored)
+
+    @pytest.mark.parametrize("update", ["class_update", "func_update"])
+    @pytest.mark.parametrize(
+        "first, expected",
+        [
+            # 600 W/m² over a whole period is 0.15 kWh/m². The newest period
+            # has no row after 10:55 yet, so it holds its 10 minutes: 0.1.
+            (
+                "2026-06-01 10:00",  # 10:00 .. 10:55
+                {"10:00": 0.15, "10:15": 0.15, "10:30": 0.15, "10:45": 0.1},
+            ),
+            # Rows at :02, :07, :12: each period's first three minutes come
+            # from the interval that starts in the period before it. 10:00
+            # starts at its 10:02 row (0.13), 10:45 ends at 10:57 (0.12).
+            (
+                "2026-06-01 10:02",  # 10:02 .. 10:57
+                {"10:00": 0.13, "10:15": 0.15, "10:30": 0.15, "10:45": 0.12},
+            ),
+        ],
+        ids=["on-the-period-grid", "off-the-period-grid"],
+    )
+    def test_a_period_still_filling_is_completed_by_later_runs(
+        self, update: str, first: str, expected: dict
+    ):
+        catalog = EnergyCatalog("TEST_MAC")
+        archive = self.station(first, 12)
+
+        stored = catalog.detect_and_calculate_periods(
+            archive.iloc[-2:], auto_save=False
+        )
+        for newest in range(3, 13):  # one five-minute run at a time
+            stored = getattr(self, update)(archive.iloc[-newest:], stored.copy())
+
+        assert self.energy(stored) == expected
+        whole = catalog.detect_and_calculate_periods(archive, auto_save=False)
+        assert self.energy(stored) == self.energy(whole)

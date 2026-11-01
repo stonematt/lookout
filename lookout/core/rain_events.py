@@ -27,18 +27,54 @@ Usage:
     catalog.save_catalog(events)
 """
 
+import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 from lookout.core.event_quality import classify_event_quality
-from lookout.storage.storj import get_s3_client
+from lookout.storage.storj import get_s3_client, object_exists
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
+
+
+def _flag_set(value: object) -> bool:
+    """
+    Read one ongoing flag, treating None and NaN as not set.
+
+    :param value: The stored flag: a bool, None or NaN.
+    :return: True only for a set, truthy flag.
+    """
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return bool(value)
+
+
+def is_event_ongoing(event: Dict) -> bool:
+    """
+    Whether a catalog event is marked ongoing, at top level or in its flags.
+
+    Catalogs saved before #72 hold `ongoing` NaN on completed events; NaN is
+    read as not ongoing. `flags` may be a dict or its JSON text.
+
+    :param event: One catalog row (a dict or a pandas Series).
+    :return: True when either the `ongoing` column or `flags["ongoing"]` is set.
+    """
+    if _flag_set(event.get("ongoing")):
+        return True
+    flags = event.get("flags")
+    if isinstance(flags, str):
+        flags = json.loads(flags)
+    return isinstance(flags, dict) and _flag_set(flags.get("ongoing"))
 
 
 def detect_rain_events(
@@ -117,6 +153,7 @@ def detect_rain_events(
                 ).total_seconds()
                 / 60,
                 "data_point_count": len(current_event["data_points"]),
+                "ongoing": False,
                 "created_at": datetime.now(timezone.utc),
             }
 
@@ -209,12 +246,7 @@ class RainEventCatalog:
 
     def catalog_exists(self) -> bool:
         """Check if event catalog exists in storage"""
-        try:
-            client = self._get_storage_client()
-            client.head_object(Bucket=self.bucket, Key=self.catalog_path)
-            return True
-        except Exception:
-            return False
+        return object_exists(self.bucket, self.catalog_path)
 
     def load_catalog(self) -> pd.DataFrame:
         """
@@ -389,8 +421,6 @@ class RainEventCatalog:
         :param existing_catalog: Existing catalog DataFrame (will load if None)
         :return: Updated catalog DataFrame
         """
-        import json
-
         if existing_catalog is None:
             existing_catalog = self.load_catalog()
 
@@ -410,15 +440,7 @@ class RainEventCatalog:
         )
         last_event = existing_catalog.iloc[-1]
 
-        # Check if last event is ongoing (check both top-level and flags dict)
-        is_ongoing = False
-        if "ongoing" in last_event and last_event["ongoing"]:
-            is_ongoing = True
-        elif "flags" in last_event and last_event["flags"]:
-            flags = last_event["flags"]
-            if isinstance(flags, str):
-                flags = json.loads(flags)
-            is_ongoing = flags.get("ongoing", False)
+        is_ongoing = is_event_ongoing(last_event)
 
         # Determine where to start re-detection
         archive_copy = archive_df.copy()
@@ -599,61 +621,133 @@ class RainEventCatalog:
         event_slice = event_slice.drop(columns=["timestamp"])
         return event_slice.copy()
 
-    def check_and_auto_save_ongoing_event(
-        self, stored_catalog: pd.DataFrame, updated_catalog: pd.DataFrame
+    def save_if_events_completed(
+        self, stored_catalog: Optional[pd.DataFrame], updated_catalog: pd.DataFrame
     ) -> bool:
         """
-        Check if ongoing event completed and auto-save if needed.
+        Save the updated catalog when it holds a completed event the stored
+        one does not, backing up the stored one first.
 
-        :param stored_catalog: Previously stored catalog
-        :param updated_catalog: Updated catalog with new data
-        :return: True if auto-saved, False otherwise
+        That covers a stored ongoing event that has completed, and an event
+        that started (and completed) after the last save. With no stored
+        catalog, the first completed event seeds one. See `newly_completed`.
+        If a stored catalog cannot be backed up, nothing is saved; the next
+        run finds the same events and tries again.
+
+        :param stored_catalog: The catalog as stored; None or empty when none is.
+        :param updated_catalog: The catalog brought up to the archive.
+        :return: True if saved, False otherwise.
         """
-        if len(stored_catalog) == 0 or len(updated_catalog) == 0:
+        completed = newly_completed(stored_catalog, updated_catalog)
+        if completed.empty:
             return False
 
-        stored_sorted = stored_catalog.sort_values("start_time")
-        updated_sorted = updated_catalog.sort_values("start_time")
-
-        stored_last = stored_sorted.iloc[-1]
-        updated_last = updated_sorted.iloc[-1]
-
-        # Check stored last event ongoing status
-        stored_ongoing = False
-        if "ongoing" in stored_last and stored_last["ongoing"]:
-            stored_ongoing = True
-        elif "flags" in stored_last and stored_last["flags"]:
-            flags = stored_last["flags"]
-            if isinstance(flags, str):
-                import json
-
-                flags = json.loads(flags)
-            stored_ongoing = flags.get("ongoing", False)
-
-        # Check updated last event ongoing status
-        updated_ongoing = False
-        if "ongoing" in updated_last and updated_last["ongoing"]:
-            updated_ongoing = True
-        elif "flags" in updated_last and updated_last["flags"]:
-            flags = updated_last["flags"]
-            if isinstance(flags, str):
-                import json
-
-                flags = json.loads(flags)
-            updated_ongoing = flags.get("ongoing", False)
-
-        # Auto-save if ongoing event completed
-        if stored_ongoing and not updated_ongoing:
+        for _, event in completed.iterrows():
             logger.info(
-                f"Ongoing event completed: {updated_last.get('event_id', 'unknown')[:8]}, "
-                f"{updated_last['total_rainfall']:.3f}\" over "
-                f"{updated_last['duration_minutes']/60:.1f}h"
+                f"Event completed: started {event['start_time']}, "
+                f"{event['total_rainfall']:.3f}\" over "
+                f"{event['duration_minutes'] / 60:.1f}h"
             )
-            self.save_catalog(updated_catalog)
-            logger.info("Catalog auto-saved to Storj (ongoing event completed)")
-            return True
+        if self.catalog_exists() and self.backup_catalog() is None:
+            logger.error("Event Catalog backup failed; not saving (next run retries)")
+            return False
+        saved = self.save_catalog(updated_catalog)
+        if saved:
+            logger.info(
+                f"Catalog auto-saved to Storj ({len(completed)} event(s) completed)"
+            )
+        return saved
 
-        return False
+
+def _completed_starts(catalog: Optional[pd.DataFrame]) -> pd.Series:
+    """The start of each completed event in a catalog, UTC; empty if none."""
+    if catalog is None or catalog.empty:
+        return pd.Series([], dtype="datetime64[ns, UTC]")
+    completed = [not is_event_ongoing(row) for _, row in catalog.iterrows()]
+    return pd.to_datetime(catalog.loc[completed, "start_time"], utc=True)
 
 
-__all__ = ["RainEventCatalog", "detect_rain_events", "classify_event_quality"]
+def newly_completed(
+    stored: Optional[pd.DataFrame], updated: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    The completed events in `updated` that `stored` has no completed event for.
+
+    Events are matched by `start_time`, not `event_id`: re-detecting an
+    ongoing event mints a new id every run, while its start stays put.
+
+    :param stored: The catalog as stored; None or empty when none is.
+    :param updated: The catalog brought up to the archive.
+    :return: Those rows of `updated`, in start order; empty when none.
+    """
+    if updated is None or updated.empty:
+        return pd.DataFrame()
+    known = set(_completed_starts(stored))
+    starts = _completed_starts(updated)
+    new = starts[~starts.isin(known)]
+    return updated.loc[new.sort_values().index]
+
+
+def filter_events(
+    events: pd.DataFrame,
+    start: Optional[pd.Timestamp] = None,
+    end: Optional[pd.Timestamp] = None,
+    qualities: Optional[Sequence[str]] = None,
+    min_rainfall: float = 0.0,
+) -> pd.DataFrame:
+    """
+    The Rain Events tab's filters, applied to an Event Catalog.
+
+    :param events: The catalog (or any frame with its columns).
+    :param start: Keep events starting at or after this time, tz-aware.
+    :param end: Keep events starting before this time, tz-aware.
+    :param qualities: Keep only these `quality_rating` values; None keeps all.
+    :param min_rainfall: Keep events with at least this `total_rainfall`.
+    :return: The kept rows, in their original order.
+    """
+    if events.empty:
+        return events.copy()
+    mask = pd.Series(True, index=events.index)
+    starts = pd.to_datetime(events["start_time"], utc=True)
+    if start is not None:
+        mask &= starts >= start
+    if end is not None:
+        mask &= starts < end
+    if qualities is not None:
+        mask &= events["quality_rating"].isin(list(qualities))
+    mask &= events["total_rainfall"] >= min_rainfall
+    return events.loc[mask].copy()
+
+
+def summarize_events(events: pd.DataFrame) -> Dict[str, Optional[float]]:
+    """
+    The Rain Events tab's summary metrics over a set of events.
+
+    :param events: Catalog rows, usually from `filter_events`.
+    :return: `count`, `total_in`, `median_in` and `mean_duration_minutes`;
+        the median and mean are None when there are no events.
+    """
+    if events.empty:
+        return {
+            "count": 0,
+            "total_in": 0.0,
+            "median_in": None,
+            "mean_duration_minutes": None,
+        }
+    return {
+        "count": int(len(events)),
+        "total_in": float(events["total_rainfall"].sum()),
+        "median_in": float(events["total_rainfall"].median()),
+        "mean_duration_minutes": float(events["duration_minutes"].mean()),
+    }
+
+
+__all__ = [
+    "RainEventCatalog",
+    "detect_rain_events",
+    "classify_event_quality",
+    "filter_events",
+    "is_event_ongoing",
+    "newly_completed",
+    "summarize_events",
+]

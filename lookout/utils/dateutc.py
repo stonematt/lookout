@@ -50,7 +50,7 @@ def normalize(
 
     Operations (in order):
         1. Coerce `dateutc` to int64 epoch ms UTC. Accepts numeric or
-           datetime64-with-tz input.
+           datetime64 input at any unit, naive (read as UTC) or tz-aware.
         2. Drop rows whose `dateutc` is null, <= 0, or < ``min_ms``.
         3. De-duplicate on `dateutc` (keep last).
         4. Sort ascending.
@@ -79,9 +79,10 @@ def normalize(
     before = len(df)
 
     if pd.api.types.is_datetime64_any_dtype(original):
-        as_utc = pd.to_datetime(original, utc=True, errors="coerce")
-        ms = as_utc.astype("int64", copy=False) // 1_000_000
-        ms = ms.where(as_utc.notna())
+        # Cast to ms first: the int64 view of datetime64 counts in its own
+        # unit (`datetime64[us]` from parquet or pandas 3, not only ns).
+        as_utc = pd.to_datetime(original, utc=True, errors="coerce").dt.as_unit("ms")
+        ms = as_utc.astype("int64", copy=False).where(as_utc.notna())
     else:
         ms = pd.to_numeric(original, errors="coerce")
 

@@ -13,13 +13,26 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
+def newest_row(df: pd.DataFrame) -> pd.Series:
+    """
+    The row with the greatest `dateutc`, whatever the row order (#133).
+
+    Read by position, so any index works; on a tie the first such row wins.
+    A missing `dateutc` is skipped, as `Series.max` skips it in the trends.
+
+    :param df: A DataFrame with at least one `dateutc` value.
+    :return: The newest row.
+    """
+    return df.iloc[int(df["dateutc"].reset_index(drop=True).idxmax())]
+
+
 def get_historical_value(
     df: pd.DataFrame, target_time: int, field: str
 ) -> Optional[float]:
     """
     Get value at specific timestamp from historical data.
 
-    :param df: DataFrame with historical weather data (reverse sorted by date)
+    :param df: DataFrame with historical weather data, any row order
     :param target_time: Target timestamp in milliseconds (UTC)
     :param field: Field name to retrieve (e.g., 'tempf', 'baromrelin')
     :return: Value at target time or None if not found/too far away
@@ -27,12 +40,13 @@ def get_historical_value(
     if df.empty or field not in df.columns:
         return None
 
-    # Calculate time differences from target
-    time_diffs = abs(df["dateutc"] - target_time)
+    # Calculate time differences from target, by position so that any index
+    # (rows dropped, a concat not reset) reads the row it found
+    time_diffs = (df["dateutc"] - target_time).abs().to_numpy()
 
     # Find closest match
-    closest_idx = time_diffs.idxmin()
-    time_diff = time_diffs.iloc[closest_idx]
+    closest_idx = int(time_diffs.argmin())
+    time_diff = time_diffs[closest_idx]
 
     # Only use if within reasonable time window (±30 minutes)
     max_time_diff = 30 * 60 * 1000  # 30 minutes in milliseconds
@@ -49,7 +63,7 @@ def calculate_temperature_trend(df: pd.DataFrame, current_temp: float) -> str:
     """
     Calculate temperature trend by comparing current to same time yesterday.
 
-    :param df: DataFrame with historical weather data (reverse sorted by date)
+    :param df: DataFrame with historical weather data, any row order
     :param current_temp: Current temperature in Fahrenheit
     :return: Trend arrow: "↑" (rising), "↓" (falling), or "→" (steady)
     """
@@ -57,8 +71,8 @@ def calculate_temperature_trend(df: pd.DataFrame, current_temp: float) -> str:
         logger.debug("Empty DataFrame for temperature trend calculation")
         return "→"
 
-    # Get current timestamp (latest data point)
-    current_time = df.iloc[0]["dateutc"]
+    # Now is the newest reading, whatever the row order (#133)
+    current_time = df["dateutc"].max()
 
     # Calculate target time (24 hours ago)
     target_time = current_time - (24 * 60 * 60 * 1000)  # 24h ago in ms
@@ -95,7 +109,7 @@ def calculate_barometer_trend(df: pd.DataFrame, current_pressure: float) -> str:
     """
     Calculate barometer trend based on 3-hour rate of change.
 
-    :param df: DataFrame with historical weather data (reverse sorted by date)
+    :param df: DataFrame with historical weather data, any row order
     :param current_pressure: Current barometric pressure in inches
     :return: Trend arrow: "↑" (rising), "↓" (falling), or "→" (steady)
     """
@@ -103,8 +117,8 @@ def calculate_barometer_trend(df: pd.DataFrame, current_pressure: float) -> str:
         logger.debug("Empty DataFrame for barometer trend calculation")
         return "→"
 
-    # Get current timestamp (latest data point)
-    current_time = df.iloc[0]["dateutc"]
+    # Now is the newest reading, whatever the row order (#133)
+    current_time = df["dateutc"].max()
 
     # Calculate target time (3 hours ago)
     target_time = current_time - (3 * 60 * 60 * 1000)  # 3h ago in ms

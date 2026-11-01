@@ -3,7 +3,8 @@ Characterize how the AWN controller merges history into the archive.
 
 Pins what `lookout.api.awn_controller` does today with data in and data out:
 combine, dedup and sort on `dateutc`; paging forward from the newest archive
-row; gap filling and the skipped-gaps record. Where the behaviour looks wrong
+row; gap filling and its outcome (filled, no new data, refused). Where the
+behaviour looks wrong
 the test pins it as it is and says so, so the phase-1 refactor changes it on
 purpose or not at all.
 
@@ -12,15 +13,14 @@ Archives come from `tests/fixtures/archive.py`, Ambient pages from
 catalog lives in the moto bucket.
 """
 
-from typing import Sequence
+from typing import List, Sequence, Tuple
 
 import pandas as pd
 import pytest
-import streamlit as st
 
 from lookout.api import awn_controller as awn
 from lookout.core import rain_corrections
-from tests.fixtures.ambient import devices_body, to_ambient_records
+from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -50,14 +50,6 @@ def week(gaps: Sequence[Gap] = SCENARIO.gaps) -> pd.DataFrame:
 def device() -> dict:
     """The fixture station as the controller receives it, `lastData.tz` set."""
     return devices_body({"dateutc": 1})[0]
-
-
-@pytest.fixture(autouse=True)
-def clean_skipped_gaps():
-    """Start and leave every test with no skipped-gaps record."""
-    st.session_state.pop("skipped_gaps", None)
-    yield
-    st.session_state.pop("skipped_gaps", None)
 
 
 def serve(ambient_replay, df: pd.DataFrame) -> None:
@@ -141,16 +133,27 @@ class TestCombine:
 class TestSeekOverTimeGap:
     """`seek_over_time_gap`: how a page that does not advance moves the cursor."""
 
-    def test_each_attempt_jumps_five_minutes_per_record_per_attempt(self):
+    def test_every_empty_probe_moves_the_cursor_one_page(self):
+        """
+        Probes 1, 2 and 5 move the cursor by the same 1250 minutes (#132).
+
+        It used to move 5 minutes x records x attempt number from the last
+        cursor, so the offsets accumulated and skipped time.
+        """
         start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
 
-        first, attempts, stop = awn.seek_over_time_gap(start, 0, limit=250)
-        second, attempts2, stop2 = awn.seek_over_time_gap(start, 1, limit=250)
+        for done, attempt in ((0, 1), (1, 2), (4, 5)):
+            cursor, attempts, stop = awn.seek_over_time_gap(start, done, limit=250)
 
-        assert (attempts, stop) == (1, False)
-        assert first - start == pd.Timedelta(minutes=5 * 250 * 1)
-        assert (attempts2, stop2) == (2, False)
-        assert second - start == pd.Timedelta(minutes=5 * 250 * 2)
+            assert (attempts, stop) == (attempt, False)
+            assert cursor - start == pd.Timedelta(minutes=1250)
+
+    def test_the_step_is_one_page_at_any_limit(self):
+        start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
+
+        cursor, _, _ = awn.seek_over_time_gap(start, 3, limit=288)
+
+        assert cursor - start == pd.Timedelta(hours=24)
 
     def test_gives_up_on_the_tenth_attempt_without_moving(self):
         start = pd.Timestamp("2026-01-08T00:00:00Z").to_pydatetime()
@@ -158,6 +161,222 @@ class TestSeekOverTimeGap:
         cursor, attempts, stop = awn.seek_over_time_gap(start, 9, limit=250)
 
         assert (cursor, attempts, stop) == (start, 10, True)
+
+
+LIMIT = 250  # the controller's default page size
+PAGE = pd.Timedelta(minutes=5 * LIMIT)
+# A probe from a cursor asks for the readings before cursor + (limit - 3) * 5 min.
+PROBE_REACH = pd.Timedelta(minutes=5 * (LIMIT - 3))
+OUTAGE_START = pd.Timestamp("2026-01-05T00:00:00Z")
+ARCHIVE_START = "2026-01-04T00:00:00Z"
+
+Span = Tuple[pd.Timestamp, pd.Timestamp]
+
+
+def outage(
+    hours: float, after_days: float = 4
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Timestamp]:
+    """
+    An archive that ends where an outage of `hours` begins, and the truth.
+
+    :param hours: How long the station sent nothing.
+    :param after_days: Days of readings Ambient holds after the outage.
+    :return: `(archive, truth, end)`: the archive (rows before the outage),
+        everything Ambient holds, and the time after its last reading.
+    """
+    resume = OUTAGE_START + pd.Timedelta(hours=hours)
+    end = resume + pd.Timedelta(days=after_days)
+    truth = build_archive(ARCHIVE_START, end, gaps=(Gap(OUTAGE_START, resume),))
+    archive = build_archive(ARCHIVE_START, OUTAGE_START)
+    return archive, truth, end
+
+
+def windows(ambient_replay: AmbientReplay, limit: int = LIMIT) -> List[Span]:
+    """
+    The span of readings each history request asked for, in request order.
+
+    A request ending at `endDate` for `limit` five-minute readings covers
+    `[endDate - limit * 5 min, endDate)`.
+
+    :param ambient_replay: The fake Ambient the requests went to.
+    :param limit: Records per page the requests asked for.
+    :return: `(start, end)` Timestamps, one pair per history request.
+    """
+    spans = []
+    for path, params in ambient_replay.calls:
+        if path == "/devices" or "endDate" not in params:
+            continue
+        end = pd.Timestamp(int(params["endDate"]), unit="ms", tz="UTC")
+        spans.append((end - pd.Timedelta(minutes=5 * limit), end))
+    return spans
+
+
+def assert_windows_touch(spans: Sequence[Span]) -> None:
+    """
+    Each window starts no later than the last one ended, overlapping it by
+    at most a page.
+
+    :param spans: Requested windows, in request order.
+    """
+    for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
+        assert next_start <= prev_end, "unrequested time between windows"
+        assert prev_end - next_start <= PAGE, "more than a page of overlap"
+
+
+class TestGapSeekAcrossAnOutage:
+    """The forward walk across an outage requests every stretch of time (#132)."""
+
+    def test_windows_of_consecutive_empty_probes_touch(
+        self, fake_s3, ambient_replay, device
+    ):
+        archive, truth, end = outage(hours=150)
+        serve(ambient_replay, truth)
+
+        awn.get_history_since_last_archive(device, archive, pages=20, end_date=end)
+
+        spans = windows(ambient_replay)
+        assert len(spans) >= 6
+        assert_windows_touch(spans)
+
+    @pytest.mark.parametrize("hours", [42, 72, 180])
+    def test_every_reading_after_the_outage_is_fetched(
+        self, fake_s3, ambient_replay, device, hours
+    ):
+        """
+        No reading Ambient holds after the outage is skipped.
+
+        At 42 hours and beyond the old offset left a stretch unrequested
+        (244 rows lost at 42 h). 180 h is near the walk's reach.
+        """
+        archive, truth, end = outage(hours)
+        serve(ambient_replay, truth)
+        resume = OUTAGE_START + pd.Timedelta(hours=hours)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=20, end_date=end
+        )
+
+        newest = result["dateutc"].max()
+        assert newest >= ms(str(resume + pd.Timedelta(days=1)))
+        held = truth[truth.dateutc <= newest]
+        assert set(result["dateutc"]) == set(held["dateutc"])
+
+    def test_an_outage_of_41_hours_makes_the_requests_it_always_made(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        One seek step crosses 41 hours, and the first step is unchanged.
+
+        The cursor starts at the last archive row, 2026-01-04T23:55Z; each
+        request ends 1235 minutes after its cursor. The first page brings
+        back the archive's own newest rows (counted as progress against an
+        empty interim), the second the same rows (not fresh), then the seek.
+        """
+        archive, truth, end = outage(hours=41)
+        serve(ambient_replay, truth)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=4, end_date=end
+        )
+
+        ends = [str(e) for _, e in windows(ambient_replay)]
+        assert ends == [
+            "2026-01-05 20:30:00+00:00",  # archive rows only
+            "2026-01-05 20:35:00+00:00",  # from 23:55 + 5 min: nothing new
+            "2026-01-06 17:25:00+00:00",  # one page on; back at 17:00
+            "2026-01-07 14:00:00+00:00",  # paging forward from 17:20 + 5 min
+        ]
+        newest = result["dateutc"].max()
+        assert newest == ms("2026-01-07T13:55:00Z")
+        held = truth[truth.dateutc <= newest]
+        assert set(result["dateutc"]) == set(held["dateutc"])
+
+    @pytest.mark.parametrize("hours", [240, 600])
+    def test_an_outage_past_the_walks_reach_is_crossed_from_the_present(
+        self, fake_s3, ambient_replay, device, hours
+    ):
+        """
+        #160: past the forward walk's ~208 h reach (#132), the run walks
+        back from the end bound to the archive, so a 10- or 25-day outage
+        is crossed in one run with nothing after it skipped.
+        """
+        archive, truth, end = outage(hours, after_days=1)
+        serve(ambient_replay, truth)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=20, end_date=end
+        )
+
+        assert set(result["dateutc"]) == set(truth["dateutc"])
+        assert result["dateutc"].is_unique
+
+    def test_an_outage_that_cannot_be_crossed_in_the_pages_left_is_reported(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        With four days after a 240 h outage and one page left after the
+        forward walk's ten probes, the walk back cannot reach the archive:
+        it raises rather than save rows with a hole before them.
+        """
+        archive, truth, end = outage(hours=240, after_days=4)
+        serve(ambient_replay, truth)
+
+        with pytest.raises(awn.CatchupStalled):
+            awn.get_history_since_last_archive(device, archive, pages=12, end_date=end)
+
+    @pytest.mark.parametrize("pages", [11, 20])
+    def test_a_station_still_silent_past_the_walks_reach_adds_nothing(
+        self, fake_s3, ambient_replay, device, pages
+    ):
+        """
+        An ongoing 240 h outage: nothing to fetch, and no error, even when
+        the ten probes used every page but one (11 pages).
+        """
+        archive, truth, end = outage(hours=240, after_days=0)
+        serve(ambient_replay, truth)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=pages, end_date=end
+        )
+
+        assert len(result) == len(archive)
+
+    def test_the_seek_never_probes_from_past_the_end_bound(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        Every probe starts before `end_date`; the walk stops at the bound.
+
+        A window can still run past the bound by up to a page: that is the
+        page width (see `test_end_date_caps_the_cursor_not_the_rows_returned`).
+        """
+        resume_never = OUTAGE_START + pd.Timedelta(hours=6)
+        truth = build_archive(ARCHIVE_START, resume_never)
+        archive = build_archive(ARCHIVE_START, OUTAGE_START)
+        serve(ambient_replay, truth)
+        bound = OUTAGE_START + pd.Timedelta(hours=100)
+
+        awn.get_history_since_last_archive(device, archive, pages=20, end_date=bound)
+
+        cursors = [e - PROBE_REACH for _, e in windows(ambient_replay)]
+        assert len(cursors) >= 5
+        assert all(c < bound for c in cursors)
+
+    def test_the_seek_never_requests_past_the_present(
+        self, fake_s3, ambient_replay, device
+    ):
+        now = pd.Timestamp.now(tz="UTC").floor("5min")
+        archive = build_archive(
+            now - pd.Timedelta(days=2), now - pd.Timedelta(hours=30)
+        )
+        serve(ambient_replay, archive)
+
+        awn.get_history_since_last_archive(device, archive, pages=20)
+
+        latest = pd.Timestamp.now(tz="UTC")
+        spans = windows(ambient_replay)
+        assert len(spans) >= 2
+        assert all(e <= latest for _, e in spans)
 
 
 class TestHistorySinceLastArchive:
@@ -248,55 +467,36 @@ class TestHistorySinceLastArchive:
             result[archive.columns].reset_index(drop=True), archive, check_dtype=False
         )
 
-    def test_known_corrections_are_applied_to_the_combined_archive(
+    def test_known_corrections_are_not_applied_to_what_it_returns(
         self, fake_s3, ambient_replay, device
     ):
+        """
+        The combined archive comes back raw, catalog or not (#95).
+
+        Rows the archive had come back as handed; rows fetched come back as
+        the station reported them. The carryover day keeps its raw counters.
+        """
         carried = scenario_archive()
         rain_corrections.save_catalog(
             {"corrections": rain_corrections.detect_carryovers(carried)}, FAKE_MAC
         )
-        archive = carried[carried.dateutc < ms("2026-01-09T00:00:00Z")]
+        archive = carried[carried.dateutc < ms("2026-01-09T12:00:00Z")]
         serve(ambient_replay, carried)
 
         result = awn.get_history_since_last_archive(
             device, archive, end_date=pd.Timestamp("2026-01-10T12:00:00Z")
         )
 
-        corrected = week(gaps=(NO_CARRY_GAP, PLAIN_GAP))
-        merged = result.merge(corrected, on="dateutc", suffixes=("", "_ok"))
+        merged = result.merge(carried, on="dateutc", suffixes=("", "_raw"))
         assert len(merged) == len(result)
+        assert merged["dateutc"].min() < ms("2026-01-09T12:00:00Z")
+        assert merged["dateutc"].max() >= ms("2026-01-10T00:00:00Z")
         for col in COUNTERS:
-            assert (merged[col] - merged[col + "_ok"]).abs().max() < 1e-9
-
-    def test_a_catalog_applied_to_rows_already_corrected_subtracts_again(
-        self, fake_s3, ambient_replay, device
-    ):
-        """
-        Held finding: corrections are not idempotent.
-
-        The combined archive is corrected as a whole, so rows that were
-        already corrected lose the carryover a second time.
-        """
-        carried = scenario_archive()
-        rain_corrections.save_catalog(
-            {"corrections": rain_corrections.detect_carryovers(carried)}, FAKE_MAC
-        )
-        corrected = week(gaps=(NO_CARRY_GAP, PLAIN_GAP))
-        archive = corrected[corrected.dateutc < ms("2026-01-10T00:00:00Z")]
-        serve(ambient_replay, carried)
-
-        result = awn.get_history_since_last_archive(
-            device, archive, end_date=pd.Timestamp("2026-01-10T12:00:00Z")
-        )
-
-        noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local, archive row
-        got = result.set_index("dateutc").loc[noon, "weeklyrainin"]
-        was = corrected.set_index("dateutc").loc[noon, "weeklyrainin"]
-        assert was - got == pytest.approx(0.48)
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
 
 class TestFillArchiveGap:
-    """`fill_archive_gap`: fetch a missing stretch and record the ones it cannot."""
+    """`fill_archive_gap`: fetch a missing stretch and report how it went."""
 
     def test_fills_a_gap_from_the_station_history(
         self, fake_s3, ambient_replay, device
@@ -305,50 +505,73 @@ class TestFillArchiveGap:
         truth = week(gaps=(CARRY_GAP,))
         serve(ambient_replay, truth)
 
-        filled = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
 
+        assert result.status == "filled"
+        assert not result.skipped
+        assert result.rows_added == len(truth) - len(archive)
+        filled = result.history_df
         assert len(filled) == len(truth)
         assert filled["dateutc"].is_unique
         assert filled["dateutc"].is_monotonic_decreasing
         assert set(filled["dateutc"]) == set(truth["dateutc"])
-        assert "skipped_gaps" not in st.session_state
 
-    def test_fill_corrects_the_archive_and_the_fetched_rows_twice(
-        self, fake_s3, ambient_replay, device
+    def test_an_interior_fill_drops_no_archive_row_and_warns_nothing(
+        self, fake_s3, ambient_replay, device, caplog
     ):
         """
-        Held finding: rows fetched during a fill are corrected twice.
+        The slice before the gap keeps `dateutc` as int ms.
 
-        `get_history_since_last_archive` corrects what it returns and
-        `fill_archive_gap` corrects the merged result again. Archive rows get
-        the catalog once; the fetched page, here Saturday 03:15 local to the
-        end of the week, loses the carryover from weekly, monthly and yearly a
-        second time (daily is already at its floor).
+        It used to be sliced from a copy converted to Timestamps, so the
+        merge inside `get_history_since_last_archive` saw a mixed column
+        and `normalize` dropped every archive row ("dropped N of M").
+        """
+        archive = week()
+        serve(ambient_replay, week(gaps=(CARRY_GAP,)))
+        seen = []
+        real = awn.get_history_since_last_archive
+
+        def spy(device, archive_df, **kwargs):
+            seen.append(archive_df["dateutc"].dtype)
+            result = real(device, archive_df, **kwargs)
+            seen.append(len(result) >= len(archive_df))
+            return result
+
+        with caplog.at_level("WARNING", logger="lookout.utils.dateutc"):
+            with pytest.MonkeyPatch.context() as mp:
+                mp.setattr(awn, "get_history_since_last_archive", spy)
+                result = awn.fill_archive_gap(
+                    device, archive, PLAIN_GAP.start, PLAIN_GAP.end
+                )
+
+        assert result.status == "filled"
+        assert seen == ["int64", True]
+        assert not [r for r in caplog.records if "dateutc.normalize" in r.message]
+
+    def test_fill_leaves_a_raw_archive_raw(self, fake_s3, ambient_replay, device):
+        """
+        A fill applies no rain corrections (#95), so a raw archive saves raw.
+
+        Neither the archive rows nor the fetched page (Saturday 03:15 local
+        to the end of the week) lose the carryover in the catalog.
         """
         carried = scenario_archive()
         rain_corrections.save_catalog(
             {"corrections": rain_corrections.detect_carryovers(carried)}, FAKE_MAC
         )
-        serve(ambient_replay, week(gaps=(CARRY_GAP,)))
+        truth = week(gaps=(CARRY_GAP,))
+        serve(ambient_replay, truth)
 
-        filled = awn.fill_archive_gap(device, carried, PLAIN_GAP.start, PLAIN_GAP.end)
+        filled = awn.fill_archive_gap(
+            device, carried, PLAIN_GAP.start, PLAIN_GAP.end
+        ).history_df
 
-        corrected = week(gaps=(NO_CARRY_GAP,))
-        merged = filled.merge(corrected, on="dateutc", suffixes=("", "_ok"))
-        assert len(merged) == len(filled) == len(corrected)
-        assert (merged["dailyrainin"] == merged["dailyrainin_ok"]).all()
-        # Rows the page overlapped may be corrected once or twice (which
-        # duplicate survives is undefined), so only the earliest day is exact.
-        early = merged["dateutc"] < ms("2026-01-09T12:00:00Z")
-        late = merged["dateutc"] >= ms("2026-01-10T11:15:00Z")
-        for col in COUNTERS[1:]:
-            off = merged[col + "_ok"] - merged[col]
-            assert off[early].abs().max() < 1e-9
-            # Sunday's weekly counter has reset, so its rows are not off.
-            assert set(off[late].round(9)) <= {0.0, 0.48}
-            assert off[late].max() == pytest.approx(0.48)
+        merged = filled.merge(truth, on="dateutc", suffixes=("", "_raw"))
+        assert len(merged) == len(filled) == len(truth)
+        for col in COUNTERS:
+            assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
-    def test_a_gap_with_no_new_data_is_recorded_as_skipped(
+    def test_a_gap_with_no_new_data_comes_back_skipped(
         self, fake_s3, ambient_replay, device
     ):
         archive = week()
@@ -356,39 +579,24 @@ class TestFillArchiveGap:
 
         result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
 
-        assert result is archive
-        assert st.session_state["skipped_gaps"] == [
-            {
-                "start": pd.Timestamp(PLAIN_GAP.start, tz="UTC"),
-                "end": pd.Timestamp(PLAIN_GAP.end, tz="UTC"),
-            }
-        ]
+        assert result.history_df is archive
+        assert result.status == "no_new_data"
+        assert result.skipped
+        assert result.rows_added == 0
+        assert result.start == pd.Timestamp(PLAIN_GAP.start, tz="UTC")
+        assert result.end == pd.Timestamp(PLAIN_GAP.end, tz="UTC")
 
-    def test_skipped_gaps_accumulate_across_calls(
-        self, fake_s3, ambient_replay, device
-    ):
-        archive = week()
-        ambient_replay.history = []
-
-        awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
-        awn.fill_archive_gap(device, archive, CARRY_GAP.start, CARRY_GAP.end)
-
-        starts = [g["start"] for g in st.session_state["skipped_gaps"]]
-        assert starts == [
-            pd.Timestamp(PLAIN_GAP.start, tz="UTC"),
-            pd.Timestamp(CARRY_GAP.start, tz="UTC"),
-        ]
-
-    def test_an_inverted_gap_is_refused_without_a_request_or_a_record(
+    def test_an_inverted_gap_is_refused_without_a_request(
         self, fake_s3, ambient_replay, device
     ):
         archive = week()
 
         result = awn.fill_archive_gap(device, archive, PLAIN_GAP.end, PLAIN_GAP.start)
 
-        assert result is archive
+        assert result.history_df is archive
+        assert result.status == "refused"
+        assert not result.skipped
         assert ambient_replay.calls == []
-        assert "skipped_gaps" not in st.session_state
 
     def test_a_gap_before_all_archive_data_is_refused(
         self, fake_s3, ambient_replay, device
@@ -399,6 +607,6 @@ class TestFillArchiveGap:
             device, archive, "2025-12-01T00:00:00Z", "2025-12-01T04:00:00Z"
         )
 
-        assert result is archive
+        assert result.history_df is archive
+        assert result.status == "refused"
         assert ambient_replay.calls == []
-        assert "skipped_gaps" not in st.session_state

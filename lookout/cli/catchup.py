@@ -93,6 +93,67 @@ def _log_archive_range(df: pd.DataFrame, label: str) -> None:
 # ---------- main flow ----------
 
 
+def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
+    """
+    One catchup: back up the archive, append what Ambient has since, save it.
+
+    The refresh command runs this as its first step. Every failure raises,
+    so the run exits non-zero (#160): a failed backup before anything is
+    read, a failed or empty archive read before anything is saved, a save
+    that would leave fewer rows than were loaded, and a failed save.
+
+    :param device: The pinned station's `/devices` entry.
+    :param bucket_name: S3 bucket to read/write data.
+    :param pages: Maximum number of pages to retrieve.
+    :return: The archive as saved.
+    :raises BackupError: If the backup fails.
+    :raises StorageReadError: If the archive cannot be read or holds no rows.
+    :raises CatchupStalled: If Ambient holds readings past a gap the run
+        could not cross.
+    :raises StorageWriteError: If the save fails or would shrink the archive.
+    """
+    mac = device["macAddress"]
+
+    # Always back up before mutating the current archive
+    sj.backup_archive(bucket=bucket_name, mac=mac)
+
+    archive_df = _load_archive(device, bucket_name)
+
+    new_archive_df = awn.get_history_since_last_archive(
+        device, archive_df, sleep=True, pages=pages
+    )
+    _log_archive_range(new_archive_df, "Updated archive")
+    logger.info(f"Total records after update: {len(new_archive_df)}")
+
+    # Save updated archive to S3, newest first whatever came back (#133)
+    sj.save_archive(new_archive_df, bucket_name, mac, loaded_rows=len(archive_df))
+    logger.info("Updated archive saved.")
+    return new_archive_df
+
+
+def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
+    """
+    Load the station's archive from storage and normalize it.
+
+    Strict (#160): a run that saves after this must never start from a
+    failed read, so it reads storage directly (no dev-mode local cache) and
+    raises rather than returning an empty frame. The row count returned is
+    after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
+    it is the count the save is guarded by (`save_archive`'s `loaded_rows`).
+
+    :param device: The pinned station's `/devices` entry.
+    :param bucket_name: S3 bucket to read from.
+    :return: The normalized archive, at least one row.
+    :raises StorageReadError: If the archive is missing, unreadable, or has
+        no valid rows.
+    """
+    archive_df = sj.load_archive(bucket_name, device["macAddress"])
+
+    _log_archive_range(archive_df, "Loaded archive")
+    logger.info(f"Total records in archive: {len(archive_df)}")
+    return archive_df
+
+
 def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> None:
     """
     Update archived weather data or repair archive schema.
@@ -120,53 +181,32 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         df.info()
         return
 
-    # Always back up before mutating the current archive (skip in dry-run)
-    sj.backup_data(bucket=bucket_name, prefix=mac, dry_run=dry_run)
-
-    # Load existing archive
-    archive_df = awn.load_archive_for_device(device, bucket=bucket_name)
-    archive_df = normalize(archive_df)
-
-    _log_archive_range(archive_df, "Loaded archive")
-    logger.info(f"Total records in archive: {len(archive_df)}")
-
-    if repair_archive:
-        fixed, m = _repair_archive_df(archive_df)
-        logger.info(
-            "Archive repair: %s -> %s rows (dropped=%s), dtype %s -> %s, range %s .. %s",
-            m.get("before_len"),
-            m.get("after_len"),
-            m.get("dropped"),
-            m.get("before_dtype"),
-            m.get("after_dtype"),
-            m.get("min"),
-            m.get("max"),
-        )
-        if dry_run:
-            logger.info("Dry-run: NOT saving repaired archive.")
-            return
-
-        # Persist the repaired archive and exit
-        key = f"{mac}.parquet"
-        sj.save_df_to_s3(fixed, bucket_name, key)
-        logger.info("Repaired archive saved.")
+    if not repair_archive:
+        update_archive(device, bucket_name, pages)
         return
 
-    # Normal catchup/update flow
-    new_archive_df = awn.get_history_since_last_archive(
-        device, archive_df, sleep=True, pages=pages
+    # Back up before repairing (skipped in dry-run)
+    sj.backup_archive(bucket=bucket_name, mac=mac, dry_run=dry_run)
+    archive_df = _load_archive(device, bucket_name)
+
+    fixed, m = _repair_archive_df(archive_df)
+    logger.info(
+        "Archive repair: %s -> %s rows (dropped=%s), dtype %s -> %s, range %s .. %s",
+        m.get("before_len"),
+        m.get("after_len"),
+        m.get("dropped"),
+        m.get("before_dtype"),
+        m.get("after_dtype"),
+        m.get("min"),
+        m.get("max"),
     )
-    _log_archive_range(new_archive_df, "Updated archive")
-    logger.info(f"Total records after update: {len(new_archive_df)}")
-
     if dry_run:
-        logger.info("Dry-run: NOT saving updated archive.")
+        logger.info("Dry-run: NOT saving repaired archive.")
         return
 
-    # Save updated archive to S3
-    key = f"{mac}.parquet"
-    sj.save_df_to_s3(new_archive_df, bucket_name, key)
-    logger.info("Updated archive saved.")
+    # Persist the repaired archive, newest first (#133), and exit
+    sj.save_archive(fixed, bucket_name, mac, loaded_rows=len(archive_df))
+    logger.info("Repaired archive saved.")
 
 
 if __name__ == "__main__":

@@ -10,9 +10,11 @@ import streamlit as st
 import sys
 
 import lookout.api.awn_controller as awn
+from lookout.core.rain_corrections import apply_corrections
 from lookout.utils.trend_utils import (
     calculate_temperature_trend,
     calculate_barometer_trend,
+    newest_row,
 )
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import (
@@ -47,13 +49,17 @@ def load_or_update_data(
     # Initial load
     if "history_df" not in st.session_state:
         update_message.text("Getting archive data...")
-        st.session_state["history_df"] = awn.load_archive_for_device(
-            device, bucket, file_type
+        # Storage holds the archive raw; correct the rain counters once here,
+        # on read (#95). Later updates correct only the rows they fetch.
+        st.session_state["history_df"] = apply_corrections(
+            awn.load_archive_for_device(device, bucket, file_type),
+            device["macAddress"],
+            bucket,
         )
 
         # Calculate trends for initial load
         if not st.session_state["history_df"].empty:
-            latest_row = st.session_state["history_df"].iloc[0]
+            latest_row = newest_row(st.session_state["history_df"])
             temp_trend = calculate_temperature_trend(
                 st.session_state["history_df"], latest_row["tempf"]
             )

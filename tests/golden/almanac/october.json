@@ -1,0 +1,588 @@
+{
+  "built_at": "2025-10-12T19:00:00Z",
+  "almanac": {
+    "years": [
+      {
+        "water_year": 2026,
+        "months": [
+          {
+            "status": {
+              "key": "2025-10",
+              "first_day": "2025-10-01",
+              "last_day": "2025-10-31",
+              "days": 31,
+              "missing_days": 19,
+              "status": "invalid",
+              "reason": "in_progress"
+            },
+            "rain_in": null,
+            "to_date": {
+              "key": "2025-10-01..2025-10-12",
+              "first_day": "2025-10-01",
+              "last_day": "2025-10-12",
+              "days": 12,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "to_date_in": 0.3
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "season": {
+          "key": "water_year_2026",
+          "first_day": "2025-10-01",
+          "last_day": "2026-09-30",
+          "days": 365,
+          "missing_days": 353,
+          "status": "invalid",
+          "reason": "in_progress"
+        },
+        "season_in": null
+      },
+      {
+        "water_year": 2025,
+        "months": [
+          {
+            "status": {
+              "key": "2024-10",
+              "first_day": "2024-10-01",
+              "last_day": "2024-10-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.25,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-11",
+              "first_day": "2024-11-01",
+              "last_day": "2024-11-30",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-12",
+              "first_day": "2024-12-01",
+              "last_day": "2024-12-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 1.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-01",
+              "first_day": "2025-01-01",
+              "last_day": "2025-01-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-02",
+              "first_day": "2025-02-01",
+              "last_day": "2025-02-28",
+              "days": 28,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-03",
+              "first_day": "2025-03-01",
+              "last_day": "2025-03-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-04",
+              "first_day": "2025-04-01",
+              "last_day": "2025-04-30",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-05",
+              "first_day": "2025-05-01",
+              "last_day": "2025-05-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-06",
+              "first_day": "2025-06-01",
+              "last_day": "2025-06-30",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-07",
+              "first_day": "2025-07-01",
+              "last_day": "2025-07-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-08",
+              "first_day": "2025-08-01",
+              "last_day": "2025-08-31",
+              "days": 31,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2025-09",
+              "first_day": "2025-09-01",
+              "last_day": "2025-09-30",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.7,
+            "to_date": null,
+            "to_date_in": null
+          }
+        ],
+        "season": {
+          "key": "water_year_2025",
+          "first_day": "2024-10-01",
+          "last_day": "2025-09-30",
+          "days": 365,
+          "missing_days": 0,
+          "status": "valid",
+          "reason": null
+        },
+        "season_in": 1.95
+      },
+      {
+        "water_year": 2024,
+        "months": [
+          {
+            "status": {
+              "key": "2023-10",
+              "first_day": "2023-10-01",
+              "last_day": "2023-10-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2023-11",
+              "first_day": "2023-11-01",
+              "last_day": "2023-11-30",
+              "days": 30,
+              "missing_days": 30,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2023-12",
+              "first_day": "2023-12-01",
+              "last_day": "2023-12-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-01",
+              "first_day": "2024-01-01",
+              "last_day": "2024-01-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-02",
+              "first_day": "2024-02-01",
+              "last_day": "2024-02-29",
+              "days": 29,
+              "missing_days": 29,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-03",
+              "first_day": "2024-03-01",
+              "last_day": "2024-03-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-04",
+              "first_day": "2024-04-01",
+              "last_day": "2024-04-30",
+              "days": 30,
+              "missing_days": 30,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-05",
+              "first_day": "2024-05-01",
+              "last_day": "2024-05-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-06",
+              "first_day": "2024-06-01",
+              "last_day": "2024-06-30",
+              "days": 30,
+              "missing_days": 30,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-07",
+              "first_day": "2024-07-01",
+              "last_day": "2024-07-31",
+              "days": 31,
+              "missing_days": 31,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-08",
+              "first_day": "2024-08-01",
+              "last_day": "2024-08-31",
+              "days": 31,
+              "missing_days": 19,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "to_date": null,
+            "to_date_in": null
+          },
+          {
+            "status": {
+              "key": "2024-09",
+              "first_day": "2024-09-01",
+              "last_day": "2024-09-30",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.5,
+            "to_date": null,
+            "to_date_in": null
+          }
+        ],
+        "season": {
+          "key": "water_year_2024",
+          "first_day": "2023-10-01",
+          "last_day": "2024-09-30",
+          "days": 366,
+          "missing_days": 324,
+          "status": "invalid",
+          "reason": "before_archive"
+        },
+        "season_in": null
+      }
+    ],
+    "rolling": [
+      {
+        "key": "7d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "7d",
+              "first_day": "2025-10-06",
+              "last_day": "2025-10-12",
+              "days": 7,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.1,
+            "water_year": 2026
+          },
+          {
+            "year": 2024,
+            "status": {
+              "key": "2024-10-06..2024-10-12",
+              "first_day": "2024-10-06",
+              "last_day": "2024-10-12",
+              "days": 7,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.0,
+            "water_year": 2025
+          }
+        ]
+      },
+      {
+        "key": "30d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "30d",
+              "first_day": "2025-09-13",
+              "last_day": "2025-10-12",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 1.0,
+            "water_year": 2026
+          },
+          {
+            "year": 2024,
+            "status": {
+              "key": "2024-09-13..2024-10-12",
+              "first_day": "2024-09-13",
+              "last_day": "2024-10-12",
+              "days": 30,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.75,
+            "water_year": 2025
+          }
+        ]
+      },
+      {
+        "key": "90d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "90d",
+              "first_day": "2025-07-15",
+              "last_day": "2025-10-12",
+              "days": 90,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 1.0,
+            "water_year": 2026
+          },
+          {
+            "year": 2024,
+            "status": {
+              "key": "2024-07-15..2024-10-12",
+              "first_day": "2024-07-15",
+              "last_day": "2024-10-12",
+              "days": 90,
+              "missing_days": 36,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "water_year": 2025
+          }
+        ]
+      },
+      {
+        "key": "365d",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "365d",
+              "first_day": "2024-10-13",
+              "last_day": "2025-10-12",
+              "days": 365,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 2.0,
+            "water_year": 2026
+          },
+          {
+            "year": 2024,
+            "status": {
+              "key": "2023-10-14..2024-10-12",
+              "first_day": "2023-10-14",
+              "last_day": "2024-10-12",
+              "days": 365,
+              "missing_days": 311,
+              "status": "invalid",
+              "reason": "before_archive"
+            },
+            "rain_in": null,
+            "water_year": 2025
+          }
+        ]
+      },
+      {
+        "key": "water_year",
+        "years": [
+          {
+            "year": 2025,
+            "status": {
+              "key": "water_year",
+              "first_day": "2025-10-01",
+              "last_day": "2025-10-12",
+              "days": 12,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.3,
+            "water_year": 2026
+          },
+          {
+            "year": 2024,
+            "status": {
+              "key": "2024-10-01..2024-10-12",
+              "first_day": "2024-10-01",
+              "last_day": "2024-10-12",
+              "days": 12,
+              "missing_days": 0,
+              "status": "valid",
+              "reason": null
+            },
+            "rain_in": 0.25,
+            "water_year": 2025
+          }
+        ]
+      }
+    ]
+  }
+}

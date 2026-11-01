@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "kind": "context",
+  "station": {
+    "mac": "00:11:22:33:44:55",
+    "name": "Fixture Station"
+  },
+  "built_at_ms": 1767918420000,
+  "observed_at_ms": 1767918300000,
+  "current": {
+    "temperature_f": 59.3,
+    "feels_like_f": 59.3,
+    "dew_point_f": 54.3,
+    "humidity_pct": 66.0,
+    "barometer_inhg": 30.0,
+    "wind_speed_mph": 3.0,
+    "wind_gust_mph": 6.0,
+    "wind_dir_deg": 180.0,
+    "rain_rate_in_hr": 0.12,
+    "rain_today_in": 0.3,
+    "rain_event_in": 0.3,
+    "solar_wm2": 322.2,
+    "uv_index": 3.0,
+    "last_rain_ms": 1767918300000,
+    "temp_trend": "steady",
+    "barometer_trend": "steady"
+  },
+  "active_rain_event": {
+    "event_id": "event-3",
+    "start_ms": 1767909600000,
+    "duration_minutes": 145.0,
+    "total_in": 0.3,
+    "avg_rate_in_hr": 0.12413793103448276
+  }
+}

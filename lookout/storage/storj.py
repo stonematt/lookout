@@ -9,7 +9,12 @@ interaction is crucial, this module streamlines tasks like data backup, retrieva
 and storage of structured data.
 
 Functions:
-- Read and write JSON files to/from S3.
+- Read and write JSON files to/from S3. The `get_*` readers forgive a failed
+  read (empty frame or dict); the strict `read_df_from_s3`, `load_archive`
+  and `read_json_from_s3` raise `StorageReadError` instead, for runs that
+  save or publish after reading (#160). Saves that fail raise
+  `StorageWriteError` (`ArchiveShrinkError` for an archive save that would
+  lose rows), and a failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
 - List items in an S3 bucket.
 - Backup data from S3 to a designated backup directory.
@@ -26,6 +31,7 @@ import pandas as pd
 
 from lookout.config import HISTORY_FILE_TYPE
 from lookout.secrets_loader import get_secret
+from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
 # For general logging with console output
@@ -51,104 +57,121 @@ def get_s3_client():
     )
 
 
-def read_json_from_path(file_path: str, local: bool = False) -> dict:
+class StorageReadError(RuntimeError):
+    """A stored object could not be read, or read back as nothing usable."""
+
+
+class StorageWriteError(RuntimeError):
+    """A save to storage failed; the stored object is as it was."""
+
+
+class ArchiveShrinkError(StorageWriteError):
+    """A save would leave the archive with fewer rows than were loaded."""
+
+
+class BackupError(RuntimeError):
+    """A backup copy failed; whatever it guarded must not be saved."""
+
+
+def _is_missing(error: Exception) -> bool:
     """
-    Reads a JSON file from a given path and returns its content as a dictionary.
+    Whether an S3 error says the object is not there (as opposed to failing).
 
-    :param file_path: Full S3 key or local path.
-    :param local: Flag to indicate if the file is local or from S3.
-    :return: Dictionary containing the JSON file content.
+    :param error: The exception a client call raised.
+    :return: True for a `NoSuchKey` / 404 response.
     """
-    if local:
-        try:
-            with open(file_path, "rb") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logger.error(f"Local file not found: {file_path}")
-            return {}
-    else:
-        try:
-            # Extract bucket and key
-            if file_path.startswith("s3://"):
-                _, bucket, *key_parts = file_path.split("/")
-                key = "/".join(key_parts)
-            else:
-                logger.error(f"Invalid S3 path: {file_path}")
-                return {}
-
-            s3 = get_s3_client()
-
-            obj = s3.get_object(Bucket=bucket, Key=key)
-            return json.load(obj["Body"])
-        except Exception as e:
-            logger.error(f"Failed to read JSON from {file_path}: {e}")
-            return {}
+    response = getattr(error, "response", None) or {}
+    code = str(response.get("Error", {}).get("Code", ""))
+    return code in ("NoSuchKey", "404", "NotFound")
 
 
-def save_json_to_path(dict_data: dict, file_path: str, local: bool = False) -> bool:
+def read_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFrame:
     """
-    Saves a dictionary as a JSON file to a specified path.
+    Read a DataFrame from a JSON-lines or Parquet object, failing loudly.
 
-    :param dict_data: Dictionary to save.
-    :param file_path: File path to save the dictionary to.
-    :param local: Flag to indicate if the file should be saved locally or in S3.
-    :return: True if the save operation was successful, False otherwise.
+    For writers that must not mistake a failed read for an empty one
+    (catchup, #160); `get_df_from_s3` is the forgiving wrapper readers use.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The key of the file in the S3 bucket.
+    :param file_type: The type of the file ('json' or 'parquet').
+    :return: The DataFrame the object holds (possibly empty).
+    :raises StorageReadError: If the object is missing, cannot be fetched, or
+        cannot be parsed.
+    :raises ValueError: If `file_type` is not 'parquet' or 'json'.
     """
-    if local:
-        try:
-            with open(file_path, "w") as f:
-                json.dump(dict_data, f)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save JSON locally: {e}")
-            return False
-    else:
-        try:
-            # Extract bucket and key
-            if file_path.startswith("s3://"):
-                _, bucket, *key_parts = file_path.split("/")
-                key = "/".join(key_parts)
-            else:
-                logger.error(f"Invalid S3 path: {file_path}")
-                return False
-
-            s3 = get_s3_client()
-            s3.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=json.dumps(dict_data),
-                ContentType="application/json",
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save JSON to {file_path}: {e}")
-            return False
+    logger.info(f"Getting s3://{bucket}/{key}")
+    if file_type not in ("parquet", "json"):
+        raise ValueError(f"Unsupported file type: {file_type}")
+    try:
+        body = get_s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
+        if file_type == "parquet":
+            return pd.read_parquet(BytesIO(body), engine="pyarrow")
+        return pd.read_json(BytesIO(body), orient="records", lines=True)
+    except Exception as e:
+        state = "missing" if _is_missing(e) else "unreadable"
+        raise StorageReadError(f"s3://{bucket}/{key} is {state}: {e}") from e
 
 
 def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFrame:
     """
     Retrieves a pandas DataFrame from a JSON or Parquet file stored in an S3 bucket.
 
+    Forgiving: a missing or unreadable object reads as an empty frame (logged
+    at ERROR). Writers use `read_df_from_s3` or `load_archive` instead.
+
     :param bucket: The name of the S3 bucket.
     :param key: The key of the file in the S3 bucket.
     :param file_type: The type of the file ('json' or 'parquet').
-    :return: DataFrame obtained from the file.
+    :return: DataFrame obtained from the file; empty on any failure.
     """
     try:
-        logger.info(f"Getting s3://{bucket}/{key}")
-        s3 = get_s3_client()
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        body = obj["Body"].read()
-
-        if file_type == "parquet":
-            return pd.read_parquet(BytesIO(body), engine="pyarrow")
-        elif file_type == "json":
-            return pd.read_json(BytesIO(body), orient="records", lines=True)
-        else:
-            raise ValueError(f"Unsupported file type: {file_type}")
+        return read_df_from_s3(bucket, key, file_type)
     except Exception as e:
         logger.error(f"Failed to load DataFrame from s3://{bucket}/{key}: {e}")
         return pd.DataFrame()
+
+
+def load_archive(bucket: str, mac: str) -> pd.DataFrame:
+    """
+    Read a station's archive for a run that will save over it (#160).
+
+    Every archive writer loads through here. The archive comes back through
+    `dateutc.normalize`, which drops invalid and duplicate rows, and its
+    length is what the writer passes to `save_archive` as `loaded_rows`.
+
+    :param bucket: The bucket.
+    :param mac: The station's MAC address.
+    :return: The normalized archive (ascending `dateutc`), at least one row.
+    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing,
+        unreadable, or has no valid rows: a run that saved after such a read
+        would overwrite the archive with nothing.
+    """
+    key = f"{mac}.{HISTORY_FILE_TYPE}"
+    archive = normalize(read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE))
+    if archive.empty:
+        raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
+    return archive
+
+
+def read_json_from_s3(bucket: str, key: str) -> Optional[dict]:
+    """
+    Read a JSON object, telling a missing object apart from a failed read.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The key of the JSON file in the S3 bucket.
+    :return: The parsed JSON; None when no object is stored at `key`.
+    :raises StorageReadError: If the object exists but cannot be fetched or
+        parsed.
+    """
+    logger.info(f"Getting JSON from s3://{bucket}/{key}")
+    try:
+        obj = get_s3_client().get_object(Bucket=bucket, Key=key)
+        return json.loads(obj["Body"].read())
+    except Exception as e:
+        if _is_missing(e):
+            return None
+        raise StorageReadError(f"s3://{bucket}/{key} is unreadable: {e}") from e
 
 
 def get_json_from_s3(bucket: str, key: str) -> dict:
@@ -160,10 +183,7 @@ def get_json_from_s3(bucket: str, key: str) -> dict:
     :return: Dictionary containing the JSON content, empty dict if failed.
     """
     try:
-        logger.info(f"Getting JSON from s3://{bucket}/{key}")
-        s3 = get_s3_client()
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        return json.loads(obj["Body"].read())
+        return read_json_from_s3(bucket, key) or {}
     except Exception as e:
         logger.error(f"Failed to get JSON from s3://{bucket}/{key}: {e}")
         return {}
@@ -195,13 +215,13 @@ def save_json_to_s3(dict_data: dict, bucket: str, key: str) -> bool:
         return False
 
 
-def json_exists_in_s3(bucket: str, key: str) -> bool:
+def object_exists(bucket: str, key: str) -> bool:
     """
-    Check if JSON file exists in S3-compatible bucket.
+    Check whether an object exists in an S3-compatible bucket.
 
     :param bucket: The name of the S3 bucket.
-    :param key: The key of the JSON file in the S3 bucket.
-    :return: True if exists, False otherwise.
+    :param key: The object's key.
+    :return: True if `head_object` finds it, False on any error.
     """
     try:
         s3 = get_s3_client()
@@ -213,7 +233,7 @@ def json_exists_in_s3(bucket: str, key: str) -> bool:
 
 def save_df_to_s3(
     df: pd.DataFrame, bucket: str, key: str, file_type: str = "parquet"
-) -> None:
+) -> bool:
     """
     Saves a pandas DataFrame to an S3-compatible bucket using boto3 and BytesIO,
     ensuring compatibility with Storj.io and AWS S3 behavior.
@@ -222,7 +242,7 @@ def save_df_to_s3(
     :param bucket: The name of the S3 bucket.
     :param key: The key (path/filename) to write the file under.
     :param file_type: The file type to save ('parquet' or 'json').
-    :return: None
+    :return: True when saved; False when the save failed (logged at ERROR).
     """
     file_path = f"s3://{bucket}/{key}"
     logger.info(f"Saving {file_path}")
@@ -249,9 +269,49 @@ def save_df_to_s3(
             Key=key,
             ExtraArgs={"ContentType": content_type},
         )
+        return True
 
     except Exception as e:
         logger.error(f"Failed to save {key} to bucket {bucket}: {e}")
+        return False
+
+
+def save_archive(df: pd.DataFrame, bucket: str, mac: str, loaded_rows: int) -> None:
+    """
+    Save a station's archive to `<mac>.<HISTORY_FILE_TYPE>`, newest first.
+
+    The one save step every archive writer goes through (#133): the stored
+    archive has a single defined order, newest `dateutc` first, whatever
+    order the caller built it in. The sort is stable and the index is reset;
+    the rows and columns are saved as handed.
+
+    Every save is guarded against losing rows (#160). `loaded_rows` is the
+    archive's row count after `dateutc.normalize`, which drops invalid and
+    duplicate rows, not the raw count read from storage: a stored archive
+    holding one duplicate row would otherwise refuse every later save.
+    `load_archive` returns the frame to count.
+
+    :param df: The archive, any row order.
+    :param bucket: The bucket.
+    :param mac: The station's MAC address.
+    :param loaded_rows: The rows of the archive the caller loaded, after
+        normalizing; 0 only for a station with no archive yet.
+    :raises ArchiveShrinkError: If `df` has fewer than `loaded_rows` rows;
+        nothing is written.
+    :raises StorageWriteError: If the save fails.
+    """
+    key = f"{mac}.{HISTORY_FILE_TYPE}"
+    if len(df) < loaded_rows:
+        raise ArchiveShrinkError(
+            f"Refusing to save s3://{bucket}/{key}: {len(df)} rows, "
+            f"fewer than the {loaded_rows} loaded"
+        )
+    if "dateutc" in df.columns:
+        df = df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
+            drop=True
+        )
+    if not save_df_to_s3(df, bucket, key):
+        raise StorageWriteError(f"Failed to save s3://{bucket}/{key}")
 
 
 def list_bucket_items(bucket_name: str, depth: int = 2) -> list:
@@ -293,6 +353,8 @@ def backup_data(
     force_backup: bool = False,
     dry_run: bool = False,
     backup_root: str = ".backups",
+    folder: Optional[str] = None,
+    exact_key: bool = False,
 ):
     """
     Backs up all files with a given prefix in an S3 bucket to a specified backup folder
@@ -303,9 +365,14 @@ def backup_data(
     :param force_backup: Boolean flag to force backup even if the folder exists.
     :param dry_run: Boolean flag for a dry run without actual file copying.
     :param backup_root: Root directory for backups, default to '.backups'.
+    :param folder: Name of the folder under `backup_root`; the prefix when None.
+    :param exact_key: Back up only the object whose key is exactly `prefix`.
+    :raises BackupError: If the backup folder cannot be checked, the objects
+        cannot be listed, or any copy fails (#160); a caller that saves
+        after the backup must not save then.
     """
     today = datetime.datetime.now().strftime("%Y%m%d")
-    backup_folder = f"{backup_root}/{prefix}/{today}/"
+    backup_folder = f"{backup_root}/{folder or prefix}/{today}/"
     backup_logger.info(f"Starting Backup of {backup_folder}")
 
     s3 = get_s3_client()
@@ -320,14 +387,17 @@ def backup_data(
             return
     except Exception as e:
         backup_logger.error(f"Failed to check backup folder: {e}")
-        return
+        raise BackupError(f"Failed to check backup folder {backup_folder}: {e}") from e
 
     # List objects to back up
+    failed = []
     try:
         paginator = s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
             for obj in page.get("Contents", []):
                 key = obj["Key"]
+                if exact_key and key != prefix:
+                    continue
                 file_name = os.path.basename(key)
                 backup_key = f"{backup_folder}{file_name}"
                 file_size = obj["Size"]
@@ -350,29 +420,74 @@ def backup_data(
                     )
                 except Exception as e:
                     backup_logger.error(f"Failed to back up {file_name}: {e}")
-
-        if dry_run:
-            backup_logger.info(f"Dry run completed for folder {backup_folder}")
-        else:
-            backup_logger.info(f"Backup completed to folder {backup_folder}")
+                    failed.append(file_name)
 
     except Exception as e:
         backup_logger.error(f"Error listing or copying files for backup: {e}")
+        raise BackupError(f"Failed to list {prefix} for backup: {e}") from e
+
+    if failed:
+        raise BackupError(f"Failed to back up {', '.join(failed)} to {backup_folder}")
+    if dry_run:
+        backup_logger.info(f"Dry run completed for folder {backup_folder}")
+    else:
+        backup_logger.info(f"Backup completed to folder {backup_folder}")
+
+
+def backup_archive(
+    bucket: str, mac: str, force_backup: bool = False, dry_run: bool = False
+) -> None:
+    """
+    Back up the station's archive, and only the archive, to its dated folder.
+
+    The copy lands at `.backups/<mac>/<YYYYMMDD>/<mac>.<HISTORY_FILE_TYPE>`,
+    once a day unless forced. Catalogs share the bare-MAC prefix but are not
+    copied here. Each catalog is backed up on its own route: those saved through
+    `backup_and_save_catalog` (the generic store, and the energy catalog's
+    updaters), the Event Catalog by `RainEventCatalog.backup_catalog`, the
+    energy catalog's `EnergyCatalog._create_backup`, and the day periods
+    catalog by `backup_day_periods_catalog`. The last three write timestamped
+    copies under `backups/`.
+
+    :param bucket: Name of the S3 bucket.
+    :param mac: The station's MAC address.
+    :param force_backup: Back up even if today's folder already exists.
+    :param dry_run: Log what would be copied without copying it.
+    :raises BackupError: If the backup fails.
+    """
+    backup_data(
+        bucket=bucket,
+        prefix=f"{mac}.{HISTORY_FILE_TYPE}",
+        force_backup=force_backup,
+        dry_run=dry_run,
+        folder=mac,
+        exact_key=True,
+    )
 
 
 def backup_and_save_catalog(
-    df: pd.DataFrame, catalog_type: str, bucket: str = None
+    df: pd.DataFrame,
+    catalog_type: str,
+    bucket: Optional[str] = None,
+    mac_address: Optional[str] = None,
 ) -> None:
-    """Back up existing catalog and save new version using existing backup_data pattern."""
-    from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE
+    """
+    Back up the stored catalog, then save the new version over it.
+
+    :param df: The catalog to save.
+    :param catalog_type: The catalog's name, e.g. "energy".
+    :param bucket: The bucket; `DEFAULT_BUCKET` when None.
+    :param mac_address: The station; the pinned station
+        (`lookout.config.get_station_mac`) when None.
+    :raises BackupError: If the backup fails; nothing is saved then.
+    :raises StorageWriteError: If the save fails.
+    """
+    from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 
     if bucket is None:
         bucket = DEFAULT_BUCKET
-
-    # MAC from session state (always available if site works)
-    import streamlit as st
-
-    mac_address = st.session_state["device"]["macAddress"]
+    if mac_address is None:
+        mac_address = get_station_mac()
 
     # Create prefix and path for catalog files
     catalog_prefix = f"{mac_address}.{catalog_type}_catalog"
@@ -381,28 +496,39 @@ def backup_and_save_catalog(
     # Use existing backup_data for daily deduplication
     try:
         backup_data(bucket=bucket, prefix=catalog_prefix)
-    except Exception as e:
-        logger.error(f"Catalog backup failed for {catalog_prefix}: {e}")
-        raise RuntimeError("Aborting catalog save: backup failed.")
+    except BackupError as e:
+        logger.error(f"Catalog backup failed for {catalog_prefix}; not saving: {e}")
+        raise
 
     # Save new catalog
-    save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE)
+    if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
+        raise StorageWriteError(f"Failed to save s3://{bucket}/{catalog_path}")
 
 
 def backup_and_save_history(
-    df: pd.DataFrame, device: dict, bucket: str = "lookout"
+    df: pd.DataFrame, device: dict, bucket: str = "lookout", *, loaded_rows: int
 ) -> None:
-    """Back up the old archive and save the updated DataFrame to S3."""
+    """
+    Back up the old archive and save the updated DataFrame to S3.
+
+    :param df: The archive to save.
+    :param device: The station's `/devices` entry.
+    :param bucket: The bucket.
+    :param loaded_rows: The rows of the archive the caller loaded, after
+        normalizing; see `save_archive`.
+    :raises BackupError: If the backup fails; nothing is saved then.
+    :raises ArchiveShrinkError: If `df` has fewer than `loaded_rows` rows.
+    :raises StorageWriteError: If the save fails.
+    """
     mac = device["macAddress"]
-    key = f"{mac}.{HISTORY_FILE_TYPE}"
 
     try:
-        backup_data(bucket=bucket, prefix=mac)
-    except Exception as e:
-        logger.error(f"Backup failed for {mac}: {e}")
-        raise RuntimeError("Aborting save: backup failed.")
+        backup_archive(bucket=bucket, mac=mac)
+    except BackupError as e:
+        logger.error(f"Backup failed for {mac}; not saving: {e}")
+        raise
 
-    save_df_to_s3(df, bucket, key)
+    save_archive(df, bucket, mac, loaded_rows=loaded_rows)
 
 
 # Example usage
@@ -418,7 +544,7 @@ def main() -> None:
     print(f"Items in bucket: {len(bucket_items)}")
 
     # Perform dry run backup for the device
-    backup_data(bucket=bucket_name, prefix=device_id)
+    backup_archive(bucket=bucket_name, mac=device_id)
 
     # Test saving a dummy DataFrame to S3
     test_df = pd.DataFrame(

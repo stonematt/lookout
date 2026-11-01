@@ -82,6 +82,23 @@ def test_normalize_accepts_datetime64_utc_input():
     assert list(out["dateutc"]) == [_ms(2024, 6, 1), _ms(2025, 1, 1)]
 
 
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+@pytest.mark.parametrize("tz", [None, "UTC"])
+def test_normalize_accepts_datetime64_at_any_unit(unit, tz):
+    """Parquet and pandas 3 hand back `datetime64[us]`; it must still be ms."""
+    stamps = pd.Series(
+        pd.to_datetime(["2024-06-01", "2025-01-01"]).as_unit(unit)
+    )
+    if tz:
+        stamps = stamps.dt.tz_localize(tz)
+    df = pd.DataFrame({"dateutc": stamps})
+
+    out = normalize(df)
+
+    assert out["dateutc"].dtype == "int64"
+    assert list(out["dateutc"]) == [_ms(2024, 6, 1), _ms(2025, 1, 1)]
+
+
 def test_normalize_empty_dataframe_returns_empty():
     out = normalize(pd.DataFrame())
     assert out.empty

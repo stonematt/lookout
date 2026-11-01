@@ -1,0 +1,138 @@
+/*
+ * The Overview's temperature context (#81): range bars, the ten-day list
+ * and the "now against normal" strips (DESIGN.md "Range bars with an IQR
+ * band and a now rule", "Strips of now against normal").
+ * Marks use the temperature ramp; the single `note` accent is the now rule.
+ */
+[data-section="temperature-context"] {
+  display: grid;
+  gap: var(--s-7);
+}
+
+.tc-headline {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: 600;
+  line-height: 1.28;
+  max-width: 34ch;
+  text-wrap: balance;
+}
+
+.tc-headline + .standfirst {
+  margin-top: var(--s-1);
+}
+
+.tc-chart {
+  margin-top: var(--s-4);
+  max-width: 760px;
+  min-height: 24px;
+}
+
+.tc-svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  font-family: var(--sans);
+}
+
+.tc-grid,
+.tc-base {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.tc-tick,
+.tc-sub {
+  font-size: 12px;
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-row {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.tc-row-today {
+  fill: var(--note);
+}
+
+.tc-value,
+.tc-note,
+.tc-reason {
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-value {
+  font-size: 12.5px;
+  fill: var(--ink-2);
+}
+
+.tc-reason {
+  font-size: 12px;
+  fill: var(--ink-2);
+}
+
+.tc-note {
+  font-size: 13px;
+  font-weight: 650;
+  fill: var(--note);
+}
+
+.tc-whisker {
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+}
+
+.tc-end {
+  fill: var(--ink-3);
+}
+
+.tc-iqr {
+  fill: var(--temp-cool);
+}
+
+.tc-usual {
+  fill: var(--rule);
+}
+
+.tc-now {
+  stroke: var(--note);
+  stroke-width: 2.25;
+}
+
+.tc-now-dot {
+  fill: var(--note);
+  stroke: var(--ground);
+  stroke-width: 2;
+}
+
+.tc-dot-temperature {
+  fill: var(--temp-cool);
+  fill-opacity: 0.65;
+}
+
+.tc-dot-rain {
+  fill: var(--rain-2);
+  fill-opacity: 0.65;
+}
+
+.tc-strip {
+  margin: var(--s-5) 0 0;
+}
+
+.tc-claim {
+  max-width: 62ch;
+  font-size: var(--step-0);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.tc-strip .tc-chart {
+  margin-top: var(--s-2);
+}

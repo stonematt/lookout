@@ -261,6 +261,15 @@ class TestCatchupRun:
         assert station.keys() == [BACKUP_KEY, ARCHIVE_KEY]
         assert_frame_equal(station.stored(BACKUP_KEY), station.archive)
 
+    def test_the_archive_backup_leaves_the_catalogs_out(self, catchup_station, fake_s3):
+        station = catchup_station()
+        catalog_key = f"{FAKE_MAC}.event_catalog.parquet"
+        fake_s3.put_object(Bucket=BUCKET, Key=catalog_key, Body=b"x")
+
+        station.run()
+
+        assert station.keys() == sorted([BACKUP_KEY, ARCHIVE_KEY, catalog_key])
+
     def test_asks_ambient_for_one_page_ending_now(self, catchup_station):
         station = catchup_station()
 
@@ -293,6 +302,59 @@ class TestCatchupRun:
 
         assert station.keys() == [ARCHIVE_KEY]
         assert_frame_equal(station.stored(), station.archive)
+
+
+# ---------- the stored order (#133) ----------
+
+
+def newest_first(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The frame's rows, newest `dateutc` first, index reset.
+
+    :param df: Archive rows, any order.
+    :return: The rows reordered.
+    """
+    return df.sort_values("dateutc", ascending=False).reset_index(drop=True)
+
+
+class TestStoredOrder:
+    """Whatever the run, the archive in storage is newest first (#133)."""
+
+    def test_a_run_with_nothing_new_stores_newest_first(self, catchup_station):
+        archive = load_real_slice()
+        station = catchup_station(
+            archive=archive, history=[], devices=reporting(archive)
+        )
+
+        station.run()
+
+        stored = station.stored()
+        assert stored["dateutc"].is_monotonic_decreasing
+        assert_frame_equal(stored, newest_first(archive))
+
+    def test_a_run_with_new_rows_stores_newest_first(self, catchup_station):
+        station = catchup_station()
+
+        station.run()
+
+        stored = station.stored()
+        assert stored["dateutc"].is_monotonic_decreasing
+        assert len(stored) == len(station.archive) + RECORDED_ROWS
+
+    def test_repair_archive_stores_newest_first_with_the_same_rows(
+        self, catchup_station
+    ):
+        from lookout.cli import catchup
+
+        archive = load_real_slice()
+        oldest_first = archive.iloc[::-1].reset_index(drop=True)
+        station = catchup_station(archive=oldest_first)
+
+        catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+
+        stored = station.stored()
+        assert stored["dateutc"].is_monotonic_decreasing
+        assert_frame_equal(stored, newest_first(archive))
 
 
 # ---------- paging over a longer outage ----------
@@ -347,13 +409,13 @@ class TestPaging:
 # ---------- rain corrections ----------
 
 
-def test_each_run_subtracts_the_known_carryovers_again(catchup_station):
+def test_each_run_keeps_the_stored_rain_counters_raw(catchup_station):
     """
-    Held finding: catchup compounds rain corrections in the stored archive.
+    Catchup saves the archive raw (#95): corrections are applied on read.
 
-    The run corrects the whole combined archive and saves it, so rows already
-    corrected lose the carryover again on every run. With one carryover on
-    2026-01-09, that day's weekly counter falls by it on every run.
+    With one carryover on 2026-01-09 in the catalog, three runs in a row
+    leave that day's stored weekly counter at its raw value, and the rows
+    each run fetched are stored raw too.
     """
     full = scenario_archive()
     rain_corrections.save_catalog(
@@ -365,13 +427,209 @@ def test_each_run_subtracts_the_known_carryovers_again(catchup_station):
         devices=reporting(full),
         now="2026-01-11T08:00:00Z",
     )
-    noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local
-    raw = full.set_index("dateutc").loc[noon, "weeklyrainin"]
-    carry = 0.48  # SCENARIO's carryover: the 2026-01-08 daily total
+    noon = ms("2026-01-09T20:00:00Z")  # Friday 12:00 local, archived
+    fetched = ms("2026-01-10T14:00:00Z")  # Saturday 06:00 local, fetched
+    raw = full.set_index("dateutc")
 
-    weekly = []
     for _ in range(3):
         station.run()
-        weekly.append(station.stored().set_index("dateutc").loc[noon, "weeklyrainin"])
+        stored = station.stored().set_index("dateutc")
+        for row in (noon, fetched):
+            for col in ("dailyrainin", "weeklyrainin", "monthlyrainin"):
+                assert stored.loc[row, col] == pytest.approx(raw.loc[row, col])
 
-    assert weekly == pytest.approx([raw - carry, raw - 2 * carry, raw - 3 * carry])
+
+# ---------- archive safety (#160) ----------
+
+
+class FlakyStorj:
+    """
+    The moto client, with chosen calls failing the way a Storj outage does.
+
+    :param s3: The moto client every other call goes to.
+    :param read: A key whose `get_object` raises.
+    :param write: A key whose `upload_fileobj` raises.
+    :param copy: Whether `copy_object` (the backup) raises.
+    """
+
+    def __init__(
+        self,
+        s3: object,
+        read: Optional[str] = None,
+        write: Optional[str] = None,
+        copy: bool = False,
+    ) -> None:
+        self.s3 = s3
+        self.read = read
+        self.write = write
+        self.copy = copy
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self.s3, name)
+
+    def get_object(self, **kwargs: object) -> Dict:
+        if kwargs["Key"] == self.read:
+            raise OSError("storj read timed out")
+        return self.s3.get_object(**kwargs)
+
+    def upload_fileobj(self, **kwargs: object) -> None:
+        if kwargs["Key"] == self.write:
+            raise OSError("storj write refused")
+        return self.s3.upload_fileobj(**kwargs)
+
+    def copy_object(self, **kwargs: object) -> Dict:
+        if self.copy:
+            raise OSError("storj copy refused")
+        return self.s3.copy_object(**kwargs)
+
+
+def flaky_storj(monkeypatch: pytest.MonkeyPatch, s3: object, **fail: object) -> None:
+    """
+    Route every `storj` client through a `FlakyStorj`.
+
+    :param monkeypatch: The test's monkeypatch.
+    :param s3: The moto client.
+    :param fail: `FlakyStorj` keyword arguments.
+    """
+    flaky = FlakyStorj(s3, **fail)
+    monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+
+
+def stored_bytes(station: CatchupStation, key: str = ARCHIVE_KEY) -> bytes:
+    """
+    The raw bytes of a stored object.
+
+    :param station: The seeded station.
+    :param key: Its key; the archive by default.
+    :return: The body.
+    """
+    return station.s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()
+
+
+class TestArchiveSafety:
+    def test_a_failed_archive_read_leaves_the_archive_and_fails_the_run(
+        self, catchup_station, monkeypatch
+    ):
+        station = catchup_station()
+        before = stored_bytes(station)
+        flaky_storj(monkeypatch, station.s3, read=ARCHIVE_KEY)
+
+        with pytest.raises(storj.StorageReadError):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_an_empty_archive_read_leaves_the_archive_and_fails_the_run(
+        self, catchup_station
+    ):
+        station = catchup_station(archive=load_real_slice().head(0))
+        before = stored_bytes(station)
+
+        with pytest.raises(storj.StorageReadError):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_an_unreadable_archive_body_leaves_it_and_fails_the_run(
+        self, catchup_station
+    ):
+        station = catchup_station()
+        station.s3.put_object(Bucket=BUCKET, Key=ARCHIVE_KEY, Body=b"not parquet")
+
+        with pytest.raises(storj.StorageReadError):
+            station.run()
+
+        assert stored_bytes(station) == b"not parquet"
+
+    def test_a_save_that_would_shrink_the_archive_is_refused(
+        self, catchup_station, monkeypatch
+    ):
+        station = catchup_station()
+        before = stored_bytes(station)
+        monkeypatch.setattr(
+            awn,
+            "get_history_since_last_archive",
+            lambda device, archive, **_: archive.iloc[1:],
+        )
+
+        with pytest.raises(storj.ArchiveShrinkError):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_a_repair_that_would_shrink_the_archive_is_refused(
+        self, catchup_station, monkeypatch
+    ):
+        from lookout.cli import catchup
+
+        station = catchup_station()
+        before = stored_bytes(station)
+        monkeypatch.setattr(
+            catchup, "_repair_archive_df", lambda archive: (archive.iloc[1:], {})
+        )
+
+        with pytest.raises(storj.ArchiveShrinkError):
+            catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+
+        assert stored_bytes(station) == before
+
+    def test_a_failed_archive_save_fails_the_run(self, catchup_station, monkeypatch):
+        station = catchup_station()
+        flaky_storj(monkeypatch, station.s3, write=ARCHIVE_KEY)
+
+        with pytest.raises(storj.StorageWriteError):
+            station.run()
+
+        assert len(station.stored()) == len(station.archive)
+
+    def test_a_failed_backup_fails_the_run_before_anything_is_saved(
+        self, catchup_station, monkeypatch
+    ):
+        station = catchup_station()
+        before = stored_bytes(station)
+        flaky_storj(monkeypatch, station.s3, copy=True)
+
+        with pytest.raises(storj.BackupError):
+            station.run()
+
+        assert stored_bytes(station) == before
+        assert BACKUP_KEY not in station.keys()
+
+
+class TestLongOutage:
+    """#160: an outage past the forward seek's ~208 h reach (#132)."""
+
+    OUTAGE_START = "2026-01-02T00:00:00Z"
+    RESUME = "2026-01-14T00:00:00Z"  # 288 hours of silence
+
+    def seed(self, catchup_station, now: str) -> CatchupStation:
+        archive = build_archive("2026-01-01T00:00:00Z", self.OUTAGE_START)
+        after = build_archive(self.RESUME, now)
+        live = pd.concat([after, archive], ignore_index=True)
+        return catchup_station(
+            archive=archive,
+            history=to_ambient_records(live),
+            devices=reporting(after),
+            now=now,
+        )
+
+    def test_catchup_crosses_a_288_hour_outage_in_one_run(self, catchup_station):
+        station = self.seed(catchup_station, "2026-01-14T12:00:00Z")
+
+        station.run()
+
+        stored = station.stored()
+        assert len(stored) == len(station.archive) + 12 * 12
+        assert int(stored["dateutc"].max()) == ms("2026-01-14T11:55:00Z")
+        assert stored["dateutc"].is_unique
+
+    def test_a_crossing_out_of_pages_fails_the_run_and_saves_nothing(
+        self, catchup_station
+    ):
+        station = self.seed(catchup_station, "2026-01-18T00:00:00Z")
+        before = stored_bytes(station)
+
+        with pytest.raises(awn.CatchupStalled):
+            station.run(pages=12)
+
+        assert stored_bytes(station) == before
