@@ -9,11 +9,12 @@
  *   list can miss its events.
  * - The live event's detail renders from the snapshot's `open_curve`, which
  *   the snapshot holds only for the live event (`active_rain_event`, the
- *   hero's decision). Any other event's renders from its curve file
- *   (`/event`). An event the catalog still holds open after the rain has
- *   stopped is not live and has no file yet (the file is written once the
- *   catalog closes it), so it reads "not published yet" until then. An event
- *   with no archive data shows its totals only, with "n/a: gap in record".
+ *   hero's decision); without one it says its readings are "not in the
+ *   snapshot yet". Any other event's renders from its curve file (`/event`).
+ *   An event the catalog still holds open after the rain has stopped is not
+ *   live and has no file yet (the file is written once the catalog closes
+ *   it), so it reads "not published yet" until then. An event with no
+ *   archive data shows its totals only, with "n/a: gap in record".
  * - The event is keyed by its start, which is stable across refresh runs,
  *   so a link opened while it is live still opens it once it has completed.
  */
@@ -197,7 +198,8 @@ export function mountEvents(
     note.hidden = text === null;
     note.replaceChildren();
     const year = season === "all" ? undefined : section.seasons.find((s) => s.water_year === season);
-    if (year && !isComparable(seasonStatus(year))) note.append(gapElement(seasonStatus(year)), " ");
+    const status = year && seasonStatus(year);
+    if (status && !isComparable(status)) note.append(gapElement(status), " ");
     if (text !== null) note.append(text);
     for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-season]")) {
       b.setAttribute("aria-pressed", String(b.dataset.season === String(season)));
@@ -365,7 +367,7 @@ ${note}
       renderHead();
       renderList();
       // A year tapped half under the fade comes whole into view.
-      seasonButton.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      seasonButton.scrollIntoView({ block: "nearest", inline: "nearest" });
       return;
     }
     const sortButton = target.closest<HTMLButtonElement>("[data-sort]");

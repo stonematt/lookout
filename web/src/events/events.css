@@ -82,31 +82,34 @@
 /* The edge with water years scrolled past it fades out, so a control that
    scrolls in place at phone width shows there is more of it. Not a shadow:
    the years themselves thin out toward the edge (DESIGN.md, Flat Paper). */
+.ev-seg {
+  --fade-edge: 48px;
+  --fade-floor: rgb(0 0 0 / 0.15);
+}
+
 .ev-seg[data-more="end"] {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), rgb(0 0 0 / 0.15));
-  mask-image: linear-gradient(to right, #000 calc(100% - 48px), rgb(0 0 0 / 0.15));
+  --fade: linear-gradient(to right, #000 calc(100% - var(--fade-edge)), var(--fade-floor));
 }
 
 .ev-seg[data-more="start"] {
-  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), rgb(0 0 0 / 0.15));
-  mask-image: linear-gradient(to left, #000 calc(100% - 48px), rgb(0 0 0 / 0.15));
+  --fade: linear-gradient(to left, #000 calc(100% - var(--fade-edge)), var(--fade-floor));
 }
 
 .ev-seg[data-more="both"] {
-  -webkit-mask-image: linear-gradient(
+  --fade: linear-gradient(
     to right,
-    rgb(0 0 0 / 0.15),
-    #000 48px,
-    #000 calc(100% - 48px),
-    rgb(0 0 0 / 0.15)
+    var(--fade-floor),
+    #000 var(--fade-edge),
+    #000 calc(100% - var(--fade-edge)),
+    var(--fade-floor)
   );
-  mask-image: linear-gradient(
-    to right,
-    rgb(0 0 0 / 0.15),
-    #000 48px,
-    #000 calc(100% - 48px),
-    rgb(0 0 0 / 0.15)
-  );
+}
+
+.ev-seg[data-more="end"],
+.ev-seg[data-more="start"],
+.ev-seg[data-more="both"] {
+  -webkit-mask-image: var(--fade);
+  mask-image: var(--fade);
 }
 
 /* A water year the record does not cover: the gap hatch along its foot. */
