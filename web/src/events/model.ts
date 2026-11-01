@@ -7,7 +7,9 @@
  * only picks, sorts and words them.
  */
 import { formatDuration, formatStamp, inches, STATION_TIME_ZONE } from "../format.js";
-import type { EventStats, RainEventRow, RainEvents } from "../snapshot.js";
+import { isComparable, notCompared } from "../gaps.js";
+import { listText } from "../rain/text.js";
+import type { EventSeason, EventStats, GapStatus, RainEventRow, RainEvents } from "../snapshot.js";
 
 /** The URL query parameter holding the selected event's start. */
 export const EVENT_PARAM = "event";
@@ -84,6 +86,78 @@ export function statsFor(section: RainEvents, season: Season): EventStats {
       mean_duration_minutes: null,
     }
   );
+}
+
+/**
+ * A water year's gap status, as the Rain tab's curve for it has it. A year
+ * the archive does not reach has none in the snapshot; it reads as invalid,
+ * before the archive, so its button and note say so like any other gap.
+ *
+ * @param season - One water year's summary.
+ * @returns Its status.
+ */
+export function seasonStatus(season: EventSeason): GapStatus {
+  if (season.status != null) return season.status;
+  const year = season.water_year;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days = leap ? 366 : 365;
+  return {
+    key: "water_year",
+    first_day: `${year - 1}-10-01`,
+    last_day: `${year}-09-30`,
+    days,
+    missing_days: days,
+    status: "invalid",
+    reason: "before_archive",
+  };
+}
+
+/**
+ * What the list says beside the events-only sum when the record does not
+ * cover the water year shown: the list can miss the events in its gaps, so
+ * its total is never read as the year's rain. A ≈ year's sum is not scaled
+ * up, so it gets the note but no ≈.
+ *
+ * @param section - The snapshot's `rain_events`.
+ * @param season - A water year, or "all".
+ * @returns The note, or null when every year shown is whole.
+ */
+export function seasonNote(section: RainEvents, season: Season): string | null {
+  if (season === "all") {
+    const years = section.seasons
+      .filter((s) => seasonStatus(s).status !== "valid")
+      .map((s) => String(s.water_year));
+    if (!years.length) return null;
+    const many = years.length > 1;
+    return `The record does not cover all of water year${many ? "s" : ""} ${listText(years)}, so the list can miss ${many ? "their" : "its"} events.`;
+  }
+  const found = section.seasons.find((s) => s.water_year === season);
+  if (!found) return null;
+  const status = seasonStatus(found);
+  if (status.status === "valid") return null;
+  if (isComparable(status)) {
+    return `${status.missing_days} of ${status.days} days of water year ${season} are missing from the record, so the list can miss events in them.`;
+  }
+  return `Water year ${season} ${notCompared(status.reason)}, so the list can miss its events and their total is not the year's rain.`;
+}
+
+/**
+ * Which edges of a scrolling control have content hidden past them.
+ *
+ * @param scrollLeft - Its scroll position.
+ * @param scrollWidth - Its content's width.
+ * @param clientWidth - Its visible width.
+ * @returns "none", "start", "end" or "both".
+ */
+export function scrollEdges(
+  scrollLeft: number,
+  scrollWidth: number,
+  clientWidth: number,
+): "none" | "start" | "end" | "both" {
+  // A pixel of slack: a fractional scroll position never quite reaches the end.
+  const start = scrollLeft > 1;
+  const end = scrollLeft + clientWidth < scrollWidth - 1;
+  return start && end ? "both" : start ? "start" : end ? "end" : "none";
 }
 
 /** A duration given in minutes, in the One Format Rule's words. */

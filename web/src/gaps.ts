@@ -100,6 +100,30 @@ export function reasonLabel(reason: GapReason): string {
   return LABELS[reason];
 }
 
+/** Why a window or a water year is not compared: [one, many] verb phrases. */
+const NOT_COMPARED: Record<string, [string, string]> = {
+  not_archived: ["is not archived yet", "are not archived yet"],
+  before_archive: ["starts before the archive began", "start before the archive began"],
+  gap: ["has days missing from the record", "have days missing from the record"],
+  low_coverage: [
+    "has days with under 80% of their readings",
+    "have days with under 80% of their readings",
+  ],
+  in_progress: ["is not over yet", "are not over yet"],
+};
+
+/**
+ * Why a window or a water year is not compared, as a verb phrase.
+ *
+ * @param reason - Its gap reason; null reads as a gap in the record.
+ * @param many - The plural, for several named together.
+ * @returns E.g. "starts before the archive began".
+ */
+export function notCompared(reason: string | null, many = false): string {
+  const words = NOT_COMPARED[reason ?? "gap"] ?? NOT_COMPARED.gap!;
+  return words[many ? 1 : 0];
+}
+
 /**
  * The full sentence for a title and for screen readers: which days, and why.
  *

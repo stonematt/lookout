@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventsDeps } from "../src/events/tab.js";
 import { mountEvents } from "../src/events/tab.js";
 import { ReadError } from "../src/load.js";
-import type { DashboardSnapshot, EventCurve } from "../src/snapshot.js";
+import { scrollEdges } from "../src/events/model.js";
+import type { DashboardSnapshot, EventCurve, GapStatus } from "../src/snapshot.js";
 import { parseDashboard, parseEventCurve } from "../src/snapshot.js";
 import { goldenCurve, golden } from "./golden.js";
 
@@ -247,5 +248,107 @@ describe("an empty catalog", () => {
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
       "No rain events in the catalog yet",
     );
+  });
+});
+
+describe("each water year's gap status", () => {
+  const status = (over: Partial<GapStatus>): GapStatus => ({
+    key: "water_year",
+    first_day: "2024-10-01",
+    last_day: "2025-09-30",
+    days: 365,
+    missing_days: 0,
+    status: "valid",
+    reason: null,
+    ...over,
+  });
+
+  function twoYears(older: GapStatus | null): DashboardSnapshot {
+    const snapshot = raining();
+    snapshot.rain_events.events[2]!.water_year = 2025;
+    snapshot.rain_events.seasons = [
+      { water_year: 2026, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 }, status: status({ first_day: "2025-10-01", last_day: "2026-01-09", days: 101 }) },
+      { water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 }, status: older },
+    ];
+    return snapshot;
+  }
+
+  it("hatches a non-comparable year's button and says why when it is picked", () => {
+    const gap = status({ missing_days: 40, status: "invalid", reason: "gap" });
+    mountEvents(panel, twoYears(gap), deps);
+
+    const button = panel.querySelector<HTMLElement>("[data-season='2025']")!;
+    expect(button.dataset.gap).toBe("gap");
+    expect(button.querySelector(".gap-hatch")).not.toBeNull();
+    expect(button.textContent).toContain("n/a: gap in record");
+    expect(button.title).toContain("n/a: gap in record");
+    const fine = panel.querySelector<HTMLElement>("[data-season='2026']")!;
+    expect(fine.dataset.gap).toBeUndefined();
+    expect(fine.querySelector(".gap-hatch")).toBeNull();
+
+    click("[data-season='2025']");
+
+    const note = panel.querySelector<HTMLElement>(".ev-season-gap")!;
+    expect(note.hidden).toBe(false);
+    expect(note.querySelector(".gap-hatch .gap-label")!.textContent).toBe("n/a: gap in record");
+    expect(note.textContent).toContain(
+      "Water year 2025 has days missing from the record, so the list can miss its events and their total is not the year's rain.",
+    );
+    // The events-only sum is still shown beside it, never hatched away.
+    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.36 in");
+
+    click("[data-season='2026']");
+    expect(panel.querySelector<HTMLElement>(".ev-season-gap")!.hidden).toBe(true);
+  });
+
+  it("reads a year the archive does not reach as before the archive", () => {
+    mountEvents(panel, twoYears(null), deps);
+
+    expect(panel.querySelector<HTMLElement>("[data-season='2025']")!.dataset.gap).toBe(
+      "before_archive",
+    );
+    click("[data-season='2025']");
+    expect(panel.querySelector(".ev-season-gap")!.textContent).toContain(
+      "Water year 2025 starts before the archive began",
+    );
+  });
+
+  it("notes a prorated year without a hatch or a ≈ on the events-only sum", () => {
+    mountEvents(panel, twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })), deps);
+
+    const button = panel.querySelector<HTMLElement>("[data-season='2025']")!;
+    expect(button.querySelector(".gap-hatch")).toBeNull();
+    click("[data-season='2025']");
+
+    const note = panel.querySelector<HTMLElement>(".ev-season-gap")!;
+    expect(note.querySelector(".gap-hatch")).toBeNull();
+    expect(note.textContent).toBe(
+      "3 of 365 days of water year 2025 are missing from the record, so the list can miss events in them.",
+    );
+    expect(panel.querySelector(".ev-stats")!.textContent).not.toContain("≈");
+  });
+
+  it("names the years the record does not cover under All", () => {
+    mountEvents(panel, twoYears(status({ missing_days: 40, status: "invalid", reason: "gap" })), deps);
+
+    expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
+      "The record does not cover all of water year 2025, so the list can miss its events.",
+    );
+  });
+
+  it("shows no note when every year is whole", () => {
+    mountEvents(panel, twoYears(status({})), deps);
+
+    expect(panel.querySelector<HTMLElement>(".ev-season-gap")!.hidden).toBe(true);
+  });
+});
+
+describe("the water-year control's scroll cue", () => {
+  it("names the edges with years hidden past them", () => {
+    expect(scrollEdges(0, 300, 300)).toBe("none");
+    expect(scrollEdges(0, 600, 300)).toBe("end");
+    expect(scrollEdges(150, 600, 300)).toBe("both");
+    expect(scrollEdges(300, 600, 300)).toBe("start");
+    expect(scrollEdges(299.5, 600, 300)).toBe("start");
   });
 });

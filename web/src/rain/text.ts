@@ -10,7 +10,7 @@
  * Format Rule (Pacific time, imperial units).
  */
 import { dayText, formatDayCount, formatDays, hourText, inches } from "../format.js";
-import { gapValue } from "../gaps.js";
+import { gapValue, notCompared } from "../gaps.js";
 import type {
   DashboardSnapshot,
   GapStatus,
@@ -230,24 +230,6 @@ export function hoursHeadline(snapshot: DashboardSnapshot): string {
     `Rain fell in ${hours} of ${span}, the heaviest ` +
     `${inches(wettest.rain_in)} at ${hourText(wettest.hour)} on ${dayText(wettest.day)}`
   );
-}
-
-/** Why a window or a water year is not compared: [one, many] verb phrases. */
-const NOT_COMPARED: Record<string, [string, string]> = {
-  not_archived: ["is not archived yet", "are not archived yet"],
-  before_archive: ["starts before the archive began", "start before the archive began"],
-  gap: ["has days missing from the record", "have days missing from the record"],
-  low_coverage: [
-    "has days with under 80% of their readings",
-    "have days with under 80% of their readings",
-  ],
-  in_progress: ["is not over yet", "are not over yet"],
-};
-
-/** The verb phrase for a reason, singular or plural. */
-function notCompared(reason: string | null, many = false): string {
-  const words = NOT_COMPARED[reason ?? "gap"] ?? NOT_COMPARED.gap!;
-  return words[many ? 1 : 0];
 }
 
 /**
