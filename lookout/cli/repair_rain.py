@@ -37,7 +37,7 @@ import pandas as pd
 import lookout.api.awn_controller as awn
 from lookout.cli.diagnostics import emit, load_station
 from lookout.config import DEFAULT_BUCKET
-from lookout.storage.storj import backup_and_save_history, get_df_from_s3
+from lookout.storage.storj import backup_and_save_history, read_df_from_s3
 from lookout.utils.dateutc import DEFAULT_TZ, from_local_date
 
 # Station-local days, first and last inclusive: from each carryover day the
@@ -570,12 +570,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     :return: 0 when the repair checks out (and, with --write, was saved);
         1 when a day refilled short, a check failed, or the raw reference is
         missing.
+    :raises StorageReadError: If the archive or the raw reference read
+        failed; nothing is written then.
     """
     args = parse_args(argv)
     device, archive = load_station(args.bucket)
     mac = device["macAddress"]
     reference_key = REFERENCE_KEY.format(mac=mac)
-    reference = get_df_from_s3(args.bucket, reference_key, file_type="parquet")
+    # A failed read raises (ADR-0004): the repair never compares against a
+    # reference it could not read.
+    reference = read_df_from_s3(args.bucket, reference_key, file_type="parquet")
+    if reference is None:
+        emit(f"Problem: the raw reference {reference_key} is missing or empty")
+        emit("Nothing written: fix the problems above first.")
+        return 1
 
     problems: List[str] = []
     if reference.empty:
