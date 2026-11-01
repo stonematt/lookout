@@ -9,7 +9,7 @@
  * The band is drawn in a 1000 x 100 viewBox stretched to the band's width,
  * so it needs no measuring; ticks, hatches and the dot are positioned in %.
  */
-import { HOUR_MS, STATION_TIME_ZONE, degrees, formatHours, hourText, localHour } from "../format.js";
+import { HOUR_MS, stationFormat, degrees, formatHours, hourText, localHour } from "../format.js";
 import { make, svgEl } from "../dom.js";
 import { hatchSpan } from "../gaps.js";
 import type { ConditionRibbon, DashboardSnapshot } from "../snapshot.js";
@@ -81,13 +81,10 @@ export interface RibbonTick {
   late: boolean;
 }
 
-const WEEKDAY = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  weekday: "short",
-});
+const weekdayOf = () => stationFormat("en-US", { weekday: "short" });
 
 /**
- * Ticks every six hours of Pacific time, clear of the edges.
+ * Ticks every six hours of station time, clear of the edges.
  *
  * @param ribbon - The snapshot's ribbon.
  * @returns The ticks, left to right.
@@ -100,7 +97,7 @@ export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
     if (hour % 6) continue;
     const pct = ((t - ribbon.start_ms) / span) * 100;
     if (pct < TICK_MIN_PCT || pct > TICK_MAX_PCT) continue;
-    const label = hour === 0 ? WEEKDAY.format(t) : hourText(hour);
+    const label = hour === 0 ? weekdayOf().format(t) : hourText(hour);
     ticks.push({ pct, label, late: pct > TICK_LATE_PCT });
   }
   return ticks;

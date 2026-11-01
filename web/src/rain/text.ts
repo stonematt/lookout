@@ -7,7 +7,7 @@
  * the data shows, with the number in it), the Name the Years Rule (years
  * compared are named, newest first), the One Gap Status Rule (an invalid
  * window's value is never shown, a prorated one carries ≈), and the One
- * Format Rule (Pacific time, imperial units).
+ * Format Rule (station time, imperial units).
  */
 import { dayText, formatDayCount, formatDays, hourText, inches } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";

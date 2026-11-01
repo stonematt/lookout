@@ -6,7 +6,7 @@
  * and the per-water-year summaries are computed once in Python. The browser
  * only picks, sorts and words them.
  */
-import { formatDuration, formatStamp, inches, STATION_TIME_ZONE } from "../format.js";
+import { formatDuration, formatStamp, inches, stationFormat } from "../format.js";
 import { isComparable, notCompared } from "../gaps.js";
 import { listText } from "../rain/text.js";
 import type { EventSeason, EventStats, RainEventRow, RainEvents } from "../snapshot.js";
@@ -164,10 +164,7 @@ export function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
-const YEAR = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  year: "numeric",
-});
+const yearOf = () => stationFormat("en-US", { year: "numeric" });
 
 /**
  * An event's start for the list: `Jan 8, 2:00 pm`, with the year when it
@@ -179,8 +176,8 @@ const YEAR = new Intl.DateTimeFormat("en-US", {
  */
 export function startLabel(ms: number, nowMs: number): string {
   const stamp = formatStamp(ms);
-  const year = YEAR.format(ms);
-  if (year === YEAR.format(nowMs)) return stamp;
+  const year = yearOf().format(ms);
+  if (year === yearOf().format(nowMs)) return stamp;
   const [day, time] = stamp.split(", ");
   return `${day}, ${year}, ${time}`;
 }
@@ -238,7 +235,7 @@ export function listFinding(
       ? ` in water year ${season}`
       : oldestMs === null
         ? ""
-        : ` since ${formatStamp(oldestMs).split(",")[0]}, ${YEAR.format(oldestMs)},`;
+        : ` since ${formatStamp(oldestMs).split(",")[0]}, ${yearOf().format(oldestMs)},`;
   const wettest = rows.reduce<RainEventRow | null>(
     (best, e) => (best === null || e.total_in > best.total_in ? e : best),
     null,
