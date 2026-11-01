@@ -5,10 +5,14 @@ the parquet round trip, the archive's key path, and the backup layout.
 These pin today's behaviour, quirks included; a test that reads oddly says so.
 """
 
+import ast
+from pathlib import Path
+
 import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
+import lookout
 import lookout.api.awn_controller as awn
 from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC, scenario_archive
@@ -421,11 +425,6 @@ def _calls_passing_repair() -> set:
     (file, enclosing function) of every archive save that passes `repair`,
     outside the storage module, whose save path only forwards it.
     """
-    import ast
-    from pathlib import Path
-
-    import lookout
-
     root = Path(lookout.__file__).parent
     found = set()
     for path in sorted(root.rglob("*.py")):
