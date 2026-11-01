@@ -22,7 +22,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { Plugin } from "vite";
+import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 
 import { DAY_MS, addDays, localDay } from "../src/format.js";
 import type { Env } from "./env.js";
@@ -172,24 +172,26 @@ export async function devResponse(
 
 /**
  * A Vite plugin serving `/dashboard`, `/current` and `/event` from the
- * goldens on the dev server.
+ * goldens on the dev server, and on `vite preview` over the built page.
  *
  * @returns The plugin.
  */
 export function goldenReadFunctions(): Plugin {
+  const serve = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req, res, next) => {
+      devResponse(req.url ?? "/", process.env, Date.now())
+        .then(async (response) => {
+          if (!response) return next();
+          res.statusCode = response.status;
+          response.headers.forEach((value, name) => res.setHeader(name, value));
+          res.end(await response.text());
+        })
+        .catch(next);
+    });
+  };
   return {
     name: "lookout-golden-read-functions",
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        devResponse(req.url ?? "/", process.env, Date.now())
-          .then(async (response) => {
-            if (!response) return next();
-            res.statusCode = response.status;
-            response.headers.forEach((value, name) => res.setHeader(name, value));
-            res.end(await response.text());
-          })
-          .catch(next);
-      });
-    },
+    configureServer: serve,
+    configurePreviewServer: serve,
   };
 }
