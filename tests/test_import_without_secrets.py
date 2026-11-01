@@ -20,14 +20,7 @@ from lookout.secrets_loader import SECRET_NAMES
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Scratch notebooks whose third-party imports are not in requirements.txt.
-NEEDS_UNLISTED_DEPS = {"lookout.cli.playground"}
-
-MODULES = sorted(
-    m.name
-    for m in pkgutil.walk_packages(lookout.__path__, "lookout.")
-    if m.name not in NEEDS_UNLISTED_DEPS
-)
+MODULES = sorted(m.name for m in pkgutil.walk_packages(lookout.__path__, "lookout."))
 
 
 @pytest.fixture(scope="module")

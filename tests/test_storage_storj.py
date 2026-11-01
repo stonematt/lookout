@@ -51,14 +51,17 @@ def test_missing_key_reads_as_an_empty_frame(fake_s3):
     assert storj.get_df_from_s3(BUCKET, "absent.parquet", "parquet").empty
 
 
-def test_json_dict_save_get_and_exists(fake_s3):
-    assert storj.object_exists(BUCKET, "doc.json") is False
-    assert storj.get_json_from_s3(BUCKET, "doc.json") == {}
+def test_json_dict_save_and_read(fake_s3):
+    assert storj.read_json_from_s3(BUCKET, "doc.json") is None
 
     assert storj.save_json_to_s3({"a": [1, 2]}, BUCKET, "doc.json") is True
 
-    assert storj.object_exists(BUCKET, "doc.json") is True
-    assert storj.get_json_from_s3(BUCKET, "doc.json") == {"a": [1, 2]}
+    assert storj.read_json_from_s3(BUCKET, "doc.json") == {"a": [1, 2]}
+
+
+def test_storage_has_no_separate_existence_check():
+    # Callers read once and act on the read outcome (#185, ADR-0004).
+    assert not hasattr(storj, "object_exists")
 
 
 def test_archive_is_read_from_mac_dot_parquet(fake_s3, monkeypatch):
@@ -201,7 +204,6 @@ def test_read_json_raises_on_an_unparseable_object(fake_s3):
 
     with pytest.raises(storj.StorageReadError):
         storj.read_json_from_s3(BUCKET, "bad.json")
-    assert storj.get_json_from_s3(BUCKET, "bad.json") == {}
 
 
 # The reader contract (#172, ADR-0004): found returns the value, missing

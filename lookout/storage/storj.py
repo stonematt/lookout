@@ -15,8 +15,9 @@ Functions:
   `StorageReadError`. `read_df_from_s3` and `read_json_from_s3` follow it;
   `backup_object` applies it to a copy, raising `BackupError` instead.
   `load_archive` raises on missing too, since a missing archive is an
-  error. The `get_*` readers forgive a failed read (empty frame or dict)
-  for Streamlit. Saves that fail raise `StorageWriteError`
+  error. `get_df_from_s3` forgives a failed read (an empty frame) for
+  Streamlit. There is no separate existence check: callers read once and
+  act on the outcome. Saves that fail raise `StorageWriteError`
   (`ArchiveShrinkError` for an archive save that would lose rows), and a
   failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
@@ -217,21 +218,6 @@ def read_json_from_s3(bucket: str, key: str) -> Optional[dict]:
         raise StorageReadError(f"s3://{bucket}/{key} is unreadable: {e}") from e
 
 
-def get_json_from_s3(bucket: str, key: str) -> dict:
-    """
-    Retrieves a JSON dict from an S3-compatible bucket using boto3.
-
-    :param bucket: The name of the S3 bucket.
-    :param key: The key of the JSON file in the S3 bucket.
-    :return: Dictionary containing the JSON content, empty dict if failed.
-    """
-    try:
-        return read_json_from_s3(bucket, key) or {}
-    except Exception as e:
-        logger.error(f"Failed to get JSON from s3://{bucket}/{key}: {e}")
-        return {}
-
-
 def save_json_to_s3(dict_data: dict, bucket: str, key: str) -> bool:
     """
     Saves a JSON dict to an S3-compatible bucket using boto3.
@@ -255,22 +241,6 @@ def save_json_to_s3(dict_data: dict, bucket: str, key: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Failed to save JSON to {file_path}: {e}")
-        return False
-
-
-def object_exists(bucket: str, key: str) -> bool:
-    """
-    Check whether an object exists in an S3-compatible bucket.
-
-    :param bucket: The name of the S3 bucket.
-    :param key: The object's key.
-    :return: True if `head_object` finds it, False on any error.
-    """
-    try:
-        s3 = get_s3_client()
-        s3.head_object(Bucket=bucket, Key=key)
-        return True
-    except Exception:
         return False
 
 
