@@ -91,8 +91,8 @@ describe("the event list", () => {
     const section = snapshot.rain_events;
     section.events[2]!.water_year = 2025;
     section.seasons = [
-      { water_year: 2026, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 } },
-      { water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 } },
+      { water_year: 2026, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 }, status: null },
+      { water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 }, status: null },
     ];
     mountEvents(panel, snapshot, deps);
 

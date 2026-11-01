@@ -525,12 +525,22 @@ class EventSeason:
     """
     The events that started in one water year, summarised.
 
+    `stats` is an events-only sum (see `EventStats.total_in`): the listed
+    events added up, never a window total, so it is not gap-judged and not
+    made null. `status` beside it says whether the record over that water
+    year is whole, so the sum is never read as the year's rain without it
+    (#147).
+
     :param water_year: The water year, named by the year it ends in.
     :param stats: Its events' summary metrics.
+    :param status: The water year's rain gap status, the same as its
+        `RainTab.water_years` curve's (Oct 1 to Sep 30, or to today); None
+        when the archive does not reach that water year.
     """
 
     water_year: int
     stats: EventStats
+    status: Optional[GapStatus]
 
 
 @dataclass(frozen=True)

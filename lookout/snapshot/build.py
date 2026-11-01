@@ -66,6 +66,8 @@ def build_snapshot(
     observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
     current = current_conditions(stitched, now)
     active = active_rain_event(event_catalog, current, observed_at_ms)
+    rain = rain_tab(archive, stitched, current, now)
+    year_status = {curve.water_year: curve.status for curve in rain.water_years}
 
     return Snapshot(
         station=station,
@@ -77,12 +79,12 @@ def build_snapshot(
         gaps=snapshot_gaps(archive, now),
         condition_ribbon=condition_ribbon(stitched, observed_at_ms),
         rain_events=rain_events_section(
-            event_catalog, stitched, active, observed_at_ms
+            event_catalog, stitched, active, observed_at_ms, year_status
         ),
         hero_lead=hero_lead(
             archive, stitched, event_catalog, active, current, observed_at_ms, now
         ),
-        rain_tab=rain_tab(archive, stitched, current, now),
+        rain_tab=rain,
         temperature_context=temperature_context(
             archive, stitched, current, observed_at_ms, now
         ),

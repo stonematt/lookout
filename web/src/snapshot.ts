@@ -169,7 +169,15 @@ export interface EventStats {
 /** One water year's events, summarised. */
 export interface EventSeason {
   water_year: number;
+  /** An events-only sum, never null: the listed events added up. */
   stats: EventStats;
+  /**
+   * The water year's rain gap status, as its `RainTab.water_years` curve
+   * has it; null when the archive does not reach that year. Read the
+   * events-only sum against it: an invalid year's list misses the events
+   * in its gaps.
+   */
+  status: GapStatus | null;
 }
 
 /**

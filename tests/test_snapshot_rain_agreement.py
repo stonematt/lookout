@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tests.fixtures.archive import RainSpell, build_archive
+from tests.fixtures.archive import Gap, RainSpell, build_archive
 from tests.snapshot_helpers import (
     RAIN_LIVE,
     build,
@@ -151,6 +151,34 @@ class TestEventSeasonsAreEventSums:
         assert season.stats.total_in == approx(listed)
         assert windows(snapshot)["30d"] == approx(0.758)
         assert season.stats.total_in < windows(snapshot)["30d"]
+
+    def test_a_season_carries_the_water_years_gap_status(self):
+        # A two-week hole in December: the water year's rain cannot be
+        # compared, and the events-only sum says so beside it (#147).
+        archive = build_archive(
+            "2025-10-01T07:00:00Z",
+            "2026-01-10T08:00:00Z",
+            rain=JAN_RAIN,
+            gaps=[Gap("2025-12-01T08:00:00Z", "2025-12-15T08:00:00Z")],
+        )
+        snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(archive))
+        season = next(s for s in snapshot.rain_events.seasons if s.water_year == 2026)
+        curve = next(c for c in snapshot.rain_tab.water_years if c.water_year == 2026)
+
+        assert season.status == curve.status
+        assert season.status.status == "invalid"
+        assert season.stats.count == 3  # the listed events, still summed
+        assert season.stats.total_in == approx(0.75)
+
+    def test_a_whole_seasons_status_is_valid(self):
+        archive = build_archive(
+            "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
+        )
+        snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(archive))
+        season = snapshot.rain_events.seasons[0]
+
+        assert season.status.status == "valid"
+        assert season.status == snapshot.rain_tab.water_years[-1].status
 
 
 def nan_counter_archive():

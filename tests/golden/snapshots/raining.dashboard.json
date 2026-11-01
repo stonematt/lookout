@@ -760,6 +760,15 @@
           "total_in": 1.14,
           "median_in": 0.36,
           "mean_duration_minutes": 541.7
+        },
+        "status": {
+          "key": "water_year_2026",
+          "first_day": "2025-10-01",
+          "last_day": "2026-01-08",
+          "days": 100,
+          "missing_days": 95,
+          "status": "invalid",
+          "reason": "before_archive"
         }
       }
     ],

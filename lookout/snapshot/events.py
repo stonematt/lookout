@@ -9,12 +9,13 @@ and a link opened while an event is live still finds the event once it has
 completed and its curve file is written.
 
 Functions:
-- rain_events_section(event_catalog, stitched, active): The tab's section.
+- rain_events_section(event_catalog, stitched, active, observed_at_ms,
+  year_status): The tab's section.
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
 """
 
-from typing import Any, Collection, Iterator, List, Optional, Tuple
+from typing import Any, Collection, Iterator, List, Mapping, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -30,6 +31,7 @@ from lookout.snapshot.model import (
     EventCurve,
     EventSeason,
     EventStats,
+    GapStatus,
     RainEventRow,
     RainEvents,
 )
@@ -185,6 +187,7 @@ def rain_events_section(
     stitched: pd.DataFrame,
     active: Optional[ActiveRainEvent],
     observed_at_ms: Optional[int],
+    year_status: Mapping[int, GapStatus],
 ) -> RainEvents:
     """
     The Rain Events tab: every event, its summaries, the live event's curve.
@@ -193,6 +196,8 @@ def rain_events_section(
     :param stitched: The archive with the live reading stitched in.
     :param active: The active rain event, or None: which event is live.
     :param observed_at_ms: The newest observation.
+    :param year_status: Each water year's rain gap status, from the Rain
+        tab's water-year curves, so a season reads against the same status.
     :return: The section.
     """
     if event_catalog is None or event_catalog.empty:
@@ -219,6 +224,7 @@ def rain_events_section(
                     end=pd.Timestamp(water_year_start(year + 1), tz=DEFAULT_TZ),
                 )
             ),
+            status=year_status.get(year),
         )
         for year in years
     )
