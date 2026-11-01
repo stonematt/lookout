@@ -557,6 +557,22 @@ class TestArchiveSafety:
 
         assert stored_bytes(station) == before
 
+    def test_a_repair_that_would_shrink_the_archive_is_refused(
+        self, catchup_station, monkeypatch
+    ):
+        from lookout.cli import catchup
+
+        station = catchup_station()
+        before = stored_bytes(station)
+        monkeypatch.setattr(
+            catchup, "_repair_archive_df", lambda archive: (archive.iloc[1:], {})
+        )
+
+        with pytest.raises(storj.ArchiveShrinkError):
+            catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+
+        assert stored_bytes(station) == before
+
     def test_a_failed_archive_save_fails_the_run(self, catchup_station, monkeypatch):
         station = catchup_station()
         flaky_storj(monkeypatch, station.s3, write=ARCHIVE_KEY)

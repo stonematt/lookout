@@ -597,7 +597,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         emit("Nothing written: fix the problems above first.")
         return 1
 
-    backup_and_save_history(df=repaired, device=device, bucket=args.bucket)
+    backup_and_save_history(
+        df=repaired, device=device, bucket=args.bucket, loaded_rows=len(archive)
+    )
     emit(f"Live archive backed up to .backups/{mac}/; repaired archive saved.")
     return 0
 

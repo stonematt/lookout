@@ -32,6 +32,7 @@ from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
+    flaky_storj,
 )
 
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
@@ -312,6 +313,40 @@ def test_a_day_that_refills_short_aborts_the_write(seed, truth, capsys):
     assert "Nothing written" in out
     assert station.keys() == keys
     assert len(station.stored()) == len(station.archive)
+
+
+def test_a_repair_that_would_shrink_the_archive_is_refused(
+    seed, truth, capsys, monkeypatch
+):
+    """#160: the repair's save is guarded by the rows it loaded."""
+    station = seed(truth)
+    before = station.stored()
+    repair_window = repair_rain.repair_window
+
+    def lossy(*args, **kwargs):
+        repaired, repair = repair_window(*args, **kwargs)
+        return repaired.iloc[1:], repair
+
+    monkeypatch.setattr(repair_rain, "repair_window", lossy)
+    monkeypatch.setattr(repair_rain, "report_window", lambda *_a, **_k: [])
+
+    with pytest.raises(storj.ArchiveShrinkError):
+        run(["--write"], capsys)
+
+    pd.testing.assert_frame_equal(station.stored(), before)
+
+
+def test_a_failed_archive_read_stops_the_repair_before_any_save(
+    seed, truth, capsys, monkeypatch
+):
+    station = seed(truth)
+    keys = station.keys()
+    flaky_storj(monkeypatch, station.s3, read=ARCHIVE_KEY)
+
+    with pytest.raises(storj.StorageReadError):
+        run(["--write"], capsys)
+
+    assert station.keys() == keys
 
 
 def test_a_missing_reference_aborts_the_write(seed, truth, capsys):

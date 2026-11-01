@@ -31,6 +31,7 @@ import pandas as pd
 
 from lookout.config import HISTORY_FILE_TYPE
 from lookout.secrets_loader import get_secret
+from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
 # For general logging with console output
@@ -135,17 +136,21 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     """
     Read a station's archive for a run that will save over it (#160).
 
+    Every archive writer loads through here. The archive comes back through
+    `dateutc.normalize`, which drops invalid and duplicate rows, and its
+    length is what the writer passes to `save_archive` as `loaded_rows`.
+
     :param bucket: The bucket.
     :param mac: The station's MAC address.
-    :return: The archive as stored, with at least one row.
+    :return: The normalized archive (ascending `dateutc`), at least one row.
     :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing,
-        unreadable or holds no rows: a run that saved after such a read
+        unreadable, or has no valid rows: a run that saved after such a read
         would overwrite the archive with nothing.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
-    archive = read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE)
+    archive = normalize(read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE))
     if archive.empty:
-        raise StorageReadError(f"s3://{bucket}/{key} holds no rows")
+        raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
     return archive
 
 
@@ -271,9 +276,7 @@ def save_df_to_s3(
         return False
 
 
-def save_archive(
-    df: pd.DataFrame, bucket: str, mac: str, loaded_rows: Optional[int] = None
-) -> None:
+def save_archive(df: pd.DataFrame, bucket: str, mac: str, loaded_rows: int) -> None:
     """
     Save a station's archive to `<mac>.<HISTORY_FILE_TYPE>`, newest first.
 
@@ -282,17 +285,23 @@ def save_archive(
     order the caller built it in. The sort is stable and the index is reset;
     the rows and columns are saved as handed.
 
+    Every save is guarded against losing rows (#160). `loaded_rows` is the
+    archive's row count after `dateutc.normalize`, which drops invalid and
+    duplicate rows, not the raw count read from storage: a stored archive
+    holding one duplicate row would otherwise refuse every later save.
+    `load_archive` returns the frame to count.
+
     :param df: The archive, any row order.
     :param bucket: The bucket.
     :param mac: The station's MAC address.
-    :param loaded_rows: The rows the caller loaded the archive with, for a
-        save that may only add rows (catchup); None skips the check.
+    :param loaded_rows: The rows of the archive the caller loaded, after
+        normalizing; 0 only for a station with no archive yet.
     :raises ArchiveShrinkError: If `df` has fewer than `loaded_rows` rows;
-        nothing is written (#160).
+        nothing is written.
     :raises StorageWriteError: If the save fails.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
-    if loaded_rows is not None and len(df) < loaded_rows:
+    if len(df) < loaded_rows:
         raise ArchiveShrinkError(
             f"Refusing to save s3://{bucket}/{key}: {len(df)} rows, "
             f"fewer than the {loaded_rows} loaded"
@@ -470,7 +479,7 @@ def backup_and_save_catalog(
     :param bucket: The bucket; `DEFAULT_BUCKET` when None.
     :param mac_address: The station; the pinned station
         (`lookout.config.get_station_mac`) when None.
-    :raises RuntimeError: If the backup fails; nothing is saved then.
+    :raises BackupError: If the backup fails; nothing is saved then.
     :raises StorageWriteError: If the save fails.
     """
     from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
@@ -487,9 +496,9 @@ def backup_and_save_catalog(
     # Use existing backup_data for daily deduplication
     try:
         backup_data(bucket=bucket, prefix=catalog_prefix)
-    except Exception as e:
-        logger.error(f"Catalog backup failed for {catalog_prefix}: {e}")
-        raise RuntimeError("Aborting catalog save: backup failed.") from e
+    except BackupError as e:
+        logger.error(f"Catalog backup failed for {catalog_prefix}; not saving: {e}")
+        raise
 
     # Save new catalog
     if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
@@ -497,7 +506,7 @@ def backup_and_save_catalog(
 
 
 def backup_and_save_history(
-    df: pd.DataFrame, device: dict, bucket: str = "lookout"
+    df: pd.DataFrame, device: dict, bucket: str = "lookout", *, loaded_rows: int
 ) -> None:
     """
     Back up the old archive and save the updated DataFrame to S3.
@@ -505,18 +514,21 @@ def backup_and_save_history(
     :param df: The archive to save.
     :param device: The station's `/devices` entry.
     :param bucket: The bucket.
-    :raises RuntimeError: If the backup fails; nothing is saved then.
+    :param loaded_rows: The rows of the archive the caller loaded, after
+        normalizing; see `save_archive`.
+    :raises BackupError: If the backup fails; nothing is saved then.
+    :raises ArchiveShrinkError: If `df` has fewer than `loaded_rows` rows.
     :raises StorageWriteError: If the save fails.
     """
     mac = device["macAddress"]
 
     try:
         backup_archive(bucket=bucket, mac=mac)
-    except Exception as e:
-        logger.error(f"Backup failed for {mac}: {e}")
-        raise RuntimeError("Aborting save: backup failed.") from e
+    except BackupError as e:
+        logger.error(f"Backup failed for {mac}; not saving: {e}")
+        raise
 
-    save_archive(df, bucket, mac)
+    save_archive(df, bucket, mac, loaded_rows=loaded_rows)
 
 
 # Example usage
