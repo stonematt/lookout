@@ -69,6 +69,7 @@ export function browserDeps(): EventsDeps {
  */
 function when(label: string): string {
   const cut = label.lastIndexOf(", ") + 1;
+  if (cut === 0) return `<span class="ev-when">${esc(label)}</span>`;
   return `<span><span class="ev-when">${esc(label.slice(0, cut))}</span> <span class="ev-when">${esc(label.slice(cut + 1))}</span></span>`;
 }
 

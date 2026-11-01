@@ -3,8 +3,9 @@
  * the page's first screen never waits for it):
  *
  * - Accumulation: the event rain so far as a bold stepped line (a running
- *   total is a line, never a filled area), ending in a dot with its total. The live event's dot is the claret
- *   "now" mark; a completed event's is in the rain hue.
+ *   total is a line, never a filled area), ending in a dot with its total.
+ *   The live event's dot is the claret "now" mark; a completed event's is
+ *   in the rain hue.
  * - Rate: the rain rate between readings as zero-based columns.
  *
  * Both share one time axis of plain times ("6 pm", "noon"), the date said
@@ -61,6 +62,12 @@ const TICK_STEPS = [15, 30, 60, 120, 180, 360, 720, 1440];
 /** The plot width one tick label needs, in px. */
 const TICK_PX = 56;
 
+/** Both charts' side margins, in px: the y ticks on the left. */
+const MARGIN = { l: 52, r: 12 };
+
+/** The host width assumed before layout gives one, in px. */
+const FALLBACK_WIDTH_PX = 640;
+
 /** The event time axis's ticks: Plotly's x values and their labels. */
 export interface TimeTicks {
   values: string[];
@@ -88,12 +95,17 @@ export function timeTicks(fromMs: number, toMs: number, plotPx: number): TimeTic
     for (let t = Math.ceil(from / step) * step; t <= to; t += step) stamps.push(t);
     if (stamps.length <= room) break;
   }
+  // An event of many days: thin the daily ticks to fit.
+  const every = Math.ceil(stamps.length / room);
+  stamps = stamps.filter((_, i) => i % every === 0);
   const values = stamps.map((t) => new Date(t).toISOString().slice(0, 19).replace("T", " "));
-  const text = values.map((value, i) => {
-    const [hour, minute] = [Number(value.slice(11, 13)), value.slice(14, 16)];
-    const date = dayText(value.slice(0, 10));
-    if (hour === 0 && minute === "00") return date;
-    const time = minute === "00" ? hourText(hour) : `${hour % 12 || 12}:${minute} ${hour < 12 ? "am" : "pm"}`;
+  const text = stamps.map((t, i) => {
+    const at = new Date(t);
+    const [hour, minute] = [at.getUTCHours(), at.getUTCMinutes()];
+    const date = dayText(values[i]!.slice(0, 10));
+    if (hour === 0 && minute === 0) return date;
+    const clock = `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+    const time = minute === 0 ? hourText(hour) : clock;
     return i === 0 ? `${time}<br>${date}` : time;
   });
   return { values, text };
@@ -166,7 +178,7 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
   const tick = { family: token("--sans"), size: 12, color: token("--ink-3") };
   return {
     height,
-    margin: { l: 52, r: 12, t: 8, b: 44 },
+    margin: { ...MARGIN, t: 8, b: 44 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { family: token("--sans"), size: 12, color: token("--ink-2") },
@@ -297,7 +309,7 @@ export async function drawEventCharts(
   // and one set of ticks. The plot is the host less the side margins.
   const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
   const xRange: [string, string] = [pacific(fromMs), pacific(toMs)];
-  const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || 640) - 52 - 12);
+  const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || FALLBACK_WIDTH_PX) - MARGIN.l - MARGIN.r);
   const accLayout = baseLayout(240, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
   accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
@@ -332,7 +344,7 @@ export async function drawEventCharts(
   ];
   const rateLayout = baseLayout(150, "", ticks);
   rateLayout.yaxis = { ...rateLayout.yaxis, range: [0, topRate], title: { text: "in/hr", font: { size: 12, color: token("--ink-2") } } };
-  rateLayout.margin = { l: 52, r: 12, t: 4, b: 44 };
+  rateLayout.margin = { ...MARGIN, t: 4, b: 44 };
   rateLayout.xaxis = { ...rateLayout.xaxis, range: xRange };
   await Plotly.react(hosts.rate, rateTraces, rateLayout, config);
 }

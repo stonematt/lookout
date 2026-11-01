@@ -123,6 +123,15 @@ describe("the event time axis", () => {
     const ticks = timeTicks(START + 10 * 60_000, START + 40 * 60_000, 294);
 
     expect(ticks.text).toEqual(["2:15 pm<br>Jan 8", "2:30 pm"]);
+    const noon = timeTicks(START - 2 * HOUR + 10 * 60_000, START - 2 * HOUR + 40 * 60_000, 294);
+    expect(noon.text).toEqual(["12:15 pm<br>Jan 8", "12:30 pm"]);
+  });
+
+  it("thins the daily ticks of an event many days long to fit", () => {
+    const ticks = timeTicks(START, START + 30 * 24 * HOUR, 294);
+
+    expect(ticks.text.length).toBeLessThanOrEqual(5);
+    expect(ticks.text[0]).toBe("Jan 9");
   });
 });
 
