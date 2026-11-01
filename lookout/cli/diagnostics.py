@@ -39,7 +39,11 @@ import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import energy_catalog_func
-from lookout.storage.storj import backup_and_save_history, get_df_from_s3
+from lookout.storage.storj import (
+    StorageReadError,
+    backup_and_save_history,
+    load_archive,
+)
 from lookout.utils.dateutc import DEFAULT_TZ, normalize
 from lookout.utils.log_util import app_logger
 
@@ -102,17 +106,20 @@ def load_station(bucket: str) -> Tuple[Dict, pd.DataFrame]:
     """
     The pinned station and its archive, normalized (ascending `dateutc`).
 
+    Read strictly (#160): `fill-gap` and the rain repair save over the
+    archive, and pass `len(archive)` as the save's `loaded_rows`.
+
     :param bucket: The bucket.
     :return: The station's `/devices` entry and its archive.
     :raises StationNotFoundError: If `STATION_MAC` is not on the account.
+    :raises StorageReadError: If the archive is missing, unreadable, or has
+        no valid rows.
     """
     device = get_station_device()
     # Straight from Storj: the dev-mode local cache would write a file here.
-    archive = normalize(
-        get_df_from_s3(bucket, f"{device['macAddress']}.parquet", file_type="parquet")
-    )
+    archive = normalize(load_archive(bucket, device["macAddress"]))
     if archive.empty:
-        raise RuntimeError(f"the archive in {bucket} is empty or unreadable")
+        raise StorageReadError(f"the archive in {bucket} has no valid rows")
     return device, archive
 
 
@@ -294,7 +301,12 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         emit("Ambient had no new data for this gap. Nothing saved.")
         return 1
 
-    backup_and_save_history(df=outcome.history_df, device=device, bucket=args.bucket)
+    backup_and_save_history(
+        df=outcome.history_df,
+        device=device,
+        bucket=args.bucket,
+        loaded_rows=len(archive),
+    )
     emit(f"Added {outcome.rows_added} rows; archive backed up and saved.")
     return 0
 

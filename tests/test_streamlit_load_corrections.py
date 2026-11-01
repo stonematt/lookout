@@ -260,3 +260,32 @@ def test_a_live_update_reads_trends_from_the_newest_row(oldest_first, session):
 
     assert oldest_first.replay.calls  # the update did ask Ambient
     assert (session["temp_trend"], session["barom_trend"]) == (UP, UP)
+
+
+def test_a_diagnostics_save_that_would_shrink_the_archive_is_refused(
+    catchup_station, session, weather, monkeypatch  # noqa: F811
+):
+    """#160: the Diagnostics save is guarded by the rows it read back."""
+    from lookout.storage import storj
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+    )
+    station = catchup_station(
+        archive=weather,
+        history=to_ambient_records(truth),
+        devices=reporting(weather),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(weather["dateutc"].max())))
+    diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
+    before = station.stored()
+    monkeypatch.setattr(
+        diagnostics, "combine_full_history", lambda stored, raw: stored.iloc[1:]
+    )
+
+    with pytest.raises(storj.ArchiveShrinkError):
+        diagnostics.save_filled_archive()
+
+    pd.testing.assert_frame_equal(station.stored(), before)

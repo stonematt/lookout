@@ -15,7 +15,9 @@ from typing import Callable, List, Optional, Tuple
 
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 
+from lookout.api import awn_controller as awn
 from lookout.cli import diagnostics
 from lookout.core import rain_corrections
 from lookout.storage import storj
@@ -179,6 +181,38 @@ class TestFillGap:
         assert "Added" not in out
         assert "fill-gap failed" in out
         assert len(station.stored()) == len(station.archive)
+
+    def test_a_fill_that_would_shrink_the_archive_is_refused(
+        self, seed, capsys, monkeypatch
+    ):
+        """#160: the fill-gap save is guarded by the rows it loaded."""
+        station = seed()
+        before = station.stored()
+
+        def lossy(device, archive, start, end):
+            return awn.GapFill(archive.iloc[1:], start, end, "filled", 1)
+
+        monkeypatch.setattr(diagnostics.awn, "fill_archive_gap", lossy)
+
+        status, out = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 1
+        assert "Added" not in out
+        assert "fill-gap failed" in out
+        assert_frame_equal(station.stored(), before)
+
+    def test_a_failed_archive_read_fails_the_fill_and_saves_nothing(
+        self, seed, capsys, monkeypatch
+    ):
+        station = seed()
+        keys = station.keys()
+        flaky_storj(monkeypatch, station.s3, read=ARCHIVE_KEY)
+
+        status, out = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 1
+        assert "fill-gap failed" in out
+        assert station.keys() == keys
 
     def test_a_gap_ambient_cannot_fill_fails_and_saves_nothing(self, seed, capsys):
         station = seed()

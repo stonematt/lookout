@@ -14,6 +14,7 @@ from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC, scenario_archive
 from tests.fixtures.real import load_real_slice
 from tests.fixtures.storage import BUCKET, bucket_keys
+from tests.test_catchup import flaky_storj
 
 ARCHIVE_KEY = f"{FAKE_MAC}.parquet"
 
@@ -75,7 +76,9 @@ def test_save_history_backs_up_then_writes_mac_dot_parquet(fake_s3, frozen_today
     new = scenario_archive()
     storj.save_df_to_s3(old, BUCKET, ARCHIVE_KEY)
 
-    storj.backup_and_save_history(new, {"macAddress": FAKE_MAC}, bucket=BUCKET)
+    storj.backup_and_save_history(
+        new, {"macAddress": FAKE_MAC}, bucket=BUCKET, loaded_rows=len(old)
+    )
 
     backup_key = f".backups/{FAKE_MAC}/{frozen_today}/{ARCHIVE_KEY}"
     assert bucket_keys(fake_s3) == sorted([ARCHIVE_KEY, backup_key])
@@ -89,7 +92,9 @@ def test_save_history_stores_an_oldest_first_frame_newest_first(fake_s3, frozen_
     new = scenario_archive()
     oldest_first = new.iloc[::-1].reset_index(drop=True)
 
-    storj.backup_and_save_history(oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET)
+    storj.backup_and_save_history(
+        oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET, loaded_rows=len(new)
+    )
 
     stored = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
     assert stored["dateutc"].is_monotonic_decreasing
@@ -100,7 +105,7 @@ def test_save_archive_writes_mac_dot_parquet_newest_first(fake_s3):
     new = scenario_archive()
     shuffled = new.sample(frac=1, random_state=7)
 
-    storj.save_archive(shuffled, BUCKET, FAKE_MAC)
+    storj.save_archive(shuffled, BUCKET, FAKE_MAC, loaded_rows=len(new))
 
     assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
     assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), new)
@@ -140,7 +145,7 @@ def test_save_history_backup_leaves_the_catalogs_out(fake_s3, frozen_today):
     fake_s3.put_object(Bucket=BUCKET, Key=catalog_key, Body=b"x")
 
     storj.backup_and_save_history(
-        scenario_archive(), {"macAddress": FAKE_MAC}, bucket=BUCKET
+        scenario_archive(), {"macAddress": FAKE_MAC}, bucket=BUCKET, loaded_rows=0
     )
 
     backup_key = f".backups/{FAKE_MAC}/{frozen_today}/{ARCHIVE_KEY}"
@@ -206,3 +211,66 @@ def test_load_archive_raises_for_a_missing_archive(fake_s3):
 def test_save_df_reports_whether_it_saved(fake_s3):
     assert storj.save_df_to_s3(scenario_archive(), BUCKET, ARCHIVE_KEY) is True
     assert storj.save_df_to_s3(scenario_archive(), "no-such-bucket", "x") is False
+
+
+# ---------- every archive save is guarded (#160) ----------
+
+
+def test_an_archive_save_must_say_how_many_rows_it_loaded(fake_s3):
+    with pytest.raises(TypeError):
+        storj.save_archive(scenario_archive(), BUCKET, FAKE_MAC)
+    assert bucket_keys(fake_s3) == []
+
+
+def test_save_history_refuses_a_save_that_would_shrink_the_archive(
+    fake_s3, frozen_today
+):
+    stored = scenario_archive()
+    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+
+    with pytest.raises(storj.ArchiveShrinkError):
+        storj.backup_and_save_history(
+            stored.iloc[1:],
+            {"macAddress": FAKE_MAC},
+            bucket=BUCKET,
+            loaded_rows=len(stored),
+        )
+
+    assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), stored)
+
+
+def test_a_failed_history_backup_raises_backup_error_and_saves_nothing(
+    fake_s3, monkeypatch, frozen_today
+):
+    stored = scenario_archive().iloc[100:]
+    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+    flaky_storj(monkeypatch, fake_s3, copy=True)
+
+    with pytest.raises(storj.BackupError) as raised:
+        storj.backup_and_save_history(
+            scenario_archive(),
+            {"macAddress": FAKE_MAC},
+            bucket=BUCKET,
+            loaded_rows=len(stored),
+        )
+
+    assert isinstance(raised.value.__cause__, storj.BackupError)
+    assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
+    assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), stored)
+
+
+def test_a_failed_catalog_backup_raises_backup_error_and_saves_nothing(
+    fake_s3, monkeypatch, frozen_today
+):
+    key = f"{FAKE_MAC}.energy_catalog.parquet"
+    fake_s3.put_object(Bucket=BUCKET, Key=key, Body=b"old")
+    flaky_storj(monkeypatch, fake_s3, copy=True)
+
+    with pytest.raises(storj.BackupError) as raised:
+        storj.backup_and_save_catalog(
+            pd.DataFrame({"a": [1]}), "energy", bucket=BUCKET, mac_address=FAKE_MAC
+        )
+
+    assert isinstance(raised.value.__cause__, storj.BackupError)
+    assert bucket_keys(fake_s3) == [key]
+    assert fake_s3.get_object(Bucket=BUCKET, Key=key)["Body"].read() == b"old"

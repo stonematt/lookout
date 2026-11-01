@@ -314,6 +314,27 @@ def test_a_day_that_refills_short_aborts_the_write(seed, truth, capsys):
     assert len(station.stored()) == len(station.archive)
 
 
+def test_a_repair_that_would_shrink_the_archive_is_refused(
+    seed, truth, capsys, monkeypatch
+):
+    """#160: the repair's save is guarded by the rows it loaded."""
+    station = seed(truth)
+    before = station.stored()
+    repair_window = repair_rain.repair_window
+
+    def lossy(*args, **kwargs):
+        repaired, repair = repair_window(*args, **kwargs)
+        return repaired.iloc[1:], repair
+
+    monkeypatch.setattr(repair_rain, "repair_window", lossy)
+    monkeypatch.setattr(repair_rain, "report_window", lambda *_a, **_k: [])
+
+    with pytest.raises(storj.ArchiveShrinkError):
+        run(["--write"], capsys)
+
+    pd.testing.assert_frame_equal(station.stored(), before)
+
+
 def test_a_missing_reference_aborts_the_write(seed, truth, capsys):
     station = seed(truth, reference=truth.iloc[0:0])
     keys = station.keys()
