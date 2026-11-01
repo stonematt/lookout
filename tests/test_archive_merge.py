@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from lookout.api import awn_controller as awn
-from lookout.core import rain_corrections
+from lookout.core import archive_merge, rain_corrections
 from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -81,14 +81,8 @@ class TestCombine:
             assert combined["dateutc"].is_monotonic_decreasing
             assert len(combined) == len(full)
 
-    def test_a_duplicate_timestamp_leaves_one_row(self):
-        """
-        Held finding: which duplicate survives is not defined.
-
-        `normalize` sorts with an unstable sort before `keep="last"`, so the
-        winner between equal timestamps can differ by platform. Only the
-        dedup is pinned.
-        """
+    def test_the_later_frame_wins_a_duplicate_timestamp(self):
+        """In-memory page merge: the frame passed second wins, whole row."""
         old = week().head(3).copy()
         new = old.copy()
         new["tempf"] = 99.0
@@ -97,7 +91,7 @@ class TestCombine:
 
         assert len(combined) == 3
         assert combined["dateutc"].is_unique
-        assert set(combined["tempf"]) <= set(old["tempf"]) | {99.0}
+        assert list(combined["tempf"]) == [99.0, 99.0, 99.0]
 
     def test_drops_rows_with_invalid_dateutc(self):
         good = week().head(2)
@@ -128,6 +122,143 @@ class TestCombine:
 
         pd.testing.assert_frame_equal(combined, full)
         assert combined["dateutc"].is_unique
+
+
+T0 = ms("2026-01-08T00:00:00Z")
+STEP = 5 * 60 * 1000
+
+
+def readings(*rows: dict) -> pd.DataFrame:
+    """
+    A small frame of readings, one dict per row, `dateutc` given as a slot.
+
+    :param rows: Column values per row; `slot` is the 5-minute slot after
+        `T0`, turned into `dateutc`.
+    :return: The frame, in the order given.
+    """
+    out = [dict(r) for r in rows]
+    for r in out:
+        r["dateutc"] = T0 + r.pop("slot") * STEP
+    return pd.DataFrame(out)
+
+
+def at(df: pd.DataFrame, slot: int) -> pd.Series:
+    """The row of `df` at a slot after `T0`."""
+    return df.set_index("dateutc").loc[T0 + slot * STEP]
+
+
+class TestArchiveMerge:
+    """`archive_merge.merge`: Ambient wins for each value it sends."""
+
+    def test_a_reading_only_ambient_has_is_added(self):
+        stored = readings({"slot": 0, "tempf": 50.0})
+        ambient = readings({"slot": 1, "tempf": 51.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert list(archive["dateutc"]) == [T0 + STEP, T0]
+        assert at(archive, 1)["tempf"] == 51.0
+        assert (report.added, report.filled, report.updated) == (1, 0, 0)
+
+    def test_ambients_value_wins_a_shared_reading(self):
+        stored = readings({"slot": 0, "tempf": 50.0, "humidity": 40})
+        ambient = readings({"slot": 0, "tempf": 52.5, "humidity": 40})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert len(archive) == 1
+        assert at(archive, 0)["tempf"] == 52.5
+        assert (report.added, report.filled, report.updated) == (0, 0, 1)
+
+    def test_a_stored_gap_is_filled_from_ambient(self):
+        stored = readings({"slot": 0, "tempf": None, "humidity": 40.0})
+        ambient = readings({"slot": 0, "tempf": 50.0, "humidity": 40.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert at(archive, 0)["tempf"] == 50.0
+        assert (report.added, report.filled, report.updated) == (0, 1, 0)
+
+    def test_ambients_nan_keeps_the_stored_value(self):
+        stored = readings({"slot": 0, "tempf": 50.0, "humidity": 40.0})
+        ambient = readings({"slot": 0, "tempf": None, "humidity": 41.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert at(archive, 0)["tempf"] == 50.0
+        assert at(archive, 0)["humidity"] == 41.0
+        assert (report.added, report.filled, report.updated) == (0, 0, 1)
+
+    def test_a_column_only_ambient_has_is_kept_and_named(self):
+        stored = readings({"slot": 0, "tempf": 50.0})
+        ambient = readings({"slot": 0, "tempf": 50.0, "pm25": 7.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert list(archive.columns) == ["tempf", "dateutc", "pm25"]
+        assert at(archive, 0)["pm25"] == 7.0
+        assert report.ambient_only == ("pm25",)
+        assert report.stored_only == ()
+        # A new column is neither filled nor updated: there was no cell.
+        assert (report.added, report.filled, report.updated) == (0, 0, 0)
+
+    def test_a_column_only_the_stored_side_has_keeps_its_values(self):
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "hour": 16},
+            {"slot": 1, "tempf": 50.5, "hour": 16},
+        )
+        ambient = readings({"slot": 1, "tempf": 51.0}, {"slot": 2, "tempf": 52.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert at(archive, 0)["hour"] == 16
+        assert at(archive, 1)["hour"] == 16
+        assert at(archive, 1)["tempf"] == 51.0
+        assert pd.isna(at(archive, 2)["hour"])
+        assert report.stored_only == ("hour",)
+        assert report.ambient_only == ()
+        assert (report.added, report.filled, report.updated) == (1, 0, 1)
+
+    def test_identical_frames_report_nothing_changed(self):
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "humidity": None},
+            {"slot": 1, "tempf": 50.5, "humidity": 41.0},
+        )
+
+        archive, report = archive_merge.merge(stored, stored.copy())
+
+        assert report == archive_merge.MergeReport()
+        assert not report.changed
+        pd.testing.assert_frame_equal(archive, stored.iloc[::-1].reset_index(drop=True))
+
+    def test_nothing_from_ambient_returns_the_stored_readings(self):
+        stored = week().head(5)
+
+        for ambient in (pd.DataFrame(), stored.iloc[0:0]):
+            archive, report = archive_merge.merge(stored, ambient)
+
+            pd.testing.assert_frame_equal(archive, stored)
+            assert report == archive_merge.MergeReport()
+
+    def test_the_merge_is_newest_first_and_keeps_column_dtypes(self):
+        full = week()
+        stored = full[full.dateutc < ms("2026-01-09T00:00:00Z")]
+        ambient = full[full.dateutc >= ms("2026-01-08T20:00:00Z")]
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        pd.testing.assert_frame_equal(archive, full)
+        assert report.added == len(full) - len(stored)
+        assert (report.filled, report.updated) == (0, 0)
+
+    def test_the_report_describes_itself_for_a_log_line(self):
+        report = archive_merge.MergeReport(
+            added=3, filled=1, updated=24, stored_only=("hour",), ambient_only=()
+        )
+
+        assert report.describe() == (
+            "3 added, 1 filled, 24 updated; stored only: hour; Ambient only: none"
+        )
 
 
 class TestSeekOverTimeGap:

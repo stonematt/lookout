@@ -24,7 +24,7 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 from lookout.api import awn_controller as awn
-from lookout.core import rain_corrections
+from lookout.core import archive_merge, rain_corrections
 from lookout.storage import storj
 from tests.fixtures.ambient import (
     AmbientReplay,
@@ -304,6 +304,68 @@ class TestCatchupRun:
         assert_frame_equal(station.stored(), station.archive)
 
 
+# ---------- the archive merge (#188) ----------
+
+
+class TestOverlapMerge:
+    """
+    Catchup's routine re-fetch of the last readings merges, Ambient winning.
+
+    Ambient pages run back from `endDate`, so each run re-fetches the last
+    two hours the archive holds. Here Ambient now reports those readings
+    1 degree warmer and without `humidity`, and the stored rows carry an
+    `hour` Ambient never sends.
+    """
+
+    def seed(self, catchup_station) -> CatchupStation:
+        archive = load_real_slice()
+        newest = int(archive["dateutc"].max())
+        overlap = archive["dateutc"] > newest - 2 * HOUR_MS
+        archive.loc[overlap, "hour"] = 20.0
+        resent = []
+        for record in to_ambient_records(archive[overlap]):
+            record["tempf"] += 1.0
+            del record["humidity"]
+            resent.append(record)
+        self.overlap = archive[overlap].set_index("dateutc")
+        return catchup_station(archive=archive, history=resent + load_history())
+
+    def test_the_re_fetched_readings_take_ambients_values(self, catchup_station):
+        station = self.seed(catchup_station)
+
+        station.run()
+
+        stored = station.stored().set_index("dateutc")
+        rows = stored.loc[self.overlap.index]
+        assert list(rows["tempf"]) == list(self.overlap["tempf"] + 1.0)
+        assert len(stored) == len(station.archive) + RECORDED_ROWS
+
+    def test_values_ambient_omits_keep_their_stored_value(self, catchup_station):
+        station = self.seed(catchup_station)
+
+        station.run()
+
+        rows = station.stored().set_index("dateutc").loc[self.overlap.index]
+        assert_frame_equal(
+            rows[["humidity", "hour"]], self.overlap[["humidity", "hour"]]
+        )
+
+    def test_the_run_logs_what_the_merge_changed(self, catchup_station, caplog):
+        station = self.seed(catchup_station)
+
+        with caplog.at_level("INFO", logger="lookout.cli.catchup"):
+            station.run()
+
+        lines = [
+            r.getMessage() for r in caplog.records if "Archive merge" in r.getMessage()
+        ]
+        assert len(lines) == 1
+        assert (
+            f"{RECORDED_ROWS} added, 0 filled, {len(self.overlap)} updated" in lines[0]
+        )
+        assert "stored only: " in lines[0] and "hour" in lines[0]
+
+
 # ---------- the stored order (#133) ----------
 
 
@@ -546,10 +608,13 @@ class TestArchiveSafety:
     ):
         station = catchup_station()
         before = stored_bytes(station)
+        # A merge never drops a stored reading, so stand in for one that did.
         monkeypatch.setattr(
-            awn,
-            "get_history_since_last_archive",
-            lambda device, archive, **_: archive.iloc[1:],
+            archive_merge,
+            "merge",
+            lambda stored, _ambient: archive_merge.Merged(
+                stored.iloc[1:], archive_merge.MergeReport()
+            ),
         )
 
         with pytest.raises(storj.ArchiveShrinkError):

@@ -19,6 +19,7 @@ import pandas as pd
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
+from lookout.core import archive_merge
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
@@ -95,7 +96,12 @@ def _log_archive_range(df: pd.DataFrame, label: str) -> None:
 
 def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     """
-    One catchup: back up the archive, append what Ambient has since, save it.
+    One catchup: back up the archive, merge in what Ambient has since, save.
+
+    Fetched readings join the archive through the archive merge: new
+    readings are added, and for the readings re-fetched, Ambient's value wins
+    for each value it sends while values it omits keep their stored value.
+    The merge report (added, filled, updated, one-sided columns) is logged.
 
     The refresh command runs this as its first step. Every failure raises,
     so the run exits non-zero (#160): a failed backup before anything is
@@ -119,9 +125,11 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
 
     archive_df = _load_archive(device, bucket_name)
 
-    new_archive_df = awn.get_history_since_last_archive(
-        device, archive_df, sleep=True, pages=pages
-    )
+    fetched = awn.fetch_since_last_archive(device, archive_df, sleep=True, pages=pages)
+    # Ambient wins for each value it sends; the routine re-fetch of the last
+    # readings shows up as updated values, never as a failure.
+    new_archive_df, report = archive_merge.merge(archive_df, fetched)
+    logger.info(f"Archive merge: {report.describe()}")
     _log_archive_range(new_archive_df, "Updated archive")
     logger.info(f"Total records after update: {len(new_archive_df)}")
 
