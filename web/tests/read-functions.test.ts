@@ -102,7 +102,7 @@ describe("GET /dashboard", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe(
-      "s-maxage=300, stale-while-revalidate=300",
+      "s-maxage=300, stale-while-revalidate=300, stale-if-error=300",
     );
     expect(response.headers.get("content-type")).toMatch(/application\/json/);
     expect(await response.json()).toEqual(golden("raining", "dashboard"));
@@ -149,18 +149,18 @@ describe("GET /dashboard", () => {
     expect(world.calls).toHaveLength(0);
   });
 
-  it("answers 404 when the station has no snapshot", async () => {
+  it("answers 404, briefly cached, when the station has no snapshot", async () => {
     vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
     const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(404);
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
   });
 
-  it("answers 502 when Storj fails", async () => {
+  it("answers 502, briefly cached, when Storj fails", async () => {
     world.storjStatus = 500;
     const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(502);
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
   });
 
   it("answers 502 when the document breaks the contract", async () => {
@@ -194,7 +194,7 @@ describe("GET /current", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe(
-      "s-maxage=60, stale-while-revalidate=60",
+      "s-maxage=60, stale-while-revalidate=60, stale-if-error=300",
     );
     const body = await response.json();
     expect(body).toEqual({
@@ -227,10 +227,19 @@ describe("GET /current", () => {
     expect(body.observed_at_ms).toBe(ctx.observed_at_ms);
   });
 
-  it("still serves the context when Ambient fails, uncached", async () => {
+  it.each([429, 500])(
+    "still serves the context when Ambient answers %s, briefly cached",
+    async (status) => {
+      world.ambientStatus = status;
+      const response = await currentGET(get("/current"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    },
+  );
+
+  it("still serves the context when Ambient fails", async () => {
     world.ambientStatus = 429;
     const response = await currentGET(get("/current"));
-    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
     expect(body.last_data).toBeNull();
     expect(body.context).toEqual(golden("raining", "context"));
@@ -242,7 +251,7 @@ describe("GET /current", () => {
     world.devices = [ambientDevice(1_767_918_000_000)];
     const response = await currentGET(get("/current"));
     expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
     const body = await response.json();
     expect(body.context).toBeNull();
     expect(body.built_at_ms).toBeNull();
@@ -281,11 +290,12 @@ describe("GET /current", () => {
     logged.mockRestore();
   });
 
-  it("answers 502 when neither source can be read", async () => {
+  it("answers 502, briefly cached, when neither source can be read", async () => {
     world.storjStatus = 500;
-    world.ambientStatus = 500;
+    world.ambientStatus = 429;
     const response = await currentGET(get("/current"));
     expect(response.status).toBe(502);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
   });
 
   it("serves no live reading for a station Ambient does not list", async () => {

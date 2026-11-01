@@ -29,14 +29,23 @@ import type { LiveReader } from "./ambient.js";
 import { describeError } from "./errors.js";
 import type { CurveReader, SnapshotReader } from "./storj.js";
 
-/** `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes. */
-export const DASHBOARD_CACHE = "s-maxage=300, stale-while-revalidate=300";
+/**
+ * `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes.
+ * While a read fails, the CDN may serve the last good copy for 5 more.
+ */
+export const DASHBOARD_CACHE =
+  "s-maxage=300, stale-while-revalidate=300, stale-if-error=300";
 
 /** `/current`: short, so the live reading stays live and Ambient is spared. */
-export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60";
+export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60, stale-if-error=300";
 
-/** A `/current` missing one half is not cached, so a blip is not served on. */
-export const PARTIAL_CACHE = "no-store";
+/**
+ * A failed or partial read (an Ambient 429 included) is cached briefly, so
+ * that during an outage or a rate-limit episode the sources are asked about
+ * once per 15 seconds per region, not once per visitor. Vercel's CDN does
+ * not cache a 5xx; for those, `stale-if-error` on the good copy stands in.
+ */
+export const FAILURE_CACHE = "s-maxage=15";
 
 /** A redirect to a read function's one URL never changes. */
 export const CANONICAL_CACHE = "s-maxage=3600";
@@ -92,14 +101,15 @@ export function jsonResponse(body: unknown, status: number, cache: string): Resp
 }
 
 /**
- * An error response, never cached.
+ * An error response, not cached unless `cache` says so.
  *
  * @param status - The HTTP status.
  * @param error - What went wrong, safe to show anyone.
+ * @param cache - The Cache-Control value; `FAILURE_CACHE` for a failed read.
  * @returns The response.
  */
-export function errorResponse(status: number, error: string): Response {
-  return jsonResponse({ error }, status, "no-store");
+export function errorResponse(status: number, error: string, cache = "no-store"): Response {
+  return jsonResponse({ error }, status, cache);
 }
 
 /**
@@ -179,14 +189,16 @@ export async function handleDashboard(
     text = await sources.readSnapshot(mac, "dashboard");
   } catch (error) {
     console.error("dashboard: Storj read failed", describeError(error));
-    return errorResponse(502, "the snapshot could not be read");
+    return errorResponse(502, "the snapshot could not be read", FAILURE_CACHE);
   }
-  if (text === null) return errorResponse(404, `no snapshot for station ${mac}`);
+  if (text === null) {
+    return errorResponse(404, `no snapshot for station ${mac}`, FAILURE_CACHE);
+  }
   try {
     parseDashboard(JSON.parse(text));
   } catch (error) {
     console.error("dashboard: snapshot breaks the contract", describeError(error));
-    return errorResponse(502, "the snapshot does not match this site");
+    return errorResponse(502, "the snapshot does not match this site", FAILURE_CACHE);
   }
   return jsonResponse(text, 200, DASHBOARD_CACHE);
 }
@@ -194,8 +206,8 @@ export async function handleDashboard(
 /**
  * GET /current: the live reading plus the context block.
  *
- * Cached for a minute when both halves were read; not cached when one is
- * missing.
+ * Cached for a minute when both halves were read; for 15 seconds when one
+ * is missing, so a blip is not served on for long.
  *
  * @param request - The incoming request; see `checkQuery`.
  * @param sources - Where to read; needs `readLive`.
@@ -224,7 +236,11 @@ export async function handleCurrent(
     console.error("current: Ambient read failed", describeError(liveResult.reason));
   }
   if (contextResult.status === "rejected" && liveResult.status === "rejected") {
-    return errorResponse(502, "neither the live reading nor the snapshot could be read");
+    return errorResponse(
+      502,
+      "neither the live reading nor the snapshot could be read",
+      FAILURE_CACHE,
+    );
   }
 
   const context = contextResult.status === "fulfilled" ? contextResult.value : null;
@@ -244,5 +260,5 @@ export async function handleCurrent(
     context,
   };
   const whole = context !== null && lastData !== null;
-  return jsonResponse(body, 200, whole ? CURRENT_CACHE : PARTIAL_CACHE);
+  return jsonResponse(body, 200, whole ? CURRENT_CACHE : FAILURE_CACHE);
 }

@@ -10,7 +10,7 @@
 import { parseEventCurve } from "../src/snapshot.js";
 import type { ReadSources } from "./handlers.js";
 import { describeError } from "./errors.js";
-import { checkQuery, errorResponse, jsonResponse } from "./handlers.js";
+import { FAILURE_CACHE, checkQuery, errorResponse, jsonResponse } from "./handlers.js";
 
 /** A found curve file: immutable. */
 export const CURVE_CACHE = "public, max-age=86400, s-maxage=31536000, immutable";
@@ -53,7 +53,7 @@ export async function handleEvent(
     text = await readCurve(mac, Number(start));
   } catch (error) {
     console.error("event: Storj read failed", describeError(error));
-    return errorResponse(502, "the event curve could not be read");
+    return errorResponse(502, "the event curve could not be read", FAILURE_CACHE);
   }
   if (text === null) {
     return jsonResponse(
@@ -66,7 +66,7 @@ export async function handleEvent(
     parseEventCurve(JSON.parse(text));
   } catch (error) {
     console.error("event: curve breaks the contract", describeError(error));
-    return errorResponse(502, "the event curve does not match this site");
+    return errorResponse(502, "the event curve does not match this site", FAILURE_CACHE);
   }
   return jsonResponse(text, 200, CURVE_CACHE);
 }

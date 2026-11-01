@@ -129,13 +129,13 @@ describe("GET /event", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("answers 502 when Storj fails", async () => {
+  it("answers 502, briefly cached, when Storj fails", async () => {
     storjBody = () => new Response("slow down", { status: 503 });
 
     const response = await eventGET(get(`/event?start=${EVENT_2}`));
 
     expect(response.status).toBe(502);
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
   });
 
   it("answers 502 for a file that breaks the contract", async () => {
