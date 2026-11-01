@@ -36,8 +36,11 @@ from lookout.utils.memory_utils import (
 
 logger = app_logger(__name__)
 
-# The raw archive the gap fills extend; what "Save Archive" writes (#95).
+# The raw archive the gap fills extend, for the next fill's baseline (#95).
 RAW_HISTORY_KEY = "raw_history_df"
+# Ambient's readings each fill fetched, in fill order; what "Save Archive"
+# merges into the archive as stored then (#223).
+FETCHED_KEY = "gap_fill_fetched"
 BUCKET = DEFAULT_BUCKET
 
 
@@ -48,7 +51,8 @@ def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
     The session's `history_df` has its rain corrected for display, so it is
     never what gets saved. The fill extends the raw archive instead (loaded
     from storage on the first fill, then kept in the session), and only the
-    rows it added are corrected into `history_df`.
+    rows it added are corrected into `history_df`. The readings Ambient sent
+    are kept too: they, not the session's archive copy, are what gets saved.
 
     :param start: The gap's start, UTC.
     :param end: The gap's end, UTC.
@@ -61,6 +65,7 @@ def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
     outcome = fill_archive_gap(device, raw, start, end)
     if outcome.status == "filled":
         st.session_state[RAW_HISTORY_KEY] = outcome.history_df
+        st.session_state.setdefault(FETCHED_KEY, []).append(outcome.fetched)
         st.session_state["history_df"] = extend_corrected(
             st.session_state["history_df"],
             outcome.history_df,
@@ -74,30 +79,37 @@ def save_filled_archive() -> bool:
     """
     Back up the stored archive and save it with this session's fills added.
 
-    The fills go through the archive merge (`archive_merge.merge`) into the
-    archive as stored now, not as loaded at the first fill, so rows catchup
-    saved in between are kept. All raw.
+    Only the readings the fills fetched from Ambient go through the archive
+    merge (`archive_merge.merge`), in fill order, into the archive as stored
+    now. The session's archive copy, loaded at the first fill, never does:
+    rows catchup saved and values a repair replaced in between are kept
+    (#223). Inside the span a fill fetched, Ambient wins, as in any merge.
+    A save spends the fills, so a second click saves nothing. All raw.
     The stored archive is read strictly (#160), and the save is refused if
     it would drop a reading or blank a value that read held (#190).
 
-    :return: True when saved; False when no gap was filled this session, so
-        there is nothing new to save.
+    :return: True when saved; False when no gap was filled since the last
+        save, so there is nothing new to save.
     :raises StorageReadError: If the stored archive cannot be read or has no
         valid rows.
     :raises ArchiveLossError: If the save would drop a stored reading or
         blank a stored value.
     """
-    raw = st.session_state.get(RAW_HISTORY_KEY)
-    if raw is None:
+    fills = st.session_state.get(FETCHED_KEY)
+    if not fills:
         return False
     device = st.session_state["device"]
     stored = load_archive(BUCKET, device["macAddress"])
+    archive = stored
+    for fetched in fills:
+        archive = archive_merge.merge(archive, fetched).archive
     backup_and_save_history(
-        df=archive_merge.merge(stored, raw).archive,
+        df=archive,
         device=device,
         bucket=BUCKET,
         stored=stored,
     )
+    st.session_state[FETCHED_KEY] = []
     return True
 
 
