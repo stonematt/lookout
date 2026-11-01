@@ -14,10 +14,10 @@
 
 | gate | command | baseline at `7592c37` | time |
 | --- | --- | --- | --- |
-| tests | `python -m pytest tests/ -q -p no:cacheprovider` (in `lookout-new`, from the worktree root) | **738 passed, 1 skipped at `ce6c582`** (after the 2026-10-31 follow-ups; #114 deleted the one strict xfail). 701 passed, 1 skipped, 1 xfailed at `dfff58b` (goal branch end of the spec #66 run; clean worktree, no secrets; ~85s). At the goal cut `bef4bb7`: 356/1/1. Before #67: clean worktree: **2 collection errors** (`StreamlitSecretNotFound`, from import-time `st.secrets` reads — the defect #67 fixes). Main checkout with real secrets: 141 passed, 1 skipped. After #67 lands, the clean-worktree number is the baseline. | 28s |
+| tests | `python -m pytest tests/ -q -p no:cacheprovider` (in `lookout-new`, from the worktree root) | **789 passed, 1 skipped at `974c644`** (after the 2026-10-31 QA/UAT fixes #147 #148 #149 #156; ~80s). 738 passed, 1 skipped at `ce6c582` (after the 2026-10-31 follow-ups; #114 deleted the one strict xfail). 701 passed, 1 skipped, 1 xfailed at `dfff58b` (goal branch end of the spec #66 run; clean worktree, no secrets; ~85s). At the goal cut `bef4bb7`: 356/1/1. Before #67: clean worktree: **2 collection errors** (`StreamlitSecretNotFound`, from import-time `st.secrets` reads — the defect #67 fixes). Main checkout with real secrets: 141 passed, 1 skipped. After #67 lands, the clean-worktree number is the baseline. | 28s |
 | format | `black --check <changed .py files>` | 14 files already fail on `dev`; gate is: every file you create or edit passes | 2s |
 | lint | `flake8 --max-line-length 88 <changed .py files>` | 375 lines on `dev`; gate is: files you create are clean, files you edit gain no new lines | 2s |
-| web | `cd web && npm ci && npm run build && npm test` (build runs `tsc --noEmit` then vite) | build ok, **301 passed** at `ce6c582` (287 at `dfff58b`) | 20s |
+| web | `cd web && npm ci && npm run build && npm test` (build runs `tsc --noEmit` then vite) | build ok, **347 passed** at `974c644`; 301 at `ce6c582` (287 at `dfff58b`) | 20s |
 
 **CI** `.github/workflows/tests.yml` (from #67): pytest on PRs into `dev` and `goal/**`, Python 3.12, 15-minute job timeout (a slow fixture once hit it). `.github/workflows/web.yml` (from #77): web build + test. Before #67 there was none. #67 added one workflow running pytest on PRs into `dev` and into `goal/off-streamlit`. Until #67 merges, the gates above are the only check.
 
@@ -49,3 +49,11 @@
 - Triage posts an **Agent Brief** comment on each issue (`gh issue view <n> --comments`). It can add acceptance criteria beyond the issue body, and it records owner decisions. Read it before briefing a lane.
 - `gh pr checks --watch` inside a lane can be moved to the background after about 180s. Poll `gh pr checks` in the foreground until each check reports.
 - The storage existence check is one helper, `storj.object_exists(bucket, key)`. The catalog classes' `catalog_exists` methods call it. A new catalog uses it too, rather than an inline `head_object`.
+
+**Repo facts learned in the QA/UAT fix run (2026-10-31, #147 #148 #149 #156)**
+- `web/vercel.json` now sets a CSP (#148). `style-src` needs `'unsafe-inline'` because Plotly injects styles, and `script-src` is `'self'` only. A lane that adds an inline script, an external origin or a worker must update the CSP and its test (`web/tests/security-headers.test.ts`). Vite dev does not apply `vercel.json` headers; `web/scripts/csp-check.mjs` applies them by Playwright route interception on `vite preview`.
+- HTML built from snapshot values goes through `escapeHtml` in `web/src/dom.ts` (imported as `esc` in `web/src/events/tab.ts`). Server logging goes through `describeError` in `web/server/errors.ts`, never the raw error.
+- The 390px no-sideways-scroll check (`scrollWidth <= clientWidth` on every tab, both fixtures, light and dark) was a throwaway script in the run's scratch dir, not in the repo. A UI lane needs it again; either commit it under `web/scripts/` or rewrite it from that description.
+- Contract fields the browser needs go in the snapshot as decided values. The whole-run review found the browser re-deciding a nullable field (`EventSeason.status`) and a time cut (`first_hour_to_come`) that Python already knew. A consumer lane that finds a null it must interpret escalates to the producer side rather than inventing a rule.
+- `parseDashboard` now refuses a dashboard without `first_hour_to_come` or with a season missing `status` (#156). Deploy the refresh before the site, or the site errors until the next refresh writes the new fields.
+- The harness refuses a foreground `sleep N; gh pr checks`. Poll with an until-loop instead.
