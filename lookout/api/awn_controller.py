@@ -742,7 +742,7 @@ class GapFill:
     The outcome of `fill_archive_gap`.
 
     :param history_df: The archive after the fill; the very frame passed in
-        when nothing was added.
+        when nothing was added, filled or updated.
     :param start: The gap's start, UTC (the argument as parsed).
     :param end: The gap's end, UTC.
     :param status: "filled" (readings added, values filled or values
