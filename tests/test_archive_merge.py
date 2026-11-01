@@ -291,29 +291,52 @@ class TestGapSeekAcrossAnOutage:
         held = truth[truth.dateutc <= newest]
         assert set(result["dateutc"]) == set(held["dateutc"])
 
-    def test_an_outage_past_the_walks_reach_gives_up_on_the_tenth_probe(
-        self, fake_s3, ambient_replay, device
+    @pytest.mark.parametrize("hours", [240, 600])
+    def test_an_outage_past_the_walks_reach_is_crossed_from_the_present(
+        self, fake_s3, ambient_replay, device, hours
     ):
         """
-        Held finding: ten one-page probes reach about 208 hours (#132).
-
-        A 240-hour outage is past that, so the walk ends on the cap with
-        nothing fetched, and the next run starts from the same archive row.
-        The windows it did request still touch, so nothing is skipped.
-        The first request returns the archive's own newest rows; the ten
-        after it are the empty probes.
+        #160: past the forward walk's ~208 h reach (#132), the run walks
+        back from the end bound to the archive, so a 10- or 25-day outage
+        is crossed in one run with nothing after it skipped.
         """
-        archive, truth, end = outage(hours=240)
+        archive, truth, end = outage(hours, after_days=1)
         serve(ambient_replay, truth)
 
         result = awn.get_history_since_last_archive(
             device, archive, pages=20, end_date=end
         )
 
-        spans = windows(ambient_replay)
-        assert len(spans) == 1 + 10
-        assert spans[-1][1] - OUTAGE_START < pd.Timedelta(hours=240)
-        assert_windows_touch(spans)
+        assert set(result["dateutc"]) == set(truth["dateutc"])
+        assert result["dateutc"].is_unique
+
+    def test_an_outage_that_cannot_be_crossed_in_the_pages_left_is_reported(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        With four days after a 240 h outage and one page left after the
+        forward walk's ten probes, the walk back cannot reach the archive:
+        it raises rather than save rows with a hole before them.
+        """
+        archive, truth, end = outage(hours=240, after_days=4)
+        serve(ambient_replay, truth)
+
+        with pytest.raises(awn.CatchupStalled):
+            awn.get_history_since_last_archive(
+                device, archive, pages=12, end_date=end
+            )
+
+    def test_a_station_still_silent_past_the_walks_reach_adds_nothing(
+        self, fake_s3, ambient_replay, device
+    ):
+        """An ongoing 240 h outage: nothing to fetch, and no error."""
+        archive, truth, end = outage(hours=240, after_days=0)
+        serve(ambient_replay, truth)
+
+        result = awn.get_history_since_last_archive(
+            device, archive, pages=20, end_date=end
+        )
+
         assert len(result) == len(archive)
 
     def test_the_seek_never_probes_from_past_the_end_bound(

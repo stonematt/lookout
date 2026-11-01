@@ -578,3 +578,42 @@ class TestArchiveSafety:
 
         assert stored_bytes(station) == before
         assert BACKUP_KEY not in station.keys()
+
+
+class TestLongOutage:
+    """#160: an outage past the forward seek's ~208 h reach (#132)."""
+
+    OUTAGE_START = "2026-01-02T00:00:00Z"
+    RESUME = "2026-01-14T00:00:00Z"  # 288 hours of silence
+
+    def seed(self, catchup_station, now: str) -> CatchupStation:
+        archive = build_archive("2026-01-01T00:00:00Z", self.OUTAGE_START)
+        after = build_archive(self.RESUME, now)
+        live = pd.concat([after, archive], ignore_index=True)
+        return catchup_station(
+            archive=archive,
+            history=to_ambient_records(live),
+            devices=reporting(after),
+            now=now,
+        )
+
+    def test_catchup_crosses_a_288_hour_outage_in_one_run(self, catchup_station):
+        station = self.seed(catchup_station, "2026-01-14T12:00:00Z")
+
+        station.run()
+
+        stored = station.stored()
+        assert len(stored) == len(station.archive) + 12 * 12
+        assert int(stored["dateutc"].max()) == ms("2026-01-14T11:55:00Z")
+        assert stored["dateutc"].is_unique
+
+    def test_a_crossing_out_of_pages_fails_the_run_and_saves_nothing(
+        self, catchup_station
+    ):
+        station = self.seed(catchup_station, "2026-01-18T00:00:00Z")
+        before = stored_bytes(station)
+
+        with pytest.raises(awn.CatchupStalled):
+            station.run(pages=12)
+
+        assert stored_bytes(station) == before
