@@ -18,7 +18,6 @@ from lookout.api.awn_controller import (
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history, load_archive
-from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 from lookout.core.energy_catalog_func import (
     detect_and_calculate_periods,
@@ -82,14 +81,15 @@ def save_filled_archive() -> bool:
 
     :return: True when saved; False when no gap was filled this session, so
         there is nothing new to save.
-    :raises StorageReadError: If the stored archive cannot be read.
+    :raises StorageReadError: If the stored archive cannot be read or has no
+        valid rows.
     :raises ArchiveShrinkError: If the save would lose stored rows.
     """
     raw = st.session_state.get(RAW_HISTORY_KEY)
     if raw is None:
         return False
     device = st.session_state["device"]
-    stored = normalize(load_archive(BUCKET, device["macAddress"]))
+    stored = load_archive(BUCKET, device["macAddress"])
     backup_and_save_history(
         df=combine_full_history(stored, raw),
         device=device,

@@ -138,8 +138,8 @@ def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
     Strict (#160): a run that saves after this must never start from a
     failed read, so it reads storage directly (no dev-mode local cache) and
     raises rather than returning an empty frame. The row count returned is
-    after `normalize` drops invalid and duplicate rows; it is the count the
-    save is guarded by (`save_archive`'s `loaded_rows`).
+    after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
+    it is the count the save is guarded by (`save_archive`'s `loaded_rows`).
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read from.
@@ -147,9 +147,7 @@ def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
     :raises StorageReadError: If the archive is missing, unreadable, or has
         no valid rows.
     """
-    archive_df = normalize(sj.load_archive(bucket_name, device["macAddress"]))
-    if archive_df.empty:
-        raise sj.StorageReadError("The archive holds no rows with a valid dateutc")
+    archive_df = sj.load_archive(bucket_name, device["macAddress"])
 
     _log_archive_range(archive_df, "Loaded archive")
     logger.info(f"Total records in archive: {len(archive_df)}")

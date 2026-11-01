@@ -32,6 +32,7 @@ from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
+    flaky_storj,
 )
 
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
@@ -333,6 +334,19 @@ def test_a_repair_that_would_shrink_the_archive_is_refused(
         run(["--write"], capsys)
 
     pd.testing.assert_frame_equal(station.stored(), before)
+
+
+def test_a_failed_archive_read_stops_the_repair_before_any_save(
+    seed, truth, capsys, monkeypatch
+):
+    station = seed(truth)
+    keys = station.keys()
+    flaky_storj(monkeypatch, station.s3, read=ARCHIVE_KEY)
+
+    with pytest.raises(storj.StorageReadError):
+        run(["--write"], capsys)
+
+    assert station.keys() == keys
 
 
 def test_a_missing_reference_aborts_the_write(seed, truth, capsys):

@@ -39,12 +39,8 @@ import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import energy_catalog_func
-from lookout.storage.storj import (
-    StorageReadError,
-    backup_and_save_history,
-    load_archive,
-)
-from lookout.utils.dateutc import DEFAULT_TZ, normalize
+from lookout.storage.storj import backup_and_save_history, load_archive
+from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="diagnostics.log")
@@ -117,10 +113,7 @@ def load_station(bucket: str) -> Tuple[Dict, pd.DataFrame]:
     """
     device = get_station_device()
     # Straight from Storj: the dev-mode local cache would write a file here.
-    archive = normalize(load_archive(bucket, device["macAddress"]))
-    if archive.empty:
-        raise StorageReadError(f"the archive in {bucket} has no valid rows")
-    return device, archive
+    return device, load_archive(bucket, device["macAddress"])
 
 
 def station_tz(device: Dict) -> str:

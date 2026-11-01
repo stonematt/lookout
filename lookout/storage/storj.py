@@ -31,6 +31,7 @@ import pandas as pd
 
 from lookout.config import HISTORY_FILE_TYPE
 from lookout.secrets_loader import get_secret
+from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
 # For general logging with console output
@@ -135,20 +136,22 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     """
     Read a station's archive for a run that will save over it (#160).
 
-    Callers normalize what this returns and refuse an archive left with no
-    valid rows; that check covers an empty object too, so none is made here.
-    The normalized row count is what they pass to `save_archive` as
-    `loaded_rows`.
+    Every archive writer loads through here. The archive comes back through
+    `dateutc.normalize`, which drops invalid and duplicate rows, and its
+    length is what the writer passes to `save_archive` as `loaded_rows`.
 
     :param bucket: The bucket.
     :param mac: The station's MAC address.
-    :return: The archive as stored (possibly empty).
-    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing or
-        unreadable: a run that saved after such a read would overwrite the
-        archive with nothing.
+    :return: The normalized archive (ascending `dateutc`), at least one row.
+    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing,
+        unreadable, or has no valid rows: a run that saved after such a read
+        would overwrite the archive with nothing.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
-    return read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE)
+    archive = normalize(read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE))
+    if archive.empty:
+        raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
+    return archive
 
 
 def read_json_from_s3(bucket: str, key: str) -> Optional[dict]:
@@ -286,6 +289,7 @@ def save_archive(df: pd.DataFrame, bucket: str, mac: str, loaded_rows: int) -> N
     archive's row count after `dateutc.normalize`, which drops invalid and
     duplicate rows, not the raw count read from storage: a stored archive
     holding one duplicate row would otherwise refuse every later save.
+    `load_archive` returns the frame to count.
 
     :param df: The archive, any row order.
     :param bucket: The bucket.
@@ -492,9 +496,9 @@ def backup_and_save_catalog(
     # Use existing backup_data for daily deduplication
     try:
         backup_data(bucket=bucket, prefix=catalog_prefix)
-    except Exception as e:
-        logger.error(f"Catalog backup failed for {catalog_prefix}: {e}")
-        raise BackupError("Aborting catalog save: backup failed.") from e
+    except BackupError as e:
+        logger.error(f"Catalog backup failed for {catalog_prefix}; not saving: {e}")
+        raise
 
     # Save new catalog
     if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
@@ -520,9 +524,9 @@ def backup_and_save_history(
 
     try:
         backup_archive(bucket=bucket, mac=mac)
-    except Exception as e:
-        logger.error(f"Backup failed for {mac}: {e}")
-        raise BackupError("Aborting save: backup failed.") from e
+    except BackupError as e:
+        logger.error(f"Backup failed for {mac}; not saving: {e}")
+        raise
 
     save_archive(df, bucket, mac, loaded_rows=loaded_rows)
 
