@@ -20,6 +20,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import type { LiveReader } from "./ambient.js";
+import { describeError } from "./errors.js";
 import type { CurveReader, SnapshotReader } from "./storj.js";
 
 /** `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes. */
@@ -53,22 +54,6 @@ const MAC_PATTERN = /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/;
 export function normaliseMac(value: string): string | null {
   const mac = value.trim().toUpperCase();
   return MAC_PATTERN.test(mac) ? mac : null;
-}
-
-/** Query parameters whose values are secrets, as Ambient's URL carries them. */
-const SECRET_PARAM = /\b(apiKey|applicationKey)=[^&\s"']*/gi;
-
-/**
- * An error as one log line: its name and message only, never its stack,
- * cause or attached request, with key-shaped query parameters redacted.
- *
- * @param error - Anything a promise rejected with.
- * @returns "<name>: <message>", safe to log.
- */
-export function describeError(error: unknown): string {
-  const text =
-    error instanceof Error ? `${error.name}: ${error.message}` : `non-Error: ${String(error)}`;
-  return text.replace(SECRET_PARAM, "$1=[redacted]");
 }
 
 /**

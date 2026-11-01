@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as currentGET } from "../api/current.js";
 import { GET as dashboardGET } from "../api/dashboard.js";
-import { describeError } from "../server/handlers.js";
+import { describeError } from "../server/errors.js";
 import { SCHEMA_VERSION } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
 import { golden, goldenText } from "./golden.js";
@@ -313,6 +313,13 @@ describe("an error as a log line", () => {
     });
     expect(describeError(error)).toBe(
       "TypeError: fetch failed: https://x.test/v1?apiKey=[redacted]&applicationKey=[redacted]",
+    );
+  });
+
+  it("takes out the given secrets, plain or URL-encoded", () => {
+    const error = new Error("key a/b+c rejected; again a%2Fb%2Bc");
+    expect(describeError(error, ["a/b+c"])).toBe(
+      "Error: key [redacted] rejected; again [redacted]",
     );
   });
 

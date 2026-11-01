@@ -9,7 +9,8 @@
  */
 import { parseEventCurve } from "../src/snapshot.js";
 import type { ReadSources } from "./handlers.js";
-import { describeError, errorResponse, jsonResponse, stationOf } from "./handlers.js";
+import { describeError } from "./errors.js";
+import { errorResponse, jsonResponse, stationOf } from "./handlers.js";
 
 /** A found curve file: immutable. */
 export const CURVE_CACHE = "public, max-age=86400, s-maxage=31536000, immutable";
