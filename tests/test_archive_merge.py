@@ -322,9 +322,7 @@ class TestGapSeekAcrossAnOutage:
         serve(ambient_replay, truth)
 
         with pytest.raises(awn.CatchupStalled):
-            awn.get_history_since_last_archive(
-                device, archive, pages=12, end_date=end
-            )
+            awn.get_history_since_last_archive(device, archive, pages=12, end_date=end)
 
     def test_a_station_still_silent_past_the_walks_reach_adds_nothing(
         self, fake_s3, ambient_replay, device
