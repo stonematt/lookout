@@ -8,7 +8,9 @@
  *   fails; only both failing is an error.
  *
  * Both take an optional `station` query parameter (a MAC address) that
- * defaults to the configured station.
+ * defaults to the configured station. Only the configured station is served:
+ * any other MAC is a 404, answered before any read and never cached, so a
+ * caller cannot read another station's snapshot or fill the CDN with keys.
  */
 import type { CurrentReading, LastData, Station } from "../src/snapshot.js";
 import {
@@ -18,6 +20,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import type { LiveReader } from "./ambient.js";
+import { describeError } from "./errors.js";
 import type { CurveReader, SnapshotReader } from "./storj.js";
 
 /** `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes. */
@@ -84,16 +87,21 @@ export function errorResponse(status: number, error: string): Response {
 }
 
 /**
- * The station a request asks for: its `station` parameter, else the default.
+ * The station a request asks for: the configured one, whether named by the
+ * `station` parameter (in either case) or left to the default.
  *
  * @param request - The incoming request.
- * @param sources - Holds the default station.
- * @returns The upper-case MAC, or a 400 response for a malformed one.
+ * @param sources - Holds the configured station.
+ * @returns The upper-case MAC; a 400 response for a malformed one; a 404,
+ *   not cached, for any other station.
  */
 export function stationOf(request: Request, sources: ReadSources): string | Response {
   const asked = new URL(request.url).searchParams.get("station");
   if (asked === null) return sources.defaultMac;
-  return normaliseMac(asked) ?? errorResponse(400, "station must be a MAC address");
+  const mac = normaliseMac(asked);
+  if (mac === null) return errorResponse(400, "station must be a MAC address");
+  if (mac !== sources.defaultMac) return errorResponse(404, "no such station");
+  return mac;
 }
 
 /**
@@ -114,14 +122,14 @@ export async function handleDashboard(
   try {
     text = await sources.readSnapshot(mac, "dashboard");
   } catch (error) {
-    console.error("dashboard: Storj read failed", error);
+    console.error("dashboard: Storj read failed", describeError(error));
     return errorResponse(502, "the snapshot could not be read");
   }
   if (text === null) return errorResponse(404, `no snapshot for station ${mac}`);
   try {
     parseDashboard(JSON.parse(text));
   } catch (error) {
-    console.error("dashboard: snapshot breaks the contract", error);
+    console.error("dashboard: snapshot breaks the contract", describeError(error));
     return errorResponse(502, "the snapshot does not match this site");
   }
   return jsonResponse(text, 200, DASHBOARD_CACHE);
@@ -153,10 +161,10 @@ export async function handleCurrent(
     readLive(mac),
   ]);
   if (contextResult.status === "rejected") {
-    console.error("current: context read failed", contextResult.reason);
+    console.error("current: context read failed", describeError(contextResult.reason));
   }
   if (liveResult.status === "rejected") {
-    console.error("current: Ambient read failed", liveResult.reason);
+    console.error("current: Ambient read failed", describeError(liveResult.reason));
   }
   if (contextResult.status === "rejected" && liveResult.status === "rejected") {
     return errorResponse(502, "neither the live reading nor the snapshot could be read");

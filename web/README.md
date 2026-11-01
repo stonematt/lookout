@@ -66,9 +66,31 @@ Stop it with Ctrl-C, or `kill` its PID.
 
 Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
 
+## Security headers
+
+`vercel.json` sets `Content-Security-Policy`, `X-Content-Type-Options`,
+`Referrer-Policy` and `X-Frame-Options` on every path. Scripts, fetches,
+fonts and images come from this origin only; styles also allow
+`'unsafe-inline'`, because Plotly injects a `<style>` element and sets style
+attributes, as does the temperature chart's gradient. Neither `vite` nor
+`vite preview` applies `vercel.json`, so check the page against the policy
+with the built site:
+
+```
+npm run build && npx vite preview --port 5177 --strictPort
+node scripts/csp-check.mjs http://localhost:5177 [screenshot-dir]
+```
+
+It opens every tab at 390px and 1280px in both themes over both goldens,
+draws a live and a completed Rain Event's charts, and fails on any CSP
+violation. `LOOKOUT_NO_HEADERS=1` runs it without the headers, for baseline
+screenshots. `vite preview` serves the goldens the same way the dev server
+does.
+
 ## Read functions
 
-Both take an optional `?station=<MAC>`. Without it they use `STATION_MAC`.
+All three take an optional `?station=<MAC>`. Without it they use `STATION_MAC`.
+Any station other than `STATION_MAC` answers 404, uncached, before any read.
 
 - `GET /dashboard`: the station's `snapshot/<MAC>.dashboard.json`, as Storj
   holds it, with `Cache-Control: s-maxage=300, stale-while-revalidate=300`.

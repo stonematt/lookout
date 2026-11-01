@@ -9,6 +9,7 @@
  */
 import { parseEventCurve } from "../src/snapshot.js";
 import type { ReadSources } from "./handlers.js";
+import { describeError } from "./errors.js";
 import { errorResponse, jsonResponse, stationOf } from "./handlers.js";
 
 /** A found curve file: immutable. */
@@ -45,7 +46,7 @@ export async function handleEvent(
   try {
     text = await readCurve(mac, Number(start));
   } catch (error) {
-    console.error("event: Storj read failed", error);
+    console.error("event: Storj read failed", describeError(error));
     return errorResponse(502, "the event curve could not be read");
   }
   if (text === null) {
@@ -58,7 +59,7 @@ export async function handleEvent(
   try {
     parseEventCurve(JSON.parse(text));
   } catch (error) {
-    console.error("event: curve breaks the contract", error);
+    console.error("event: curve breaks the contract", describeError(error));
     return errorResponse(502, "the event curve does not match this site");
   }
   return jsonResponse(text, 200, CURVE_CACHE);

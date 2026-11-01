@@ -104,7 +104,7 @@ function stamp(line: AgeLine, label: string, ms: number): void {
 export function mountHeader(host: HTMLElement, now: () => number = Date.now): Header {
   host.innerHTML = `
     <header class="masthead">
-      <h1 class="masthead-station">${FALLBACK_NAME}</h1>
+      <h1 class="masthead-station"></h1>
       <div class="masthead-ages">
         <p class="masthead-line masthead-reading" data-stale="false">
           <span class="masthead-dot" aria-hidden="true"></span>
@@ -119,6 +119,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       </div>
     </header>`;
   const name = host.querySelector<HTMLElement>(".masthead-station")!;
+  name.textContent = FALLBACK_NAME;
   const reading = ageLine(host.querySelector<HTMLElement>(".masthead-reading")!);
   const figures = ageLine(host.querySelector<HTMLElement>(".masthead-figures")!);
 

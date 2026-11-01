@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as currentGET } from "../api/current.js";
 import { GET as dashboardGET } from "../api/dashboard.js";
+import { describeError } from "../server/errors.js";
 import { SCHEMA_VERSION } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
 import { golden, goldenText } from "./golden.js";
@@ -126,12 +127,18 @@ describe("GET /dashboard", () => {
     expect(world.calls.every((c) => c.url.startsWith(STORJ))).toBe(true);
   });
 
-  it("takes a station parameter, in either case", async () => {
-    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
+  it("takes the pinned station as a parameter, in either case", async () => {
     const response = await dashboardGET(
       get(`/dashboard?station=${encodeURIComponent(MAC.toLowerCase())}`),
     );
     expect(response.status).toBe(200);
+  });
+
+  it("answers 404, uncached, for any other station, without reading Storj", async () => {
+    const response = await dashboardGET(get("/dashboard?station=AA:BB:CC:DD:EE:FF"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(world.calls).toHaveLength(0);
   });
 
   it("refuses a station that is not a MAC address", async () => {
@@ -141,9 +148,8 @@ describe("GET /dashboard", () => {
   });
 
   it("answers 404 when the station has no snapshot", async () => {
-    const response = await dashboardGET(
-      get("/dashboard?station=AA:BB:CC:DD:EE:FF"),
-    );
+    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
+    const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
@@ -242,6 +248,37 @@ describe("GET /current", () => {
     expect(body.station).toEqual({ mac: MAC, name: "Ambient Name" });
   });
 
+  it("never logs the Ambient keys when the fetch rejects", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new Request(input, init).url;
+        if (url.startsWith(STORJ)) return fakeFetch(input, init);
+        // What a network failure can look like: the URL, keys and all, in
+        // the message, the stack and the cause.
+        const error = new TypeError(`fetch failed: ${ENV.AMBIENT_API_KEY} ${url}`, {
+          cause: new Error(`connect ECONNREFUSED ${url}`),
+        });
+        return Promise.reject(error);
+      }),
+    );
+
+    const response = await currentGET(get("/current"));
+
+    expect(response.status).toBe(200);
+    expect(logged).toHaveBeenCalled();
+    for (const args of logged.mock.calls) {
+      for (const arg of args) {
+        expect(typeof arg).toBe("string");
+        expect(arg).not.toContain(ENV.AMBIENT_API_KEY);
+        expect(arg).not.toContain(ENV.AMBIENT_APPLICATION_KEY);
+      }
+    }
+    expect(logged.mock.calls.flat().join(" ")).toContain("fetch failed");
+    logged.mockRestore();
+  });
+
   it("answers 502 when neither source can be read", async () => {
     world.storjStatus = 500;
     world.ambientStatus = 500;
@@ -258,5 +295,35 @@ describe("GET /current", () => {
   it("refuses a station that is not a MAC address", async () => {
     const response = await currentGET(get("/current?station=x"));
     expect(response.status).toBe(400);
+  });
+
+  it("answers 404, uncached, for any other station, reading nothing", async () => {
+    world.devices = [ambientDevice(1, "AA:BB:CC:DD:EE:FF")];
+    const response = await currentGET(get("/current?station=AA:BB:CC:DD:EE:FF"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(world.calls).toHaveLength(0);
+  });
+});
+
+describe("an error as a log line", () => {
+  it("is its name and message, key-shaped parameters redacted", () => {
+    const error = new TypeError("fetch failed: https://x.test/v1?apiKey=abc&applicationKey=def", {
+      cause: new Error("socket hang up"),
+    });
+    expect(describeError(error)).toBe(
+      "TypeError: fetch failed: https://x.test/v1?apiKey=[redacted]&applicationKey=[redacted]",
+    );
+  });
+
+  it("takes out the given secrets, plain or URL-encoded", () => {
+    const error = new Error("key a/b+c rejected; again a%2Fb%2Bc");
+    expect(describeError(error, ["a/b+c"])).toBe(
+      "Error: key [redacted] rejected; again [redacted]",
+    );
+  });
+
+  it("names a rejection that is not an Error", () => {
+    expect(describeError("boom")).toBe("non-Error: boom");
   });
 });

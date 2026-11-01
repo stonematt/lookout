@@ -99,6 +99,15 @@ describe("GET /event", () => {
     },
   );
 
+  it("answers 404, uncached, for any station but the pinned one", async () => {
+    const response = await eventGET(
+      get(`/event?start=${EVENT_2}&station=AA:BB:CC:DD:EE:FF`),
+    );
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(calls).toHaveLength(0);
+  });
+
   it("answers 502 when Storj fails", async () => {
     storjBody = () => new Response("slow down", { status: 503 });
 

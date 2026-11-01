@@ -17,6 +17,7 @@ import "./events.css";
 
 import { formatStamp, inches, inchesPerHour, waterYearSpan } from "../format.js";
 import { ReadError, fetchEventCurve } from "../load.js";
+import { escapeHtml as esc } from "../dom.js";
 import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
@@ -60,11 +61,6 @@ export function browserDeps(): EventsDeps {
     },
     nowMs: () => Date.now(),
   };
-}
-
-/** Escape text for HTML. */
-function esc(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
 /** A one-row stat strip cell. */
@@ -134,7 +130,7 @@ export function mountEvents(
     `<button type="button" data-season="all">All</button>`,
     ...section.seasons.map(
       (s) =>
-        `<button type="button" data-season="${s.water_year}" title="${waterYearSpan(s.water_year)}">${s.water_year}</button>`,
+        `<button type="button" data-season="${esc(s.water_year)}" title="${esc(waterYearSpan(s.water_year))}">${esc(s.water_year)}</button>`,
     ),
   ].join("");
 
@@ -171,7 +167,7 @@ export function mountEvents(
         const peak = e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : e.peak_rate_in_hr.toFixed(2);
         const chip = `<span class="ev-chip${lowQuality(e) ? " low" : ""}">${esc(qualityLabel(e))}</span>`;
         return `<tr class="${e.live ? "pin" : ""}"${current}>
-  <th scope="row"><a class="ev-open" href="${esc(href)}" data-start="${e.start_ms}">${live}<span class="ev-when">${esc(startLabel(e.start_ms, now))}</span></a></th>
+  <th scope="row"><a class="ev-open" href="${esc(href)}" data-start="${esc(e.start_ms)}">${live}<span class="ev-when">${esc(startLabel(e.start_ms, now))}</span></a></th>
   <td>${esc(minutes(e.duration_minutes))}</td>
   <td><b>${e.total_in.toFixed(2)}</b></td>
   <td class="ev-peak">${peak}</td>
@@ -214,7 +210,7 @@ ${more}
     missing = false;
     host.innerHTML = `
 ${note}
-<p class="ev-kicker">${row.live ? '<span class="ev-live">Live</span> ' : ""}Water year ${row.water_year}</p>
+<p class="ev-kicker">${row.live ? '<span class="ev-live">Live</span> ' : ""}Water year ${esc(row.water_year)}</p>
 <h3 class="ev-finding">${esc(eventFinding(row, all.length))}</h3>
 <p class="standfirst">${esc(span)} ${esc(quality)}</p>
 <dl class="ev-facts">

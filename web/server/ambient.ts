@@ -5,6 +5,7 @@
  * newest `lastData`; the station is picked by MAC address, never by position.
  */
 import type { LastData } from "../src/snapshot.js";
+import { describeError } from "./errors.js";
 
 /** Ambient's endpoint when `AMBIENT_ENDPOINT` is not set. */
 export const DEFAULT_AMBIENT_ENDPOINT = "https://rt.ambientweather.net/v1";
@@ -59,7 +60,14 @@ export function ambientReader(
     const url = new URL(`${config.endpoint.replace(/\/+$/, "")}/devices`);
     url.searchParams.set("apiKey", config.apiKey);
     url.searchParams.set("applicationKey", config.applicationKey);
-    const response = await fetchImpl(url);
+    let response: Response;
+    try {
+      response = await fetchImpl(url);
+    } catch (error) {
+      // A network error can carry the URL, and the URL carries the keys.
+      const keys = [config.apiKey, config.applicationKey];
+      throw new AmbientReadError(`Ambient /devices fetch failed: ${describeError(error, keys)}`);
+    }
     if (!response.ok) {
       throw new AmbientReadError(`Ambient ${response.status} on /devices`);
     }
