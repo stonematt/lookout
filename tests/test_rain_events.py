@@ -15,6 +15,7 @@ from lookout.core.rain_events import (
     detect_rain_events,
     newly_completed,
 )
+from lookout.storage import storj
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -22,7 +23,6 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
-from lookout.storage import storj
 from tests.fixtures.storage import bucket_keys
 from tests.test_catchup import flaky_storj
 
@@ -412,6 +412,23 @@ class TestSaveIfEventsCompleted:
         catalog.save_catalog(ongoing)
 
         catalog.save_if_events_completed(ongoing, completed)
+
+        backups = [
+            key
+            for key in bucket_keys(fake_s3)
+            if key.startswith(f"backups/{FAKE_MAC}.event_catalog")
+        ]
+        assert len(backups) == 1
+
+    def test_a_stored_catalog_with_no_events_is_backed_up_before_saving(
+        self, catalog, completed, fake_s3
+    ):
+        # Found but empty is still found: the refresh run hands it in as None.
+        catalog.save_catalog(completed)
+        empty = catalog.load_catalog().head(0)
+        storj.save_df_to_s3(empty, catalog.bucket, CATALOG_KEY)
+
+        assert catalog.save_if_events_completed(None, completed) is True
 
         backups = [
             key

@@ -618,13 +618,15 @@ class RainEventCatalog:
         that started (and completed) after the last save. With no stored
         catalog, the first completed event seeds one. See `newly_completed`.
 
-        The backup is taken only when the read was found (`stored_catalog`
-        is not None), so a missing catalog costs no extra round trip. If it
+        The stored catalog is backed up first. The copy ends in its own read
+        outcome (`backup_catalog`): it copies only a catalog that is found,
+        whatever `stored_catalog` holds, so a stored catalog with no events
+        is backed up too, and a missing one copies nothing. If the copy
         fails, `BackupError` propagates and nothing is saved; the next run
         finds the same events and tries again.
 
-        :param stored_catalog: The catalog as read (`load_catalog`): None
-            when none is stored.
+        :param stored_catalog: The catalog as stored; None or empty when it
+            holds no event.
         :param updated_catalog: The catalog brought up to the archive.
         :return: True if saved, False otherwise.
         :raises BackupError: If the stored catalog could not be backed up.
@@ -639,14 +641,11 @@ class RainEventCatalog:
                 f"{event['total_rainfall']:.3f}\" over "
                 f"{event['duration_minutes'] / 60:.1f}h"
             )
-        if stored_catalog is not None:
-            try:
-                self.backup_catalog()
-            except storj.BackupError:
-                logger.error(
-                    "Event Catalog backup failed; not saving (next run retries)"
-                )
-                raise
+        try:
+            self.backup_catalog()
+        except storj.BackupError:
+            logger.error("Event Catalog backup failed; not saving (next run retries)")
+            raise
         saved = self.save_catalog(updated_catalog)
         if saved:
             logger.info(

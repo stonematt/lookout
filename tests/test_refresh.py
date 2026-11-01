@@ -556,16 +556,17 @@ class TestEventCatalogReadOutcome:
         assert event_backups(station) == []  # nothing stored, nothing to back up
         assert len(snapshot_keys(station)) == 2
 
-    def test_a_failed_backup_stops_the_save(self, seed, monkeypatch):
+    def test_a_failed_backup_stops_the_save(self, seed, fake_healthchecks, monkeypatch):
         station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
         before = stored_bytes(station, EVENT_CATALOG_KEY)
         flaky = CatalogCopyRefused(station.s3)
         monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
 
-        run_refresh(station)
+        assert self.run_main(station) == 0  # the save waits for the next run
 
         assert stored_bytes(station, EVENT_CATALOG_KEY) == before
         assert event_backups(station) == []
+        assert len(snapshot_keys(station)) == 2
 
 
 class TestEventCatalogSavesRunAfterRun:

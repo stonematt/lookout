@@ -441,8 +441,9 @@ def run(
     """
     One refresh run: every step, in order. A failure raises (a failed
     Event Catalog read among them, #180), except a catalog's update
-    failing (that catalog is used as stored and marked stale) and a failure writing curve files after the snapshot published:
-    those are logged at ERROR only.
+    failing (that catalog is used as stored and marked stale) and a
+    failure writing curve files after the snapshot published: those are
+    logged at ERROR only.
 
     :param bucket: The bucket.
     :param pages: Maximum Ambient pages catchup fetches.
