@@ -106,6 +106,9 @@ function yearButton(season: EventSeason): string {
   return `<button type="button" data-season="${year}" data-gap="${esc(status.reason ?? "gap")}" title="${esc(`${span}: ${reason}`)}">${year}<span class="ev-seg-gap gap-hatch" aria-hidden="true"></span><span class="sr-only">, ${esc(reason)}</span></button>`;
 }
 
+/** Each panel's listeners from its last mount, dropped by the next one. */
+const mounted = new WeakMap<HTMLElement, AbortController>();
+
 /**
  * Render the Rain Events tab into its panel.
  *
@@ -118,6 +121,9 @@ export function mountEvents(
   snapshot: DashboardSnapshot,
   deps: EventsDeps = browserDeps(),
 ): void {
+  mounted.get(panel)?.abort();
+  const listening = new AbortController();
+  mounted.set(panel, listening);
   const section = snapshot.rain_events;
   const all = section.events;
   const asked = selectedStart(location.search);
@@ -381,7 +387,7 @@ ${note}
       limit += PAGE * 2;
       renderList();
     }
-  });
+  }, { signal: listening.signal });
 
   renderHead();
   renderList();

@@ -10,6 +10,9 @@ import { AwsClient } from "aws4fetch";
 /** The prefix every snapshot document lives under. */
 export const SNAPSHOT_PREFIX = "snapshot/";
 
+/** How long one Storj read may take, body included, before it fails. */
+export const STORJ_TIMEOUT_MS = 5_000;
+
 /** The two documents a refresh run publishes per station. */
 export type SnapshotKind = "dashboard" | "context";
 
@@ -70,11 +73,13 @@ export function eventCurveKey(mac: string, startMs: number): string {
  *
  * @param config - The read-only credential, endpoint and bucket.
  * @param fetchImpl - The fetch to send signed requests with.
+ * @param timeoutMs - How long one read may take before it fails.
  * @returns A reader: the key's text, or null when Storj has no such key.
  */
 function storjKeyReader(
   config: StorjConfig,
   fetchImpl: typeof fetch,
+  timeoutMs: number,
 ): (key: string) => Promise<string | null> {
   const client = new AwsClient({
     accessKeyId: config.accessKeyId,
@@ -87,7 +92,7 @@ function storjKeyReader(
   return async (key) => {
     const url = `${base}/${config.bucket}/${encodeURIComponent(key).replace(/%2F/g, "/")}`;
     const request = await client.sign(url, { method: "GET" });
-    const response = await fetchImpl(request);
+    const response = await fetchImpl(request, { signal: AbortSignal.timeout(timeoutMs) });
     if (response.status === 404) return null;
     if (!response.ok) {
       throw new StorjReadError(`Storj ${response.status} reading ${key}`);
@@ -101,13 +106,15 @@ function storjKeyReader(
  *
  * @param config - The read-only credential, endpoint and bucket.
  * @param fetchImpl - The fetch to send signed requests with.
+ * @param timeoutMs - How long one read may take before it fails.
  * @returns The reader.
  */
 export function storjCurveReader(
   config: StorjConfig,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = STORJ_TIMEOUT_MS,
 ): CurveReader {
-  const read = storjKeyReader(config, fetchImpl);
+  const read = storjKeyReader(config, fetchImpl, timeoutMs);
   return (mac, startMs) => read(eventCurveKey(mac, startMs));
 }
 
@@ -116,12 +123,14 @@ export function storjCurveReader(
  *
  * @param config - The read-only credential, endpoint and bucket.
  * @param fetchImpl - The fetch to send signed requests with.
+ * @param timeoutMs - How long one read may take before it fails.
  * @returns The reader.
  */
 export function storjReader(
   config: StorjConfig,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = STORJ_TIMEOUT_MS,
 ): SnapshotReader {
-  const read = storjKeyReader(config, fetchImpl);
+  const read = storjKeyReader(config, fetchImpl, timeoutMs);
   return (mac, kind) => read(snapshotKey(mac, kind));
 }

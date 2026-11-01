@@ -920,7 +920,8 @@ export function parseContext(doc: unknown): ContextBlock {
  * Check a parsed `/current` body and type it.
  *
  * @param doc - The parsed JSON.
- * @returns The same object, typed.
+ * @returns The same object, typed; its `context` null when the context
+ *   block breaks the contract.
  * @throws SnapshotContractError when the version, kind or station is wrong.
  */
 export function parseCurrent(doc: unknown): CurrentReading {
@@ -939,7 +940,15 @@ export function parseCurrent(doc: unknown): CurrentReading {
   if (doc.observed_at_ms !== null && !isTime(doc.observed_at_ms)) {
     throw new SnapshotContractError("current: observed_at_ms not an integer");
   }
-  if (doc.context !== null) parseContext(doc.context);
+  if (doc.context === null) return doc as unknown as CurrentReading;
+  try {
+    parseContext(doc.context);
+  } catch (error) {
+    if (!(error instanceof SnapshotContractError)) throw error;
+    // A context that breaks the contract (a refresh run on a newer schema)
+    // costs only the context: the live reading still stands.
+    return { ...doc, context: null } as unknown as CurrentReading;
+  }
   return doc as unknown as CurrentReading;
 }
 

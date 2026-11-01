@@ -136,6 +136,9 @@ function fixtureSources(
   };
 }
 
+/** The lane server's own query parameters. */
+const DEV_PARAMS = ["fixture", "age"] as const;
+
 /**
  * Answer a lane-server request for `/dashboard`, `/current` or `/event`.
  *
@@ -167,8 +170,23 @@ export async function devResponse(
     return errorResponse(400, "age must be a number of minutes");
   }
   const sources = fixtureSources(scenario as Scenario, age, nowMs);
-  return handler(new Request(parsed), sources);
+  // `fixture` and `age` are the lane server's own: the real read functions
+  // refuse them, so they are taken off before the handler sees the request,
+  // and put back on any redirect it answers.
+  const own = new URLSearchParams();
+  for (const name of DEV_PARAMS) {
+    const value = parsed.searchParams.get(name);
+    if (value !== null) own.set(name, value);
+    parsed.searchParams.delete(name);
+  }
+  const response = await handler(new Request(parsed), sources);
+  const location = response.headers.get("location");
+  if (location === null || !own.size) return response;
+  const headers = new Headers(response.headers);
+  headers.set("location", `${location}${location.includes("?") ? "&" : "?"}${own}`);
+  return new Response(response.body, { status: response.status, headers });
 }
+
 
 /**
  * A Vite plugin serving `/dashboard`, `/current` and `/event` from the

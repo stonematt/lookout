@@ -141,6 +141,17 @@ describe("the selected event", () => {
     expect(panel.querySelector(".ev-detail .ev-live")).not.toBeNull();
   });
 
+  it("answers a click once after a newer snapshot is mounted over it", async () => {
+    // The page mounts the tab again whenever the snapshot changes.
+    mountEvents(panel, raining(), deps);
+    mountEvents(panel, raining(), deps);
+
+    click(`.ev-open[data-start='${EVENT_2}']`);
+    await flush();
+
+    expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
+  });
+
   it("opens a completed event from its curve file and puts it in the URL", async () => {
     mountEvents(panel, raining(), deps);
 
