@@ -13,7 +13,8 @@ Usage:
 The steps, each its own function, run in this order by `run`:
 
 1. `load_station()`: the pinned station's `/devices` entry; its `lastData` is
-   the live reading.
+   the live reading, and its `lastData.tz` the station's zone (ADR-0005).
+   With no zone, the run fails here, before anything is written.
 2. `update_archive(device, bucket, pages)`: catchup; the archive as saved,
    raw.
 3. `correct_rain(station, bucket, archive, live)`: the stored rain
@@ -64,7 +65,6 @@ from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
-from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
@@ -158,23 +158,22 @@ def correct_rain(
     if not corrections:
         return archive, live
     return correct_counters(archive, corrections), correct_live(
-        live, archive, corrections
+        live, station.tz, corrections
     )
 
 
 def correct_live(
-    live: Optional[Dict], archive: pd.DataFrame, corrections: List[Dict]
+    live: Optional[Dict], tz: str, corrections: List[Dict]
 ) -> Optional[Dict]:
     """
     The live reading with the rain corrections applied to its counters.
 
     It is corrected as a one-row frame through `correct_counters`, so it gets
-    exactly the archive's rules. Its day is its `dateutc` in the archive's
-    `date` time zone (the station's, `DEFAULT_TZ` without an archive), the
-    calendar day the archive's rows are corrected by.
+    exactly the archive's rules. Its day is its `dateutc` in the station's
+    zone (ADR-0005), the calendar day the archive's rows are corrected by.
 
     :param live: The live `lastData`, raw, or None.
-    :param archive: The raw archive, for its time zone.
+    :param tz: The station's zone.
     :param corrections: The stored corrections.
     :return: A corrected copy; `live` itself when it has no time or no
         counters.
@@ -185,11 +184,6 @@ def correct_live(
     if not present:
         return live
 
-    tz = DEFAULT_TZ
-    if "date" in archive.columns and isinstance(
-        archive["date"].dtype, pd.DatetimeTZDtype
-    ):
-        tz = archive["date"].dt.tz
     observed = pd.Timestamp(to_ms(live["dateutc"]), unit="ms", tz="UTC")
     row = pd.DataFrame(
         [

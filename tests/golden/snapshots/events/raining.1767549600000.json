@@ -3,7 +3,8 @@
   "kind": "event_curve",
   "station": {
     "mac": "00:11:22:33:44:55",
-    "name": "Fixture Station"
+    "name": "Fixture Station",
+    "tz": "America/Los_Angeles"
   },
   "start_ms": 1767549600000,
   "end_ms": 1767581400000,

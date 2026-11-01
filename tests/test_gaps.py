@@ -20,9 +20,15 @@ from lookout.snapshot.gaps import (
     prorate,
     window_status,
 )
-from tests.fixtures.archive import SCENARIO, Gap, build_archive, scenario_archive
+from tests.fixtures.archive import (
+    SCENARIO,
+    STATION_TZ,
+    Gap,
+    build_archive,
+    scenario_archive,
+)
 
-STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station")
+STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station", tz=STATION_TZ)
 
 
 def day(iso: str) -> date:

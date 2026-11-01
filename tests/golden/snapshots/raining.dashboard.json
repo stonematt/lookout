@@ -3,7 +3,8 @@
   "kind": "dashboard",
   "station": {
     "mac": "00:11:22:33:44:55",
-    "name": "Fixture Station"
+    "name": "Fixture Station",
+    "tz": "America/Los_Angeles"
   },
   "built_at_ms": 1767918420000,
   "observed_at_ms": 1767918300000,
