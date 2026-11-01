@@ -64,6 +64,19 @@ describe("temperature across periods", () => {
     expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(0);
   });
 
+  it("names the start year of a window that spans a new year", () => {
+    // "Jan 7 to Jan 6" read backwards (#147); the start year sets it right.
+    const spans = all("[data-part=periods-chart] .tc-sub").map((el) => el.textContent);
+    expect(spans).toEqual([
+      "Jan 6",
+      "Jan 5",
+      "Dec 31, 2025 to Jan 6",
+      "Dec 8, 2025 to Jan 6",
+      "Oct 9, 2025 to Jan 6",
+      "Jan 7, 2025 to Jan 6",
+    ]);
+  });
+
   it("words the finding from the 30-day window", () => {
     expect(text("[data-block=periods] [data-part=headline]")).toBe(
       "55.0° now is inside the middle half of readings over the last 30 days",

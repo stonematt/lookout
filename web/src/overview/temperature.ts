@@ -57,11 +57,17 @@ const NAMES: Record<string, string> = {
   "365d": "365 days",
 };
 
-/** "Dec 31 to Jan 6": the window's days, for a row label. */
+/**
+ * The window's days, for a row label: "Jan 1 to Jan 6", or with the start
+ * year when the window spans a new year, "Dec 31, 2025 to Jan 6", so a
+ * 365-day window never reads backwards ("Jan 7 to Jan 6").
+ */
 function spanText(status: GapStatus): string {
   const first = SHORT_DATE.format(dayDate(status.first_day));
   if (status.first_day === status.last_day) return first;
-  return `${first} to ${SHORT_DATE.format(dayDate(status.last_day))}`;
+  const spansYear = status.first_day.slice(0, 4) !== status.last_day.slice(0, 4);
+  const start = spansYear ? `${first}, ${status.first_day.slice(0, 4)}` : first;
+  return `${start} to ${SHORT_DATE.format(dayDate(status.last_day))}`;
 }
 
 /** How much of a window's readings `now` sits in, for the finding. */
