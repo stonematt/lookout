@@ -294,7 +294,7 @@ class TestHeartbeats:
         )
         assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/0"]
 
-    def test_a_curve_write_failure_does_not_fail_a_published_run(
+    def test_a_curve_write_failure_fails_a_published_run(
         self, seed, fake_healthchecks, monkeypatch, caplog
     ):
         station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
@@ -311,16 +311,48 @@ class TestHeartbeats:
 
         monkeypatch.setattr(curves, "get_s3_client", lambda: FailingCurveClient())
 
-        assert self.run_main(station) == 0
+        assert self.run_main(station) == 1
 
         assert sorted(snapshot_keys(station)) == sorted([DASHBOARD_KEY, CONTEXT_KEY])
         assert curve_keys(station) == []
         assert "curve write refused" in caplog.text
         assert fake_healthchecks.pings[0] == "lookout-refresh/start"
         assert fake_healthchecks.pings[1].startswith("station-")
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+
+    def test_a_curve_listing_failure_fails_a_published_run(
+        self, seed, fake_healthchecks, monkeypatch, caplog
+    ):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+        failing = {"on": True}
+
+        class ListingClient:
+            def __getattr__(self, name):
+                return getattr(station.s3, name)
+
+            def get_paginator(self, name):
+                if failing["on"]:
+                    raise OSError("curve listing refused")
+                return station.s3.get_paginator(name)
+
+        monkeypatch.setattr(curves, "get_s3_client", lambda: ListingClient())
+
+        assert self.run_main(station) == 1
+
+        assert sorted(snapshot_keys(station)) == sorted([DASHBOARD_KEY, CONTEXT_KEY])
+        assert curve_keys(station) == []
+        assert "curve listing refused" in caplog.text
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+
+        failing["on"] = False
+        fake_healthchecks.pings.clear()
+
+        assert self.run_main(station) == 0
+
+        assert curve_keys(station) != []
         assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
 
-    def test_a_curve_write_failure_still_follows_a_stale_reading(
+    def test_a_curve_failure_still_follows_a_stale_reading(
         self, seed, fake_healthchecks, monkeypatch
     ):
         station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
@@ -331,8 +363,8 @@ class TestHeartbeats:
         monkeypatch.setattr(refresh, "publish_event_curves", refuse)
         late = station.now + timedelta(hours=2)
 
-        assert refresh.main(["--bucket", BUCKET], clock=lambda: late) == 0
-        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/0"]
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: late) == 1
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
 
     def test_a_healthchecks_outage_does_not_fail_the_run(self, seed, fake_healthchecks):
         station = seed()
@@ -844,7 +876,8 @@ class TestEventCurveFiles:
 
         monkeypatch.setattr(curves, "get_s3_client", lambda: OneBadKey())
 
-        run_refresh(station)
+        with pytest.raises(refresh.CurveStepFailed):
+            run_refresh(station)
 
         assert curve_keys(station) == sorted(
             curve_key(start) for start in (EVENT_1, EVENT_3)
