@@ -20,12 +20,7 @@ Sensitivity:
 from typing import Dict, List, Optional
 import pandas as pd
 
-from lookout.storage.storj import (
-    get_json_from_s3,
-    object_exists,
-    read_json_from_s3,
-    save_json_to_s3,
-)
+from lookout.storage.storj import read_json_from_s3, save_json_to_s3
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -36,22 +31,12 @@ def _get_catalog_path(mac_address: str, bucket: str = "lookout") -> str:
     return f"s3://{bucket}/{mac_address}.rain_corrections.json"
 
 
-def catalog_exists(mac_address: str, bucket: str = "lookout") -> bool:
-    """Check if corrections catalog exists in Storj."""
-    return object_exists(bucket, f"{mac_address}.rain_corrections.json")
-
-
-def load_catalog(mac_address: str, bucket: str = "lookout") -> Dict:
-    """Load corrections catalog from Storj."""
-    return get_json_from_s3(bucket, f"{mac_address}.rain_corrections.json")
-
-
 def read_catalog(mac_address: str, bucket: str = "lookout") -> Optional[Dict]:
     """
     Read the corrections catalog, telling "none stored" from a failed read.
 
-    `load_catalog` reads both as `{}`; a run that publishes rain uses this
-    instead, so a read error is never published as "no corrections" (#160).
+    The one corrections reader: a read error is never taken for "no
+    corrections" (#160, #181).
 
     :param mac_address: The station.
     :param bucket: The bucket.
@@ -129,16 +114,18 @@ def apply_corrections(
     """
     Apply the stored carryover corrections to rain accumulation fields.
 
-    Loads `<MAC>.rain_corrections.json` and hands its corrections to
-    `correct_counters`, which holds the correction rules.
+    Reads `<MAC>.rain_corrections.json` strictly and hands its corrections
+    to `correct_counters`, which holds the correction rules. A failed read
+    raises: it never stands in for "no corrections" (#181).
 
     :param df: Archive DataFrame (reverse sorted by dateutc)
     :param mac_address: Device MAC address
     :param bucket: S3 bucket name
     :return: Corrected DataFrame (preserves original sort order); `df` itself
         when no catalog or no correction is stored.
+    :raises StorageReadError: If the stored catalog cannot be read or parsed.
     """
-    catalog = load_catalog(mac_address, bucket)
+    catalog = read_catalog(mac_address, bucket)
     return correct_counters(df, (catalog or {}).get("corrections") or [])
 
 
