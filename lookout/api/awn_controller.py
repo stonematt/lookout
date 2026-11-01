@@ -17,8 +17,9 @@ Functions:
 - load_archive_for_device: Load archived device data from S3.
 - get_device_history_to_date: Fetch records ending at a given timestamp.
 - get_device_history_from_date: Fetch records starting from a timestamp.
+- fetch_since_last_archive: Fetch Ambient's readings since the archive's newest.
 - get_history_since_last_archive: Incrementally extend archive forward.
-- combine_df: Merge and deduplicate DataFrames by 'dateutc'.
+- combine_df: Merge same-source frames by 'dateutc', later frame wins.
 
 Helper Functions:
 - validate_archive: Ensure archive is non-empty and valid.
@@ -51,6 +52,7 @@ from lookout.utils.trend_utils import (
 
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history
+from lookout.core import archive_merge
 from lookout.core.rain_corrections import apply_corrections
 from lookout.utils.log_util import app_logger
 
@@ -547,22 +549,62 @@ def get_history_since_last_archive(
     end_date: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
-    Retrieves device history from the last archive forward, avoiding duplicate fetches,
-    handling gaps, and skipping future timestamps.
+    The archive with what Ambient holds since its newest reading merged in.
 
-    The result is raw: the archive rows as handed, the fetched rows as Ambient
-    reported them. Rain corrections are not applied; a reader applies them
-    once, after loading (#95), so the archive written to storage stays raw.
+    `fetch_since_last_archive`, then the archive merge (Ambient wins for
+    each value it sends; `lookout.core.archive_merge`). The result is raw:
+    rain corrections are not applied; a reader applies them once, after
+    loading (#95), so the archive written to storage stays raw. A caller
+    that needs the merge report fetches and merges itself, as catchup does.
 
-    A gap longer than the forward seek's reach (about 208 h, #132) is
-    crossed by walking back from the end with the pages left
-    (`_cross_long_gap`, #160).
-
+    :return: `archive_df` itself when it is empty or has no `dateutc`; else
+        the merged archive, newest first.
     :raises CatchupStalled: If Ambient holds readings past a gap that the
         pages left could not cross.
     """
     if not validate_archive(archive_df):
         return archive_df
+    fetched = fetch_since_last_archive(
+        device, archive_df, limit=limit, pages=pages, sleep=sleep, end_date=end_date
+    )
+    merged = archive_merge.merge(archive_df, fetched)
+    log_full_history_range(merged.archive, merged.report.added)
+    return merged.archive
+
+
+def fetch_since_last_archive(
+    device: dict,
+    archive_df: pd.DataFrame,
+    limit: int = 250,
+    pages: int = 10,
+    sleep: bool = False,
+    end_date: Optional[datetime] = None,
+) -> pd.DataFrame:
+    """
+    Fetch Ambient's readings from the archive's newest reading forward.
+
+    Pages forward, avoiding duplicate fetches, handling gaps and skipping
+    future timestamps. A gap longer than the forward seek's reach (about
+    208 h, #132) is crossed by walking back from the end with the pages left
+    (`_cross_long_gap`, #160). Ambient's pages run back from their end, so
+    the first one usually repeats the archive's last readings.
+
+    The pages are merged in memory with a plain helper (`combine_df`, later
+    page wins); the result never meets the stored rows here.
+
+    :param device: The station's `/devices` entry.
+    :param archive_df: The archive; only its newest `dateutc` is used.
+    :param limit: Readings per page.
+    :param pages: Most pages to fetch.
+    :param sleep: Wait a second before each page (Ambient's rate limit).
+    :param end_date: Stop paging at this time instead of now.
+    :return: The fetched readings, raw, newest first; empty when there were
+        none or the archive is empty or has no `dateutc`.
+    :raises CatchupStalled: If Ambient holds readings past a gap that the
+        pages left could not cross.
+    """
+    if not validate_archive(archive_df):
+        return pd.DataFrame()
 
     interim_df = pd.DataFrame()
 
@@ -635,7 +677,7 @@ def get_history_since_last_archive(
 
     # Raw, as Ambient reported it: rain corrections are applied on read,
     # never before a save (#95).
-    return combine_full_history(archive_df, interim_df)
+    return interim_df
 
 
 def extend_corrected(
@@ -869,6 +911,10 @@ def combine_full_history(
 ) -> pd.DataFrame:
     """
     Combine the archive with interim data, log added rows and final UTC range.
+
+    Whole rows, the interim frame winning (`combine_df`). Fetched readings
+    join the stored archive through the archive merge
+    (`lookout.core.archive_merge`) instead.
     """
     before = len(archive_df)
 
@@ -879,6 +925,17 @@ def combine_full_history(
         combined = combine_df(archive_df, interim_df)
         added = len(combined) - before
 
+    log_full_history_range(combined, added)
+    return combined
+
+
+def log_full_history_range(combined: pd.DataFrame, added: int) -> None:
+    """
+    Log a merged archive's UTC range, rows added and total.
+
+    :param combined: The archive after a merge, `dateutc` in epoch ms.
+    :param added: Rows the merge added.
+    """
     # Compute range from dateutc (ms) in UTC
     # (do not assume presence/correctness of any local 'date' column)
     dt = pd.to_datetime(combined["dateutc"], unit="ms", utc=True, errors="coerce")
@@ -887,7 +944,7 @@ def combine_full_history(
         logger.info(
             f"Full History Range: (n/a) - (n/a); +{added} rows (total={len(combined)})"
         )
-        return combined
+        return
 
     start = dt.min().strftime("%y-%m-%d %H:%M")
     end = dt.max().strftime("%y-%m-%d %H:%M")
@@ -896,26 +953,33 @@ def combine_full_history(
         f"Full History Range: ({start}) - ({end}); +{added} rows (total={len(combined)})"
     )
 
-    return combined
-
 
 def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge two DataFrames on 'dateutc', keeping the last entry per timestamp.
+    Combine two same-source frames on 'dateutc', `df2`'s row winning.
 
-    Validation, cast to int64 ms, drop-invalid, and dedupe are delegated to
-    `lookout.utils.dateutc.normalize`. The result is re-sorted **descending**
-    to preserve the existing caller-visible order (an ergonomic affordance
-    for `df.head()` debugging).
+    The plain in-memory helper for frames from the same source, such as
+    catchup's fetched pages: whole rows, later frame wins, no report. Stored
+    rows meet Ambient's through the archive merge instead.
+
+    Validation, cast to int64 ms, drop-invalid, and dedupe within each frame
+    are delegated to `lookout.utils.dateutc.normalize`. The result is sorted
+    **descending** (newest first, the stored order).
 
     Behavioral note: as of the dateutc consolidation this path also drops
     rows below the post-2020 floor (see ADR-0001), closing the same class
     of corruption that the load/repair paths already guarded.
     """
     try:
-        df = pd.concat([df1, df2], ignore_index=True)
-        df = normalize(df)
-        return df.sort_values("dateutc", ascending=False).reset_index(drop=True)
+        frames = [f for f in (normalize(df1), normalize(df2)) if not f.empty]
+        if not frames:
+            return pd.DataFrame()
+        df = pd.concat(frames, ignore_index=True).drop_duplicates(
+            subset="dateutc", keep="last"
+        )
+        return df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
+            drop=True
+        )
     except Exception as e:
         logger.error(f"Error combining DataFrames: {e}")
         raise
