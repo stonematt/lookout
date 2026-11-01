@@ -169,7 +169,15 @@ export interface EventStats {
 /** One water year's events, summarised. */
 export interface EventSeason {
   water_year: number;
+  /** An events-only sum, never null: the listed events added up. */
   stats: EventStats;
+  /**
+   * The water year's rain gap status, as its `RainTab.water_years` curve
+   * has it; null when the archive does not reach that year. Read the
+   * events-only sum against it: an invalid year's list misses the events
+   * in its gaps.
+   */
+  status: GapStatus | null;
 }
 
 /**
@@ -193,9 +201,10 @@ export interface RainEvents {
   /** Newest first. */
   seasons: EventSeason[];
   /**
-   * The curve of the event the catalog still holds open, live stitched (its
-   * curve file is written once the catalog closes it); null with none open.
-   * Open is not live: the row's `live` says whether it is still raining.
+   * The curve of the live event (the row with `live`, the snapshot's
+   * `active_rain_event`), live stitched; its curve file is written once the
+   * catalog closes it. Null when no event is live, even while the catalog
+   * still holds one open: that event's file follows its close.
    */
   open_curve: EventCurve | null;
 }
@@ -311,7 +320,11 @@ export interface RecentRain {
   first_day: string;
   rain_in: (number | null)[];
   reason: (GapReason | null)[];
-  /** Each day's 24 local hours; null for an hour still to come today. */
+  /**
+   * Each day's 24 local hours; null when not known: an hour still to come
+   * today (after the build hour) or one with no readings in the record,
+   * which is unknown, never dry.
+   */
   hourly_in: (number | null)[][];
   /** Prorated when the window is; null when invalid. */
   wet_hours: number | null;
@@ -454,11 +467,16 @@ export interface AlmanacYear {
 
 /** One year's rain over a rolling window ending on today's date that year. */
 export interface RollingYear {
-  /** The calendar year the window ends in. */
+  /** The calendar year the window ends in: the table's column. */
   year: number;
   /** Its rain gap status; the current year's is the `RainTab.windows` status with the same key. */
   status: GapStatus;
   rain_in: number | null;
+  /**
+   * The water year the window ends in. The season row ("water_year") is
+   * named by it, not by `year`, which is one behind from Oct through Dec.
+   */
+  water_year: number;
 }
 
 /** One row of the rolling-window rain table. */

@@ -149,6 +149,59 @@ class TestRecentDays:
         assert recent.hourly_in[-1][11] == 0.0
         assert recent.hourly_in[-1][12:] == (None,) * 12
 
+    def test_an_hour_with_no_readings_is_not_known(self):
+        # Jan 7, 2-4 am local, no rows: the day still counts (over 80% of
+        # it is in), but those two hours are unknown, not dry (#147).
+        archive = build_archive(
+            "2025-10-01T07:00:00Z",
+            "2026-01-10T08:00:00Z",
+            rain=JAN_RAIN,
+            gaps=[Gap("2026-01-07T10:00:00Z", "2026-01-07T12:00:00Z")],
+        )
+
+        recent = build(archive, "2026-01-10T07:59:00Z").rain_tab.recent
+        jan_7 = (date(2026, 1, 7) - date.fromisoformat(recent.first_day)).days
+
+        assert recent.reason[jan_7] is None
+        assert recent.rain_in[jan_7] == 0.0
+        assert recent.hourly_in[jan_7][1] == 0.0
+        assert recent.hourly_in[jan_7][2:4] == (None, None)
+        assert recent.hourly_in[jan_7][4] == 0.0
+
+    def test_an_hour_whose_counter_has_no_reading_is_not_known(self):
+        # Jan 7, 2 am local: the rows are there, the rain counter is not.
+        archive = build_archive(
+            "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
+        )
+        hour = (archive["dateutc"] >= ms("2026-01-07T10:00:00Z")) & (
+            archive["dateutc"] < ms("2026-01-07T11:00:00Z")
+        )
+        archive.loc[hour, "dailyrainin"] = float("nan")
+
+        recent = build(archive, "2026-01-10T07:59:00Z").rain_tab.recent
+        jan_7 = (date(2026, 1, 7) - date.fromisoformat(recent.first_day)).days
+
+        assert recent.hourly_in[jan_7][2] is None
+        assert recent.hourly_in[jan_7][3] == 0.0
+
+    def test_wet_hours_count_known_hours_only(self):
+        # Jan 5 rains 10 am to 1 pm local; the 11 am hour has no readings.
+        # Its rain shows in the noon hour, the first reading after the gap.
+        archive = build_archive(
+            "2025-10-01T07:00:00Z",
+            "2026-01-10T08:00:00Z",
+            rain=JAN_RAIN,
+            gaps=[Gap("2026-01-05T19:00:00Z", "2026-01-05T20:00:00Z")],
+        )
+
+        recent = build(archive, "2026-01-10T07:59:00Z").rain_tab.recent
+        jan_5 = (date(2026, 1, 5) - date.fromisoformat(recent.first_day)).days
+
+        assert recent.hourly_in[jan_5][11] is None
+        assert recent.hourly_in[jan_5][12] == approx(0.2)
+        assert recent.rain_in[jan_5] == approx(0.3)
+        assert recent.wet_hours == 5  # 2 + 2 known + 1
+
     def test_the_wettest_hour_and_wet_hours_cover_the_window(self):
         archive = build_archive(
             "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN

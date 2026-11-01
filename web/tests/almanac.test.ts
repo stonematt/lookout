@@ -86,6 +86,16 @@ describe("the almanac's words", () => {
     );
   });
 
+  it("names an earlier season by its water year, not the calendar year", () => {
+    // Oct 1 to 12, 2024 is water year 2025 (#147).
+    const almanac = copy(october);
+    for (const key of ["30d", "7d"]) almanac.rolling.find((w) => w.key === key)!.years[0]!.rain_in = null;
+
+    expect(rollingHeadline(almanac)).toBe(
+      "0.30 in of rain since Oct 1, against 0.25 in (water year 2025) over the same days",
+    );
+  });
+
   it("writes the current month's rain so far, and why it is not compared", () => {
     const current = october.years[0]!.months[0]!;
 

@@ -320,6 +320,22 @@ describe("the Rain tab", () => {
     expect(readout.textContent).toBe("Jan 8, 2026, 5 pm: still to come.");
   });
 
+  it("marks an hour with no readings as unknown, not dry", () => {
+    // Today, 3 am local: no readings in the archive (#147).
+    const tab = structuredClone(raining);
+    tab.rain_tab.recent.hourly_in[tab.rain_tab.recent.hourly_in.length - 1]![3] = null;
+    renderRain(panel, tab);
+    const grid = section("hours").querySelector(".rain-chart")!;
+
+    expect(grid.querySelectorAll("rect.rain-cell.rain-unknown").length).toBe(1);
+    const readout = section("hours").querySelector(".rain-readout")!;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }));
+    for (let i = 0; i < 3; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(readout.textContent).toBe("Jan 8, 2026, 3 am: no readings in the record.");
+    for (let i = 0; i < 14; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(readout.textContent).toBe("Jan 8, 2026, 5 pm: still to come.");
+  });
+
   it("states the dry spell against the record", () => {
     renderRain(panel, dry);
     const stats = [...section("dry").querySelectorAll(".rain-dry-stats div")].map((item) => [

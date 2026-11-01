@@ -160,6 +160,7 @@ def _rolling(
             years.append(
                 RollingYear(
                     year=end.year,
+                    water_year=water_year(end),
                     status=status,
                     rain_in=window_total(status, totals, coverage),
                 )

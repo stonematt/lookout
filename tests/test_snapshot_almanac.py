@@ -234,7 +234,24 @@ class TestRollingWindows:
         curves = {c.water_year: c.to_date_in for c in snapshot.rain_tab.water_years}
 
         for year in window(snapshot.almanac, "water_year").years:
-            assert year.rain_in == curves[year.year + 1]
+            assert year.rain_in == curves[year.water_year]
+
+    def test_the_season_row_is_named_by_its_water_year(self, almanac):
+        # Oct 12, 2025 is in water year 2026; the column stays the calendar
+        # year the windows end in (#147).
+        season = window(almanac, "water_year").years
+        assert [y.water_year for y in season] == [2026, 2025]
+        assert [y.year for y in season] == [2025, 2024]
+
+    def test_a_december_season_is_the_next_water_year(self):
+        archive = build_archive(
+            "2024-10-01T07:00:00Z", "2025-12-15T20:00:00Z", rain=RAIN
+        )
+        snapshot = build(archive, "2025-12-15T20:00:00Z")
+        season = window(snapshot.almanac, "water_year").years[0]
+
+        assert season.water_year == 2026
+        assert season.status.first_day == "2025-10-01"
 
     def test_feb_29_compares_with_feb_28(self):
         archive = build_archive(

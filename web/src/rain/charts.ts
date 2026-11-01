@@ -233,14 +233,23 @@ const HOUR_TICKS = [0, 6, 12, 18];
 
 /**
  * The heatmap: one column per day of the recent window, one row per hour of
- * the day, each cell shaded by its rain in four steps.
+ * the day, each cell shaded by its rain in four steps. A null hour after the
+ * build hour today is still to come and left blank; any other null hour has
+ * no readings in the record and is hatched, never drawn as dry.
  *
  * @param host - The figure to draw in; its contents are replaced.
  * @param recent - The snapshot's recent days.
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
+ * @param nowHour - The station-local hour the snapshot was built in.
  */
-export function drawHourGrid(host: HTMLElement, recent: RecentRain, width: number, readout: Readout): void {
+export function drawHourGrid(
+  host: HTMLElement,
+  recent: RecentRain,
+  width: number,
+  readout: Readout,
+  nowHour: number,
+): void {
   const count = recent.hourly_in.length;
   const row = width < NARROW ? 8 : 10;
   const [left, right, top] = [56, width - 6, 4];
@@ -248,12 +257,26 @@ export function drawHourGrid(host: HTMLElement, recent: RecentRain, width: numbe
   const height = bottom + 22;
   const step = (right - left) / count;
   const x = (i: number) => left + i * step;
+  const toCome = (i: number, h: number) => i === count - 1 && h > nowHour;
 
   const { svg, hatch } = canvas(width, height, `Rain by the hour, ${dayText(recent.first_day)} to today`, "rain-svg");
   recent.hourly_in.forEach((hours, i) => {
     if (recent.reason[i] !== null) return;
     hours.forEach((rain, h) => {
-      if (rain === null) return;
+      if (rain === null) {
+        if (toCome(i, h)) return;
+        svg.append(
+          svgEl("rect", {
+            x: x(i),
+            y: top + h * row,
+            width: Math.max(1, step - (step > 4 ? 1 : 0)),
+            height: row - 1,
+            class: "rain-cell rain-unknown",
+            fill: hatch,
+          }),
+        );
+        return;
+      }
       const level = rainStep(rain, 60);
       svg.append(
         svgEl("rect", {
@@ -282,7 +305,9 @@ export function drawHourGrid(host: HTMLElement, recent: RecentRain, width: numbe
       if (reason) return readout(gapSentence(dayStatus(day, reason)));
       const rain = recent.hourly_in[i]?.[h];
       const when = `${dayText(day, true)}, ${hourText(h)}`;
-      if (rain === null || rain === undefined) return readout(`${when}: still to come.`);
+      if (rain === null || rain === undefined) {
+        return readout(toCome(i, h) ? `${when}: still to come.` : `${when}: no readings in the record.`);
+      }
       readout(rain > 0 ? `${when}: ${inches(rain)} of rain.` : `${when}: no rain.`);
     },
     24,

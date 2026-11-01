@@ -26,6 +26,11 @@ JSON shape rules, so both sides can rely on them:
 Adding a field is not a breaking change: add it to the dataclass and both
 sides' goldens, keep `SCHEMA_VERSION`. Renaming, removing or changing the
 meaning of a field is breaking: bump `SCHEMA_VERSION` in the same change.
+Correcting a wrong value is not: a value that was wrongly a number and is
+now null as unknown (an hour with no readings, #147), or an optional value
+now null in a case the reader already handles (`RainEvents.open_curve`
+while no event is live), keeps `SCHEMA_VERSION`. A bump also makes the site
+refuse every curve file already written, and those are never rewritten.
 
 Golden documents for the TypeScript tests live in `tests/golden/snapshots/`
 (see `tests/test_snapshot.py` for how to regenerate them).
@@ -525,12 +530,22 @@ class EventSeason:
     """
     The events that started in one water year, summarised.
 
+    `stats` is an events-only sum (see `EventStats.total_in`): the listed
+    events added up, never a window total, so it is not gap-judged and not
+    made null. `status` beside it says whether the record over that water
+    year is whole, so the sum is never read as the year's rain without it
+    (#147).
+
     :param water_year: The water year, named by the year it ends in.
     :param stats: Its events' summary metrics.
+    :param status: The water year's rain gap status, the same as its
+        `RainTab.water_years` curve's (Oct 1 to Sep 30, or to today); None
+        when the archive does not reach that water year.
     """
 
     water_year: int
     stats: EventStats
+    status: Optional[GapStatus]
 
 
 @dataclass(frozen=True)
@@ -544,7 +559,7 @@ class EventCurve:
 
     A completed event's curve is published once, as its own document
     (`EventCurve.document`, key from `lookout.snapshot.curves.curve_key`);
-    the curve of the event the catalog still holds open rides in the
+    the curve of the live event (`Snapshot.active_rain_event`) rides in the
     snapshot (`RainEvents.open_curve`).
 
     :param start_ms: The event's start; its key.
@@ -582,10 +597,11 @@ class RainEvents:
     :param events: Every event, newest first.
     :param all_time: The summary over every event.
     :param seasons: The summary per water year, newest first.
-    :param open_curve: The curve of the event the Event Catalog still holds
-        open, live stitched: its curve file is written only once the catalog
-        closes it. None when none is open. Open is not live: the row's
-        `live` says whether it is still raining.
+    :param open_curve: The curve of the live event, the snapshot's
+        `active_rain_event` (open in the Event Catalog and still reporting
+        event rain), live stitched; its curve file is written only once the
+        catalog closes it. None when no event is live, even while the catalog
+        still holds one open (#147): that event's file follows its close.
     """
 
     events: Tuple[RainEventRow, ...]
@@ -657,10 +673,13 @@ class RecentRain:
     :param first_day: The first day.
     :param rain_in: Each day's total.
     :param reason: Why a day cannot be counted, None when it can.
-    :param hourly_in: Each day's 24 local hours, None for an hour still to
-        come today. A day's hours add up to its total, to rounding.
-    :param wet_hours: Hours with any rain over the window; prorated when the
-        window is; None when it is invalid.
+    :param hourly_in: Each day's 24 local hours: the rain in each, None when
+        it is not known: an hour still to come today, or one with no rain
+        counter reading in the archive (#147; never 0). A day's known hours
+        add up to its total, to rounding; rain counted during a missing hour
+        lands in the next known one.
+    :param wet_hours: Known hours with any rain over the window; prorated
+        when the window is; None when it is invalid.
     :param wettest_hour: The hour with the most rain; None when the window is
         invalid or dry.
     """
@@ -807,15 +826,19 @@ class RollingYear:
     """
     One year's rain over a rolling window ending on today's date that year.
 
-    :param year: The calendar year the window ends in.
+    :param year: The calendar year the window ends in: the table's column.
     :param status: The window's rain gap status. The current year's is the
         `RainTab.windows` status with the same key.
     :param rain_in: Its rain; prorated when its status is; None when invalid.
+    :param water_year: The water year the window ends in; the season row
+        ("water_year", since Oct 1) is named by it, not by `year`, which is
+        one behind from Oct through Dec (#147).
     """
 
     year: int
     status: GapStatus
     rain_in: Optional[float]
+    water_year: int
 
 
 @dataclass(frozen=True)

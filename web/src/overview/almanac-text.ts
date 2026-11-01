@@ -206,7 +206,9 @@ export function rollingHeadline(almanac: Almanac): string {
     const span = key === "water_year" ? "since Oct 1" : `in the last ${ROLLING_NAMES[key]}`;
     const lead = `${shown(now.status, now.rain_in)} of rain ${span}`;
     const earlier = shownYears(window).slice(1, NAMED_YEARS + 1);
-    const named = earlier.map((y) => `${y.text} (${y.year})`);
+    // The season is named by its water year; `year` is a year behind from
+    // Oct through Dec (#147).
+    const named = earlier.map((y) => `${y.text} (${key === "water_year" ? `water year ${y.water_year}` : y.year})`);
     return named.length ? `${lead}, against ${listText(named)} over the same days` : lead;
   }
   return "Rain over the last week, month and season";
@@ -228,10 +230,10 @@ export function tableValue(status: GapStatus, rain: number | null): string | nul
  * The years a table row shows: this year's window and the earlier years
  * with a value, newest first.
  */
-function shownYears(window: RollingWindow): { year: number; text: string }[] {
+function shownYears(window: RollingWindow): { year: number; water_year: number; text: string }[] {
   return window.years
     .filter((y) => y.rain_in !== null)
-    .map((y) => ({ year: y.year, text: shown(y.status, y.rain_in!) }));
+    .map((y) => ({ year: y.year, water_year: y.water_year, text: shown(y.status, y.rain_in!) }));
 }
 
 /**
