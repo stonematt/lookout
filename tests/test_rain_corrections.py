@@ -26,7 +26,7 @@ from tests.fixtures.archive import (
     scenario_archive,
 )
 from tests.fixtures.real import load_real_slice
-from tests.test_catchup import flaky_storj
+from tests.fixtures.storage import flaky_storj
 
 CORRECTIONS_KEY = f"{FAKE_MAC}.rain_corrections.json"
 

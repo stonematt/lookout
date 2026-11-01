@@ -24,7 +24,7 @@ from tests.fixtures.archive import (
     scenario_archive,
 )
 from tests.fixtures.storage import bucket_keys
-from tests.test_catchup import flaky_storj
+from tests.fixtures.storage import flaky_storj
 
 
 def _scenario_until(end: str, newest_first: bool = True) -> pd.DataFrame:

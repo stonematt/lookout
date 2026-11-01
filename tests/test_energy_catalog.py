@@ -11,7 +11,7 @@ from lookout.core import energy_catalog_func
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.storage import storj
 from tests.fixtures.storage import BUCKET, bucket_keys
-from tests.test_catchup import flaky_storj
+from tests.fixtures.storage import flaky_storj
 
 
 class TestEnergyCatalog:

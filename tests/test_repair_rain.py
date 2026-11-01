@@ -28,11 +28,11 @@ from tests.fixtures.archive import (
     build_archive,
 )
 from tests.fixtures.storage import BUCKET, FROZEN_DAY
+from tests.fixtures.storage import flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
-    flaky_storj,
 )
 
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"

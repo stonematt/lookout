@@ -39,7 +39,7 @@ from lookout.cli.diagnostics import emit, load_station
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import archive_merge
 from lookout.storage.storj import backup_and_save_history, read_df_from_s3
-from lookout.utils.dateutc import DEFAULT_TZ, from_local_date
+from lookout.utils.dateutc import DEFAULT_TZ, INTERVAL_MS, from_local_date
 
 # Station-local days, first and last inclusive: from each carryover day the
 # owner found damaged to the end of its year (owner check on #95).
@@ -66,7 +66,6 @@ DEFAULT_TOLERANCE = 0.001  # inches, after rounding both sides to 2 decimals
 # slack covers pages spent seeking over the station's own outages.
 PAGE_ROWS = 246
 SLACK_PAGES = 10
-FIVE_MIN_MS = 5 * 60 * 1000
 # Rows the backup lacks that lie closer together than this share one refill.
 STRAY_JOIN_MS = 60 * 60 * 1000
 # How many rows the backup lacks to list by time.
@@ -303,7 +302,7 @@ def repair_window(
         strays["dateutc"], start_ms, end_ms, covered
     ):
         pages = (
-            math.ceil((span_end - span_start) / FIVE_MIN_MS / PAGE_ROWS) + SLACK_PAGES
+            math.ceil((span_end - span_start) / INTERVAL_MS / PAGE_ROWS) + SLACK_PAGES
         )
         outcome = awn.fill_archive_gap(
             device,
