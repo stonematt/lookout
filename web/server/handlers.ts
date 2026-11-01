@@ -158,8 +158,11 @@ export function checkQuery(
   }
   const query = one.toString();
   if (query !== url.search.slice(1)) {
-    // Relative, so it resolves against the path the caller asked for.
-    const path = url.pathname.split("/").pop() ?? "";
+    // Relative, so it resolves against the path the caller asked for (a
+    // rewrite may show this function a different pathname). Never empty:
+    // the segment is "" after a trailing slash, and "" resolves to the URL
+    // just asked for, which would loop.
+    const path = url.pathname.split("/").pop() || "./";
     const location = query ? `${path}?${query}` : path;
     return new Response(null, {
       status: 308,

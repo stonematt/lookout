@@ -122,6 +122,18 @@ describe("GET /dashboard", () => {
     );
   });
 
+  it("redirects a trailing-slash path to a location that is never empty", async () => {
+    const response = await dashboardGET(
+      get(`/dashboard/?station=${encodeURIComponent(MAC.toLowerCase())}`),
+    );
+    expect(response.status).toBe(308);
+    const location = response.headers.get("location");
+    expect(location).toBe("./");
+    expect(new URL(location!, "https://x.test/dashboard/?station=a").href).toBe(
+      "https://x.test/dashboard/",
+    );
+  });
+
   it("never calls Ambient", async () => {
     await dashboardGET(get("/dashboard"));
     expect(world.calls.every((c) => c.url.startsWith(STORJ))).toBe(true);

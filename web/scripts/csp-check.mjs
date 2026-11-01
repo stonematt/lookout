@@ -3,7 +3,7 @@
  * Load a served build with the security headers `vercel.json` sets, and
  * report every Content-Security-Policy violation the page raises.
  *
- *   npm run build && npx vite preview --port <port> --strictPort
+ *   VITE_LANE_SERVER=1 npm run build && npx vite preview --port <port> --strictPort
  *   node scripts/csp-check.mjs http://localhost:<port> [out-dir]
  *
  * Neither `vite` nor `vite preview` applies `vercel.json`, so each response
