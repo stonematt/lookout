@@ -8,6 +8,7 @@ import {
   parseCurrent,
   parseDashboard,
 } from "../src/snapshot.js";
+import { fetchCurrent } from "../src/load.js";
 import { golden } from "./golden.js";
 
 describe("the contract version", () => {
@@ -127,6 +128,17 @@ describe("parseCurrent", () => {
     expect(body.context).toBeNull();
     expect(body.last_data).toEqual({ dateutc: LIVE, tempf: 59.5 });
     expect(body.observed_at_ms).toBe(LIVE);
+  });
+
+  it("lets the page's /current read keep the live reading over a skewed context", async () => {
+    const skewed = { ...(golden("raining", "context") as object), schema_version: 99 };
+    const fetchImpl = (async () => Response.json(current(skewed))) as typeof fetch;
+
+    const body = await fetchCurrent("", fetchImpl);
+
+    expect(body.last_data?.dateutc).toBe(LIVE);
+    expect(body.observed_at_ms).toBe(LIVE);
+    expect(body.context).toBeNull();
   });
 
   it("still refuses a body of another schema version", () => {

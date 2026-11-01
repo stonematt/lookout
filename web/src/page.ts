@@ -38,6 +38,8 @@ export interface PageReads {
 export interface Page {
   /** Settles once the first `/dashboard` read has drawn or failed. */
   booted: Promise<void>;
+  /** Stop the refresh cycle and the age tick. */
+  stop(): void;
 }
 
 /** Each tab's renderer: replaces the panel's content from the snapshot. */
@@ -142,12 +144,24 @@ export function startPage(
   }
 
   const booted = refresh();
-  setInterval(() => header.tick(), TICK_MS);
-  setInterval(() => void refresh(), CYCLE_MS);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    header.tick();
-    void refresh();
-  });
-  return { booted };
+  const ticking = setInterval(() => header.tick(), TICK_MS);
+  const cycling = setInterval(() => void refresh(), CYCLE_MS);
+  const listening = new AbortController();
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (document.visibilityState !== "visible") return;
+      header.tick();
+      void refresh();
+    },
+    { signal: listening.signal },
+  );
+  return {
+    booted,
+    stop() {
+      clearInterval(ticking);
+      clearInterval(cycling);
+      listening.abort();
+    },
+  };
 }

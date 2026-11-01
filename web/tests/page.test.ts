@@ -5,7 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CYCLE_MS, startPage } from "../src/page.js";
+import type { Page, PageReads } from "../src/page.js";
+import { CYCLE_MS, startPage as start } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -24,7 +25,18 @@ beforeEach(() => {
   sections = document.getElementById("sections")!;
 });
 
+let started: Page[] = [];
+
+/** Start a page, stopped again after the test so its cycle cannot leak. */
+function startPage(host: HTMLElement, tabs: HTMLElement, reads: PageReads): Page {
+  const page = start(host, tabs, reads);
+  started.push(page);
+  return page;
+}
+
 afterEach(() => {
+  for (const page of started) page.stop();
+  started = [];
   vi.useRealTimers();
   vi.restoreAllMocks();
 });

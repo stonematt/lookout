@@ -136,6 +136,9 @@ function fixtureSources(
   };
 }
 
+/** The lane server's own query parameters. */
+const DEV_PARAMS = ["fixture", "age"] as const;
+
 /**
  * Answer a lane-server request for `/dashboard`, `/current` or `/event`.
  *
@@ -184,8 +187,6 @@ export async function devResponse(
   return new Response(response.body, { status: response.status, headers });
 }
 
-/** The lane server's own query parameters. */
-const DEV_PARAMS = ["fixture", "age"] as const;
 
 /**
  * A Vite plugin serving `/dashboard`, `/current` and `/event` from the
