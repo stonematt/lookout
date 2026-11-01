@@ -249,6 +249,40 @@ def test_a_diagnostics_save_keeps_rows_catchup_stored_since_the_fill(
     assert set(stored["dateutc"]) == set(truth["dateutc"])
 
 
+def test_a_diagnostics_save_keeps_values_changed_since_the_fill(
+    catchup_station, session, weather  # noqa: F811
+):
+    """#223: only the fetched readings join; the session copy never does."""
+    from lookout.storage import storj
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+    )
+    station = catchup_station(
+        archive=weather,
+        history=to_ambient_records(truth),
+        devices=reporting(weather),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(weather["dateutc"].max())))
+    outcome = diagnostics.fill_gap(
+        pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end)
+    )
+    assert outcome.status == "filled"
+    # A repair replaces a stored value before the Diagnostics save.
+    repaired = weather.copy()
+    assert (repaired["dateutc"] == THURSDAY).any()
+    repaired.loc[repaired["dateutc"] == THURSDAY, "dailyrainin"] = 9.99
+    storj.save_df_to_s3(repaired, BUCKET, f"{FAKE_MAC}.parquet")
+
+    assert diagnostics.save_filled_archive() is True
+
+    saved = station.stored().set_index("dateutc")
+    assert saved.loc[THURSDAY, "dailyrainin"] == 9.99
+    assert set(saved.index) == set(truth["dateutc"])
+
+
 # ---------- an oldest-first archive (#133) ----------
 
 

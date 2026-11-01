@@ -748,6 +748,9 @@ class GapFill:
         updated), "no_new_data" (Ambient changed nothing) or "refused"
         (inverted gap, or no archive data before it).
     :param report: What the merge changed (`MergeReport`); None when refused.
+    :param fetched: The readings Ambient sent for the gap, raw, as merged
+        into `history_df`; None when refused. A caller that saves later
+        merges these, not `history_df`, into the archive as stored then.
     """
 
     history_df: pd.DataFrame
@@ -755,6 +758,7 @@ class GapFill:
     end: pd.Timestamp
     status: str
     report: Optional[archive_merge.MergeReport] = None
+    fetched: Optional[pd.DataFrame] = None
 
     @property
     def skipped(self) -> bool:
@@ -822,9 +826,11 @@ def fill_archive_gap(
 
     if not merged.report.changed:
         logger.info("No new data found. Gap skipped.")
-        return GapFill(history_df, start, end, "no_new_data", merged.report)
+        return GapFill(
+            history_df, start, end, "no_new_data", merged.report, fetched
+        )
 
-    return GapFill(merged.archive, start, end, "filled", merged.report)
+    return GapFill(merged.archive, start, end, "filled", merged.report, fetched)
 
 
 def validate_archive(archive_df):
