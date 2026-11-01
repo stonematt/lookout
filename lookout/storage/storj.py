@@ -18,8 +18,8 @@ Functions:
   error. `get_df_from_s3` forgives a failed read (an empty frame) for
   Streamlit. There is no separate existence check: callers read once and
   act on the outcome. Saves that fail raise `StorageWriteError`
-  (`ArchiveShrinkError` for an archive save that would lose rows), and a
-  failed backup raises `BackupError`.
+  (`ArchiveLossError` for an archive save that would drop a stored reading
+  or blank a stored value), and a failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
 - List items in an S3 bucket.
 - Backup data from S3 to a designated backup directory.
@@ -35,6 +35,7 @@ import boto3
 import pandas as pd
 
 from lookout.config import HISTORY_FILE_TYPE
+from lookout.core import archive_merge
 from lookout.secrets_loader import get_secret
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
@@ -70,8 +71,8 @@ class StorageWriteError(RuntimeError):
     """A save to storage failed; the stored object is as it was."""
 
 
-class ArchiveShrinkError(StorageWriteError):
-    """A save would leave the archive with fewer rows than were loaded."""
+class ArchiveLossError(StorageWriteError):
+    """A save would drop a stored reading or blank a stored value."""
 
 
 class BackupError(RuntimeError):
@@ -176,8 +177,8 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     Read a station's archive for a run that will save over it (#160).
 
     Every archive writer loads through here. The archive comes back through
-    `dateutc.normalize`, which drops invalid and duplicate rows, and its
-    length is what the writer passes to `save_archive` as `loaded_rows`.
+    `dateutc.normalize`, which drops invalid and duplicate rows, and it is
+    what the writer hands `save_archive` as `stored`.
 
     :param bucket: The bucket.
     :param mac: The station's MAC address.
@@ -317,7 +318,14 @@ def save_df_to_s3(
         return False
 
 
-def save_archive(df: pd.DataFrame, bucket: str, mac: str, loaded_rows: int) -> None:
+def save_archive(
+    df: pd.DataFrame,
+    bucket: str,
+    mac: str,
+    *,
+    stored: pd.DataFrame,
+    repair: bool = False,
+) -> None:
     """
     Save a station's archive to `<mac>.<HISTORY_FILE_TYPE>`, newest first.
 
@@ -326,27 +334,31 @@ def save_archive(df: pd.DataFrame, bucket: str, mac: str, loaded_rows: int) -> N
     order the caller built it in. The sort is stable and the index is reset;
     the rows and columns are saved as handed.
 
-    Every save is guarded against losing rows (#160). `loaded_rows` is the
-    archive's row count after `dateutc.normalize`, which drops invalid and
-    duplicate rows, not the raw count read from storage: a stored archive
-    holding one duplicate row would otherwise refuse every later save.
-    `load_archive` returns the frame to count.
+    Every save is guarded against the stored archive itself (#190), so a
+    caller that built `df` without the archive merge is guarded too: it is
+    refused if any stored `dateutc` is absent from `df`, or any stored
+    value is NaN in `df` (`archive_merge.loss`). Updated values and added
+    readings pass. Only an explicit repair (the rain repair and catchup's
+    `--repair-archive`) passes `repair=True`, which logs the loss and saves.
 
     :param df: The archive, any row order.
     :param bucket: The bucket.
     :param mac: The station's MAC address.
-    :param loaded_rows: The rows of the archive the caller loaded, after
-        normalizing; 0 only for a station with no archive yet.
-    :raises ArchiveShrinkError: If `df` has fewer than `loaded_rows` rows;
-        nothing is written.
+    :param stored: The archive as the caller read it (`load_archive`).
+    :param repair: True only for an explicit repair, which may drop
+        readings and blank values.
+    :raises ArchiveLossError: If `df` would drop a stored reading or blank a
+        stored value and `repair` is False; nothing is written.
     :raises StorageWriteError: If the save fails.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
-    if len(df) < loaded_rows:
-        raise ArchiveShrinkError(
-            f"Refusing to save s3://{bucket}/{key}: {len(df)} rows, "
-            f"fewer than the {loaded_rows} loaded"
+    lost = archive_merge.loss(stored, df)
+    if lost and not repair:
+        raise ArchiveLossError(
+            f"Refusing to save s3://{bucket}/{key}: it would {lost.describe()}"
         )
+    if lost:
+        logger.warning(f"Repair of s3://{bucket}/{key} will {lost.describe()}")
     if "dateutc" in df.columns:
         df = df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
             drop=True
@@ -547,7 +559,12 @@ def backup_and_save_catalog(
 
 
 def backup_and_save_history(
-    df: pd.DataFrame, device: dict, bucket: str = "lookout", *, loaded_rows: int
+    df: pd.DataFrame,
+    device: dict,
+    bucket: str = "lookout",
+    *,
+    stored: pd.DataFrame,
+    repair: bool = False,
 ) -> None:
     """
     Back up the old archive and save the updated DataFrame to S3.
@@ -555,10 +572,11 @@ def backup_and_save_history(
     :param df: The archive to save.
     :param device: The station's `/devices` entry.
     :param bucket: The bucket.
-    :param loaded_rows: The rows of the archive the caller loaded, after
-        normalizing; see `save_archive`.
+    :param stored: The archive as the caller read it; see `save_archive`.
+    :param repair: True only for an explicit repair; see `save_archive`.
     :raises BackupError: If the backup fails; nothing is saved then.
-    :raises ArchiveShrinkError: If `df` has fewer than `loaded_rows` rows.
+    :raises ArchiveLossError: If `df` would drop a stored reading or blank a
+        stored value and `repair` is False.
     :raises StorageWriteError: If the save fails.
     """
     mac = device["macAddress"]
@@ -569,7 +587,7 @@ def backup_and_save_history(
         logger.error(f"Backup failed for {mac}; not saving: {e}")
         raise
 
-    save_archive(df, bucket, mac, loaded_rows=loaded_rows)
+    save_archive(df, bucket, mac, stored=stored, repair=repair)
 
 
 # Example usage

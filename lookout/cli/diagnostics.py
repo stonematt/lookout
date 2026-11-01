@@ -116,7 +116,7 @@ def load_station(bucket: str) -> Tuple[Dict, pd.DataFrame]:
     The pinned station and its archive, normalized (ascending `dateutc`).
 
     Read strictly (#160): `fill-gap` and the rain repair save over the
-    archive, and pass `len(archive)` as the save's `loaded_rows`.
+    archive, and hand it to the save as `stored`, which guards against it.
 
     :param bucket: The bucket.
     :return: The station's `/devices` entry and its archive.
@@ -314,7 +314,7 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         df=outcome.history_df,
         device=device,
         bucket=args.bucket,
-        loaded_rows=len(archive),
+        stored=archive,
     )
     report = outcome.report
     emit(

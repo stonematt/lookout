@@ -12,15 +12,22 @@ filled (stored had none) and values updated (Ambient's differs), plus the
 columns only one side has. Comparison is exact after `dateutc.normalize`
 (no float tolerance); a value missing on both sides is unchanged.
 
+The same comparison guards every archive save (`storj.save_archive`):
+`loss` says what a new archive would lose against the stored one, readings
+dropped and values blanked, whoever built it. No routine write may lose
+either (GLOSSARY: **archive**); only an explicit repair may.
+
 Pure frame logic: no storage access, no Streamlit. A deliberate correction
 is a replace, never a merge.
 
 Functions:
 - merge: Merge Ambient's readings into the stored archive; returns `Merged`.
+- loss: What saving a new archive over the stored one would lose; `Loss`.
 
 Classes:
 - MergeReport: What one merge changed; `describe()` is its log line.
 - Merged: `(archive, report)`, the outcome of `merge`.
+- Loss: Stored readings dropped and stored values blanked by a save.
 
 Example:
     archive, report = archive_merge.merge(stored, fetched)
@@ -147,6 +154,74 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
         ambient_only=ambient_only,
     )
     return Merged(_newest_first(merged), report)
+
+
+@dataclass(frozen=True)
+class Loss:
+    """
+    What a new archive would lose against the stored one.
+
+    :param dropped: Stored readings (`dateutc`) absent from the new archive.
+    :param blanked: Stored values (non-NaN) that are NaN in the new archive,
+        or whose column the new archive lacks, over the readings both hold.
+    :param blanked_columns: The columns those values are in, stored order.
+    """
+
+    dropped: int = 0
+    blanked: int = 0
+    blanked_columns: Tuple[str, ...] = ()
+
+    def __bool__(self) -> bool:
+        """True when the new archive drops a reading or blanks a value."""
+        return bool(self.dropped or self.blanked)
+
+    def describe(self) -> str:
+        """
+        The loss as one phrase for an error or log line.
+
+        :return: E.g. "drop 1 stored reading and blank 86 stored values
+            (hour)".
+        """
+        readings = "reading" if self.dropped == 1 else "readings"
+        values = "value" if self.blanked == 1 else "values"
+        columns = ", ".join(self.blanked_columns) or "none"
+        return (
+            f"drop {self.dropped} stored {readings} and blank {self.blanked} "
+            f"stored {values} ({columns})"
+        )
+
+
+def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
+    """
+    What saving `new` over the stored archive would lose.
+
+    Both frames go through `dateutc.normalize` first, so a stored duplicate
+    or invalid row is not a reading `new` could drop. Readings are matched
+    on `dateutc`. A changed value is not a loss (that is an update); only a
+    stored value with nothing in its place is. A value missing on both
+    sides is not lost.
+
+    :param stored: The stored archive, as read.
+    :param new: The archive about to be saved, any order.
+    :return: The `Loss`; falsy when nothing stored would be lost.
+    """
+    stored = normalize(stored)
+    if stored.empty:
+        return Loss()
+    new = normalize(new)
+    stored_at = stored.set_index("dateutc")
+    new_at = new.set_index("dateutc") if not new.empty else pd.DataFrame()
+    kept = stored_at.index.intersection(new_at.index)
+    old = stored_at.loc[kept]
+    # A column `new` lacks reindexes to NaN: every stored value in it is lost.
+    now = new_at.reindex(index=kept, columns=old.columns)
+    per_column = (old.notna() & now.isna()).sum()
+    lost = per_column[per_column > 0]
+    return Loss(
+        dropped=len(stored_at) - len(kept),
+        blanked=int(lost.sum()),
+        blanked_columns=tuple(lost.index),
+    )
 
 
 def _differs(old: pd.Series, new: pd.Series) -> pd.Series:

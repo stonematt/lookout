@@ -80,7 +80,7 @@ def test_save_history_backs_up_then_writes_mac_dot_parquet(fake_s3, frozen_today
     storj.save_df_to_s3(old, BUCKET, ARCHIVE_KEY)
 
     storj.backup_and_save_history(
-        new, {"macAddress": FAKE_MAC}, bucket=BUCKET, loaded_rows=len(old)
+        new, {"macAddress": FAKE_MAC}, bucket=BUCKET, stored=old
     )
 
     backup_key = f".backups/{FAKE_MAC}/{frozen_today}/{ARCHIVE_KEY}"
@@ -96,7 +96,7 @@ def test_save_history_stores_an_oldest_first_frame_newest_first(fake_s3, frozen_
     oldest_first = new.iloc[::-1].reset_index(drop=True)
 
     storj.backup_and_save_history(
-        oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET, loaded_rows=len(new)
+        oldest_first, {"macAddress": FAKE_MAC}, bucket=BUCKET, stored=new
     )
 
     stored = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
@@ -108,7 +108,7 @@ def test_save_archive_writes_mac_dot_parquet_newest_first(fake_s3):
     new = scenario_archive()
     shuffled = new.sample(frac=1, random_state=7)
 
-    storj.save_archive(shuffled, BUCKET, FAKE_MAC, loaded_rows=len(new))
+    storj.save_archive(shuffled, BUCKET, FAKE_MAC, stored=new)
 
     assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
     assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), new)
@@ -147,9 +147,11 @@ def test_save_history_backup_leaves_the_catalogs_out(fake_s3, frozen_today):
     catalog_key = f"{FAKE_MAC}.energy_catalog.parquet"
     fake_s3.put_object(Bucket=BUCKET, Key=catalog_key, Body=b"x")
 
-    # The catalog layout is under test here, not the shrink guard.
     storj.backup_and_save_history(
-        scenario_archive(), {"macAddress": FAKE_MAC}, bucket=BUCKET, loaded_rows=0
+        scenario_archive(),
+        {"macAddress": FAKE_MAC},
+        bucket=BUCKET,
+        stored=scenario_archive(),
     )
 
     backup_key = f".backups/{FAKE_MAC}/{frozen_today}/{ARCHIVE_KEY}"
@@ -294,30 +296,161 @@ def test_save_df_reports_whether_it_saved(fake_s3):
     assert storj.save_df_to_s3(scenario_archive(), "no-such-bucket", "x") is False
 
 
-# ---------- every archive save is guarded (#160) ----------
+# ---------- every archive save is guarded against the stored archive (#190) ---
 
 
-def test_an_archive_save_must_say_how_many_rows_it_loaded(fake_s3):
+def stored_archive(fake_s3) -> pd.DataFrame:
+    """Seed the bucket with the SCENARIO week's later half; return it as read."""
+    storj.save_df_to_s3(scenario_archive().iloc[:-100], BUCKET, ARCHIVE_KEY)
+    return storj.load_archive(BUCKET, FAKE_MAC)
+
+
+def stored_now() -> pd.DataFrame:
+    """The archive as it sits in the bucket now."""
+    return storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
+
+
+def test_an_archive_save_must_hand_over_the_stored_archive(fake_s3):
     with pytest.raises(TypeError):
         storj.save_archive(scenario_archive(), BUCKET, FAKE_MAC)
+    with pytest.raises(TypeError):
+        storj.save_archive(scenario_archive(), BUCKET, FAKE_MAC, loaded_rows=0)
     assert bucket_keys(fake_s3) == []
 
 
-def test_save_history_refuses_a_save_that_would_shrink_the_archive(
-    fake_s3, frozen_today
-):
-    stored = scenario_archive()
-    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+def test_save_history_refuses_a_save_that_drops_a_stored_reading(fake_s3, frozen_today):
+    stored = stored_archive(fake_s3)
+    before = stored_now()
 
-    with pytest.raises(storj.ArchiveShrinkError):
+    with pytest.raises(storj.ArchiveLossError, match="drop 1 stored reading"):
         storj.backup_and_save_history(
             stored.iloc[1:],
             {"macAddress": FAKE_MAC},
             bucket=BUCKET,
-            loaded_rows=len(stored),
+            stored=stored,
         )
 
-    assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), stored)
+    assert_frame_equal(stored_now(), before)
+
+
+def test_a_save_that_swaps_a_stored_reading_is_refused_at_the_same_length(fake_s3):
+    stored = stored_archive(fake_s3)
+    before = stored_now()
+    later = scenario_archive().iloc[[-100]]
+    swapped = pd.concat([stored.iloc[1:], later], ignore_index=True)
+    assert len(swapped) == len(stored)
+
+    with pytest.raises(storj.ArchiveLossError, match="drop 1 stored reading"):
+        storj.save_archive(swapped, BUCKET, FAKE_MAC, stored=stored)
+
+    assert_frame_equal(stored_now(), before)
+
+
+def test_a_save_that_blanks_a_stored_value_is_refused_though_rows_grow(fake_s3):
+    # The April gap fill: rows added, and a stored value blanked in place.
+    stored = stored_archive(fake_s3)
+    before = stored_now()
+    grown = scenario_archive()
+    row = grown.index[grown["dateutc"] == stored["dateutc"].iloc[0]][0]
+    grown.loc[row, "tempf"] = float("nan")
+    assert len(grown) > len(stored)
+
+    with pytest.raises(storj.ArchiveLossError, match="blank 1 stored value"):
+        storj.save_archive(grown, BUCKET, FAKE_MAC, stored=stored)
+
+    assert_frame_equal(stored_now(), before)
+
+
+def test_a_save_without_a_stored_column_blanks_its_values_and_is_refused(fake_s3):
+    stored = stored_archive(fake_s3)
+    before = stored_now()
+
+    with pytest.raises(storj.ArchiveLossError, match="tempf"):
+        storj.save_archive(
+            stored.drop(columns=["tempf"]), BUCKET, FAKE_MAC, stored=stored
+        )
+
+    assert_frame_equal(stored_now(), before)
+
+
+def test_a_save_that_only_updates_and_adds_values_is_saved(fake_s3):
+    stored = stored_archive(fake_s3)
+    new = scenario_archive()
+    new["tempf"] = new["tempf"] + 0.5
+    new["pm25"] = 7.0
+    stored_nan = stored.assign(humidity=float("nan"))
+    # A value missing on both sides is not a blank.
+    new.loc[new["dateutc"].isin(stored_nan["dateutc"]), "humidity"] = float("nan")
+
+    storj.save_archive(new, BUCKET, FAKE_MAC, stored=stored_nan)
+
+    assert_frame_equal(stored_now(), new)
+
+
+def test_the_guard_counts_the_stored_archive_after_normalize(fake_s3):
+    # A stored duplicate is not a reading the save could drop.
+    stored = scenario_archive()
+    with_duplicate = pd.concat([stored, stored.iloc[[0]]], ignore_index=True)
+
+    storj.save_archive(stored, BUCKET, FAKE_MAC, stored=with_duplicate)
+
+    assert_frame_equal(stored_now(), stored)
+
+
+def test_the_repair_allowance_lets_a_dropping_and_blanking_save_through(
+    fake_s3, frozen_today
+):
+    stored = stored_archive(fake_s3)
+    repaired = stored.iloc[1:].copy()
+    repaired["tempf"] = float("nan")
+
+    storj.backup_and_save_history(
+        repaired,
+        {"macAddress": FAKE_MAC},
+        bucket=BUCKET,
+        stored=stored,
+        repair=True,
+    )
+
+    newest_first = repaired.sort_values("dateutc", ascending=False)
+    assert_frame_equal(stored_now(), newest_first.reset_index(drop=True))
+
+
+def _calls_passing_repair() -> set:
+    """
+    (file, enclosing function) of every archive save that passes `repair`,
+    outside the storage module, whose save path only forwards it.
+    """
+    import ast
+    from pathlib import Path
+
+    import lookout
+
+    root = Path(lookout.__file__).parent
+    found = set()
+    for path in sorted(root.rglob("*.py")):
+        if path == Path(storj.__file__):
+            continue
+        tree = ast.parse(path.read_text())
+        for func in ast.walk(tree):
+            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for node in ast.walk(func):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = getattr(node.func, "attr", getattr(node.func, "id", None))
+                if name not in ("save_archive", "backup_and_save_history"):
+                    continue
+                if any(k.arg == "repair" for k in node.keywords):
+                    found.add((path.relative_to(root.parent).as_posix(), func.name))
+    return found
+
+
+def test_only_the_rain_repair_and_repair_archive_pass_the_repair_allowance():
+    assert _calls_passing_repair() == {
+        ("lookout/cli/catchup.py", "main"),
+        ("lookout/cli/repair_rain.py", "main"),
+    }
 
 
 def test_a_failed_history_backup_raises_backup_error_and_saves_nothing(
@@ -332,7 +465,7 @@ def test_a_failed_history_backup_raises_backup_error_and_saves_nothing(
             scenario_archive(),
             {"macAddress": FAKE_MAC},
             bucket=BUCKET,
-            loaded_rows=len(stored),
+            stored=stored,
         )
 
     assert bucket_keys(fake_s3) == [ARCHIVE_KEY]

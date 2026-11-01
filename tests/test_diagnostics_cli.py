@@ -185,10 +185,10 @@ class TestFillGap:
         assert "fill-gap failed" in out
         assert len(station.stored()) == len(station.archive)
 
-    def test_a_fill_that_would_shrink_the_archive_is_refused(
+    def test_a_fill_that_would_drop_a_stored_reading_is_refused(
         self, seed, capsys, monkeypatch
     ):
-        """#160: the fill-gap save is guarded by the rows it loaded."""
+        """#190: the fill-gap save is guarded by the archive it loaded."""
         station = seed()
         before = station.stored()
 

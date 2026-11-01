@@ -605,8 +605,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         emit("Nothing written: fix the problems above first.")
         return 1
 
+    # An explicit repair: the save may drop or blank what it corrects (#190).
     backup_and_save_history(
-        df=repaired, device=device, bucket=args.bucket, loaded_rows=len(archive)
+        df=repaired,
+        device=device,
+        bucket=args.bucket,
+        stored=archive,
+        repair=True,
     )
     emit(f"Live archive backed up to .backups/{mac}/; repaired archive saved.")
     return 0

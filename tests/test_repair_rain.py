@@ -315,25 +315,27 @@ def test_a_day_that_refills_short_aborts_the_write(seed, truth, capsys):
     assert len(station.stored()) == len(station.archive)
 
 
-def test_a_repair_that_would_shrink_the_archive_is_refused(
+def test_the_rain_repair_may_drop_and_blank_as_an_explicit_repair(
     seed, truth, capsys, monkeypatch
 ):
-    """#160: the repair's save is guarded by the rows it loaded."""
+    """#190: the rain repair passes the repair allowance at its save."""
     station = seed(truth)
     before = station.stored()
     repair_window = repair_rain.repair_window
 
     def lossy(*args, **kwargs):
         repaired, repair = repair_window(*args, **kwargs)
-        return repaired.iloc[1:], repair
+        return repaired.iloc[1:].assign(tempf=float("nan")), repair
 
     monkeypatch.setattr(repair_rain, "repair_window", lossy)
     monkeypatch.setattr(repair_rain, "report_window", lambda *_a, **_k: [])
 
-    with pytest.raises(storj.ArchiveShrinkError):
-        run(["--write"], capsys)
+    status, _out = run(["--write"], capsys)
 
-    pd.testing.assert_frame_equal(station.stored(), before)
+    assert status == 0
+    stored = station.stored()
+    assert len(stored) == len(before) - 1
+    assert stored["tempf"].isna().all()
 
 
 def test_a_failed_archive_read_stops_the_repair_before_any_save(
