@@ -20,6 +20,7 @@ from pandas.testing import assert_frame_equal
 from lookout.api import awn_controller as awn
 from lookout.cli import diagnostics
 from lookout.core import rain_corrections
+from lookout.core.archive_merge import MergeReport
 from lookout.storage import storj
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
@@ -137,7 +138,7 @@ class TestFillGap:
         status, out = run(["fill-gap", "--index", "1"], capsys)
 
         assert status == 0
-        assert f"Added {len(truth) - before} rows" in out
+        assert f"Merged {len(truth) - before} added, 0 filled, 0 updated" in out
         assert len(station.stored()) == len(truth)
         assert BACKUP_KEY in station.keys()
         backed_up = storj.get_df_from_s3(BUCKET, BACKUP_KEY, file_type="parquet")
@@ -180,7 +181,7 @@ class TestFillGap:
         status, out = run(["fill-gap", "--index", "1"], capsys)
 
         assert status == 1
-        assert "Added" not in out
+        assert "Merged" not in out
         assert "fill-gap failed" in out
         assert len(station.stored()) == len(station.archive)
 
@@ -192,14 +193,16 @@ class TestFillGap:
         before = station.stored()
 
         def lossy(device, archive, start, end):
-            return awn.GapFill(archive.iloc[1:], start, end, "filled", 1)
+            return awn.GapFill(
+                archive.iloc[1:], start, end, "filled", MergeReport(updated=1)
+            )
 
         monkeypatch.setattr(diagnostics.awn, "fill_archive_gap", lossy)
 
         status, out = run(["fill-gap", "--index", "1"], capsys)
 
         assert status == 1
-        assert "Added" not in out
+        assert "Merged" not in out
         assert "fill-gap failed" in out
         assert_frame_equal(station.stored(), before)
 
@@ -234,6 +237,22 @@ class TestFillGap:
         assert "no new data" in out
         assert len(station.stored()) == len(station.archive)
         assert BACKUP_KEY not in station.keys()
+
+    def test_a_fill_that_only_updates_values_saves_and_prints_the_counts(
+        self, seed, capsys
+    ):
+        changed = scenario_archive().copy()
+        changed["tempf"] = changed["tempf"] + 1.0
+        station = seed(history=changed)
+        before = len(station.archive)
+
+        status, out = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 0
+        assert "Merged 0 added, 0 filled," in out
+        assert " 0 updated" not in out
+        assert BACKUP_KEY in station.keys()
+        assert len(station.stored()) == before
 
     def test_an_index_outside_the_window_is_refused(self, seed, capsys):
         seed()

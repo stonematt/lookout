@@ -253,7 +253,11 @@ def render():
                         {"start": outcome.start, "end": outcome.end}
                     )
                 if outcome.status == "filled":
-                    st.success("Gap filled and archive updated.")
+                    report = outcome.report
+                    st.success(
+                        f"Gap filled and archive updated: {report.added} added, "
+                        f"{report.filled} filled, {report.updated} updated."
+                    )
                 elif outcome.skipped:
                     st.warning("No new data for that gap; marked as skipped.")
                 else:

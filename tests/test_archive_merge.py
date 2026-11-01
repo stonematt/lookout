@@ -640,7 +640,7 @@ class TestFillArchiveGap:
 
         assert result.status == "filled"
         assert not result.skipped
-        assert result.rows_added == len(truth) - len(archive)
+        assert result.report.added == len(truth) - len(archive)
         filled = result.history_df
         assert len(filled) == len(truth)
         assert filled["dateutc"].is_unique
@@ -660,23 +660,23 @@ class TestFillArchiveGap:
         archive = week()
         serve(ambient_replay, week(gaps=(CARRY_GAP,)))
         seen = []
-        real = awn.get_history_since_last_archive
+        real = awn.fetch_since_last_archive
 
         def spy(device, archive_df, **kwargs):
             seen.append(archive_df["dateutc"].dtype)
             result = real(device, archive_df, **kwargs)
-            seen.append(len(result) >= len(archive_df))
+            seen.append(result["dateutc"].dtype)
             return result
 
         with caplog.at_level("WARNING", logger="lookout.utils.dateutc"):
             with pytest.MonkeyPatch.context() as mp:
-                mp.setattr(awn, "get_history_since_last_archive", spy)
+                mp.setattr(awn, "fetch_since_last_archive", spy)
                 result = awn.fill_archive_gap(
                     device, archive, PLAIN_GAP.start, PLAIN_GAP.end
                 )
 
         assert result.status == "filled"
-        assert seen == ["int64", True]
+        assert seen == ["int64", "int64"]
         assert not [r for r in caplog.records if "dateutc.normalize" in r.message]
 
     def test_fill_leaves_a_raw_archive_raw(self, fake_s3, ambient_replay, device):
@@ -713,9 +713,58 @@ class TestFillArchiveGap:
         assert result.history_df is archive
         assert result.status == "no_new_data"
         assert result.skipped
-        assert result.rows_added == 0
+        assert not result.report.changed
         assert result.start == pd.Timestamp(PLAIN_GAP.start, tz="UTC")
         assert result.end == pd.Timestamp(PLAIN_GAP.end, tz="UTC")
+
+    def test_an_overshooting_fetch_saves_updates_and_keeps_omitted_values(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        The April case: the fetch runs past the gap's end into stored rows.
+
+        Ambient updates one value there and omits another; the update lands,
+        the omitted stored value stays, and the report counts it.
+        """
+        archive = week()
+        archive["hum"] = 50.0
+        truth = week(gaps=(CARRY_GAP,)).copy()
+        truth["tempf"] = truth["tempf"] + 1.0
+        records = to_ambient_records(truth)
+        for record in records:
+            record.pop("hum", None)
+        ambient_replay.history = sorted(
+            records, key=lambda r: r["dateutc"], reverse=True
+        )
+
+        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+
+        assert result.status == "filled"
+        assert result.report.added == len(truth) - len(archive)
+        assert result.report.updated > 0
+        filled = result.history_df.set_index("dateutc")
+        stored = archive.set_index("dateutc")
+        overlap = stored.index.intersection(filled.index)
+        assert (filled.loc[overlap, "hum"] == 50.0).all()
+        moved = overlap[filled.loc[overlap, "tempf"] != stored.loc[overlap, "tempf"]]
+        assert len(moved) == result.report.updated
+        expected = truth.set_index("dateutc").loc[moved, "tempf"]
+        assert (filled.loc[moved, "tempf"] - expected).abs().max() < 1e-6
+
+    def test_a_fill_that_only_updates_values_reports_and_is_filled(
+        self, fake_s3, ambient_replay, device
+    ):
+        archive = week()
+        changed = archive.copy()
+        changed["tempf"] = changed["tempf"] + 1.0
+        serve(ambient_replay, changed)
+
+        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+
+        assert result.status == "filled"
+        assert result.report.added == 0
+        assert result.report.updated > 0
+        assert not result.skipped
 
     def test_an_inverted_gap_is_refused_without_a_request(
         self, fake_s3, ambient_replay, device

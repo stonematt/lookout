@@ -304,7 +304,10 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         emit("Refused: the gap is inverted or no archive data precedes it.")
         return 1
     if outcome.skipped:
-        emit("Ambient had no new data for this gap. Nothing saved.")
+        emit(
+            "Ambient had no new data for this gap (0 added, 0 filled, "
+            "0 updated). Nothing saved."
+        )
         return 1
 
     backup_and_save_history(
@@ -313,7 +316,11 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         bucket=args.bucket,
         loaded_rows=len(archive),
     )
-    emit(f"Added {outcome.rows_added} rows; archive backed up and saved.")
+    report = outcome.report
+    emit(
+        f"Merged {report.added} added, {report.filled} filled, "
+        f"{report.updated} updated; archive backed up and saved."
+    )
     return 0
 
 
