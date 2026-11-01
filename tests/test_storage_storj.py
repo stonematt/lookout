@@ -204,6 +204,69 @@ def test_read_json_raises_on_an_unparseable_object(fake_s3):
     assert storj.get_json_from_s3(BUCKET, "bad.json") == {}
 
 
+# The reader contract (#172, ADR-0004): found returns the value, missing
+# returns None, failed raises `StorageReadError`.
+
+
+@pytest.mark.parametrize("file_type", ["parquet", "json"])
+def test_read_df_returns_the_frame_when_found(fake_s3, file_type):
+    df = pd.DataFrame({"dateutc": [1767600000000], "tempf": [50.1]})
+    storj.save_df_to_s3(df, BUCKET, "frame", file_type=file_type)
+
+    assert_frame_equal(storj.read_df_from_s3(BUCKET, "frame", file_type), df)
+
+
+@pytest.mark.parametrize("file_type", ["parquet", "json"])
+def test_read_df_returns_none_when_missing(fake_s3, file_type):
+    assert storj.read_df_from_s3(BUCKET, "absent", file_type) is None
+
+
+def test_read_df_raises_when_the_read_fails(fake_s3, monkeypatch):
+    storj.save_df_to_s3(scenario_archive(), BUCKET, ARCHIVE_KEY)
+    flaky_storj(monkeypatch, fake_s3, read=ARCHIVE_KEY)
+
+    with pytest.raises(storj.StorageReadError, match="read failed"):
+        storj.read_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
+    assert storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet").empty
+
+
+def test_read_df_raises_when_the_object_is_corrupt(fake_s3):
+    fake_s3.put_object(Bucket=BUCKET, Key="bad.parquet", Body=b"not parquet")
+
+    with pytest.raises(storj.StorageReadError, match="unreadable"):
+        storj.read_df_from_s3(BUCKET, "bad.parquet", "parquet")
+
+
+def test_read_json_raises_when_the_read_fails(fake_s3, monkeypatch):
+    storj.save_json_to_s3({"a": 1}, BUCKET, "doc.json")
+    flaky_storj(monkeypatch, fake_s3, read="doc.json")
+
+    with pytest.raises(storj.StorageReadError, match="read failed"):
+        storj.read_json_from_s3(BUCKET, "doc.json")
+
+
+def test_backup_object_returns_the_copy_key_when_found(fake_s3):
+    fake_s3.put_object(Bucket=BUCKET, Key="src", Body=b"as stored")
+
+    assert storj.backup_object(BUCKET, "src", "dst") == "dst"
+    copied = fake_s3.get_object(Bucket=BUCKET, Key="dst")["Body"].read()
+    assert copied == b"as stored"
+
+
+def test_backup_object_returns_none_when_the_source_is_missing(fake_s3):
+    assert storj.backup_object(BUCKET, "absent", "dst") is None
+    assert bucket_keys(fake_s3) == []
+
+
+def test_backup_object_raises_backup_error_when_the_copy_fails(fake_s3, monkeypatch):
+    fake_s3.put_object(Bucket=BUCKET, Key="src", Body=b"x")
+    flaky_storj(monkeypatch, fake_s3, copy=True)
+
+    with pytest.raises(storj.BackupError):
+        storj.backup_object(BUCKET, "src", "dst")
+    assert bucket_keys(fake_s3) == ["src"]
+
+
 def test_load_archive_raises_for_a_missing_archive(fake_s3):
     with pytest.raises(storj.StorageReadError, match="missing"):
         storj.load_archive(BUCKET, FAKE_MAC)

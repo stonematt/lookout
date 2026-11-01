@@ -22,7 +22,9 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
+from lookout.storage import storj
 from tests.fixtures.storage import bucket_keys
+from tests.test_catchup import flaky_storj
 
 
 def _scenario_until(end: str, newest_first: bool = True) -> pd.DataFrame:
@@ -425,9 +427,10 @@ class TestSaveIfEventsCompleted:
         before = fake_s3.get_object(Bucket=catalog.bucket, Key=CATALOG_KEY)[
             "Body"
         ].read()
-        monkeypatch.setattr(RainEventCatalog, "backup_catalog", lambda self: None)
+        flaky_storj(monkeypatch, fake_s3, copy=True)
 
-        assert catalog.save_if_events_completed(ongoing, completed) is False
+        with pytest.raises(storj.BackupError):
+            catalog.save_if_events_completed(ongoing, completed)
 
         after = fake_s3.get_object(Bucket=catalog.bucket, Key=CATALOG_KEY)["Body"]
         assert after.read() == before

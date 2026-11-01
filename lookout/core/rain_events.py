@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 
 from lookout.core.event_quality import classify_event_quality
-from lookout.storage.storj import get_s3_client, object_exists
+from lookout.storage import storj
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -242,34 +242,29 @@ class RainEventCatalog:
 
     def _get_storage_client(self):
         """Get S3 client for Storj operations"""
-        return get_s3_client()
+        return storj.get_s3_client()
 
-    def catalog_exists(self) -> bool:
-        """Check if event catalog exists in storage"""
-        return object_exists(self.bucket, self.catalog_path)
-
-    def load_catalog(self) -> pd.DataFrame:
+    def load_catalog(self) -> Optional[pd.DataFrame]:
         """
-        Load existing event catalog from Storj.
+        Read the stored Event Catalog, by the reader contract (#180).
 
-        :return: DataFrame with event catalog, empty if doesn't exist
+        One read, no existence check: found returns the catalog, missing
+        returns None, and a failed read raises. A stored catalog that cannot
+        be parsed counts as failed, so it is never taken for "none stored"
+        and rebuilt over (ADR-0004).
+
+        :return: The stored catalog when found; None when none is stored.
+        :raises StorageReadError: If the read failed or the catalog is
+            corrupt.
         """
-        if not self.catalog_exists():
-            logger.info("No existing catalog found, returning empty DataFrame")
-            return pd.DataFrame()
-
-        try:
-            import io
-
-            client = self._get_storage_client()
-            response = client.get_object(Bucket=self.bucket, Key=self.catalog_path)
-            body = response["Body"].read()
-            catalog_df = pd.read_parquet(io.BytesIO(body))
-            logger.info(f"Loaded catalog with {len(catalog_df)} events")
-            return catalog_df
-        except Exception as e:
-            logger.error(f"Failed to load catalog: {e}")
-            return pd.DataFrame()
+        catalog_df = storj.read_df_from_s3(
+            self.bucket, self.catalog_path, file_type=self.file_type
+        )
+        if catalog_df is None:
+            logger.info("No Event Catalog stored")
+            return None
+        logger.info(f"Loaded catalog with {len(catalog_df)} events")
+        return catalog_df
 
     def save_catalog(self, events_df: pd.DataFrame) -> bool:
         """
@@ -317,34 +312,19 @@ class RainEventCatalog:
 
     def backup_catalog(self) -> Optional[str]:
         """
-        Create timestamped backup of current catalog.
+        Copy the stored catalog, as it is, to a timestamped backup.
 
-        :return: Backup path if successful, None if failed
+        By the reader contract (`storj.backup_object`): a corrupt catalog is
+        copied unparsed, for inspection.
+
+        :return: The backup path when a catalog was stored and copied; None
+            when none is stored.
+        :raises BackupError: If the copy failed; the catalog must not be
+            saved over then.
         """
-        if not self.catalog_exists():
-            logger.info("No catalog to backup")
-            return None
-
-        try:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            backup_path = f"{self.backup_path_prefix}_{timestamp}.{self.file_type}"
-
-            client = self._get_storage_client()
-
-            # Copy current catalog to backup location
-            copy_source = {"Bucket": self.bucket, "Key": self.catalog_path}
-            client.copy_object(
-                CopySource=copy_source,
-                Bucket=self.bucket,
-                Key=backup_path,
-            )
-
-            logger.info(f"Catalog backed up to {backup_path}")
-            return backup_path
-
-        except Exception as e:
-            logger.error(f"Failed to backup catalog: {e}")
-            return None
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{self.backup_path_prefix}_{timestamp}.{self.file_type}"
+        return storj.backup_object(self.bucket, self.catalog_path, backup_path)
 
     def detect_and_catalog_events(
         self,
@@ -359,11 +339,13 @@ class RainEventCatalog:
         :param backup_existing: Whether to backup existing catalog first
         :param auto_save: Whether to automatically save to storage
         :return: Complete event catalog DataFrame
+        :raises BackupError: If a stored catalog could not be backed up;
+            nothing is saved then.
         """
         logger.info("Starting event detection and cataloging...")
 
         # Backup existing catalog if requested and auto-saving
-        if auto_save and backup_existing and self.catalog_exists():
+        if auto_save and backup_existing:
             self.backup_catalog()
 
         # Detect events
@@ -420,9 +402,13 @@ class RainEventCatalog:
         :param archive_df: Complete weather archive DataFrame
         :param existing_catalog: Existing catalog DataFrame (will load if None)
         :return: Updated catalog DataFrame
+        :raises StorageReadError: If `existing_catalog` is None and the
+            stored catalog cannot be read.
         """
         if existing_catalog is None:
             existing_catalog = self.load_catalog()
+        if existing_catalog is None:
+            existing_catalog = pd.DataFrame()
 
         if existing_catalog.empty:
             logger.info("No existing catalog, performing full detection")
@@ -631,12 +617,17 @@ class RainEventCatalog:
         That covers a stored ongoing event that has completed, and an event
         that started (and completed) after the last save. With no stored
         catalog, the first completed event seeds one. See `newly_completed`.
-        If a stored catalog cannot be backed up, nothing is saved; the next
-        run finds the same events and tries again.
 
-        :param stored_catalog: The catalog as stored; None or empty when none is.
+        The backup is taken only when the read was found (`stored_catalog`
+        is not None), so a missing catalog costs no extra round trip. If it
+        fails, `BackupError` propagates and nothing is saved; the next run
+        finds the same events and tries again.
+
+        :param stored_catalog: The catalog as read (`load_catalog`): None
+            when none is stored.
         :param updated_catalog: The catalog brought up to the archive.
         :return: True if saved, False otherwise.
+        :raises BackupError: If the stored catalog could not be backed up.
         """
         completed = newly_completed(stored_catalog, updated_catalog)
         if completed.empty:
@@ -648,9 +639,14 @@ class RainEventCatalog:
                 f"{event['total_rainfall']:.3f}\" over "
                 f"{event['duration_minutes'] / 60:.1f}h"
             )
-        if self.catalog_exists() and self.backup_catalog() is None:
-            logger.error("Event Catalog backup failed; not saving (next run retries)")
-            return False
+        if stored_catalog is not None:
+            try:
+                self.backup_catalog()
+            except storj.BackupError:
+                logger.error(
+                    "Event Catalog backup failed; not saving (next run retries)"
+                )
+                raise
         saved = self.save_catalog(updated_catalog)
         if saved:
             logger.info(

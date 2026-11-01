@@ -22,7 +22,9 @@ The steps, each its own function, run in this order by `run`:
    storage stays raw. A stored catalog that cannot be read fails the run
    (#160), rather than publish the rain uncorrected.
 4. `load_catalogs(station, bucket)`: the Event Catalog and the energy
-   catalog as stored.
+   catalog as stored. An Event Catalog read that fails (or finds it
+   corrupt) fails the run before anything is written (#180, ADR-0004); a
+   missing one is detected from the archive in step 5 and saved.
 5. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
    brought up to the caught-up archive. The Event Catalog is saved only when
    an event completed since the last save; the energy catalog only when the
@@ -221,14 +223,22 @@ def load_catalogs(station: Station, bucket: str) -> Catalogs:
     """
     Step 4: the catalogs as stored.
 
+    The Event Catalog is read once and the run acts on its read outcome
+    (#180): failed raises, so the run exits 1 before any catalog or
+    snapshot write and the last good snapshot stays up; missing is None,
+    and step 5 detects it from the archive and saves it.
+
     :param station: The station.
     :param bucket: The bucket.
-    :return: The catalogs; a field is None when none is stored.
+    :return: The catalogs; a field is None when none is stored (or the
+        stored one holds no event).
+    :raises StorageReadError: If the Event Catalog read failed or it is
+        corrupt.
     """
     events = RainEventCatalog(station.mac, bucket=bucket).load_catalog()
     energy = EnergyCatalog(station.mac, bucket=bucket).load_catalog()
     return Catalogs(
-        events=None if events.empty else events,
+        events=None if events is None or events.empty else events,
         energy=None if energy.empty else energy,
     )
 
@@ -429,9 +439,9 @@ def run(
     clock: Callable[[], datetime] = utc_now,
 ) -> Snapshot:
     """
-    One refresh run: every step, in order. A failure raises, except a
-    catalog's update failing (that catalog is used as stored and marked
-    stale) and a failure writing curve files after the snapshot published:
+    One refresh run: every step, in order. A failure raises (a failed
+    Event Catalog read among them, #180), except a catalog's update
+    failing (that catalog is used as stored and marked stale) and a failure writing curve files after the snapshot published:
     those are logged at ERROR only.
 
     :param bucket: The bucket.
