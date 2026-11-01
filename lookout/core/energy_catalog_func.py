@@ -10,7 +10,7 @@ import pandas as pd
 
 from lookout.config import DEFAULT_BUCKET
 from lookout.storage.storj import backup_and_save_catalog
-from lookout.core.catalog_utils import load_catalog, catalog_exists
+from lookout.core.catalog_utils import load_catalog
 from lookout.core.solar_energy_periods import (
     calculate_15min_energy_periods,
     recompute_from_period,
@@ -145,8 +145,3 @@ def update_energy_catalog(
     )
 
     return updated_catalog
-
-
-def energy_catalog_exists(bucket: str = DEFAULT_BUCKET) -> bool:
-    """Check if energy catalog exists in storage."""
-    return catalog_exists(CATALOG_TYPE, bucket)

@@ -1,6 +1,6 @@
 """
 Characterizes catalog storage against a moto-faked Storj gateway: every
-catalog's key path, and load, save, backup and exists for the generic
+catalog's key path, and load, save and backup for the generic
 `catalog_utils` store and the Event Catalog (`RainEventCatalog`).
 
 Event detection and catalog merging are pinned elsewhere; this is storage only.
@@ -174,13 +174,12 @@ def test_generic_catalog_unpinned_uses_the_default_station(fake_s3, no_station):
     assert bucket_keys(fake_s3) == ["98:CD:AC:22:0D:E5.energy_catalog.parquet"]
 
 
-def test_generic_catalog_exists_load_and_save(fake_s3, station):
-    assert catalog_utils.catalog_exists("energy", BUCKET) is False
+def test_generic_catalog_load_and_save(fake_s3, station):
     assert catalog_utils.load_catalog("energy", BUCKET).empty
 
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
 
-    assert catalog_utils.catalog_exists("energy", BUCKET) is True
+    assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
     loaded = catalog_utils.load_catalog("energy", BUCKET)
     # save stamps two metadata columns onto the stored copy.
     assert list(loaded.columns) == [
@@ -192,6 +191,13 @@ def test_generic_catalog_exists_load_and_save(fake_s3, station):
     assert (loaded["catalog_version"] == "1.0").all()
     assert str(loaded["updated_at"].dtype).startswith("datetime64")
     assert_frame_equal(loaded[["period_start", "energy_kwh"]], _periods())
+
+
+def test_a_failed_generic_catalog_save_reports_failure(fake_s3, station, monkeypatch):
+    flaky_storj(monkeypatch, fake_s3, write=f"{FAKE_MAC}.energy_catalog.parquet")
+
+    assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is False
+    assert bucket_keys(fake_s3) == []
 
 
 def test_generic_catalog_refuses_an_empty_save(fake_s3, station):

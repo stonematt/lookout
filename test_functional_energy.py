@@ -31,14 +31,9 @@ def test_functional_energy_catalog():
         detect_and_calculate_periods,
         load_energy_catalog,
         save_energy_catalog,
-        energy_catalog_exists,
     )
 
     print("✅ Functional energy catalog imported successfully")
-
-    # Test MAC address extraction indirectly via function calls
-    exists = energy_catalog_exists()
-    print("✅ MAC address extraction works via catalog check")
 
     # Test with sample data
     sample_data = pd.DataFrame(
