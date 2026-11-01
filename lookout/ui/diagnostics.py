@@ -77,13 +77,14 @@ def save_filled_archive() -> bool:
     The fills are merged into the archive as stored now, not as loaded at
     the first fill, so rows catchup saved in between are kept. All raw.
     The stored archive is read strictly (#160), and the save is refused if
-    it would leave fewer rows than that read held after normalizing.
+    it would drop a reading or blank a value that read held (#190).
 
     :return: True when saved; False when no gap was filled this session, so
         there is nothing new to save.
     :raises StorageReadError: If the stored archive cannot be read or has no
         valid rows.
-    :raises ArchiveShrinkError: If the save would lose stored rows.
+    :raises ArchiveLossError: If the save would drop a stored reading or
+        blank a stored value.
     """
     raw = st.session_state.get(RAW_HISTORY_KEY)
     if raw is None:
@@ -94,7 +95,7 @@ def save_filled_archive() -> bool:
         df=combine_full_history(stored, raw),
         device=device,
         bucket=BUCKET,
-        loaded_rows=len(stored),
+        stored=stored,
     )
     return True
 

@@ -603,7 +603,7 @@ class TestArchiveSafety:
 
         assert stored_bytes(station) == b"not parquet"
 
-    def test_a_save_that_would_shrink_the_archive_is_refused(
+    def test_a_save_that_would_drop_a_stored_reading_is_refused(
         self, catchup_station, monkeypatch
     ):
         station = catchup_station()
@@ -617,26 +617,50 @@ class TestArchiveSafety:
             ),
         )
 
-        with pytest.raises(storj.ArchiveShrinkError):
+        with pytest.raises(storj.ArchiveLossError, match="drop 1 stored reading"):
             station.run()
 
         assert stored_bytes(station) == before
 
-    def test_a_repair_that_would_shrink_the_archive_is_refused(
+    def test_a_save_that_would_blank_a_stored_value_is_refused(
+        self, catchup_station, monkeypatch
+    ):
+        # The April case: rows added, a stored value blanked in place. The
+        # guard sees it whatever built the frame (#190).
+        station = catchup_station()
+        before = stored_bytes(station)
+        merge = archive_merge.merge
+
+        def blanking(stored, ambient):
+            archive, report = merge(stored, ambient)
+            archive.loc[archive["dateutc"] == stored["dateutc"].min(), "tempf"] = None
+            return archive_merge.Merged(archive, report)
+
+        monkeypatch.setattr(archive_merge, "merge", blanking)
+
+        with pytest.raises(storj.ArchiveLossError, match="blank 1 stored value"):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_repair_archive_may_drop_readings_as_an_explicit_repair(
         self, catchup_station, monkeypatch
     ):
         from lookout.cli import catchup
 
         station = catchup_station()
-        before = stored_bytes(station)
+        dropped = station.stored()["dateutc"].min()
         monkeypatch.setattr(
-            catchup, "_repair_archive_df", lambda archive: (archive.iloc[1:], {})
+            catchup,
+            "_repair_archive_df",
+            lambda archive: (archive[archive["dateutc"] != dropped], {}),
         )
 
-        with pytest.raises(storj.ArchiveShrinkError):
-            catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+        catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
 
-        assert stored_bytes(station) == before
+        stored = station.stored()
+        assert len(stored) == len(station.archive) - 1
+        assert dropped not in set(stored["dateutc"])
 
     def test_a_failed_archive_save_fails_the_run(self, catchup_station, monkeypatch):
         station = catchup_station()

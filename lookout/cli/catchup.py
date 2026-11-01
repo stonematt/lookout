@@ -106,7 +106,8 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     The refresh command runs this as its first step. Every failure raises,
     so the run exits non-zero (#160): a failed backup before anything is
     read, a failed or empty archive read before anything is saved, a save
-    that would leave fewer rows than were loaded, and a failed save.
+    that would drop a stored reading or blank a stored value, and a failed
+    save.
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
@@ -116,7 +117,8 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     :raises StorageReadError: If the archive cannot be read or holds no rows.
     :raises CatchupStalled: If Ambient holds readings past a gap the run
         could not cross.
-    :raises StorageWriteError: If the save fails or would shrink the archive.
+    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
+        would drop a stored reading or blank a stored value.
     """
     mac = device["macAddress"]
 
@@ -134,7 +136,7 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     logger.info(f"Total records after update: {len(new_archive_df)}")
 
     # Save updated archive to S3, newest first whatever came back (#133)
-    sj.save_archive(new_archive_df, bucket_name, mac, loaded_rows=len(archive_df))
+    sj.save_archive(new_archive_df, bucket_name, mac, stored=archive_df)
     logger.info("Updated archive saved.")
     return new_archive_df
 
@@ -145,9 +147,9 @@ def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
 
     Strict (#160): a run that saves after this must never start from a
     failed read, so it reads storage directly (no dev-mode local cache) and
-    raises rather than returning an empty frame. The row count returned is
+    raises rather than returning an empty frame. The archive returned is
     after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
-    it is the count the save is guarded by (`save_archive`'s `loaded_rows`).
+    it is the archive the save is guarded by (`save_archive`'s `stored`).
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read from.
@@ -212,8 +214,9 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         logger.info("Dry-run: NOT saving repaired archive.")
         return
 
-    # Persist the repaired archive, newest first (#133), and exit
-    sj.save_archive(fixed, bucket_name, mac, loaded_rows=len(archive_df))
+    # Persist the repaired archive, newest first (#133), and exit. An
+    # explicit repair: the one catchup save that may drop or blank (#190).
+    sj.save_archive(fixed, bucket_name, mac, stored=archive_df, repair=True)
     logger.info("Repaired archive saved.")
 
 
