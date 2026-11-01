@@ -97,6 +97,30 @@ readings are archived. Every value over a month or window goes through it
 (`lookout.snapshot.gaps.comparable`).
 _Avoid_: coverage (the readings-per-hour grid), data quality, completeness.
 
+### Event Catalog
+
+The stored list of rain events detected from a lookout post's archive. It
+is derived: detection can always rebuild it from the archive. A rebuild is
+not free, though: history that detection no longer reproduces, such as
+events shaped by earlier rain corrections, is lost unless a backup is kept.
+So a rebuild is a human act, never a side effect of a failed read.
+_Avoid_: rain catalog, events file.
+
+### read outcome (found / missing / failed)
+
+Every storage read ends in exactly one of three outcomes:
+
+- **found**: the object exists and was read.
+- **missing**: storage says the object does not exist.
+- **failed**: we could not learn whether the object exists, or it exists
+  but cannot be read (network error, timeout, corrupt file).
+
+Missing and failed are never interchangeable: a failed read is never acted
+on as "nothing stored". A missing archive is an error too: adding a lookout
+post is a human act, never inferred from an absent archive. See
+[ADR-0004](docs/adr/0004-failed-storage-read-aborts.md).
+_Avoid_: "empty" for either missing or failed.
+
 ### curve file
 
 A completed rain event's readings, as its accumulation and rain rate at
