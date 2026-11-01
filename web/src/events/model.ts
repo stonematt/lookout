@@ -90,7 +90,10 @@ export function statsFor(section: RainEvents, season: Season): EventStats {
 
 /**
  * The words for a water year with a few days missing, the same in the one
- * year's note and under All: "3 of 365 days of water year 2025".
+ * year's note and under All.
+ *
+ * @param season - A ≈ water year's summary.
+ * @returns E.g. "3 of 365 days of water year 2025".
  */
 function missingDays(season: EventSeason): string {
   return `${season.status.missing_days} of ${season.status.days} days of water year ${season.water_year}`;

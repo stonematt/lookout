@@ -193,7 +193,6 @@ class TestEventSeasonsAreEventSums:
         snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(full))
         season = next(s for s in snapshot.rain_events.seasons if s.water_year == 2025)
 
-        assert season.status is not None
         assert season.status.key == "water_year_2025"
         assert (season.status.first_day, season.status.last_day) == (
             "2024-10-01",
@@ -209,9 +208,12 @@ class TestEventSeasonsAreEventSums:
         )
         snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(archive))
 
+        curve = snapshot.rain_tab.water_years[-1]
+
         assert [s.status.key for s in snapshot.rain_events.seasons] == [
             "water_year_2026"
         ]
+        assert snapshot.rain_events.seasons[0].status.key == curve.status.key
 
 
 def nan_counter_archive():
