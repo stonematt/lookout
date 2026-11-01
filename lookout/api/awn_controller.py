@@ -745,17 +745,17 @@ class GapFill:
         when nothing was added.
     :param start: The gap's start, UTC (the argument as parsed).
     :param end: The gap's end, UTC.
-    :param status: "filled" (rows were added), "no_new_data" (Ambient had
-        nothing for the gap) or "refused" (inverted gap, or no archive data
-        before it).
-    :param rows_added: How many rows the fill added.
+    :param status: "filled" (readings added, values filled or values
+        updated), "no_new_data" (Ambient changed nothing) or "refused"
+        (inverted gap, or no archive data before it).
+    :param report: What the merge changed (`MergeReport`); None when refused.
     """
 
     history_df: pd.DataFrame
     start: pd.Timestamp
     end: pd.Timestamp
     status: str
-    rows_added: int = 0
+    report: Optional[archive_merge.MergeReport] = None
 
     @property
     def skipped(self) -> bool:
@@ -788,6 +788,8 @@ def fill_archive_gap(
     :param sleep: Wait a second before each page, to stay under Ambient's
         rate limit on a long fill.
     :return: A `GapFill`; its `history_df` is the merged archive on "filled".
+    :raises CatchupStalled: If Ambient holds readings past a gap that the
+        pages left could not cross.
     """
     logger.info(f"*** Attempting to fill gap from {start} to {end} ***")
 
@@ -808,21 +810,22 @@ def fill_archive_gap(
         logger.warning("No archive data before gap start; can't determine baseline.")
         return GapFill(history_df, start, end, "refused")
 
-    # Fetch new records to fill the gap
-    new_data_df = get_history_since_last_archive(
+    # Fetch from the baseline before the gap; the fetch may run past the
+    # gap's end into stored readings, which the merge leaves as they are
+    # wherever Ambient sends nothing.
+    fetched = fetch_since_last_archive(
         device, archive_df, end_date=end, pages=pages, sleep=sleep
     )
 
-    # Merge new data back into full archive; raw, like the fetched rows
-    full_combined = combine_full_history(history_df, new_data_df)
+    # Merge into the full archive; raw, like the fetched rows
+    merged = archive_merge.merge(history_df, fetched)
+    logger.info(f"Gap fill merged: {merged.report.describe()}")
 
-    if len(full_combined) == len(history_df):
+    if not merged.report.changed:
         logger.info("No new data found. Gap skipped.")
-        return GapFill(history_df, start, end, "no_new_data")
+        return GapFill(history_df, start, end, "no_new_data", merged.report)
 
-    return GapFill(
-        full_combined, start, end, "filled", len(full_combined) - len(history_df)
-    )
+    return GapFill(merged.archive, start, end, "filled", merged.report)
 
 
 def validate_archive(archive_df):
