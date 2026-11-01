@@ -376,6 +376,15 @@ class TestTheLeadAndTheRainTabAgree:
         assert calm(snapshot).reference is None
         assert calm(snapshot).missing == "no_comparison"
 
+    def test_the_same_archive_with_its_counter_has_the_usual_dry_spell(self):
+        archive = build_archive(YEAR_START, YEAR_END, rain=DECEMBER_RAIN)
+
+        snapshot = build(archive, None, YEAR_NOW)
+
+        assert rain_window(snapshot, "365d").status.status == "valid"
+        assert calm(snapshot).reference is not None
+        assert calm(snapshot).missing is None
+
 
 class TestRainEventsAgreeOnTheUnreadDay:
     def test_a_season_reads_the_rain_tabs_status(self):
