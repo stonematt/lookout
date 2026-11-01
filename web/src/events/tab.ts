@@ -291,8 +291,8 @@ ${note}
       return;
     }
     source.textContent = row.live
-      ? "Source: live station for the newest reading and the total; station archive for the rest. 5-minute readings, Pacific time."
-      : "Source: station archive, 5-minute readings, Pacific time. Rate is the rise in daily rain between readings.";
+      ? "Source: live station for the newest reading and the total; station archive for the rest. 5-minute readings, station time."
+      : "Source: station archive, 5-minute readings, station time. Rate is the rise in daily rain between readings.";
 
     const show = (curve: EventCurve) => {
       if (ticket !== drawn) return;

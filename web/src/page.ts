@@ -14,6 +14,7 @@
  * keeps the page already drawn.
  */
 import { mountEvents } from "./events/tab.js";
+import { setStationZone } from "./format.js";
 import { mountHeader } from "./header.js";
 import { renderOverview } from "./overview/index.js";
 import { renderRain } from "./rain/index.js";
@@ -94,6 +95,8 @@ export function startPage(
   const tabs = mountTabs(sections, renderTab);
 
   function show(snapshot: DashboardSnapshot): void {
+    // Every station-local label is in the zone this snapshot names (ADR-0005).
+    setStationZone(snapshot.station.tz);
     header.showSnapshot(snapshot);
     document.title = snapshot.station.name ? `${snapshot.station.name} · Lookout` : "Lookout";
     dashboard = snapshot;

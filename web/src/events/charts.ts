@@ -17,7 +17,7 @@
  * joined by a dotted line over a hatched span, "only the live total is
  * known".
  */
-import { STATION_TIME_ZONE, dayText, hourText, inches } from "../format.js";
+import { stationFormat, dayText, hourText, inches } from "../format.js";
 import { FALLBACK_WIDTH } from "../charts/svg.js";
 import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
@@ -34,26 +34,27 @@ function loadPlotly(): Promise<PlotlyModule> {
   return plotly;
 }
 
-const PACIFIC = new Intl.DateTimeFormat("en-CA", {
-  timeZone: STATION_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
+/** The wall-clock formatter in the station's zone. */
+const wallClock = () =>
+  stationFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
 
 /**
- * Epoch ms as the Pacific wall-clock time Plotly plots, e.g.
+ * Epoch ms as the station's wall-clock time Plotly plots, e.g.
  * `2026-01-08 14:00:00`.
  *
  * @param ms - Epoch milliseconds UTC.
  * @returns The local time string.
  */
-export function pacific(ms: number): string {
-  const p = Object.fromEntries(PACIFIC.formatToParts(ms).map((x) => [x.type, x.value]));
+export function stationWallClock(ms: number): string {
+  const p = Object.fromEntries(wallClock().formatToParts(ms).map((x) => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 
@@ -79,11 +80,11 @@ export interface TimeTicks {
  * @param fromMs - The axis start, epoch ms UTC.
  * @param toMs - The axis end.
  * @param plotPx - The plot's width in px.
- * @returns The tick values (Pacific wall-clock strings) and labels.
+ * @returns The tick values (station wall-clock strings) and labels.
  */
 export function timeTicks(fromMs: number, toMs: number, plotPx: number): TimeTicks {
-  // Pacific wall-clock time as if it were UTC, so steps land on local hours.
-  const wall = (ms: number) => Date.parse(`${pacific(ms).replace(" ", "T")}Z`);
+  // Station wall-clock time as if it were UTC, so steps land on local hours.
+  const wall = (ms: number) => Date.parse(`${stationWallClock(ms).replace(" ", "T")}Z`);
   const [from, to] = [wall(fromMs), wall(toMs)];
   const room = Math.max(2, Math.floor(plotPx / TICK_PX));
   let stamps: number[] = [];
@@ -144,7 +145,7 @@ export function gapSpans(curve: EventCurve, live: boolean): GapSpan[] {
  *
  * @param curve - The curve.
  * @param spans - Its gaps.
- * @returns x (Pacific time strings) and y.
+ * @returns x (station time strings) and y.
  */
 export function accumulationLine(
   curve: EventCurve,
@@ -157,10 +158,10 @@ export function accumulationLine(
   curve.t_ms.forEach((t, i) => {
     if (tail && t === tail.toMs) return;
     if (breaks.has(t)) {
-      x.push(pacific(t - 1));
+      x.push(stationWallClock(t - 1));
       y.push(null);
     }
-    x.push(pacific(t));
+    x.push(stationWallClock(t));
     y.push(curve.event_in[i] ?? null);
   });
   return { x, y };
@@ -215,7 +216,7 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
 function hatches(spans: GapSpan[], top: number): Plotly.Data {
   return {
     type: "bar",
-    x: spans.map((s) => pacific((s.fromMs + s.toMs) / 2)),
+    x: spans.map((s) => stationWallClock((s.fromMs + s.toMs) / 2)),
     y: spans.map(() => top),
     width: spans.map((s) => s.toMs - s.fromMs),
     marker: {
@@ -233,7 +234,7 @@ function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation
     .filter((s) => (s.toMs - s.fromMs) / widthMs > 0.12)
     .map((s) => ({
       // The live tail sits at the right edge: anchor its label there.
-      x: pacific(s.liveTail ? s.toMs : (s.fromMs + s.toMs) / 2),
+      x: stationWallClock(s.liveTail ? s.toMs : (s.fromMs + s.toMs) / 2),
       xanchor: s.liveTail ? ("right" as const) : ("center" as const),
       y: 0,
       yanchor: "bottom",
@@ -287,7 +288,7 @@ export async function drawEventCharts(
     accTraces.push({
       type: "scatter",
       mode: "lines",
-      x: [pacific(tail.fromMs), pacific(tail.toMs)],
+      x: [stationWallClock(tail.fromMs), stationWallClock(tail.toMs)],
       y: [before, lastIn],
       line: { color: rain, width: 3, dash: "dot" },
       hoverinfo: "skip",
@@ -296,7 +297,7 @@ export async function drawEventCharts(
   accTraces.push({
     type: "scatter",
     mode: "markers",
-    x: [pacific(endMs)],
+    x: [stationWallClock(endMs)],
     y: [lastIn],
     marker: { color: dotColor, size: 11, line: { color: token("--ground"), width: 2 } },
     // The end dot sits on the plot's right edge: draw all of it.
@@ -306,7 +307,7 @@ export async function drawEventCharts(
   // Both charts share one time range, from the reading before the first,
   // and one set of ticks. The plot is the host less the side margins.
   const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
-  const xRange: [string, string] = [pacific(fromMs), pacific(toMs)];
+  const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
   const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r);
   const accLayout = baseLayout(240, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
@@ -314,7 +315,7 @@ export async function drawEventCharts(
   accLayout.annotations = [
     ...gapLabels(spans, widthMs),
     {
-      x: pacific(endMs),
+      x: stationWallClock(endMs),
       y: lastIn,
       xanchor: "right",
       yanchor: "bottom",
@@ -333,7 +334,7 @@ export async function drawEventCharts(
     hatches(spans, topRate),
     {
       type: "bar",
-      x: curve.t_ms.map((t) => pacific(t - 150_000)),
+      x: curve.t_ms.map((t) => stationWallClock(t - 150_000)),
       y: rates,
       width: curve.t_ms.map(() => 300_000),
       marker: { color: token("--rain-2"), line: { width: 0 } },

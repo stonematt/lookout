@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as eventGET } from "../api/event.js";
 import { devResponse } from "../server/dev-fixtures.js";
 import { CURVE_CACHE } from "../server/event.js";
-import { accumulationLine, gapSpans, pacific } from "../src/events/charts.js";
+import { accumulationLine, gapSpans, stationWallClock } from "../src/events/charts.js";
 import { readUrl } from "../src/load.js";
 import type { EventCurve } from "../src/snapshot.js";
 import { SnapshotContractError, parseDashboard, parseEventCurve } from "../src/snapshot.js";
@@ -246,8 +246,8 @@ describe("the chart helpers", () => {
   const ongoing = () =>
     parseDashboard(golden("raining", "dashboard")).rain_events.open_curve!;
 
-  it("plots in Pacific time", () => {
-    expect(pacific(EVENT_3)).toBe("2026-01-08 14:00:00");
+  it("plots in the station zone", () => {
+    expect(stationWallClock(EVENT_3)).toBe("2026-01-08 14:00:00");
   });
 
   it("marks the live reading past the archive as the live tail", () => {
