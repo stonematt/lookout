@@ -10,7 +10,7 @@ completed and its curve file is written.
 
 Functions:
 - rain_events_section(event_catalog, stitched, active, observed_at_ms,
-  year_status): The tab's section.
+  clock, year_status): The tab's section.
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
 """
@@ -26,6 +26,7 @@ from lookout.core.rain_events import (
     summarize_events,
 )
 from lookout.core.rainfall_analysis import water_year, water_year_start
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import (
     ActiveRainEvent,
     EventCurve,
@@ -36,7 +37,6 @@ from lookout.snapshot.model import (
     RainEvents,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -162,7 +162,7 @@ def _live_catalog(
     return events.sort_values("start_time", ascending=False).reset_index(drop=True)
 
 
-def _row(event: pd.Series, rank: int, history: _History) -> RainEventRow:
+def _row(event: pd.Series, rank: int, history: _History, tz: str) -> RainEventRow:
     """One listed event."""
     start_ms = int(event["start_ms"])
     end_ms = _ms(event["end_time"])
@@ -178,7 +178,7 @@ def _row(event: pd.Series, rank: int, history: _History) -> RainEventRow:
         quality=quality if isinstance(quality, str) and has_curve else NO_DATA,
         completeness_pct=None if completeness is None else round(completeness * 100, 1),
         max_gap_minutes=number(event.get("max_gap_minutes"), 1),
-        water_year=water_year(event["start_time"].tz_convert(DEFAULT_TZ).date()),
+        water_year=water_year(event["start_time"].tz_convert(tz).date()),
         rank=rank,
         live=bool(event["live"]),
         has_curve=has_curve,
@@ -190,6 +190,7 @@ def rain_events_section(
     stitched: pd.DataFrame,
     active: Optional[ActiveRainEvent],
     observed_at_ms: Optional[int],
+    clock: StationClock,
     year_status: Callable[[int], GapStatus],
 ) -> RainEvents:
     """
@@ -199,6 +200,8 @@ def rain_events_section(
     :param stitched: The archive with the live reading stitched in.
     :param active: The active rain event, or None: which event is live.
     :param observed_at_ms: The newest observation.
+    :param clock: The station clock: its zone says which water year an
+        event starts in.
     :param year_status: A water year's rain gap status, judged as the Rain
         tab's water-year curves are (`RainCoverage.water_year_status`), so a
         season reads against the same status, and every season has one.
@@ -213,7 +216,7 @@ def rain_events_section(
     history = _History(stitched)
     totals = events["total_rainfall"].to_numpy(dtype=float)
     rows = tuple(
-        _row(event, int((totals > totals[i]).sum()) + 1, history)
+        _row(event, int((totals > totals[i]).sum()) + 1, history, clock.tz)
         for i, event in events.iterrows()
     )
 
@@ -224,8 +227,8 @@ def rain_events_section(
             stats=_stats(
                 filter_events(
                     events,
-                    start=pd.Timestamp(water_year_start(year), tz=DEFAULT_TZ),
-                    end=pd.Timestamp(water_year_start(year + 1), tz=DEFAULT_TZ),
+                    start=pd.Timestamp(water_year_start(year), tz=clock.tz),
+                    end=pd.Timestamp(water_year_start(year + 1), tz=clock.tz),
                 )
             ),
             status=year_status(year),

@@ -20,10 +20,10 @@ the new site's rules:
   (GLOSSARY.md), where Streamlit used the calendar year.
 
 Classes and functions:
-- RainCoverage(archive, current, now): the coverage rain windows are judged
+- RainCoverage(archive, current, clock): the coverage rain windows are judged
   by, holding each day's rain counter; `water_year_status(year)` judges any
   water year as its curve does.
-- rain_tab(archive, history, current, now, tz, coverage): the `RainTab`
+- rain_tab(archive, history, current, clock, coverage): the `RainTab`
   section.
 - daily_totals(coverage): each counted day's total, today live.
 - window_total(status, totals, coverage): one window's rain, gap rules held.
@@ -34,7 +34,7 @@ Overview's rolling-window tables) builds a `RainCoverage` and calls
 status everywhere (the One Number Rule).
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -49,6 +49,7 @@ from lookout.core.rainfall_analysis import (
     water_year_day_index,
     water_year_start,
 )
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.gaps import PRORATED, ArchiveCoverage, comparable, prorate
 from lookout.snapshot.model import (
     DrySpell,
@@ -63,7 +64,7 @@ from lookout.snapshot.model import (
     WaterYearCurve,
 )
 from lookout.snapshot.values import iso_day, number
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import day_span, from_local_date
 
 RECENT_WINDOW = "90d"
 """The standard window the daily bars and the heatmap cover."""
@@ -85,21 +86,19 @@ class RainCoverage(ArchiveCoverage):
 
     :param archive: The station's archive as stored.
     :param current: Current conditions, live stitched: today's rain.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
+    :param clock: The station clock.
     """
 
     def __init__(
         self,
         archive: pd.DataFrame,
         current: SnapshotConditions,
-        now: datetime,
-        tz: str = DEFAULT_TZ,
+        clock: StationClock,
     ) -> None:
-        super().__init__(archive, now, tz)
+        super().__init__(archive, clock)
         counters: Dict[date, float] = {}
         if not archive.empty:
-            frame = extract_daily_rainfall(archive)
+            frame = extract_daily_rainfall(archive, self.tz)
             counters = {d: float(r) for d, r in zip(frame["date"], frame["rainfall"])}
         if current.rain_today_in is not None:
             counters[self.today] = float(current.rain_today_in)
@@ -137,8 +136,7 @@ def rain_tab(
     archive: pd.DataFrame,
     history: pd.DataFrame,
     current: SnapshotConditions,
-    now: datetime,
-    tz: str = DEFAULT_TZ,
+    clock: StationClock,
     coverage: Optional[RainCoverage] = None,
 ) -> RainTab:
     """
@@ -150,14 +148,13 @@ def rain_tab(
         (`stitch_live`), for today's hours.
     :param current: Current conditions, live stitched: today's rain and the
         last rain time.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
-    :param coverage: `RainCoverage(archive, current, now, tz)`, when the
+    :param clock: The station clock.
+    :param coverage: `RainCoverage(archive, current, clock)`, when the
         caller has built it already; built here when None.
     :return: The section.
     """
     if coverage is None:
-        coverage = RainCoverage(archive, current, now, tz)
+        coverage = RainCoverage(archive, current, clock)
     totals = daily_totals(coverage)
     windows = coverage.standard_windows()
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
@@ -167,7 +164,7 @@ def rain_tab(
             RainWindow(key=s.key, status=s, total_in=window_total(s, totals, coverage))
             for s in windows
         ),
-        recent=_recent(recent_status, totals, history, coverage, now, tz),
+        recent=_recent(recent_status, totals, history, coverage),
         dry_spells=_dry_spells(totals, water_year_status, coverage),
         day_index=water_year_day_index(coverage.today),
         water_years=_water_years(totals, coverage),
@@ -219,8 +216,6 @@ def _recent(
     totals: Dict[date, float],
     history: pd.DataFrame,
     coverage: RainCoverage,
-    now: datetime,
-    tz: str,
 ) -> RecentRain:
     """
     Daily and hourly rain over the days of the recent window.
@@ -228,22 +223,20 @@ def _recent(
     :param status: The recent window's gap status.
     :param totals: `daily_totals`.
     :param history: The stitched history, for the hours (today's included).
-    :param coverage: The archive's coverage.
-    :param now: The build time: hours after its hour today are still to come.
-    :param tz: The station-local zone.
+    :param coverage: The archive's coverage; its clock's build hour says
+        which hours today are still to come.
     :return: The recent days, with wet hours prorated like any window value.
     """
     first, last = iso_day(status.first_day), iso_day(status.last_day)
-    days = [first + timedelta(days=i) for i in range(status.days)]
+    days = day_span(first, last)
     span = history
     if not history.empty:
-        start_ms = pd.Timestamp(first).tz_localize(tz).value // 10**6
-        span = history[history["dateutc"] >= start_ms]
-    hours = hourly_rain(span, tz)
+        span = history[history["dateutc"] >= from_local_date(first, coverage.tz)]
+    hours = hourly_rain(span, coverage.tz)
     by_hour = {(d, h): r for d, h, r in hours.itertuples(index=False, name=None)}
     # The one "still to come" decision: the hours after the build hour on
     # the window's last day, today. The browser reads it from the snapshot.
-    first_to_come = pd.Timestamp(now).tz_convert(tz).hour + 1
+    first_to_come = coverage.clock.local_now.hour + 1
 
     rain_in: List[Optional[float]] = []
     reasons = []
@@ -320,7 +313,7 @@ def _dry_spells(
     spells = pd.DataFrame(columns=["first_day", "last_day", "days"])
     if totals:
         first = min(totals)
-        index = [first + timedelta(days=i) for i in range((today - first).days + 1)]
+        index = day_span(first, today)
         series = pd.Series([totals.get(d, np.nan) for d in index], index=index)
         spells = dry_spells(series)
 
