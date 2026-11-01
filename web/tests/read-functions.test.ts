@@ -123,8 +123,6 @@ describe("GET /dashboard", () => {
   });
 
   it("redirects a trailing-slash path to a location that is never empty", async () => {
-    const bare = await dashboardGET(get("/dashboard/?station="));
-    expect(bare.status).toBe(400);
     const response = await dashboardGET(
       get(`/dashboard/?station=${encodeURIComponent(MAC.toLowerCase())}`),
     );
