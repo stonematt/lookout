@@ -2,10 +2,14 @@
  * One rain event's two charts, drawn with Plotly (loaded on first use, so
  * the page's first screen never waits for it):
  *
- * - Accumulation: the event rain so far as a bold stepped line over a soft
- *   fill, ending in a dot with its total. The live event's dot is the claret
- *   "now" mark; a completed event's is in the rain hue.
+ * - Accumulation: the event rain so far as a bold stepped line (a running
+ *   total is a line, never a filled area), ending in a dot with its total.
+ *   The live event's dot is the claret "now" mark; a completed event's is
+ *   in the rain hue.
  * - Rate: the rain rate between readings as zero-based columns.
+ *
+ * Both share one time axis of plain times ("6 pm", "noon"), the date said
+ * on the first tick and again where the day turns.
  *
  * DESIGN.md's chart grammar: no line, column or value across a gap. Each
  * reading that follows a gap of more than 10 minutes starts a hatched span
@@ -13,7 +17,7 @@
  * joined by a dotted line over a hatched span, "only the live total is
  * known".
  */
-import { STATION_TIME_ZONE, inches } from "../format.js";
+import { STATION_TIME_ZONE, dayText, hourText, inches } from "../format.js";
 import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
 
@@ -50,6 +54,61 @@ const PACIFIC = new Intl.DateTimeFormat("en-CA", {
 export function pacific(ms: number): string {
   const p = Object.fromEntries(PACIFIC.formatToParts(ms).map((x) => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+}
+
+/** Tick steps in minutes, finest first. */
+const TICK_STEPS = [15, 30, 60, 120, 180, 360, 720, 1440];
+
+/** The plot width one tick label needs, in px. */
+const TICK_PX = 56;
+
+/** Both charts' side margins, in px: the y ticks on the left. */
+const MARGIN = { l: 52, r: 12 };
+
+/** The host width assumed before layout gives one, in px. */
+const FALLBACK_WIDTH_PX = 640;
+
+/** The event time axis's ticks: Plotly's x values and their labels. */
+export interface TimeTicks {
+  values: string[];
+  text: string[];
+}
+
+/**
+ * The event time axis: plain times at the finest step whose ticks fit the
+ * plot, the date said on the first tick and in place of each midnight.
+ *
+ * @param fromMs - The axis start, epoch ms UTC.
+ * @param toMs - The axis end.
+ * @param plotPx - The plot's width in px.
+ * @returns The tick values (Pacific wall-clock strings) and labels.
+ */
+export function timeTicks(fromMs: number, toMs: number, plotPx: number): TimeTicks {
+  // Pacific wall-clock time as if it were UTC, so steps land on local hours.
+  const wall = (ms: number) => Date.parse(`${pacific(ms).replace(" ", "T")}Z`);
+  const [from, to] = [wall(fromMs), wall(toMs)];
+  const room = Math.max(2, Math.floor(plotPx / TICK_PX));
+  let stamps: number[] = [];
+  for (const minutes of TICK_STEPS) {
+    const step = minutes * 60_000;
+    stamps = [];
+    for (let t = Math.ceil(from / step) * step; t <= to; t += step) stamps.push(t);
+    if (stamps.length <= room) break;
+  }
+  // An event of many days: thin the daily ticks to fit.
+  const every = Math.ceil(stamps.length / room);
+  stamps = stamps.filter((_, i) => i % every === 0);
+  const values = stamps.map((t) => new Date(t).toISOString().slice(0, 19).replace("T", " "));
+  const text = stamps.map((t, i) => {
+    const at = new Date(t);
+    const [hour, minute] = [at.getUTCHours(), at.getUTCMinutes()];
+    const date = dayText(values[i]!.slice(0, 10));
+    if (hour === 0 && minute === 0) return date;
+    const clock = `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+    const time = minute === 0 ? hourText(hour) : clock;
+    return i === 0 ? `${time}<br>${date}` : time;
+  });
+  return { values, text };
 }
 
 /** A gap span in a curve: the readings either side of it. */
@@ -115,11 +174,11 @@ function token(name: string): string {
 }
 
 /** The parts both charts share. */
-function baseLayout(height: number, ySuffix: string): Partial<Plotly.Layout> {
+function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<Plotly.Layout> {
   const tick = { family: token("--sans"), size: 12, color: token("--ink-3") };
   return {
     height,
-    margin: { l: 52, r: 12, t: 8, b: 44 },
+    margin: { ...MARGIN, t: 8, b: 44 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { family: token("--sans"), size: 12, color: token("--ink-2") },
@@ -138,6 +197,9 @@ function baseLayout(height: number, ySuffix: string): Partial<Plotly.Layout> {
       fixedrange: true,
       linecolor: token("--rule"),
       tickfont: tick,
+      tickmode: "array",
+      tickvals: ticks.values,
+      ticktext: ticks.text,
       hoverformat: "%b %-d, %-I:%M %p",
     },
     yaxis: {
@@ -218,8 +280,6 @@ export async function drawEventCharts(
       x: line.x,
       y: line.y,
       line: { color: rain, width: 3.5, shape: "hv" },
-      fill: "tozeroy",
-      fillcolor: token("--rain-0"),
       connectgaps: false,
       hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in<extra></extra>",
     },
@@ -241,14 +301,16 @@ export async function drawEventCharts(
     x: [pacific(endMs)],
     y: [lastIn],
     marker: { color: dotColor, size: 11, line: { color: token("--ground"), width: 2 } },
+    // The end dot sits on the plot's right edge: draw all of it.
+    cliponaxis: false,
     hovertemplate: `${row.live ? "now: " : ""}%{y:.2f} in<extra></extra>`,
   });
-  // Both charts share one time range, from the reading before the first.
-  const xRange: [string, string] = [
-    pacific(curve.t_ms[0]! - 300_000),
-    pacific(endMs + 60_000),
-  ];
-  const accLayout = baseLayout(240, " in");
+  // Both charts share one time range, from the reading before the first,
+  // and one set of ticks. The plot is the host less the side margins.
+  const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
+  const xRange: [string, string] = [pacific(fromMs), pacific(toMs)];
+  const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || FALLBACK_WIDTH_PX) - MARGIN.l - MARGIN.r);
+  const accLayout = baseLayout(240, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
   accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
   accLayout.annotations = [
@@ -280,9 +342,9 @@ export async function drawEventCharts(
       hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in/hr<extra></extra>",
     },
   ];
-  const rateLayout = baseLayout(150, "");
+  const rateLayout = baseLayout(150, "", ticks);
   rateLayout.yaxis = { ...rateLayout.yaxis, range: [0, topRate], title: { text: "in/hr", font: { size: 12, color: token("--ink-2") } } };
-  rateLayout.margin = { l: 52, r: 12, t: 4, b: 44 };
+  rateLayout.margin = { ...MARGIN, t: 4, b: 44 };
   rateLayout.xaxis = { ...rateLayout.xaxis, range: xRange };
   await Plotly.react(hosts.rate, rateTraces, rateLayout, config);
 }
