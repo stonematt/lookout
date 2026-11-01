@@ -151,25 +151,38 @@ export function eventFinding(row: RainEventRow, count: number): string {
 }
 
 /**
- * The list's finding headline for a water year or for all events. The rain
- * is the events' totals added up, so it says "in those events": it is not
- * the water year's rain, which counts showers outside any event too.
+ * The list's finding headline for a water year or for all events: the
+ * wettest event against the median one, the count as their context.
  *
  * @param stats - The summary.
  * @param season - A water year, or "all".
  * @param oldestMs - The oldest listed event's start, for "since".
+ * @param rows - The events listed for that water year or for all.
  * @returns The headline.
  */
 export function listFinding(
   stats: EventStats,
   season: Season,
   oldestMs: number | null,
+  rows: RainEventRow[],
 ): string {
   const n = stats.count;
-  const events = `${n} rain event${n === 1 ? "" : "s"}`;
-  if (season !== "all") {
-    return `${events} in water year ${season}, ${inches(stats.total_in, { digits: 2 })} of rain in those events`;
-  }
-  const since = oldestMs === null ? "" : ` since ${formatStamp(oldestMs).split(",")[0]}, ${YEAR.format(oldestMs)}`;
-  return `${events}${since}, ${inches(stats.total_in, { digits: 2 })} of rain in those events`;
+  const scope =
+    season !== "all"
+      ? ` in water year ${season}`
+      : oldestMs === null
+        ? ""
+        : ` since ${formatStamp(oldestMs).split(",")[0]}, ${YEAR.format(oldestMs)},`;
+  const wettest = rows.reduce<RainEventRow | null>(
+    (best, e) => (best === null || e.total_in > best.total_in ? e : best),
+    null,
+  );
+  if (n === 0 || wettest === null) return `No rain events${scope}`;
+  const total = `${inches(wettest.total_in, { digits: 2 })}${wettest.live ? " so far" : ""}`;
+  if (n === 1) return `The one rain event${scope} brought ${total}`;
+  const median =
+    stats.median_in === null
+      ? ""
+      : `, against ${inches(stats.median_in, { digits: 2 })} for the median event`;
+  return `The wettest of ${n} events${scope} brought ${total}${median}`;
 }

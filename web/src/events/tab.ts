@@ -63,6 +63,15 @@ export function browserDeps(): EventsDeps {
   };
 }
 
+/**
+ * An event's start as two unbreakable parts, date and time, so a narrow
+ * column breaks it between them: `Jan 8, 2025,` and `2:00 pm`.
+ */
+function when(label: string): string {
+  const cut = label.lastIndexOf(", ") + 1;
+  return `<span><span class="ev-when">${esc(label.slice(0, cut))}</span> <span class="ev-when">${esc(label.slice(cut + 1))}</span></span>`;
+}
+
 /** A one-row stat strip cell. */
 function stat(value: string, label: string): string {
   return `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
@@ -137,7 +146,7 @@ export function mountEvents(
   function renderHead(): void {
     const stats = statsFor(section, season);
     const oldest = all.length ? all[all.length - 1]!.start_ms : null;
-    $(".ev-title").textContent = listFinding(stats, season, oldest);
+    $(".ev-title").textContent = listFinding(stats, season, oldest, visibleEvents(section, season, sort));
     $(".ev-stats").innerHTML = [
       stat(String(stats.count), "events"),
       stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
@@ -166,12 +175,14 @@ export function mountEvents(
         const href = `${withEvent(location.search, e.start_ms)}#events`;
         const peak = e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : e.peak_rate_in_hr.toFixed(2);
         const chip = `<span class="ev-chip${lowQuality(e) ? " low" : ""}">${esc(qualityLabel(e))}</span>`;
+        // At phone width the Quality column drops; a low one folds into the row.
+        const fold = lowQuality(e) ? ` <span class="ev-chip low ev-chip-fold">${esc(qualityLabel(e))}</span>` : "";
         return `<tr class="${e.live ? "pin" : ""}"${current}>
-  <th scope="row"><a class="ev-open" href="${esc(href)}" data-start="${esc(e.start_ms)}">${live}<span class="ev-when">${esc(startLabel(e.start_ms, now))}</span></a></th>
+  <th scope="row"><a class="ev-open" href="${esc(href)}" data-start="${esc(e.start_ms)}">${live}${when(startLabel(e.start_ms, now))}</a>${fold}</th>
   <td>${esc(minutes(e.duration_minutes))}</td>
   <td><b>${e.total_in.toFixed(2)}</b></td>
   <td class="ev-peak">${peak}</td>
-  <td>${chip}</td>
+  <td class="ev-quality">${chip}</td>
 </tr>`;
       })
       .join("");
@@ -182,7 +193,7 @@ export function mountEvents(
     $(".ev-list").innerHTML = `
 <table class="ev-table">
   <caption class="sr-only">Rain events, ${sort === "newest" ? "newest" : "wettest"} first${rows.some((e) => e.live) ? ", the live event pinned on top" : ""}</caption>
-  <thead><tr><th scope="col">Start</th><th scope="col">Length</th><th scope="col">Total (in)</th><th scope="col" class="ev-peak">Peak (in/hr)</th><th scope="col">Quality</th></tr></thead>
+  <thead><tr><th scope="col">Start</th><th scope="col">Length</th><th scope="col">Total (in)</th><th scope="col" class="ev-peak">Peak (in/hr)</th><th scope="col" class="ev-quality">Quality</th></tr></thead>
   <tbody>${body}</tbody>
 </table>
 ${more}

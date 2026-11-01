@@ -7,6 +7,9 @@
  */
 .ev {
   display: grid;
+  /* one column the panel's width: a long water-year control scrolls in
+     place rather than widening the page */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-5);
 }
 
@@ -339,10 +342,22 @@ tr[aria-current="true"] .ev-open {
   color: var(--ink-2);
 }
 
-/* the compact table: the peak column goes first */
+/* a low quality folded into its row, shown only at phone width */
+.ev-chip-fold {
+  display: none;
+}
+
+/* the compact table: the peak and quality columns go; a low quality
+   folds into the event's row */
 @media (max-width: 479px) {
-  .ev-peak {
+  .ev-peak,
+  .ev-quality {
     display: none;
+  }
+
+  .ev-chip-fold {
+    display: inline-block;
+    margin-top: 2px;
   }
 
   .ev-table th,

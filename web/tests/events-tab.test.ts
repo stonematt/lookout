@@ -68,7 +68,7 @@ describe("the event list", () => {
     mountEvents(panel, raining(), deps);
 
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "3 rain events since Jan 4, 2026, 1.14 in of rain in those events",
+      "The wettest of 3 events since Jan 4, 2026, brought 0.48 in, against 0.36 in for the median event",
     );
     const stats = panel.querySelector(".ev-stats")!.textContent!;
     expect(stats).toContain("3");
@@ -100,7 +100,7 @@ describe("the event list", () => {
 
     expect(starts()).toEqual([EVENT_1]);
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "1 rain event in water year 2025, 0.36 in of rain in those events",
+      "The one rain event in water year 2025 brought 0.36 in",
     );
   });
 });

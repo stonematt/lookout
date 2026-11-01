@@ -132,9 +132,18 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
 export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, readout: Readout): void {
   const narrow = width < NARROW;
   const height = narrow ? 240 : 300;
-  // The right margin holds the earlier years' names: "2024 ≈ 18.4 in".
-  const [left, right, top, bottom] = [40, width - (narrow ? 92 : 112), 18, height - 24];
   const shown = tab.water_years.filter((c) => c.cumulative_in.some((v) => v !== null));
+  const current = tab.water_years[tab.water_years.length - 1];
+  const earlier = shown.filter((c) => c !== current).reverse();
+  // The right margin holds the earlier years' names, "2024 ≈ 48.6 in", sized
+  // to the longest so none runs off the edge.
+  const endText = (curve: WaterYearCurve) => {
+    const value = curveValue(curve, curve.cumulative_in.length - 1);
+    return value === null ? null : `${curve.water_year} ${value}`;
+  };
+  const longest = Math.max(0, ...earlier.map((c) => (endText(c) ?? "").length));
+  const margin = longest ? Math.ceil(longest * LABEL_CHAR_PX) + 10 : 12;
+  const [left, right, top, bottom] = [40, width - margin, 18, height - 24];
   const values = shown.flatMap((c) => c.cumulative_in.filter((v): v is number => v !== null));
   const ticks = zeroTicks(Math.max(1, ...values));
   const yMax = ticks[ticks.length - 1] ?? 1;
@@ -144,14 +153,13 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
 
   const { svg } = canvas(width, height, "Rain since Oct 1, one line per water year", "rain-svg");
   yAxis(svg, ticks, y, left, right, "rain", { text: " in", place: "tick" });
+  // Every month is ticked and named to Sep, by its initial on a phone.
   MONTH_PLACES.forEach((place, i) => {
     svg.append(svgEl("line", { x1: x(place), x2: x(place), y1: bottom, y2: bottom + 4, class: "rain-axis" }));
-    if (narrow && i % 2) return;
-    svg.append(svgEl("text", { x: x(place) + 2, y: bottom + 16, class: "rain-tick" }, WATER_MONTHS[i]));
+    const name = narrow ? WATER_MONTHS[i]!.charAt(0) : WATER_MONTHS[i];
+    svg.append(svgEl("text", { x: x(place) + 2, y: bottom + 16, class: "rain-tick rain-month" }, name));
   });
 
-  const current = tab.water_years[tab.water_years.length - 1];
-  const earlier = shown.filter((c) => c !== current).reverse();
   const draw = (curve: WaterYearCurve, cls: string) => {
     const keep = (i: number) => curve.cumulative_in[i] !== null;
     for (const [a, b] of runs(curve.cumulative_in.length, keep)) {
@@ -167,9 +175,9 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
   earlier.forEach((curve, i) => {
     draw(curve, `rain-year rain-year-${Math.min(i, 2)}`);
     const last = curve.cumulative_in.length - 1;
-    const value = curveValue(curve, last);
-    if (value !== null) {
-      ends.push({ y: y(curve.cumulative_in[last]!), text: `${curve.water_year} ${value}` });
+    const name = endText(curve);
+    if (name !== null) {
+      ends.push({ y: y(curve.cumulative_in[last]!), text: name });
       return;
     }
     // A line cut short by a gap is named where it stops.
