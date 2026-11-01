@@ -546,7 +546,7 @@
         "key": "water_year",
         "years": [
           {
-            "year": 2025,
+            "year": 2026,
             "status": {
               "key": "water_year",
               "first_day": "2025-10-01",
@@ -559,7 +559,7 @@
             "rain_in": 0.3
           },
           {
-            "year": 2024,
+            "year": 2025,
             "status": {
               "key": "2024-10-01..2024-10-12",
               "first_day": "2024-10-01",

@@ -467,7 +467,11 @@ export interface AlmanacYear {
 
 /** One year's rain over a rolling window ending on today's date that year. */
 export interface RollingYear {
-  /** The calendar year the window ends in. */
+  /**
+   * The year it is named by: the calendar year the window ends in; for the
+   * season row ("water_year"), its water year. Rows line up by position,
+   * not by year: `years[i]` of every row ends on the same day.
+   */
   year: number;
   /** Its rain gap status; the current year's is the `RainTab.windows` status with the same key. */
   status: GapStatus;

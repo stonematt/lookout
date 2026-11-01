@@ -159,7 +159,7 @@ def _rolling(
             status = coverage.window(first, end, key if back == 0 else None)
             years.append(
                 RollingYear(
-                    year=end.year,
+                    year=end.year if days is not None else water_year(end),
                     status=status,
                     rain_in=window_total(status, totals, coverage),
                 )

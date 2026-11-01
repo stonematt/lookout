@@ -205,7 +205,7 @@ class TestRollingWindows:
         assert (earlier.first_day, earlier.last_day) == ("2024-09-13", "2024-10-12")
 
     def test_the_season_so_far_starts_over_on_oct_1(self, almanac):
-        assert by_year(almanac, "water_year") == {2025: approx(0.3), 2024: approx(0.25)}
+        assert by_year(almanac, "water_year") == {2026: approx(0.3), 2025: approx(0.25)}
         earlier = window(almanac, "water_year").years[1].status
 
         assert (earlier.first_day, earlier.last_day) == ("2024-10-01", "2024-10-12")
@@ -234,7 +234,23 @@ class TestRollingWindows:
         curves = {c.water_year: c.to_date_in for c in snapshot.rain_tab.water_years}
 
         for year in window(snapshot.almanac, "water_year").years:
-            assert year.rain_in == curves[year.year + 1]
+            assert year.rain_in == curves[year.year]
+
+    def test_the_season_row_is_named_by_its_water_year(self, almanac):
+        # Oct 12, 2025 is in water year 2026; the window rows keep the
+        # calendar year they end in (#147).
+        assert [y.year for y in window(almanac, "water_year").years] == [2026, 2025]
+        assert [y.year for y in window(almanac, "7d").years] == [2025, 2024]
+
+    def test_a_december_season_is_the_next_water_year(self):
+        archive = build_archive(
+            "2024-10-01T07:00:00Z", "2025-12-15T20:00:00Z", rain=RAIN
+        )
+        snapshot = build(archive, "2025-12-15T20:00:00Z")
+        season = window(snapshot.almanac, "water_year").years[0]
+
+        assert season.year == 2026
+        assert season.status.first_day == "2025-10-01"
 
     def test_feb_29_compares_with_feb_28(self):
         archive = build_archive(
@@ -260,7 +276,7 @@ class TestEveryTotalIsAnArchiveSum:
         almanac = build(archive, NOW, live).almanac
 
         assert by_year(almanac, "7d")[2025] == approx(0.35)
-        assert by_year(almanac, "water_year")[2025] == approx(0.2 + 0.35)
+        assert by_year(almanac, "water_year")[2026] == approx(0.2 + 0.35)
         assert row(almanac, 2026).months[0].to_date_in == approx(0.2 + 0.35)
 
     def test_ambients_year_month_and_week_counters_are_never_used(self):

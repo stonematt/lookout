@@ -821,7 +821,10 @@ class RollingYear:
     """
     One year's rain over a rolling window ending on today's date that year.
 
-    :param year: The calendar year the window ends in.
+    :param year: The year it is named by: the calendar year the window
+        ends in; for the season row ("water_year", since Oct 1), its water
+        year (#147). Rows line up by position, not by `year`: `years[i]` of
+        every row ends on the same day.
     :param status: The window's rain gap status. The current year's is the
         `RainTab.windows` status with the same key.
     :param rain_in: Its rain; prorated when its status is; None when invalid.
