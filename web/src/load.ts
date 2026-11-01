@@ -1,9 +1,13 @@
 /**
  * Fetch the two read functions from the browser.
  *
- * The page's own query parameters `station` (a MAC address), and on the lane
- * server `fixture` and `age`, are passed on to both calls, so a shared link
- * shows the same station and a lane can open either golden at any age.
+ * The page's own query parameter `station` (a MAC address) is passed on to
+ * every call as written: the read functions accept any spelling of the
+ * configured station, answer 404 for another, and redirect to their one URL
+ * (which leaves the configured station out), so a shared link keeps working.
+ * The client cannot know the configured station, so it cannot skip that
+ * redirect. `fixture` and `age` are passed on only by a lane server (see
+ * `LANE_SERVER`): the deployed functions answer 400 to them.
  */
 import type {
   CurrentReading,
@@ -12,7 +16,16 @@ import type {
 } from "./snapshot.js";
 import { parseCurrent, parseDashboard, parseEventCurve } from "./snapshot.js";
 
-const PASSED_ON = ["station", "fixture", "age"] as const;
+/**
+ * True for `npm run dev`, and for a build made with `VITE_LANE_SERVER=1` to
+ * be served by `vite preview`: both run the golden read functions that take
+ * `fixture` and `age`. False in the deployed build.
+ */
+export const LANE_SERVER: boolean =
+  import.meta.env.DEV || import.meta.env.VITE_LANE_SERVER === "1";
+
+const PASSED_ON = ["station"] as const;
+const LANE_PASSED_ON = ["fixture", "age"] as const;
 
 /**
  * The URL of a read function, carrying the page's passed-on parameters.
@@ -20,16 +33,18 @@ const PASSED_ON = ["station", "fixture", "age"] as const;
  * @param path - "/dashboard", "/current" or "/event".
  * @param pageSearch - The page's `location.search`.
  * @param own - The call's own parameters, e.g. `/event`'s `start`.
+ * @param laneServer - Whether the server takes `fixture` and `age`.
  * @returns The path with its query.
  */
 export function readUrl(
   path: "/dashboard" | "/current" | "/event",
   pageSearch: string,
   own: Record<string, string> = {},
+  laneServer: boolean = LANE_SERVER,
 ): string {
   const page = new URLSearchParams(pageSearch);
   const query = new URLSearchParams(own);
-  for (const name of PASSED_ON) {
+  for (const name of laneServer ? [...PASSED_ON, ...LANE_PASSED_ON] : PASSED_ON) {
     const value = page.get(name);
     if (value !== null) query.set(name, value);
   }

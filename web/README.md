@@ -77,7 +77,7 @@ attributes, as does the temperature chart's gradient. Neither `vite` nor
 with the built site:
 
 ```
-npm run build && npx vite preview --port 5177 --strictPort
+VITE_LANE_SERVER=1 npm run build && npx vite preview --port 5177 --strictPort
 node scripts/csp-check.mjs http://localhost:5177 [screenshot-dir]
 ```
 
@@ -85,7 +85,8 @@ It opens every tab at 390px and 1280px in both themes over both goldens,
 draws a live and a completed Rain Event's charts, and fails on any CSP
 violation. `LOOKOUT_NO_HEADERS=1` runs it without the headers, for baseline
 screenshots. `vite preview` serves the goldens the same way the dev server
-does.
+does. The build needs `VITE_LANE_SERVER=1`: without it the page, as
+deployed, does not send `fixture` or `age`, which the deployed functions reject.
 
 ## Read functions
 

@@ -226,9 +226,18 @@ describe("the curve contract", () => {
     expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
   });
 
-  it("asks /event with the page's passed-on parameters and its start", () => {
-    expect(readUrl("/event", "?fixture=raining&theme=dark", { start: "17" })).toBe(
-      "/event?start=17&fixture=raining",
+  it("asks a lane server with fixture and age as well as the start", () => {
+    expect(
+      readUrl("/event", "?fixture=raining&age=3&theme=dark", { start: "17" }, true),
+    ).toBe("/event?start=17&fixture=raining&age=3");
+  });
+
+  it("sends the deployed functions only station, never fixture or age", () => {
+    expect(
+      readUrl("/event", "?fixture=raining&age=3&station=aa:bb", { start: "17" }, false),
+    ).toBe("/event?start=17&station=aa%3Abb");
+    expect(readUrl("/dashboard", "?fixture=dry&age=3&theme=dark", {}, false)).toBe(
+      "/dashboard",
     );
   });
 });
