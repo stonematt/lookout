@@ -27,8 +27,7 @@ from tests.fixtures.archive import (
     RainSpell,
     build_archive,
 )
-from tests.fixtures.storage import BUCKET, FROZEN_DAY
-from tests.fixtures.storage import flaky_storj
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,

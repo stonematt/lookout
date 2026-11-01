@@ -19,8 +19,7 @@ from lookout.core import data_processing as lo_dp
 from lookout.core import rain_corrections
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
-from tests.fixtures.storage import BUCKET
-from tests.fixtures.storage import flaky_storj
+from tests.fixtures.storage import BUCKET, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     CatchupStation,
     catchup_station,
