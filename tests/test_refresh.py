@@ -29,13 +29,14 @@ from lookout.snapshot import Snapshot, curves
 from lookout.storage import storj
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
-from tests.fixtures.real import AMBIENT_END
+from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import BUCKET
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     RECORDED_ROWS,
     CatchupStation,
     catchup_station,
+    flaky_storj,
     ms,
     reporting,
 )
@@ -338,6 +339,37 @@ class TestHeartbeats:
 
         assert self.run_main(station) == 0
         assert len(snapshot_keys(station)) == 2
+
+    @pytest.mark.parametrize(
+        "fail",
+        [{"read": ARCHIVE_KEY}, {"write": ARCHIVE_KEY}, {"copy": True}],
+        ids=["archive-read", "archive-save", "archive-backup"],
+    )
+    def test_a_failed_archive_read_save_or_backup_reports_a_failed_run(
+        self, seed, fake_healthchecks, monkeypatch, fail
+    ):
+        """#160: the run exits 1, `/1` goes out, nothing publishes."""
+        station = seed()
+        before = stored_bytes(station, ARCHIVE_KEY)
+        flaky_storj(monkeypatch, station.s3, **fail)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+        assert stored_bytes(station, ARCHIVE_KEY) == before
+
+    def test_an_empty_archive_reports_a_failed_run_and_is_left_as_stored(
+        self, seed, fake_healthchecks
+    ):
+        station = seed(archive=load_real_slice().head(0))
+        before = stored_bytes(station, ARCHIVE_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+        assert stored_bytes(station, ARCHIVE_KEY) == before
 
 
 # ---------- the catalogs: update on every run, save by rule (#73) ----------

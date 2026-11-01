@@ -97,12 +97,20 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     """
     One catchup: back up the archive, append what Ambient has since, save it.
 
-    The refresh command runs this as its first step.
+    The refresh command runs this as its first step. Every failure raises,
+    so the run exits non-zero (#160): a failed backup before anything is
+    read, a failed or empty archive read before anything is saved, a save
+    that would leave fewer rows than were loaded, and a failed save.
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
     :param pages: Maximum number of pages to retrieve.
     :return: The archive as saved.
+    :raises BackupError: If the backup fails.
+    :raises StorageReadError: If the archive cannot be read or holds no rows.
+    :raises CatchupStalled: If Ambient holds readings past a gap the run
+        could not cross.
+    :raises StorageWriteError: If the save fails or would shrink the archive.
     """
     mac = device["macAddress"]
 
@@ -118,21 +126,28 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     logger.info(f"Total records after update: {len(new_archive_df)}")
 
     # Save updated archive to S3, newest first whatever came back (#133)
-    sj.save_archive(new_archive_df, bucket_name, mac)
+    sj.save_archive(new_archive_df, bucket_name, mac, loaded_rows=len(archive_df))
     logger.info("Updated archive saved.")
     return new_archive_df
 
 
 def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
     """
-    Load the station's archive and normalize it.
+    Load the station's archive from storage and normalize it.
+
+    Strict (#160): a run that saves after this must never start from a
+    failed read, so it reads storage directly (no dev-mode local cache) and
+    raises rather than returning an empty frame.
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read from.
-    :return: The normalized archive.
+    :return: The normalized archive, at least one row.
+    :raises StorageReadError: If the archive is missing, unreadable, or has
+        no valid rows.
     """
-    archive_df = awn.load_archive_for_device(device, bucket=bucket_name)
-    archive_df = normalize(archive_df)
+    archive_df = normalize(sj.load_archive(bucket_name, device["macAddress"]))
+    if archive_df.empty:
+        raise sj.StorageReadError("The archive holds no rows with a valid dateutc")
 
     _log_archive_range(archive_df, "Loaded archive")
     logger.info(f"Total records in archive: {len(archive_df)}")

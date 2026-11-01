@@ -31,6 +31,7 @@ from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
+    flaky_storj,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -158,6 +159,26 @@ class TestFillGap:
         assert len(merged) == len(truth)
         for col in RAIN_COUNTERS:
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
+
+    @pytest.mark.parametrize(
+        "fail", [{"write": ARCHIVE_KEY}, {"copy": True}], ids=["save", "backup"]
+    )
+    def test_a_failed_save_or_backup_fails_and_claims_nothing(
+        self, seed, capsys, monkeypatch, fail
+    ):
+        """#160: no "saved" line and a non-zero exit when storage refuses."""
+        truth = build_archive(
+            SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+        )
+        station = seed(history=truth)
+        flaky_storj(monkeypatch, station.s3, **fail)
+
+        status, out = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 1
+        assert "Added" not in out
+        assert "fill-gap failed" in out
+        assert len(station.stored()) == len(station.archive)
 
     def test_a_gap_ambient_cannot_fill_fails_and_saves_nothing(self, seed, capsys):
         station = seed()

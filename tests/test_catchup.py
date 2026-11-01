@@ -437,3 +437,144 @@ def test_each_run_keeps_the_stored_rain_counters_raw(catchup_station):
         for row in (noon, fetched):
             for col in ("dailyrainin", "weeklyrainin", "monthlyrainin"):
                 assert stored.loc[row, col] == pytest.approx(raw.loc[row, col])
+
+
+# ---------- archive safety (#160) ----------
+
+
+class FlakyStorj:
+    """
+    The moto client, with chosen calls failing the way a Storj outage does.
+
+    :param s3: The moto client every other call goes to.
+    :param read: A key whose `get_object` raises.
+    :param write: A key whose `upload_fileobj` raises.
+    :param copy: Whether `copy_object` (the backup) raises.
+    """
+
+    def __init__(
+        self,
+        s3: object,
+        read: Optional[str] = None,
+        write: Optional[str] = None,
+        copy: bool = False,
+    ) -> None:
+        self.s3 = s3
+        self.read = read
+        self.write = write
+        self.copy = copy
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self.s3, name)
+
+    def get_object(self, **kwargs: object) -> Dict:
+        if kwargs["Key"] == self.read:
+            raise OSError("storj read timed out")
+        return self.s3.get_object(**kwargs)
+
+    def upload_fileobj(self, **kwargs: object) -> None:
+        if kwargs["Key"] == self.write:
+            raise OSError("storj write refused")
+        return self.s3.upload_fileobj(**kwargs)
+
+    def copy_object(self, **kwargs: object) -> Dict:
+        if self.copy:
+            raise OSError("storj copy refused")
+        return self.s3.copy_object(**kwargs)
+
+
+def flaky_storj(monkeypatch: pytest.MonkeyPatch, s3: object, **fail: object) -> None:
+    """
+    Route every `storj` client through a `FlakyStorj`.
+
+    :param monkeypatch: The test's monkeypatch.
+    :param s3: The moto client.
+    :param fail: `FlakyStorj` keyword arguments.
+    """
+    flaky = FlakyStorj(s3, **fail)
+    monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+
+
+def stored_bytes(station: CatchupStation, key: str = ARCHIVE_KEY) -> bytes:
+    """
+    The raw bytes of a stored object.
+
+    :param station: The seeded station.
+    :param key: Its key; the archive by default.
+    :return: The body.
+    """
+    return station.s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()
+
+
+class TestArchiveSafety:
+    def test_a_failed_archive_read_leaves_the_archive_and_fails_the_run(
+        self, catchup_station, monkeypatch
+    ):
+        station = catchup_station()
+        before = stored_bytes(station)
+        flaky_storj(monkeypatch, station.s3, read=ARCHIVE_KEY)
+
+        with pytest.raises(storj.StorageReadError):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_an_empty_archive_read_leaves_the_archive_and_fails_the_run(
+        self, catchup_station
+    ):
+        station = catchup_station(archive=load_real_slice().head(0))
+        before = stored_bytes(station)
+
+        with pytest.raises(storj.StorageReadError):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_an_unreadable_archive_body_leaves_it_and_fails_the_run(
+        self, catchup_station
+    ):
+        station = catchup_station()
+        station.s3.put_object(Bucket=BUCKET, Key=ARCHIVE_KEY, Body=b"not parquet")
+
+        with pytest.raises(storj.StorageReadError):
+            station.run()
+
+        assert stored_bytes(station) == b"not parquet"
+
+    def test_a_save_that_would_shrink_the_archive_is_refused(
+        self, catchup_station, monkeypatch
+    ):
+        station = catchup_station()
+        before = stored_bytes(station)
+        monkeypatch.setattr(
+            awn,
+            "get_history_since_last_archive",
+            lambda device, archive, **_: archive.iloc[1:],
+        )
+
+        with pytest.raises(storj.ArchiveShrinkError):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_a_failed_archive_save_fails_the_run(self, catchup_station, monkeypatch):
+        station = catchup_station()
+        flaky_storj(monkeypatch, station.s3, write=ARCHIVE_KEY)
+
+        with pytest.raises(storj.StorageWriteError):
+            station.run()
+
+        assert len(station.stored()) == len(station.archive)
+
+    def test_a_failed_backup_fails_the_run_before_anything_is_saved(
+        self, catchup_station, monkeypatch
+    ):
+        station = catchup_station()
+        before = stored_bytes(station)
+        flaky_storj(monkeypatch, station.s3, copy=True)
+
+        with pytest.raises(storj.BackupError):
+            station.run()
+
+        assert stored_bytes(station) == before
+        assert BACKUP_KEY not in station.keys()
