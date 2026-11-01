@@ -9,11 +9,24 @@ column its frame lacks), the stored value stays. Readings are matched on
 
 Every merge reports what it changed (`MergeReport`): readings added, values
 filled (stored had none) and values updated (Ambient's differs), plus the
-columns only one side has. Comparison is exact after `dateutc.normalize`;
-NaN equals NaN.
+columns only one side has. Comparison is exact after `dateutc.normalize`
+(no float tolerance); a value missing on both sides is unchanged.
 
 Pure frame logic: no storage access, no Streamlit. A deliberate correction
 is a replace, never a merge.
+
+Functions:
+- merge: Merge Ambient's readings into the stored archive; returns `Merged`.
+
+Classes:
+- MergeReport: What one merge changed; `describe()` is its log line.
+- Merged: `(archive, report)`, the outcome of `merge`.
+
+Example:
+    archive, report = archive_merge.merge(stored, fetched)
+    logger.info(f"Archive merge: {report.describe()}")
+    if report.changed:
+        ...  # save `archive`
 """
 
 from __future__ import annotations
@@ -85,7 +98,9 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     Both frames go through `dateutc.normalize` first. A reading only Ambient
     has is added. For a reading both have, value by value: Ambient's non-NaN
     value wins; Ambient's NaN, or a column Ambient's frame lacks, keeps the
-    stored value. No stored reading is dropped.
+    stored value. No valid stored reading is dropped; only rows `normalize`
+    rejects (no valid `dateutc`, a repeated one) are left out, as
+    `storj.load_archive` already does.
 
     :param stored: The stored archive (or the frame standing in for it).
     :param ambient: Readings fetched from Ambient, raw.
@@ -99,34 +114,36 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     if stored.empty:
         return Merged(_newest_first(ambient), MergeReport(added=len(ambient)))
 
-    s = stored.set_index("dateutc")
-    a = ambient.set_index("dateutc")
-    shared = s.index.intersection(a.index)
-    common = [c for c in s.columns if c in a.columns]
-    ambient_only = tuple(c for c in a.columns if c not in s.columns)
+    stored_at = stored.set_index("dateutc")
+    ambient_at = ambient.set_index("dateutc")
+    shared = stored_at.index.intersection(ambient_at.index)
+    common = [c for c in stored_at.columns if c in ambient_at.columns]
+    ambient_only = tuple(c for c in ambient_at.columns if c not in stored_at.columns)
 
-    both = s.loc[shared].copy()
+    both = stored_at.loc[shared].copy()
     filled = updated = 0
     for col in common:
-        old, new = both[col], a.loc[shared, col]
+        old, new = both[col], ambient_at.loc[shared, col]
         sent = new.notna()
         had = old.notna()
         filled += int((sent & ~had).sum())
         updated += int((sent & had & _differs(old, new)).sum())
         both[col] = new.where(sent, old)
     for col in ambient_only:
-        both[col] = a.loc[shared, col]
+        both[col] = ambient_at.loc[shared, col]
 
     pieces = [
-        p for p in (s.drop(index=shared), both, a.drop(index=shared)) if not p.empty
+        p
+        for p in (stored_at.drop(index=shared), both, ambient_at.drop(index=shared))
+        if not p.empty
     ]
     columns = list(stored.columns) + list(ambient_only)
     merged = pd.concat(pieces, sort=False).reset_index().reindex(columns=columns)
     report = MergeReport(
-        added=len(a) - len(shared),
+        added=len(ambient_at) - len(shared),
         filled=filled,
         updated=updated,
-        stored_only=tuple(c for c in s.columns if c not in a.columns),
+        stored_only=tuple(c for c in stored_at.columns if c not in ambient_at.columns),
         ambient_only=ambient_only,
     )
     return Merged(_newest_first(merged), report)
@@ -148,7 +165,12 @@ def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
 
 
 def _newest_first(df: pd.DataFrame) -> pd.DataFrame:
-    """`df` sorted newest `dateutc` first, index reset."""
+    """
+    Sort readings newest `dateutc` first, the stored order.
+
+    :param df: Readings with a `dateutc` column, or an empty frame.
+    :return: `df` sorted (stable) with its index reset; an empty `df` as is.
+    """
     if df.empty:
         return df
     return df.sort_values("dateutc", ascending=False, kind="stable").reset_index(

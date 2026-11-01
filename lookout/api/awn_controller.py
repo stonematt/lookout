@@ -956,7 +956,7 @@ def log_full_history_range(combined: pd.DataFrame, added: int) -> None:
 
 def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge two DataFrames on 'dateutc', `df2`'s row winning a shared one.
+    Combine two same-source frames on 'dateutc', `df2`'s row winning.
 
     The plain in-memory helper for frames from the same source, such as
     catchup's fetched pages: whole rows, later frame wins, no report. Stored
