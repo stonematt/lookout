@@ -28,7 +28,6 @@ Helper Functions:
 - combine_interim_data: Accumulate paged results.
 - update_last_date: Move forward in time for next fetch.
 - log_interim_progress: Log fetch progress in paged loop.
-- combine_full_history: Final merge of archive and updates.
 """
 
 import json
@@ -907,29 +906,6 @@ def log_interim_progress(page, pages, interim_df):
         f"Range: ({interim_df['date'].min().strftime('%y-%m-%d %H:%M')}) - "
         f"({interim_df['date'].max().strftime('%y-%m-%d %H:%M')})"
     )
-
-
-def combine_full_history(
-    archive_df: pd.DataFrame, interim_df: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Combine the archive with interim data, log added rows and final UTC range.
-
-    Whole rows, the interim frame winning (`combine_df`). Fetched readings
-    join the stored archive through the archive merge
-    (`lookout.core.archive_merge`) instead.
-    """
-    before = len(archive_df)
-
-    if interim_df is None or interim_df.empty:
-        combined = archive_df
-        added = 0
-    else:
-        combined = combine_df(archive_df, interim_df)
-        added = len(combined) - before
-
-    log_full_history_range(combined, added)
-    return combined
 
 
 def log_full_history_range(combined: pd.DataFrame, added: int) -> None:

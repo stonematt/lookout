@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 import streamlit as st
 
+from lookout.core import archive_merge
 from lookout.core import data_processing as lo_dp
 from lookout.core import rain_corrections
 from tests.fixtures.ambient import to_ambient_records
@@ -176,6 +177,36 @@ def test_a_diagnostics_fill_saves_raw_and_shows_corrected(
         )
 
 
+def test_a_diagnostics_save_goes_through_the_archive_merge(
+    catchup_station, session, weather  # noqa: F811
+):
+    """Stored values the session's raw archive lacks survive the save."""
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+    )
+    station = catchup_station(
+        archive=weather,
+        history=to_ambient_records(truth),
+        devices=reporting(weather),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(weather["dateutc"].max())))
+    diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
+    stored_before = station.stored().set_index("dateutc")
+    slot = int(weather["dateutc"].max())
+    raw = session[diagnostics.RAW_HISTORY_KEY]
+    assert (raw["dateutc"] == slot).any()
+    raw.loc[raw["dateutc"] == slot, "tempf"] = float("nan")
+    assert pd.notna(stored_before.loc[slot, "tempf"])
+
+    assert diagnostics.save_filled_archive() is True
+
+    saved = station.stored().set_index("dateutc")
+    assert saved.loc[slot, "tempf"] == stored_before.loc[slot, "tempf"]
+
+
 def test_a_diagnostics_save_with_nothing_filled_writes_nothing(
     station, session  # noqa: F811
 ):
@@ -283,7 +314,11 @@ def test_a_diagnostics_save_that_would_drop_a_stored_reading_is_refused(
     diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
     before = station.stored()
     monkeypatch.setattr(
-        diagnostics, "combine_full_history", lambda stored, raw: stored.iloc[1:]
+        diagnostics.archive_merge,
+        "merge",
+        lambda stored, raw: archive_merge.Merged(
+            stored.iloc[1:], archive_merge.MergeReport()
+        ),
     )
 
     with pytest.raises(storj.ArchiveLossError):

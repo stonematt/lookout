@@ -10,11 +10,11 @@ import lookout.ui.rain as rain_module
 from lookout.config import DEFAULT_BUCKET
 from lookout.api.awn_controller import (
     GapFill,
-    combine_full_history,
     extend_corrected,
     fill_archive_gap,
     load_archive_for_device,
 )
+from lookout.core import archive_merge
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history, load_archive
@@ -74,8 +74,9 @@ def save_filled_archive() -> bool:
     """
     Back up the stored archive and save it with this session's fills added.
 
-    The fills are merged into the archive as stored now, not as loaded at
-    the first fill, so rows catchup saved in between are kept. All raw.
+    The fills go through the archive merge (`archive_merge.merge`) into the
+    archive as stored now, not as loaded at the first fill, so rows catchup
+    saved in between are kept. All raw.
     The stored archive is read strictly (#160), and the save is refused if
     it would drop a reading or blank a value that read held (#190).
 
@@ -92,7 +93,7 @@ def save_filled_archive() -> bool:
     device = st.session_state["device"]
     stored = load_archive(BUCKET, device["macAddress"])
     backup_and_save_history(
-        df=combine_full_history(stored, raw),
+        df=archive_merge.merge(stored, raw).archive,
         device=device,
         bucket=BUCKET,
         stored=stored,
