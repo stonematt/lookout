@@ -1,7 +1,8 @@
 /**
  * The One Format Rule (DESIGN.md): times as `9:36 am`, dates with times as
  * `Oct 27, 11:00 pm`, durations as `1 d 10 h`, `5 h 12 m` or `45 m`, all in
- * the station's time zone (the snapshot's `station.tz`), and imperial units. Every view writes its
+ * the station's time zone (the snapshot's `station.tz`), and imperial
+ * units. Every view writes its
  * times, durations, month names and units through this module.
  */
 
@@ -81,6 +82,7 @@ export function monthLongName(month: number): string {
   return LONG_MONTH.format(Date.UTC(2000, month - 1, 15));
 }
 
+/** The stamp formatter in the station's zone. */
 const stamp = () =>
   stationFormat("en-US", {
     month: "short",
@@ -117,6 +119,7 @@ export function formatTime(ms: number): string {
   return `${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toLowerCase()}`;
 }
 
+/** The month-name formatter in the station's zone. */
 const localMonth = () => stationFormat("en-US", { month: "long" });
 
 /**
@@ -188,6 +191,7 @@ export function formatDayCount(days: number): string {
   return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
 }
 
+/** The hour formatter in the station's zone. */
 const hourOf = () => stationFormat("en-US", { hour: "numeric", hourCycle: "h23" });
 
 /**
@@ -234,6 +238,7 @@ export function dayText(iso: string, withYear = false): string {
   return withYear ? `${text}, ${iso.slice(0, 4)}` : text;
 }
 
+/** The calendar-day formatter in the station's zone. */
 const dayOf = () => stationFormat("en-CA", {});
 
 /**

@@ -34,6 +34,7 @@ function loadPlotly(): Promise<PlotlyModule> {
   return plotly;
 }
 
+/** The wall-clock formatter in the station's zone. */
 const wallClock = () =>
   stationFormat("en-CA", {
     year: "numeric",
@@ -82,7 +83,7 @@ export interface TimeTicks {
  * @returns The tick values (station wall-clock strings) and labels.
  */
 export function timeTicks(fromMs: number, toMs: number, plotPx: number): TimeTicks {
-  // station wall-clock time as if it were UTC, so steps land on local hours.
+  // Station wall-clock time as if it were UTC, so steps land on local hours.
   const wall = (ms: number) => Date.parse(`${stationWallClock(ms).replace(" ", "T")}Z`);
   const [from, to] = [wall(fromMs), wall(toMs)];
   const room = Math.max(2, Math.floor(plotPx / TICK_PX));

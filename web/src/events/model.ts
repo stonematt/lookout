@@ -164,6 +164,7 @@ export function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
+/** The year formatter in the station's zone. */
 const yearOf = () => stationFormat("en-US", { year: "numeric" });
 
 /**

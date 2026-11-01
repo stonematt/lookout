@@ -81,6 +81,7 @@ export interface RibbonTick {
   late: boolean;
 }
 
+/** The weekday formatter in the station's zone. */
 const weekdayOf = () => stationFormat("en-US", { weekday: "short" });
 
 /**

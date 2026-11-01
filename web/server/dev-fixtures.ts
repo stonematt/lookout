@@ -8,7 +8,7 @@
  * - `?age=<minutes>` (or `LOOKOUT_AGE_MIN`) shifts every `_ms` time by one
  *   offset so the newest observation is that many minutes old, and every
  *   ISO day (a `_day` or `day` field, a day `key` or a `first..last` span)
- *   by the Pacific days that offset crosses, so day labels agree with the
+ *   by the station days that offset crosses, so day labels agree with the
  *   times. Month keys ("YYYY-MM"), water years and day indexes are not
  *   moved. Without `age` the goldens are served as recorded, which is long
  *   stale.
