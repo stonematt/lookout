@@ -36,7 +36,13 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from lookout.snapshot.gaps import LOW_COVERAGE, ArchiveCoverage, comparable, prorate
+from lookout.snapshot.gaps import (
+    LOW_COVERAGE,
+    ArchiveCoverage,
+    comparable,
+    prorate,
+    standard_window_keys,
+)
 from lookout.snapshot.model import (
     GapStatus,
     SolarDays,
@@ -48,10 +54,6 @@ from lookout.snapshot.model import (
 )
 from lookout.snapshot.values import iso_day, number
 from lookout.utils.dateutc import DEFAULT_TZ
-
-WINDOW_KEYS = ("today", "yesterday", "7d", "30d", "90d", "365d")
-"""The standard windows the tab totals: all but the water year, a rain
-season."""
 
 RECENT_WINDOW = "90d"
 """The standard window whose days carry their 15-minute energy."""
@@ -104,7 +106,8 @@ def solar_tab(
     periods = _periods(energy_catalog, tz)
     coverage = archived.excluding(_uncatalogued(periods, archive, archived))
     totals = _daily_totals(periods, coverage)
-    windows = [s for s in coverage.standard_windows() if s.key in WINDOW_KEYS]
+    keys = standard_window_keys()
+    windows = [s for s in coverage.standard_windows() if s.key in keys]
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     return SolarTab(
         windows=tuple(
