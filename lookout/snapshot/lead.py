@@ -33,16 +33,17 @@ the lead only.
 
 Functions:
 - hero_lead(archive, stitched, event_catalog, active, current, observed_at_ms,
-  now): The `HeroLead` section.
+  clock): The `HeroLead` section.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 from lookout.core.rainfall_analysis import dry_spells
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.gaps import ArchiveCoverage, comparable
 from lookout.snapshot.model import (
@@ -55,7 +56,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import day_span, from_local_date, local_time, to_local
 
 RAIN_HOURS = 12.0
 """Rain leads while an event is live or ended at most this many hours ago."""
@@ -94,11 +95,6 @@ def _quartiles(values: Sequence[float], digits: int) -> _Usual:
         round(float(q[1]), digits),
         round(float(q[2]), digits),
     )
-
-
-def _local(ms: pd.Series, tz: str) -> pd.Series:
-    """Epoch ms as station-local timestamps."""
-    return pd.to_datetime(ms, unit="ms", utc=True).dt.tz_convert(tz)
 
 
 # ---------- rain ----------
@@ -208,7 +204,7 @@ class _MonthHours:
     Only months whose gap status is comparable are read.
 
     :param archive: The archive as stored.
-    :param coverage: Its coverage as of `now`.
+    :param coverage: Its coverage as of the build.
     :param today: The local day of the newest observation: its month is the
         one compared.
     """
@@ -220,7 +216,7 @@ class _MonthHours:
         first = coverage.first_day
         keys: List[str] = []
         frames: List[pd.DataFrame] = []
-        local = _local(archive["dateutc"], self.tz) if not archive.empty else None
+        local = to_local(archive["dateutc"], self.tz) if not archive.empty else None
         if first is not None and local is not None:
             for year in range(today.year - 1, first.year - 1, -1):
                 status = coverage.month(year, today.month)
@@ -240,13 +236,13 @@ class _MonthHours:
         """How many days the comparison set holds."""
         if self.rows.empty:
             return 0
-        return int(_local(self.rows["dateutc"], self.tz).dt.date.nunique())
+        return int(to_local(self.rows["dateutc"], self.tz).dt.date.nunique())
 
     def median_at(self, column: str, hour: Optional[int]) -> Optional[float]:
         """The unrounded median of `column` at one local hour, or None."""
         if hour is None or self.rows.empty or column not in self.rows:
             return None
-        hours = _local(self.rows["dateutc"], self.tz).dt.hour
+        hours = to_local(self.rows["dateutc"], self.tz).dt.hour
         values = pd.to_numeric(self.rows[column], errors="coerce")[hours == hour]
         values = values.dropna()
         return None if values.empty else float(values.median())
@@ -256,7 +252,7 @@ class _MonthHours:
         if self.rows.empty or column not in self.rows:
             return {}
         values = pd.to_numeric(self.rows[column], errors="coerce")
-        hours = _local(self.rows["dateutc"], self.tz).dt.hour
+        hours = to_local(self.rows["dateutc"], self.tz).dt.hour
         return {
             int(hour): _quartiles(group.dropna().to_numpy(), digits)
             for hour, group in values.groupby(hours)
@@ -321,14 +317,9 @@ def _day_trace(
     digits: int,
 ) -> LeadTrace:
     """Today's hourly means from local midnight, with each hour's band."""
-    midnight = pd.Timestamp(today).tz_localize(tz)
-    next_midnight = pd.Timestamp(today + timedelta(days=1)).tz_localize(tz)
-    start_ms = int(midnight.value // 10**6)
-    slots = int((next_midnight - midnight) / pd.Timedelta(hours=1))
-    hours = [
-        pd.Timestamp(start_ms + i * HOUR_MS, unit="ms", tz="UTC").tz_convert(tz).hour
-        for i in range(slots)
-    ]
+    start_ms = from_local_date(today, tz)
+    slots = (from_local_date(today + timedelta(days=1), tz) - start_ms) // HOUR_MS
+    hours = [local_time(start_ms + i * HOUR_MS, tz).hour for i in range(slots)]
 
     values: List[Optional[float]] = [None] * slots
     if column in stitched:
@@ -369,10 +360,10 @@ def _dry_spells(
         counted = set(coverage.counted_days(first, last))
         daily: Dict[date, float] = {}
         if "dailyrainin" in stitched and not stitched.empty:
-            days = _local(stitched["dateutc"], coverage.tz).dt.date
+            days = to_local(stitched["dateutc"], coverage.tz).dt.date
             rain = pd.to_numeric(stitched["dailyrainin"], errors="coerce")
             daily = rain.groupby(days).max().to_dict()
-        index = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+        index = day_span(first, last)
         series = pd.Series(
             [daily.get(day, 0.0) if day in counted else np.nan for day in index],
             index=index,
@@ -422,8 +413,7 @@ def hero_lead(
     active: Optional[ActiveRainEvent],
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
-    now: datetime,
-    tz: str = DEFAULT_TZ,
+    clock: StationClock,
 ) -> HeroLead:
     """
     The hero lead: every lead rule's value, the lead, and its chart data.
@@ -434,18 +424,13 @@ def hero_lead(
     :param active: The active rain event, or None.
     :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
+    :param clock: The station clock.
     :return: The `HeroLead` section.
     """
-    coverage = ArchiveCoverage(archive, now, tz)
+    coverage = ArchiveCoverage(archive, clock)
     # Today and this hour are the newest observation's, so a stale reading
     # is compared with its own month and hour.
-    observed = (
-        None
-        if observed_at_ms is None
-        else pd.Timestamp(observed_at_ms, unit="ms", tz="UTC").tz_convert(tz)
-    )
+    observed = None if observed_at_ms is None else local_time(observed_at_ms, clock.tz)
     today = coverage.today if observed is None else observed.date()
     observed_hour = None if observed is None else observed.hour
     month_hours = _MonthHours(archive, coverage, today)
@@ -491,7 +476,7 @@ def hero_lead(
         now_value = getattr(current, field)
         usual = by_hour.get(observed_hour, _NO_USUAL)
         sample = month_hours.days()
-        trace = _day_trace(stitched, column, by_hour, today, tz, digits)
+        trace = _day_trace(stitched, column, by_hour, today, clock.tz, digits)
 
     return HeroLead(
         kind=kind,

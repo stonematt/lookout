@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from lookout.snapshot import Station, build_snapshot
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.gaps import (
     ArchiveCoverage,
     comparable,
@@ -29,9 +30,9 @@ def day(iso: str) -> date:
     return date.fromisoformat(iso)
 
 
-def at(when: str) -> pd.Timestamp:
-    """A fixed, timezone-aware `now`."""
-    return pd.Timestamp(when)
+def at(when: str) -> StationClock:
+    """The station clock at a fixed, timezone-aware build time."""
+    return StationClock(pd.Timestamp(when))
 
 
 def status_of(gap_status) -> tuple:
@@ -311,7 +312,7 @@ def snapshot(archive: pd.DataFrame, now: str):
         event_catalog=None,
         energy_catalog=None,
         station=STATION,
-        now=at(now),
+        now=pd.Timestamp(now),
     )
 
 

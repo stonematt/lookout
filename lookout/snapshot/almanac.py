@@ -14,15 +14,16 @@ with today's live total stitched in, judged and prorated by the gap rules.
 Ambient's year, month and week counters are never read.
 
 Functions:
-- almanac(archive, current, now): the `Almanac` section.
+- almanac(archive, current, clock): the `Almanac` section.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from lookout.core.rainfall_analysis import water_year, water_year_start
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.gaps import STANDARD_WINDOWS
 from lookout.snapshot.model import (
     Almanac,
@@ -33,7 +34,6 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.rain_tab import RainCoverage, daily_totals, window_total
-from lookout.utils.dateutc import DEFAULT_TZ
 
 ROLLING_DAYS: Tuple[Tuple[str, int], ...] = tuple(
     (key, first_back + 1)
@@ -50,8 +50,7 @@ SEASON = "water_year"
 def almanac(
     archive: pd.DataFrame,
     current: SnapshotConditions,
-    now: datetime,
-    tz: str = DEFAULT_TZ,
+    clock: StationClock,
 ) -> Almanac:
     """
     The almanac grid and the rolling-window rain table.
@@ -59,11 +58,10 @@ def almanac(
     :param archive: The station's archive as stored, for the gap rules and
         the daily totals.
     :param current: Current conditions, live stitched: today's rain.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
+    :param clock: The station clock.
     :return: The section.
     """
-    coverage = RainCoverage(archive, current, now, tz)
+    coverage = RainCoverage(archive, current, clock)
     totals = daily_totals(coverage)
     return Almanac(
         years=_years(totals, coverage),

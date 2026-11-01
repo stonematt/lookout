@@ -18,7 +18,7 @@ from typing import Dict, Iterable, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import DEFAULT_TZ, to_local
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -34,7 +34,7 @@ WET_DAY_IN = 0.01
 _REFERENCE_WATER_YEAR = 2001
 
 
-def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
+def extract_daily_rainfall(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     """
     Extract daily rainfall totals from dailyrainin field.
 
@@ -43,13 +43,12 @@ def extract_daily_rainfall(df: pd.DataFrame) -> pd.DataFrame:
     represents the total rainfall for that day.
 
     :param df: Weather data with 'dateutc' and 'dailyrainin' columns.
+    :param tz: The station-local zone whose midnight starts each day.
     :return: DataFrame with 'date' and 'rainfall' columns containing daily totals.
     """
     df_local = df.copy()
 
-    df_local["local_datetime"] = pd.to_datetime(
-        df_local["dateutc"], unit="ms", utc=True
-    ).dt.tz_convert("America/Los_Angeles")
+    df_local["local_datetime"] = to_local(df_local["dateutc"], tz)
     df_local["local_date"] = df_local["local_datetime"].dt.date
 
     # Since dailyrainin resets at midnight, max value for each day IS the daily total
@@ -705,7 +704,7 @@ def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     if rows.empty:
         return pd.DataFrame(columns=columns)
     rows = rows.sort_values("dateutc")
-    local = pd.to_datetime(rows["dateutc"], unit="ms", utc=True).dt.tz_convert(tz)
+    local = to_local(rows["dateutc"], tz)
     counter = rows["dailyrainin"].astype(float)
     local_day = local.dt.date
     rise = counter.groupby(local_day).diff().fillna(counter).clip(lower=0)
