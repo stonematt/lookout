@@ -64,7 +64,7 @@ def save_catalog(
         catalog_path = get_catalog_path(mac_address, catalog_type)
         save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE)
 
-        # save_df_to_s3 returns None, so success is reaching this point
+        # save_df_to_s3 returns True/False; the return is not checked here
         logger.info(f"Saved {catalog_type} catalog with {len(df)} items")
         return True
 
