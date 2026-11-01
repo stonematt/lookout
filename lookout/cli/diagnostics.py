@@ -23,6 +23,12 @@ Commands:
                     Reports only; --save backs up the stored catalog and
                     writes the new one. --save --dry-run says what --save
                     would do; --dry-run alone is refused.
+    rain-catalog    Rebuild the Event Catalog from the archive. A dry run by
+                    default: the stored catalog's read outcome (found, missing
+                    or failed) and event count, the detected event count, and
+                    the events added or dropped. --save backs up the stored
+                    object as it is (a corrupt catalog is kept), then writes;
+                    it refuses to write when the backup fails.
 
 Every command takes --bucket. Day windows end at the archive's newest record,
 not the wall clock, so a stalled station still shows its last good days.
@@ -39,7 +45,13 @@ import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import energy_catalog_func
-from lookout.storage.storj import backup_and_save_history, load_archive
+from lookout.core.rain_events import RainEventCatalog
+from lookout.storage.storj import (
+    BackupError,
+    StorageReadError,
+    backup_and_save_history,
+    load_archive,
+)
 from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
@@ -429,6 +441,59 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rain_catalog(args: argparse.Namespace) -> int:
+    """
+    Rebuild the Event Catalog from the archive; write it only with --save.
+
+    The way out of a corrupt catalog, which stops the refresh run (ADR-0004).
+    --save backs up the stored object as it is, then writes; when the backup
+    fails nothing is written.
+
+    :param args: Parsed arguments.
+    :return: The exit status; 1 when nothing was detected or the backup or
+        write failed.
+    """
+    device, archive = load_station(args.bucket)
+    store = RainEventCatalog(device["macAddress"], bucket=args.bucket)
+    stored: Optional[pd.DataFrame] = None
+    try:
+        stored = store.load_catalog()
+        if stored is None:
+            emit("Stored catalog: missing")
+        else:
+            emit(f"Stored catalog: found, {len(stored)} events")
+    except StorageReadError as e:
+        emit(f"Stored catalog: failed ({e})")
+    detected = store.detect_and_catalog_events(archive, auto_save=False)
+    if detected.empty:
+        emit("No rain events could be detected from the archive.")
+        return 1
+    emit(f"Detected: {len(detected)} events")
+    if stored is None:
+        old_starts: set = set()
+    else:
+        old_starts = set(pd.to_datetime(stored["start_time"], utc=True))
+    new_starts = set(pd.to_datetime(detected["start_time"], utc=True))
+    added, dropped = len(new_starts - old_starts), len(old_starts - new_starts)
+    emit(f"Added: {added}, Dropped: {dropped}")
+    if not args.save:
+        emit("Not saved. Pass --save to back up the stored catalog and replace it.")
+        return 0
+    try:
+        backup = store.backup_catalog()
+    except BackupError as e:
+        emit(f"Backup failed ({e}); the stored catalog is unchanged.")
+        return 1
+    if not store.save_catalog(detected):
+        emit("Save failed; the stored catalog may be unchanged.")
+        return 1
+    if backup is None:
+        emit("No catalog was stored (no backup); the rebuilt one is saved.")
+    else:
+        emit(f"Stored catalog backed up to {backup} and replaced.")
+    return 0
+
+
 # ---------- the shell ----------
 
 
@@ -470,6 +535,9 @@ def build_parser() -> argparse.ArgumentParser:
     energy.add_argument(
         "--dry-run", action="store_true", help="With --save: write nothing"
     )
+
+    rain = command("rain-catalog", cmd_rain_catalog, "Rebuild the Event Catalog")
+    rain.add_argument("--save", action="store_true", help="Back up and save it")
     return parser
 
 
