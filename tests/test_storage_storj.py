@@ -18,7 +18,7 @@ from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC, scenario_archive
 from tests.fixtures.real import load_real_slice
 from tests.fixtures.storage import BUCKET, bucket_keys
-from tests.test_catchup import flaky_storj
+from tests.fixtures.storage import flaky_storj
 
 ARCHIVE_KEY = f"{FAKE_MAC}.parquet"
 

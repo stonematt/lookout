@@ -34,7 +34,7 @@ from tests.fixtures.ambient import (
 )
 from tests.fixtures.archive import FAKE_MAC, build_archive, scenario_archive
 from tests.fixtures.real import AMBIENT_END, load_real_slice
-from tests.fixtures.storage import BUCKET, FROZEN_DAY, bucket_keys
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, bucket_keys, flaky_storj
 
 ARCHIVE_KEY = f"{FAKE_MAC}.parquet"
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
@@ -502,59 +502,6 @@ def test_each_run_keeps_the_stored_rain_counters_raw(catchup_station):
 
 
 # ---------- archive safety (#160) ----------
-
-
-class FlakyStorj:
-    """
-    The moto client, with chosen calls failing the way a Storj outage does.
-
-    :param s3: The moto client every other call goes to.
-    :param read: A key whose `get_object` raises.
-    :param write: A key whose `upload_fileobj` raises.
-    :param copy: Whether `copy_object` (the backup) raises.
-    """
-
-    def __init__(
-        self,
-        s3: object,
-        read: Optional[str] = None,
-        write: Optional[str] = None,
-        copy: bool = False,
-    ) -> None:
-        self.s3 = s3
-        self.read = read
-        self.write = write
-        self.copy = copy
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self.s3, name)
-
-    def get_object(self, **kwargs: object) -> Dict:
-        if kwargs["Key"] == self.read:
-            raise OSError("storj read timed out")
-        return self.s3.get_object(**kwargs)
-
-    def upload_fileobj(self, **kwargs: object) -> None:
-        if kwargs["Key"] == self.write:
-            raise OSError("storj write refused")
-        return self.s3.upload_fileobj(**kwargs)
-
-    def copy_object(self, **kwargs: object) -> Dict:
-        if self.copy:
-            raise OSError("storj copy refused")
-        return self.s3.copy_object(**kwargs)
-
-
-def flaky_storj(monkeypatch: pytest.MonkeyPatch, s3: object, **fail: object) -> None:
-    """
-    Route every `storj` client through a `FlakyStorj`.
-
-    :param monkeypatch: The test's monkeypatch.
-    :param s3: The moto client.
-    :param fail: `FlakyStorj` keyword arguments.
-    """
-    flaky = FlakyStorj(s3, **fail)
-    monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
 
 
 def stored_bytes(station: CatchupStation, key: str = ARCHIVE_KEY) -> bytes:

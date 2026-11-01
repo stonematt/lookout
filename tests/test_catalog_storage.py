@@ -18,8 +18,7 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC
-from tests.fixtures.storage import BUCKET, bucket_keys
-from tests.test_catchup import flaky_storj
+from tests.fixtures.storage import BUCKET, bucket_keys, flaky_storj
 
 
 @pytest.fixture

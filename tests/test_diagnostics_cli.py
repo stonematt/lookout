@@ -21,6 +21,7 @@ from lookout.api import awn_controller as awn
 from lookout.cli import diagnostics
 from lookout.core import rain_corrections
 from lookout.core.archive_merge import MergeReport
+from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
@@ -29,12 +30,11 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
-from tests.fixtures.storage import BUCKET, FROZEN_DAY
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
-    flaky_storj,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -402,6 +402,25 @@ class TestRainCatalog:
 
         assert status == 0
         assert "Stored catalog: failed" in out
+        assert station.keys() == keys
+
+    def test_nothing_detected_exits_1_and_writes_nothing(
+        self, seed, capsys, monkeypatch
+    ):
+        station = seed()
+        self.store_catalog(station)
+        keys = station.keys()
+        monkeypatch.setattr(
+            RainEventCatalog,
+            "detect_and_catalog_events",
+            lambda self, archive, auto_save=False: pd.DataFrame(),
+        )
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "No rain events could be detected" in out
+        assert "Detected:" not in out
         assert station.keys() == keys
 
     def test_save_backs_up_a_found_catalog_then_writes(self, seed, capsys):

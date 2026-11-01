@@ -36,14 +36,12 @@ from tests.fixtures.archive import (
     build_archive,
 )
 from tests.fixtures.real import AMBIENT_END, load_real_slice
-from tests.fixtures.storage import BUCKET
+from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     RECORDED_ROWS,
     CatchupStation,
-    FlakyStorj,
     catchup_station,
-    flaky_storj,
     ms,
     reporting,
 )

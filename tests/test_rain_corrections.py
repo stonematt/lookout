@@ -17,7 +17,6 @@ from lookout.cli.rain_corrections_cli import (
 )
 from lookout.core import rain_corrections
 from lookout.core.rain_corrections import apply_corrections, detect_carryovers
-from lookout.api.awn_controller import combine_full_history
 from lookout.storage.storj import StorageReadError
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -27,7 +26,7 @@ from tests.fixtures.archive import (
     scenario_archive,
 )
 from tests.fixtures.real import load_real_slice
-from tests.test_catchup import flaky_storj
+from tests.fixtures.storage import flaky_storj
 
 CORRECTIONS_KEY = f"{FAKE_MAC}.rain_corrections.json"
 
@@ -431,39 +430,6 @@ class TestApplyCorrections:
         assert result.loc[0, "weeklyrainin"] == 0.0
         assert result.loc[0, "monthlyrainin"] == 0.0
         assert result.loc[0, "yearlyrainin"] == 0.0
-
-
-class TestCombineFullHistoryIntegration:
-    """Test integration of corrections in combine_full_history."""
-
-    def test_combine_full_history_is_pure_merge(self):
-        """Test that combine_full_history is now a pure merge function."""
-        # Create DataFrames with required 'dateutc' column for combine_full_history
-        archive_df = pd.DataFrame(
-            {"dateutc": [1640995200000], "test": [1]}
-        )  # 2022-01-01 00:00:00 UTC
-        interim_df = pd.DataFrame(
-            {"dateutc": [1641081600000], "test": [2]}
-        )  # 2022-01-02 00:00:00 UTC
-
-        result = combine_full_history(archive_df, interim_df)
-
-        # Should return combined data without applying any corrections
-        assert len(result) == 2
-        # Check that both values are present (order may vary due to sorting)
-        assert 1 in result["test"].values
-        assert 2 in result["test"].values
-
-    def test_combine_full_history_handles_empty_interim(self):
-        """Test combine_full_history with empty interim DataFrame."""
-        archive_df = pd.DataFrame({"dateutc": [1640995200000], "test": [1]})
-        interim_df = pd.DataFrame()
-
-        result = combine_full_history(archive_df, interim_df)
-
-        # Should return archive data unchanged
-        assert len(result) == 1
-        assert result.iloc[0]["test"] == 1
 
 
 COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]

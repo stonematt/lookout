@@ -60,7 +60,7 @@ def serve(ambient_replay, df: pd.DataFrame) -> None:
 
 
 class TestCombine:
-    """`combine_df` / `combine_full_history`: dedup and sort on `dateutc`."""
+    """`combine_df`: dedup and sort on `dateutc`."""
 
     def test_overlapping_slices_combine_to_the_full_archive(self):
         full = week()
@@ -104,24 +104,6 @@ class TestCombine:
 
         assert len(combined) == 2
         assert set(combined["dateutc"]) == set(good["dateutc"])
-
-    def test_full_history_without_interim_returns_the_archive_untouched(self):
-        archive = week().head(10).sample(frac=1, random_state=1)
-
-        for interim in (None, archive.iloc[0:0]):
-            result = awn.combine_full_history(archive, interim)
-            # Not re-sorted or deduped: the archive comes back as it went in.
-            pd.testing.assert_frame_equal(result, archive)
-
-    def test_full_history_adds_only_the_interim_rows_it_lacks(self):
-        full = week()
-        archive = full[full.dateutc < ms("2026-01-09T00:00:00Z")]
-        interim = full[full.dateutc >= ms("2026-01-08T20:00:00Z")]
-
-        combined = awn.combine_full_history(archive, interim)
-
-        pd.testing.assert_frame_equal(combined, full)
-        assert combined["dateutc"].is_unique
 
 
 T0 = ms("2026-01-08T00:00:00Z")
