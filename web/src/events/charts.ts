@@ -18,6 +18,7 @@
  * known".
  */
 import { STATION_TIME_ZONE, dayText, hourText, inches } from "../format.js";
+import { FALLBACK_WIDTH } from "../charts/svg.js";
 import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
 
@@ -64,9 +65,6 @@ const TICK_PX = 56;
 
 /** Both charts' side margins, in px: the y ticks on the left. */
 const MARGIN = { l: 52, r: 12 };
-
-/** The host width assumed before layout gives one, in px. */
-const FALLBACK_WIDTH_PX = 640;
 
 /** The event time axis's ticks: Plotly's x values and their labels. */
 export interface TimeTicks {
@@ -309,7 +307,7 @@ export async function drawEventCharts(
   // and one set of ticks. The plot is the host less the side margins.
   const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
   const xRange: [string, string] = [pacific(fromMs), pacific(toMs)];
-  const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || FALLBACK_WIDTH_PX) - MARGIN.l - MARGIN.r);
+  const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r);
   const accLayout = baseLayout(240, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
   accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
