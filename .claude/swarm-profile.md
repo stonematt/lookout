@@ -65,3 +65,8 @@
 - The deployed read functions refuse unknown or repeated query params (400) and 308 any other spelling to one URL, via `checkQuery` in `web/server/handlers.ts`. `fixture` and `age` work only on the lane server. The client sends them only when `LANE_SERVER` is true (`import.meta.env.DEV` or a build with `VITE_LANE_SERVER=1`), so `vite preview` runs for `csp-check.mjs` and `shots` need `VITE_LANE_SERVER=1 npm run build` first.
 - `web/src/page.ts` owns the page boot and 5-minute refresh cycle (`startPage` returns `booted` and `stop`); tests must call `stop()`.
 - A scratch-dir script that does `require('playwright')` resolves `~/.claude/node_modules/playwright` (old, no browser). Require `web/node_modules/playwright` by absolute path.
+
+**Deepen run (2026-11-01, specs #172 #173 #174)**
+- Goal branch `goal/deepen-reads-merge-rain`, cut off `goal/off-streamlit` at `a43d894` with `docs/station-tz` and `docs/glossary-archive` merged in (ADR-0004, ADR-0005, the archive and archive merge glossary entries). Its goal PR targets `dev`, is stacked on #96, and lands after it. Lane PRs target `goal/deepen-reads-merge-rain`; CI runs on them (`goal/**`).
+- Baseline at `d236bf9`: pytest **829 passed, 1 skipped** (~85s); web build ok, **381 passed**. Probes at `$TMPDIR`, `~`, `~/.config/` and `~/.config/lookout/` all survived; `tests/conftest.py` points the secrets loader at a missing file, so the real `~/.config/lookout/secrets.toml` is never read.
+- Owner fence for this run: `lookout/storage/storj.py`, the archive save path and `lookout/cli/refresh.py` change in build order only, never in two lanes at once.
