@@ -48,11 +48,12 @@ Stations have names. **Lookout Post** is the one station today; a second,
 dashboard, not a station.
 _Avoid_: "lookout post" or "post" as the general term.
 
-**Known limitation:** the station's `tz` is currently consumed at ingest
-and discarded. Existing archives do not persist a `tz` column. `DEFAULT_TZ =
-"America/Los_Angeles"` is hardcoded as the single-station default. Persisting
-`tz` is **lower priority** than finishing the dateutc consolidation in
-the solar pipeline and energy catalog — see ADR-0002 deferred work.
+The station's zone is Ambient's metadata for that station, read on every
+build and published with the snapshot. A station Ambient sends no zone
+for does not build; its zone is never guessed. Archive rows carry no zone:
+an archive belongs to one station, so a stored zone matters only if a
+station moves. Both stations are in Pacific time. See
+[ADR-0005](docs/adr/0005-station-time-zone-from-ambient-per-build.md).
 
 ### post-2020 floor
 
@@ -97,10 +98,19 @@ The verdict on one month or window of the archive before any value is
 computed over it: **valid** (every day counted), **prorated** (a few days
 missing, at most 10%: a total is scaled over the missing days and shown with
 `≈`) or **invalid** (too much missing: the value is null, never computed, and
-the span is hatched). A day counts when at least 80% of its 5-minute
-readings are archived. Every value over a month or window goes through it
+the span is hatched). The days it judges are **counted days**. Every value
+over a month or window goes through it
 (`lookout.snapshot.gaps.comparable`).
 _Avoid_: coverage (the readings-per-hour grid), data quality, completeness.
+
+### counted day
+
+A station-local day the archive can speak for: at least 80% of its due
+5-minute readings are archived. For rain, a counted day also needs a reading
+of the daily rain counter; a counted day without one is a gap for rain, but
+not for temperature or solar, so a dead rain gauge never hatches their
+windows. A day that is not counted is unknown, never dry or calm.
+_Avoid_: covered day, valid day (valid is a gap status, not a day).
 
 ### Event Catalog
 

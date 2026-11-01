@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted (2026-05-04)
+accepted (2026-05-04). Deferred work amended by
+[ADR-0005](0005-station-time-zone-from-ambient-per-build.md): the station's
+zone comes from Ambient on every build, and archive rows carry no zone.
 
 ## Context
 
