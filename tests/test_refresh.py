@@ -766,6 +766,77 @@ class TestEnergyCatalog:
         assert saved["period_start"].is_unique
 
 
+def energy_backups(station: CatchupStation) -> List[str]:
+    """The energy catalog's backup keys, on either backup route."""
+    return [
+        key
+        for key in station.keys()
+        if f"{FAKE_MAC}.energy_catalog" in key and key != ENERGY_CATALOG_KEY
+    ]
+
+
+class TestEnergyCatalogReadOutcome:
+    """
+    #183, ADR-0004: the run acts on the energy catalog's read outcome, as on
+    the Event Catalog's. Failed aborts the run before any write; missing is
+    recomputed from the archive.
+    """
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["read-fails", "corrupt"])
+    def test_a_failed_read_exits_1_and_writes_no_catalog_or_snapshot(
+        self, seed, fake_healthchecks, monkeypatch, corrupt
+    ):
+        station = seed()  # no Event Catalog stored: a run would seed one
+        if corrupt:
+            station.s3.put_object(
+                Bucket=BUCKET, Key=ENERGY_CATALOG_KEY, Body=b"not parquet"
+            )
+        else:
+            EnergyCatalog(FAKE_MAC).save_catalog(
+                EnergyCatalog(FAKE_MAC).detect_and_calculate_periods(
+                    station.archive, auto_save=False
+                )
+            )
+        before = stored_bytes(station, ENERGY_CATALOG_KEY)
+        monkeypatch.setattr(  # old enough that a run would save over it
+            EnergyCatalog, "get_catalog_age", lambda self: pd.Timedelta(days=3)
+        )
+        if not corrupt:
+            flaky_storj(monkeypatch, station.s3, read=ENERGY_CATALOG_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) == before
+        assert energy_backups(station) == []
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+        assert snapshot_keys(station) == []
+        assert curve_keys(station) == []
+
+    def test_a_missing_catalog_is_recomputed_from_the_archive(
+        self, seed, fake_healthchecks, monkeypatch
+    ):
+        station = seed()
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) is None
+        built_from: Dict = {}
+        real = refresh.build_snapshot
+
+        def spy(**kwargs):
+            built_from.update(kwargs)
+            return real(**kwargs)
+
+        monkeypatch.setattr(refresh, "build_snapshot", spy)
+
+        assert self.run_main(station) == 0
+
+        energy = built_from["energy_catalog"]
+        assert energy is not None and not energy.empty
+        assert len(snapshot_keys(station)) == 2
+
+
 # ---------- event curve files, written once per completed event (#84) ----------
 
 EVENT_1 = ms("2026-01-04T18:00:00Z")

@@ -223,23 +223,23 @@ def load_catalogs(station: Station, bucket: str) -> Catalogs:
     """
     Step 4: the catalogs as stored.
 
-    The Event Catalog is read once and the run acts on its read outcome
-    (#180): failed raises, so the run exits 1 before any catalog or
-    snapshot write and the last good snapshot stays up; missing is None,
-    and step 5 detects it from the archive and saves it.
+    Each catalog is read once and the run acts on its read outcome (#180,
+    #183): failed raises, so the run exits 1 before any catalog or snapshot
+    write and the last good snapshot stays up; missing is None, and step 5
+    detects it from the archive (the Event Catalog is then saved).
 
     :param station: The station.
     :param bucket: The bucket.
     :return: The catalogs; a field is None when none is stored (or the
-        stored one holds no event).
-    :raises StorageReadError: If the Event Catalog read failed or it is
+        stored one is empty).
+    :raises StorageReadError: If either catalog's read failed or it is
         corrupt.
     """
     events = RainEventCatalog(station.mac, bucket=bucket).load_catalog()
     energy = EnergyCatalog(station.mac, bucket=bucket).load_catalog()
     return Catalogs(
         events=None if events is None or events.empty else events,
-        energy=None if energy.empty else energy,
+        energy=None if energy is None or energy.empty else energy,
     )
 
 

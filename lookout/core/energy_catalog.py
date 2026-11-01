@@ -26,7 +26,7 @@ from lookout.core.solar_energy_periods import (
     calculate_15min_energy_periods,
     recompute_from_period,
 )
-from lookout.storage.storj import get_s3_client, object_exists
+from lookout.storage import storj
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -51,44 +51,35 @@ class EnergyCatalog:
 
     def _get_storage_client(self):
         """Get S3 client for Storj operations"""
-        return get_s3_client()
+        return storj.get_s3_client()
 
-    def catalog_exists(self) -> bool:
-        """Check if energy catalog exists in storage"""
-        return object_exists(self.bucket, self.catalog_path)
-
-    def load_catalog(self) -> pd.DataFrame:
+    def load_catalog(self) -> Optional[pd.DataFrame]:
         """
-        Load existing energy catalog from Storj.
+        Read the stored energy catalog, by the reader contract (#183).
 
-        :return: DataFrame with energy catalog, empty if doesn't exist
+        One read, no existence check: found returns the catalog, missing
+        returns None, and a failed read raises. A stored catalog that cannot
+        be parsed counts as failed, so it is never taken for "none stored"
+        and recomputed over (ADR-0004).
+
+        :return: The stored catalog, its period times in Pacific time, when
+            found; None when none is stored.
+        :raises StorageReadError: If the read failed or the catalog is
+            corrupt.
         """
-        if not self.catalog_exists():
-            logger.info("No existing energy catalog found, returning empty DataFrame")
-            return pd.DataFrame()
-
-        try:
-            import io
-
-            client = self._get_storage_client()
-            response = client.get_object(Bucket=self.bucket, Key=self.catalog_path)
-            body = response["Body"].read()
-            catalog_df = pd.read_parquet(io.BytesIO(body))
-
-            # Ensure datetime columns are properly parsed and converted to Pacific timezone
-            datetime_cols = ["period_start", "period_end"]
-            for col in datetime_cols:
-                if col in catalog_df.columns:
-                    # Convert to datetime first, then to Pacific timezone
-                    catalog_df[col] = pd.to_datetime(
-                        catalog_df[col], utc=True
-                    ).dt.tz_convert("America/Los_Angeles")
-
-            logger.info(f"Loaded energy catalog with {len(catalog_df)} periods")
-            return catalog_df
-        except Exception as e:
-            logger.error(f"Failed to load energy catalog: {e}")
-            return pd.DataFrame()
+        catalog_df = storj.read_df_from_s3(
+            self.bucket, self.catalog_path, file_type=self.file_type
+        )
+        if catalog_df is None:
+            logger.info("No energy catalog stored")
+            return None
+        for col in ["period_start", "period_end"]:
+            if col in catalog_df.columns:
+                catalog_df[col] = pd.to_datetime(
+                    catalog_df[col], utc=True
+                ).dt.tz_convert("America/Los_Angeles")
+        logger.info(f"Loaded energy catalog with {len(catalog_df)} periods")
+        return catalog_df
 
     def save_catalog(self, periods_df: pd.DataFrame) -> bool:
         """
@@ -134,38 +125,21 @@ class EnergyCatalog:
             logger.error(f"Failed to save energy catalog: {e}")
             return False
 
-    def _create_backup(self, periods_df: pd.DataFrame) -> Optional[str]:
+    def backup_catalog(self) -> Optional[str]:
         """
-        Create timestamped backup of current catalog.
+        Copy the stored catalog, as it is, to a timestamped backup.
 
-        :param periods_df: Current catalog DataFrame
-        :return: Backup path if successful, None otherwise
+        By the reader contract (`storj.backup_object`): a corrupt catalog is
+        copied unparsed, for inspection.
+
+        :return: The backup path when a catalog was stored and copied; None
+            when none is stored.
+        :raises BackupError: If the copy failed; the catalog must not be
+            saved over then.
         """
-        try:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            backup_path = f"{self.backup_path_prefix}_{timestamp}.{self.file_type}"
-
-            # Save backup directly
-            import io
-
-            buffer = io.BytesIO()
-            periods_df.to_parquet(buffer, compression="snappy", index=False)
-            buffer.seek(0)
-
-            client = self._get_storage_client()
-            client.put_object(
-                Bucket=self.bucket,
-                Key=backup_path,
-                Body=buffer.getvalue(),
-                ContentType="application/octet-stream",
-            )
-
-            logger.info(f"Energy catalog backed up to {backup_path}")
-            return backup_path
-
-        except Exception as e:
-            logger.error(f"Failed to backup energy catalog: {e}")
-            return None
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{self.backup_path_prefix}_{timestamp}.{self.file_type}"
+        return storj.backup_object(self.bucket, self.catalog_path, backup_path)
 
     def detect_and_calculate_periods(
         self,
@@ -180,14 +154,14 @@ class EnergyCatalog:
         :param backup_existing: Whether to backup existing catalog first
         :param auto_save: Whether to automatically save to storage
         :return: Complete energy catalog DataFrame
+        :raises BackupError: If a stored catalog could not be backed up;
+            nothing is saved then.
         """
         logger.info("Starting energy period calculation and cataloging...")
 
         # Backup existing catalog if requested and auto-saving
-        if auto_save and backup_existing and self.catalog_exists():
-            existing_catalog = self.load_catalog()
-            if not existing_catalog.empty:
-                self._create_backup(existing_catalog)
+        if auto_save and backup_existing:
+            self.backup_catalog()
 
         # Prepare data: ensure datetime column exists (use 'date' column which is already TZ-aware datetime)
         processed_df = archive_df.copy()
@@ -236,9 +210,13 @@ class EnergyCatalog:
         :param archive_df: Complete weather archive DataFrame
         :param existing_catalog: Existing catalog DataFrame (will load if None)
         :return: Updated catalog DataFrame
+        :raises StorageReadError: If `existing_catalog` is None and the
+            stored catalog cannot be read.
         """
         if existing_catalog is None:
             existing_catalog = self.load_catalog()
+        if existing_catalog is None:
+            existing_catalog = pd.DataFrame()
 
         if existing_catalog.empty:
             logger.info("No existing energy catalog, performing full calculation")

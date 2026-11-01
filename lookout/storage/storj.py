@@ -516,7 +516,7 @@ def backup_archive(
     copied here. Each catalog is backed up on its own route: those saved through
     `backup_and_save_catalog` (the generic store, and the energy catalog's
     updaters), the Event Catalog by `RainEventCatalog.backup_catalog`, the
-    energy catalog's `EnergyCatalog._create_backup`, and the day periods
+    energy catalog's `EnergyCatalog.backup_catalog`, and the day periods
     catalog by `backup_day_periods_catalog`. The last three write timestamped
     copies under `backups/`.
 
