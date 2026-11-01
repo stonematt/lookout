@@ -148,8 +148,8 @@ def load_or_update_data(
 
             catalog = RainEventCatalog(device["macAddress"], file_type)
 
-            if catalog.catalog_exists():
-                events_df = catalog.load_catalog()
+            events_df = catalog.load_catalog()
+            if events_df is not None:
                 if not events_df.empty:
                     # Update catalog with new data from archive
                     updated_events = catalog.update_catalog_with_new_data(

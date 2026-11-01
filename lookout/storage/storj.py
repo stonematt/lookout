@@ -9,12 +9,16 @@ interaction is crucial, this module streamlines tasks like data backup, retrieva
 and storage of structured data.
 
 Functions:
-- Read and write JSON files to/from S3. The `get_*` readers forgive a failed
-  read (empty frame or dict); the strict `read_df_from_s3`, `load_archive`
-  and `read_json_from_s3` raise `StorageReadError` instead, for runs that
-  save or publish after reading (#160). Saves that fail raise
-  `StorageWriteError` (`ArchiveShrinkError` for an archive save that would
-  lose rows), and a failed backup raises `BackupError`.
+- Read and write JSON files to/from S3. Strict readers follow one reader
+  contract (#172, ADR-0004), set by `read_object`: found returns the value,
+  missing returns None, failed (including a corrupt object) raises
+  `StorageReadError`. `read_df_from_s3` and `read_json_from_s3` follow it;
+  `backup_object` applies it to a copy, raising `BackupError` instead.
+  `load_archive` raises on missing too, since a missing archive is an
+  error. The `get_*` readers forgive a failed read (empty frame or dict)
+  for Streamlit. Saves that fail raise `StorageWriteError`
+  (`ArchiveShrinkError` for an archive save that would lose rows), and a
+  failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
 - List items in an S3 bucket.
 - Backup data from S3 to a designated backup directory.
@@ -85,32 +89,62 @@ def _is_missing(error: Exception) -> bool:
     return code in ("NoSuchKey", "404", "NotFound")
 
 
-def read_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFrame:
+def read_object(bucket: str, key: str) -> Optional[bytes]:
     """
-    Read a DataFrame from a JSON-lines or Parquet object, failing loudly.
+    Fetch an object's bytes, ending in one read outcome (#172, ADR-0004).
 
-    For writers that must not mistake a failed read for an empty one
-    (catchup, #160); `get_df_from_s3` is the forgiving wrapper readers use.
+    This is the reader contract every strict reader shares: found returns
+    the value, missing returns None, failed raises `StorageReadError`.
+    Missing means storage said the key is absent (`NoSuchKey` / 404); every
+    other error (timeout, connection, server error) is failed. A reader that
+    parses the bytes raises `StorageReadError` for content it cannot parse,
+    since a corrupt object counts as failed too.
+
+    :param bucket: The name of the S3 bucket.
+    :param key: The object's key.
+    :return: The object's bytes when found; None when missing.
+    :raises StorageReadError: If the read failed.
+    """
+    try:
+        return get_s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
+    except Exception as e:
+        if _is_missing(e):
+            return None
+        raise StorageReadError(f"s3://{bucket}/{key} read failed: {e}") from e
+
+
+def read_df_from_s3(
+    bucket: str, key: str, file_type: str = "json"
+) -> Optional[pd.DataFrame]:
+    """
+    Read a DataFrame from a JSON-lines or Parquet object, by the reader
+    contract (`read_object`).
+
+    For runs that save or publish after reading, which must not mistake a
+    failed read for nothing stored (#160, #172); `get_df_from_s3` is the
+    forgiving wrapper Streamlit readers use.
 
     :param bucket: The name of the S3 bucket.
     :param key: The key of the file in the S3 bucket.
     :param file_type: The type of the file ('json' or 'parquet').
-    :return: The DataFrame the object holds (possibly empty).
-    :raises StorageReadError: If the object is missing, cannot be fetched, or
-        cannot be parsed.
+    :return: The DataFrame the object holds (possibly empty) when found;
+        None when missing.
+    :raises StorageReadError: If the read failed or the object cannot be
+        parsed.
     :raises ValueError: If `file_type` is not 'parquet' or 'json'.
     """
     logger.info(f"Getting s3://{bucket}/{key}")
     if file_type not in ("parquet", "json"):
         raise ValueError(f"Unsupported file type: {file_type}")
+    body = read_object(bucket, key)
+    if body is None:
+        return None
     try:
-        body = get_s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
         if file_type == "parquet":
             return pd.read_parquet(BytesIO(body), engine="pyarrow")
         return pd.read_json(BytesIO(body), orient="records", lines=True)
     except Exception as e:
-        state = "missing" if _is_missing(e) else "unreadable"
-        raise StorageReadError(f"s3://{bucket}/{key} is {state}: {e}") from e
+        raise StorageReadError(f"s3://{bucket}/{key} is unreadable: {e}") from e
 
 
 def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFrame:
@@ -126,10 +160,14 @@ def get_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFra
     :return: DataFrame obtained from the file; empty on any failure.
     """
     try:
-        return read_df_from_s3(bucket, key, file_type)
+        df = read_df_from_s3(bucket, key, file_type)
     except Exception as e:
         logger.error(f"Failed to load DataFrame from s3://{bucket}/{key}: {e}")
         return pd.DataFrame()
+    if df is None:
+        logger.info(f"No object at s3://{bucket}/{key}")
+        return pd.DataFrame()
+    return df
 
 
 def load_archive(bucket: str, mac: str) -> pd.DataFrame:
@@ -148,7 +186,12 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
         would overwrite the archive with nothing.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
-    archive = normalize(read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE))
+    stored = read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE)
+    if stored is None:
+        # A missing archive is an error (ADR-0004): adding a station is a
+        # human act, never inferred from an absent archive.
+        raise StorageReadError(f"s3://{bucket}/{key} is missing")
+    archive = normalize(stored)
     if archive.empty:
         raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
     return archive
@@ -156,21 +199,21 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
 
 def read_json_from_s3(bucket: str, key: str) -> Optional[dict]:
     """
-    Read a JSON object, telling a missing object apart from a failed read.
+    Read a JSON object, by the reader contract (`read_object`).
 
     :param bucket: The name of the S3 bucket.
     :param key: The key of the JSON file in the S3 bucket.
-    :return: The parsed JSON; None when no object is stored at `key`.
-    :raises StorageReadError: If the object exists but cannot be fetched or
+    :return: The parsed JSON when found; None when missing.
+    :raises StorageReadError: If the read failed or the object cannot be
         parsed.
     """
     logger.info(f"Getting JSON from s3://{bucket}/{key}")
+    body = read_object(bucket, key)
+    if body is None:
+        return None
     try:
-        obj = get_s3_client().get_object(Bucket=bucket, Key=key)
-        return json.loads(obj["Body"].read())
+        return json.loads(body)
     except Exception as e:
-        if _is_missing(e):
-            return None
         raise StorageReadError(f"s3://{bucket}/{key} is unreadable: {e}") from e
 
 
@@ -229,6 +272,34 @@ def object_exists(bucket: str, key: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def backup_object(bucket: str, key: str, backup_key: str) -> Optional[str]:
+    """
+    Copy a stored object, as it is, to `backup_key`, by the reader contract.
+
+    The copy reads its source, so it ends in the same three outcomes: found
+    is copied, missing copies nothing, failed raises. The bytes are copied
+    unparsed, so a corrupt object is kept for inspection.
+
+    :param bucket: The bucket.
+    :param key: The object to back up.
+    :param backup_key: Where the copy goes.
+    :return: `backup_key` when the object was found and copied; None when
+        it is missing.
+    :raises BackupError: If the copy failed; whatever it guarded must not be
+        saved.
+    """
+    try:
+        get_s3_client().copy_object(
+            Bucket=bucket, CopySource={"Bucket": bucket, "Key": key}, Key=backup_key
+        )
+    except Exception as e:
+        if _is_missing(e):
+            return None
+        raise BackupError(f"Failed to back up s3://{bucket}/{key}: {e}") from e
+    logger.info(f"Backed up s3://{bucket}/{key} to {backup_key}")
+    return backup_key
 
 
 def save_df_to_s3(

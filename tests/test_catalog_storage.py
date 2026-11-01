@@ -205,14 +205,12 @@ def test_catalog_save_with_backup_takes_the_station_as_a_parameter(
 # ---------- the Event Catalog ----------
 
 
-def test_event_catalog_exists_load_and_save(fake_s3):
+def test_event_catalog_load_is_none_until_saved(fake_s3):
     catalog = RainEventCatalog(FAKE_MAC, bucket=BUCKET)
-    assert catalog.catalog_exists() is False
-    assert catalog.load_catalog().empty
+    assert catalog.load_catalog() is None
 
     assert catalog.save_catalog(_events()) is True
 
-    assert catalog.catalog_exists() is True
     assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.event_catalog.parquet"]
     loaded = catalog.load_catalog()
     # Event times are stored as UTC timestamps, whatever they arrived as.

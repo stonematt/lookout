@@ -35,6 +35,7 @@ from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     RECORDED_ROWS,
     CatchupStation,
+    FlakyStorj,
     catchup_station,
     flaky_storj,
     ms,
@@ -502,6 +503,70 @@ def event_backups(station: CatchupStation) -> List[str]:
     """The Event Catalog's backup keys."""
     prefix = f"backups/{FAKE_MAC}.event_catalog"
     return [key for key in station.keys() if key.startswith(prefix)]
+
+
+class CatalogCopyRefused(FlakyStorj):
+    """`FlakyStorj` whose copies fail only from the Event Catalog's key."""
+
+    def copy_object(self, **kwargs: object) -> Dict:
+        if kwargs["CopySource"]["Key"] == EVENT_CATALOG_KEY:
+            raise OSError("storj copy refused")
+        return self.s3.copy_object(**kwargs)
+
+
+class TestEventCatalogReadOutcome:
+    """
+    #180, ADR-0004: the run acts on the Event Catalog's read outcome. Failed
+    aborts the run before any write; missing is detected and saved; a
+    failed backup stops the save.
+    """
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["read-fails", "corrupt"])
+    def test_a_failed_read_exits_1_and_writes_no_catalog_or_snapshot(
+        self, seed, fake_healthchecks, monkeypatch, corrupt
+    ):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+        if corrupt:
+            station.s3.put_object(
+                Bucket=BUCKET, Key=EVENT_CATALOG_KEY, Body=b"not parquet"
+            )
+        before = stored_bytes(station, EVENT_CATALOG_KEY)
+        if not corrupt:
+            flaky_storj(monkeypatch, station.s3, read=EVENT_CATALOG_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == before
+        assert event_backups(station) == []
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) is None
+        assert snapshot_keys(station) == []
+        assert curve_keys(station) == []
+
+    def test_a_missing_catalog_is_detected_and_saved(self, seed, fake_healthchecks):
+        station = seed()  # no Event Catalog stored; the slice has completed events
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+
+        assert self.run_main(station) == 0
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is not None
+        assert event_backups(station) == []  # nothing stored, nothing to back up
+        assert len(snapshot_keys(station)) == 2
+
+    def test_a_failed_backup_stops_the_save(self, seed, fake_healthchecks, monkeypatch):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+        before = stored_bytes(station, EVENT_CATALOG_KEY)
+        flaky = CatalogCopyRefused(station.s3)
+        monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+
+        assert self.run_main(station) == 0  # the save waits for the next run
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == before
+        assert event_backups(station) == []
+        assert len(snapshot_keys(station)) == 2
 
 
 class TestEventCatalogSavesRunAfterRun:
