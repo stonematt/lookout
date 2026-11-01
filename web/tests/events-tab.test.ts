@@ -92,8 +92,8 @@ describe("the event list", () => {
     const section = snapshot.rain_events;
     section.events[2]!.water_year = 2025;
     section.seasons = [
-      { water_year: 2026, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 }, status: null },
-      { water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 }, status: null },
+      { ...section.seasons[0]!, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 } },
+      { ...section.seasons[0]!, water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 } },
     ];
     mountEvents(panel, snapshot, deps);
 
@@ -263,7 +263,7 @@ describe("each water year's gap status", () => {
     ...over,
   });
 
-  function twoYears(older: GapStatus | null): DashboardSnapshot {
+  function twoYears(older: GapStatus): DashboardSnapshot {
     const snapshot = raining();
     snapshot.rain_events.events[2]!.water_year = 2025;
     snapshot.rain_events.seasons = [
@@ -301,15 +301,16 @@ describe("each water year's gap status", () => {
     expect(panel.querySelector<HTMLElement>(".ev-season-gap")!.hidden).toBe(true);
   });
 
-  it("reads a year the archive does not reach as before the archive", () => {
-    mountEvents(panel, twoYears(null), deps);
+  it("reads a year the archive does not reach by the snapshot's own reason", () => {
+    const missing = { missing_days: 365, status: "invalid", reason: "not_archived" } as const;
+    mountEvents(panel, twoYears(status(missing)), deps);
 
     expect(panel.querySelector<HTMLElement>("[data-season='2025']")!.dataset.gap).toBe(
-      "before_archive",
+      "not_archived",
     );
     click("[data-season='2025']");
     expect(panel.querySelector(".ev-season-gap")!.textContent).toContain(
-      "Water year 2025 starts before the archive began",
+      "Water year 2025 is not archived yet",
     );
   });
 
@@ -326,6 +327,31 @@ describe("each water year's gap status", () => {
       "3 of 365 days of water year 2025 are missing from the record, so the list can miss events in them.",
     );
     expect(panel.querySelector(".ev-stats")!.textContent).not.toContain("≈");
+  });
+
+  it("words a prorated year under All as it does for the one year", () => {
+    mountEvents(panel, twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })), deps);
+
+    expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
+      "3 of 365 days of water year 2025 are missing from the record, so the list can miss events in them.",
+    );
+  });
+
+  it("names a year not covered and a prorated year together under All", () => {
+    const snapshot = twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" }));
+    snapshot.rain_events.seasons[0]!.status = status({
+      first_day: "2025-10-01",
+      last_day: "2026-01-09",
+      days: 101,
+      missing_days: 40,
+      status: "invalid",
+      reason: "gap",
+    });
+    mountEvents(panel, snapshot, deps);
+
+    expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
+      "The record does not cover all of water year 2026, and 3 of 365 days of water year 2025 are missing from it, so the list can miss events in them.",
+    );
   });
 
   it("names the years the record does not cover under All", () => {

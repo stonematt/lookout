@@ -9,7 +9,7 @@
 import { formatDuration, formatStamp, inches, STATION_TIME_ZONE } from "../format.js";
 import { isComparable, notCompared } from "../gaps.js";
 import { listText } from "../rain/text.js";
-import type { EventSeason, EventStats, GapStatus, RainEventRow, RainEvents } from "../snapshot.js";
+import type { EventSeason, EventStats, RainEventRow, RainEvents } from "../snapshot.js";
 
 /** The URL query parameter holding the selected event's start. */
 export const EVENT_PARAM = "event";
@@ -89,34 +89,19 @@ export function statsFor(section: RainEvents, season: Season): EventStats {
 }
 
 /**
- * A water year's gap status, as the Rain tab's curve for it has it. A year
- * the archive does not reach has none in the snapshot; it reads as invalid,
- * before the archive, so its button and note say so like any other gap.
- *
- * @param season - One water year's summary.
- * @returns Its status.
+ * The words for a water year with a few days missing, the same in the one
+ * year's note and under All: "3 of 365 days of water year 2025".
  */
-export function seasonStatus(season: EventSeason): GapStatus {
-  if (season.status != null) return season.status;
-  const year = season.water_year;
-  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const days = leap ? 366 : 365;
-  return {
-    key: "water_year",
-    first_day: `${year - 1}-10-01`,
-    last_day: `${year}-09-30`,
-    days,
-    missing_days: days,
-    status: "invalid",
-    reason: "before_archive",
-  };
+function missingDays(season: EventSeason): string {
+  return `${season.status.missing_days} of ${season.status.days} days of water year ${season.water_year}`;
 }
 
 /**
  * What the list says beside the events-only sum when the record does not
  * cover the water year shown: the list can miss the events in its gaps, so
  * its total is never read as the year's rain. A ≈ year's sum is not scaled
- * up, so it gets the note but no ≈.
+ * up, so it gets the note but no ≈. Each year's status is the snapshot's
+ * (`EventSeason.status`); the browser never makes one up.
  *
  * @param section - The snapshot's `rain_events`.
  * @param season - A water year, or "all".
@@ -124,19 +109,23 @@ export function seasonStatus(season: EventSeason): GapStatus {
  */
 export function seasonNote(section: RainEvents, season: Season): string | null {
   if (season === "all") {
-    const years = section.seasons
-      .filter((s) => seasonStatus(s).status !== "valid")
-      .map((s) => String(s.water_year));
-    if (!years.length) return null;
-    const many = years.length > 1;
-    return `The record does not cover all of water year${many ? "s" : ""} ${listText(years)}, so the list can miss ${many ? "their" : "its"} events.`;
+    const shown = section.seasons.filter((s) => s.status.status !== "valid");
+    const lost = shown.filter((s) => !isComparable(s.status)).map((s) => String(s.water_year));
+    const prorated = shown.filter((s) => isComparable(s.status)).map(missingDays);
+    if (!lost.length && !prorated.length) return null;
+    const many = lost.length > 1;
+    const notCovered = `The record does not cover all of water year${many ? "s" : ""} ${listText(lost)}`;
+    if (!prorated.length) return `${notCovered}, so the list can miss ${many ? "their" : "its"} events.`;
+    const few = listText(prorated);
+    if (!lost.length) return `${few} are missing from the record, so the list can miss events in them.`;
+    return `${notCovered}, and ${few} are missing from it, so the list can miss events in them.`;
   }
   const found = section.seasons.find((s) => s.water_year === season);
   if (!found) return null;
-  const status = seasonStatus(found);
+  const { status } = found;
   if (status.status === "valid") return null;
   if (isComparable(status)) {
-    return `${status.missing_days} of ${status.days} days of water year ${season} are missing from the record, so the list can miss events in them.`;
+    return `${missingDays(found)} are missing from the record, so the list can miss events in them.`;
   }
   return `Water year ${season} ${notCompared(status.reason)}, so the list can miss its events and their total is not the year's rain.`;
 }

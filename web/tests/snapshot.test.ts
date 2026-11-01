@@ -34,6 +34,22 @@ describe("parseDashboard", () => {
     expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
   });
 
+  it("refuses a water year of events with no gap status (#156)", () => {
+    const doc = structuredClone(golden("raining", "dashboard")) as {
+      rain_events: { seasons: { status: unknown }[] };
+    };
+    doc.rain_events.seasons[0]!.status = null;
+    expect(() => parseDashboard(doc)).toThrow("rain_events.seasons");
+  });
+
+  it("refuses recent rain that does not say which hours are to come (#156)", () => {
+    const doc = structuredClone(golden("raining", "dashboard")) as {
+      rain_tab: { recent: Record<string, unknown> };
+    };
+    delete doc.rain_tab.recent.first_hour_to_come;
+    expect(() => parseDashboard(doc)).toThrow("first_hour_to_come");
+  });
+
   it("reads the raining golden with its live event", () => {
     const snap = parseDashboard(golden("raining", "dashboard"));
     expect(snap.station).toEqual({

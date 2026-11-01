@@ -336,6 +336,22 @@ describe("the Rain tab", () => {
     expect(readout.textContent).toBe("Jan 8, 2026, 5 pm: still to come.");
   });
 
+  it("reads which null hours are still to come from the snapshot, not the clock", () => {
+    // One decision, sent (#156): the build hour says 5 pm is to come, the
+    // snapshot says the record has no readings for it.
+    const tab = structuredClone(raining);
+    tab.rain_tab.recent.first_hour_to_come = 20;
+    renderRain(panel, tab);
+    const grid = section("hours").querySelector(".rain-chart")!;
+    const readout = section("hours").querySelector(".rain-readout")!;
+
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }));
+    for (let i = 0; i < 17; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(readout.textContent).toBe("Jan 8, 2026, 5 pm: no readings in the record.");
+    for (let i = 0; i < 3; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(readout.textContent).toBe("Jan 8, 2026, 8 pm: still to come.");
+  });
+
   it("states the dry spell against the record", () => {
     renderRain(panel, dry);
     const stats = [...section("dry").querySelectorAll(".rain-dry-stats div")].map((item) => [

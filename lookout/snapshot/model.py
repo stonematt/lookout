@@ -27,9 +27,10 @@ Adding a field is not a breaking change: add it to the dataclass and both
 sides' goldens, keep `SCHEMA_VERSION`. Renaming, removing or changing the
 meaning of a field is breaking: bump `SCHEMA_VERSION` in the same change.
 Correcting a wrong value is not: a value that was wrongly a number and is
-now null as unknown (an hour with no readings, #147), or an optional value
+now null as unknown (an hour with no readings, #147), an optional value
 now null in a case the reader already handles (`RainEvents.open_curve`
-while no event is live), keeps `SCHEMA_VERSION`. A bump also makes the site
+while no event is live), or one once null now always sent
+(`EventSeason.status`, #156), keeps `SCHEMA_VERSION`. A bump also makes the site
 refuse every curve file already written, and those are never rewritten.
 
 Golden documents for the TypeScript tests live in `tests/golden/snapshots/`
@@ -538,14 +539,15 @@ class EventSeason:
 
     :param water_year: The water year, named by the year it ends in.
     :param stats: Its events' summary metrics.
-    :param status: The water year's rain gap status, the same as its
-        `RainTab.water_years` curve's (Oct 1 to Sep 30, or to today); None
-        when the archive does not reach that water year.
+    :param status: The water year's rain gap status, keyed
+        "water_year_<year>": the same as its `RainTab.water_years` curve's
+        (Oct 1 to Sep 30, or to today), and always sent, also for a year the
+        archive does not reach (`RainCoverage.water_year_status`, #156).
     """
 
     water_year: int
     stats: EventStats
-    status: Optional[GapStatus]
+    status: GapStatus
 
 
 @dataclass(frozen=True)
@@ -678,6 +680,10 @@ class RecentRain:
         counter reading in the archive (#147; never 0). A day's known hours
         add up to its total, to rounding; rain counted during a missing hour
         lands in the next known one.
+    :param first_hour_to_come: Why a null hour is null, decided once: on the
+        last day (today), a null hour from this one on is still to come,
+        after the build hour; 24 when none is. Every other null hour of a
+        counted day has no readings in the record (#156).
     :param wet_hours: Known hours with any rain over the window; prorated
         when the window is; None when it is invalid.
     :param wettest_hour: The hour with the most rain; None when the window is
@@ -689,6 +695,7 @@ class RecentRain:
     rain_in: Tuple[Optional[float], ...]
     reason: Tuple[Optional[GapReason], ...]
     hourly_in: Tuple[Tuple[Optional[float], ...], ...]
+    first_hour_to_come: int
     wet_hours: Optional[float]
     wettest_hour: Optional[RainHour]
 

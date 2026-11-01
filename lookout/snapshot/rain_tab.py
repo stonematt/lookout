@@ -21,8 +21,10 @@ the new site's rules:
 
 Classes and functions:
 - RainCoverage(archive, current, now): the coverage rain windows are judged
-  by, holding each day's rain counter.
-- rain_tab(archive, history, current, now): the `RainTab` section.
+  by, holding each day's rain counter; `water_year_status(year)` judges any
+  water year as its curve does.
+- rain_tab(archive, history, current, now, tz, coverage): the `RainTab`
+  section.
 - daily_totals(coverage): each counted day's total, today live.
 - window_total(status, totals, coverage): one window's rain, gap rules held.
 
@@ -116,6 +118,20 @@ class RainCoverage(ArchiveCoverage):
             return "gap"
         return kind
 
+    def water_year_status(self, year: int) -> GapStatus:
+        """
+        One water year's rain gap status: Oct 1 to Sep 30, or to today
+        while it runs. The same status its `WaterYearCurve` ends on, and
+        defined for any year, the archive's or not.
+
+        :param year: The water year, named by the year it ends in.
+        :return: Its status, keyed "water_year_<year>". A year that starts
+            after today is its Oct 1 alone, not yet come.
+        """
+        start = water_year_start(year)
+        end = min(water_year_start(year + 1) - timedelta(days=1), self.today)
+        return self.window(start, max(start, end), key=f"water_year_{year}")
+
 
 def rain_tab(
     archive: pd.DataFrame,
@@ -123,6 +139,7 @@ def rain_tab(
     current: SnapshotConditions,
     now: datetime,
     tz: str = DEFAULT_TZ,
+    coverage: Optional[RainCoverage] = None,
 ) -> RainTab:
     """
     The Rain tab's section.
@@ -135,9 +152,12 @@ def rain_tab(
         last rain time.
     :param now: The build time, timezone-aware.
     :param tz: The station-local zone.
+    :param coverage: `RainCoverage(archive, current, now, tz)`, when the
+        caller has built it already; built here when None.
     :return: The section.
     """
-    coverage = RainCoverage(archive, current, now, tz)
+    if coverage is None:
+        coverage = RainCoverage(archive, current, now, tz)
     totals = daily_totals(coverage)
     windows = coverage.standard_windows()
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
@@ -221,7 +241,9 @@ def _recent(
         span = history[history["dateutc"] >= start_ms]
     hours = hourly_rain(span, tz)
     by_hour = {(d, h): r for d, h, r in hours.itertuples(index=False, name=None)}
-    now_local = pd.Timestamp(now).tz_convert(tz)
+    # The one "still to come" decision: the hours after the build hour on
+    # the window's last day, today. The browser reads it from the snapshot.
+    first_to_come = pd.Timestamp(now).tz_convert(tz).hour + 1
 
     rain_in: List[Optional[float]] = []
     reasons = []
@@ -238,7 +260,7 @@ def _recent(
             continue
         rain_in.append(number(totals.get(d, 0.0)))
         reasons.append(None)
-        to_come = now_local.hour + 1 if d == last else HOURS
+        to_come = first_to_come if d == last else HOURS
         hourly.append(
             tuple(
                 number(by_hour.get((d, h))) if h < to_come else None
@@ -274,6 +296,7 @@ def _recent(
         rain_in=tuple(rain_in),
         reason=tuple(reasons),
         hourly_in=tuple(hourly),
+        first_hour_to_come=first_to_come,
         wet_hours=comparable(status, wet_hours),
         wettest_hour=comparable(status, wettest),
     )

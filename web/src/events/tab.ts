@@ -35,7 +35,6 @@ import {
   qualityLabel,
   scrollEdges,
   seasonNote,
-  seasonStatus,
   selectedStart,
   startLabel,
   statsFor,
@@ -93,7 +92,7 @@ function stat(value: string, label: string): string {
  * says so in its title only (a ≈ is never hatched).
  */
 function yearButton(season: EventSeason): string {
-  const status = seasonStatus(season);
+  const { status } = season;
   const year = esc(season.water_year);
   const span = waterYearSpan(season.water_year);
   if (status.status === "valid") {
@@ -198,7 +197,7 @@ export function mountEvents(
     note.hidden = text === null;
     note.replaceChildren();
     const year = season === "all" ? undefined : section.seasons.find((s) => s.water_year === season);
-    const status = year && seasonStatus(year);
+    const status = year?.status;
     if (status && !isComparable(status)) note.append(gapElement(status), " ");
     if (text !== null) note.append(text);
     for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-season]")) {

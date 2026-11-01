@@ -26,7 +26,7 @@ from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
-from lookout.snapshot.rain_tab import rain_tab
+from lookout.snapshot.rain_tab import RainCoverage, rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.temperature import temperature_context
@@ -66,8 +66,8 @@ def build_snapshot(
     observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
     current = current_conditions(stitched, now)
     active = active_rain_event(event_catalog, current, observed_at_ms)
-    rain = rain_tab(archive, stitched, current, now)
-    year_status = {curve.water_year: curve.status for curve in rain.water_years}
+    coverage = RainCoverage(archive, current, now)
+    rain = rain_tab(archive, stitched, current, now, coverage=coverage)
 
     return Snapshot(
         station=station,
@@ -79,7 +79,11 @@ def build_snapshot(
         gaps=snapshot_gaps(archive, now),
         condition_ribbon=condition_ribbon(stitched, observed_at_ms),
         rain_events=rain_events_section(
-            event_catalog, stitched, active, observed_at_ms, year_status
+            event_catalog,
+            stitched,
+            active,
+            observed_at_ms,
+            coverage.water_year_status,
         ),
         hero_lead=hero_lead(
             archive, stitched, event_catalog, active, current, observed_at_ms, now

@@ -172,12 +172,12 @@ export interface EventSeason {
   /** An events-only sum, never null: the listed events added up. */
   stats: EventStats;
   /**
-   * The water year's rain gap status, as its `RainTab.water_years` curve
-   * has it; null when the archive does not reach that year. Read the
-   * events-only sum against it: an invalid year's list misses the events
-   * in its gaps.
+   * The water year's rain gap status, keyed "water_year_<year>", as its
+   * `RainTab.water_years` curve has it; always sent, also for a year the
+   * archive does not reach (#156). Read the events-only sum against it: an
+   * invalid year's list misses the events in its gaps.
    */
-  status: GapStatus | null;
+  status: GapStatus;
 }
 
 /**
@@ -326,6 +326,12 @@ export interface RecentRain {
    * which is unknown, never dry.
    */
   hourly_in: (number | null)[][];
+  /**
+   * Why a null hour is null, decided once by the builder (#156): on the
+   * last day (today), a null hour from this one on is still to come; 24
+   * when none is. Every other null hour has no readings in the record.
+   */
+  first_hour_to_come: number;
   /** Prorated when the window is; null when invalid. */
   wet_hours: number | null;
   wettest_hour: RainHour | null;
@@ -738,6 +744,12 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   if (!isRecord(events) || !Array.isArray(events.events)) {
     throw new SnapshotContractError("dashboard: rain_events.events missing");
   }
+  if (
+    !Array.isArray(events.seasons) ||
+    !events.seasons.every((s) => isRecord(s) && isRecord(s.status))
+  ) {
+    throw new SnapshotContractError("dashboard: rain_events.seasons without a gap status");
+  }
   checkLead(head.hero_lead);
   checkRainTab(head.rain_tab);
   checkTemperature(head.temperature_context);
@@ -814,6 +826,10 @@ function checkRainTab(tab: unknown): void {
     recent.hourly_in.length !== recent.rain_in.length
   ) {
     throw new SnapshotContractError("dashboard: rain_tab.recent days not parallel");
+  }
+  const toCome = recent.first_hour_to_come;
+  if (!Number.isInteger(toCome) || (toCome as number) < 0 || (toCome as number) > 24) {
+    throw new SnapshotContractError("dashboard: rain_tab.recent.first_hour_to_come not an hour");
   }
 }
 

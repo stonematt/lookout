@@ -180,6 +180,39 @@ class TestEventSeasonsAreEventSums:
         assert season.status.status == "valid"
         assert season.status == snapshot.rain_tab.water_years[-1].status
 
+    def test_a_season_before_the_archive_still_has_a_status(self):
+        # The catalog reaches back to a water year the archive does not: the
+        # snapshot says so itself, so the browser never makes a status up
+        # (#156).
+        full = build_archive(
+            "2025-09-20T07:00:00Z",
+            "2026-01-10T08:00:00Z",
+            rain=[RainSpell("2025-09-25T18:00:00Z", 2, 0.1), *JAN_RAIN],
+        )
+        archive = full[full["dateutc"] >= ms("2025-10-01T07:00:00Z")]
+        snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(full))
+        season = next(s for s in snapshot.rain_events.seasons if s.water_year == 2025)
+
+        assert season.status is not None
+        assert season.status.key == "water_year_2025"
+        assert (season.status.first_day, season.status.last_day) == (
+            "2024-10-01",
+            "2025-09-30",
+        )
+        assert season.status.days == season.status.missing_days == 365
+        assert season.status.status == "invalid"
+        assert season.status.reason == "before_archive"
+
+    def test_every_seasons_status_is_keyed_like_its_curve(self):
+        archive = build_archive(
+            "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
+        )
+        snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(archive))
+
+        assert [s.status.key for s in snapshot.rain_events.seasons] == [
+            "water_year_2026"
+        ]
+
 
 def nan_counter_archive():
     """Jan 5 has rows but no rain counter reading; it had 0.3 in."""
