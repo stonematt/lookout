@@ -307,7 +307,7 @@ class TestCliCommands:
         )
 
     @staticmethod
-    def show(capsys) -> str:
+    def run_show(capsys) -> str:
         """Run `show` for FAKE_MAC against the fake bucket; what it printed."""
         args = mock.Mock()
         args.bucket = "lookout"
@@ -320,7 +320,7 @@ class TestCliCommands:
 
     def test_show_no_catalog(self, fake_s3, capsys):
         """show says so when no corrections catalog is stored."""
-        assert "📭 No corrections catalog found." in self.show(capsys)
+        assert "📭 No corrections catalog found." in self.run_show(capsys)
 
     def test_show_with_catalog(self, fake_s3, capsys):
         """show prints the stored catalog."""
@@ -340,7 +340,7 @@ class TestCliCommands:
             FAKE_MAC,
         )
 
-        out = self.show(capsys)
+        out = self.run_show(capsys)
 
         assert "Version: 1.0" in out
         assert "Corrections: 1" in out
@@ -354,7 +354,7 @@ class TestCliCommands:
         flaky_storj(monkeypatch, fake_s3, read=CORRECTIONS_KEY)
 
         with pytest.raises(SystemExit) as exited:
-            self.show(capsys)
+            self.run_show(capsys)
 
         assert exited.value.code == 1
         out = capsys.readouterr().out
