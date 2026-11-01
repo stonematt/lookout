@@ -349,6 +349,32 @@ def test_a_failed_archive_read_stops_the_repair_before_any_save(
     assert station.keys() == keys
 
 
+def test_a_failed_reference_read_stops_the_repair_before_any_save(
+    seed, truth, capsys, monkeypatch
+):
+    # A failed read is never compared as an empty reference (#185).
+    station = seed(truth)
+    keys = station.keys()
+    flaky_storj(monkeypatch, station.s3, read=REFERENCE_KEY)
+
+    with pytest.raises(storj.StorageReadError):
+        run(["--write"], capsys)
+
+    assert station.keys() == keys
+
+
+def test_an_absent_reference_aborts_the_write(seed, truth, capsys):
+    station = seed(truth)
+    station.s3.delete_object(Bucket=BUCKET, Key=REFERENCE_KEY)
+    keys = station.keys()
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert "missing or empty" in out
+    assert station.keys() == keys
+
+
 def test_a_missing_reference_aborts_the_write(seed, truth, capsys):
     station = seed(truth, reference=truth.iloc[0:0])
     keys = station.keys()
