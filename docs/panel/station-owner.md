@@ -31,3 +31,9 @@ Verdict: <ship | fix | rethink>
 - [ ] <blocker or fix, one line> — <where>
 - [x] <item from an earlier review, now fixed> — fixed in <sha or PR>
 -->
+
+### 2026-10-31 — goal PR #96 served on real data (`?fixture=real`, 390px), UAT
+Verdict: fix
+- [x] Rain Events catalog ends Jan 2026, so "last event ended 294 d ago" sits beside "19 h since it last rained" — UAT build artifact: the build skipped the refresh run's catalog update; rebuilt
+- [ ] the "Oct 31 to Oct 30" 365-day window label reads backwards; add the start year — Overview rain-window table
+- [ ] note: `#rain-events` hash falls back to Overview (the hash is `#events`); favicon 404

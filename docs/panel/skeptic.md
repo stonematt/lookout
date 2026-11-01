@@ -31,3 +31,11 @@ Verdict: <ship | fix | rethink>
 - [ ] <blocker or fix, one line> — <where>
 - [x] <item from an earlier review, now fixed> — fixed in <sha or PR>
 -->
+
+### 2026-10-31 — goal PR #96 (spec #66, Move Lookout off Streamlit), QA
+Verdict: fix
+- [ ] hours with no readings render as 0.0 (dry) — `lookout/snapshot/rain_tab.py:~165`
+- [ ] event sums for each water year have no gap status (#122 item 3) — `lookout/snapshot/events.py:~224`
+- [ ] the open-event flag ignores `active_rain_event` (#122 item 2) — `lookout/snapshot/events.py:146,250`
+- [ ] the SEASON rolling row is labelled with the calendar year — `lookout/snapshot/almanac.py:~147`
+- [x] station pinning (#63), #122 items 1 and 4, solar missing days (#123) — verified fixed on the goal branch
