@@ -23,7 +23,7 @@ import pandas as pd
 from lookout.snapshot.events import completed_curves
 from lookout.snapshot.model import Station
 from lookout.snapshot.publish import SNAPSHOT_PREFIX
-from lookout.storage.storj import get_s3_client
+from lookout.storage.storj import StorageReadError, StorageWriteError, get_s3_client
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -61,17 +61,21 @@ def stored_curve_starts(client: Any, bucket: str, mac: str) -> Set[int]:
     :param bucket: The bucket.
     :param mac: The station's MAC address.
     :return: Their starts (ms); keys that are not `<int>.json` are ignored.
+    :raises StorageReadError: If the listing failed.
     """
     prefix = curve_prefix(mac)
     starts: Set[int] = set()
-    for page in client.get_paginator("list_objects_v2").paginate(
-        Bucket=bucket, Prefix=prefix
-    ):
-        for item in page.get("Contents", []):
-            name = item["Key"].removeprefix(prefix)
-            stem = name.removesuffix(".json") if name.endswith(".json") else ""
-            if stem.isdigit():
-                starts.add(int(stem))
+    try:
+        for page in client.get_paginator("list_objects_v2").paginate(
+            Bucket=bucket, Prefix=prefix
+        ):
+            for item in page.get("Contents", []):
+                name = item["Key"].removeprefix(prefix)
+                stem = name.removesuffix(".json") if name.endswith(".json") else ""
+                if stem.isdigit():
+                    starts.add(int(stem))
+    except Exception as e:
+        raise StorageReadError(f"s3://{bucket}/{prefix} listing failed: {e}") from e
     return starts
 
 
@@ -87,8 +91,10 @@ def publish_event_curves(
 
     Each event is written on its own (#160): one whose document or write
     fails is logged at ERROR and skipped, and the others are still written;
-    the next run retries it. Listing the stored files can still raise; the
-    refresh run logs that and does not fail (the snapshot has published).
+    the next run retries it. Once the rest are written, it raises
+    `StorageWriteError` naming the failures, and a failed listing raises
+    `StorageReadError`: the refresh run then exits 1 (the snapshot has
+    published).
 
     :param station: The station.
     :param event_catalog: The Event Catalog, or None.
@@ -96,6 +102,8 @@ def publish_event_curves(
     :param bucket: The bucket.
     :param limit: At most this many files; `CURVE_BACKFILL_LIMIT` when None.
     :return: The keys written, newest event first.
+    :raises StorageReadError: If listing the stored curve files failed.
+    :raises StorageWriteError: If any curve file was not written.
     """
     if event_catalog is None or event_catalog.empty:
         return []
@@ -108,6 +116,7 @@ def publish_event_curves(
         limit=CURVE_BACKFILL_LIMIT if limit is None else limit,
     )
     written = []
+    failed = []
     for curve in curves:
         key = curve_key(station.mac, curve.start_ms)
         try:
@@ -119,9 +128,14 @@ def publish_event_curves(
             )
         except Exception as e:
             logger.exception(f"Curve file {key} not written: {e}")
+            failed.append(key)
             continue
         written.append(key)
     if written:
         prefix = curve_prefix(station.mac)
         logger.info(f"Wrote {len(written)} event curve file(s) under {prefix}")
+    if failed:
+        raise StorageWriteError(
+            f"{len(failed)} curve file(s) not written: {', '.join(failed)}"
+        )
     return written

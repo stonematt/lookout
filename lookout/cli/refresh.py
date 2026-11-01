@@ -433,6 +433,19 @@ def publish_curves(
 # ---------- the run ----------
 
 
+class CurveStepFailed(RuntimeError):
+    """
+    The curve step failed after the snapshot published.
+
+    :param snapshot: The published snapshot, so the run still reports the
+        station's heartbeat; the exit status is still 1.
+    """
+
+    def __init__(self, snapshot: Snapshot) -> None:
+        super().__init__("event curve files not written (snapshot published)")
+        self.snapshot = snapshot
+
+
 def run(
     bucket: str = DEFAULT_BUCKET,
     pages: int = DEFAULT_PAGES,
@@ -441,9 +454,9 @@ def run(
     """
     One refresh run: every step, in order. A failure raises (a failed
     Event Catalog read among them, #180), except a catalog's update
-    failing (that catalog is used as stored and marked stale) and a
-    failure writing curve files after the snapshot published: those are
-    logged at ERROR only.
+    failing (that catalog is used as stored and marked stale). A curve step
+    failure after the snapshot published raises `CurveStepFailed`, which
+    carries the snapshot; the next run writes the missing files.
 
     :param bucket: The bucket.
     :param pages: Maximum Ambient pages catchup fetches.
@@ -462,10 +475,10 @@ def run(
     try:
         publish_curves(station, archive, catalogs, bucket)
     except Exception as e:
-        # The snapshot is out; curve files are retried by the next run (the
-        # bounded backfill writes whatever is missing), so this is not a
-        # failed run.
-        logger.exception(f"Event curve files not written (snapshot published): {e}")
+        # The snapshot is out and the next run's bounded backfill writes
+        # whatever is missing, but a persistent curve problem must not stay
+        # green: the run reports failure (#182).
+        raise CurveStepFailed(snapshot) from e
     return snapshot
 
 
@@ -503,15 +516,22 @@ def main(
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :param clock: Returns the build time; injected so tests can fix it.
-    :return: The exit status: 0 when the snapshot was published, else 1.
+    :return: The exit status: 0 when the run finished clean, else 1 (a
+        curve step failure after publish included).
     """
     args = parse_args(argv)
     heartbeat = Heartbeat.from_secrets()
     heartbeat.start()
     status = 1
     try:
-        snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
-        status = 0
+        try:
+            snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
+            status = 0
+        except CurveStepFailed as e:
+            # Published, so the station heartbeat still goes out; the
+            # status stays 1 and the failure is logged below.
+            snapshot = e.snapshot
+            logger.exception(f"Event curve files not written: {e.__cause__}")
         heartbeat.station(
             snapshot.station.name,
             snapshot.station.mac,
