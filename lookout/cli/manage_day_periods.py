@@ -160,7 +160,7 @@ Examples:
             # One read: found, missing, or failed (raises, reported below)
             catalog_df = load_day_periods_catalog(mac_address)
             if catalog_df is not None:
-                logger.info("✅ Found 1 catalog(s):")
+                logger.info("✅ Found the catalog:")
                 logger.info(f"   - {get_catalog_path(mac_address)}")
                 if not catalog_df.empty:
                     show_catalog_stats(catalog_df, mac_address, device_name)

@@ -71,9 +71,13 @@ def save_day_periods_catalog(
     # Ensure datetime columns are UTC for storage
     df = periods_df.copy()
     datetime_cols = ["sunrise_utc", "sunset_utc", "generated_at"]
-    for col in datetime_cols:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], utc=True)
+    try:
+        for col in datetime_cols:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], utc=True)
+    except Exception as e:
+        logger.error(f"Day periods catalog not saved for {mac_address}: {e}")
+        return False
 
     catalog_path = get_catalog_path(mac_address)
     if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
