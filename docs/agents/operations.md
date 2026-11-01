@@ -1,6 +1,6 @@
 # Operations: Storj, the VPS, Vercel and Healthchecks
 
-How an agent reaches Lookout's live services, and the gotchas each one hides. Secret values live in `.streamlit/secrets.toml` (local) and `~/.config/lookout/secrets.toml` (VPS); never print them. When a command mints or prints credentials, send its output to a mode-600 file and show only named non-secret fields.
+How an agent reaches Lookout's live services, and the gotchas each one hides. Secret values live in `~/.config/lookout/secrets.toml` on both hosts, with `.streamlit/secrets.toml` symlinked to it; never print them. When a command mints or prints credentials, send its output to a mode-600 file and show only named non-secret fields.
 
 ## Storj
 
@@ -16,7 +16,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - Live checkout `~/src/stone/lookout` (branch `live` until #76 moves it), venv `.venv` on a uv-managed Python 3.12. `.streamlit/secrets.toml` there symlinks to `~/.config/lookout/secrets.toml`.
 - The system `python3` is 3.10 with no `tomllib`; run Python through the venv or `uv run --no-project --python 3.12`.
 - In-place edits of the remote secrets file get denied. Prepare the file locally (mode 600, validated with `tomllib`) and hand Matt an `scp -p -o RemoteCommand=none` command. Top-level keys go above the first `[table]`.
-- Crontab: the daily 06:00 catchup through `~/bin/run_catchup.sh`, and a `tickle_streamlit` uptime job every 4 hours (removed by #86). Logs in `~/log/cron/`.
+- Crontab: the daily 06:00 catchup through `~/bin/run_catchup.sh`, and a `tickle_streamlit` uptime job every 4 hours (removed by #86). Logs in `~/log/cron/`. A pause comments a line out as `# paused for lookout#<N> (<date>)`, with the full crontab saved to `~/crontab.bak-pre-<N>`. Read the live state with `ssh -T -o RemoteCommand=none itri 'crontab -l'` before stating it.
 
 ## Vercel
 
