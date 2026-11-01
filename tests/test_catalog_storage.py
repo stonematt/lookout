@@ -75,14 +75,13 @@ def test_catalog_key_paths():
 
 
 def test_rain_corrections_catalog_lives_at_mac_dot_rain_corrections_json(fake_s3):
-    assert rain_corrections.catalog_exists(FAKE_MAC, BUCKET) is False
+    assert rain_corrections.read_catalog(FAKE_MAC, BUCKET) is None
     catalog = {"version": 1, "corrections": []}
 
     assert rain_corrections.save_catalog(catalog, FAKE_MAC, BUCKET) is True
 
     assert bucket_keys(fake_s3) == ["00:11:22:33:44:55.rain_corrections.json"]
-    assert rain_corrections.catalog_exists(FAKE_MAC, BUCKET) is True
-    assert rain_corrections.load_catalog(FAKE_MAC, BUCKET) == catalog
+    assert rain_corrections.read_catalog(FAKE_MAC, BUCKET) == catalog
 
 
 def _day_periods() -> pd.DataFrame:

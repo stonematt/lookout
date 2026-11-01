@@ -661,6 +661,7 @@ def extend_corrected(
     :param bucket: The bucket holding the catalog.
     :return: `corrected` itself when nothing is new; else the union, newest
         first.
+    :raises StorageReadError: If the corrections catalog cannot be read.
     """
     if extended.empty or "dateutc" not in extended.columns:
         return corrected
