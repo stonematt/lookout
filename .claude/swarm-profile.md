@@ -57,3 +57,11 @@
 - Contract fields the browser needs go in the snapshot as decided values. The whole-run review found the browser re-deciding a nullable field (`EventSeason.status`) and a time cut (`first_hour_to_come`) that Python already knew. A consumer lane that finds a null it must interpret escalates to the producer side rather than inventing a rule.
 - `parseDashboard` now refuses a dashboard without `first_hour_to_come` or with a season missing `status` (#156). Deploy the refresh before the site, or the site errors until the next refresh writes the new fields.
 - The harness refuses a foreground `sleep N; gh pr checks`. Poll with an until-loop instead.
+
+**Repo facts learned in the release-blocker run (2026-11-01, #160 #161)**
+- Baseline at `6aeba28`: pytest **829 passed, 1 skipped** (~92s); web build ok, **381 passed**.
+- Archive writers go through `storj.load_archive` (strict, normalized, refuses empty) and `storj.save_archive(df, bucket, mac, loaded_rows=)`; `loaded_rows` is required, and the count is taken after normalize. `backup_and_save_history` requires it too. `get_df_from_s3`, `get_json_from_s3` and `rain_corrections.load_catalog` stay forgiving for read-only users (Streamlit). A new writer uses the strict pair; #167 tracks the callers still on the forgiving path.
+- Catchup and refresh raise `StorageReadError`, `StorageWriteError`, `ArchiveShrinkError`, `BackupError` or `CatchupStalled`; `refresh.main` returns 1 and pings Healthchecks `/1`. A missing archive fails catchup on purpose.
+- The deployed read functions refuse unknown or repeated query params (400) and 308 any other spelling to one URL, via `checkQuery` in `web/server/handlers.ts`. `fixture` and `age` work only on the lane server. The client sends them only when `LANE_SERVER` is true (`import.meta.env.DEV` or a build with `VITE_LANE_SERVER=1`), so `vite preview` runs for `csp-check.mjs` and `shots` need `VITE_LANE_SERVER=1 npm run build` first.
+- `web/src/page.ts` owns the page boot and 5-minute refresh cycle (`startPage` returns `booted` and `stop`); tests must call `stop()`.
+- A scratch-dir script that does `require('playwright')` resolves `~/.claude/node_modules/playwright` (old, no browser). Require `web/node_modules/playwright` by absolute path.
