@@ -531,7 +531,9 @@ def main(
             # Published, so the station heartbeat still goes out; the
             # status stays 1 and the failure is logged below.
             snapshot = e.snapshot
-            logger.exception(f"Event curve files not written: {e.__cause__}")
+            logger.error(
+                f"Event curve files not written: {e.__cause__}", exc_info=e.__cause__
+            )
         heartbeat.station(
             snapshot.station.name,
             snapshot.station.mac,
