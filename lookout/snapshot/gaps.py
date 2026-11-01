@@ -78,8 +78,6 @@ VALID = "valid"
 PRORATED = "prorated"
 INVALID = "invalid"
 
-"""The archive's reporting interval: Ambient's five minutes."""
-
 LOW_COVERAGE = 0.8
 """A day holding under this share of its five-minute slots is low-coverage."""
 
@@ -125,9 +123,6 @@ class ArchiveCoverage:
 
     def __init__(self, archive: pd.DataFrame, clock: StationClock) -> None:
         self.clock = clock
-        self.tz = clock.tz
-        self.now_ms = clock.now_ms
-        self.today: date = clock.today
 
         stamps = archive["dateutc"] if "dateutc" in archive else pd.Series([])
         stamps = pd.Series(stamps, dtype="int64")
@@ -143,6 +138,21 @@ class ArchiveCoverage:
             local_days.dt.date.value_counts().to_dict() if len(slots) else {}
         )
         self._kinds: Dict[date, str] = {}
+
+    @property
+    def tz(self) -> str:
+        """The station's zone, the clock's."""
+        return self.clock.tz
+
+    @property
+    def now_ms(self) -> int:
+        """The build time in epoch ms, the clock's."""
+        return self.clock.now_ms
+
+    @property
+    def today(self) -> date:
+        """The build time's station-local date, the clock's."""
+        return self.clock.today
 
     @property
     def first_day(self) -> Optional[date]:

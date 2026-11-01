@@ -3,8 +3,9 @@ build.py: `build_snapshot`, the one pure function behind the dashboard.
 
 It reads no storage, no clock and no session state: everything comes in as
 arguments, and the `Snapshot` goes out. It makes the one `StationClock`, the
-build time with the station's zone, and hands it to every section. The refresh command
-(`lookout.cli.refresh`) loads the inputs and publishes the result.
+build time with the station's zone, and hands it to every section. The
+refresh command (`lookout.cli.refresh`) loads the inputs and publishes the
+result.
 
 Later tickets add their per-tab sections here: compute the section from the
 same `stitched` history (so live values are used once) and add its field to
