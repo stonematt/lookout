@@ -166,6 +166,11 @@ a {
   cursor: pointer;
 }
 
+/* a tab with no snapshot to draw: loading, or could not be loaded */
+.panel-state {
+  padding-block: var(--s-4);
+}
+
 /* ---------- the tabs ---------- */
 .tabs {
   position: sticky;
