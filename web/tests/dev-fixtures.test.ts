@@ -74,6 +74,17 @@ describe("the lane server's read functions", () => {
     expect(response!.status).toBe(400);
   });
 
+  it("keeps its own parameters on a redirect the read function answers", async () => {
+    const mac = (golden("raining", "dashboard") as { station: { mac: string } }).station.mac;
+    const response = await devResponse(
+      `/current?fixture=raining&age=3&station=${mac.toLowerCase()}`,
+      {},
+      NOW,
+    );
+    expect(response!.status).toBe(308);
+    expect(response!.headers.get("location")).toBe("current?fixture=raining&age=3");
+  });
+
   it("leaves every other path to Vite", async () => {
     expect(await devResponse("/src/main.ts", {}, NOW)).toBeNull();
   });

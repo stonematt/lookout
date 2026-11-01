@@ -10,7 +10,7 @@
 import { parseEventCurve } from "../src/snapshot.js";
 import type { ReadSources } from "./handlers.js";
 import { describeError } from "./errors.js";
-import { errorResponse, jsonResponse, stationOf } from "./handlers.js";
+import { checkQuery, errorResponse, jsonResponse } from "./handlers.js";
 
 /** A found curve file: immutable. */
 export const CURVE_CACHE = "public, max-age=86400, s-maxage=31536000, immutable";
@@ -20,11 +20,18 @@ export const MISSING_CURVE_CACHE = "s-maxage=300";
 
 const START_PATTERN = /^\d{12,14}$/;
 
+const START_ERROR = "start must be an event start in epoch milliseconds";
+
+/** A start's one spelling: its digits without leading zeros. */
+function checkStart(value: string): string | Response {
+  return START_PATTERN.test(value) ? String(Number(value)) : errorResponse(400, START_ERROR);
+}
+
 /**
  * GET /event: one event's curve file.
  *
  * @param request - The incoming request; `?start=<ms>` names the event,
- *   `?station=<MAC>` is optional.
+ *   `?station=<MAC>` is optional; see `checkQuery`.
  * @param sources - Where to read; needs `readCurve`.
  * @returns 200 with the curve, 400 for a malformed start, 404 when it is
  *   not written, 502 when Storj fails or the file breaks the contract.
@@ -33,12 +40,11 @@ export async function handleEvent(
   request: Request,
   sources: ReadSources,
 ): Promise<Response> {
-  const mac = stationOf(request, sources);
-  if (mac instanceof Response) return mac;
-  const start = new URL(request.url).searchParams.get("start") ?? "";
-  if (!START_PATTERN.test(start)) {
-    return errorResponse(400, "start must be an event start in epoch milliseconds");
-  }
+  const query = checkQuery(request, sources, { start: checkStart });
+  if (query instanceof Response) return query;
+  const mac = sources.defaultMac;
+  const start = query.start;
+  if (start === undefined) return errorResponse(400, START_ERROR);
   const readCurve = sources.readCurve;
   if (!readCurve) return errorResponse(500, "no curve source configured");
 
