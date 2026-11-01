@@ -320,7 +320,11 @@ export interface RecentRain {
   first_day: string;
   rain_in: (number | null)[];
   reason: (GapReason | null)[];
-  /** Each day's 24 local hours; null for an hour still to come today. */
+  /**
+   * Each day's 24 local hours; null when not known: an hour still to come
+   * today (after the build hour) or one with no readings in the record,
+   * which is unknown, never dry.
+   */
   hourly_in: (number | null)[][];
   /** Prorated when the window is; null when invalid. */
   wet_hours: number | null;

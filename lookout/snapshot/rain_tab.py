@@ -228,7 +228,8 @@ def _recent(
     hourly: List[Tuple[Optional[float], ...]] = []
     for d in days:
         # A counted day with nothing archived yet (just after midnight) is
-        # 0, as `window_total` sums it.
+        # 0, as `window_total` sums it. Its hours are not: an hour with no
+        # counter reading is unknown (None), never dry (#147).
         if coverage.day_kind(d) != "ok":
             reason = coverage.window(d, d).reason
             rain_in.append(None)
@@ -240,7 +241,7 @@ def _recent(
         to_come = now_local.hour + 1 if d == last else HOURS
         hourly.append(
             tuple(
-                number(by_hour.get((d, h), 0.0)) if h < to_come else None
+                number(by_hour.get((d, h))) if h < to_come else None
                 for h in range(HOURS)
             )
         )
@@ -253,7 +254,10 @@ def _recent(
     ]
 
     def wet_hours() -> Optional[float]:
-        """Hours with rain, scaled over the window's missing days."""
+        """
+        Hours with rain among the known ones, scaled over the window's
+        missing days; an unknown hour is neither wet nor dry.
+        """
         return number(prorate(status, float(sum(1 for _, _, r in cells if r > 0))))
 
     def wettest() -> Optional[RainHour]:

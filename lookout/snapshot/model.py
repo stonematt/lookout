@@ -668,10 +668,13 @@ class RecentRain:
     :param first_day: The first day.
     :param rain_in: Each day's total.
     :param reason: Why a day cannot be counted, None when it can.
-    :param hourly_in: Each day's 24 local hours, None for an hour still to
-        come today. A day's hours add up to its total, to rounding.
-    :param wet_hours: Hours with any rain over the window; prorated when the
-        window is; None when it is invalid.
+    :param hourly_in: Each day's 24 local hours: the rain in each, None when
+        it is not known: an hour still to come today, or one with no rain
+        counter reading in the archive (#147; never 0). A day's known hours
+        add up to its total, to rounding; rain counted during a missing hour
+        lands in the next known one.
+    :param wet_hours: Known hours with any rain over the window; prorated
+        when the window is; None when it is invalid.
     :param wettest_hour: The hour with the most rain; None when the window is
         invalid or dry.
     """
