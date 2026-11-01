@@ -58,15 +58,14 @@ def build_snapshot(
     :param event_catalog: The Event Catalog, or None when there is none.
     :param energy_catalog: The energy catalog, or None: the Solar tab's
         source.
-    :param station: The station.
+    :param station: The station; its zone is the build's (ADR-0005).
     :param now: The build time, timezone-aware.
     :return: The snapshot.
     :raises ValueError: If `now` has no timezone.
     """
     if now.tzinfo is None:
         raise ValueError("build_snapshot needs a timezone-aware `now`")
-    # The zone is still `DEFAULT_TZ`; ADR-0005 moves it to the station's own.
-    clock = StationClock(now)
+    clock = StationClock(now, station.tz)
 
     archive_newest_ms = int(archive["dateutc"].max()) if not archive.empty else None
     stitched = stitch_live(archive, live)

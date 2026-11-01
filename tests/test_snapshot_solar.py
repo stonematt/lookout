@@ -22,9 +22,9 @@ from lookout.snapshot import Station, build_snapshot
 from lookout.snapshot import gaps
 from lookout.snapshot.model import Snapshot
 from tests.fixtures.ambient import to_ambient_records
-from tests.fixtures.archive import Gap, build_archive
+from tests.fixtures.archive import STATION_TZ, Gap, build_archive
 
-STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station")
+STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station", tz=STATION_TZ)
 TZ = "America/Los_Angeles"
 FIVE_MIN_MS = 5 * 60 * 1000
 

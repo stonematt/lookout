@@ -40,6 +40,7 @@ Golden documents for the TypeScript tests live in `tests/golden/snapshots/`
 import math
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SCHEMA_VERSION = 2
 
@@ -53,6 +54,15 @@ CONTEXT_FIELDS: Tuple[str, ...] = (
 )
 
 
+class StationZoneMissing(ValueError):
+    """
+    Ambient sent no usable time zone for the station (ADR-0005).
+
+    No zone is guessed in its place: the refresh run fails and the last good
+    snapshot stays up.
+    """
+
+
 @dataclass(frozen=True)
 class Station:
     """
@@ -60,23 +70,39 @@ class Station:
 
     :param mac: Its MAC address, the key of every file it has on Storj.
     :param name: Its human-readable name in Ambient, or None when unnamed.
+    :param tz: Its IANA time zone, from Ambient (ADR-0005): the zone every
+        station-local day, hour and month of the build is in.
     """
 
     mac: str
     name: Optional[str]
+    tz: str
 
     @classmethod
     def from_device(cls, device: Dict[str, Any]) -> "Station":
         """
         Read the station from an Ambient `/devices` entry.
 
-        :param device: One entry, with `macAddress` and `info.name`.
+        Its zone is the `tz` of the device's latest reading, read on every
+        build; there is no fallback zone.
+
+        :param device: One entry, with `macAddress`, `info.name` and
+            `lastData.tz`.
         :return: The station.
+        :raises StationZoneMissing: If `lastData.tz` is absent, or is not a
+            time zone this host knows.
         """
-        return cls(
-            mac=device["macAddress"],
-            name=(device.get("info") or {}).get("name"),
-        )
+        mac = device["macAddress"]
+        tz = (device.get("lastData") or {}).get("tz")
+        if not isinstance(tz, str) or not tz:
+            raise StationZoneMissing(f"Ambient sent no time zone for {mac}")
+        try:
+            ZoneInfo(tz)
+        except (ZoneInfoNotFoundError, ValueError) as e:
+            raise StationZoneMissing(
+                f"Ambient sent an unknown time zone for {mac}: {tz!r}"
+            ) from e
+        return cls(mac=mac, name=(device.get("info") or {}).get("name"), tz=tz)
 
 
 @dataclass(frozen=True)

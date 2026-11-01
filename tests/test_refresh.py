@@ -27,8 +27,14 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
 from lookout.storage import storj
-from tests.fixtures.ambient import to_ambient_records
-from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
+from tests.fixtures.ambient import load_devices, to_ambient_records
+from tests.fixtures.archive import (
+    FAKE_MAC,
+    SCENARIO,
+    STATION_TZ,
+    RainSpell,
+    build_archive,
+)
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import BUCKET
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
@@ -134,7 +140,11 @@ class TestRefreshRun:
         assert dashboard["archive_newest_ms"] == ms("2025-11-19T07:55:00Z")
         assert dashboard["observed_at_ms"] == ms("2025-11-19T07:55:00Z")
         assert dashboard["built_at_ms"] == ms(AMBIENT_END)
-        assert dashboard["station"] == {"mac": FAKE_MAC, "name": "Fixture Station"}
+        assert dashboard["station"] == {
+            "mac": FAKE_MAC,
+            "name": "Fixture Station",
+            "tz": STATION_TZ,
+        }
         assert dashboard["current"]["temperature_f"] == 39.4
 
     def test_a_second_run_republishes_over_the_first(self, seed):
@@ -396,6 +406,50 @@ class TestHeartbeats:
         self, seed, fake_healthchecks
     ):
         station = seed(archive=load_real_slice().head(0))
+        before = stored_bytes(station, ARCHIVE_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+        assert stored_bytes(station, ARCHIVE_KEY) == before
+
+
+# ---------- the station's zone, from Ambient on every run (#197) ----------
+
+
+def devices_with_zone(tz: object) -> List[Dict]:
+    """
+    The recorded `/devices` body, its `lastData.tz` set to `tz`.
+
+    :param tz: The zone to report; `None` drops the field.
+    :return: The body.
+    """
+    devices = load_devices()
+    devices[0]["lastData"].pop("tz", None)
+    if tz is not None:
+        devices[0]["lastData"]["tz"] = tz
+    return devices
+
+
+class TestStationZone:
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    def test_both_documents_name_the_zone_ambient_sends(self, seed):
+        station = seed(devices=devices_with_zone("America/Denver"))
+
+        run_refresh(station)
+
+        assert stored_json(station, DASHBOARD_KEY)["station"]["tz"] == "America/Denver"
+        assert stored_json(station, CONTEXT_KEY)["station"]["tz"] == "America/Denver"
+
+    @pytest.mark.parametrize("tz", [None, "", "Mars/Olympus_Mons"])
+    def test_no_usable_zone_exits_1_and_writes_nothing(
+        self, seed, fake_healthchecks, tz
+    ):
+        """ADR-0005: no zone is guessed; the last good snapshot stays up."""
+        station = seed(devices=devices_with_zone(tz))
         before = stored_bytes(station, ARCHIVE_KEY)
 
         assert self.run_main(station) == 1
@@ -1168,7 +1222,7 @@ class TestCorrectRain:
         store_corrections(weather)
         return weather
 
-    STATION = refresh.Station(mac=FAKE_MAC, name=None)
+    STATION = refresh.Station(mac=FAKE_MAC, name=None, tz=STATION_TZ)
 
     @pytest.mark.parametrize(
         "reading",

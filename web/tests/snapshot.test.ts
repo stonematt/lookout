@@ -52,11 +52,25 @@ describe("parseDashboard", () => {
     expect(() => parseDashboard(doc)).toThrow("first_hour_to_come");
   });
 
+  it.each([
+    ["no zone", undefined],
+    ["an empty zone", ""],
+    ["a zone no runtime knows", "Mars/Olympus_Mons"],
+  ])("refuses a station with %s (#197)", (_case, tz) => {
+    const doc = structuredClone(golden("raining", "dashboard")) as {
+      station: Record<string, unknown>;
+    };
+    if (tz === undefined) delete doc.station.tz;
+    else doc.station.tz = tz;
+    expect(() => parseDashboard(doc)).toThrow("dashboard: station.tz");
+  });
+
   it("reads the raining golden with its live event", () => {
     const snap = parseDashboard(golden("raining", "dashboard"));
     expect(snap.station).toEqual({
       mac: "00:11:22:33:44:55",
       name: "Fixture Station",
+      tz: "America/Los_Angeles",
     });
     expect(snap.observed_at_ms).toBe(1767918300000);
     expect(snap.archive_newest_ms).toBe(1767916500000);
@@ -92,6 +106,20 @@ describe("parseContext", () => {
     expect(parseContext(golden("dry", "context")).built_at_ms).toBe(
       1763539200000,
     );
+  });
+
+  it("names the station's zone", () => {
+    expect(parseContext(golden("dry", "context")).station.tz).toBe(
+      "America/Los_Angeles",
+    );
+  });
+
+  it("refuses a station with no zone (#197)", () => {
+    const doc = structuredClone(golden("dry", "context")) as {
+      station: Record<string, unknown>;
+    };
+    delete doc.station.tz;
+    expect(() => parseContext(doc)).toThrow("context: station.tz");
   });
 
   it("refuses a dashboard document", () => {

@@ -20,12 +20,24 @@
 /** The schema version this site reads. A breaking change bumps both sides. */
 export const SCHEMA_VERSION = 2;
 
-/** The station a snapshot describes. */
-export interface Station {
+/** Which station a document is about. */
+export interface StationId {
   /** Its MAC address, the key of every file it has on Storj. */
   mac: string;
   /** Its human-readable name in Ambient, or null when unnamed. */
   name: string | null;
+}
+
+/**
+ * The station a snapshot describes. Curve files written before #197 and the
+ * `/current` body name the station by `StationId` alone.
+ */
+export interface Station extends StationId {
+  /**
+   * Its IANA time zone, from Ambient (ADR-0005): every station-local day,
+   * hour and month in the snapshot is in this zone.
+   */
+  tz: string;
 }
 
 /** "rising", "falling" or "steady". */
@@ -216,7 +228,7 @@ export interface RainEvents {
 export interface EventCurveDocument extends EventCurve {
   schema_version: number;
   kind: "event_curve";
-  station: Station;
+  station: StationId;
 }
 
 /** Which rule of the Adaptive Lead Rule leads. */
@@ -654,7 +666,7 @@ export interface LastData {
 export interface CurrentReading {
   schema_version: number;
   kind: "current";
-  station: Station;
+  station: StationId;
   /** The newest observation: the live reading, or the context's if newer. */
   observed_at_ms: number | null;
   /** When the snapshot behind `context` was built, or null without one. */
@@ -681,6 +693,17 @@ function isTime(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 
+/** Whether a value names a time zone this runtime can format in. */
+function isTimeZone(value: unknown): value is string {
+  if (typeof value !== "string" || value === "") return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function checkHead(doc: unknown, kind: string): Record<string, unknown> {
   if (!isRecord(doc)) {
     throw new SnapshotContractError(`${kind}: not a JSON object`);
@@ -702,6 +725,9 @@ function checkHead(doc: unknown, kind: string): Record<string, unknown> {
   }
   if (station.name !== null && typeof station.name !== "string") {
     throw new SnapshotContractError(`${kind}: station.name not a string`);
+  }
+  if (!isTimeZone(station.tz)) {
+    throw new SnapshotContractError(`${kind}: station.tz not a time zone`);
   }
   if (!isTime(doc.built_at_ms)) {
     throw new SnapshotContractError(`${kind}: built_at_ms not an integer`);

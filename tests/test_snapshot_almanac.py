@@ -28,9 +28,9 @@ import pytest
 from lookout.snapshot import Station, build_snapshot
 from lookout.snapshot.model import Almanac, AlmanacYear, RollingWindow, Snapshot
 from tests.fixtures.ambient import to_ambient_records
-from tests.fixtures.archive import Gap, RainSpell, build_archive
+from tests.fixtures.archive import STATION_TZ, Gap, RainSpell, build_archive
 
-STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station")
+STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station", tz=STATION_TZ)
 GOLDEN = Path(__file__).parent / "golden" / "almanac" / "october.json"
 REGENERATE = os.environ.get("LOOKOUT_REGEN_GOLDEN") == "1"
 
