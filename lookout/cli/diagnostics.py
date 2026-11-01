@@ -45,6 +45,7 @@ import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import energy_catalog_func
+from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage.storj import (
     BackupError,
@@ -399,9 +400,15 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     """
     Regenerate the energy catalog; save it only with --save.
 
+    The stored catalog is read by the reader contract (#183): a failed or
+    corrupt read raises, so the command reports it and never saves over a
+    catalog it could not read.
+
     :param args: Parsed arguments.
     :return: The exit status; 1 for --dry-run without --save, which would
         otherwise do nothing a plain report does not.
+    :raises StorageReadError: If the stored catalog's read failed or it is
+        corrupt.
     """
     if args.dry_run and not args.save:
         emit("Refused: --dry-run only applies with --save.")
@@ -410,6 +417,7 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     if archive.empty:
         emit("The archive is empty.")
         return 1
+    stored = EnergyCatalog(device["macAddress"], bucket=args.bucket).load_catalog()
     if "date" not in archive.columns:
         archive["date"] = pd.to_datetime(
             archive["dateutc"], unit="ms", utc=True
@@ -420,8 +428,8 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     if periods.empty:
         emit("No energy periods could be calculated from the archive.")
         return 1
-    stored = energy_catalog_func.load_energy_catalog(args.bucket)
-    emit(f"Stored catalog: {len(stored)} periods")
+    count = "none" if stored is None else f"{len(stored)} periods"
+    emit(f"Stored catalog: {count}")
     emit(
         f"Regenerated: {len(periods)} periods, "
         f"{periods['period_start'].min():{STAMP}} to "

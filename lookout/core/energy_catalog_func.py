@@ -24,22 +24,16 @@ CATALOG_TYPE = "energy"
 
 
 def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
-    """Calculate energy periods - MAC from context, not parameters."""
+    """
+    Calculate energy periods - MAC from context, not parameters.
+
+    With `auto_save`, the save goes through `backup_and_save_catalog`, which
+    backs up the stored catalog first and saves nothing when that fails.
+    """
     bucket = kwargs.get("bucket", DEFAULT_BUCKET)
     auto_save = kwargs.get("auto_save", True)
-    backup_existing = kwargs.get("backup_existing", True)
 
     logger.info("Starting energy period calculation and cataloging...")
-
-    # Backup existing catalog if requested and auto-saving
-    if auto_save and backup_existing and catalog_exists(CATALOG_TYPE, bucket):
-        existing_catalog = load_catalog(CATALOG_TYPE, bucket)
-        if not existing_catalog.empty:
-            try:
-                backup_and_save_catalog(existing_catalog, CATALOG_TYPE, bucket)
-                logger.info("Existing energy catalog backed up")
-            except Exception as e:
-                logger.warning(f"Failed to backup existing catalog: {e}")
 
     # Prepare archive data for solar_energy_periods - convert 'date' to 'datetime'
     archive_df = archive_df.copy()

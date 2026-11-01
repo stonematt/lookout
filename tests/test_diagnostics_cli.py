@@ -303,6 +303,34 @@ class TestEnergyCatalog:
         assert len(replaced) > 1
         assert replaced["energy_kwh"].sum() > 0.01
 
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["read-fails", "corrupt"])
+    def test_a_failed_read_reports_an_error_and_saves_nothing(
+        self, seed, capsys, monkeypatch, corrupt
+    ):
+        station = seed()
+        body = b"not parquet" if corrupt else b"stored"
+        station.s3.put_object(Bucket=BUCKET, Key=CATALOG_KEY, Body=body)
+        if not corrupt:
+            flaky_storj(monkeypatch, station.s3, read=CATALOG_KEY)
+
+        status, out = run(["energy-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "energy-catalog failed" in out
+        assert "backed up and replaced" not in out
+        stored = station.s3.get_object(Bucket=BUCKET, Key=CATALOG_KEY)["Body"].read()
+        assert stored == body
+        assert [k for k in station.keys() if "energy_catalog" in k] == [CATALOG_KEY]
+
+    def test_with_none_stored_save_writes_the_regenerated_catalog(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["energy-catalog", "--save"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: none" in out
+        assert len(station.stored(CATALOG_KEY)) > 1
+
 
 class TestRainCatalog:
     def backups(self, station) -> List[str]:
