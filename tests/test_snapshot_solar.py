@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 from lookout.snapshot import Station, build_snapshot
+from lookout.snapshot import gaps
 from lookout.snapshot.model import Snapshot
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import Gap, build_archive
@@ -113,6 +114,23 @@ def day_value(snapshot: Snapshot, day: str) -> Optional[float]:
 def windows(snapshot: Snapshot) -> Dict[str, Optional[float]]:
     """The tab's window totals by key."""
     return {w.key: w.energy_kwh_m2 for w in snapshot.solar_tab.windows}
+
+
+class TestWindowKeys:
+    def test_the_windows_follow_the_standard_windows(self, june, monkeypatch):
+        windows = (
+            ("30d", 29, 0),
+            ("today", 0, 0),
+            ("14d", 13, 0),
+            ("yesterday", 1, 1),
+            ("7d", 6, 0),
+            ("90d", 89, 0),
+            ("365d", 364, 0),
+        )
+        monkeypatch.setattr(gaps, "STANDARD_WINDOWS", windows)
+        snapshot = build(june, catalog("2026-05-01", ms(ARCHIVE_END) - FIVE_MIN_MS))
+
+        assert [w.key for w in snapshot.solar_tab.windows] == [k for k, _, _ in windows]
 
 
 class TestDailyEnergy:

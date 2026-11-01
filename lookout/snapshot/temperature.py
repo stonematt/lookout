@@ -34,7 +34,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from lookout.snapshot.gaps import ArchiveCoverage, comparable
+from lookout.snapshot.gaps import ArchiveCoverage, comparable, standard_window_keys
 from lookout.snapshot.model import (
     NormalStrip,
     SnapshotConditions,
@@ -50,9 +50,6 @@ SPREAD_DAYS = 7
 
 TEN_DAYS = 10
 """The list covers this many local days, today included."""
-
-PERIOD_KEYS = ("today", "yesterday", "7d", "30d", "90d", "365d")
-"""The standard windows the range bars show, in order."""
 
 
 def _same_date(year: int, day: date) -> date:
@@ -150,7 +147,7 @@ def _periods(
     """The range bar of each standard window, with where `now` sits."""
     windows = {w.key: w for w in coverage.standard_windows()}
     periods: List[TemperaturePeriod] = []
-    for key in PERIOD_KEYS:
+    for key in standard_window_keys():
         status = windows[key]
         counted = coverage.counted_days(
             date.fromisoformat(status.first_day), date.fromisoformat(status.last_day)
@@ -312,9 +309,10 @@ def temperature_context(
     coverage = ArchiveCoverage(archive, now, tz)
     readings = _Readings(stitched, tz) if not stitched.empty else None
     if readings is None:
+        by_key = {w.key: w for w in coverage.standard_windows()}
         empty = tuple(
-            TemperaturePeriod(w, None, None, None, None, 0, None)
-            for w in coverage.standard_windows()[: len(PERIOD_KEYS)]
+            TemperaturePeriod(by_key[key], None, None, None, None, 0, None)
+            for key in standard_window_keys()
         )
         return TemperatureContext(None, None, None, empty, (), (), ())
 

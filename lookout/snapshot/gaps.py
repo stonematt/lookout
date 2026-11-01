@@ -94,6 +94,16 @@ STANDARD_WINDOWS: Tuple[Tuple[str, int, int], ...] = (
 """The windows the snapshot carries, as (key, first day, last day), each day
 counted back from today. The water year follows them."""
 
+
+def standard_window_keys() -> Tuple[str, ...]:
+    """
+    The keys of `STANDARD_WINDOWS`, in order; the water year is not among them.
+
+    Read at call time, so a section's keys follow the windows and not a copy.
+    """
+    return tuple(key for key, _, _ in STANDARD_WINDOWS)
+
+
 _OK, _LOW, _GAP = "ok", "low", "gap"
 _NOT_ARCHIVED, _BEFORE_ARCHIVE, _FUTURE = "not_archived", "before_archive", "future"
 _MISSING_KINDS = frozenset({_GAP, _LOW, _NOT_ARCHIVED, _BEFORE_ARCHIVE})
