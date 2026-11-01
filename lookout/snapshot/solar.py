@@ -106,9 +106,8 @@ def solar_tab(
     periods = _periods(energy_catalog, tz)
     coverage = archived.excluding(_uncatalogued(periods, archive, archived))
     totals = _daily_totals(periods, coverage)
-    windows = [
-        s for s in coverage.standard_windows() if s.key in standard_window_keys()
-    ]
+    keys = standard_window_keys()
+    windows = [s for s in coverage.standard_windows() if s.key in keys]
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     return SolarTab(
         windows=tuple(
