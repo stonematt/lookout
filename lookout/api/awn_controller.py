@@ -827,10 +827,17 @@ def fill_archive_gap(
     if not merged.report.changed:
         logger.info("No new data found. Gap skipped.")
         return GapFill(
-            history_df, start, end, "no_new_data", merged.report, fetched
+            history_df,
+            start,
+            end,
+            "no_new_data",
+            report=merged.report,
+            fetched=fetched,
         )
 
-    return GapFill(merged.archive, start, end, "filled", merged.report, fetched)
+    return GapFill(
+        merged.archive, start, end, "filled", report=merged.report, fetched=fetched
+    )
 
 
 def validate_archive(archive_df):

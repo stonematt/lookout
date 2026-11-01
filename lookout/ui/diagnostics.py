@@ -83,12 +83,13 @@ def save_filled_archive() -> bool:
     merge (`archive_merge.merge`), in fill order, into the archive as stored
     now. The session's archive copy, loaded at the first fill, never does:
     rows catchup saved and values a repair replaced in between are kept
-    (#223). All raw.
+    (#223). Inside the span a fill fetched, Ambient wins, as in any merge.
+    A save spends the fills, so a second click saves nothing. All raw.
     The stored archive is read strictly (#160), and the save is refused if
     it would drop a reading or blank a value that read held (#190).
 
-    :return: True when saved; False when no gap was filled this session, so
-        there is nothing new to save.
+    :return: True when saved; False when no gap was filled since the last
+        save, so there is nothing new to save.
     :raises StorageReadError: If the stored archive cannot be read or has no
         valid rows.
     :raises ArchiveLossError: If the save would drop a stored reading or
@@ -108,6 +109,7 @@ def save_filled_archive() -> bool:
         bucket=BUCKET,
         stored=stored,
     )
+    st.session_state[FETCHED_KEY] = []
     return True
 
 
