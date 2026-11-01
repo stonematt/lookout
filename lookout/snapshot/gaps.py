@@ -43,15 +43,17 @@ The API, for every section that compares months or windows:
 
 - `ArchiveCoverage(archive, clock)`: reads the archive once, then answers
   `.window(first_day, last_day)`, `.month(year, month)`, `.rolling(days)`,
-  `.water_year()` and `.counted_days(first_day, last_day)`;
-  `.excluding(missing)` judges days a derived record lacks as missing.
+  `.water_year()`, `.water_year_status(year)` and
+  `.counted_days(first_day, last_day)`; `.excluding(missing)` judges days a
+  derived record lacks as missing. `build_snapshot` makes one, through
+  `lookout.snapshot.days.count_days`, and every section shares it.
 - `window_status(archive, first_day, last_day, clock)` and
   `month_status(archive, year, month, clock)`: one-off shorthands.
 - `comparable(status, compute)`: `compute()`, or None when invalid; it never
   runs `compute` for an invalid window.
 - `prorate(status, total)`: a total over the counted days, scaled to the
   whole window; None when invalid.
-- `snapshot_gaps(archive, clock)`: the `Gaps` section `build_snapshot` adds.
+- `snapshot_gaps(coverage)`: the `Gaps` section `build_snapshot` adds.
 """
 
 from copy import copy
@@ -161,6 +163,14 @@ class ArchiveCoverage:
             return None
         return local_time(self.oldest_ms, self.tz).date()
 
+    def held_days(self) -> Tuple[date, ...]:
+        """
+        The station-local days the archive holds any reading on.
+
+        :return: Those days, oldest first, up to the build time.
+        """
+        return tuple(sorted(self._slots))
+
     def day_kind(self, day: date) -> str:
         """
         Judge one station-local day (see the module docstring).
@@ -203,9 +213,10 @@ class ArchiveCoverage:
         This coverage with some counted days judged missing after all.
 
         For a section whose values come from a record derived from the
-        archive (the energy catalog) that lacks days the archive holds: those
-        days are judged as `missing` says, so a window over them is prorated
-        or invalid by the same rule, never counted as zero.
+        archive (the energy catalog, the daily rain series) that lacks days
+        the archive holds: those days are judged as `missing` says, so a
+        window over them is prorated or invalid by the same rule, never
+        counted as zero.
 
         :param missing: Day -> the kind to judge it as: "gap", "low",
             "not_archived" or "before_archive". Only "ok" days change; the
@@ -295,6 +306,19 @@ class ArchiveCoverage:
         """
         start = water_year_start(water_year(self.today))
         return self.window(start, self.today, key)
+
+    def water_year_status(self, year: int) -> GapStatus:
+        """
+        One water year's gap status: Oct 1 to Sep 30, or to today while it
+        runs. Defined for any year, the archive's or not.
+
+        :param year: The water year, named by the year it ends in.
+        :return: Its status, keyed "water_year_<year>". A year that starts
+            after today is its Oct 1 alone, not yet come.
+        """
+        start = water_year_start(year)
+        end = min(water_year_start(year + 1) - timedelta(days=1), self.today)
+        return self.window(start, max(start, end), key=f"water_year_{year}")
 
     def months(self) -> Tuple[GapStatus, ...]:
         """
@@ -395,15 +419,13 @@ def prorate(status: GapStatus, total: float) -> Optional[float]:
     return total * status.days / (status.days - status.missing_days)
 
 
-def snapshot_gaps(archive: pd.DataFrame, clock: StationClock) -> Gaps:
+def snapshot_gaps(coverage: ArchiveCoverage) -> Gaps:
     """
     The snapshot's gap section: every month and every standard window.
 
-    :param archive: The station's archive as stored.
-    :param clock: The station clock.
+    :param coverage: The build's counted days (`CountedDays.coverage`).
     :return: The `Gaps` section.
     """
-    coverage = ArchiveCoverage(archive, clock)
     return Gaps(months=coverage.months(), windows=coverage.standard_windows())
 
 
