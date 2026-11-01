@@ -265,6 +265,35 @@ describe("the rolling-window table", () => {
     expect(row("water_year")).toEqual(["Since Oct 1", "0.30", "0.25"]);
   });
 
+  it("names the season row by water year under the calendar-year columns (#156)", () => {
+    // Oct 12: each season so far ends in the next water year.
+    const head = host.querySelector("tr[data-part=water-years]")!;
+    expect([...head.children].map(text)).toEqual(["Water year", "2026", "2025"]);
+    expect(head.nextElementSibling).toBe(host.querySelector('tr[data-window="water_year"]'));
+    for (const th of head.querySelectorAll("th:not(:first-child)")) {
+      expect(th.getAttribute("scope")).toBe("col");
+    }
+    // A season cell is read by its row and its water year, not the calendar column.
+    const row = host.querySelector('tr[data-window="water_year"] th')!;
+    const ids = [...head.querySelectorAll("th")].map((th) => th.id);
+    const cells = [...host.querySelectorAll<HTMLTableCellElement>('tr[data-window="water_year"] td')];
+    expect(row.id).not.toBe("");
+    expect(cells.map((td) => td.getAttribute("headers"))).toEqual([
+      `${row.id} ${ids[1]}`,
+      `${row.id} ${ids[2]}`,
+    ]);
+  });
+
+  it("needs no water-year row when the season ends in the column's year", () => {
+    const march = copy(october);
+    const season = march.rolling.find((w) => w.key === "water_year")!;
+    for (const y of season.years) y.water_year = y.year;
+    host.replaceChildren();
+    rollingRain.render(host, withAlmanac(march));
+
+    expect(host.querySelector("tr[data-part=water-years]")).toBeNull();
+  });
+
   it("hatches a window that reaches before the archive", () => {
     const earlier = host.querySelectorAll('tr[data-window="365d"] td')[1] as HTMLElement;
 

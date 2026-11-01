@@ -21,7 +21,7 @@ import { WATER_MONTHS, dayText, formatStamp, inches } from "../format.js";
 import { make } from "../dom.js";
 import { hatchGap } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
-import type { Almanac, AlmanacMonth, AlmanacYear, DashboardSnapshot } from "../snapshot.js";
+import type { Almanac, AlmanacMonth, AlmanacYear, DashboardSnapshot, RollingWindow } from "../snapshot.js";
 import {
   ROLLING_NAMES,
   cellKind,
@@ -302,6 +302,38 @@ export const almanacGrid: OverviewSection = {
 
 // ---------- the rolling-window table ----------
 
+/** The id of the season row's water-year heading over column `i`. */
+function waterYearId(i: number): string {
+  return `alm-roll-wy-${i}`;
+}
+
+/**
+ * The season row's own heading row, naming each cell's water year, when any
+ * differs from its calendar column (an end date in Oct to Dec).
+ *
+ * @param window - The rolling table's season row.
+ * @param columns - The table's calendar-year columns, newest first.
+ * @returns The heading row, or null when every season ends in its column's
+ *   year.
+ */
+function waterYearHead(window: RollingWindow, columns: number[]): HTMLTableRowElement | null {
+  const years = columns.map((c) => window.years.find((y) => y.year === c));
+  if (years.every((y, i) => !y || y.water_year === columns[i])) return null;
+  const tr = document.createElement("tr");
+  tr.dataset.part = "water-years";
+  tr.className = "alm-wy-head";
+  const label = make("th", "", "Water year");
+  label.scope = "row";
+  tr.append(label);
+  years.forEach((y, i) => {
+    const th = make("th", i === 0 ? "alm-now" : "", y ? String(y.water_year) : "");
+    th.scope = "col";
+    th.id = waterYearId(i);
+    tr.append(th);
+  });
+  return tr;
+}
+
 function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const { almanac } = snapshot;
   const columns = (almanac.rolling[0]?.years ?? []).slice(0, NAMED_YEARS + 1).map((y) => y.year);
@@ -336,9 +368,18 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const th = make("th", "", ROLLING_NAMES[window.key] ?? window.key);
     th.scope = "row";
     tr.append(th);
+    // The season is named by its water year; under the calendar columns
+    // it is a year ahead from Oct through Dec, so it gets its own heading
+    // row then, and its cells are read by it (#156).
+    const waterYears = window.key === "water_year" ? waterYearHead(window, columns) : null;
+    if (waterYears) {
+      th.id = "alm-roll-season";
+      body.append(waterYears);
+    }
     columns.forEach((columnYear, i) => {
       const year = window.years.find((y) => y.year === columnYear);
       const td = make("td", i === 0 ? "alm-now" : "");
+      if (waterYears) td.setAttribute("headers", `${th.id} ${waterYearId(i)}`);
       if (!year) {
         tr.append(td);
         return;
