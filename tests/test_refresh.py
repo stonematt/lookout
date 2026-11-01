@@ -761,6 +761,54 @@ class TestEventCurveFiles:
             curve_keys(station)
         )
 
+    def test_one_event_failing_to_write_does_not_stop_the_others(
+        self, seed, monkeypatch, caplog
+    ):
+        """#160: the middle event's write fails; the older one still lands."""
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        real_put = station.s3.put_object
+
+        class OneBadKey:
+            def __getattr__(self, name):
+                return getattr(station.s3, name)
+
+            def put_object(self, **kwargs):
+                if kwargs["Key"] == curve_key(EVENT_2):
+                    raise OSError("curve write refused")
+                return real_put(**kwargs)
+
+        monkeypatch.setattr(curves, "get_s3_client", lambda: OneBadKey())
+
+        run_refresh(station)
+
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_3)
+        )
+        assert "curve write refused" in caplog.text
+        assert str(EVENT_2) in caplog.text
+
+    def test_one_event_failing_to_build_does_not_stop_the_others(
+        self, seed, monkeypatch, caplog
+    ):
+        from lookout.snapshot import events
+
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        real_curve = events._curve
+
+        def curve(readings, start_ms, end_ms):
+            if start_ms == EVENT_2:
+                raise ValueError("readings out of order")
+            return real_curve(readings, start_ms, end_ms)
+
+        monkeypatch.setattr(events, "_curve", curve)
+
+        run_refresh(station)
+
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_3)
+        )
+        assert "readings out of order" in caplog.text
+
 
 # ---------- rain corrections, applied once on read (#95) ----------
 

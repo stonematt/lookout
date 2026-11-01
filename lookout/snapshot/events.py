@@ -37,6 +37,9 @@ from lookout.snapshot.model import (
 )
 from lookout.snapshot.values import number
 from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.log_util import app_logger
+
+logger = app_logger(__name__)
 
 
 # A reading more than this many minutes after the one before follows a gap
@@ -277,6 +280,8 @@ def completed_curves(
     An event with no archive readings in its range gets no curve (the tab
     shows its totals only). Only the curves returned are computed, so a
     run that skips every stored one does no slicing beyond the new ones.
+    An event whose curve fails to compute is logged at ERROR and left out,
+    so it never blocks the older ones (#160); the next run retries it.
 
     :param event_catalog: The Event Catalog, or None.
     :param archive: The archive.
@@ -292,6 +297,10 @@ def completed_curves(
         if limit is not None and len(curves) >= limit:
             break
         readings = history.span(start_ms, end_ms)
-        if not readings.empty:
+        if readings.empty:
+            continue
+        try:
             curves.append(_curve(readings, start_ms, end_ms))
+        except Exception as e:
+            logger.exception(f"No curve for the event starting {start_ms}: {e}")
     return curves
