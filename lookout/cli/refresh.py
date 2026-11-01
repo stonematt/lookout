@@ -19,7 +19,8 @@ The steps, each its own function, run in this order by `run`:
 3. `correct_rain(station, bucket, archive, live)`: the stored rain
    corrections applied once, in memory (#95), to the archive and to the
    live reading alike (#118). Every later step reads these; the archive in
-   storage stays raw.
+   storage stays raw. A stored catalog that cannot be read fails the run
+   (#160), rather than publish the rain uncorrected.
 4. `load_catalogs(station, bucket)`: the Event Catalog and the energy
    catalog as stored.
 5. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
@@ -52,7 +53,7 @@ from lookout.cli import catchup
 from lookout.config import DEFAULT_BUCKET
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
-from lookout.core.rain_corrections import correct_counters, load_catalog
+from lookout.core.rain_corrections import correct_counters, read_catalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, StaleCatalog, Station, build_snapshot
 from lookout.snapshot.model import CatalogName
@@ -143,10 +144,15 @@ def correct_rain(
     :param bucket: The bucket holding `<MAC>.rain_corrections.json`.
     :param archive: The archive as saved, raw.
     :param live: The live `lastData`, raw, or None.
+    A catalog that is stored but cannot be read raises, so the run fails
+    and the last good snapshot stays up (#160): publishing the rain
+    uncorrected would show a carryover as rain, with nothing marking it.
+
     :return: The corrected archive and live reading, in memory; `archive`
         and `live` themselves when the station has no corrections.
+    :raises StorageReadError: If the stored catalog cannot be read.
     """
-    corrections = (load_catalog(station.mac, bucket) or {}).get("corrections")
+    corrections = (read_catalog(station.mac, bucket) or {}).get("corrections")
     if not corrections:
         return archive, live
     return correct_counters(archive, corrections), correct_live(

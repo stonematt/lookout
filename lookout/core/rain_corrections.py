@@ -17,10 +17,15 @@ Sensitivity:
 - Expected: ~1-2 carryovers per year based on historical data
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 import pandas as pd
 
-from lookout.storage.storj import get_json_from_s3, save_json_to_s3, object_exists
+from lookout.storage.storj import (
+    get_json_from_s3,
+    object_exists,
+    read_json_from_s3,
+    save_json_to_s3,
+)
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -39,6 +44,21 @@ def catalog_exists(mac_address: str, bucket: str = "lookout") -> bool:
 def load_catalog(mac_address: str, bucket: str = "lookout") -> Dict:
     """Load corrections catalog from Storj."""
     return get_json_from_s3(bucket, f"{mac_address}.rain_corrections.json")
+
+
+def read_catalog(mac_address: str, bucket: str = "lookout") -> Optional[Dict]:
+    """
+    Read the corrections catalog, telling "none stored" from a failed read.
+
+    `load_catalog` reads both as `{}`; a run that publishes rain uses this
+    instead, so a read error is never published as "no corrections" (#160).
+
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: The catalog; None when none is stored.
+    :raises StorageReadError: If the stored catalog cannot be read or parsed.
+    """
+    return read_json_from_s3(bucket, f"{mac_address}.rain_corrections.json")
 
 
 def save_catalog(catalog: Dict, mac_address: str, bucket: str = "lookout") -> bool:

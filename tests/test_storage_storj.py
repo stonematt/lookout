@@ -181,3 +181,28 @@ def test_list_bucket_items_respects_depth(fake_s3):
     items = storj.list_bucket_items(BUCKET, depth=2)
 
     assert items == [{"path": f"{BUCKET}/{ARCHIVE_KEY}", "size": 3}]
+
+
+# ---------- telling a missing object from a failed read (#160) ----------
+
+
+def test_read_json_is_none_for_a_missing_object(fake_s3):
+    assert storj.read_json_from_s3(BUCKET, "absent.json") is None
+
+
+def test_read_json_raises_on_an_unparseable_object(fake_s3):
+    fake_s3.put_object(Bucket=BUCKET, Key="bad.json", Body=b"{not json")
+
+    with pytest.raises(storj.StorageReadError):
+        storj.read_json_from_s3(BUCKET, "bad.json")
+    assert storj.get_json_from_s3(BUCKET, "bad.json") == {}
+
+
+def test_load_archive_raises_for_a_missing_archive(fake_s3):
+    with pytest.raises(storj.StorageReadError, match="missing"):
+        storj.load_archive(BUCKET, FAKE_MAC)
+
+
+def test_save_df_reports_whether_it_saved(fake_s3):
+    assert storj.save_df_to_s3(scenario_archive(), BUCKET, ARCHIVE_KEY) is True
+    assert storj.save_df_to_s3(scenario_archive(), "no-such-bucket", "x") is False

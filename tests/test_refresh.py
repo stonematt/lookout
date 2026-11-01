@@ -832,6 +832,31 @@ class TestRainCorrections:
         for col in ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"):
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
+    def test_an_unreadable_catalog_fails_the_run_and_publishes_nothing(
+        self, station, fake_healthchecks, monkeypatch
+    ):
+        """
+        #160: a catalog read error is not "no corrections". The run fails
+        (`/1`) rather than publish Friday's rain uncorrected; the last good
+        snapshot stays up and the next run retries.
+        """
+        flaky_storj(monkeypatch, station.s3, read=RAIN_CATALOG_KEY)
+
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: station.now) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+
+    def test_a_corrupt_catalog_fails_the_run(self, station, fake_healthchecks):
+        station.s3.put_object(Bucket=BUCKET, Key=RAIN_CATALOG_KEY, Body=b"{not json")
+
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: station.now) == 1
+
+        assert snapshot_keys(station) == []
+
+
+RAIN_CATALOG_KEY = f"{FAKE_MAC}.rain_corrections.json"
+
 
 # ---------- the live reading, corrected like the archive (#118) ----------
 
@@ -1006,6 +1031,15 @@ class TestCorrectRain:
 
         assert archive is weather
         assert corrected is live
+
+    def test_a_catalog_read_error_raises_rather_than_reading_as_none(
+        self, weather, fake_s3, monkeypatch
+    ):
+        flaky_storj(monkeypatch, fake_s3, read=RAIN_CATALOG_KEY)
+        live = to_ambient_records(weather.head(1))[0]
+
+        with pytest.raises(storj.StorageReadError):
+            refresh.correct_rain(self.STATION, BUCKET, weather, live)
 
     def test_no_live_reading_stays_none(self, weather):
         _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, None)
