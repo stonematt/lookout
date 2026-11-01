@@ -21,6 +21,7 @@ from lookout.api import awn_controller as awn
 from lookout.cli import diagnostics
 from lookout.core import rain_corrections
 from lookout.core.archive_merge import MergeReport
+from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
@@ -402,6 +403,25 @@ class TestRainCatalog:
 
         assert status == 0
         assert "Stored catalog: failed" in out
+        assert station.keys() == keys
+
+    def test_nothing_detected_exits_1_and_writes_nothing(
+        self, seed, capsys, monkeypatch
+    ):
+        station = seed()
+        self.store_catalog(station)
+        keys = station.keys()
+        monkeypatch.setattr(
+            RainEventCatalog,
+            "detect_and_catalog_events",
+            lambda self, archive, auto_save=False: pd.DataFrame(),
+        )
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "No rain events could be detected" in out
+        assert "Detected:" not in out
         assert station.keys() == keys
 
     def test_save_backs_up_a_found_catalog_then_writes(self, seed, capsys):
