@@ -316,7 +316,7 @@ Every chart is drawn as SVG at its real pixel width. There are no chart boxes an
 
 **The Name the Years Rule.** A headline that compares years names them, newest first: "against 3.5 in (2025) and 4.5 in (2024)".
 
-**The One Format Rule.** Times are written `9:36 am`, and dates with times are written `Oct 27, 11:00 pm`. Durations are written `1 d 10 h`, `5 h 12 m` or `45 m`. Use station-local Pacific time and imperial units.
+**The One Format Rule.** Times are written `9:36 am`, and dates with times are written `Oct 27, 11:00 pm`. Durations are written `1 d 10 h`, `5 h 12 m` or `45 m`. Use the station's own time zone (the snapshot's `station.tz`, read from Ambient each build) and imperial units.
 
 **The Label Not Colour Rule.** Copy refers to marks by label or position ("the bold line", "the line marked now", "the shaded band", "the outlined month"), never by colour.
 

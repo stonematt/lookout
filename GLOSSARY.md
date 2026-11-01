@@ -128,8 +128,26 @@ A station-local day the archive can speak for: at least 80% of its due
 5-minute readings are archived. For rain, a counted day also needs a reading
 of the daily rain counter; a counted day without one is a gap for rain, but
 not for temperature or solar, so a dead rain gauge never hatches their
-windows. A day that is not counted is unknown, never dry or calm.
+windows. A day that is not counted is unknown, never dry or calm. Rain
+consumers judge it through the **rain day kind**.
 _Avoid_: covered day, valid day (valid is a gap status, not a day).
+
+### daily rain series
+
+The maximum daily rain counter for each station-local day, extracted
+once per snapshot build beside the **counted days**. Today's value comes
+from the live reading's daily counter when the live reading is today. It
+is the one place a day's rain amount is read, so the lead and the Rain tab
+agree.
+
+### rain day kind
+
+The rain view over the **counted days** and the **daily rain series**: a
+day is a rain gap when it is not counted, or counted with no counter value.
+The Rain tab, the almanac, rain events and the calm lead judge their
+windows through it; temperature, solar and the gaps section use the plain
+counted day.
+_Avoid_: rain coverage.
 
 ### Event Catalog
 
