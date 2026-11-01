@@ -41,6 +41,8 @@ NOW = "2026-01-11T09:00:00Z"
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
 CATALOG_KEY = f"{FAKE_MAC}.energy_catalog.parquet"
 CATALOG_BACKUP_KEY = f".backups/{FAKE_MAC}.energy_catalog/{FROZEN_DAY}/{CATALOG_KEY}"
+EVENT_KEY = f"{FAKE_MAC}.event_catalog.parquet"
+CORRUPT_CATALOG = b"not a parquet file"
 CARRY_GAP_LINE = "2026-01-09 06:55  2026-01-09 09:00"
 PLAIN_GAP_LINE = "2026-01-10 17:55  2026-01-10 22:00"
 RAIN_COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
@@ -300,6 +302,112 @@ class TestEnergyCatalog:
         replaced = station.stored(CATALOG_KEY)
         assert len(replaced) > 1
         assert replaced["energy_kwh"].sum() > 0.01
+
+
+class TestRainCatalog:
+    def backups(self, station) -> List[str]:
+        return [k for k in station.keys() if k.startswith("backups/")]
+
+    def store_catalog(self, station) -> pd.DataFrame:
+        """Store a one-event catalog that matches no detected event."""
+        stored = pd.DataFrame(
+            {
+                "event_id": ["old"],
+                "start_time": pd.to_datetime(["2025-12-01 10:00"], utc=True),
+                "end_time": pd.to_datetime(["2025-12-01 11:00"], utc=True),
+            }
+        )
+        storj.save_df_to_s3(stored, BUCKET, EVENT_KEY)
+        return stored
+
+    def test_dry_run_reports_a_found_catalog_and_writes_nothing(self, seed, capsys):
+        station = seed()
+        self.store_catalog(station)
+        keys = station.keys()
+
+        status, out = run(["rain-catalog"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: found, 1 events" in out
+        assert "Detected: 3 events" in out
+        assert "Added: 3" in out
+        assert "Dropped: 1" in out
+        assert "Not saved" in out
+        assert station.keys() == keys
+
+    def test_dry_run_reports_a_missing_catalog(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["rain-catalog"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: missing" in out
+        assert EVENT_KEY not in station.keys()
+
+    def test_dry_run_reports_a_corrupt_catalog_and_writes_nothing(self, seed, capsys):
+        station = seed()
+        storj.get_s3_client().put_object(
+            Bucket=BUCKET, Key=EVENT_KEY, Body=CORRUPT_CATALOG
+        )
+        keys = station.keys()
+
+        status, out = run(["rain-catalog"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: failed" in out
+        assert station.keys() == keys
+
+    def test_save_backs_up_a_found_catalog_then_writes(self, seed, capsys):
+        station = seed()
+        self.store_catalog(station)
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        assert "backed up to backups/" in out
+        (backup,) = self.backups(station)
+        assert len(storj.get_df_from_s3(BUCKET, backup, file_type="parquet")) == 1
+        assert len(station.stored(EVENT_KEY)) == 3
+
+    def test_save_with_no_catalog_writes_with_no_backup(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        assert "no backup" in out
+        assert self.backups(station) == []
+        assert len(station.stored(EVENT_KEY)) == 3
+
+    def test_save_backs_up_a_corrupt_catalog_raw_then_writes(self, seed, capsys):
+        station = seed()
+        storj.get_s3_client().put_object(
+            Bucket=BUCKET, Key=EVENT_KEY, Body=CORRUPT_CATALOG
+        )
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        (backup,) = self.backups(station)
+        raw = storj.get_s3_client().get_object(Bucket=BUCKET, Key=backup)
+        assert raw["Body"].read() == CORRUPT_CATALOG
+        assert len(station.stored(EVENT_KEY)) == 3
+
+    def test_save_with_a_failing_backup_writes_nothing(self, seed, capsys, monkeypatch):
+        station = seed()
+        self.store_catalog(station)
+        stored = storj.read_object(BUCKET, EVENT_KEY)
+
+        def refuse(*args, **kwargs):
+            raise storj.BackupError("copy refused")
+
+        monkeypatch.setattr(storj, "backup_object", refuse)
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "unchanged" in out
+        assert storj.read_object(BUCKET, EVENT_KEY) == stored
 
 
 class TestReadOnlyCommands:
