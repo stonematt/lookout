@@ -29,13 +29,14 @@ from lookout.snapshot import Snapshot, curves
 from lookout.storage import storj
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
-from tests.fixtures.real import AMBIENT_END
+from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import BUCKET
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     RECORDED_ROWS,
     CatchupStation,
     catchup_station,
+    flaky_storj,
     ms,
     reporting,
 )
@@ -338,6 +339,37 @@ class TestHeartbeats:
 
         assert self.run_main(station) == 0
         assert len(snapshot_keys(station)) == 2
+
+    @pytest.mark.parametrize(
+        "fail",
+        [{"read": ARCHIVE_KEY}, {"write": ARCHIVE_KEY}, {"copy": True}],
+        ids=["archive-read", "archive-save", "archive-backup"],
+    )
+    def test_a_failed_archive_read_save_or_backup_reports_a_failed_run(
+        self, seed, fake_healthchecks, monkeypatch, fail
+    ):
+        """#160: the run exits 1, `/1` goes out, nothing publishes."""
+        station = seed()
+        before = stored_bytes(station, ARCHIVE_KEY)
+        flaky_storj(monkeypatch, station.s3, **fail)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+        assert stored_bytes(station, ARCHIVE_KEY) == before
+
+    def test_an_empty_archive_reports_a_failed_run_and_is_left_as_stored(
+        self, seed, fake_healthchecks
+    ):
+        station = seed(archive=load_real_slice().head(0))
+        before = stored_bytes(station, ARCHIVE_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+        assert stored_bytes(station, ARCHIVE_KEY) == before
 
 
 # ---------- the catalogs: update on every run, save by rule (#73) ----------
@@ -729,6 +761,54 @@ class TestEventCurveFiles:
             curve_keys(station)
         )
 
+    def test_one_event_failing_to_write_does_not_stop_the_others(
+        self, seed, monkeypatch, caplog
+    ):
+        """#160: the middle event's write fails; the older one still lands."""
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        real_put = station.s3.put_object
+
+        class OneBadKey:
+            def __getattr__(self, name):
+                return getattr(station.s3, name)
+
+            def put_object(self, **kwargs):
+                if kwargs["Key"] == curve_key(EVENT_2):
+                    raise OSError("curve write refused")
+                return real_put(**kwargs)
+
+        monkeypatch.setattr(curves, "get_s3_client", lambda: OneBadKey())
+
+        run_refresh(station)
+
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_3)
+        )
+        assert "curve write refused" in caplog.text
+        assert str(EVENT_2) in caplog.text
+
+    def test_one_event_failing_to_build_does_not_stop_the_others(
+        self, seed, monkeypatch, caplog
+    ):
+        from lookout.snapshot import events
+
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        real_curve = events._curve
+
+        def curve(readings, start_ms, end_ms):
+            if start_ms == EVENT_2:
+                raise ValueError("readings out of order")
+            return real_curve(readings, start_ms, end_ms)
+
+        monkeypatch.setattr(events, "_curve", curve)
+
+        run_refresh(station)
+
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_3)
+        )
+        assert "readings out of order" in caplog.text
+
 
 # ---------- rain corrections, applied once on read (#95) ----------
 
@@ -799,6 +879,31 @@ class TestRainCorrections:
         assert len(merged) == len(station.weather)
         for col in ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"):
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
+
+    def test_an_unreadable_catalog_fails_the_run_and_publishes_nothing(
+        self, station, fake_healthchecks, monkeypatch
+    ):
+        """
+        #160: a catalog read error is not "no corrections". The run fails
+        (`/1`) rather than publish Friday's rain uncorrected; the last good
+        snapshot stays up and the next run retries.
+        """
+        flaky_storj(monkeypatch, station.s3, read=RAIN_CATALOG_KEY)
+
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: station.now) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+
+    def test_a_corrupt_catalog_fails_the_run(self, station, fake_healthchecks):
+        station.s3.put_object(Bucket=BUCKET, Key=RAIN_CATALOG_KEY, Body=b"{not json")
+
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: station.now) == 1
+
+        assert snapshot_keys(station) == []
+
+
+RAIN_CATALOG_KEY = f"{FAKE_MAC}.rain_corrections.json"
 
 
 # ---------- the live reading, corrected like the archive (#118) ----------
@@ -974,6 +1079,15 @@ class TestCorrectRain:
 
         assert archive is weather
         assert corrected is live
+
+    def test_a_catalog_read_error_raises_rather_than_reading_as_none(
+        self, weather, fake_s3, monkeypatch
+    ):
+        flaky_storj(monkeypatch, fake_s3, read=RAIN_CATALOG_KEY)
+        live = to_ambient_records(weather.head(1))[0]
+
+        with pytest.raises(storj.StorageReadError):
+            refresh.correct_rain(self.STATION, BUCKET, weather, live)
 
     def test_no_live_reading_stays_none(self, weather):
         _, corrected = refresh.correct_rain(self.STATION, BUCKET, weather, None)

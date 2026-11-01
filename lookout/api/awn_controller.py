@@ -400,7 +400,8 @@ def seek_over_time_gap(
     an outage touch and no stretch goes unrequested (#132). The walk's
     reach is therefore about `max_attempts` pages from where the gap began:
     some 208 hours at 250 records and 10 attempts. A longer outage ends on
-    the cap with nothing fetched, and the next run starts from the same row.
+    the cap; `get_history_since_last_archive` then crosses it from the
+    other side (`_cross_long_gap`, #160).
 
     :param last_date: datetime - The cursor the empty probe was made from.
     :param gap_attempts: int - Consecutive empty probes before this one.
@@ -416,6 +417,70 @@ def seek_over_time_gap(
     logger.info(f"Seeking ahead: {gap_attempts}/{max_attempts}")
     next_date = _calculate_next_start_date(last_date, limit)
     return next_date, gap_attempts, False
+
+
+class CatchupStalled(RuntimeError):
+    """Ambient holds readings past a gap that one run could not cross (#160)."""
+
+
+def _cross_long_gap(
+    device: dict,
+    known_max_ms: int,
+    now_utc: datetime,
+    limit: int,
+    budget: int,
+    sleep: bool = False,
+) -> pd.DataFrame:
+    """
+    Cross a gap the forward walk gave up on, by walking back from `now_utc`.
+
+    Pages end at `now_utc`, then at each page's oldest reading, until a page
+    reaches back to `known_max_ms` (the newest row already held): every
+    reading after the gap is then fetched, whatever the gap's length (#160).
+    A walk back costs one page per 250 readings since the station resumed,
+    not per stretch of silence, so a gap of any length Ambient still holds
+    data on both sides of is crossed. The first page holding nothing newer
+    means the station is still silent: nothing to add.
+
+    :param device: The station's `/devices` entry.
+    :param known_max_ms: The newest `dateutc` already held (archive or
+        interim), epoch ms.
+    :param now_utc: The walk's start: now, or the caller's end bound.
+    :param limit: Records per page.
+    :param budget: Most pages the walk may fetch.
+    :param sleep: Wait a second before each page (Ambient's rate limit).
+    :return: The readings after `known_max_ms`; empty when there are none.
+    :raises CatchupStalled: If the budget runs out, or a page comes back
+        empty, before the walk reaches `known_max_ms`: saving what it found
+        would leave a hole the next run never revisits.
+    """
+    end_ms = int(_to_utc(now_utc).timestamp() * 1000)
+    found = pd.DataFrame()
+    reason = f"{budget} page(s) walking back from {now_utc} did not reach it"
+    for _ in range(budget):
+        if sleep:
+            time.sleep(1)
+        page = get_device_history_to_date(device, end_date=end_ms, limit=limit)
+        if page.empty:
+            if found.empty:
+                return found
+            reason = (
+                f"Ambient returned no readings before "
+                f"{pd.to_datetime(end_ms, unit='ms', utc=True)}"
+            )
+            break
+        newer = page[page["dateutc"] > known_max_ms]
+        if not newer.empty:
+            found = combine_interim_data(found, newer)
+        if len(newer) < len(page):
+            if not found.empty:
+                logger.info(f"Crossed a long gap: +{len(found)} rows after it")
+            return found
+        end_ms = int(page["dateutc"].min())
+    raise CatchupStalled(
+        f"Ambient holds readings after a gap past "
+        f"{pd.to_datetime(known_max_ms, unit='ms', utc=True)}, but {reason}"
+    )
 
 
 def _utc_now():
@@ -488,6 +553,13 @@ def get_history_since_last_archive(
     The result is raw: the archive rows as handed, the fetched rows as Ambient
     reported them. Rain corrections are not applied; a reader applies them
     once, after loading (#95), so the archive written to storage stays raw.
+
+    A gap longer than the forward seek's reach (about 208 h, #132) is
+    crossed by walking back from the end with the pages left
+    (`_cross_long_gap`, #160).
+
+    :raises CatchupStalled: If Ambient holds readings past a gap that the
+        pages left could not cross.
     """
     if not validate_archive(archive_df):
         return archive_df
@@ -540,6 +612,16 @@ def get_history_since_last_archive(
                 last_date, gap_attempts, limit
             )
             if exit_flag:
+                held = int(archive_df["dateutc"].max())
+                if not interim_df.empty:
+                    held = max(held, int(interim_df["dateutc"].max()))
+                # At least one page, so a still-silent station is told
+                # apart from a stall even when the probes used every page.
+                crossed = _cross_long_gap(
+                    device, held, now_utc, limit, max(1, pages - page - 1), sleep
+                )
+                if not crossed.empty:
+                    interim_df = combine_interim_data(interim_df, crossed)
                 break
             continue
 

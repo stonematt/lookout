@@ -85,8 +85,10 @@ def publish_event_curves(
     """
     Write the curve files of completed events that have none yet.
 
-    A failed write raises; the refresh run logs it and does not fail (the
-    snapshot has published, and the next run retries the missing files).
+    Each event is written on its own (#160): one whose document or write
+    fails is logged at ERROR and skipped, and the others are still written;
+    the next run retries it. Listing the stored files can still raise; the
+    refresh run logs that and does not fail (the snapshot has published).
 
     :param station: The station.
     :param event_catalog: The Event Catalog, or None.
@@ -108,12 +110,16 @@ def publish_event_curves(
     written = []
     for curve in curves:
         key = curve_key(station.mac, curve.start_ms)
-        client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=json.dumps(curve.document(station), allow_nan=False),
-            ContentType="application/json",
-        )
+        try:
+            client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=json.dumps(curve.document(station), allow_nan=False),
+                ContentType="application/json",
+            )
+        except Exception as e:
+            logger.exception(f"Curve file {key} not written: {e}")
+            continue
         written.append(key)
     if written:
         prefix = curve_prefix(station.mac)
