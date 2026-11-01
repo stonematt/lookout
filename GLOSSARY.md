@@ -33,19 +33,24 @@ newest first, whichever command saved it: every writer saves through
 reading take the greatest `dateutc` (`trend_utils.newest_row`), not the
 first row.
 
-### lookout post
+### station
 
-A physical Ambient Weather station. Each post owns its own IANA timezone
-(the API's `tz` field, e.g. `"America/Los_Angeles"`). All operator-facing
-day-granularity reasoning ("yesterday's high", "days since last rain") is
-in the post's local zone — the post is the **timezone-aware unit**, not
-the dataframe or the codebase. The Ambient account today owns a single
-post; the API supports multiple. See
+One physical Ambient Weather station, keyed by its MAC address. Each
+station owns its own IANA timezone (the API's `tz` field, e.g.
+`"America/Los_Angeles"`). All operator-facing day-granularity reasoning
+("yesterday's high", "days since last rain") is in the station's local
+zone — the station is the **timezone-aware unit**, not the dataframe or
+the codebase. See
 [ADR-0002](docs/adr/0002-station-local-time-as-analytical-frame.md).
 
-**Known limitation:** the post's `tz` is currently consumed at ingest and
-discarded. Existing archives do not persist a `tz` column. `DEFAULT_TZ =
-"America/Los_Angeles"` is hardcoded as the single-post default. Persisting
+Stations have names. **Lookout Post** is the one station today; a second,
+**Salmon Run**, is coming at a new location. Lookout, the product, is the
+dashboard, not a station.
+_Avoid_: "lookout post" or "post" as the general term.
+
+**Known limitation:** the station's `tz` is currently consumed at ingest
+and discarded. Existing archives do not persist a `tz` column. `DEFAULT_TZ =
+"America/Los_Angeles"` is hardcoded as the single-station default. Persisting
 `tz` is **lower priority** than finishing the dateutc consolidation in
 the solar pipeline and energy catalog — see ADR-0002 deferred work.
 
@@ -61,15 +66,15 @@ stays even after pinning `pandas < 3`.
 
 ### water year
 
-The rain season Lookout totals over: Oct 1 through Sep 30, in the lookout
-post's local zone, named by the year it ends in. Season totals,
+The rain season Lookout totals over: Oct 1 through Sep 30, in the station's
+local zone, named by the year it ends in. Season totals,
 year-to-date rain, the almanac's year rows and year-over-year accumulation
 all use it, so a winter's rain is never split across two years.
 _Avoid_: rain year, season year, calendar year (for rain totals).
 
 ### snapshot
 
-The precomputed state of the dashboard for one lookout post: what each tab
+The precomputed state of the dashboard for one station: what each tab
 shows, built by the refresh run from the archive, the live reading and the
 catalogs, and published to Storj as JSON under `snapshot/` (ADR-0003). The
 Vercel site reads it and computes nothing itself. Its full form is the
@@ -99,7 +104,7 @@ _Avoid_: coverage (the readings-per-hour grid), data quality, completeness.
 
 ### Event Catalog
 
-The stored list of rain events detected from a lookout post's archive. It
+The stored list of rain events detected from a station's archive. It
 is derived: detection can always rebuild it from the archive. A rebuild is
 not free, though: history that detection no longer reproduces, such as
 events shaped by earlier rain corrections, is lost unless a backup is kept.
@@ -116,8 +121,8 @@ Every storage read ends in exactly one of three outcomes:
   but cannot be read (network error, timeout, corrupt file).
 
 Missing and failed are never interchangeable: a failed read is never acted
-on as "nothing stored". A missing archive is an error too: adding a lookout
-post is a human act, never inferred from an absent archive. See
+on as "nothing stored". A missing archive is an error too: adding a station
+is a human act, never inferred from an absent archive. See
 [ADR-0004](docs/adr/0004-failed-storage-read-aborts.md).
 _Avoid_: "empty" for either missing or failed.
 

@@ -26,7 +26,7 @@ The run still exited 0.
    own. A human rebuilds the Event Catalog with a `diagnostics` command
    that backs up first and writes only with `--save`.
 3. **Missing means something different for each kind of object.**
-   - Archive: missing is an error. Adding a lookout post is a human act,
+   - Archive: missing is an error. Adding a station is a human act,
      never inferred from an absent archive. A wrong MAC or bucket prefix
      must not start a fresh archive in silence.
    - Derived catalogs: missing is legal. The run detects from the archive
