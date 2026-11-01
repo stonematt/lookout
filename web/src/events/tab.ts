@@ -4,12 +4,17 @@
  * the URL (`?event=<start_ms>`), so a link opens the same event.
  *
  * - The list renders from the snapshot's `rain_events`; a water-year picker
- *   and a sort reshape it in the browser.
- * - A closed event's detail renders from its curve file (`/event`); the
- *   event the catalog still holds open, live or not, from the snapshot's
- *   `open_curve`, since its file is written only once the catalog closes
- *   it. An event with no archive data shows its totals only, with "n/a: gap
- *   in record".
+ *   and a sort reshape it in the browser. A water year the record does not
+ *   cover is hatched in the picker, and a note beside the summary says the
+ *   list can miss its events.
+ * - The live event's detail renders from the snapshot's `open_curve`, which
+ *   the snapshot holds only for the live event (`active_rain_event`, the
+ *   hero's decision); without one it says its readings are "not in the
+ *   snapshot yet". Any other event's renders from its curve file (`/event`).
+ *   An event the catalog still holds open after the rain has stopped is not
+ *   live and has no file yet (the file is written once the catalog closes
+ *   it), so it reads "not published yet" until then. An event with no
+ *   archive data shows its totals only, with "n/a: gap in record".
  * - The event is keyed by its start, which is stable across refresh runs,
  *   so a link opened while it is live still opens it once it has completed.
  */
@@ -18,8 +23,9 @@ import "./events.css";
 import { formatStamp, inches, inchesPerHour, waterYearSpan } from "../format.js";
 import { ReadError, fetchEventCurve } from "../load.js";
 import { escapeHtml as esc } from "../dom.js";
+import { gapElement, gapLabel, isComparable } from "../gaps.js";
 import { staleCatalogNote } from "../stale.js";
-import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
+import type { DashboardSnapshot, EventCurve, EventSeason, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
 import {
   eventFinding,
@@ -27,6 +33,9 @@ import {
   lowQuality,
   minutes,
   qualityLabel,
+  scrollEdges,
+  seasonNote,
+  seasonStatus,
   selectedStart,
   startLabel,
   statsFor,
@@ -79,6 +88,26 @@ function stat(value: string, label: string): string {
 }
 
 /**
+ * A water year's picker button. One the record does not cover carries the
+ * gap hatch along its foot and its reason in the title and spoken; a ≈ one
+ * says so in its title only (a ≈ is never hatched).
+ */
+function yearButton(season: EventSeason): string {
+  const status = seasonStatus(season);
+  const year = esc(season.water_year);
+  const span = waterYearSpan(season.water_year);
+  if (status.status === "valid") {
+    return `<button type="button" data-season="${year}" title="${esc(span)}">${year}</button>`;
+  }
+  if (isComparable(status)) {
+    const title = `${span}: ${status.missing_days} of ${status.days} days missing from the record`;
+    return `<button type="button" data-season="${year}" title="${esc(title)}">${year}</button>`;
+  }
+  const reason = gapLabel(status)!;
+  return `<button type="button" data-season="${year}" data-gap="${esc(status.reason ?? "gap")}" title="${esc(`${span}: ${reason}`)}">${year}<span class="ev-seg-gap gap-hatch" aria-hidden="true"></span><span class="sr-only">, ${esc(reason)}</span></button>`;
+}
+
+/**
  * Render the Rain Events tab into its panel.
  *
  * @param panel - The tab's panel; its content is replaced.
@@ -116,6 +145,7 @@ export function mountEvents(
     </div>
   </div>
   <dl class="ev-stats"></dl>
+  <p class="ev-note ev-season-gap" role="note" hidden></p>
   <div class="ev-grid">
     <article class="ev-detail" aria-live="polite"></article>
     <div class="ev-list"></div>
@@ -138,11 +168,17 @@ export function mountEvents(
 
   seasons.innerHTML = [
     `<button type="button" data-season="all">All</button>`,
-    ...section.seasons.map(
-      (s) =>
-        `<button type="button" data-season="${esc(s.water_year)}" title="${esc(waterYearSpan(s.water_year))}">${esc(s.water_year)}</button>`,
-    ),
+    ...section.seasons.map(yearButton),
   ].join("");
+  // The control scrolls in place at phone width; the edge with years hidden
+  // past it fades (events.css), so the scroll is not a secret.
+  const cue = () => {
+    seasons.dataset.more = scrollEdges(seasons.scrollLeft, seasons.scrollWidth, seasons.clientWidth);
+  };
+  seasons.addEventListener("scroll", cue, { passive: true });
+  // Also fires once the tab is first shown, when the control gets its width.
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(cue).observe(seasons);
+  cue();
 
   function renderHead(): void {
     const stats = statsFor(section, season);
@@ -157,6 +193,14 @@ export function mountEvents(
         "mean length",
       ),
     ].join("");
+    const note = $(".ev-season-gap");
+    const text = seasonNote(section, season);
+    note.hidden = text === null;
+    note.replaceChildren();
+    const year = season === "all" ? undefined : section.seasons.find((s) => s.water_year === season);
+    const status = year && seasonStatus(year);
+    if (status && !isComparable(status)) note.append(gapElement(status), " ");
+    if (text !== null) note.append(text);
     for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-season]")) {
       b.setAttribute("aria-pressed", String(b.dataset.season === String(season)));
     }
@@ -322,6 +366,8 @@ ${note}
       limit = PAGE;
       renderHead();
       renderList();
+      // A year tapped half under the fade comes whole into view.
+      seasonButton.scrollIntoView({ block: "nearest", inline: "nearest" });
       return;
     }
     const sortButton = target.closest<HTMLButtonElement>("[data-sort]");

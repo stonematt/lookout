@@ -79,6 +79,50 @@
   outline-offset: -3px;
 }
 
+/* The edge with water years scrolled past it fades out, so a control that
+   scrolls in place at phone width shows there is more of it. Not a shadow:
+   the years themselves thin out toward the edge (DESIGN.md, Flat Paper). */
+.ev-seg {
+  --fade-edge: 48px;
+  --fade-floor: rgb(0 0 0 / 0.15);
+}
+
+.ev-seg[data-more="end"] {
+  --fade: linear-gradient(to right, #000 calc(100% - var(--fade-edge)), var(--fade-floor));
+}
+
+.ev-seg[data-more="start"] {
+  --fade: linear-gradient(to left, #000 calc(100% - var(--fade-edge)), var(--fade-floor));
+}
+
+.ev-seg[data-more="both"] {
+  --fade: linear-gradient(
+    to right,
+    var(--fade-floor),
+    #000 var(--fade-edge),
+    #000 calc(100% - var(--fade-edge)),
+    var(--fade-floor)
+  );
+}
+
+.ev-seg[data-more="end"],
+.ev-seg[data-more="start"],
+.ev-seg[data-more="both"] {
+  -webkit-mask-image: var(--fade);
+  mask-image: var(--fade);
+}
+
+/* A water year the record does not cover: the gap hatch along its foot. */
+.ev-seg button[data-gap] {
+  position: relative;
+}
+
+.ev-seg-gap {
+  position: absolute;
+  inset: auto 0 0;
+  height: 4px;
+}
+
 /* ---------- stat strips ---------- */
 .ev-stats,
 .ev-facts {
@@ -197,6 +241,15 @@
   font-size: var(--step--1);
   color: var(--ink-2);
   max-width: 62ch;
+}
+
+/* The water year's gap, in place before the note that explains it. */
+.ev-season-gap .gap-block {
+  display: inline-flex;
+  min-height: 0;
+  /* Enough hatch round the haloed reason for the stripes to read. */
+  padding: 3px var(--s-2);
+  vertical-align: baseline;
 }
 
 .ev-retry,

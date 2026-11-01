@@ -63,7 +63,8 @@ describe("escaping", () => {
     expect(host.querySelector(".ev-kicker")!.textContent).toContain(HOSTILE);
     expect(host.querySelector(".ev-chip")!.textContent).toBe(HOSTILE);
     const season = host.querySelectorAll<HTMLButtonElement>("[data-season]")[1]!;
-    expect(season.textContent).toBe(HOSTILE);
+    // The golden's water year starts before the archive: its reason is spoken.
+    expect(season.textContent).toBe(`${HOSTILE}, n/a: before the archive`);
     expect(season.dataset.season).toBe(HOSTILE);
     expect(season.title).toContain(HOSTILE);
   });
