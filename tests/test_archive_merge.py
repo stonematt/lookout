@@ -859,3 +859,11 @@ class TestArchiveReplace:
         report = archive_merge.ReplaceReport(replaced=120, written=118)
 
         assert report.describe() == "replaced 120 readings with 118"
+
+    def test_an_empty_archive_takes_the_replacement_in_the_window(self):
+        fixed = readings({"slot": 0, "tempf": 50.0}, {"slot": 9, "tempf": 1.0})
+
+        archive, report = archive_merge.replace(pd.DataFrame(), T0, T0 + STEP, fixed)
+
+        assert list(archive["dateutc"]) == [T0]
+        assert (report.replaced, report.written) == (0, 1)

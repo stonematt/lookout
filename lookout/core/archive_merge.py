@@ -282,6 +282,8 @@ def replace(
         stored columns in their order, then the replacement-only ones.
     """
     stored = normalize(stored)
+    if "dateutc" not in stored:
+        stored = pd.DataFrame({"dateutc": pd.Series(dtype="int64")})
     if replacement.empty:
         replacement = stored.iloc[0:0]
     else:
@@ -295,7 +297,9 @@ def replace(
     ]
     pieces = [p for p in (stored[~inside], new) if not p.empty]
     if not pieces:
-        return Replaced(stored, ReplaceReport(replaced=int(inside.sum())))
+        return Replaced(
+            _newest_first(stored), ReplaceReport(replaced=int(inside.sum()))
+        )
     merged = pd.concat(pieces, sort=False).reindex(columns=columns)
     report = ReplaceReport(replaced=int(inside.sum()), written=len(new))
     return Replaced(_newest_first(merged), report)
