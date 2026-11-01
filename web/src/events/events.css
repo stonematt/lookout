@@ -244,7 +244,8 @@
 .ev-season-gap .gap-block {
   display: inline-flex;
   min-height: 0;
-  padding: 0 var(--s-1);
+  /* Enough hatch round the haloed reason for the stripes to read. */
+  padding: 3px var(--s-2);
   vertical-align: baseline;
 }
 
