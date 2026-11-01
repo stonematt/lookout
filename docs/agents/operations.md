@@ -21,7 +21,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 ## Vercel
 
 - Project `lookout`, team "Matt Stone's projects" (scope `matt-stones-projects-aa308b10`), account `mstone-3228`, Hobby plan. Link with `vercel link --project lookout --scope matt-stones-projects-aa308b10`.
-- Env vars for Production and Preview: `STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`, `STORJ_ENDPOINT_URL`, `STORJ_BUCKET`, `AMBIENT_API_KEY` (Vercel's own key, separate from the VPS key), `AMBIENT_APPLICATION_KEY`. `HC_PING_KEY` stays VPS-only.
+- Env vars for Production and Preview: `STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`, `STORJ_ENDPOINT_URL`, `STORJ_BUCKET`, `STATION_MAC` (the same value as on the VPS; every read function refuses to start without it), `AMBIENT_API_KEY` (Vercel's own key, separate from the VPS key), `AMBIENT_APPLICATION_KEY`, and optionally `AMBIENT_ENDPOINT`. `web/server/env.ts` is the list the functions check. `HC_PING_KEY` stays VPS-only.
 - `vercel env add NAME preview` needs an explicit empty branch argument for all Preview branches: `vercel env add NAME preview "" --value … --yes`.
 
 ## Healthchecks.io
