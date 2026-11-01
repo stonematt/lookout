@@ -103,6 +103,25 @@ over a month or window goes through it
 (`lookout.snapshot.gaps.comparable`).
 _Avoid_: coverage (the readings-per-hour grid), data quality, completeness.
 
+### archive
+
+A station's stored readings, one row for each `dateutc`. It holds only
+what Ambient sends; Ambient's own computed fields (feels-like, dew point)
+count as raw. Values Lookout derives, such as the hour or a wind bin, are
+never stored: readers compute them. The archive is the one thing Lookout
+cannot regenerate, so no routine write may drop a stored reading or blank
+a stored value. Only an explicit repair may.
+_Avoid_: history, the parquet, the data file.
+
+### archive merge
+
+How fetched readings join the archive. Ambient is the source of truth:
+for each value Ambient sends, Ambient's value wins; where Ambient sends
+nothing, the stored value stays. A merge reports readings **added**,
+values **filled** (stored had none) and values **updated** (Ambient's
+differs). A deliberate correction is a **replace**, never a merge.
+_Avoid_: combine, overwrite, "fetched wins".
+
 ### counted day
 
 A station-local day the archive can speak for: at least 80% of its due
