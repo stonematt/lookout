@@ -89,22 +89,35 @@ does.
 
 ## Read functions
 
-All three take an optional `?station=<MAC>`. Without it they use `STATION_MAC`.
-Any station other than `STATION_MAC` answers 404, uncached, before any read.
+The CDN keys its cache on the whole URL, so each read function reads Storj or
+Ambient only at one URL: the bare path, and for `/event` exactly
+`?start=<ms>`. Before any read, an unknown or repeated query parameter
+answers 400 (uncached), and another spelling of the same request answers 308
+to the one URL. The optional `?station=<MAC>` is kept for shared links: the
+configured `STATION_MAC`, in any case, redirects to the URL without it; any
+other station answers 404, uncached. `fixture` and `age` are the lane
+server's only: the deployed functions refuse them.
 
 - `GET /dashboard`: the station's `snapshot/<MAC>.dashboard.json`, as Storj
-  holds it, with `Cache-Control: s-maxage=300, stale-while-revalidate=300`.
-  It answers 404 when the station has no snapshot, 502 when Storj fails or the
-  document breaks the contract, 400 for a malformed station and 500 when an
-  env var is unset.
+  holds it, with `Cache-Control: s-maxage=300, stale-while-revalidate=300,
+  stale-if-error=300`. It answers 404 when the station has no snapshot, 502
+  when Storj fails or the document breaks the contract (both `s-maxage=15`),
+  and 500 when an env var is unset.
 - `GET /current`: `{schema_version, kind: "current", station, observed_at_ms,
   built_at_ms, last_data, context}`. `last_data` is Ambient's live `lastData`,
   and `context` is `snapshot/<MAC>.context.json`. Either can be null when its
   source fails; it answers 502 only when both fail. `observed_at_ms` is the
   newer of the live `dateutc` and the context's observation. When both halves are
-  read, it is cached with `s-maxage=60, stale-while-revalidate=60` so that
-  Ambient is called at most about once a minute per region. A partial body
-  is `no-store`, so the CDN does not keep serving a blip.
+  read, it is cached with `s-maxage=60, stale-while-revalidate=60,
+  stale-if-error=300` so that Ambient is called at most about once a minute
+  per region. A partial body (an Ambient 429 included) and the 502 are cached
+  with `s-maxage=15`, so that a rate-limit episode does not feed itself with
+  a call per visitor, and a blip is not served on for long.
+
+Vercel's CDN does not cache a 5xx response, so a 502's `s-maxage=15` holds
+only for other caches; there, `stale-if-error` lets the CDN keep serving the
+last good copy instead. Each Ambient and Storj fetch times out after 5
+seconds, so a hung upstream fails the read rather than stalling it.
 
 ## Environment variables
 

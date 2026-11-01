@@ -10,6 +10,9 @@ import { describeError } from "./errors.js";
 /** Ambient's endpoint when `AMBIENT_ENDPOINT` is not set. */
 export const DEFAULT_AMBIENT_ENDPOINT = "https://rt.ambientweather.net/v1";
 
+/** How long one Ambient call may take, body included, before it fails. */
+export const AMBIENT_TIMEOUT_MS = 5_000;
+
 /** What Ambient needs to answer. */
 export interface AmbientConfig {
   apiKey: string;
@@ -50,11 +53,13 @@ interface AmbientDevice {
  *
  * @param config - The API and application keys and the endpoint.
  * @param fetchImpl - The fetch to call Ambient with.
+ * @param timeoutMs - How long one call may take before it fails.
  * @returns The reader.
  */
 export function ambientReader(
   config: AmbientConfig,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = AMBIENT_TIMEOUT_MS,
 ): LiveReader {
   return async (mac) => {
     const url = new URL(`${config.endpoint.replace(/\/+$/, "")}/devices`);
@@ -62,7 +67,7 @@ export function ambientReader(
     url.searchParams.set("applicationKey", config.applicationKey);
     let response: Response;
     try {
-      response = await fetchImpl(url);
+      response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       // A network error can carry the URL, and the URL carries the keys.
       const keys = [config.apiKey, config.applicationKey];
