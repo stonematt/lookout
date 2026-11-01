@@ -19,9 +19,9 @@ An earlier year is read only when its 15-day window is comparable
 (`lookout.snapshot.gaps.comparable`), and only over that window's counted
 days, so a gap never reads as a calm day. Gap statuses are the build's
 counted days, the archive as stored; values read the live-stitched history,
-so they agree with the first screen. The old history min/max and polar preparers in
-`lookout.core.data_processing` read the wall clock and ignore gaps, so they
-are not composed here.
+so they agree with the first screen. The old history min/max and polar
+preparers in `lookout.core.data_processing` read the wall clock and ignore
+gaps, so they are not composed here.
 
 Functions:
 - temperature_context(stitched, current, observed_at_ms, coverage): The

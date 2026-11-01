@@ -25,6 +25,7 @@ Classes and functions:
 """
 
 from dataclasses import dataclass
+from functools import cached_property
 from datetime import date
 from typing import Dict, Mapping, Optional
 
@@ -38,9 +39,6 @@ from lookout.snapshot.model import GapStatus, SnapshotConditions
 from lookout.snapshot.values import iso_day, number
 from lookout.utils.dateutc import day_span
 
-RAIN_COUNTER = "dailyrainin"
-"""The archive column holding the daily rain counter."""
-
 
 @dataclass(frozen=True)
 class CountedDays:
@@ -52,14 +50,19 @@ class CountedDays:
         whose counter has no reading; today live.
     :param rain: The rain day kind: `coverage` with every counted day that
         has no counter value judged a gap.
-    :param rain_in: Each rain-counted day's total: the series over the days
-        `rain` counts.
     """
 
     coverage: ArchiveCoverage
     rain_series: Mapping[date, float]
     rain: ArchiveCoverage
-    rain_in: Mapping[date, float]
+
+    @cached_property
+    def rain_in(self) -> Dict[date, float]:
+        """Each rain-counted day's total: the series over the days `rain`
+        counts, so an unknown day is never summed as dry."""
+        return {
+            d: v for d, v in self.rain_series.items() if self.rain.day_kind(d) == "ok"
+        }
 
     @property
     def clock(self) -> StationClock:
@@ -114,10 +117,8 @@ def count_days(
     unread = {
         d: "gap" for d in coverage.held_days() if not np.isfinite(series.get(d, np.nan))
     }
-    rain = coverage.excluding(unread)
-    rain_in = {d: v for d, v in series.items() if rain.day_kind(d) == "ok"}
     return CountedDays(
-        coverage=coverage, rain_series=series, rain=rain, rain_in=rain_in
+        coverage=coverage, rain_series=series, rain=coverage.excluding(unread)
     )
 
 
@@ -134,7 +135,7 @@ def _daily_rain(
         Empty for an archive with no rain counter column.
     """
     series: Dict[date, float] = {}
-    if not archive.empty and RAIN_COUNTER in archive:
+    if not archive.empty and "dailyrainin" in archive:
         frame = extract_daily_rainfall(archive, clock.tz)
         series = {d: float(r) for d, r in zip(frame["date"], frame["rainfall"])}
     if current.rain_today_in is not None:

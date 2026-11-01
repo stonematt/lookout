@@ -358,7 +358,7 @@ def _dry_spells(
     status = days.rain.rolling(365, DRY_SPELL_WINDOW)
 
     def spells() -> List[int]:
-        series = days.rain_days(date.fromisoformat(status.first_day), days.rain.today)
+        series = days.rain_days(date.fromisoformat(status.first_day), days.clock.today)
         return [int(length) for length in dry_spells(series)["days"]]
 
     lengths = comparable(status, spells)
