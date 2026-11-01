@@ -27,7 +27,7 @@ to the new site's rules:
   picked day's 15-minute bars from them; nothing is a Plotly figure.
 
 Functions:
-- solar_tab(energy_catalog, archive, history, observed_at_ms, clock): the
+- solar_tab(energy_catalog, archive, history, observed_at_ms, archived): the
   `SolarTab` section, None without a catalog.
 """
 
@@ -36,7 +36,6 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from lookout.snapshot.clock import StationClock
 from lookout.snapshot.gaps import (
     LOW_COVERAGE,
     ArchiveCoverage,
@@ -81,25 +80,25 @@ def solar_tab(
     archive: pd.DataFrame,
     history: pd.DataFrame,
     observed_at_ms: Optional[int],
-    clock: StationClock,
+    archived: ArchiveCoverage,
 ) -> Optional[SolarTab]:
     """
     The Solar tab's section.
 
     :param energy_catalog: The energy catalog (`period_start`, `energy_kwh`),
         or None when there is none.
-    :param archive: The station's archive as stored, for the gap rules and
+    :param archive: The station's archive as stored, for the catalog check and
         the usual range.
     :param history: The archive with the live reading stitched in
         (`stitch_live`), for the 24-hour trace.
     :param observed_at_ms: The newest observation, live or archived.
-    :param clock: The station clock.
+    :param archived: The build's counted days (`CountedDays.coverage`);
+        days the catalog lacks are judged missing on a copy.
     :return: The section; None without an energy catalog.
     """
     if energy_catalog is None:
         return None
-    archived = ArchiveCoverage(archive, clock)
-    periods = _periods(energy_catalog, clock.tz)
+    periods = _periods(energy_catalog, archived.tz)
     coverage = archived.excluding(_uncatalogued(periods, archive, archived))
     totals = _daily_totals(periods, coverage)
     keys = standard_window_keys()

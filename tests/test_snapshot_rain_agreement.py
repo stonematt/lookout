@@ -11,16 +11,19 @@ Rain numbers that must agree across the snapshot (#122).
   as it is for dry spells.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from lookout.snapshot import days, gaps
+from lookout.utils.dateutc import DEFAULT_TZ, from_local_date
 from tests.fixtures.archive import Gap, RainSpell, build_archive
 from tests.snapshot_helpers import (
     RAIN_LIVE,
     build,
+    energy_catalog,
     event_catalog,
     live_row,
     ms,
@@ -283,3 +286,160 @@ def test_the_callers_archive_is_not_changed():
     build(archive, None, "2026-01-10T07:59:00Z")
 
     pd.testing.assert_frame_equal(archive, before)
+
+
+# ---------- one count of the days, one daily rain series (#196) ----------
+
+# A year to Mon 2026-01-05 23:00 local. Rain on Dec 1, Dec 11 and Dec 31:
+# two dry spells, 9 and 19 days. Dec 20 has rows but no counter reading.
+YEAR_START = "2025-01-01T08:00:00Z"
+YEAR_END = "2026-01-06T07:00:00Z"
+YEAR_NOW = "2026-01-06T07:02:00Z"
+DECEMBER_RAIN = [
+    RainSpell("2025-12-01T18:00:00Z", 1, 0.12),
+    RainSpell("2025-12-11T18:00:00Z", 1, 0.12),
+    RainSpell("2025-12-31T18:00:00Z", 1, 0.12),
+]
+
+
+def without_counter(archive, first: str, last: str):
+    """`archive` with no rain counter reading from `first` to `last` local."""
+    start = from_local_date(date.fromisoformat(first), DEFAULT_TZ)
+    end = from_local_date(date.fromisoformat(last) + timedelta(days=1), DEFAULT_TZ)
+    archive = archive.copy()
+    span = (archive["dateutc"] >= start) & (archive["dateutc"] < end)
+    archive.loc[span, "dailyrainin"] = np.nan
+    return archive
+
+
+@pytest.fixture(scope="module")
+def december_year():
+    """The year with Dec 20's counter unread."""
+    archive = build_archive(YEAR_START, YEAR_END, rain=DECEMBER_RAIN)
+    return without_counter(archive, "2025-12-20", "2025-12-20")
+
+
+def calm(snapshot):
+    """The calm lead rule."""
+    return next(r for r in snapshot.hero_lead.rules if r.kind == "calm")
+
+
+class TestTheLeadAndTheRainTabAgree:
+    def test_the_calm_leads_spells_are_the_rain_tabs(self, december_year):
+        snapshot = build(december_year, None, YEAR_NOW)
+        longest = snapshot.rain_tab.dry_spells.longest
+
+        # The 19-day spell holds Dec 20, so neither side counts it.
+        assert (longest.first_day, longest.last_day, longest.days) == (
+            "2025-12-02",
+            "2025-12-10",
+            9,
+        )
+        assert snapshot.hero_lead.kind == "calm"
+        assert snapshot.hero_lead.sample == 1
+        assert calm(snapshot).reference == longest.days
+
+    def test_the_unread_day_hatches_rain_windows_only(self, december_year):
+        snapshot = build(
+            december_year, None, "2025-12-24T07:02:00Z"
+        )  # Dec 23, 23:02 local: Dec 20 is in the week
+
+        periods = {p.status.key: p.status for p in snapshot.temperature_context.periods}
+
+        assert rain_window(snapshot, "7d").status.status == "invalid"
+        assert {w.key: w.status for w in snapshot.gaps.windows}["7d"] == "valid"
+        assert periods["7d"].status == "valid"
+
+    def test_solar_ignores_the_unread_counter(self):
+        archive = nan_counter_archive()
+        snapshot = build(
+            archive, None, "2026-01-10T07:59:00Z", energy=energy_catalog(archive)
+        )
+        solar = {w.key: w.status for w in snapshot.solar_tab.windows}
+
+        assert rain_window(snapshot, "7d").status.status == "invalid"
+        assert solar["7d"].status == "valid"
+
+    def test_the_usual_dry_spell_is_unavailable_over_a_counter_outage(self):
+        # Forty days unread: the 365-day window is invalid for rain, though
+        # the archive holds every day.
+        archive = without_counter(
+            build_archive(YEAR_START, YEAR_END, rain=DECEMBER_RAIN),
+            "2025-10-01",
+            "2025-11-09",
+        )
+
+        snapshot = build(archive, None, YEAR_NOW)
+
+        assert {w.key: w.status for w in snapshot.gaps.windows}["365d"] == "valid"
+        assert rain_window(snapshot, "365d").status.status == "invalid"
+        assert calm(snapshot).reference is None
+        assert calm(snapshot).missing == "no_comparison"
+
+
+class TestRainEventsAgreeOnTheUnreadDay:
+    def test_a_season_reads_the_rain_tabs_status(self):
+        archive = build_archive(
+            "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
+        )
+        archive = without_counter(archive, "2025-12-20", "2025-12-20")
+
+        snapshot = build(archive, None, "2026-01-10T07:59:00Z", event_catalog(archive))
+        season = next(s for s in snapshot.rain_events.seasons if s.water_year == 2026)
+        curve = next(c for c in snapshot.rain_tab.water_years if c.water_year == 2026)
+
+        assert season.status == curve.status
+        assert season.status.status == "prorated"
+        assert season.status.reason == "gap"
+
+
+def test_todays_rain_is_the_live_counter_everywhere():
+    # The archive's newest row today reads 0.25 in; the live reading 0.4 in.
+    archive = build_archive(
+        "2025-12-01T08:00:00Z", "2026-01-10T07:55:00Z", rain=JAN_RAIN
+    )
+    live = {"dateutc": ms("2026-01-10T07:58:00Z"), "dailyrainin": 0.4}
+
+    snapshot = build(archive, live, "2026-01-10T07:59:00Z")
+
+    assert snapshot.current.rain_today_in == 0.4
+    assert windows(snapshot)["today"] == approx(0.4)
+    assert snapshot.rain_tab.recent.rain_in[-1] == approx(0.4)
+    assert rolling(snapshot, "7d").rain_in == approx(0.7)  # Jan 5 and today
+
+
+def test_an_archive_with_no_rain_counter_reads_rain_unknown():
+    archive = build_archive(
+        "2025-12-01T08:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
+    ).drop(columns=["dailyrainin"])
+
+    snapshot = build(archive, None, "2026-01-10T07:59:00Z")
+
+    assert {w.key: w.status for w in snapshot.gaps.windows}["7d"] == "valid"
+    assert all(w.total_in is None for w in snapshot.rain_tab.windows)
+    assert all(w.status.status == "invalid" for w in snapshot.rain_tab.windows)
+    assert set(snapshot.rain_tab.recent.rain_in) == {None}
+    assert snapshot.rain_tab.dry_spells.longest is None
+    assert rolling(snapshot, "7d").rain_in is None
+
+
+def test_the_days_are_counted_once_per_build(monkeypatch):
+    counts = {"coverage": 0, "rain": 0}
+    real_init = gaps.ArchiveCoverage.__init__
+    real_extract = days.extract_daily_rainfall
+
+    def counting_init(self, *args, **kwargs):
+        counts["coverage"] += 1
+        real_init(self, *args, **kwargs)
+
+    def counting_extract(*args, **kwargs):
+        counts["rain"] += 1
+        return real_extract(*args, **kwargs)
+
+    monkeypatch.setattr(gaps.ArchiveCoverage, "__init__", counting_init)
+    monkeypatch.setattr(days, "extract_daily_rainfall", counting_extract)
+    archive = nan_counter_archive()
+
+    build(archive, None, "2026-01-10T07:59:00Z", event_catalog(archive))
+
+    assert counts == {"coverage": 1, "rain": 1}

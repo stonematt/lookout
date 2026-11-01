@@ -3,7 +3,9 @@ build.py: `build_snapshot`, the one pure function behind the dashboard.
 
 It reads no storage, no clock and no session state: everything comes in as
 arguments, and the `Snapshot` goes out. It makes the one `StationClock`, the
-build time with the station's zone, and hands it to every section. The
+build time with the station's zone, and on it counts the archive's days and
+extracts the daily rain series once (`lookout.snapshot.days.count_days`);
+every section shares those, so no two judge a day two ways. The
 refresh command (`lookout.cli.refresh`) loads the inputs and publishes the
 result.
 
@@ -24,11 +26,12 @@ from lookout.snapshot.current import (
     current_conditions,
     stitch_live,
 )
+from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
-from lookout.snapshot.rain_tab import RainCoverage, rain_tab
+from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.temperature import temperature_context
@@ -70,8 +73,7 @@ def build_snapshot(
     observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
     current = current_conditions(stitched, clock)
     active = active_rain_event(event_catalog, current, observed_at_ms)
-    coverage = RainCoverage(archive, current, clock)
-    rain = rain_tab(archive, stitched, current, clock, coverage=coverage)
+    days = count_days(archive, current, clock)
 
     return Snapshot(
         station=station,
@@ -80,7 +82,7 @@ def build_snapshot(
         archive_newest_ms=archive_newest_ms,
         current=current,
         active_rain_event=active,
-        gaps=snapshot_gaps(archive, clock),
+        gaps=snapshot_gaps(days.coverage),
         condition_ribbon=condition_ribbon(stitched, observed_at_ms, clock),
         rain_events=rain_events_section(
             event_catalog,
@@ -88,15 +90,17 @@ def build_snapshot(
             active,
             observed_at_ms,
             clock,
-            coverage.water_year_status,
+            days.rain.water_year_status,
         ),
         hero_lead=hero_lead(
-            archive, stitched, event_catalog, active, current, observed_at_ms, clock
+            archive, stitched, event_catalog, active, current, observed_at_ms, days
         ),
-        rain_tab=rain,
+        rain_tab=rain_tab(stitched, days),
         temperature_context=temperature_context(
-            archive, stitched, current, observed_at_ms, clock
+            stitched, current, observed_at_ms, days.coverage
         ),
-        almanac=almanac(archive, current, clock),
-        solar_tab=solar_tab(energy_catalog, archive, stitched, observed_at_ms, clock),
+        almanac=almanac(days),
+        solar_tab=solar_tab(
+            energy_catalog, archive, stitched, observed_at_ms, days.coverage
+        ),
     )

@@ -690,15 +690,15 @@ def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     the counter starts the day at zero. So each day's hours add up to its
     highest counter, the day's total. Rain the station counted during a gap
     lands in the hour of the first reading after it. Hours with no counter
-    reading (no rows, or rows whose `dailyrainin` is missing) are left out,
-    so a caller never reads one as dry.
+    reading (no rows, rows whose `dailyrainin` is missing, or no such column)
+    are left out, so a caller never reads one as dry.
 
     :param df: Readings with `dateutc` (epoch ms) and `dailyrainin`, any order.
     :param tz: The station-local zone.
     :return: `date`, `hour` (0-23 local) and `rain_in`, oldest first.
     """
     columns = ["date", "hour", "rain_in"]
-    if df.empty:
+    if df.empty or "dailyrainin" not in df:
         return pd.DataFrame(columns=columns)
     rows = df[["dateutc", "dailyrainin"]].dropna(subset=["dailyrainin"])
     if rows.empty:

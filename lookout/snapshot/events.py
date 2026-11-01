@@ -203,8 +203,8 @@ def rain_events_section(
     :param clock: The station clock: its zone says which water year an
         event starts in.
     :param year_status: A water year's rain gap status, judged as the Rain
-        tab's water-year curves are (`RainCoverage.water_year_status`), so a
-        season reads against the same status, and every season has one.
+        tab's water-year curves are (`CountedDays.rain.water_year_status`),
+        so a season reads against the same status, and every season has one.
     :return: The section.
     """
     if event_catalog is None or event_catalog.empty:

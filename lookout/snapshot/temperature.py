@@ -17,14 +17,14 @@ Three views, each fact computed once here (the One Number Rule):
 
 An earlier year is read only when its 15-day window is comparable
 (`lookout.snapshot.gaps.comparable`), and only over that window's counted
-days, so a gap never reads as a calm day. Gap statuses read the archive as
-stored; values read the live-stitched history, so they agree with the first
-screen. The old history min/max and polar preparers in
+days, so a gap never reads as a calm day. Gap statuses are the build's
+counted days, the archive as stored; values read the live-stitched history,
+so they agree with the first screen. The old history min/max and polar preparers in
 `lookout.core.data_processing` read the wall clock and ignore gaps, so they
 are not composed here.
 
 Functions:
-- temperature_context(archive, stitched, current, observed_at_ms, clock): The
+- temperature_context(stitched, current, observed_at_ms, coverage): The
   `TemperatureContext` section.
 """
 
@@ -34,7 +34,6 @@ from typing import Callable, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from lookout.snapshot.clock import StationClock
 from lookout.snapshot.gaps import ArchiveCoverage, comparable, standard_window_keys
 from lookout.snapshot.model import (
     NormalStrip,
@@ -289,24 +288,22 @@ def _strip(
 
 
 def temperature_context(
-    archive: pd.DataFrame,
     stitched: pd.DataFrame,
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
-    clock: StationClock,
+    coverage: ArchiveCoverage,
 ) -> TemperatureContext:
     """
     The Overview's temperature across periods, ten-day list and strips.
 
-    :param archive: The archive as stored, for gap statuses.
     :param stitched: `stitch_live` output, newest first.
     :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
-    :param clock: The station clock.
+    :param coverage: The build's counted days (`CountedDays.coverage`), for
+        gap statuses; its clock says which day is today.
     :return: The `TemperatureContext` section.
     """
-    coverage = ArchiveCoverage(archive, clock)
-    readings = _Readings(stitched, clock.tz) if not stitched.empty else None
+    readings = _Readings(stitched, coverage.tz) if not stitched.empty else None
     if readings is None:
         by_key = {w.key: w for w in coverage.standard_windows()}
         empty = tuple(
@@ -320,7 +317,9 @@ def temperature_context(
 
     # The strips are set at the newest observation's date and time, so a
     # stale reading is compared with its own day.
-    observed = None if observed_at_ms is None else local_time(observed_at_ms, clock.tz)
+    observed = (
+        None if observed_at_ms is None else local_time(observed_at_ms, coverage.tz)
+    )
     observed_day = None if observed is None else observed.date()
     hour = 0 if observed is None else observed.hour
     minute = 0 if observed is None else observed.hour * 60 + observed.minute

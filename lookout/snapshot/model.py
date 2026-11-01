@@ -542,7 +542,7 @@ class EventSeason:
     :param status: The water year's rain gap status, keyed
         "water_year_<year>": the same as its `RainTab.water_years` curve's
         (Oct 1 to Sep 30, or to today), and always sent, also for a year the
-        archive does not reach (`RainCoverage.water_year_status`, #156).
+        archive does not reach (`CountedDays.rain.water_year_status`, #156).
     """
 
     water_year: int
@@ -620,7 +620,7 @@ class RainWindow:
 
     :param key: The window, as `Gaps.windows` names it ("today", "7d",
         "water_year", ...).
-    :param status: Its rain gap status (`rain_tab.RainCoverage`): the
+    :param status: Its rain gap status (`days.CountedDays.rain`): the
         `Gaps.windows` status with the same key, except that a day whose rain
         counter has no reading is missing here, so its rain is never read as
         0. Show the total by this status, not the archive's.
