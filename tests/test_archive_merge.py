@@ -324,15 +324,19 @@ class TestGapSeekAcrossAnOutage:
         with pytest.raises(awn.CatchupStalled):
             awn.get_history_since_last_archive(device, archive, pages=12, end_date=end)
 
+    @pytest.mark.parametrize("pages", [11, 20])
     def test_a_station_still_silent_past_the_walks_reach_adds_nothing(
-        self, fake_s3, ambient_replay, device
+        self, fake_s3, ambient_replay, device, pages
     ):
-        """An ongoing 240 h outage: nothing to fetch, and no error."""
+        """
+        An ongoing 240 h outage: nothing to fetch, and no error, even when
+        the ten probes used every page but one (11 pages).
+        """
         archive, truth, end = outage(hours=240, after_days=0)
         serve(ambient_replay, truth)
 
         result = awn.get_history_since_last_archive(
-            device, archive, pages=20, end_date=end
+            device, archive, pages=pages, end_date=end
         )
 
         assert len(result) == len(archive)

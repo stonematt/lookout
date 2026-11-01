@@ -9,7 +9,12 @@ interaction is crucial, this module streamlines tasks like data backup, retrieva
 and storage of structured data.
 
 Functions:
-- Read and write JSON files to/from S3.
+- Read and write JSON files to/from S3. The `get_*` readers forgive a failed
+  read (empty frame or dict); the strict `read_df_from_s3`, `load_archive`
+  and `read_json_from_s3` raise `StorageReadError` instead, for runs that
+  save or publish after reading (#160). Saves that fail raise
+  `StorageWriteError` (`ArchiveShrinkError` for an archive save that would
+  lose rows), and a failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
 - List items in an S3 bucket.
 - Backup data from S3 to a designated backup directory.
@@ -92,6 +97,7 @@ def read_df_from_s3(bucket: str, key: str, file_type: str = "json") -> pd.DataFr
     :return: The DataFrame the object holds (possibly empty).
     :raises StorageReadError: If the object is missing, cannot be fetched, or
         cannot be parsed.
+    :raises ValueError: If `file_type` is not 'parquet' or 'json'.
     """
     logger.info(f"Getting s3://{bucket}/{key}")
     if file_type not in ("parquet", "json"):
@@ -483,7 +489,7 @@ def backup_and_save_catalog(
         backup_data(bucket=bucket, prefix=catalog_prefix)
     except Exception as e:
         logger.error(f"Catalog backup failed for {catalog_prefix}: {e}")
-        raise RuntimeError("Aborting catalog save: backup failed.")
+        raise RuntimeError("Aborting catalog save: backup failed.") from e
 
     # Save new catalog
     if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
@@ -508,7 +514,7 @@ def backup_and_save_history(
         backup_archive(bucket=bucket, mac=mac)
     except Exception as e:
         logger.error(f"Backup failed for {mac}: {e}")
-        raise RuntimeError("Aborting save: backup failed.")
+        raise RuntimeError("Aborting save: backup failed.") from e
 
     save_archive(df, bucket, mac)
 

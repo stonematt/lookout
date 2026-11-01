@@ -456,6 +456,7 @@ def _cross_long_gap(
     """
     end_ms = int(_to_utc(now_utc).timestamp() * 1000)
     found = pd.DataFrame()
+    reason = f"{budget} page(s) walking back from {now_utc} did not reach it"
     for _ in range(budget):
         if sleep:
             time.sleep(1)
@@ -463,6 +464,10 @@ def _cross_long_gap(
         if page.empty:
             if found.empty:
                 return found
+            reason = (
+                f"Ambient returned no readings before "
+                f"{pd.to_datetime(end_ms, unit='ms', utc=True)}"
+            )
             break
         newer = page[page["dateutc"] > known_max_ms]
         if not newer.empty:
@@ -474,9 +479,7 @@ def _cross_long_gap(
         end_ms = int(page["dateutc"].min())
     raise CatchupStalled(
         f"Ambient holds readings after a gap past "
-        f"{pd.to_datetime(known_max_ms, unit='ms', utc=True)}, but {budget} "
-        f"page(s) walking back from {now_utc} did not reach it; "
-        f"rerun with more --pages"
+        f"{pd.to_datetime(known_max_ms, unit='ms', utc=True)}, but {reason}"
     )
 
 
@@ -612,8 +615,10 @@ def get_history_since_last_archive(
                 held = int(archive_df["dateutc"].max())
                 if not interim_df.empty:
                     held = max(held, int(interim_df["dateutc"].max()))
+                # At least one page, so a still-silent station is told
+                # apart from a stall even when the probes used every page.
                 crossed = _cross_long_gap(
-                    device, held, now_utc, limit, pages - page - 1, sleep
+                    device, held, now_utc, limit, max(1, pages - page - 1), sleep
                 )
                 if not crossed.empty:
                     interim_df = combine_interim_data(interim_df, crossed)

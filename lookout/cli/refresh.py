@@ -140,14 +140,14 @@ def correct_rain(
     gets the same corrections by the same rules (`correct_counters`), dated
     the way the archive is (#118).
 
-    :param station: The station.
-    :param bucket: The bucket holding `<MAC>.rain_corrections.json`.
-    :param archive: The archive as saved, raw.
-    :param live: The live `lastData`, raw, or None.
     A catalog that is stored but cannot be read raises, so the run fails
     and the last good snapshot stays up (#160): publishing the rain
     uncorrected would show a carryover as rain, with nothing marking it.
 
+    :param station: The station.
+    :param bucket: The bucket holding `<MAC>.rain_corrections.json`.
+    :param archive: The archive as saved, raw.
+    :param live: The live `lastData`, raw, or None.
     :return: The corrected archive and live reading, in memory; `archive`
         and `live` themselves when the station has no corrections.
     :raises StorageReadError: If the stored catalog cannot be read.
