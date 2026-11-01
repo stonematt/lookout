@@ -233,22 +233,21 @@ const HOUR_TICKS = [0, 6, 12, 18];
 
 /**
  * The heatmap: one column per day of the recent window, one row per hour of
- * the day, each cell shaded by its rain in four steps. A null hour after the
- * build hour today is still to come and left blank; any other null hour has
- * no readings in the record and is hatched, never drawn as dry.
+ * the day, each cell shaded by its rain in four steps. A null hour the
+ * snapshot says is still to come (`first_hour_to_come`, today) is left
+ * blank; any other null hour has no readings in the record and is hatched,
+ * never drawn as dry.
  *
  * @param host - The figure to draw in; its contents are replaced.
  * @param recent - The snapshot's recent days.
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
- * @param nowHour - The station-local hour the snapshot was built in.
  */
 export function drawHourGrid(
   host: HTMLElement,
   recent: RecentRain,
   width: number,
   readout: Readout,
-  nowHour: number,
 ): void {
   const count = recent.hourly_in.length;
   const row = width < NARROW ? 8 : 10;
@@ -257,7 +256,7 @@ export function drawHourGrid(
   const height = bottom + 22;
   const step = (right - left) / count;
   const x = (i: number) => left + i * step;
-  const toCome = (i: number, h: number) => i === count - 1 && h > nowHour;
+  const toCome = (i: number, h: number) => i === count - 1 && h >= recent.first_hour_to_come;
 
   const { svg, hatch } = canvas(width, height, `Rain by the hour, ${dayText(recent.first_day)} to today`, "rain-svg");
   recent.hourly_in.forEach((hours, i) => {

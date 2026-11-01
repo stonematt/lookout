@@ -3416,6 +3416,7 @@
           null
         ]
       ],
+      "first_hour_to_come": 1,
       "wet_hours": null,
       "wettest_hour": null
     },

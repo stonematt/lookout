@@ -15,7 +15,7 @@ Functions:
   events, newest first, for the refresh run to write once each.
 """
 
-from typing import Any, Collection, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Collection, Iterator, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -187,7 +187,7 @@ def rain_events_section(
     stitched: pd.DataFrame,
     active: Optional[ActiveRainEvent],
     observed_at_ms: Optional[int],
-    year_status: Mapping[int, GapStatus],
+    year_status: Callable[[int], GapStatus],
 ) -> RainEvents:
     """
     The Rain Events tab: every event, its summaries, the live event's curve.
@@ -196,8 +196,9 @@ def rain_events_section(
     :param stitched: The archive with the live reading stitched in.
     :param active: The active rain event, or None: which event is live.
     :param observed_at_ms: The newest observation.
-    :param year_status: Each water year's rain gap status, from the Rain
-        tab's water-year curves, so a season reads against the same status.
+    :param year_status: A water year's rain gap status, judged as the Rain
+        tab's water-year curves are (`RainCoverage.water_year_status`), so a
+        season reads against the same status, and every season has one.
     :return: The section.
     """
     if event_catalog is None or event_catalog.empty:
@@ -224,7 +225,7 @@ def rain_events_section(
                     end=pd.Timestamp(water_year_start(year + 1), tz=DEFAULT_TZ),
                 )
             ),
-            status=year_status.get(year),
+            status=year_status(year),
         )
         for year in years
     )

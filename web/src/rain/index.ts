@@ -10,7 +10,7 @@
  */
 import "./rain.css";
 
-import { dayText, formatDayCount, formatDays, formatStamp, inches, localHour, WET_DAY_IN } from "../format.js";
+import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawSized } from "../charts/svg.js";
@@ -206,7 +206,7 @@ function hours(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   const { chart, readout } = figure(host, "Rain by the hour over the last 90 days");
   charts.push(() =>
     drawSized(chart, (width) =>
-      drawHourGrid(chart, tab.recent, width, (t) => (readout.textContent = t), localHour(snapshot.built_at_ms)),
+      drawHourGrid(chart, tab.recent, width, (t) => (readout.textContent = t)),
     ),
   );
   const key = make("ul", "rain-key");

@@ -360,6 +360,20 @@ th.alm-season {
   border-top: 1px solid var(--rule-strong);
 }
 
+/* The season's water-year heading row (Oct to Dec): it takes the rule. */
+.alm-table tr.alm-wy-head > * {
+  border-top: 1px solid var(--rule-strong);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding-top: var(--s-2);
+  padding-bottom: var(--s-1);
+}
+
+.alm-table tr.alm-wy-head + tr[data-window="water_year"] > * {
+  border-top: 0;
+}
+
 .alm-table td.gap-hatch {
   text-align: center;
 }

@@ -149,6 +149,27 @@ class TestRecentDays:
         assert recent.hourly_in[-1][11] == 0.0
         assert recent.hourly_in[-1][12:] == (None,) * 12
 
+    def test_the_snapshot_names_the_first_hour_still_to_come(self):
+        # One decision, sent: the browser reads which null hours of today are
+        # still to come from it, not from the build time (#156).
+        archive = build_archive(
+            "2025-12-01T08:00:00Z", "2026-01-09T19:30:00Z", rain=JAN_RAIN
+        )
+
+        recent = build(archive, "2026-01-09T19:30:00Z").rain_tab.recent
+
+        assert recent.first_hour_to_come == 12
+
+    def test_no_hour_is_to_come_in_the_last_hour_of_the_day(self):
+        archive = build_archive(
+            "2025-12-01T08:00:00Z", "2026-01-10T07:30:00Z", rain=JAN_RAIN
+        )
+
+        recent = build(archive, "2026-01-10T07:30:00Z").rain_tab.recent
+
+        assert recent.first_hour_to_come == 24
+        assert recent.hourly_in[-1][23] is not None
+
     def test_an_hour_with_no_readings_is_not_known(self):
         # Jan 7, 2-4 am local, no rows: the day still counts (over 80% of
         # it is in), but those two hours are unknown, not dry (#147).
