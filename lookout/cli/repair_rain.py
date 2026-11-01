@@ -37,6 +37,7 @@ import pandas as pd
 import lookout.api.awn_controller as awn
 from lookout.cli.diagnostics import emit, load_station
 from lookout.config import DEFAULT_BUCKET
+from lookout.core import archive_merge
 from lookout.storage.storj import backup_and_save_history, read_df_from_s3
 from lookout.utils.dateutc import DEFAULT_TZ, from_local_date
 
@@ -118,6 +119,7 @@ class WindowRepair:
     :param strays: Window rows inside the backup's range that it lacks, as
         stored; they were dropped and refilled.
     :param statuses: Each gap fill's status (`GapFill.status`).
+    :param replaced: What the replace swapped in the archive.
     """
 
     first_day: str
@@ -127,6 +129,9 @@ class WindowRepair:
     refilled: pd.DataFrame
     strays: pd.DataFrame
     statuses: List[str] = field(default_factory=list)
+    replaced: archive_merge.ReplaceReport = field(
+        default_factory=archive_merge.ReplaceReport
+    )
 
     @property
     def after(self) -> pd.DataFrame:
@@ -291,7 +296,7 @@ def repair_window(
     restored = restore_from_reference(window[matched], reference)
     strays = window[in_range & ~matched]
 
-    base = awn.combine_full_history(archive[~inside], restored)
+    base = archive_merge.replace(archive, start_ms, end_ms, restored).archive
     statuses = []
     parts = []
     for span_start, span_end in refill_spans(
@@ -319,7 +324,8 @@ def repair_window(
         )
     refilled = pd.concat(parts, ignore_index=True) if parts else window.iloc[0:0]
     refilled = refilled.drop_duplicates("dateutc", keep="last")
-    repaired = awn.combine_full_history(base, refilled)
+    after = pd.concat([restored, refilled], ignore_index=True)
+    repaired, swapped = archive_merge.replace(archive, start_ms, end_ms, after)
     return repaired, WindowRepair(
         first_day,
         last_day,
@@ -328,6 +334,7 @@ def repair_window(
         refilled.reset_index(drop=True),
         strays,
         statuses,
+        swapped,
     )
 
 
@@ -496,6 +503,7 @@ def report_window(
             emit(f"  {stamp.isoformat()}")
         if len(stamps) > STRAYS_LISTED:
             emit(f"  ... and {len(stamps) - STRAYS_LISTED} more")
+    emit(f"Archive {repair.replaced.describe()}")
     for diff in day_diffs(repair):
         emit(day_line(diff))
         if diff.short:

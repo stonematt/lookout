@@ -179,6 +179,7 @@ def test_dry_run_restores_from_the_backup_and_writes_nothing(seed, truth, capsys
         year_end = that_day["yearlyrainin"].iloc[0]  # its last reading
         assert f"yearly {year_end - DAMAGE:.3f} -> {year_end:.3f}" in line
     assert f"{rows} restored rows checked, 0 differ from the backup" in out
+    assert f"Archive replaced {rows} readings with {rows}" in out
     # Nothing to refill: no history page is fetched, only the device list.
     assert [path for path, _ in station.replay.calls] == ["/devices"]
     assert station.keys() == keys

@@ -23,11 +23,14 @@ is a replace, never a merge.
 Functions:
 - merge: Merge Ambient's readings into the stored archive; returns `Merged`.
 - loss: What saving a new archive over the stored one would lose; `Loss`.
+- replace: Swap the stored readings in a window for corrected ones; `Replaced`.
 
 Classes:
 - MergeReport: What one merge changed; `describe()` is its log line.
 - Merged: `(archive, report)`, the outcome of `merge`.
 - Loss: Stored readings dropped and stored values blanked by a save.
+- ReplaceReport: What one replace swapped out and put in.
+- Replaced: `(archive, report)`, the outcome of `replace`.
 
 Example:
     archive, report = archive_merge.merge(stored, fetched)
@@ -222,6 +225,80 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
         blanked=int(lost.sum()),
         blanked_columns=tuple(lost.index),
     )
+
+
+@dataclass(frozen=True)
+class ReplaceReport:
+    """
+    What one replace changed.
+
+    :param replaced: Stored readings in the window that were swapped out.
+    :param written: Replacement readings now in the window.
+    """
+
+    replaced: int = 0
+    written: int = 0
+
+    def describe(self) -> str:
+        """
+        The report as one log line.
+
+        :return: E.g. "replaced 120 readings with 118".
+        """
+        readings = "reading" if self.replaced == 1 else "readings"
+        return f"replaced {self.replaced} {readings} with {self.written}"
+
+
+class Replaced(NamedTuple):
+    """
+    The outcome of `replace`.
+
+    :param archive: The archive with the window replaced, newest first.
+    :param report: What the replace swapped.
+    """
+
+    archive: pd.DataFrame
+    report: ReplaceReport
+
+
+def replace(
+    stored: pd.DataFrame, start_ms: int, end_ms: int, replacement: pd.DataFrame
+) -> Replaced:
+    """
+    Replace the stored readings in a window with corrected ones.
+
+    A deliberate correction, never a merge: every stored reading with
+    `start_ms <= dateutc < end_ms` goes, whatever the replacement holds, and
+    the replacement's readings in the window take their place whole.
+    Readings outside the window stay exactly as stored, and replacement
+    readings outside it are ignored. The save guard (`loss`) sees the
+    difference; only an explicit repair may pass it.
+
+    :param stored: The stored archive.
+    :param start_ms: The window's start, epoch ms, inclusive.
+    :param end_ms: The window's end, epoch ms, exclusive.
+    :param replacement: The corrected readings.
+    :return: `Replaced(archive, report)`. The archive's columns are the
+        stored columns in their order, then the replacement-only ones.
+    """
+    stored = normalize(stored)
+    if replacement.empty:
+        replacement = stored.iloc[0:0]
+    else:
+        replacement = normalize(replacement)
+    inside = (stored["dateutc"] >= start_ms) & (stored["dateutc"] < end_ms)
+    new = replacement[
+        (replacement["dateutc"] >= start_ms) & (replacement["dateutc"] < end_ms)
+    ]
+    columns = list(stored.columns) + [
+        c for c in replacement.columns if c not in stored.columns
+    ]
+    pieces = [p for p in (stored[~inside], new) if not p.empty]
+    if not pieces:
+        return Replaced(stored, ReplaceReport(replaced=int(inside.sum())))
+    merged = pd.concat(pieces, sort=False).reindex(columns=columns)
+    report = ReplaceReport(replaced=int(inside.sum()), written=len(new))
+    return Replaced(_newest_first(merged), report)
 
 
 def _differs(old: pd.Series, new: pd.Series) -> pd.Series:

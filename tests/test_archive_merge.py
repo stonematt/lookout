@@ -790,3 +790,72 @@ class TestFillArchiveGap:
         assert result.history_df is archive
         assert result.status == "refused"
         assert ambient_replay.calls == []
+
+
+class TestArchiveReplace:
+    """`archive_merge.replace`: a deliberate correction, not a merge."""
+
+    def test_the_windows_readings_are_swapped_whole(self):
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "humidity": 40.0},
+            {"slot": 1, "tempf": 51.0, "humidity": 41.0},
+            {"slot": 2, "tempf": 52.0, "humidity": 42.0},
+        )
+        fixed = readings({"slot": 1, "tempf": 60.0, "humidity": None})
+
+        archive, report = archive_merge.replace(stored, T0 + STEP, T0 + 2 * STEP, fixed)
+
+        assert list(archive["dateutc"]) == [T0 + 2 * STEP, T0 + STEP, T0]
+        assert at(archive, 1)["tempf"] == 60.0
+        assert pd.isna(at(archive, 1)["humidity"])
+        assert at(archive, 0)["humidity"] == 40.0
+        assert at(archive, 2)["humidity"] == 42.0
+        assert (report.replaced, report.written) == (1, 1)
+
+    def test_a_stored_reading_the_replacement_lacks_is_dropped(self):
+        stored = readings({"slot": 0, "tempf": 50.0}, {"slot": 1, "tempf": 51.0})
+
+        archive, report = archive_merge.replace(
+            stored, T0, T0 + 2 * STEP, readings({"slot": 0, "tempf": 50.0})
+        )
+
+        assert list(archive["dateutc"]) == [T0]
+        assert (report.replaced, report.written) == (2, 1)
+        assert archive_merge.loss(stored, archive).dropped == 1
+
+    def test_readings_outside_the_window_are_untouched_and_replacements_there_ignored(
+        self,
+    ):
+        stored = readings({"slot": 0, "tempf": 50.0}, {"slot": 3, "tempf": 53.0})
+        fixed = readings({"slot": 0, "tempf": 99.0}, {"slot": 1, "tempf": 61.0})
+
+        archive, report = archive_merge.replace(stored, T0 + STEP, T0 + 2 * STEP, fixed)
+
+        assert at(archive, 0)["tempf"] == 50.0
+        assert at(archive, 1)["tempf"] == 61.0
+        assert at(archive, 3)["tempf"] == 53.0
+        assert (report.replaced, report.written) == (0, 1)
+
+    def test_an_empty_replacement_clears_the_window(self):
+        stored = readings({"slot": 0, "tempf": 50.0}, {"slot": 1, "tempf": 51.0})
+
+        archive, report = archive_merge.replace(
+            stored, T0, T0 + STEP, readings({"slot": 5, "tempf": 1.0})
+        )
+
+        assert list(archive["dateutc"]) == [T0 + STEP]
+        assert (report.replaced, report.written) == (1, 0)
+
+    def test_a_replacement_only_column_is_kept(self):
+        stored = readings({"slot": 0, "tempf": 50.0})
+
+        archive, _ = archive_merge.replace(
+            stored, T0, T0 + STEP, readings({"slot": 0, "tempf": 50.0, "uv": 3.0})
+        )
+
+        assert list(archive.columns) == ["tempf", "dateutc", "uv"]
+
+    def test_the_report_describes_itself(self):
+        report = archive_merge.ReplaceReport(replaced=120, written=118)
+
+        assert report.describe() == "replaced 120 readings with 118"
