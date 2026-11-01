@@ -4237,7 +4237,8 @@
               "status": "invalid",
               "reason": "before_archive"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -4255,7 +4256,8 @@
               "status": "invalid",
               "reason": "before_archive"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -4273,7 +4275,8 @@
               "status": "invalid",
               "reason": "before_archive"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -4291,7 +4294,8 @@
               "status": "invalid",
               "reason": "before_archive"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -4309,7 +4313,8 @@
               "status": "invalid",
               "reason": "before_archive"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       }

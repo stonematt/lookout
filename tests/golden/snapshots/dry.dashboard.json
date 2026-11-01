@@ -3944,7 +3944,8 @@
               "status": "invalid",
               "reason": "not_archived"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -3962,7 +3963,8 @@
               "status": "invalid",
               "reason": "not_archived"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -3980,7 +3982,8 @@
               "status": "invalid",
               "reason": "not_archived"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -3998,7 +4001,8 @@
               "status": "invalid",
               "reason": "not_archived"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       },
@@ -4006,7 +4010,7 @@
         "key": "water_year",
         "years": [
           {
-            "year": 2026,
+            "year": 2025,
             "status": {
               "key": "water_year",
               "first_day": "2025-10-01",
@@ -4016,7 +4020,8 @@
               "status": "invalid",
               "reason": "not_archived"
             },
-            "rain_in": null
+            "rain_in": null,
+            "water_year": 2026
           }
         ]
       }

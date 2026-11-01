@@ -26,6 +26,11 @@ JSON shape rules, so both sides can rely on them:
 Adding a field is not a breaking change: add it to the dataclass and both
 sides' goldens, keep `SCHEMA_VERSION`. Renaming, removing or changing the
 meaning of a field is breaking: bump `SCHEMA_VERSION` in the same change.
+Correcting a wrong value is not: a value that was wrongly a number and is
+now null as unknown (an hour with no readings, #147), or an optional value
+now null in a case the reader already handles (`RainEvents.open_curve`
+while no event is live), keeps `SCHEMA_VERSION`. A bump also makes the site
+refuse every curve file already written, and those are never rewritten.
 
 Golden documents for the TypeScript tests live in `tests/golden/snapshots/`
 (see `tests/test_snapshot.py` for how to regenerate them).
@@ -821,18 +826,19 @@ class RollingYear:
     """
     One year's rain over a rolling window ending on today's date that year.
 
-    :param year: The year it is named by: the calendar year the window
-        ends in; for the season row ("water_year", since Oct 1), its water
-        year (#147). Rows line up by position, not by `year`: `years[i]` of
-        every row ends on the same day.
+    :param year: The calendar year the window ends in: the table's column.
     :param status: The window's rain gap status. The current year's is the
         `RainTab.windows` status with the same key.
     :param rain_in: Its rain; prorated when its status is; None when invalid.
+    :param water_year: The water year the window ends in; the season row
+        ("water_year", since Oct 1) is named by it, not by `year`, which is
+        one behind from Oct through Dec (#147).
     """
 
     year: int
     status: GapStatus
     rain_in: Optional[float]
+    water_year: int
 
 
 @dataclass(frozen=True)

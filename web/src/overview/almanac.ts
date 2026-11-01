@@ -336,11 +336,8 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const th = make("th", "", ROLLING_NAMES[window.key] ?? window.key);
     th.scope = "row";
     tr.append(th);
-    // Rows line up by position: `years[i]` of every row ends on the same day.
-    // A column is named by the year its windows end in; the season row's own
-    // `year` is its water year, which can be the next one (Oct to Dec).
-    columns.forEach((_, i) => {
-      const year = window.years[i];
+    columns.forEach((columnYear, i) => {
+      const year = window.years.find((y) => y.year === columnYear);
       const td = make("td", i === 0 ? "alm-now" : "");
       if (!year) {
         tr.append(td);
