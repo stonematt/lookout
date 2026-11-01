@@ -16,7 +16,7 @@
 import "./temperature.css";
 
 import { degrees, inches } from "../format.js";
-import { niceTicks, scale } from "../charts/svg.js";
+import { LABEL_CHAR_PX, niceTicks, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapLabel, gapSentence, gapValue, isComparable, svgHatch } from "../gaps.js";
 import type {
@@ -170,7 +170,10 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   const now = ctx.now;
   const narrow = width < 520;
   const rowH = 46;
-  const left = narrow ? 82 : 118;
+  // The label column fits the longest span ("Nov 1, 2025 to Oct 31"), so
+  // a whisker at the plot's left edge never runs under it.
+  const longest = Math.max(0, ...ctx.periods.map((p) => spanText(p.status).length));
+  const left = Math.max(narrow ? 82 : 118, Math.ceil(longest * LABEL_CHAR_PX) + 8);
   const f = { l: left, r: 12, t: 34, b: 26 };
   const iw = width - f.l - f.r;
   const ih = rowH * ctx.periods.length;
@@ -196,8 +199,10 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
     const nx = x(now);
     g.append(svgEl("line", { class: "tc-now", x1: nx, x2: nx, y1: -8, y2: ih }));
     g.append(svgEl("circle", { class: "tc-now-dot", cx: nx, cy: -8, r: 4 }));
-    const right = nx + 60 > iw + f.r;
-    g.append(svgEl("text", { class: "tc-note", x: right ? nx - 8 : nx + 8, y: -14, "text-anchor": right ? "end" : "start" }, `now ${degrees(now)}`));
+    // The note is 13px bold, a little wider than a 12.5px label.
+    const note = `now ${degrees(now)}`;
+    const right = nx + 8 + note.length * LABEL_CHAR_PX * 1.15 > iw + f.r;
+    g.append(svgEl("text", { class: "tc-note", x: right ? nx - 8 : nx + 8, y: -14, "text-anchor": right ? "end" : "start" }, note));
   }
   ctx.periods.forEach((p, i) => {
     const cy = i * rowH + rowH / 2;
