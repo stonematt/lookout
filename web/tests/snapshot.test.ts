@@ -5,6 +5,7 @@ import {
   SnapshotContractError,
   newestObservation,
   parseContext,
+  parseCurrent,
   parseDashboard,
 } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -95,6 +96,42 @@ describe("parseContext", () => {
   it("refuses a dashboard document", () => {
     expect(() => parseContext(golden("dry", "dashboard"))).toThrow(
       /expected kind "context"/,
+    );
+  });
+});
+
+describe("parseCurrent", () => {
+  const LIVE = 1767918300000;
+  const current = (context: unknown) => ({
+    schema_version: SCHEMA_VERSION,
+    kind: "current",
+    station: { mac: "00:11:22:33:44:55", name: "Fixture Station" },
+    observed_at_ms: LIVE,
+    built_at_ms: 1767916800000,
+    last_data: { dateutc: LIVE, tempf: 59.5 },
+    context,
+  });
+
+  it("reads a body with its context", () => {
+    const body = parseCurrent(current(golden("raining", "context")));
+    expect(body.context?.kind).toBe("context");
+  });
+
+  it("keeps the live reading when the context is another schema version", () => {
+    // A refresh run that bumps the schema writes context.json before this
+    // site is redeployed: the context no longer fits, the live reading does.
+    const skewed = { ...(golden("raining", "context") as object), schema_version: 99 };
+
+    const body = parseCurrent(current(skewed));
+
+    expect(body.context).toBeNull();
+    expect(body.last_data).toEqual({ dateutc: LIVE, tempf: 59.5 });
+    expect(body.observed_at_ms).toBe(LIVE);
+  });
+
+  it("still refuses a body of another schema version", () => {
+    expect(() => parseCurrent({ ...current(null), schema_version: 99 })).toThrow(
+      SnapshotContractError,
     );
   });
 });
