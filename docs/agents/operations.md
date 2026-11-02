@@ -20,9 +20,15 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 ## Vercel
 
-- Project `lookout`, team "Matt Stone's projects" (scope `matt-stones-projects-aa308b10`), account `mstone-3228`, Hobby plan. Link with `vercel link --project lookout --scope matt-stones-projects-aa308b10`.
+- Project `lookout`, team "Matt Stone's projects" (scope `matt-stones-projects-aa308b10`), account `mstone-3228`, Hobby plan. Link at the repo root with `vercel link --project lookout --scope matt-stones-projects-aa308b10`.
 - Env vars for Production and Preview: `STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`, `STORJ_ENDPOINT_URL`, `STORJ_BUCKET`, `STATION_MAC` (the same value as on the VPS; every read function refuses to start without it), `AMBIENT_API_KEY` (Vercel's own key, separate from the VPS key), `AMBIENT_APPLICATION_KEY`, and optionally `AMBIENT_ENDPOINT`. `web/server/env.ts` is the list the functions check. `HC_PING_KEY` stays VPS-only.
 - `vercel env add NAME preview` needs an explicit empty branch argument for all Preview branches: `vercel env add NAME preview "" --value … --yes`.
+- `STORJ_ENDPOINT_URL` must include the scheme: `https://gateway.storjshare.io`. Without it, every Storj read fails with `TypeError: Invalid URL`.
+- Git: connected to `stonematt/lookout` (2026-11-01). Root Directory `web`, Framework `vite`, production branch `main`. Every other branch and every PR gets a preview deployment. Note that GitHub's default branch is `dev`, and Vercel picks the default branch as the production branch on connect. Check the production branch again after any reconnect.
+- Root Directory is `web`, so CLI deploys take the repo root as their path. Linking `web/` alone makes Vercel look for `web/web`.
+- Production guard: until the first production deploy, the Ignored Build Step is `[ "$VERCEL_ENV" = production ]`. It skips every Git-triggered production build. It exists so that nothing deploys production before the `dev` → `main` release PR merges. To go live: remove it (`vercel api /v9/projects/lookout -X PATCH` with `{"commandForIgnoringBuildStep": null}`), then deploy `main` to production. Read the live setting with `vercel api /v9/projects/lookout` before stating it.
+- Deployment protection: Vercel Authentication, `all_except_custom_domains`. Previews need a Vercel login. A custom domain on Production is public.
+- The CLI sends a project's first deploy to Production. Pass `--target preview` for a preview.
 
 ## Healthchecks.io
 
