@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { figuresLag, figuresTime, mountHeader } from "../src/header.js";
-import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
+import type { CurrentReading } from "../src/snapshot.js";
 import { SCHEMA_VERSION, parseCurrent, parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
 
@@ -30,7 +30,7 @@ const figuresShown = () =>
 /** A `/current` body whose live reading was taken at `observedAtMs`. */
 function live(
   observedAtMs: number | null,
-  station: DashboardSnapshot["station"] = raining.station,
+  station: CurrentReading["station"] = raining.station,
 ): CurrentReading {
   return parseCurrent({
     schema_version: SCHEMA_VERSION,
@@ -106,7 +106,7 @@ describe("the header", () => {
     const header = mountHeader(host, () => clock);
     header.showSnapshot({
       ...raining,
-      station: { mac: "00:11:22:33:44:55", name: null },
+      station: { ...raining.station, name: null },
       observed_at_ms: null,
     });
     expect(text("h1")).toBe("Lookout");

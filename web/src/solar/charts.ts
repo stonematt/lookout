@@ -24,7 +24,7 @@ import {
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import { MONTHS, STATION_TIME_ZONE, addDays, daysBetween, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
+import { MONTHS, stationFormat, addDays, daysBetween, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
 import type { GapReason, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
@@ -86,16 +86,12 @@ function pickable(target: HTMLElement, current: () => string | null, pick: Pick)
 }
 
 /** Local hour and minute of an epoch ms at the station. */
-const CLOCK = new Intl.DateTimeFormat("en-GB", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
+const clockOf = () =>
+  stationFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 /** The station-local [hour, minute] of an epoch ms. */
 function localClock(ms: number): [number, number] {
-  const [h, m] = CLOCK.format(new Date(ms)).split(":").map(Number);
+  const [h, m] = clockOf().format(new Date(ms)).split(":").map(Number);
   return [h ?? 0, m ?? 0];
 }
 

@@ -19,7 +19,7 @@
  * Each line turns to the stale style past 15 minutes on its own clock.
  */
 import { STALE_AFTER_MS, dataAge, formatStamp } from "./format.js";
-import type { CurrentReading, DashboardSnapshot, Station } from "./snapshot.js";
+import type { CurrentReading, DashboardSnapshot, StationId } from "./snapshot.js";
 import { newestObservation } from "./snapshot.js";
 
 /** A mounted header. */
@@ -123,7 +123,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
   const reading = ageLine(host.querySelector<HTMLElement>(".masthead-reading")!);
   const figures = ageLine(host.querySelector<HTMLElement>(".masthead-figures")!);
 
-  let station: Station | null = null;
+  let station: StationId | null = null;
   let observedAtMs: number | null = null;
   let figuresAtMs: number | null = null;
   let shown = false;
@@ -154,7 +154,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     tick();
   }
 
-  function take(next: Station, observed: number | null): void {
+  function take(next: StationId, observed: number | null): void {
     // A reading without a name (Ambient unnamed) never erases a known one.
     if (next.name || !station?.name) station = next;
     observedAtMs = newestObservation(observedAtMs, observed);

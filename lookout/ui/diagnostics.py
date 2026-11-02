@@ -10,11 +10,11 @@ import lookout.ui.rain as rain_module
 from lookout.config import DEFAULT_BUCKET
 from lookout.api.awn_controller import (
     GapFill,
-    combine_full_history,
     extend_corrected,
     fill_archive_gap,
     load_archive_for_device,
 )
+from lookout.core import archive_merge
 from lookout.core.data_processing import detect_gaps, get_human_readable_duration
 from lookout.core.visualization import display_hourly_coverage_heatmap
 from lookout.storage.storj import backup_and_save_history, load_archive
@@ -36,8 +36,11 @@ from lookout.utils.memory_utils import (
 
 logger = app_logger(__name__)
 
-# The raw archive the gap fills extend; what "Save Archive" writes (#95).
+# The raw archive the gap fills extend, for the next fill's baseline (#95).
 RAW_HISTORY_KEY = "raw_history_df"
+# Ambient's readings each fill fetched, in fill order; what "Save Archive"
+# merges into the archive as stored then (#223).
+FETCHED_KEY = "gap_fill_fetched"
 BUCKET = DEFAULT_BUCKET
 
 
@@ -48,7 +51,8 @@ def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
     The session's `history_df` has its rain corrected for display, so it is
     never what gets saved. The fill extends the raw archive instead (loaded
     from storage on the first fill, then kept in the session), and only the
-    rows it added are corrected into `history_df`.
+    rows it added are corrected into `history_df`. The readings Ambient sent
+    are kept too: they, not the session's archive copy, are what gets saved.
 
     :param start: The gap's start, UTC.
     :param end: The gap's end, UTC.
@@ -61,6 +65,7 @@ def fill_gap(start: pd.Timestamp, end: pd.Timestamp) -> GapFill:
     outcome = fill_archive_gap(device, raw, start, end)
     if outcome.status == "filled":
         st.session_state[RAW_HISTORY_KEY] = outcome.history_df
+        st.session_state.setdefault(FETCHED_KEY, []).append(outcome.fetched)
         st.session_state["history_df"] = extend_corrected(
             st.session_state["history_df"],
             outcome.history_df,
@@ -74,28 +79,37 @@ def save_filled_archive() -> bool:
     """
     Back up the stored archive and save it with this session's fills added.
 
-    The fills are merged into the archive as stored now, not as loaded at
-    the first fill, so rows catchup saved in between are kept. All raw.
+    Only the readings the fills fetched from Ambient go through the archive
+    merge (`archive_merge.merge`), in fill order, into the archive as stored
+    now. The session's archive copy, loaded at the first fill, never does:
+    rows catchup saved and values a repair replaced in between are kept
+    (#223). Inside the span a fill fetched, Ambient wins, as in any merge.
+    A save spends the fills, so a second click saves nothing. All raw.
     The stored archive is read strictly (#160), and the save is refused if
-    it would leave fewer rows than that read held after normalizing.
+    it would drop a reading or blank a value that read held (#190).
 
-    :return: True when saved; False when no gap was filled this session, so
-        there is nothing new to save.
+    :return: True when saved; False when no gap was filled since the last
+        save, so there is nothing new to save.
     :raises StorageReadError: If the stored archive cannot be read or has no
         valid rows.
-    :raises ArchiveShrinkError: If the save would lose stored rows.
+    :raises ArchiveLossError: If the save would drop a stored reading or
+        blank a stored value.
     """
-    raw = st.session_state.get(RAW_HISTORY_KEY)
-    if raw is None:
+    fills = st.session_state.get(FETCHED_KEY)
+    if not fills:
         return False
     device = st.session_state["device"]
     stored = load_archive(BUCKET, device["macAddress"])
+    archive = stored
+    for fetched in fills:
+        archive = archive_merge.merge(archive, fetched).archive
     backup_and_save_history(
-        df=combine_full_history(stored, raw),
+        df=archive,
         device=device,
         bucket=BUCKET,
-        loaded_rows=len(stored),
+        stored=stored,
     )
+    st.session_state[FETCHED_KEY] = []
     return True
 
 
@@ -253,7 +267,11 @@ def render():
                         {"start": outcome.start, "end": outcome.end}
                     )
                 if outcome.status == "filled":
-                    st.success("Gap filled and archive updated.")
+                    report = outcome.report
+                    st.success(
+                        f"Gap filled and archive updated: {report.added} added, "
+                        f"{report.filled} filled, {report.updated} updated."
+                    )
                 elif outcome.skipped:
                     st.warning("No new data for that gap; marked as skipped.")
                 else:

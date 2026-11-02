@@ -15,11 +15,11 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, Station, build_snapshot
 from tests.fixtures.ambient import load_devices, to_ambient_records
-from tests.fixtures.archive import FAKE_MAC, SCENARIO, build_archive
+from tests.fixtures.archive import FAKE_MAC, SCENARIO, STATION_TZ, build_archive
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 
 REGENERATE = os.environ.get("LOOKOUT_REGEN_GOLDEN") == "1"
-STATION = Station(mac=FAKE_MAC, name="Fixture Station")
+STATION = Station(mac=FAKE_MAC, name="Fixture Station", tz=STATION_TZ)
 
 
 def ms(when: str) -> int:

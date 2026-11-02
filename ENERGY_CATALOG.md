@@ -19,8 +19,8 @@ The Solar Energy Catalog system provides high-performance caching for 15-minute 
 - **Storage**: `{mac_address}.energy_catalog.parquet` in Storj bucket
 - **Backup**: `backups/{mac_address}.energy_catalog_{timestamp}.parquet`
 - **Methods**:
-  - `catalog_exists()`: Check if catalog exists in storage
-  - `load_catalog()`: Load existing catalog from storage
+  - `load_catalog()`: Read the stored catalog once: the catalog when found,
+    `None` when none is stored; a failed read raises `StorageReadError`
   - `detect_and_calculate_periods()`: Generate new catalog from data
   - `update_catalog_with_new_data()`: Incremental updates
   - `save_catalog()`: Persist to storage with backup
@@ -48,8 +48,8 @@ The Solar Energy Catalog system provides high-performance caching for 15-minute 
 # During app startup - automatic loading
 if "energy_catalog" not in st.session_state:
     catalog = EnergyCatalog(device_mac)
-    if catalog.catalog_exists():
-        periods_df = catalog.load_catalog()
+    periods_df = catalog.load_catalog()  # raises if the read failed
+    if periods_df is not None:
         # Update with any new data
         updated_df = catalog.update_catalog_with_new_data(history_df, periods_df)
         st.session_state["energy_catalog"] = updated_df

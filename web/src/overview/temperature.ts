@@ -452,7 +452,7 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     periodChart,
     spoken(ctx.periods.map(periodSentence)),
     source(
-      "Five-minute readings, Pacific time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
+      "Five-minute readings, station time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
     ),
   );
 

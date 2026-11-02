@@ -18,7 +18,7 @@
  * other MAC is a 404, never cached, so a caller cannot read another
  * station's snapshot or fill the CDN with keys.
  */
-import type { CurrentReading, LastData, Station } from "../src/snapshot.js";
+import type { CurrentReading, LastData, StationId } from "../src/snapshot.js";
 import {
   SCHEMA_VERSION,
   newestObservation,
@@ -249,7 +249,7 @@ export async function handleCurrent(
   const context = contextResult.status === "fulfilled" ? contextResult.value : null;
   const live = liveResult.status === "fulfilled" ? liveResult.value : null;
   const lastData: LastData | null = live?.lastData ?? null;
-  const station: Station = {
+  const station: StationId = {
     mac,
     name: context?.station.name ?? live?.name ?? null,
   };

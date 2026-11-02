@@ -1,12 +1,45 @@
 /**
  * The One Format Rule (DESIGN.md): times as `9:36 am`, dates with times as
  * `Oct 27, 11:00 pm`, durations as `1 d 10 h`, `5 h 12 m` or `45 m`, all in
- * station-local Pacific time, and imperial units. Every view writes its
+ * the station's time zone (the snapshot's `station.tz`), and imperial
+ * units. Every view writes its
  * times, durations, month names and units through this module.
  */
 
-/** The station's time zone. */
-export const STATION_TIME_ZONE = "America/Los_Angeles";
+let stationZone: string | null = null;
+const formats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Name the station's time zone: the site holds no copy of station metadata,
+ * so every loaded document sets the zone its snapshot names (ADR-0005).
+ *
+ * @param tz - An IANA zone name, e.g. `Asia/Tokyo`.
+ */
+export function setStationZone(tz: string): void {
+  stationZone = tz;
+}
+
+/**
+ * A formatter in the station's zone, built once per zone and options.
+ *
+ * @param locale - The formatter's locale.
+ * @param options - The formatter's options; the zone is the station's.
+ * @returns The formatter.
+ * @throws When no document has named the station's zone yet.
+ */
+export function stationFormat(
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  if (stationZone === null) throw new Error("the station's time zone is not set");
+  const key = `${stationZone}|${locale}|${JSON.stringify(options)}`;
+  let format = formats.get(key);
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat(locale, { ...options, timeZone: stationZone });
+    formats.set(key, format);
+  }
+  return format;
+}
 
 /** The data age turns stale past this. */
 export const STALE_AFTER_MS = 15 * 60_000;
@@ -49,24 +82,25 @@ export function monthLongName(month: number): string {
   return LONG_MONTH.format(Date.UTC(2000, month - 1, 15));
 }
 
-const STAMP = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
+/** The stamp formatter in the station's zone. */
+const stamp = () =>
+  stationFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 
 /**
  * A date with a time, e.g. `Jan 8, 4:45 pm`.
  *
  * @param ms - Epoch milliseconds UTC.
- * @returns The stamp in Pacific time.
+ * @returns The stamp in the station's time.
  */
 export function formatStamp(ms: number): string {
   const parts = Object.fromEntries(
-    STAMP.formatToParts(ms).map((part) => [part.type, part.value]),
+    stamp().formatToParts(ms).map((part) => [part.type, part.value]),
   );
   const period = (parts.dayPeriod ?? "").toLowerCase();
   return `${parts.month} ${parts.day}, ${parts.hour}:${parts.minute} ${period}`;
@@ -76,25 +110,26 @@ export function formatStamp(ms: number): string {
  * A time of day, e.g. `1:05 pm`.
  *
  * @param ms - Epoch milliseconds UTC.
- * @returns The time in Pacific time.
+ * @returns The time in the station's time.
  */
 export function formatTime(ms: number): string {
   const parts = Object.fromEntries(
-    STAMP.formatToParts(ms).map((part) => [part.type, part.value]),
+    stamp().formatToParts(ms).map((part) => [part.type, part.value]),
   );
   return `${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toLowerCase()}`;
 }
 
-const LOCAL_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: STATION_TIME_ZONE, month: "long" });
+/** The month-name formatter in the station's zone. */
+const localMonth = () => stationFormat("en-US", { month: "long" });
 
 /**
- * The full name of a time's Pacific month, e.g. `January`.
+ * The full name of a time's station month, e.g. `January`.
  *
  * @param ms - Epoch milliseconds UTC.
  * @returns The month's name.
  */
 export function localMonthName(ms: number): string {
-  return LOCAL_MONTH.format(ms);
+  return localMonth().format(ms);
 }
 
 /**
@@ -156,20 +191,17 @@ export function formatDayCount(days: number): string {
   return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
 }
 
-const HOUR = new Intl.DateTimeFormat("en-US", {
-  timeZone: STATION_TIME_ZONE,
-  hour: "numeric",
-  hourCycle: "h23",
-});
+/** The hour formatter in the station's zone. */
+const hourOf = () => stationFormat("en-US", { hour: "numeric", hourCycle: "h23" });
 
 /**
- * The Pacific hour of a time.
+ * The station-local hour of a time.
  *
  * @param ms - Epoch milliseconds UTC.
  * @returns 0 to 23.
  */
 export function localHour(ms: number): number {
-  return Number(HOUR.format(ms));
+  return Number(hourOf().format(ms));
 }
 
 /**
@@ -185,7 +217,7 @@ export function hourText(hour: number): string {
 }
 
 /**
- * A time's Pacific hour in words, e.g. `noon`, `3 pm`.
+ * A time's station-local hour in words, e.g. `noon`, `3 pm`.
  *
  * @param ms - Epoch milliseconds UTC.
  * @returns The hour in words.
@@ -206,16 +238,17 @@ export function dayText(iso: string, withYear = false): string {
   return withYear ? `${text}, ${iso.slice(0, 4)}` : text;
 }
 
-const LOCAL_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: STATION_TIME_ZONE });
+/** The calendar-day formatter in the station's zone. */
+const dayOf = () => stationFormat("en-CA", {});
 
 /**
- * The Pacific calendar day of a time.
+ * The station's calendar day of a time.
  *
  * @param ms - Epoch milliseconds UTC.
  * @returns "YYYY-MM-DD".
  */
 export function localDay(ms: number): string {
-  return LOCAL_DAY.format(ms);
+  return dayOf().format(ms);
 }
 
 /**

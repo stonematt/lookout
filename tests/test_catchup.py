@@ -24,7 +24,7 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 from lookout.api import awn_controller as awn
-from lookout.core import rain_corrections
+from lookout.core import archive_merge, rain_corrections
 from lookout.storage import storj
 from tests.fixtures.ambient import (
     AmbientReplay,
@@ -34,7 +34,7 @@ from tests.fixtures.ambient import (
 )
 from tests.fixtures.archive import FAKE_MAC, build_archive, scenario_archive
 from tests.fixtures.real import AMBIENT_END, load_real_slice
-from tests.fixtures.storage import BUCKET, FROZEN_DAY, bucket_keys
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, bucket_keys, flaky_storj
 
 ARCHIVE_KEY = f"{FAKE_MAC}.parquet"
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
@@ -304,6 +304,68 @@ class TestCatchupRun:
         assert_frame_equal(station.stored(), station.archive)
 
 
+# ---------- the archive merge (#188) ----------
+
+
+class TestOverlapMerge:
+    """
+    Catchup's routine re-fetch of the last readings merges, Ambient winning.
+
+    Ambient pages run back from `endDate`, so each run re-fetches the last
+    two hours the archive holds. Here Ambient now reports those readings
+    1 degree warmer and without `humidity`, and the stored rows carry an
+    `hour` Ambient never sends.
+    """
+
+    def seed(self, catchup_station) -> CatchupStation:
+        archive = load_real_slice()
+        newest = int(archive["dateutc"].max())
+        overlap = archive["dateutc"] > newest - 2 * HOUR_MS
+        archive.loc[overlap, "hour"] = 20.0
+        resent = []
+        for record in to_ambient_records(archive[overlap]):
+            record["tempf"] += 1.0
+            del record["humidity"]
+            resent.append(record)
+        self.overlap = archive[overlap].set_index("dateutc")
+        return catchup_station(archive=archive, history=resent + load_history())
+
+    def test_the_re_fetched_readings_take_ambients_values(self, catchup_station):
+        station = self.seed(catchup_station)
+
+        station.run()
+
+        stored = station.stored().set_index("dateutc")
+        rows = stored.loc[self.overlap.index]
+        assert list(rows["tempf"]) == list(self.overlap["tempf"] + 1.0)
+        assert len(stored) == len(station.archive) + RECORDED_ROWS
+
+    def test_values_ambient_omits_keep_their_stored_value(self, catchup_station):
+        station = self.seed(catchup_station)
+
+        station.run()
+
+        rows = station.stored().set_index("dateutc").loc[self.overlap.index]
+        assert_frame_equal(
+            rows[["humidity", "hour"]], self.overlap[["humidity", "hour"]]
+        )
+
+    def test_the_run_logs_what_the_merge_changed(self, catchup_station, caplog):
+        station = self.seed(catchup_station)
+
+        with caplog.at_level("INFO", logger="lookout.cli.catchup"):
+            station.run()
+
+        lines = [
+            r.getMessage() for r in caplog.records if "Archive merge" in r.getMessage()
+        ]
+        assert len(lines) == 1
+        assert (
+            f"{RECORDED_ROWS} added, 0 filled, {len(self.overlap)} updated" in lines[0]
+        )
+        assert "stored only: " in lines[0] and "hour" in lines[0]
+
+
 # ---------- the stored order (#133) ----------
 
 
@@ -442,59 +504,6 @@ def test_each_run_keeps_the_stored_rain_counters_raw(catchup_station):
 # ---------- archive safety (#160) ----------
 
 
-class FlakyStorj:
-    """
-    The moto client, with chosen calls failing the way a Storj outage does.
-
-    :param s3: The moto client every other call goes to.
-    :param read: A key whose `get_object` raises.
-    :param write: A key whose `upload_fileobj` raises.
-    :param copy: Whether `copy_object` (the backup) raises.
-    """
-
-    def __init__(
-        self,
-        s3: object,
-        read: Optional[str] = None,
-        write: Optional[str] = None,
-        copy: bool = False,
-    ) -> None:
-        self.s3 = s3
-        self.read = read
-        self.write = write
-        self.copy = copy
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self.s3, name)
-
-    def get_object(self, **kwargs: object) -> Dict:
-        if kwargs["Key"] == self.read:
-            raise OSError("storj read timed out")
-        return self.s3.get_object(**kwargs)
-
-    def upload_fileobj(self, **kwargs: object) -> None:
-        if kwargs["Key"] == self.write:
-            raise OSError("storj write refused")
-        return self.s3.upload_fileobj(**kwargs)
-
-    def copy_object(self, **kwargs: object) -> Dict:
-        if self.copy:
-            raise OSError("storj copy refused")
-        return self.s3.copy_object(**kwargs)
-
-
-def flaky_storj(monkeypatch: pytest.MonkeyPatch, s3: object, **fail: object) -> None:
-    """
-    Route every `storj` client through a `FlakyStorj`.
-
-    :param monkeypatch: The test's monkeypatch.
-    :param s3: The moto client.
-    :param fail: `FlakyStorj` keyword arguments.
-    """
-    flaky = FlakyStorj(s3, **fail)
-    monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
-
-
 def stored_bytes(station: CatchupStation, key: str = ARCHIVE_KEY) -> bytes:
     """
     The raw bytes of a stored object.
@@ -541,37 +550,64 @@ class TestArchiveSafety:
 
         assert stored_bytes(station) == b"not parquet"
 
-    def test_a_save_that_would_shrink_the_archive_is_refused(
+    def test_a_save_that_would_drop_a_stored_reading_is_refused(
         self, catchup_station, monkeypatch
     ):
         station = catchup_station()
         before = stored_bytes(station)
+        # A merge never drops a stored reading, so stand in for one that did.
         monkeypatch.setattr(
-            awn,
-            "get_history_since_last_archive",
-            lambda device, archive, **_: archive.iloc[1:],
+            archive_merge,
+            "merge",
+            lambda stored, _ambient: archive_merge.Merged(
+                stored.iloc[1:], archive_merge.MergeReport()
+            ),
         )
 
-        with pytest.raises(storj.ArchiveShrinkError):
+        with pytest.raises(storj.ArchiveLossError, match="drop 1 stored reading"):
             station.run()
 
         assert stored_bytes(station) == before
 
-    def test_a_repair_that_would_shrink_the_archive_is_refused(
+    def test_a_save_that_would_blank_a_stored_value_is_refused(
+        self, catchup_station, monkeypatch
+    ):
+        # The April case: rows added, a stored value blanked in place. The
+        # guard sees it whatever built the frame (#190).
+        station = catchup_station()
+        before = stored_bytes(station)
+        merge = archive_merge.merge
+
+        def blanking(stored, ambient):
+            archive, report = merge(stored, ambient)
+            archive.loc[archive["dateutc"] == stored["dateutc"].min(), "tempf"] = None
+            return archive_merge.Merged(archive, report)
+
+        monkeypatch.setattr(archive_merge, "merge", blanking)
+
+        with pytest.raises(storj.ArchiveLossError, match="blank 1 stored value"):
+            station.run()
+
+        assert stored_bytes(station) == before
+
+    def test_repair_archive_may_drop_readings_as_an_explicit_repair(
         self, catchup_station, monkeypatch
     ):
         from lookout.cli import catchup
 
         station = catchup_station()
-        before = stored_bytes(station)
+        dropped = station.stored()["dateutc"].min()
         monkeypatch.setattr(
-            catchup, "_repair_archive_df", lambda archive: (archive.iloc[1:], {})
+            catchup,
+            "_repair_archive_df",
+            lambda archive: (archive[archive["dateutc"] != dropped], {}),
         )
 
-        with pytest.raises(storj.ArchiveShrinkError):
-            catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+        catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
 
-        assert stored_bytes(station) == before
+        stored = station.stored()
+        assert len(stored) == len(station.archive) - 1
+        assert dropped not in set(stored["dateutc"])
 
     def test_a_failed_archive_save_fails_the_run(self, catchup_station, monkeypatch):
         station = catchup_station()

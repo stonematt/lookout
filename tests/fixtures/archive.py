@@ -105,7 +105,7 @@ def _weather(local: pd.DatetimeIndex) -> dict:
 
 
 def _carryover_offsets(
-    local: pd.DatetimeIndex, daily: pd.Series, gaps: Sequence[Gap]
+    local: pd.DatetimeIndex, daily: pd.Series, gaps: Sequence[Gap], tz: str
 ) -> dict:
     """Extra amount each counter carries for every carryover gap."""
     names = ("dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin")
@@ -114,8 +114,8 @@ def _carryover_offsets(
     for gap in gaps:
         if not gap.carryover:
             continue
-        g0 = _utc(gap.start).tz_convert(STATION_TZ)
-        g1 = _utc(gap.end).tz_convert(STATION_TZ)
+        g0 = _utc(gap.start).tz_convert(tz)
+        g1 = _utc(gap.end).tz_convert(tz)
         midnight = g1.normalize()
         if not g0 < midnight <= g1 - pd.Timedelta(microseconds=1):
             raise ValueError(f"Carryover gap {gap} must cross local midnight")
@@ -164,6 +164,7 @@ def build_archive(
     interval_minutes: int = 5,
     event_reset_hours: float = 6.0,
     newest_first: bool = True,
+    tz: str = STATION_TZ,
 ) -> pd.DataFrame:
     """
     Simulate a station from `start` (inclusive) to `end` (exclusive).
@@ -175,11 +176,12 @@ def build_archive(
     :param interval_minutes: Reporting interval.
     :param event_reset_hours: Dry hours after which `eventrainin` returns to 0.
     :param newest_first: Sort newest row first, as the Storj archive is.
+    :param tz: The station's zone; its counters reset at midnight there.
     :return: The archive DataFrame, index reset.
     """
     step = pd.Timedelta(minutes=interval_minutes)
     utc = pd.date_range(_utc(start), _utc(end) - step, freq=step)
-    local = utc.tz_convert(STATION_TZ)
+    local = utc.tz_convert(tz)
 
     fallen = np.zeros(len(utc))
     for spell in rain:
@@ -202,7 +204,7 @@ def build_archive(
 
     event, last_rain = _event_counter(utc, fallen, event_reset_hours)
 
-    carried = _carryover_offsets(local, daily, gaps)
+    carried = _carryover_offsets(local, daily, gaps, tz)
 
     df = pd.DataFrame(
         {
@@ -214,7 +216,7 @@ def build_archive(
             "weeklyrainin": np.round(weekly.values + carried["weeklyrainin"], 3),
             "monthlyrainin": np.round(monthly.values + carried["monthlyrainin"], 3),
             "yearlyrainin": np.round(yearly.values + carried["yearlyrainin"], 3),
-            "lastRain": last_rain.tz_convert(STATION_TZ),
+            "lastRain": last_rain.tz_convert(tz),
             "date": local,
         }
     )

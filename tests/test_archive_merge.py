@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from lookout.api import awn_controller as awn
-from lookout.core import rain_corrections
+from lookout.core import archive_merge, rain_corrections
 from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -60,7 +60,7 @@ def serve(ambient_replay, df: pd.DataFrame) -> None:
 
 
 class TestCombine:
-    """`combine_df` / `combine_full_history`: dedup and sort on `dateutc`."""
+    """`combine_df`: dedup and sort on `dateutc`."""
 
     def test_overlapping_slices_combine_to_the_full_archive(self):
         full = week()
@@ -81,14 +81,8 @@ class TestCombine:
             assert combined["dateutc"].is_monotonic_decreasing
             assert len(combined) == len(full)
 
-    def test_a_duplicate_timestamp_leaves_one_row(self):
-        """
-        Held finding: which duplicate survives is not defined.
-
-        `normalize` sorts with an unstable sort before `keep="last"`, so the
-        winner between equal timestamps can differ by platform. Only the
-        dedup is pinned.
-        """
+    def test_the_later_frame_wins_a_duplicate_timestamp(self):
+        """In-memory page merge: the frame passed second wins, whole row."""
         old = week().head(3).copy()
         new = old.copy()
         new["tempf"] = 99.0
@@ -97,7 +91,7 @@ class TestCombine:
 
         assert len(combined) == 3
         assert combined["dateutc"].is_unique
-        assert set(combined["tempf"]) <= set(old["tempf"]) | {99.0}
+        assert list(combined["tempf"]) == [99.0, 99.0, 99.0]
 
     def test_drops_rows_with_invalid_dateutc(self):
         good = week().head(2)
@@ -111,23 +105,142 @@ class TestCombine:
         assert len(combined) == 2
         assert set(combined["dateutc"]) == set(good["dateutc"])
 
-    def test_full_history_without_interim_returns_the_archive_untouched(self):
-        archive = week().head(10).sample(frac=1, random_state=1)
 
-        for interim in (None, archive.iloc[0:0]):
-            result = awn.combine_full_history(archive, interim)
-            # Not re-sorted or deduped: the archive comes back as it went in.
-            pd.testing.assert_frame_equal(result, archive)
+T0 = ms("2026-01-08T00:00:00Z")
+STEP = 5 * 60 * 1000
 
-    def test_full_history_adds_only_the_interim_rows_it_lacks(self):
+
+def readings(*rows: dict) -> pd.DataFrame:
+    """
+    A small frame of readings, one dict per row, `dateutc` given as a slot.
+
+    :param rows: Column values per row; `slot` is the 5-minute slot after
+        `T0`, turned into `dateutc`.
+    :return: The frame, in the order given.
+    """
+    out = [dict(r) for r in rows]
+    for r in out:
+        r["dateutc"] = T0 + r.pop("slot") * STEP
+    return pd.DataFrame(out)
+
+
+def at(df: pd.DataFrame, slot: int) -> pd.Series:
+    """The row of `df` at a slot after `T0`."""
+    return df.set_index("dateutc").loc[T0 + slot * STEP]
+
+
+class TestArchiveMerge:
+    """`archive_merge.merge`: Ambient wins for each value it sends."""
+
+    def test_a_reading_only_ambient_has_is_added(self):
+        stored = readings({"slot": 0, "tempf": 50.0})
+        ambient = readings({"slot": 1, "tempf": 51.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert list(archive["dateutc"]) == [T0 + STEP, T0]
+        assert at(archive, 1)["tempf"] == 51.0
+        assert (report.added, report.filled, report.updated) == (1, 0, 0)
+
+    def test_ambients_value_wins_a_shared_reading(self):
+        stored = readings({"slot": 0, "tempf": 50.0, "humidity": 40})
+        ambient = readings({"slot": 0, "tempf": 52.5, "humidity": 40})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert len(archive) == 1
+        assert at(archive, 0)["tempf"] == 52.5
+        assert (report.added, report.filled, report.updated) == (0, 0, 1)
+
+    def test_a_stored_gap_is_filled_from_ambient(self):
+        stored = readings({"slot": 0, "tempf": None, "humidity": 40.0})
+        ambient = readings({"slot": 0, "tempf": 50.0, "humidity": 40.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert at(archive, 0)["tempf"] == 50.0
+        assert (report.added, report.filled, report.updated) == (0, 1, 0)
+
+    def test_ambients_nan_keeps_the_stored_value(self):
+        stored = readings({"slot": 0, "tempf": 50.0, "humidity": 40.0})
+        ambient = readings({"slot": 0, "tempf": None, "humidity": 41.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert at(archive, 0)["tempf"] == 50.0
+        assert at(archive, 0)["humidity"] == 41.0
+        assert (report.added, report.filled, report.updated) == (0, 0, 1)
+
+    def test_a_column_only_ambient_has_is_kept_and_named(self):
+        stored = readings({"slot": 0, "tempf": 50.0})
+        ambient = readings({"slot": 0, "tempf": 50.0, "pm25": 7.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert list(archive.columns) == ["tempf", "dateutc", "pm25"]
+        assert at(archive, 0)["pm25"] == 7.0
+        assert report.ambient_only == ("pm25",)
+        assert report.stored_only == ()
+        # A new column is neither filled nor updated: there was no cell.
+        assert (report.added, report.filled, report.updated) == (0, 0, 0)
+
+    def test_a_column_only_the_stored_side_has_keeps_its_values(self):
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "hour": 16},
+            {"slot": 1, "tempf": 50.5, "hour": 16},
+        )
+        ambient = readings({"slot": 1, "tempf": 51.0}, {"slot": 2, "tempf": 52.0})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert at(archive, 0)["hour"] == 16
+        assert at(archive, 1)["hour"] == 16
+        assert at(archive, 1)["tempf"] == 51.0
+        assert pd.isna(at(archive, 2)["hour"])
+        assert report.stored_only == ("hour",)
+        assert report.ambient_only == ()
+        assert (report.added, report.filled, report.updated) == (1, 0, 1)
+
+    def test_identical_frames_report_nothing_changed(self):
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "humidity": None},
+            {"slot": 1, "tempf": 50.5, "humidity": 41.0},
+        )
+
+        archive, report = archive_merge.merge(stored, stored.copy())
+
+        assert report == archive_merge.MergeReport()
+        assert not report.changed
+        pd.testing.assert_frame_equal(archive, stored.iloc[::-1].reset_index(drop=True))
+
+    def test_nothing_from_ambient_returns_the_stored_readings(self):
+        stored = week().head(5)
+
+        for ambient in (pd.DataFrame(), stored.iloc[0:0]):
+            archive, report = archive_merge.merge(stored, ambient)
+
+            pd.testing.assert_frame_equal(archive, stored)
+            assert report == archive_merge.MergeReport()
+
+    def test_the_merge_is_newest_first_and_keeps_column_dtypes(self):
         full = week()
-        archive = full[full.dateutc < ms("2026-01-09T00:00:00Z")]
-        interim = full[full.dateutc >= ms("2026-01-08T20:00:00Z")]
+        stored = full[full.dateutc < ms("2026-01-09T00:00:00Z")]
+        ambient = full[full.dateutc >= ms("2026-01-08T20:00:00Z")]
 
-        combined = awn.combine_full_history(archive, interim)
+        archive, report = archive_merge.merge(stored, ambient)
 
-        pd.testing.assert_frame_equal(combined, full)
-        assert combined["dateutc"].is_unique
+        pd.testing.assert_frame_equal(archive, full)
+        assert report.added == len(full) - len(stored)
+        assert (report.filled, report.updated) == (0, 0)
+
+    def test_the_report_describes_itself_for_a_log_line(self):
+        report = archive_merge.MergeReport(
+            added=3, filled=1, updated=24, stored_only=("hour",), ambient_only=()
+        )
+
+        assert report.describe() == (
+            "3 added, 1 filled, 24 updated; stored only: hour; Ambient only: none"
+        )
 
 
 class TestSeekOverTimeGap:
@@ -509,7 +622,7 @@ class TestFillArchiveGap:
 
         assert result.status == "filled"
         assert not result.skipped
-        assert result.rows_added == len(truth) - len(archive)
+        assert result.report.added == len(truth) - len(archive)
         filled = result.history_df
         assert len(filled) == len(truth)
         assert filled["dateutc"].is_unique
@@ -529,23 +642,23 @@ class TestFillArchiveGap:
         archive = week()
         serve(ambient_replay, week(gaps=(CARRY_GAP,)))
         seen = []
-        real = awn.get_history_since_last_archive
+        real = awn.fetch_since_last_archive
 
         def spy(device, archive_df, **kwargs):
             seen.append(archive_df["dateutc"].dtype)
             result = real(device, archive_df, **kwargs)
-            seen.append(len(result) >= len(archive_df))
+            seen.append(result["dateutc"].dtype)
             return result
 
         with caplog.at_level("WARNING", logger="lookout.utils.dateutc"):
             with pytest.MonkeyPatch.context() as mp:
-                mp.setattr(awn, "get_history_since_last_archive", spy)
+                mp.setattr(awn, "fetch_since_last_archive", spy)
                 result = awn.fill_archive_gap(
                     device, archive, PLAIN_GAP.start, PLAIN_GAP.end
                 )
 
         assert result.status == "filled"
-        assert seen == ["int64", True]
+        assert seen == ["int64", "int64"]
         assert not [r for r in caplog.records if "dateutc.normalize" in r.message]
 
     def test_fill_leaves_a_raw_archive_raw(self, fake_s3, ambient_replay, device):
@@ -582,9 +695,58 @@ class TestFillArchiveGap:
         assert result.history_df is archive
         assert result.status == "no_new_data"
         assert result.skipped
-        assert result.rows_added == 0
+        assert not result.report.changed
         assert result.start == pd.Timestamp(PLAIN_GAP.start, tz="UTC")
         assert result.end == pd.Timestamp(PLAIN_GAP.end, tz="UTC")
+
+    def test_an_overshooting_fetch_saves_updates_and_keeps_omitted_values(
+        self, fake_s3, ambient_replay, device
+    ):
+        """
+        The April case: the fetch runs past the gap's end into stored rows.
+
+        Ambient updates one value there and omits another; the update lands,
+        the omitted stored value stays, and the report counts it.
+        """
+        archive = week()
+        archive["hum"] = 50.0
+        truth = week(gaps=(CARRY_GAP,)).copy()
+        truth["tempf"] = truth["tempf"] + 1.0
+        records = to_ambient_records(truth)
+        for record in records:
+            record.pop("hum", None)
+        ambient_replay.history = sorted(
+            records, key=lambda r: r["dateutc"], reverse=True
+        )
+
+        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+
+        assert result.status == "filled"
+        assert result.report.added == len(truth) - len(archive)
+        assert result.report.updated > 0
+        filled = result.history_df.set_index("dateutc")
+        stored = archive.set_index("dateutc")
+        overlap = stored.index.intersection(filled.index)
+        assert (filled.loc[overlap, "hum"] == 50.0).all()
+        moved = overlap[filled.loc[overlap, "tempf"] != stored.loc[overlap, "tempf"]]
+        assert len(moved) == result.report.updated
+        expected = truth.set_index("dateutc").loc[moved, "tempf"]
+        assert (filled.loc[moved, "tempf"] - expected).abs().max() < 1e-6
+
+    def test_a_fill_that_only_updates_values_reports_and_is_filled(
+        self, fake_s3, ambient_replay, device
+    ):
+        archive = week()
+        changed = archive.copy()
+        changed["tempf"] = changed["tempf"] + 1.0
+        serve(ambient_replay, changed)
+
+        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+
+        assert result.status == "filled"
+        assert result.report.added == 0
+        assert result.report.updated > 0
+        assert not result.skipped
 
     def test_an_inverted_gap_is_refused_without_a_request(
         self, fake_s3, ambient_replay, device
@@ -610,3 +772,80 @@ class TestFillArchiveGap:
         assert result.history_df is archive
         assert result.status == "refused"
         assert ambient_replay.calls == []
+
+
+class TestArchiveReplace:
+    """`archive_merge.replace`: a deliberate correction, not a merge."""
+
+    def test_the_windows_readings_are_swapped_whole(self):
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "humidity": 40.0},
+            {"slot": 1, "tempf": 51.0, "humidity": 41.0},
+            {"slot": 2, "tempf": 52.0, "humidity": 42.0},
+        )
+        fixed = readings({"slot": 1, "tempf": 60.0, "humidity": None})
+
+        archive, report = archive_merge.replace(stored, T0 + STEP, T0 + 2 * STEP, fixed)
+
+        assert list(archive["dateutc"]) == [T0 + 2 * STEP, T0 + STEP, T0]
+        assert at(archive, 1)["tempf"] == 60.0
+        assert pd.isna(at(archive, 1)["humidity"])
+        assert at(archive, 0)["humidity"] == 40.0
+        assert at(archive, 2)["humidity"] == 42.0
+        assert (report.replaced, report.written) == (1, 1)
+
+    def test_a_stored_reading_the_replacement_lacks_is_dropped(self):
+        stored = readings({"slot": 0, "tempf": 50.0}, {"slot": 1, "tempf": 51.0})
+
+        archive, report = archive_merge.replace(
+            stored, T0, T0 + 2 * STEP, readings({"slot": 0, "tempf": 50.0})
+        )
+
+        assert list(archive["dateutc"]) == [T0]
+        assert (report.replaced, report.written) == (2, 1)
+        assert archive_merge.loss(stored, archive).dropped == 1
+
+    def test_readings_outside_the_window_are_untouched_and_replacements_there_ignored(
+        self,
+    ):
+        stored = readings({"slot": 0, "tempf": 50.0}, {"slot": 3, "tempf": 53.0})
+        fixed = readings({"slot": 0, "tempf": 99.0}, {"slot": 1, "tempf": 61.0})
+
+        archive, report = archive_merge.replace(stored, T0 + STEP, T0 + 2 * STEP, fixed)
+
+        assert at(archive, 0)["tempf"] == 50.0
+        assert at(archive, 1)["tempf"] == 61.0
+        assert at(archive, 3)["tempf"] == 53.0
+        assert (report.replaced, report.written) == (0, 1)
+
+    def test_an_empty_replacement_clears_the_window(self):
+        stored = readings({"slot": 0, "tempf": 50.0}, {"slot": 1, "tempf": 51.0})
+
+        archive, report = archive_merge.replace(
+            stored, T0, T0 + STEP, readings({"slot": 5, "tempf": 1.0})
+        )
+
+        assert list(archive["dateutc"]) == [T0 + STEP]
+        assert (report.replaced, report.written) == (1, 0)
+
+    def test_a_replacement_only_column_is_kept(self):
+        stored = readings({"slot": 0, "tempf": 50.0})
+
+        archive, _ = archive_merge.replace(
+            stored, T0, T0 + STEP, readings({"slot": 0, "tempf": 50.0, "uv": 3.0})
+        )
+
+        assert list(archive.columns) == ["tempf", "dateutc", "uv"]
+
+    def test_the_report_describes_itself(self):
+        report = archive_merge.ReplaceReport(replaced=120, written=118)
+
+        assert report.describe() == "replaced 120 readings with 118"
+
+    def test_an_empty_archive_takes_the_replacement_in_the_window(self):
+        fixed = readings({"slot": 0, "tempf": 50.0}, {"slot": 9, "tempf": 1.0})
+
+        archive, report = archive_merge.replace(pd.DataFrame(), T0, T0 + STEP, fixed)
+
+        assert list(archive["dateutc"]) == [T0]
+        assert (report.replaced, report.written) == (0, 1)

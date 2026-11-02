@@ -1,6 +1,6 @@
 """
 Characterizes catalog storage against a moto-faked Storj gateway: every
-catalog's key path, and load, save, backup and exists for the generic
+catalog's key path, and load, save and backup for the generic
 `catalog_utils` store and the Event Catalog (`RainEventCatalog`).
 
 Event detection and catalog merging are pinned elsewhere; this is storage only.
@@ -18,7 +18,7 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from tests.fixtures.archive import FAKE_MAC
-from tests.fixtures.storage import BUCKET, bucket_keys
+from tests.fixtures.storage import BUCKET, bucket_keys, flaky_storj
 
 
 @pytest.fixture
@@ -75,14 +75,13 @@ def test_catalog_key_paths():
 
 
 def test_rain_corrections_catalog_lives_at_mac_dot_rain_corrections_json(fake_s3):
-    assert rain_corrections.catalog_exists(FAKE_MAC, BUCKET) is False
+    assert rain_corrections.read_catalog(FAKE_MAC, BUCKET) is None
     catalog = {"version": 1, "corrections": []}
 
     assert rain_corrections.save_catalog(catalog, FAKE_MAC, BUCKET) is True
 
     assert bucket_keys(fake_s3) == ["00:11:22:33:44:55.rain_corrections.json"]
-    assert rain_corrections.catalog_exists(FAKE_MAC, BUCKET) is True
-    assert rain_corrections.load_catalog(FAKE_MAC, BUCKET) == catalog
+    assert rain_corrections.read_catalog(FAKE_MAC, BUCKET) == catalog
 
 
 def _day_periods() -> pd.DataFrame:
@@ -96,33 +95,67 @@ def _day_periods() -> pd.DataFrame:
     )
 
 
-def test_day_periods_catalog_exists_only_once_saved(fake_s3):
-    assert day_periods.catalog_exists(FAKE_MAC, BUCKET) is False
+DAY_PERIODS_KEY = f"{FAKE_MAC}.day_periods_catalog.parquet"
+
+
+def test_day_periods_catalog_load_is_none_until_saved(fake_s3):
+    assert day_periods.load_day_periods_catalog(FAKE_MAC, BUCKET) is None
 
     assert day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
 
-    assert day_periods.catalog_exists(FAKE_MAC, BUCKET) is True
+    assert bucket_keys(fake_s3) == [DAY_PERIODS_KEY]
+    loaded = day_periods.load_day_periods_catalog(FAKE_MAC, BUCKET)
+    assert len(loaded) == 2
+    assert str(loaded["date"].dt.tz) == "America/Los_Angeles"
 
 
-def test_missing_day_periods_catalog_loads_empty_by_the_no_catalog_path(
-    fake_s3, caplog
-):
-    caplog.set_level("INFO")
+def test_a_failed_day_periods_read_raises(fake_s3, monkeypatch):
+    day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
+    flaky_storj(monkeypatch, fake_s3, read=DAY_PERIODS_KEY)
 
-    assert day_periods.load_day_periods_catalog(FAKE_MAC, BUCKET).empty
-
-    assert f"No day periods catalog found for {FAKE_MAC}" in caplog.text
-    assert "Failed to load DataFrame" not in caplog.text  # no read was tried
+    with pytest.raises(storj.StorageReadError):
+        day_periods.load_day_periods_catalog(FAKE_MAC, BUCKET)
 
 
-def test_day_periods_catalog_listing_follows_existence(fake_s3):
-    assert day_periods.list_day_periods_catalogs(FAKE_MAC, BUCKET) == []
+def test_a_failed_day_periods_save_reports_failure(fake_s3, monkeypatch):
+    flaky_storj(monkeypatch, fake_s3, write=DAY_PERIODS_KEY)
 
+    assert (
+        day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET) is False
+    )
+    assert bucket_keys(fake_s3) == []
+
+
+def test_day_periods_backup_is_a_timestamped_copy(fake_s3):
+    assert day_periods.backup_day_periods_catalog(FAKE_MAC, BUCKET) is None
     day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
 
-    assert day_periods.list_day_periods_catalogs(FAKE_MAC, BUCKET) == [
-        "00:11:22:33:44:55.day_periods_catalog.parquet"
-    ]
+    path = day_periods.backup_day_periods_catalog(FAKE_MAC, BUCKET)
+
+    pattern = (
+        rf"backups/{re.escape(FAKE_MAC)}\.day_periods_catalog_\d{{8}}_\d{{6}}"
+        r"\.parquet"
+    )
+    assert re.fullmatch(pattern, path)
+    original = fake_s3.get_object(Bucket=BUCKET, Key=DAY_PERIODS_KEY)
+    copy = fake_s3.get_object(Bucket=BUCKET, Key=path)
+    assert copy["Body"].read() == original["Body"].read()
+
+
+def test_a_failed_day_periods_backup_raises(fake_s3, monkeypatch):
+    day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
+    flaky_storj(monkeypatch, fake_s3, copy=True)
+
+    with pytest.raises(storj.BackupError):
+        day_periods.backup_day_periods_catalog(FAKE_MAC, BUCKET)
+    assert bucket_keys(fake_s3) == [DAY_PERIODS_KEY]
+
+
+def test_day_periods_delete_reports_that_it_deleted_nothing(fake_s3):
+    day_periods.save_day_periods_catalog(_day_periods(), FAKE_MAC, BUCKET)
+
+    assert day_periods.delete_day_periods_catalog(FAKE_MAC, BUCKET) is False
+    assert bucket_keys(fake_s3) == [DAY_PERIODS_KEY]
 
 
 # ---------- catalog_utils: the station is the pinned one ----------
@@ -140,13 +173,12 @@ def test_generic_catalog_unpinned_uses_the_default_station(fake_s3, no_station):
     assert bucket_keys(fake_s3) == ["98:CD:AC:22:0D:E5.energy_catalog.parquet"]
 
 
-def test_generic_catalog_exists_load_and_save(fake_s3, station):
-    assert catalog_utils.catalog_exists("energy", BUCKET) is False
+def test_generic_catalog_load_and_save(fake_s3, station):
     assert catalog_utils.load_catalog("energy", BUCKET).empty
 
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
 
-    assert catalog_utils.catalog_exists("energy", BUCKET) is True
+    assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
     loaded = catalog_utils.load_catalog("energy", BUCKET)
     # save stamps two metadata columns onto the stored copy.
     assert list(loaded.columns) == [
@@ -158,6 +190,13 @@ def test_generic_catalog_exists_load_and_save(fake_s3, station):
     assert (loaded["catalog_version"] == "1.0").all()
     assert str(loaded["updated_at"].dtype).startswith("datetime64")
     assert_frame_equal(loaded[["period_start", "energy_kwh"]], _periods())
+
+
+def test_a_failed_generic_catalog_save_reports_failure(fake_s3, station, monkeypatch):
+    flaky_storj(monkeypatch, fake_s3, write=f"{FAKE_MAC}.energy_catalog.parquet")
+
+    assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is False
+    assert bucket_keys(fake_s3) == []
 
 
 def test_generic_catalog_refuses_an_empty_save(fake_s3, station):
@@ -206,14 +245,12 @@ def test_catalog_save_with_backup_takes_the_station_as_a_parameter(
 # ---------- the Event Catalog ----------
 
 
-def test_event_catalog_exists_load_and_save(fake_s3):
+def test_event_catalog_load_is_none_until_saved(fake_s3):
     catalog = RainEventCatalog(FAKE_MAC, bucket=BUCKET)
-    assert catalog.catalog_exists() is False
-    assert catalog.load_catalog().empty
+    assert catalog.load_catalog() is None
 
     assert catalog.save_catalog(_events()) is True
 
-    assert catalog.catalog_exists() is True
     assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.event_catalog.parquet"]
     loaded = catalog.load_catalog()
     # Event times are stored as UTC timestamps, whatever they arrived as.

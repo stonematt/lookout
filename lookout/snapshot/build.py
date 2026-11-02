@@ -2,8 +2,12 @@
 build.py: `build_snapshot`, the one pure function behind the dashboard.
 
 It reads no storage, no clock and no session state: everything comes in as
-arguments, and the `Snapshot` goes out. The refresh command
-(`lookout.cli.refresh`) loads the inputs and publishes the result.
+arguments, and the `Snapshot` goes out. It makes the one `StationClock`, the
+build time with the station's zone, and on it counts the archive's days and
+extracts the daily rain series once (`lookout.snapshot.days.count_days`);
+every section shares those, so no two judge a day two ways. The
+refresh command (`lookout.cli.refresh`) loads the inputs and publishes the
+result.
 
 Later tickets add their per-tab sections here: compute the section from the
 same `stitched` history (so live values are used once) and add its field to
@@ -16,17 +20,18 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from lookout.snapshot.almanac import almanac
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.current import (
     active_rain_event,
     current_conditions,
     stitch_live,
-    to_ms,
 )
+from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
-from lookout.snapshot.rain_tab import RainCoverage, rain_tab
+from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.temperature import temperature_context
@@ -53,45 +58,48 @@ def build_snapshot(
     :param event_catalog: The Event Catalog, or None when there is none.
     :param energy_catalog: The energy catalog, or None: the Solar tab's
         source.
-    :param station: The station.
+    :param station: The station; its zone is the build's (ADR-0005).
     :param now: The build time, timezone-aware.
     :return: The snapshot.
     :raises ValueError: If `now` has no timezone.
     """
     if now.tzinfo is None:
         raise ValueError("build_snapshot needs a timezone-aware `now`")
+    clock = StationClock(now, station.tz)
 
     archive_newest_ms = int(archive["dateutc"].max()) if not archive.empty else None
     stitched = stitch_live(archive, live)
     observed_at_ms = int(stitched["dateutc"].iloc[0]) if not stitched.empty else None
-    current = current_conditions(stitched, now)
+    current = current_conditions(stitched, clock)
     active = active_rain_event(event_catalog, current, observed_at_ms)
-    coverage = RainCoverage(archive, current, now)
-    rain = rain_tab(archive, stitched, current, now, coverage=coverage)
+    days = count_days(archive, current, clock)
 
     return Snapshot(
         station=station,
-        built_at_ms=to_ms(pd.Timestamp(now)),
+        built_at_ms=clock.now_ms,
         observed_at_ms=observed_at_ms,
         archive_newest_ms=archive_newest_ms,
         current=current,
         active_rain_event=active,
-        gaps=snapshot_gaps(archive, now),
-        condition_ribbon=condition_ribbon(stitched, observed_at_ms),
+        gaps=snapshot_gaps(days.coverage),
+        condition_ribbon=condition_ribbon(stitched, observed_at_ms, clock),
         rain_events=rain_events_section(
             event_catalog,
             stitched,
             active,
             observed_at_ms,
-            coverage.water_year_status,
+            clock,
+            days.rain.water_year_status,
         ),
         hero_lead=hero_lead(
-            archive, stitched, event_catalog, active, current, observed_at_ms, now
+            archive, stitched, event_catalog, active, current, observed_at_ms, days
         ),
-        rain_tab=rain,
+        rain_tab=rain_tab(stitched, days),
         temperature_context=temperature_context(
-            archive, stitched, current, observed_at_ms, now
+            stitched, current, observed_at_ms, days.coverage
         ),
-        almanac=almanac(archive, current, now),
-        solar_tab=solar_tab(energy_catalog, archive, stitched, observed_at_ms, now),
+        almanac=almanac(days),
+        solar_tab=solar_tab(
+            energy_catalog, archive, stitched, observed_at_ms, days.coverage
+        ),
     )

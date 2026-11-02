@@ -17,7 +17,7 @@ from lookout.cli.rain_corrections_cli import (
 )
 from lookout.core import rain_corrections
 from lookout.core.rain_corrections import apply_corrections, detect_carryovers
-from lookout.api.awn_controller import combine_full_history
+from lookout.storage.storj import StorageReadError
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -26,6 +26,9 @@ from tests.fixtures.archive import (
     scenario_archive,
 )
 from tests.fixtures.real import load_real_slice
+from tests.fixtures.storage import flaky_storj
+
+CORRECTIONS_KEY = f"{FAKE_MAC}.rain_corrections.json"
 
 
 class TestDeviceDiscovery:
@@ -302,98 +305,82 @@ class TestCliCommands:
             mock_print.call_args
         )
 
-    @mock.patch("builtins.print")
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    @mock.patch("lookout.core.rain_corrections.catalog_exists")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
-    def test_show_no_catalog(
-        self,
-        mock_get_station,
-        mock_catalog_exists,
-        mock_load_catalog,
-        mock_print,
-    ):
-        """Test show command when no catalog exists."""
-        mock_get_station.return_value = (
-            {"macAddress": "98:CD:AC:22:0D:E5"},
-            "98:CD:AC:22:0D:E5",
-            "Test Station",
-        )
-        mock_catalog_exists.return_value = False
-
+    @staticmethod
+    def run_show(capsys) -> str:
+        """Run `show` for FAKE_MAC against the fake bucket; what it printed."""
         args = mock.Mock()
         args.bucket = "lookout"
+        station = ({"macAddress": FAKE_MAC}, FAKE_MAC, "Test Station")
+        with mock.patch(
+            "lookout.cli.rain_corrections_cli.get_station", return_value=station
+        ):
+            handle_show(args)
+        return capsys.readouterr().out
 
-        handle_show(args)
+    def test_show_no_catalog(self, fake_s3, capsys):
+        """show says so when no corrections catalog is stored."""
+        assert "📭 No corrections catalog found." in self.run_show(capsys)
 
-        calls = mock_print.call_args_list
-        assert "📭 No corrections catalog found." in str(calls)
-        mock_load_catalog.assert_not_called()
-
-    @mock.patch("builtins.print")
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    @mock.patch("lookout.core.rain_corrections.catalog_exists")
-    @mock.patch("lookout.cli.rain_corrections_cli.get_station")
-    def test_show_with_catalog(
-        self,
-        mock_get_station,
-        mock_catalog_exists,
-        mock_load_catalog,
-        mock_print,
-    ):
-        """Test show command displaying catalog."""
-        mock_get_station.return_value = (
-            {"macAddress": "98:CD:AC:22:0D:E5"},
-            "98:CD:AC:22:0D:E5",
-            "Test Station",
+    def test_show_with_catalog(self, fake_s3, capsys):
+        """show prints the stored catalog."""
+        rain_corrections.save_catalog(
+            {
+                "version": "1.0",
+                "updated_at": "2025-12-20T20:00:00Z",
+                "corrections": [
+                    {
+                        "affected_date": "2024-12-16",
+                        "carryover_amount": 0.063,
+                        "gap_start": "2024-12-15 18:25:00",
+                        "gap_end": "2024-12-16 00:17:00",
+                    }
+                ],
+            },
+            FAKE_MAC,
         )
-        mock_catalog_exists.return_value = True
 
-        mock_catalog_data = {
-            "version": "1.0",
-            "updated_at": "2025-12-20T20:00:00Z",
-            "corrections": [
-                {
-                    "affected_date": "2024-12-16",
-                    "carryover_amount": 0.063,
-                    "gap_start": "2024-12-15 18:25:00",
-                    "gap_end": "2024-12-16 00:17:00",
-                }
-            ],
-        }
-        mock_load_catalog.return_value = mock_catalog_data
+        out = self.run_show(capsys)
 
-        args = mock.Mock()
-        args.bucket = "lookout"
+        assert "Version: 1.0" in out
+        assert "Corrections: 1" in out
+        assert '2024-12-16: 0.063"' in out
 
-        handle_show(args)
+    def test_show_exits_1_when_the_catalog_read_fails(
+        self, fake_s3, capsys, monkeypatch
+    ):
+        """A failed read is an error, never "version None, 0 corrections"."""
+        rain_corrections.save_catalog({"version": "1.0", "corrections": []}, FAKE_MAC)
+        flaky_storj(monkeypatch, fake_s3, read=CORRECTIONS_KEY)
 
-        calls = mock_print.call_args_list
-        assert "Version: 1.0" in str(calls)
-        assert "Corrections: 1" in str(calls)
-        assert '2024-12-16: 0.063"' in str(calls)
+        with pytest.raises(SystemExit) as exited:
+            self.run_show(capsys)
+
+        assert exited.value.code == 1
+        out = capsys.readouterr().out
+        assert "storj read timed out" in out
+        assert "Version" not in out and "Corrections" not in out
 
 
 class TestApplyCorrections:
     """Test rain carryover corrections application."""
 
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    def test_no_catalog_returns_original_df(self, mock_load_catalog):
+    @mock.patch("lookout.core.rain_corrections.read_catalog")
+    def test_no_catalog_returns_original_df(self, mock_read_catalog):
         """Test returns original DataFrame when no catalog exists."""
-        mock_load_catalog.return_value = {}
+        mock_read_catalog.return_value = None
 
         original_df = pd.DataFrame({"dailyrainin": [1.0, 2.0]})
         result = apply_corrections(original_df, "98:CD:AC:22:0D:E5")
 
         assert result.equals(original_df)
 
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    def test_single_correction_applied_correctly(self, mock_load_catalog):
+    @mock.patch("lookout.core.rain_corrections.read_catalog")
+    def test_single_correction_applied_correctly(self, mock_read_catalog):
         """Test correct subtraction amounts and period boundaries."""
         mock_catalog = {
             "corrections": [{"affected_date": "2024-12-16", "carryover_amount": 0.063}]
         }
-        mock_load_catalog.return_value = mock_catalog
+        mock_read_catalog.return_value = mock_catalog
 
         df = pd.DataFrame(
             {
@@ -413,8 +400,8 @@ class TestApplyCorrections:
         )  # 0.1 - 0.063
         assert result.loc[1, "dailyrainin"] == 0.05  # unchanged
 
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    def test_negative_values_clipped_to_zero(self, mock_load_catalog):
+    @mock.patch("lookout.core.rain_corrections.read_catalog")
+    def test_negative_values_clipped_to_zero(self, mock_read_catalog):
         """Test clipping prevents negative rain values."""
         mock_catalog = {
             "corrections": [
@@ -424,7 +411,7 @@ class TestApplyCorrections:
                 }
             ]
         }
-        mock_load_catalog.return_value = mock_catalog
+        mock_read_catalog.return_value = mock_catalog
 
         df = pd.DataFrame(
             {
@@ -443,39 +430,6 @@ class TestApplyCorrections:
         assert result.loc[0, "weeklyrainin"] == 0.0
         assert result.loc[0, "monthlyrainin"] == 0.0
         assert result.loc[0, "yearlyrainin"] == 0.0
-
-
-class TestCombineFullHistoryIntegration:
-    """Test integration of corrections in combine_full_history."""
-
-    def test_combine_full_history_is_pure_merge(self):
-        """Test that combine_full_history is now a pure merge function."""
-        # Create DataFrames with required 'dateutc' column for combine_full_history
-        archive_df = pd.DataFrame(
-            {"dateutc": [1640995200000], "test": [1]}
-        )  # 2022-01-01 00:00:00 UTC
-        interim_df = pd.DataFrame(
-            {"dateutc": [1641081600000], "test": [2]}
-        )  # 2022-01-02 00:00:00 UTC
-
-        result = combine_full_history(archive_df, interim_df)
-
-        # Should return combined data without applying any corrections
-        assert len(result) == 2
-        # Check that both values are present (order may vary due to sorting)
-        assert 1 in result["test"].values
-        assert 2 in result["test"].values
-
-    def test_combine_full_history_handles_empty_interim(self):
-        """Test combine_full_history with empty interim DataFrame."""
-        archive_df = pd.DataFrame({"dateutc": [1640995200000], "test": [1]})
-        interim_df = pd.DataFrame()
-
-        result = combine_full_history(archive_df, interim_df)
-
-        # Should return archive data unchanged
-        assert len(result) == 1
-        assert result.iloc[0]["test"] == 1
 
 
 COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
@@ -610,6 +564,18 @@ class TestApplyCorrectionsAgainstScenario:
 
         assert apply_corrections(carried, FAKE_MAC) is carried
 
+    def test_a_failed_catalog_read_raises_rather_than_return_uncorrected_rain(
+        self, fake_s3, monkeypatch
+    ):
+        carried = scenario_archive()
+        rain_corrections.save_catalog(
+            {"corrections": detect_carryovers(carried)}, FAKE_MAC
+        )
+        flaky_storj(monkeypatch, fake_s3, read=CORRECTIONS_KEY)
+
+        with pytest.raises(StorageReadError):
+            apply_corrections(carried, FAKE_MAC)
+
     def test_empty_corrections_list_returns_the_archive_as_is(self, fake_s3):
         carried = scenario_archive()
         rain_corrections.save_catalog({"corrections": []}, FAKE_MAC)
@@ -662,9 +628,9 @@ class TestCorrectionPeriods:
         ("2025-01-01 12:00", 5),
     ]
 
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    def test_each_counter_is_corrected_until_it_resets(self, load_catalog):
-        result = self.corrected(self.ROWS, stored([("2024-12-16", 0.5)]), load_catalog)
+    @mock.patch("lookout.core.rain_corrections.read_catalog")
+    def test_each_counter_is_corrected_until_it_resets(self, read_catalog):
+        result = self.corrected(self.ROWS, stored([("2024-12-16", 0.5)]), read_catalog)
 
         daily = self.drop_by_date(result, "dailyrainin")
         weekly = self.drop_by_date(result, "weeklyrainin")
@@ -690,8 +656,8 @@ class TestCorrectionPeriods:
         }
         assert set(daily.values()) <= {0.0, 0.5}
 
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    def test_a_saturday_carryover_also_takes_the_following_week(self, load_catalog):
+    @mock.patch("lookout.core.rain_corrections.read_catalog")
+    def test_a_saturday_carryover_also_takes_the_following_week(self, read_catalog):
         """
         Held finding: a Saturday carryover over-corrects the next week.
 
@@ -705,7 +671,7 @@ class TestCorrectionPeriods:
             ("2024-12-28 12:00", 5),  # next Sat
             ("2024-12-29 12:00", 5),  # Sun after that
         ]
-        result = self.corrected(rows, stored([("2024-12-21", 0.5)]), load_catalog)
+        result = self.corrected(rows, stored([("2024-12-21", 0.5)]), read_catalog)
 
         weekly = self.drop_by_date(result, "weeklyrainin")
 
@@ -716,12 +682,12 @@ class TestCorrectionPeriods:
             "2024-12-29": 0.0,
         }
 
-    @mock.patch("lookout.core.rain_corrections.load_catalog")
-    def test_corrections_add_up_and_other_columns_are_untouched(self, load_catalog):
+    @mock.patch("lookout.core.rain_corrections.read_catalog")
+    def test_corrections_add_up_and_other_columns_are_untouched(self, read_catalog):
         rows = [("2024-12-16 12:00", 5), ("2024-12-17 12:00", 5)]
         df = counter_frame(rows)
         df["tempf"] = 60.0
-        load_catalog.return_value = stored([("2024-12-16", 0.5), ("2024-12-17", 1.0)])
+        read_catalog.return_value = stored([("2024-12-16", 0.5), ("2024-12-17", 1.0)])
 
         result = apply_corrections(df, "mac").sort_values("date")
 
@@ -737,13 +703,19 @@ class TestCatalogStorage:
     def test_catalog_round_trips_under_the_mac_keyed_name(self, fake_s3):
         catalog = stored([("2026-01-09", 0.48)])
 
-        assert not rain_corrections.catalog_exists(FAKE_MAC)
+        assert rain_corrections.read_catalog(FAKE_MAC) is None
         assert rain_corrections.save_catalog(catalog, FAKE_MAC)
 
-        assert rain_corrections.catalog_exists(FAKE_MAC)
-        assert rain_corrections.load_catalog(FAKE_MAC) == catalog
+        assert rain_corrections.read_catalog(FAKE_MAC) == catalog
         keys = [o["Key"] for o in fake_s3.list_objects_v2(Bucket="lookout")["Contents"]]
         assert keys == [f"{FAKE_MAC}.rain_corrections.json"]
 
-    def test_missing_catalog_loads_as_empty(self, fake_s3):
-        assert rain_corrections.load_catalog(FAKE_MAC) == {}
+    def test_missing_catalog_reads_as_none(self, fake_s3):
+        assert rain_corrections.read_catalog(FAKE_MAC) is None
+
+    def test_a_failed_read_raises(self, fake_s3, monkeypatch):
+        rain_corrections.save_catalog({"corrections": []}, FAKE_MAC)
+        flaky_storj(monkeypatch, fake_s3, read=CORRECTIONS_KEY)
+
+        with pytest.raises(StorageReadError):
+            rain_corrections.read_catalog(FAKE_MAC)

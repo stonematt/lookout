@@ -13,7 +13,8 @@ Usage:
 The steps, each its own function, run in this order by `run`:
 
 1. `load_station()`: the pinned station's `/devices` entry; its `lastData` is
-   the live reading.
+   the live reading, and its `lastData.tz` the station's zone (ADR-0005).
+   With no zone, the run fails here, before anything is written.
 2. `update_archive(device, bucket, pages)`: catchup; the archive as saved,
    raw.
 3. `correct_rain(station, bucket, archive, live)`: the stored rain
@@ -22,7 +23,9 @@ The steps, each its own function, run in this order by `run`:
    storage stays raw. A stored catalog that cannot be read fails the run
    (#160), rather than publish the rain uncorrected.
 4. `load_catalogs(station, bucket)`: the Event Catalog and the energy
-   catalog as stored.
+   catalog as stored. An Event Catalog read that fails (or finds it
+   corrupt) fails the run before anything is written (#180, ADR-0004); a
+   missing one is detected from the archive in step 5 and saved.
 5. `update_catalogs(station, bucket, archive, catalogs)`: both catalogs
    brought up to the caught-up archive. The Event Catalog is saved only when
    an event completed since the last save; the energy catalog only when the
@@ -62,7 +65,6 @@ from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
-from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
@@ -156,23 +158,22 @@ def correct_rain(
     if not corrections:
         return archive, live
     return correct_counters(archive, corrections), correct_live(
-        live, archive, corrections
+        live, station.tz, corrections
     )
 
 
 def correct_live(
-    live: Optional[Dict], archive: pd.DataFrame, corrections: List[Dict]
+    live: Optional[Dict], tz: str, corrections: List[Dict]
 ) -> Optional[Dict]:
     """
     The live reading with the rain corrections applied to its counters.
 
     It is corrected as a one-row frame through `correct_counters`, so it gets
-    exactly the archive's rules. Its day is its `dateutc` in the archive's
-    `date` time zone (the station's, `DEFAULT_TZ` without an archive), the
-    calendar day the archive's rows are corrected by.
+    exactly the archive's rules. Its day is its `dateutc` in the station's
+    zone (ADR-0005), the calendar day the archive's rows are corrected by.
 
     :param live: The live `lastData`, raw, or None.
-    :param archive: The raw archive, for its time zone.
+    :param tz: The station's zone.
     :param corrections: The stored corrections.
     :return: A corrected copy; `live` itself when it has no time or no
         counters.
@@ -183,11 +184,6 @@ def correct_live(
     if not present:
         return live
 
-    tz = DEFAULT_TZ
-    if "date" in archive.columns and isinstance(
-        archive["date"].dtype, pd.DatetimeTZDtype
-    ):
-        tz = archive["date"].dt.tz
     observed = pd.Timestamp(to_ms(live["dateutc"]), unit="ms", tz="UTC")
     row = pd.DataFrame(
         [
@@ -221,15 +217,23 @@ def load_catalogs(station: Station, bucket: str) -> Catalogs:
     """
     Step 4: the catalogs as stored.
 
+    Each catalog is read once and the run acts on its read outcome (#180,
+    #183): failed raises, so the run exits 1 before any catalog or snapshot
+    write and the last good snapshot stays up; missing is None, and step 5
+    detects it from the archive (the Event Catalog is then saved).
+
     :param station: The station.
     :param bucket: The bucket.
-    :return: The catalogs; a field is None when none is stored.
+    :return: The catalogs; a field is None when none is stored (or the
+        stored one is empty).
+    :raises StorageReadError: If either catalog's read failed or it is
+        corrupt.
     """
     events = RainEventCatalog(station.mac, bucket=bucket).load_catalog()
     energy = EnergyCatalog(station.mac, bucket=bucket).load_catalog()
     return Catalogs(
-        events=None if events.empty else events,
-        energy=None if energy.empty else energy,
+        events=None if events is None or events.empty else events,
+        energy=None if energy is None or energy.empty else energy,
     )
 
 
@@ -423,16 +427,30 @@ def publish_curves(
 # ---------- the run ----------
 
 
+class CurveStepFailed(RuntimeError):
+    """
+    The curve step failed after the snapshot published.
+
+    :param snapshot: The published snapshot, so the run still reports the
+        station's heartbeat; the exit status is still 1.
+    """
+
+    def __init__(self, snapshot: Snapshot) -> None:
+        super().__init__("event curve files not written (snapshot published)")
+        self.snapshot = snapshot
+
+
 def run(
     bucket: str = DEFAULT_BUCKET,
     pages: int = DEFAULT_PAGES,
     clock: Callable[[], datetime] = utc_now,
 ) -> Snapshot:
     """
-    One refresh run: every step, in order. A failure raises, except a
-    catalog's update failing (that catalog is used as stored and marked
-    stale) and a failure writing curve files after the snapshot published:
-    those are logged at ERROR only.
+    One refresh run: every step, in order. A failure raises (a failed
+    Event Catalog read among them, #180), except a catalog's update
+    failing (that catalog is used as stored and marked stale). A curve step
+    failure after the snapshot published raises `CurveStepFailed`, which
+    carries the snapshot; the next run writes the missing files.
 
     :param bucket: The bucket.
     :param pages: Maximum Ambient pages catchup fetches.
@@ -451,10 +469,10 @@ def run(
     try:
         publish_curves(station, archive, catalogs, bucket)
     except Exception as e:
-        # The snapshot is out; curve files are retried by the next run (the
-        # bounded backfill writes whatever is missing), so this is not a
-        # failed run.
-        logger.exception(f"Event curve files not written (snapshot published): {e}")
+        # The snapshot is out and the next run's bounded backfill writes
+        # whatever is missing, but a persistent curve problem must not stay
+        # green: the run reports failure (#182).
+        raise CurveStepFailed(snapshot) from e
     return snapshot
 
 
@@ -492,15 +510,24 @@ def main(
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :param clock: Returns the build time; injected so tests can fix it.
-    :return: The exit status: 0 when the snapshot was published, else 1.
+    :return: The exit status: 0 when the run finished clean, else 1 (a
+        curve step failure after publish included).
     """
     args = parse_args(argv)
     heartbeat = Heartbeat.from_secrets()
     heartbeat.start()
     status = 1
     try:
-        snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
-        status = 0
+        try:
+            snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
+            status = 0
+        except CurveStepFailed as e:
+            # Published, so the station heartbeat still goes out; the
+            # status stays 1 and the failure is logged below.
+            snapshot = e.snapshot
+            logger.error(
+                f"Event curve files not written: {e.__cause__}", exc_info=e.__cause__
+            )
         heartbeat.station(
             snapshot.station.name,
             snapshot.station.mac,

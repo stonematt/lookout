@@ -16,7 +16,7 @@ one slot, so those slots carry no rain value and the site hatches them: only
 the live total is known there.
 
 Functions:
-- condition_ribbon(stitched, observed_at_ms): The ribbon, or None.
+- condition_ribbon(stitched, observed_at_ms, clock): The ribbon, or None.
 """
 
 from typing import List, Optional
@@ -24,8 +24,9 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import ConditionRibbon
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import to_local
 
 SLOT_MINUTES = 15
 SLOTS = 48 * 60 // SLOT_MINUTES
@@ -37,7 +38,7 @@ _MAX_STEP_MS = SLOT_MS
 _RESET_WINDOW = pd.Timedelta(hours=1)
 
 
-def _rain_increments(ordered: pd.DataFrame) -> pd.Series:
+def _rain_increments(ordered: pd.DataFrame, tz: str) -> pd.Series:
     """
     The rain each reading adds to the daily counter, NaN where it is unknown.
 
@@ -49,15 +50,14 @@ def _rain_increments(ordered: pd.DataFrame) -> pd.Series:
     is unknown: it cannot be placed in one slot.
 
     :param ordered: The stitched history, oldest first.
+    :param tz: The station's zone, whose midnight resets the counter.
     :return: One increment per row, aligned with `ordered`.
     """
     if "dailyrainin" not in ordered.columns:
         return pd.Series(np.nan, index=ordered.index)
     daily = pd.to_numeric(ordered["dailyrainin"], errors="coerce")
     step = daily - daily.ffill().shift()
-    local = pd.to_datetime(ordered["dateutc"], unit="ms", utc=True).dt.tz_convert(
-        DEFAULT_TZ
-    )
+    local = to_local(ordered["dateutc"], tz)
     reset = local - local.dt.normalize() < _RESET_WINDOW
     # The oldest reading has nothing before it to rise from: unknown (NaN).
     increment = step.where(step.isna() | (step >= 0), daily.where(reset, 0.0))
@@ -71,13 +71,14 @@ def _maybe(value: float) -> Optional[float]:
 
 
 def condition_ribbon(
-    stitched: pd.DataFrame, observed_at_ms: Optional[int]
+    stitched: pd.DataFrame, observed_at_ms: Optional[int], clock: StationClock
 ) -> Optional[ConditionRibbon]:
     """
     The 48-hour condition ribbon.
 
     :param stitched: `stitch_live` output, newest first.
     :param observed_at_ms: The newest observation; None when there is none.
+    :param clock: The station clock: its zone says where local midnight is.
     :return: The ribbon, or None without an observation.
     """
     if observed_at_ms is None or stitched.empty:
@@ -87,7 +88,7 @@ def condition_ribbon(
     start_ms = last_start - (SLOTS - 1) * SLOT_MS
 
     ordered = stitched.sort_values("dateutc").reset_index(drop=True)
-    rows = ordered.assign(rain=_rain_increments(ordered))
+    rows = ordered.assign(rain=_rain_increments(ordered, clock.tz))
     rows = rows[rows["dateutc"] >= start_ms]
     index = ((rows["dateutc"] - start_ms) // SLOT_MS).astype(int)
     grouped = rows.groupby(index)

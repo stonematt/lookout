@@ -14,15 +14,15 @@ import pandas as pd
 import pytest
 import streamlit as st
 
+from lookout.core import archive_merge
 from lookout.core import data_processing as lo_dp
 from lookout.core import rain_corrections
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
-from tests.fixtures.storage import BUCKET
+from tests.fixtures.storage import BUCKET, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     CatchupStation,
     catchup_station,
-    flaky_storj,
     ms,
     reporting,
 )
@@ -133,6 +133,7 @@ def test_an_update_corrects_only_the_rows_it_fetched(station, session, weather):
 
 
 PLAIN_GAP = SCENARIO.gaps[1]  # Saturday 10:00 to 14:00 local
+REPAIRED_RAIN = 9.99  # a stored value a repair wrote; no reading holds it
 
 
 def test_a_diagnostics_fill_saves_raw_and_shows_corrected(
@@ -176,6 +177,36 @@ def test_a_diagnostics_fill_saves_raw_and_shows_corrected(
         )
 
 
+def test_a_diagnostics_save_goes_through_the_archive_merge(
+    catchup_station, session, weather  # noqa: F811
+):
+    """Stored values the session's raw archive lacks survive the save."""
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+    )
+    station = catchup_station(
+        archive=weather,
+        history=to_ambient_records(truth),
+        devices=reporting(weather),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(weather["dateutc"].max())))
+    diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
+    stored_before = station.stored().set_index("dateutc")
+    # A reading Ambient sent again, without its temperature.
+    (fetched,) = session[diagnostics.FETCHED_KEY]
+    slot = int(fetched["dateutc"][fetched["dateutc"].isin(stored_before.index)].max())
+    fetched.loc[fetched["dateutc"] == slot, "tempf"] = float("nan")
+    assert pd.notna(stored_before.loc[slot, "tempf"])
+
+    assert diagnostics.save_filled_archive() is True
+
+    saved = station.stored().set_index("dateutc")
+    assert saved.loc[slot, "tempf"] == stored_before.loc[slot, "tempf"]
+
+
 def test_a_diagnostics_save_with_nothing_filled_writes_nothing(
     station, session  # noqa: F811
 ):
@@ -217,6 +248,65 @@ def test_a_diagnostics_save_keeps_rows_catchup_stored_since_the_fill(
 
     stored = station.stored()
     assert set(stored["dateutc"]) == set(truth["dateutc"])
+
+
+def test_a_diagnostics_save_keeps_values_changed_since_the_fill(
+    catchup_station, session, weather  # noqa: F811
+):
+    """#223: only the fetched readings join; the session copy never does."""
+    from lookout.storage import storj
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+    )
+    station = catchup_station(
+        archive=weather,
+        history=to_ambient_records(truth),
+        devices=reporting(weather),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(weather["dateutc"].max())))
+    outcome = diagnostics.fill_gap(
+        pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end)
+    )
+    assert outcome.status == "filled"
+    # A repair replaces a stored value and drops a reading before the save.
+    dropped = THURSDAY + 5 * 60 * 1000
+    assert {THURSDAY, dropped} <= set(weather["dateutc"])
+    repaired = weather[weather["dateutc"] != dropped].copy()
+    repaired.loc[repaired["dateutc"] == THURSDAY, "dailyrainin"] = REPAIRED_RAIN
+    storj.save_df_to_s3(repaired, BUCKET, f"{FAKE_MAC}.parquet")
+
+    assert diagnostics.save_filled_archive() is True
+
+    saved = station.stored().set_index("dateutc")
+    assert saved.loc[THURSDAY, "dailyrainin"] == REPAIRED_RAIN
+    assert set(saved.index) == set(truth["dateutc"]) - {dropped}
+
+
+def test_a_second_diagnostics_save_replays_no_earlier_fill(
+    catchup_station, session, weather  # noqa: F811
+):
+    """#223: a save spends the fills; a later click has nothing new to save."""
+    from lookout.ui import diagnostics
+
+    truth = build_archive(
+        SCENARIO.start, SCENARIO.end, rain=SCENARIO.rain, gaps=SCENARIO.gaps[:1]
+    )
+    station = catchup_station(
+        archive=weather,
+        history=to_ambient_records(truth),
+        devices=reporting(weather),
+        now=SCENARIO.end,
+    )
+    load(session, device(station, int(weather["dateutc"].max())))
+    diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
+    assert diagnostics.save_filled_archive() is True
+    keys = station.keys()
+
+    assert diagnostics.save_filled_archive() is False
+    assert station.keys() == keys
 
 
 # ---------- an oldest-first archive (#133) ----------
@@ -263,10 +353,10 @@ def test_a_live_update_reads_trends_from_the_newest_row(oldest_first, session):
     assert (session["temp_trend"], session["barom_trend"]) == (UP, UP)
 
 
-def test_a_diagnostics_save_that_would_shrink_the_archive_is_refused(
+def test_a_diagnostics_save_that_would_drop_a_stored_reading_is_refused(
     catchup_station, session, weather, monkeypatch  # noqa: F811
 ):
-    """#160: the Diagnostics save is guarded by the rows it read back."""
+    """#190: the Diagnostics save is guarded by the archive it read back."""
     from lookout.storage import storj
     from lookout.ui import diagnostics
 
@@ -283,10 +373,14 @@ def test_a_diagnostics_save_that_would_shrink_the_archive_is_refused(
     diagnostics.fill_gap(pd.Timestamp(PLAIN_GAP.start), pd.Timestamp(PLAIN_GAP.end))
     before = station.stored()
     monkeypatch.setattr(
-        diagnostics, "combine_full_history", lambda stored, raw: stored.iloc[1:]
+        diagnostics.archive_merge,
+        "merge",
+        lambda stored, raw: archive_merge.Merged(
+            stored.iloc[1:], archive_merge.MergeReport()
+        ),
     )
 
-    with pytest.raises(storj.ArchiveShrinkError):
+    with pytest.raises(storj.ArchiveLossError):
         diagnostics.save_filled_archive()
 
     pd.testing.assert_frame_equal(station.stored(), before)

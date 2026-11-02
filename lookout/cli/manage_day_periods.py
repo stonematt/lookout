@@ -37,9 +37,10 @@ from lookout.core.day_periods import (
     save_day_periods_catalog,
     backup_day_periods_catalog,
     delete_day_periods_catalog,
-    list_day_periods_catalogs,
+    get_catalog_path,
     load_day_periods_catalog,
 )
+from lookout.storage.storj import BackupError
 from lookout.utils.log_util import app_logger
 
 # Location configuration (Salem, OR)
@@ -156,15 +157,11 @@ Examples:
             mac_address, device = get_station()
             device_name = device.get("info", {}).get("name", "Unknown")
 
-            # List catalogs
-            catalogs = list_day_periods_catalogs(mac_address)
-            if catalogs:
-                logger.info(f"✅ Found {len(catalogs)} catalog(s):")
-                for catalog in catalogs:
-                    logger.info(f"   - {catalog}")
-
-                # Show detailed stats
-                catalog_df = load_day_periods_catalog(mac_address)
+            # One read: found, missing, or failed (raises, reported below)
+            catalog_df = load_day_periods_catalog(mac_address)
+            if catalog_df is not None:
+                logger.info("✅ Found the catalog:")
+                logger.info(f"   - {get_catalog_path(mac_address)}")
                 if not catalog_df.empty:
                     show_catalog_stats(catalog_df, mac_address, device_name)
             else:
@@ -182,19 +179,12 @@ Examples:
         # Get the pinned station (STATION_MAC)
         mac_address, device = get_station()
 
-        # Create backup
-        if backup_day_periods_catalog(mac_address):
-            logger.info("✅ Backup created successfully")
-        else:
-            logger.warning("⚠️ Backup failed, proceeding anyway")
-
-        # Delete catalog
+        # Delete catalog (not implemented: it reports that nothing was deleted)
         if delete_day_periods_catalog(mac_address):
             logger.info("✅ Day periods catalog deleted successfully")
             return 0
-        else:
-            logger.info("📋 No day periods catalogs found")
-            return 0
+        logger.error("❌ Day periods catalog not deleted")
+        return 1
 
     # Handle dry run operation
     if args.dry_run:
@@ -297,8 +287,12 @@ Examples:
                 logger.error("❌ Failed to generate catalog - empty result")
                 return 1
 
-            # Create backup of existing catalog
-            backup_day_periods_catalog(mac_address)
+            # Back up the stored catalog; a failed backup stops the save
+            try:
+                backup_day_periods_catalog(mac_address)
+            except BackupError as e:
+                logger.error(f"❌ Backup failed; catalog not saved: {e}")
+                return 1
 
             # Save new catalog
             if save_day_periods_catalog(catalog_df, mac_address):

@@ -41,38 +41,44 @@ value into a valid or prorated window is the caller's own step.
 
 The API, for every section that compares months or windows:
 
-- `ArchiveCoverage(archive, now)`: reads the archive once, then answers
+- `ArchiveCoverage(archive, clock)`: reads the archive once, then answers
   `.window(first_day, last_day)`, `.month(year, month)`, `.rolling(days)`,
-  `.water_year()` and `.counted_days(first_day, last_day)`;
-  `.excluding(missing)` judges days a derived record lacks as missing.
-- `window_status(archive, first_day, last_day, now)` and
-  `month_status(archive, year, month, now)`: one-off shorthands.
+  `.water_year()`, `.water_year_status(year)` and
+  `.counted_days(first_day, last_day)`; `.excluding(missing)` judges days a
+  derived record lacks as missing. `build_snapshot` makes one, through
+  `lookout.snapshot.days.count_days`, and every section shares it.
+- `window_status(archive, first_day, last_day, clock)` and
+  `month_status(archive, year, month, clock)`: one-off shorthands.
 - `comparable(status, compute)`: `compute()`, or None when invalid; it never
   runs `compute` for an invalid window.
 - `prorate(status, total)`: a total over the counted days, scaled to the
   whole window; None when invalid.
-- `snapshot_gaps(archive, now)`: the `Gaps` section `build_snapshot` adds.
+- `snapshot_gaps(coverage)`: the `Gaps` section `build_snapshot` adds.
 """
 
 from copy import copy
 from dataclasses import replace
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Callable, Dict, List, Mapping, Optional, Tuple, TypeVar
 
 import pandas as pd
 
 from lookout.core.rainfall_analysis import water_year, water_year_start
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import Gaps, GapStatus
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import (
+    INTERVAL_MS,
+    day_span,
+    from_local_date,
+    local_time,
+    to_local,
+)
 
 T = TypeVar("T")
 
 VALID = "valid"
 PRORATED = "prorated"
 INVALID = "invalid"
-
-INTERVAL_MS = 5 * 60 * 1000
-"""The archive's reporting interval: Ambient's five minutes."""
 
 LOW_COVERAGE = 0.8
 """A day holding under this share of its five-minute slots is low-coverage."""
@@ -94,6 +100,16 @@ STANDARD_WINDOWS: Tuple[Tuple[str, int, int], ...] = (
 """The windows the snapshot carries, as (key, first day, last day), each day
 counted back from today. The water year follows them."""
 
+
+def standard_window_keys() -> Tuple[str, ...]:
+    """
+    The keys of `STANDARD_WINDOWS`, in order; the water year is not among them.
+
+    Read at call time, so a section's keys follow the windows and not a copy.
+    """
+    return tuple(key for key, _, _ in STANDARD_WINDOWS)
+
+
 _OK, _LOW, _GAP = "ok", "low", "gap"
 _NOT_ARCHIVED, _BEFORE_ARCHIVE, _FUTURE = "not_archived", "before_archive", "future"
 _MISSING_KINDS = frozenset({_GAP, _LOW, _NOT_ARCHIVED, _BEFORE_ARCHIVE})
@@ -101,23 +117,14 @@ _MISSING_KINDS = frozenset({_GAP, _LOW, _NOT_ARCHIVED, _BEFORE_ARCHIVE})
 
 class ArchiveCoverage:
     """
-    How much of each station-local day the archive holds, as of `now`.
+    How much of each station-local day the archive holds, as of the build.
 
     :param archive: The station's archive, `dateutc` in epoch ms.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
-    :raises ValueError: If `now` has no timezone.
+    :param clock: The station clock: the build time and the station's zone.
     """
 
-    def __init__(
-        self, archive: pd.DataFrame, now: datetime, tz: str = DEFAULT_TZ
-    ) -> None:
-        now = pd.Timestamp(now)
-        if now.tzinfo is None:
-            raise ValueError("ArchiveCoverage needs a timezone-aware `now`")
-        self.tz = tz
-        self.now_ms = int(now.value // 10**6)
-        self.today: date = now.tz_convert(tz).date()
+    def __init__(self, archive: pd.DataFrame, clock: StationClock) -> None:
+        self.clock = clock
 
         stamps = archive["dateutc"] if "dateutc" in archive else pd.Series([])
         stamps = pd.Series(stamps, dtype="int64")
@@ -128,24 +135,41 @@ class ArchiveCoverage:
 
         # One count per five-minute slot, so a duplicate row is not counted twice.
         slots = pd.Series((stamps // INTERVAL_MS).unique() * INTERVAL_MS)
-        local_days = pd.to_datetime(slots, unit="ms", utc=True).dt.tz_convert(tz)
+        local_days = to_local(slots, self.tz)
         self._slots: Dict[date, int] = (
             local_days.dt.date.value_counts().to_dict() if len(slots) else {}
         )
         self._kinds: Dict[date, str] = {}
 
     @property
+    def tz(self) -> str:
+        """The station's zone, the clock's."""
+        return self.clock.tz
+
+    @property
+    def now_ms(self) -> int:
+        """The build time in epoch ms, the clock's."""
+        return self.clock.now_ms
+
+    @property
+    def today(self) -> date:
+        """The build time's station-local date, the clock's."""
+        return self.clock.today
+
+    @property
     def first_day(self) -> Optional[date]:
         """The archive's first station-local day, or None when it is empty."""
         if self.empty:
             return None
-        return (
-            pd.Timestamp(self.oldest_ms, unit="ms", tz="UTC").tz_convert(self.tz).date()
-        )
+        return local_time(self.oldest_ms, self.tz).date()
 
-    def _midnight_ms(self, day: date) -> int:
-        """Epoch ms of local midnight starting `day`."""
-        return int(pd.Timestamp(day).tz_localize(self.tz).value // 10**6)
+    def held_days(self) -> Tuple[date, ...]:
+        """
+        The station-local days the archive holds any reading on.
+
+        :return: Those days, oldest first, up to the build time.
+        """
+        return tuple(sorted(self._slots))
 
     def day_kind(self, day: date) -> str:
         """
@@ -167,9 +191,10 @@ class ArchiveCoverage:
             return _FUTURE
         if self.empty:
             return _NOT_ARCHIVED
-        start = self._midnight_ms(day)
-        end = min(self._midnight_ms(day + timedelta(days=1)), self.now_ms)
-        if self._midnight_ms(day + timedelta(days=1)) <= self.oldest_ms:
+        start = from_local_date(day, self.tz)
+        next_start = from_local_date(day + timedelta(days=1), self.tz)
+        end = min(next_start, self.now_ms)
+        if next_start <= self.oldest_ms:
             return _BEFORE_ARCHIVE
         if end > self.newest_ms + ARCHIVE_LAG.value // 10**6:
             return _NOT_ARCHIVED
@@ -188,9 +213,10 @@ class ArchiveCoverage:
         This coverage with some counted days judged missing after all.
 
         For a section whose values come from a record derived from the
-        archive (the energy catalog) that lacks days the archive holds: those
-        days are judged as `missing` says, so a window over them is prorated
-        or invalid by the same rule, never counted as zero.
+        archive (the energy catalog, the daily rain series) that lacks days
+        the archive holds: those days are judged as `missing` says, so a
+        window over them is prorated or invalid by the same rule, never
+        counted as zero.
 
         :param missing: Day -> the kind to judge it as: "gap", "low",
             "not_archived" or "before_archive". Only "ok" days change; the
@@ -216,7 +242,9 @@ class ArchiveCoverage:
         :param last_day: Its last local day, inclusive.
         :return: Its "ok" days, oldest first.
         """
-        return tuple(d for d in _days(first_day, last_day) if self.day_kind(d) == _OK)
+        return tuple(
+            d for d in day_span(first_day, last_day) if self.day_kind(d) == _OK
+        )
 
     def window(
         self, first_day: date, last_day: date, key: Optional[str] = None
@@ -229,7 +257,7 @@ class ArchiveCoverage:
         :param key: Its name in the snapshot; "first..last" when None.
         :return: Its status.
         """
-        days = _days(first_day, last_day)
+        days = day_span(first_day, last_day)
         kinds = [self.day_kind(d) for d in days]
         status, reason = _judge_window(kinds)
         return GapStatus(
@@ -279,6 +307,19 @@ class ArchiveCoverage:
         start = water_year_start(water_year(self.today))
         return self.window(start, self.today, key)
 
+    def water_year_status(self, year: int) -> GapStatus:
+        """
+        One water year's gap status: Oct 1 to Sep 30, or to today while it
+        runs. Defined for any year, the archive's or not.
+
+        :param year: The water year, named by the year it ends in.
+        :return: Its status, keyed "water_year_<year>". A year that starts
+            after today is its Oct 1 alone, not yet come.
+        """
+        start = water_year_start(year)
+        end = min(water_year_start(year + 1) - timedelta(days=1), self.today)
+        return self.window(start, max(start, end), key=f"water_year_{year}")
+
     def months(self) -> Tuple[GapStatus, ...]:
         """
         Every month from the archive's first through the current one.
@@ -316,7 +357,7 @@ def window_status(
     archive: pd.DataFrame,
     first_day: date,
     last_day: date,
-    now: datetime,
+    clock: StationClock,
     key: Optional[str] = None,
 ) -> GapStatus:
     """
@@ -327,15 +368,15 @@ def window_status(
     :param archive: The station's archive as stored.
     :param first_day: The window's first day.
     :param last_day: Its last day, inclusive.
-    :param now: The build time, timezone-aware.
+    :param clock: The station clock.
     :param key: Its name; "first..last" when None.
     :return: Its status.
     """
-    return ArchiveCoverage(archive, now).window(first_day, last_day, key)
+    return ArchiveCoverage(archive, clock).window(first_day, last_day, key)
 
 
 def month_status(
-    archive: pd.DataFrame, year: int, month: int, now: datetime
+    archive: pd.DataFrame, year: int, month: int, clock: StationClock
 ) -> GapStatus:
     """
     The gap status of one station-local calendar month.
@@ -343,10 +384,10 @@ def month_status(
     :param archive: The station's archive as stored.
     :param year: The year.
     :param month: The month, 1 to 12.
-    :param now: The build time, timezone-aware.
+    :param clock: The station clock.
     :return: Its status, keyed "YYYY-MM".
     """
-    return ArchiveCoverage(archive, now).month(year, month)
+    return ArchiveCoverage(archive, clock).month(year, month)
 
 
 def comparable(status: GapStatus, compute: Callable[[], T]) -> Optional[T]:
@@ -378,15 +419,13 @@ def prorate(status: GapStatus, total: float) -> Optional[float]:
     return total * status.days / (status.days - status.missing_days)
 
 
-def snapshot_gaps(archive: pd.DataFrame, now: datetime) -> Gaps:
+def snapshot_gaps(coverage: ArchiveCoverage) -> Gaps:
     """
     The snapshot's gap section: every month and every standard window.
 
-    :param archive: The station's archive as stored.
-    :param now: The build time, timezone-aware.
+    :param coverage: The build's counted days (`CountedDays.coverage`).
     :return: The `Gaps` section.
     """
-    coverage = ArchiveCoverage(archive, now)
     return Gaps(months=coverage.months(), windows=coverage.standard_windows())
 
 
@@ -411,13 +450,6 @@ def _judge_window(kinds: List[str]) -> Tuple[str, Optional[str]]:
     if missing <= MAX_MISSING_SHARE * len(kinds):
         return PRORATED, reason
     return INVALID, reason
-
-
-def _days(first_day: date, last_day: date) -> List[date]:
-    """Every day from `first_day` to `last_day`, inclusive."""
-    return [
-        first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)
-    ]
 
 
 def _next_month(day: date) -> date:

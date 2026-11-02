@@ -20,6 +20,8 @@ from pandas.testing import assert_frame_equal
 from lookout.api import awn_controller as awn
 from lookout.cli import diagnostics
 from lookout.core import rain_corrections
+from lookout.core.archive_merge import MergeReport
+from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
@@ -28,12 +30,11 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
-from tests.fixtures.storage import BUCKET, FROZEN_DAY
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
-    flaky_storj,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -41,6 +42,8 @@ NOW = "2026-01-11T09:00:00Z"
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
 CATALOG_KEY = f"{FAKE_MAC}.energy_catalog.parquet"
 CATALOG_BACKUP_KEY = f".backups/{FAKE_MAC}.energy_catalog/{FROZEN_DAY}/{CATALOG_KEY}"
+EVENT_KEY = f"{FAKE_MAC}.event_catalog.parquet"
+CORRUPT_CATALOG = b"not a parquet file"
 CARRY_GAP_LINE = "2026-01-09 06:55  2026-01-09 09:00"
 PLAIN_GAP_LINE = "2026-01-10 17:55  2026-01-10 22:00"
 RAIN_COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
@@ -135,7 +138,7 @@ class TestFillGap:
         status, out = run(["fill-gap", "--index", "1"], capsys)
 
         assert status == 0
-        assert f"Added {len(truth) - before} rows" in out
+        assert f"Merged {len(truth) - before} added, 0 filled, 0 updated" in out
         assert len(station.stored()) == len(truth)
         assert BACKUP_KEY in station.keys()
         backed_up = storj.get_df_from_s3(BUCKET, BACKUP_KEY, file_type="parquet")
@@ -178,26 +181,28 @@ class TestFillGap:
         status, out = run(["fill-gap", "--index", "1"], capsys)
 
         assert status == 1
-        assert "Added" not in out
+        assert "Merged" not in out
         assert "fill-gap failed" in out
         assert len(station.stored()) == len(station.archive)
 
-    def test_a_fill_that_would_shrink_the_archive_is_refused(
+    def test_a_fill_that_would_drop_a_stored_reading_is_refused(
         self, seed, capsys, monkeypatch
     ):
-        """#160: the fill-gap save is guarded by the rows it loaded."""
+        """#190: the fill-gap save is guarded by the archive it loaded."""
         station = seed()
         before = station.stored()
 
         def lossy(device, archive, start, end):
-            return awn.GapFill(archive.iloc[1:], start, end, "filled", 1)
+            return awn.GapFill(
+                archive.iloc[1:], start, end, "filled", MergeReport(updated=1)
+            )
 
         monkeypatch.setattr(diagnostics.awn, "fill_archive_gap", lossy)
 
         status, out = run(["fill-gap", "--index", "1"], capsys)
 
         assert status == 1
-        assert "Added" not in out
+        assert "Merged" not in out
         assert "fill-gap failed" in out
         assert_frame_equal(station.stored(), before)
 
@@ -232,6 +237,22 @@ class TestFillGap:
         assert "no new data" in out
         assert len(station.stored()) == len(station.archive)
         assert BACKUP_KEY not in station.keys()
+
+    def test_a_fill_that_only_updates_values_saves_and_prints_the_counts(
+        self, seed, capsys
+    ):
+        changed = scenario_archive().copy()
+        changed["tempf"] = changed["tempf"] + 1.0
+        station = seed(history=changed)
+        before = len(station.archive)
+
+        status, out = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 0
+        assert "Merged 0 added, 0 filled," in out
+        assert " 0 updated" not in out
+        assert BACKUP_KEY in station.keys()
+        assert len(station.stored()) == before
 
     def test_an_index_outside_the_window_is_refused(self, seed, capsys):
         seed()
@@ -300,6 +321,159 @@ class TestEnergyCatalog:
         replaced = station.stored(CATALOG_KEY)
         assert len(replaced) > 1
         assert replaced["energy_kwh"].sum() > 0.01
+
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["read-fails", "corrupt"])
+    def test_a_failed_read_reports_an_error_and_saves_nothing(
+        self, seed, capsys, monkeypatch, corrupt
+    ):
+        station = seed()
+        body = b"not parquet" if corrupt else b"stored"
+        station.s3.put_object(Bucket=BUCKET, Key=CATALOG_KEY, Body=body)
+        if not corrupt:
+            flaky_storj(monkeypatch, station.s3, read=CATALOG_KEY)
+
+        status, out = run(["energy-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "energy-catalog failed" in out
+        assert "backed up and replaced" not in out
+        stored = station.s3.get_object(Bucket=BUCKET, Key=CATALOG_KEY)["Body"].read()
+        assert stored == body
+        assert [k for k in station.keys() if "energy_catalog" in k] == [CATALOG_KEY]
+
+    def test_with_none_stored_save_writes_the_regenerated_catalog(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["energy-catalog", "--save"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: none" in out
+        assert len(station.stored(CATALOG_KEY)) > 1
+
+
+class TestRainCatalog:
+    def backups(self, station) -> List[str]:
+        return [k for k in station.keys() if k.startswith("backups/")]
+
+    def store_catalog(self, station) -> pd.DataFrame:
+        """Store a one-event catalog that matches no detected event."""
+        stored = pd.DataFrame(
+            {
+                "event_id": ["old"],
+                "start_time": pd.to_datetime(["2025-12-01 10:00"], utc=True),
+                "end_time": pd.to_datetime(["2025-12-01 11:00"], utc=True),
+            }
+        )
+        storj.save_df_to_s3(stored, BUCKET, EVENT_KEY)
+        return stored
+
+    def test_dry_run_reports_a_found_catalog_and_writes_nothing(self, seed, capsys):
+        station = seed()
+        self.store_catalog(station)
+        keys = station.keys()
+
+        status, out = run(["rain-catalog"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: found, 1 events" in out
+        assert "Detected: 3 events" in out
+        assert "Added: 3" in out
+        assert "Dropped: 1" in out
+        assert "Not saved" in out
+        assert station.keys() == keys
+
+    def test_dry_run_reports_a_missing_catalog(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["rain-catalog"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: missing" in out
+        assert EVENT_KEY not in station.keys()
+
+    def test_dry_run_reports_a_corrupt_catalog_and_writes_nothing(self, seed, capsys):
+        station = seed()
+        storj.get_s3_client().put_object(
+            Bucket=BUCKET, Key=EVENT_KEY, Body=CORRUPT_CATALOG
+        )
+        keys = station.keys()
+
+        status, out = run(["rain-catalog"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: failed" in out
+        assert station.keys() == keys
+
+    def test_nothing_detected_exits_1_and_writes_nothing(
+        self, seed, capsys, monkeypatch
+    ):
+        station = seed()
+        self.store_catalog(station)
+        keys = station.keys()
+        monkeypatch.setattr(
+            RainEventCatalog,
+            "detect_and_catalog_events",
+            lambda self, archive, auto_save=False: pd.DataFrame(),
+        )
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "No rain events could be detected" in out
+        assert "Detected:" not in out
+        assert station.keys() == keys
+
+    def test_save_backs_up_a_found_catalog_then_writes(self, seed, capsys):
+        station = seed()
+        self.store_catalog(station)
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        assert "backed up to backups/" in out
+        (backup,) = self.backups(station)
+        assert len(storj.get_df_from_s3(BUCKET, backup, file_type="parquet")) == 1
+        assert len(station.stored(EVENT_KEY)) == 3
+
+    def test_save_with_no_catalog_writes_with_no_backup(self, seed, capsys):
+        station = seed()
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        assert "no backup" in out
+        assert self.backups(station) == []
+        assert len(station.stored(EVENT_KEY)) == 3
+
+    def test_save_backs_up_a_corrupt_catalog_raw_then_writes(self, seed, capsys):
+        station = seed()
+        storj.get_s3_client().put_object(
+            Bucket=BUCKET, Key=EVENT_KEY, Body=CORRUPT_CATALOG
+        )
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        (backup,) = self.backups(station)
+        raw = storj.get_s3_client().get_object(Bucket=BUCKET, Key=backup)
+        assert raw["Body"].read() == CORRUPT_CATALOG
+        assert len(station.stored(EVENT_KEY)) == 3
+
+    def test_save_with_a_failing_backup_writes_nothing(self, seed, capsys, monkeypatch):
+        station = seed()
+        self.store_catalog(station)
+        stored = storj.read_object(BUCKET, EVENT_KEY)
+
+        def refuse(*args, **kwargs):
+            raise storj.BackupError("copy refused")
+
+        monkeypatch.setattr(storj, "backup_object", refuse)
+
+        status, out = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 1
+        assert "unchanged" in out
+        assert storj.read_object(BUCKET, EVENT_KEY) == stored
 
 
 class TestReadOnlyCommands:

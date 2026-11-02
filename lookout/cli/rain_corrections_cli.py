@@ -11,7 +11,8 @@ Usage:
     python -m lookout.cli.rain_corrections_cli [--bucket lookout] generate [--dry-run]
     python -m lookout.cli.rain_corrections_cli [--bucket lookout] show
 
-Exits 1 when the pinned station (STATION_MAC) is not on the Ambient account.
+Exits 1 when the pinned station (STATION_MAC) is not on the Ambient account,
+or when `show` cannot read the stored corrections catalog.
 """
 
 import argparse
@@ -124,16 +125,28 @@ def handle_generate(args):
 
 
 def handle_show(args):
-    """Handle show command for the pinned station."""
+    """
+    Handle show command for the pinned station.
+
+    :param args: Parsed arguments, with `bucket`.
+    :raises SystemExit: With code 1, after printing why, when the catalog
+        read fails (#181).
+    """
     device, mac, name = get_station()
 
     print(f"📋 Showing catalog for: {name} ({mac})")
 
-    if not lo_rc.catalog_exists(mac, args.bucket):
+    try:
+        data = lo_rc.read_catalog(mac, args.bucket)
+    except lo_storj.StorageReadError as e:
+        logger.error(str(e))
+        print(f"❌ Could not read the corrections catalog: {e}")
+        sys.exit(1)
+
+    if data is None:
         print("📭 No corrections catalog found.")
         return
 
-    data = lo_rc.load_catalog(mac, args.bucket)
     print(f"Version: {data.get('version')}")
     print(f"Updated: {data.get('updated_at')}")
     print(f"Corrections: {len(data.get('corrections', []))}\n")

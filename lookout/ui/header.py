@@ -127,10 +127,7 @@ def _session_event_catalog(device_mac: str) -> Optional[pd.DataFrame]:
     """
     if "rain_events_catalog" in st.session_state:
         return st.session_state["rain_events_catalog"]
-    catalog = RainEventCatalog(device_mac, "parquet")
-    if catalog.catalog_exists():
-        return catalog.load_catalog()
-    return None
+    return RainEventCatalog(device_mac, "parquet").load_catalog()
 
 
 def _render_active_event_display(weather_data: WeatherData) -> None:

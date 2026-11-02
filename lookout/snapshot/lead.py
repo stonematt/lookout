@@ -18,14 +18,15 @@ Adaptive Lead Rule"), and the first that holds leads:
 4. **calm**, otherwise: the days since it last rained (`lastRain`) against
    the usual dry spell, the median completed dry spell in the last 365 days.
    A dry spell is a run of dry days between two rain days
-   (`lookout.core.rainfall_analysis.dry_spells`); a day the archive cannot
-   count breaks the run, so a gap never reads as dry. With the 365-day
-   window invalid, calm still leads, without a usual dry spell
-   ("no_comparison").
+   (`lookout.core.rainfall_analysis.dry_spells`), over the build's daily
+   rain series, the Rain tab's own; a day not counted for rain breaks the
+   run, so a gap never reads as dry. The 365-day window is judged by the
+   rain day kind (`lookout.snapshot.days`); with it invalid, calm still
+   leads, without a usual dry spell ("no_comparison").
 
 Values are measured at the newest observation, read from the live-stitched
-history, so they agree with the first screen. Gap statuses read the archive
-as stored (`lookout.snapshot.gaps`).
+history, so they agree with the first screen. Gap statuses are the build's
+counted days (`lookout.snapshot.days.CountedDays`).
 
 Every rule's value is computed, met or not, for "Why this leads". The hero
 chart's data ("bold now over a soft usual range", DESIGN.md) is computed for
@@ -33,10 +34,10 @@ the lead only.
 
 Functions:
 - hero_lead(archive, stitched, event_catalog, active, current, observed_at_ms,
-  now): The `HeroLead` section.
+  days): The `HeroLead` section.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -44,6 +45,7 @@ import pandas as pd
 
 from lookout.core.rainfall_analysis import dry_spells
 from lookout.snapshot.current import to_ms
+from lookout.snapshot.days import CountedDays
 from lookout.snapshot.gaps import ArchiveCoverage, comparable
 from lookout.snapshot.model import (
     ActiveRainEvent,
@@ -55,7 +57,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import from_local_date, local_time, to_local
 
 RAIN_HOURS = 12.0
 """Rain leads while an event is live or ended at most this many hours ago."""
@@ -94,11 +96,6 @@ def _quartiles(values: Sequence[float], digits: int) -> _Usual:
         round(float(q[1]), digits),
         round(float(q[2]), digits),
     )
-
-
-def _local(ms: pd.Series, tz: str) -> pd.Series:
-    """Epoch ms as station-local timestamps."""
-    return pd.to_datetime(ms, unit="ms", utc=True).dt.tz_convert(tz)
 
 
 # ---------- rain ----------
@@ -208,7 +205,7 @@ class _MonthHours:
     Only months whose gap status is comparable are read.
 
     :param archive: The archive as stored.
-    :param coverage: Its coverage as of `now`.
+    :param coverage: Its coverage as of the build.
     :param today: The local day of the newest observation: its month is the
         one compared.
     """
@@ -220,7 +217,7 @@ class _MonthHours:
         first = coverage.first_day
         keys: List[str] = []
         frames: List[pd.DataFrame] = []
-        local = _local(archive["dateutc"], self.tz) if not archive.empty else None
+        local = to_local(archive["dateutc"], self.tz) if not archive.empty else None
         if first is not None and local is not None:
             for year in range(today.year - 1, first.year - 1, -1):
                 status = coverage.month(year, today.month)
@@ -240,13 +237,13 @@ class _MonthHours:
         """How many days the comparison set holds."""
         if self.rows.empty:
             return 0
-        return int(_local(self.rows["dateutc"], self.tz).dt.date.nunique())
+        return int(to_local(self.rows["dateutc"], self.tz).dt.date.nunique())
 
     def median_at(self, column: str, hour: Optional[int]) -> Optional[float]:
         """The unrounded median of `column` at one local hour, or None."""
         if hour is None or self.rows.empty or column not in self.rows:
             return None
-        hours = _local(self.rows["dateutc"], self.tz).dt.hour
+        hours = to_local(self.rows["dateutc"], self.tz).dt.hour
         values = pd.to_numeric(self.rows[column], errors="coerce")[hours == hour]
         values = values.dropna()
         return None if values.empty else float(values.median())
@@ -256,7 +253,7 @@ class _MonthHours:
         if self.rows.empty or column not in self.rows:
             return {}
         values = pd.to_numeric(self.rows[column], errors="coerce")
-        hours = _local(self.rows["dateutc"], self.tz).dt.hour
+        hours = to_local(self.rows["dateutc"], self.tz).dt.hour
         return {
             int(hour): _quartiles(group.dropna().to_numpy(), digits)
             for hour, group in values.groupby(hours)
@@ -321,14 +318,9 @@ def _day_trace(
     digits: int,
 ) -> LeadTrace:
     """Today's hourly means from local midnight, with each hour's band."""
-    midnight = pd.Timestamp(today).tz_localize(tz)
-    next_midnight = pd.Timestamp(today + timedelta(days=1)).tz_localize(tz)
-    start_ms = int(midnight.value // 10**6)
-    slots = int((next_midnight - midnight) / pd.Timedelta(hours=1))
-    hours = [
-        pd.Timestamp(start_ms + i * HOUR_MS, unit="ms", tz="UTC").tz_convert(tz).hour
-        for i in range(slots)
-    ]
+    start_ms = from_local_date(today, tz)
+    slots = (from_local_date(today + timedelta(days=1), tz) - start_ms) // HOUR_MS
+    hours = [local_time(start_ms + i * HOUR_MS, tz).hour for i in range(slots)]
 
     values: List[Optional[float]] = [None] * slots
     if column in stitched:
@@ -354,31 +346,20 @@ def _day_trace(
 
 
 def _dry_spells(
-    stitched: pd.DataFrame, coverage: ArchiveCoverage
+    days: CountedDays,
 ) -> Tuple[Optional[List[int]], Tuple[str, ...]]:
     """
-    Every completed dry spell in the 365-day window, in days.
+    Every completed dry spell in the 365-day rain window, in days.
 
+    :param days: The counted days and the daily rain series.
     :return: (spell lengths, or None when the window is invalid; its key when
         comparable).
     """
-    status = coverage.rolling(365, DRY_SPELL_WINDOW)
+    status = days.rain.rolling(365, DRY_SPELL_WINDOW)
 
     def spells() -> List[int]:
-        first, last = date.fromisoformat(status.first_day), coverage.today
-        counted = set(coverage.counted_days(first, last))
-        daily: Dict[date, float] = {}
-        if "dailyrainin" in stitched and not stitched.empty:
-            days = _local(stitched["dateutc"], coverage.tz).dt.date
-            rain = pd.to_numeric(stitched["dailyrainin"], errors="coerce")
-            daily = rain.groupby(days).max().to_dict()
-        index = [first + timedelta(days=i) for i in range((last - first).days + 1)]
-        series = pd.Series(
-            [daily.get(day, 0.0) if day in counted else np.nan for day in index],
-            index=index,
-            dtype=float,
-        )
-        return [int(days) for days in dry_spells(series)["days"]]
+        series = days.rain_days(date.fromisoformat(status.first_day), days.clock.today)
+        return [int(length) for length in dry_spells(series)["days"]]
 
     lengths = comparable(status, spells)
     return lengths, ((status.key,) if lengths is not None else ())
@@ -422,37 +403,31 @@ def hero_lead(
     active: Optional[ActiveRainEvent],
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
-    now: datetime,
-    tz: str = DEFAULT_TZ,
+    days: CountedDays,
 ) -> HeroLead:
     """
     The hero lead: every lead rule's value, the lead, and its chart data.
 
-    :param archive: The archive as stored, for gap statuses.
+    :param archive: The archive as stored, for the month's hours.
     :param stitched: `stitch_live` output, newest first.
     :param event_catalog: The Event Catalog, or None.
     :param active: The active rain event, or None.
     :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
+    :param days: The build's counted days and daily rain series.
     :return: The `HeroLead` section.
     """
-    coverage = ArchiveCoverage(archive, now, tz)
+    coverage, clock = days.coverage, days.clock
     # Today and this hour are the newest observation's, so a stale reading
     # is compared with its own month and hour.
-    observed = (
-        None
-        if observed_at_ms is None
-        else pd.Timestamp(observed_at_ms, unit="ms", tz="UTC").tz_convert(tz)
-    )
+    observed = None if observed_at_ms is None else local_time(observed_at_ms, clock.tz)
     today = coverage.today if observed is None else observed.date()
     observed_hour = None if observed is None else observed.hour
     month_hours = _MonthHours(archive, coverage, today)
     temperature_by_hour = month_hours.by_hour("tempf", 1)
 
     newest = _newest_event(event_catalog, observed_at_ms)
-    spells, spell_window = _dry_spells(stitched, coverage)
+    spells, spell_window = _dry_spells(days)
     spell_usual = _quartiles(spells or [], 2)
 
     rules = [
@@ -491,7 +466,7 @@ def hero_lead(
         now_value = getattr(current, field)
         usual = by_hour.get(observed_hour, _NO_USUAL)
         sample = month_hours.days()
-        trace = _day_trace(stitched, column, by_hour, today, tz, digits)
+        trace = _day_trace(stitched, column, by_hour, today, clock.tz, digits)
 
     return HeroLead(
         kind=kind,

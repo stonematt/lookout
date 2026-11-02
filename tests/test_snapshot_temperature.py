@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from lookout.snapshot import gaps
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import Gap, RainSpell, build_archive
 from tests.snapshot_helpers import REGENERATE, build
@@ -316,6 +317,36 @@ class TestStrips:
 
     def test_golden(self, snapshot):
         assert_golden(snapshot, "year")
+
+
+class TestWindowKeys:
+    @pytest.fixture
+    def reshaped(self, monkeypatch):
+        """The standard windows reordered, with a 14-day window added."""
+        windows = (
+            ("30d", 29, 0),
+            ("today", 0, 0),
+            ("14d", 13, 0),
+            ("yesterday", 1, 1),
+            ("7d", 6, 0),
+            ("90d", 89, 0),
+            ("365d", 364, 0),
+        )
+        monkeypatch.setattr(gaps, "STANDARD_WINDOWS", windows)
+        return [key for key, _, _ in windows]
+
+    def test_the_periods_follow_the_standard_windows(self, whole, reshaped):
+        context = build(whole, None, NOW).temperature_context
+
+        assert [p.status.key for p in context.periods] == reshaped
+
+    def test_the_empty_path_labels_each_window_by_key(self, reshaped):
+        context = build(station().iloc[0:0], None, NOW).temperature_context
+
+        assert [p.status.key for p in context.periods] == reshaped
+        spans = {p.status.key: p.status.first_day for p in context.periods}
+        assert spans["30d"] < spans["14d"] < spans["7d"] < spans["yesterday"]
+        assert spans["yesterday"] < spans["today"]
 
 
 class TestEmpty:

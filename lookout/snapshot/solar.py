@@ -27,16 +27,22 @@ to the new site's rules:
   picked day's 15-minute bars from them; nothing is a Plotly figure.
 
 Functions:
-- solar_tab(energy_catalog, archive, history, observed_at_ms, now): the
+- solar_tab(energy_catalog, archive, history, observed_at_ms, archived): the
   `SolarTab` section, None without a catalog.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from lookout.snapshot.gaps import LOW_COVERAGE, ArchiveCoverage, comparable, prorate
+from lookout.snapshot.gaps import (
+    LOW_COVERAGE,
+    ArchiveCoverage,
+    comparable,
+    prorate,
+    standard_window_keys,
+)
 from lookout.snapshot.model import (
     GapStatus,
     SolarDays,
@@ -47,11 +53,7 @@ from lookout.snapshot.model import (
     SolarWindow,
 )
 from lookout.snapshot.values import iso_day, number
-from lookout.utils.dateutc import DEFAULT_TZ
-
-WINDOW_KEYS = ("today", "yesterday", "7d", "30d", "90d", "365d")
-"""The standard windows the tab totals: all but the water year, a rain
-season."""
+from lookout.utils.dateutc import INTERVAL_MS, day_span, from_local_date, to_local
 
 RECENT_WINDOW = "90d"
 """The standard window whose days carry their 15-minute energy."""
@@ -67,10 +69,7 @@ SLOT_MS = SLOT_MINUTES * 60 * 1000
 USUAL_DAYS = 30
 """The days before today the 24-hour view's usual range is drawn from."""
 
-TRACE_STEP_MS = 5 * 60 * 1000
-"""The 24-hour trace's step: the archive's five minutes."""
-
-TRACE_SLOTS = 24 * 60 * 60 * 1000 // TRACE_STEP_MS
+TRACE_SLOTS = 24 * 60 * 60 * 1000 // INTERVAL_MS
 """Steps in 24 hours; the trace holds one more, the newest observation's."""
 
 _WH_DIGITS = 1
@@ -81,30 +80,29 @@ def solar_tab(
     archive: pd.DataFrame,
     history: pd.DataFrame,
     observed_at_ms: Optional[int],
-    now: datetime,
-    tz: str = DEFAULT_TZ,
+    archived: ArchiveCoverage,
 ) -> Optional[SolarTab]:
     """
     The Solar tab's section.
 
     :param energy_catalog: The energy catalog (`period_start`, `energy_kwh`),
         or None when there is none.
-    :param archive: The station's archive as stored, for the gap rules and
+    :param archive: The station's archive as stored, for the catalog check and
         the usual range.
     :param history: The archive with the live reading stitched in
         (`stitch_live`), for the 24-hour trace.
     :param observed_at_ms: The newest observation, live or archived.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
+    :param archived: The build's counted days (`CountedDays.coverage`);
+        days the catalog lacks are judged missing on a copy.
     :return: The section; None without an energy catalog.
     """
     if energy_catalog is None:
         return None
-    archived = ArchiveCoverage(archive, now, tz)
-    periods = _periods(energy_catalog, tz)
+    periods = _periods(energy_catalog, archived.tz)
     coverage = archived.excluding(_uncatalogued(periods, archive, archived))
     totals = _daily_totals(periods, coverage)
-    windows = [s for s in coverage.standard_windows() if s.key in WINDOW_KEYS]
+    keys = standard_window_keys()
+    windows = [s for s in coverage.standard_windows() if s.key in keys]
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     return SolarTab(
         windows=tuple(
@@ -179,14 +177,14 @@ def _uncatalogued(
     first = coverage.first_day
     if first is None:
         return {}
-    days = _span(first, coverage.today)
+    days = day_span(first, coverage.today)
     if periods.empty:
         return {d: "not_archived" for d in days}
     held = periods.groupby("day")["start_ms"].nunique().to_dict()
     stamps = pd.Series(archive["dateutc"], dtype="int64")
     stamps = stamps[stamps <= coverage.now_ms]
     slots = pd.Series((stamps // SLOT_MS).unique() * SLOT_MS)
-    local = pd.to_datetime(slots, unit="ms", utc=True).dt.tz_convert(coverage.tz)
+    local = to_local(slots, coverage.tz)
     due = local.dt.date.value_counts().to_dict()
     first_held, last_held = min(held), max(held)
 
@@ -263,7 +261,7 @@ def _days(totals: Dict[date, float], coverage: ArchiveCoverage) -> SolarDays:
         )
     energy: List[Optional[float]] = []
     reasons = []
-    for d in _span(first, coverage.today):
+    for d in day_span(first, coverage.today):
         if d in totals:
             energy.append(number(totals[d]))
             reasons.append(None)
@@ -287,7 +285,7 @@ def _recent(
     :return: The recent days.
     """
     first, last = iso_day(status.first_day), iso_day(status.last_day)
-    days = _span(first, last)
+    days = day_span(first, last)
     inside = periods[(periods["day"] >= first) & (periods["day"] <= last)]
     # A repeated hour on the day daylight saving ends is summed into its slot.
     by_slot = inside.groupby(["day", "slot"])["kwh"].sum().to_dict()
@@ -333,8 +331,8 @@ def _last_24h(
     """
     if observed_at_ms is None or history.empty:
         return None
-    end = observed_at_ms // TRACE_STEP_MS * TRACE_STEP_MS
-    start = end - TRACE_SLOTS * TRACE_STEP_MS
+    end = observed_at_ms // INTERVAL_MS * INTERVAL_MS
+    start = end - TRACE_SLOTS * INTERVAL_MS
     solar = _trace(history, start, end)
 
     today = solar_coverage.today
@@ -347,14 +345,14 @@ def _last_24h(
         usual, lambda: _usual_band(archive, usual, archive_coverage, start)
     )
 
-    day_ms = TRACE_SLOTS * TRACE_STEP_MS
+    day_ms = TRACE_SLOTS * INTERVAL_MS
     energy = solar_coverage.window(today - timedelta(days=1), today, key="last_24h")
     before = solar_coverage.window(
         today - timedelta(days=2), today - timedelta(days=1), key="previous_24h"
     )
     return SolarTrace(
         start_ms=int(start),
-        step_minutes=TRACE_STEP_MS // 60_000,
+        step_minutes=INTERVAL_MS // 60_000,
         solar_wm2=solar,
         usual=usual,
         usual_low_wm2=band[0] if band else None,
@@ -383,13 +381,13 @@ def _trace(history: pd.DataFrame, start: int, end: int) -> Tuple[Optional[float]
     :param end: The last slot, the newest observation's.
     :return: One value per slot, None where nothing was read.
     """
-    count = (end - start) // TRACE_STEP_MS + 1
+    count = (end - start) // INTERVAL_MS + 1
     values: List[Optional[float]] = [None] * count
     if "solarradiation" not in history:
         return tuple(values)
     stamps = history["dateutc"].astype("int64")
-    rows = history[(stamps >= start) & (stamps < end + TRACE_STEP_MS)]
-    slots = (rows["dateutc"].astype("int64") - start) // TRACE_STEP_MS
+    rows = history[(stamps >= start) & (stamps < end + INTERVAL_MS)]
+    slots = (rows["dateutc"].astype("int64") - start) // INTERVAL_MS
     # Newest first: a slot read twice keeps its newest reading, the live one.
     for slot, value in zip(slots[::-1], rows["solarradiation"][::-1]):
         if not pd.isna(value):
@@ -413,23 +411,19 @@ def _usual_band(
     counted = set(
         coverage.counted_days(iso_day(usual.first_day), iso_day(usual.last_day))
     )
-    first_ms = _midnight_ms(iso_day(usual.first_day), coverage.tz)
-    last_ms = _midnight_ms(iso_day(usual.last_day) + timedelta(days=1), coverage.tz)
+    first_ms = from_local_date(iso_day(usual.first_day), coverage.tz)
+    last_ms = from_local_date(iso_day(usual.last_day) + timedelta(days=1), coverage.tz)
     stamps = archive["dateutc"].astype("int64")
     rows = archive[(stamps >= first_ms) & (stamps < last_ms)]
-    local = pd.to_datetime(rows["dateutc"], unit="ms", utc=True).dt.tz_convert(
-        coverage.tz
-    )
+    local = to_local(rows["dateutc"], coverage.tz)
     frame = pd.DataFrame(
         {"tod": _time_of_day(local), "solar": rows["solarradiation"].astype(float)}
     )[local.dt.date.isin(counted).to_numpy()]
     quartiles = frame.dropna().groupby("tod")["solar"].quantile([0.25, 0.5, 0.75])
     table = quartiles.unstack().to_dict("index")
 
-    slots = pd.to_datetime(
-        [start + i * TRACE_STEP_MS for i in range(TRACE_SLOTS + 1)], unit="ms", utc=True
-    ).tz_convert(coverage.tz)
-    keys = _time_of_day(pd.Series(slots))
+    slots = pd.Series([start + i * INTERVAL_MS for i in range(TRACE_SLOTS + 1)])
+    keys = _time_of_day(to_local(slots, coverage.tz))
 
     def column(q: float) -> Tuple[Optional[float], ...]:
         """One quantile at every trace slot."""
@@ -464,17 +458,7 @@ def _energy_between(
 def _time_of_day(local: pd.Series) -> List[int]:
     """Each local time's five-minute slot of the day, 0..287."""
     minutes = local.dt.hour * 60 + local.dt.minute
-    return list((minutes // (TRACE_STEP_MS // 60_000)).astype(int))
-
-
-def _midnight_ms(day: date, tz: str) -> int:
-    """Epoch ms of local midnight starting `day`."""
-    return int(pd.Timestamp(day).tz_localize(tz).value // 10**6)
-
-
-def _span(first: date, last: date) -> List[date]:
-    """Every day from `first` to `last`, inclusive."""
-    return [first + timedelta(days=i) for i in range((last - first).days + 1)]
+    return list((minutes // (INTERVAL_MS // 60_000)).astype(int))
 
 
 def _wh(kwh: float) -> float:

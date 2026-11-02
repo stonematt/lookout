@@ -27,12 +27,11 @@ from tests.fixtures.archive import (
     RainSpell,
     build_archive,
 )
-from tests.fixtures.storage import BUCKET, FROZEN_DAY
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
     catchup_station,
-    flaky_storj,
 )
 
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
@@ -179,6 +178,7 @@ def test_dry_run_restores_from_the_backup_and_writes_nothing(seed, truth, capsys
         year_end = that_day["yearlyrainin"].iloc[0]  # its last reading
         assert f"yearly {year_end - DAMAGE:.3f} -> {year_end:.3f}" in line
     assert f"{rows} restored rows checked, 0 differ from the backup" in out
+    assert f"Archive replaced {rows} readings with {rows}" in out
     # Nothing to refill: no history page is fetched, only the device list.
     assert [path for path, _ in station.replay.calls] == ["/devices"]
     assert station.keys() == keys
@@ -315,25 +315,27 @@ def test_a_day_that_refills_short_aborts_the_write(seed, truth, capsys):
     assert len(station.stored()) == len(station.archive)
 
 
-def test_a_repair_that_would_shrink_the_archive_is_refused(
+def test_the_rain_repair_may_drop_and_blank_as_an_explicit_repair(
     seed, truth, capsys, monkeypatch
 ):
-    """#160: the repair's save is guarded by the rows it loaded."""
+    """#190: the rain repair passes the repair allowance at its save."""
     station = seed(truth)
     before = station.stored()
     repair_window = repair_rain.repair_window
 
     def lossy(*args, **kwargs):
         repaired, repair = repair_window(*args, **kwargs)
-        return repaired.iloc[1:], repair
+        return repaired.iloc[1:].assign(tempf=float("nan")), repair
 
     monkeypatch.setattr(repair_rain, "repair_window", lossy)
     monkeypatch.setattr(repair_rain, "report_window", lambda *_a, **_k: [])
 
-    with pytest.raises(storj.ArchiveShrinkError):
-        run(["--write"], capsys)
+    status, _out = run(["--write"], capsys)
 
-    pd.testing.assert_frame_equal(station.stored(), before)
+    assert status == 0
+    stored = station.stored()
+    assert len(stored) == len(before) - 1
+    assert stored["tempf"].isna().all()
 
 
 def test_a_failed_archive_read_stops_the_repair_before_any_save(
@@ -346,6 +348,32 @@ def test_a_failed_archive_read_stops_the_repair_before_any_save(
     with pytest.raises(storj.StorageReadError):
         run(["--write"], capsys)
 
+    assert station.keys() == keys
+
+
+def test_a_failed_reference_read_stops_the_repair_before_any_save(
+    seed, truth, capsys, monkeypatch
+):
+    # A failed read is never compared as an empty reference (#185).
+    station = seed(truth)
+    keys = station.keys()
+    flaky_storj(monkeypatch, station.s3, read=REFERENCE_KEY)
+
+    with pytest.raises(storj.StorageReadError):
+        run(["--write"], capsys)
+
+    assert station.keys() == keys
+
+
+def test_an_absent_reference_aborts_the_write(seed, truth, capsys):
+    station = seed(truth)
+    station.s3.delete_object(Bucket=BUCKET, Key=REFERENCE_KEY)
+    keys = station.keys()
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert "missing or empty" in out
     assert station.keys() == keys
 
 

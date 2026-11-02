@@ -27,16 +27,21 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
 from lookout.storage import storj
-from tests.fixtures.ambient import to_ambient_records
-from tests.fixtures.archive import FAKE_MAC, SCENARIO, RainSpell, build_archive
+from tests.fixtures.ambient import load_devices, to_ambient_records
+from tests.fixtures.archive import (
+    FAKE_MAC,
+    SCENARIO,
+    STATION_TZ,
+    RainSpell,
+    build_archive,
+)
 from tests.fixtures.real import AMBIENT_END, load_real_slice
-from tests.fixtures.storage import BUCKET
+from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     RECORDED_ROWS,
     CatchupStation,
     catchup_station,
-    flaky_storj,
     ms,
     reporting,
 )
@@ -133,7 +138,11 @@ class TestRefreshRun:
         assert dashboard["archive_newest_ms"] == ms("2025-11-19T07:55:00Z")
         assert dashboard["observed_at_ms"] == ms("2025-11-19T07:55:00Z")
         assert dashboard["built_at_ms"] == ms(AMBIENT_END)
-        assert dashboard["station"] == {"mac": FAKE_MAC, "name": "Fixture Station"}
+        assert dashboard["station"] == {
+            "mac": FAKE_MAC,
+            "name": "Fixture Station",
+            "tz": STATION_TZ,
+        }
         assert dashboard["current"]["temperature_f"] == 39.4
 
     def test_a_second_run_republishes_over_the_first(self, seed):
@@ -293,7 +302,7 @@ class TestHeartbeats:
         )
         assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/0"]
 
-    def test_a_curve_write_failure_does_not_fail_a_published_run(
+    def test_a_curve_write_failure_fails_a_published_run(
         self, seed, fake_healthchecks, monkeypatch, caplog
     ):
         station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
@@ -310,16 +319,48 @@ class TestHeartbeats:
 
         monkeypatch.setattr(curves, "get_s3_client", lambda: FailingCurveClient())
 
-        assert self.run_main(station) == 0
+        assert self.run_main(station) == 1
 
         assert sorted(snapshot_keys(station)) == sorted([DASHBOARD_KEY, CONTEXT_KEY])
         assert curve_keys(station) == []
         assert "curve write refused" in caplog.text
         assert fake_healthchecks.pings[0] == "lookout-refresh/start"
         assert fake_healthchecks.pings[1].startswith("station-")
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+
+    def test_a_curve_listing_failure_fails_a_published_run(
+        self, seed, fake_healthchecks, monkeypatch, caplog
+    ):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+        failing = {"on": True}
+
+        class ListingClient:
+            def __getattr__(self, name):
+                return getattr(station.s3, name)
+
+            def get_paginator(self, name):
+                if failing["on"]:
+                    raise OSError("curve listing refused")
+                return station.s3.get_paginator(name)
+
+        monkeypatch.setattr(curves, "get_s3_client", lambda: ListingClient())
+
+        assert self.run_main(station) == 1
+
+        assert sorted(snapshot_keys(station)) == sorted([DASHBOARD_KEY, CONTEXT_KEY])
+        assert curve_keys(station) == []
+        assert "curve listing refused" in caplog.text
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+
+        failing["on"] = False
+        fake_healthchecks.pings.clear()
+
+        assert self.run_main(station) == 0
+
+        assert curve_keys(station) != []
         assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
 
-    def test_a_curve_write_failure_still_follows_a_stale_reading(
+    def test_a_curve_failure_still_follows_a_stale_reading(
         self, seed, fake_healthchecks, monkeypatch
     ):
         station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
@@ -330,8 +371,8 @@ class TestHeartbeats:
         monkeypatch.setattr(refresh, "publish_event_curves", refuse)
         late = station.now + timedelta(hours=2)
 
-        assert refresh.main(["--bucket", BUCKET], clock=lambda: late) == 0
-        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/0"]
+        assert refresh.main(["--bucket", BUCKET], clock=lambda: late) == 1
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
 
     def test_a_healthchecks_outage_does_not_fail_the_run(self, seed, fake_healthchecks):
         station = seed()
@@ -363,6 +404,50 @@ class TestHeartbeats:
         self, seed, fake_healthchecks
     ):
         station = seed(archive=load_real_slice().head(0))
+        before = stored_bytes(station, ARCHIVE_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert snapshot_keys(station) == []
+        assert stored_bytes(station, ARCHIVE_KEY) == before
+
+
+# ---------- the station's zone, from Ambient on every run (#197) ----------
+
+
+def devices_with_zone(tz: object) -> List[Dict]:
+    """
+    The recorded `/devices` body, its `lastData.tz` set to `tz`.
+
+    :param tz: The zone to report; `None` drops the field.
+    :return: The body.
+    """
+    devices = load_devices()
+    devices[0]["lastData"].pop("tz", None)
+    if tz is not None:
+        devices[0]["lastData"]["tz"] = tz
+    return devices
+
+
+class TestStationZone:
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    def test_both_documents_name_the_zone_ambient_sends(self, seed):
+        station = seed(devices=devices_with_zone("America/Denver"))
+
+        run_refresh(station)
+
+        assert stored_json(station, DASHBOARD_KEY)["station"]["tz"] == "America/Denver"
+        assert stored_json(station, CONTEXT_KEY)["station"]["tz"] == "America/Denver"
+
+    @pytest.mark.parametrize("tz", [None, "", "Mars/Olympus_Mons"])
+    def test_no_usable_zone_exits_1_and_writes_nothing(
+        self, seed, fake_healthchecks, tz
+    ):
+        """ADR-0005: no zone is guessed; the last good snapshot stays up."""
+        station = seed(devices=devices_with_zone(tz))
         before = stored_bytes(station, ARCHIVE_KEY)
 
         assert self.run_main(station) == 1
@@ -502,6 +587,70 @@ def event_backups(station: CatchupStation) -> List[str]:
     """The Event Catalog's backup keys."""
     prefix = f"backups/{FAKE_MAC}.event_catalog"
     return [key for key in station.keys() if key.startswith(prefix)]
+
+
+class CatalogCopyRefused(FlakyStorj):
+    """`FlakyStorj` whose copies fail only from the Event Catalog's key."""
+
+    def copy_object(self, **kwargs: object) -> Dict:
+        if kwargs["CopySource"]["Key"] == EVENT_CATALOG_KEY:
+            raise OSError("storj copy refused")
+        return self.s3.copy_object(**kwargs)
+
+
+class TestEventCatalogReadOutcome:
+    """
+    #180, ADR-0004: the run acts on the Event Catalog's read outcome. Failed
+    aborts the run before any write; missing is detected and saved; a
+    failed backup stops the save.
+    """
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["read-fails", "corrupt"])
+    def test_a_failed_read_exits_1_and_writes_no_catalog_or_snapshot(
+        self, seed, fake_healthchecks, monkeypatch, corrupt
+    ):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+        if corrupt:
+            station.s3.put_object(
+                Bucket=BUCKET, Key=EVENT_CATALOG_KEY, Body=b"not parquet"
+            )
+        before = stored_bytes(station, EVENT_CATALOG_KEY)
+        if not corrupt:
+            flaky_storj(monkeypatch, station.s3, read=EVENT_CATALOG_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == before
+        assert event_backups(station) == []
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) is None
+        assert snapshot_keys(station) == []
+        assert curve_keys(station) == []
+
+    def test_a_missing_catalog_is_detected_and_saved(self, seed, fake_healthchecks):
+        station = seed()  # no Event Catalog stored; the slice has completed events
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+
+        assert self.run_main(station) == 0
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is not None
+        assert event_backups(station) == []  # nothing stored, nothing to back up
+        assert len(snapshot_keys(station)) == 2
+
+    def test_a_failed_backup_stops_the_save(self, seed, fake_healthchecks, monkeypatch):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+        before = stored_bytes(station, EVENT_CATALOG_KEY)
+        flaky = CatalogCopyRefused(station.s3)
+        monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+
+        assert self.run_main(station) == 0  # the save waits for the next run
+
+        assert stored_bytes(station, EVENT_CATALOG_KEY) == before
+        assert event_backups(station) == []
+        assert len(snapshot_keys(station)) == 2
 
 
 class TestEventCatalogSavesRunAfterRun:
@@ -669,6 +818,77 @@ class TestEnergyCatalog:
         assert saved["period_start"].is_unique
 
 
+def energy_backups(station: CatchupStation) -> List[str]:
+    """The energy catalog's backup keys, on either backup route."""
+    return [
+        key
+        for key in station.keys()
+        if f"{FAKE_MAC}.energy_catalog" in key and key != ENERGY_CATALOG_KEY
+    ]
+
+
+class TestEnergyCatalogReadOutcome:
+    """
+    #183, ADR-0004: the run acts on the energy catalog's read outcome, as on
+    the Event Catalog's. Failed aborts the run before any write; missing is
+    recomputed from the archive.
+    """
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["read-fails", "corrupt"])
+    def test_a_failed_read_exits_1_and_writes_no_catalog_or_snapshot(
+        self, seed, fake_healthchecks, monkeypatch, corrupt
+    ):
+        station = seed()  # no Event Catalog stored: a run would seed one
+        if corrupt:
+            station.s3.put_object(
+                Bucket=BUCKET, Key=ENERGY_CATALOG_KEY, Body=b"not parquet"
+            )
+        else:
+            EnergyCatalog(FAKE_MAC).save_catalog(
+                EnergyCatalog(FAKE_MAC).detect_and_calculate_periods(
+                    station.archive, auto_save=False
+                )
+            )
+        before = stored_bytes(station, ENERGY_CATALOG_KEY)
+        monkeypatch.setattr(  # old enough that a run would save over it
+            EnergyCatalog, "get_catalog_age", lambda self: pd.Timedelta(days=3)
+        )
+        if not corrupt:
+            flaky_storj(monkeypatch, station.s3, read=ENERGY_CATALOG_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) == before
+        assert energy_backups(station) == []
+        assert stored_bytes(station, EVENT_CATALOG_KEY) is None
+        assert snapshot_keys(station) == []
+        assert curve_keys(station) == []
+
+    def test_a_missing_catalog_is_recomputed_from_the_archive(
+        self, seed, fake_healthchecks, monkeypatch
+    ):
+        station = seed()
+        assert stored_bytes(station, ENERGY_CATALOG_KEY) is None
+        built_from: Dict = {}
+        real = refresh.build_snapshot
+
+        def spy(**kwargs):
+            built_from.update(kwargs)
+            return real(**kwargs)
+
+        monkeypatch.setattr(refresh, "build_snapshot", spy)
+
+        assert self.run_main(station) == 0
+
+        energy = built_from["energy_catalog"]
+        assert energy is not None and not energy.empty
+        assert len(snapshot_keys(station)) == 2
+
+
 # ---------- event curve files, written once per completed event (#84) ----------
 
 EVENT_1 = ms("2026-01-04T18:00:00Z")
@@ -779,7 +999,8 @@ class TestEventCurveFiles:
 
         monkeypatch.setattr(curves, "get_s3_client", lambda: OneBadKey())
 
-        run_refresh(station)
+        with pytest.raises(refresh.CurveStepFailed):
+            run_refresh(station)
 
         assert curve_keys(station) == sorted(
             curve_key(start) for start in (EVENT_1, EVENT_3)
@@ -999,7 +1220,7 @@ class TestCorrectRain:
         store_corrections(weather)
         return weather
 
-    STATION = refresh.Station(mac=FAKE_MAC, name=None)
+    STATION = refresh.Station(mac=FAKE_MAC, name=None, tz=STATION_TZ)
 
     @pytest.mark.parametrize(
         "reading",

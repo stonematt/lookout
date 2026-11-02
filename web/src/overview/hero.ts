@@ -240,7 +240,7 @@ export function heroSource(snapshot: DashboardSnapshot): string {
     case "temperature":
     case "solar":
       return (
-        "Today is the archive's hourly means, Pacific time, with the live reading as now. " +
+        "Today is the archive's hourly means, station time, with the live reading as now. " +
         `The usual range is every reading at that hour in ${monthOf(snapshot)} of earlier years; ` +
         `a month with too many missing days is not compared.${lag}`
       );

@@ -8,18 +8,18 @@ number for the same quantity.
 
 Functions:
 - stitch_live(archive, live): The archive with the live reading as newest row.
-- current_conditions(stitched, now): The newest row's values and the trends.
+- current_conditions(stitched, clock): The newest row's values and the trends.
 - active_rain_event(event_catalog, current, observed_at_ms): The live event.
 """
 
-from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
 
 from lookout.core.weather_events import find_active_rain_event
+from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import ActiveRainEvent, SnapshotConditions
-from lookout.utils.dateutc import DEFAULT_TZ
+from lookout.utils.dateutc import local_time
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
     calculate_temperature_trend,
@@ -157,7 +157,7 @@ def _trend(
 
 
 def current_conditions(
-    stitched: pd.DataFrame, now: datetime, tz: str = DEFAULT_TZ
+    stitched: pd.DataFrame, clock: StationClock
 ) -> SnapshotConditions:
     """
     Current conditions from the stitched history's newest row.
@@ -171,13 +171,12 @@ def current_conditions(
     is None until a reading from today arrives.
 
     :param stitched: `stitch_live` output; may be empty.
-    :param now: The build time, timezone-aware: it says which day is today.
-    :param tz: The station-local zone.
+    :param clock: The station clock: it says which day is today.
     :return: The current conditions; every value None on an empty history.
     """
     newest = stitched.iloc[0] if not stitched.empty else pd.Series(dtype=object)
     values = {field: _value(newest, column) for field, column in LIVE_FIELDS.items()}
-    if not _is_today(newest.get("dateutc"), now, tz):
+    if not _is_today(newest.get("dateutc"), clock):
         values["rain_today_in"] = None
 
     return SnapshotConditions(
@@ -192,19 +191,17 @@ def current_conditions(
     )
 
 
-def _is_today(observed: Any, now: datetime, tz: str) -> bool:
+def _is_today(observed: Any, clock: StationClock) -> bool:
     """
     Whether a reading was taken on the build time's local date.
 
     :param observed: The reading's `dateutc` (ms), or None.
-    :param now: The build time, timezone-aware.
-    :param tz: The station-local zone.
+    :param clock: The station clock.
     :return: True when both fall on the same station-local day.
     """
     if observed is None or pd.isna(observed):
         return False
-    day = pd.Timestamp(int(observed), unit="ms", tz="UTC").tz_convert(tz).date()
-    return day == pd.Timestamp(now).tz_convert(tz).date()
+    return local_time(observed, clock.tz).date() == clock.today
 
 
 def active_rain_event(

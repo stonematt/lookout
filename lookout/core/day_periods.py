@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import pandas as pd
 
-from lookout.storage.storj import get_df_from_s3, object_exists, save_df_to_s3
+from lookout.storage.storj import backup_object, read_df_from_s3, save_df_to_s3
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -24,119 +24,103 @@ def get_catalog_path(mac_address: str, file_type: str = DEFAULT_FILE_TYPE) -> st
     return f"{mac_address}.day_periods_catalog.{file_type}"
 
 
-def catalog_exists(mac_address: str, bucket: str = DEFAULT_BUCKET) -> bool:
-    """
-    Check if the day periods catalog exists in storage.
-
-    :param mac_address: The station whose catalog to look for.
-    :param bucket: The bucket to look in.
-    :return: True if the catalog object is there, False otherwise.
-    """
-    return object_exists(bucket, get_catalog_path(mac_address))
-
-
 def load_day_periods_catalog(
     mac_address: str, bucket: str = DEFAULT_BUCKET
-) -> pd.DataFrame:
-    """Load day periods catalog from storage."""
-    if not catalog_exists(mac_address, bucket):
-        logger.info(f"No day periods catalog found for {mac_address}")
-        return pd.DataFrame()
+) -> Optional[pd.DataFrame]:
+    """
+    Read the stored day periods catalog, by the reader contract (#185).
 
-    catalog_path = get_catalog_path(mac_address)
-    try:
-        df = get_df_from_s3(bucket, catalog_path, DEFAULT_FILE_TYPE)
-        if not df.empty:
-            # Convert date column to Pacific timezone for consistency
-            if "date" in df.columns:
-                df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(
-                    "America/Los_Angeles"
-                )
-            logger.info(f"Loaded day periods catalog: {len(df)} periods")
-        return df
-    except Exception as e:
-        logger.error(f"Failed to load day periods catalog for {mac_address}: {e}")
-        return pd.DataFrame()
+    One read, no existence check: found returns the catalog, missing
+    returns None, and a failed read raises (ADR-0004).
+
+    :param mac_address: The station whose catalog to read.
+    :param bucket: The bucket.
+    :return: The catalog, its `date` in Pacific time, when found; None when
+        none is stored.
+    :raises StorageReadError: If the read failed or the catalog is corrupt.
+    """
+    df = read_df_from_s3(bucket, get_catalog_path(mac_address), DEFAULT_FILE_TYPE)
+    if df is None:
+        logger.info(f"No day periods catalog found for {mac_address}")
+        return None
+    if "date" in df.columns:
+        # Convert date column to Pacific timezone for consistency
+        df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(
+            "America/Los_Angeles"
+        )
+    logger.info(f"Loaded day periods catalog: {len(df)} periods")
+    return df
 
 
 def save_day_periods_catalog(
     periods_df: pd.DataFrame, mac_address: str, bucket: str = DEFAULT_BUCKET
 ) -> bool:
-    """Save day periods catalog to storage."""
+    """
+    Save the day periods catalog to storage.
+
+    :param periods_df: The catalog to save.
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: True when saved; False when the catalog is empty or the save
+        failed (logged at ERROR).
+    """
     if periods_df.empty:
         logger.warning("Attempting to save empty day periods catalog")
         return False
 
+    # Ensure datetime columns are UTC for storage
+    df = periods_df.copy()
+    datetime_cols = ["sunrise_utc", "sunset_utc", "generated_at"]
     try:
-        # Ensure datetime columns are UTC for storage
-        df = periods_df.copy()
-        datetime_cols = ["sunrise_utc", "sunset_utc", "generated_at"]
         for col in datetime_cols:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], utc=True)
-
-        catalog_path = get_catalog_path(mac_address)
-        save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE)
-        logger.info(f"Saved day periods catalog: {len(df)} periods for {mac_address}")
-        return True
     except Exception as e:
-        logger.error(f"Failed to save day periods catalog for {mac_address}: {e}")
+        logger.error(f"Day periods catalog not saved for {mac_address}: {e}")
         return False
+
+    catalog_path = get_catalog_path(mac_address)
+    if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
+        logger.error(f"Failed to save day periods catalog for {mac_address}")
+        return False
+    logger.info(f"Saved day periods catalog: {len(df)} periods for {mac_address}")
+    return True
 
 
 def delete_day_periods_catalog(mac_address: str, bucket: str = DEFAULT_BUCKET) -> bool:
-    """Delete day periods catalog from storage."""
-    try:
-        if not catalog_exists(mac_address, bucket):
-            logger.info(f"No day periods catalog to delete for {mac_address}")
-            return True
+    """
+    Delete the day periods catalog. Not implemented: nothing is deleted.
 
-        catalog_path = get_catalog_path(mac_address)
-
-        # Note: S3 delete would require boto3 client - for now use Storj storage patterns
-        # This is a placeholder - actual deletion would need storage client access
-        logger.info(f"Day periods catalog deletion not implemented for {mac_address}")
-        logger.info(f"Would delete: {catalog_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to delete day periods catalog for {mac_address}: {e}")
-        return False
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: False, always: the catalog was not deleted.
+    """
+    logger.error(
+        f"Day periods catalog deletion is not implemented; "
+        f"s3://{bucket}/{get_catalog_path(mac_address)} was left as it is"
+    )
+    return False
 
 
-def list_day_periods_catalogs(mac_address: str, bucket: str = DEFAULT_BUCKET) -> list:
-    """List day periods catalogs for a MAC address."""
-    try:
-        if catalog_exists(mac_address, bucket):
-            return [get_catalog_path(mac_address)]
-        else:
-            return []
-    except Exception as e:
-        logger.error(f"Failed to list day periods catalogs for {mac_address}: {e}")
-        return []
+def backup_day_periods_catalog(
+    mac_address: str, bucket: str = DEFAULT_BUCKET
+) -> Optional[str]:
+    """
+    Copy the stored catalog, as it is, to a timestamped backup.
 
+    By the reader contract (`storj.backup_object`): a corrupt catalog is
+    copied unparsed, for inspection.
 
-def backup_day_periods_catalog(mac_address: str, bucket: str = DEFAULT_BUCKET) -> bool:
-    """Create timestamped backup of existing catalog."""
-    try:
-        if not catalog_exists(mac_address, bucket):
-            logger.info(f"No existing catalog to backup for {mac_address}")
-            return True
-
-        # Load existing catalog
-        existing = load_day_periods_catalog(mac_address, bucket)
-        if existing.empty:
-            return True
-
-        # Create timestamped backup
-        timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_path = f"backups/{mac_address}.day_periods_catalog_{timestamp}.parquet"
-
-        save_df_to_s3(existing, bucket, backup_path, DEFAULT_FILE_TYPE)
-        logger.info(f"Created backup: {backup_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to backup day periods catalog for {mac_address}: {e}")
-        return False
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: The backup path when a catalog was stored and copied; None when
+        none is stored.
+    :raises BackupError: If the copy failed; the catalog must not be saved
+        over then.
+    """
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_path = f"backups/{mac_address}.day_periods_catalog_{timestamp}.parquet"
+    return backup_object(bucket, get_catalog_path(mac_address), backup_path)
 
 
 def generate_day_periods_catalog(

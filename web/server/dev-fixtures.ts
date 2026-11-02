@@ -8,7 +8,7 @@
  * - `?age=<minutes>` (or `LOOKOUT_AGE_MIN`) shifts every `_ms` time by one
  *   offset so the newest observation is that many minutes old, and every
  *   ISO day (a `_day` or `day` field, a day `key` or a `first..last` span)
- *   by the Pacific days that offset crosses, so day labels agree with the
+ *   by the station days that offset crosses, so day labels agree with the
  *   times. Month keys ("YYYY-MM"), water years and day indexes are not
  *   moved. Without `age` the goldens are served as recorded, which is long
  *   stale.
@@ -24,7 +24,7 @@ import { resolve } from "node:path";
 
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 
-import { DAY_MS, addDays, localDay } from "../src/format.js";
+import { DAY_MS, addDays } from "../src/format.js";
 import type { Env } from "./env.js";
 import { handleEvent } from "./event.js";
 import type { ReadSources } from "./handlers.js";
@@ -61,15 +61,16 @@ function goldenCurve(scenario: Scenario, startMs: number): string | null {
   return near === undefined ? null : readFileSync(`${dir}/${scenario}.${near}.json`, "utf8");
 }
 
-/** How far a served golden moves: milliseconds, and the Pacific days that crosses. */
+/** How far a served golden moves: milliseconds, and the station days that crosses. */
 interface Shift {
   ms: number;
   days: number;
 }
 
-/** The Pacific days between two times' calendar days. */
-function daysBetween(fromMs: number, toMs: number): number {
-  const day = (ms: number) => Date.parse(localDay(ms));
+/** The station's days between two times' calendar days, in the golden's zone. */
+function daysBetween(tz: string, fromMs: number, toMs: number): number {
+  const format = new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+  const day = (ms: number) => Date.parse(format.format(ms));
   return Math.round((day(toMs) - day(fromMs)) / DAY_MS);
 }
 
@@ -116,13 +117,13 @@ function fixtureSources(
   nowMs: number,
 ): ReadSources {
   const head = goldenDoc(scenario, "dashboard");
-  const mac = (head.station as { mac: string }).mac;
+  const { mac, tz } = head.station as { mac: string; tz: string };
   const observed = head.observed_at_ms as number | null;
   const delta =
     ageMinutes === null || observed === null ? 0 : nowMs - ageMinutes * 60_000 - observed;
   const shift: Shift = {
     ms: delta,
-    days: observed === null ? 0 : daysBetween(observed, observed + delta),
+    days: observed === null ? 0 : daysBetween(tz, observed, observed + delta),
   };
   return {
     defaultMac: mac,

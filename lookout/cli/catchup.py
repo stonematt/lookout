@@ -19,6 +19,7 @@ import pandas as pd
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
+from lookout.core import archive_merge
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
@@ -95,12 +96,18 @@ def _log_archive_range(df: pd.DataFrame, label: str) -> None:
 
 def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     """
-    One catchup: back up the archive, append what Ambient has since, save it.
+    One catchup: back up the archive, merge in what Ambient has since, save.
+
+    Fetched readings join the archive through the archive merge: new
+    readings are added, and for the readings re-fetched, Ambient's value wins
+    for each value it sends while values it omits keep their stored value.
+    The merge report (added, filled, updated, one-sided columns) is logged.
 
     The refresh command runs this as its first step. Every failure raises,
     so the run exits non-zero (#160): a failed backup before anything is
     read, a failed or empty archive read before anything is saved, a save
-    that would leave fewer rows than were loaded, and a failed save.
+    that would drop a stored reading or blank a stored value, and a failed
+    save.
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
@@ -110,7 +117,8 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     :raises StorageReadError: If the archive cannot be read or holds no rows.
     :raises CatchupStalled: If Ambient holds readings past a gap the run
         could not cross.
-    :raises StorageWriteError: If the save fails or would shrink the archive.
+    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
+        would drop a stored reading or blank a stored value.
     """
     mac = device["macAddress"]
 
@@ -119,14 +127,16 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
 
     archive_df = _load_archive(device, bucket_name)
 
-    new_archive_df = awn.get_history_since_last_archive(
-        device, archive_df, sleep=True, pages=pages
-    )
+    fetched = awn.fetch_since_last_archive(device, archive_df, sleep=True, pages=pages)
+    # Ambient wins for each value it sends; the routine re-fetch of the last
+    # readings shows up as updated values, never as a failure.
+    new_archive_df, report = archive_merge.merge(archive_df, fetched)
+    logger.info(f"Archive merge: {report.describe()}")
     _log_archive_range(new_archive_df, "Updated archive")
     logger.info(f"Total records after update: {len(new_archive_df)}")
 
     # Save updated archive to S3, newest first whatever came back (#133)
-    sj.save_archive(new_archive_df, bucket_name, mac, loaded_rows=len(archive_df))
+    sj.save_archive(new_archive_df, bucket_name, mac, stored=archive_df)
     logger.info("Updated archive saved.")
     return new_archive_df
 
@@ -137,9 +147,9 @@ def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
 
     Strict (#160): a run that saves after this must never start from a
     failed read, so it reads storage directly (no dev-mode local cache) and
-    raises rather than returning an empty frame. The row count returned is
+    raises rather than returning an empty frame. The archive returned is
     after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
-    it is the count the save is guarded by (`save_archive`'s `loaded_rows`).
+    it is the archive the save is guarded by (`save_archive`'s `stored`).
 
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read from.
@@ -204,8 +214,9 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         logger.info("Dry-run: NOT saving repaired archive.")
         return
 
-    # Persist the repaired archive, newest first (#133), and exit
-    sj.save_archive(fixed, bucket_name, mac, loaded_rows=len(archive_df))
+    # Persist the repaired archive, newest first (#133), and exit. An
+    # explicit repair: the one catchup save that may drop or blank (#190).
+    sj.save_archive(fixed, bucket_name, mac, stored=archive_df, repair=True)
     logger.info("Repaired archive saved.")
 
 

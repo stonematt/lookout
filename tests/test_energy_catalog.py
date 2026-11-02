@@ -2,13 +2,16 @@
 Tests for EnergyCatalog class
 """
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-from datetime import datetime, timezone
 
 from lookout.core import energy_catalog_func
 from lookout.core.energy_catalog import EnergyCatalog
+from lookout.storage import storj
+from tests.fixtures.storage import BUCKET, bucket_keys
+from tests.fixtures.storage import flaky_storj
 
 
 class TestEnergyCatalog:
@@ -43,63 +46,39 @@ class TestEnergyCatalog:
         assert catalog.bucket == "lookout"
         assert catalog.catalog_path == "TEST_MAC.energy_catalog.parquet"
 
-    def test_catalog_exists_true(self, fake_s3, catalog):
-        """Test catalog_exists when catalog exists"""
-        fake_s3.put_object(Bucket="lookout", Key=catalog.catalog_path, Body=b"x")
+    def test_a_saved_catalog_loads_back_in_pacific_time(
+        self, fake_s3, catalog, sample_data
+    ):
+        periods = catalog.detect_and_calculate_periods(sample_data, auto_save=False)
+        assert catalog.save_catalog(periods) is True
 
-        assert catalog.catalog_exists() is True
+        loaded = catalog.load_catalog()
 
-    def test_catalog_exists_false(self, fake_s3, catalog):
-        """Test catalog_exists when catalog doesn't exist"""
-        assert catalog.catalog_exists() is False
+        assert len(loaded) == len(periods)
+        assert str(loaded["period_start"].dt.tz) == "America/Los_Angeles"
+        assert loaded["energy_kwh"].sum() == pytest.approx(periods["energy_kwh"].sum())
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_load_catalog_success(self, mock_get_client, catalog, sample_data):
-        """Test successful catalog loading"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
+    def test_a_missing_catalog_loads_as_none(self, fake_s3, catalog):
+        assert catalog.load_catalog() is None
 
-        # Mock the parquet data
-        mock_body = MagicMock()
-        mock_body.read.return_value = sample_data.to_parquet()
-        mock_client.get_object.return_value = {"Body": mock_body}
+    def test_a_failed_read_raises(self, fake_s3, catalog, sample_data, monkeypatch):
+        catalog.save_catalog(
+            catalog.detect_and_calculate_periods(sample_data, auto_save=False)
+        )
+        flaky_storj(monkeypatch, fake_s3, read=catalog.catalog_path)
 
-        with patch("lookout.core.energy_catalog.object_exists", return_value=True):
-            with patch("pandas.read_parquet", return_value=sample_data) as mock_read:
-                result = catalog.load_catalog()
-                assert not result.empty
-                mock_read.assert_called_once()
+        with pytest.raises(storj.StorageReadError):
+            catalog.load_catalog()
 
-    def test_load_catalog_not_exists(self, fake_s3, catalog):
-        """Test loading catalog when it doesn't exist"""
-        result = catalog.load_catalog()
-        assert result.empty
+    def test_a_corrupt_catalog_raises(self, fake_s3, catalog):
+        fake_s3.put_object(Bucket=BUCKET, Key=catalog.catalog_path, Body=b"x")
 
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_save_catalog_success(self, mock_get_client, catalog, sample_data):
-        """Test successful catalog saving"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
+        with pytest.raises(storj.StorageReadError):
+            catalog.load_catalog()
 
-        with patch("pandas.DataFrame.to_parquet") as mock_to_parquet:
-            with patch("io.BytesIO") as mock_bytesio:
-                mock_buffer = MagicMock()
-                mock_bytesio.return_value = mock_buffer
-                mock_buffer.getvalue.return_value = b"parquet_data"
-
-                result = catalog.save_catalog(sample_data)
-                assert result is True
-                mock_client.put_object.assert_called_once()
-
-    @patch("lookout.core.energy_catalog.get_s3_client")
-    def test_save_catalog_empty(self, mock_get_client, catalog):
-        """Test saving empty catalog"""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-
-        result = catalog.save_catalog(pd.DataFrame())
-        assert result is False
-        mock_client.put_object.assert_not_called()
+    def test_saving_an_empty_catalog_writes_nothing(self, fake_s3, catalog):
+        assert catalog.save_catalog(pd.DataFrame()) is False
+        assert bucket_keys(fake_s3) == []
 
     def test_detect_and_calculate_periods(self, catalog, sample_data):
         """Test period detection and calculation"""
@@ -112,13 +91,39 @@ class TestEnergyCatalog:
             assert "energy_kwh" in result.columns
             mock_save.assert_not_called()
 
-    def test_detect_and_calculate_periods_auto_save(self, catalog, sample_data):
-        """Test period detection with auto-save"""
-        with patch.object(catalog, "save_catalog", return_value=True) as mock_save:
-            result = catalog.detect_and_calculate_periods(sample_data, auto_save=True)
+    def test_auto_save_backs_up_the_stored_catalog_as_it_is_then_saves(
+        self, fake_s3, catalog, sample_data
+    ):
+        fake_s3.put_object(Bucket=BUCKET, Key=catalog.catalog_path, Body=b"corrupt")
 
-            assert not result.empty
-            mock_save.assert_called_once_with(result)
+        result = catalog.detect_and_calculate_periods(sample_data, auto_save=True)
+
+        backups = [k for k in bucket_keys(fake_s3) if k.startswith("backups/")]
+        assert len(backups) == 1
+        backup = fake_s3.get_object(Bucket=BUCKET, Key=backups[0])["Body"].read()
+        assert backup == b"corrupt"
+        assert len(catalog.load_catalog()) == len(result)
+
+    def test_auto_save_with_none_stored_saves_without_a_backup(
+        self, fake_s3, catalog, sample_data
+    ):
+        result = catalog.detect_and_calculate_periods(sample_data, auto_save=True)
+
+        assert bucket_keys(fake_s3) == [catalog.catalog_path]
+        assert len(catalog.load_catalog()) == len(result)
+
+    def test_a_failed_backup_stops_the_save(
+        self, fake_s3, catalog, sample_data, monkeypatch
+    ):
+        fake_s3.put_object(Bucket=BUCKET, Key=catalog.catalog_path, Body=b"stored")
+        flaky_storj(monkeypatch, fake_s3, copy=True)
+
+        with pytest.raises(storj.BackupError):
+            catalog.detect_and_calculate_periods(sample_data, auto_save=True)
+
+        assert bucket_keys(fake_s3) == [catalog.catalog_path]
+        body = fake_s3.get_object(Bucket=BUCKET, Key=catalog.catalog_path)["Body"]
+        assert body.read() == b"stored"
 
     def test_update_catalog_with_new_data(self, catalog, sample_data):
         """Test updating catalog with new data"""
@@ -141,24 +146,15 @@ class TestEnergyCatalog:
         assert not result.empty
         assert "period_start" in result.columns
 
-    def test_get_catalog_age_exists(self, catalog):
-        """Test getting catalog age when it exists"""
-        with patch.object(catalog, "catalog_exists", return_value=True):
-            with patch("lookout.core.energy_catalog.get_s3_client") as mock_get_client:
-                mock_client_instance = MagicMock()
-                mock_get_client.return_value = mock_client_instance
-                mock_client_instance.head_object.return_value = {
-                    "LastModified": datetime.now(timezone.utc)
-                }
+    def test_a_stored_catalog_is_young(self, fake_s3, catalog, sample_data):
+        catalog.save_catalog(
+            catalog.detect_and_calculate_periods(sample_data, auto_save=False)
+        )
 
-                age = catalog.get_catalog_age()
-                assert isinstance(age, pd.Timedelta)
+        assert catalog.get_catalog_age() < pd.Timedelta(minutes=5)
 
-    def test_get_catalog_age_not_exists(self, catalog):
-        """Test getting catalog age when it doesn't exist"""
-        with patch.object(catalog, "catalog_exists", return_value=False):
-            age = catalog.get_catalog_age()
-            assert age == pd.Timedelta(days=999)
+    def test_with_none_stored_the_age_is_very_large(self, fake_s3, catalog):
+        assert catalog.get_catalog_age() == pd.Timedelta(days=999)
 
 
 class TestUpdateRunAfterRun:

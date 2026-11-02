@@ -11,7 +11,6 @@ from lookout.storage.storj import (
     get_df_from_s3,
     save_df_to_s3,
     backup_data,
-    object_exists,
 )
 from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 from lookout.utils.log_util import app_logger
@@ -22,13 +21,6 @@ logger = app_logger(__name__)
 def get_catalog_path(mac_address: str, catalog_type: str) -> str:
     """Generate catalog file path."""
     return f"{mac_address}.{catalog_type}_catalog.{DEFAULT_FILE_TYPE}"
-
-
-def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
-    """Check if catalog exists in storage."""
-    mac_address = get_station_mac()
-
-    return object_exists(bucket, get_catalog_path(mac_address, catalog_type))
 
 
 def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
@@ -48,7 +40,15 @@ def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFram
 def save_catalog(
     df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
 ) -> bool:
-    """Save catalog to storage with metadata."""
+    """
+    Save catalog to storage with metadata.
+
+    :param df: The catalog to save.
+    :param catalog_type: The catalog's name, e.g. "energy".
+    :param bucket: The bucket.
+    :return: True when saved; False when the catalog is empty or the save
+        failed (logged at ERROR).
+    """
     mac_address = get_station_mac()
 
     try:
@@ -62,9 +62,10 @@ def save_catalog(
         df["catalog_version"] = "1.0"
 
         catalog_path = get_catalog_path(mac_address, catalog_type)
-        save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE)
+        if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
+            logger.error(f"Failed to save {catalog_type} catalog to {catalog_path}")
+            return False
 
-        # save_df_to_s3 returns True/False; the return is not checked here
         logger.info(f"Saved {catalog_type} catalog with {len(df)} items")
         return True
 
