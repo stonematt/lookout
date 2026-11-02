@@ -33,7 +33,8 @@ pre-commit install
 - **Run with coverage**: `pytest --cov=.`
 
 ### Running the Application
-- **Development**: `python main.py` or `streamlit run streamlit_app.py` (adjust as needed)
+- **Site**: `cd web && npm run dev` (https://lookout.stonecover.com in production)
+- **Refresh run**: `PYTHONPATH=. python lookout/cli/refresh.py` (writes live Storj)
 
 ## Code Style Standards
 
@@ -113,10 +114,8 @@ def process_file(filepath: str) -> None:
 The solar aggregation uses a multi-layer caching strategy to eliminate 30-second calculation bottlenecks:
 
 ### Caching Layers
-1. **Session State Caching**: `st.session_state["energy_catalog"]` for instant loads
-2. **Streamlit Function Caching**: `@st.cache_data()` with 2-hour TTL for function-level caching
-3. **Persistent Storage**: Storj parquet files for data durability
-4. **Incremental Updates**: Only processes new data since last period
+1. **Persistent Storage**: Storj parquet files for data durability
+2. **Incremental Updates**: Only processes new data since last period
 
 ### Performance Benefits
 - **Cached loads**: <1s (vs 30s previously) - 30x faster

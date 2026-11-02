@@ -10,7 +10,6 @@ import pytz
 
 from lookout.core.solar_energy_periods import (
     calculate_15min_energy_periods,
-    calculate_15min_energy_periods_cached,
 )
 from tests.fixtures.archive import build_archive
 
@@ -265,15 +264,6 @@ class TestEnergyAcrossPeriodBoundaries:
 
         assert len(day) == 100
         assert day["energy_kwh"].sum() == pytest.approx(2.5)
-
-    def test_the_cached_variant_gives_the_same_periods(self):
-        archive = build_archive("2026-06-01 07:00", "2026-06-02 07:00")
-        day = archive.assign(datetime=archive["date"])
-
-        pd.testing.assert_frame_equal(
-            calculate_15min_energy_periods_cached(day),
-            calculate_15min_energy_periods(day),
-        )
 
     def test_the_synthetic_station_day_reads_its_sun_curve(self):
         # The shared fixture's sun is 800 W/m² x sin over 06:00-18:00, which

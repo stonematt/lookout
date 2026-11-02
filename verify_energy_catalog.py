@@ -11,10 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lookout.core.energy_catalog import EnergyCatalog
-from lookout.core.solar_energy_periods import (
-    calculate_15min_energy_periods,
-    calculate_15min_energy_periods_cached,
-)
+from lookout.core.solar_energy_periods import calculate_15min_energy_periods
 
 
 def create_test_data():
@@ -75,24 +72,13 @@ def test_performance_improvement():
     result1 = calculate_15min_energy_periods(df_processed)
     original_time = time.time() - start
 
-    # Test cached function (first run - no cache)
-    start = time.time()
-    result2 = calculate_15min_energy_periods_cached(df_processed)
-    cached_time_first = time.time() - start
+    # A second run on the same input must give the same periods
+    result2 = calculate_15min_energy_periods(df_processed)
 
-    # Test cached function (second run - should use cache)
-    start = time.time()
-    result3 = calculate_15min_energy_periods_cached(df_processed)
-    cached_time_second = time.time() - start
+    print(f"Calculation took {original_time:.2f}s")
 
-    print(".2f")
-    print(".2f")
-    print(".2f")
-
-    # Verify results are equivalent
     pd.testing.assert_frame_equal(result1, result2, check_dtype=False)
-    pd.testing.assert_frame_equal(result2, result3, check_dtype=False)
-    print("✓ Results are consistent between cached and non-cached versions")
+    print("✓ Results are consistent across runs")
 
     print("✅ Performance tests passed!")
 

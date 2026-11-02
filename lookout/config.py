@@ -3,8 +3,7 @@
 Configurations for the Lookout weather dashboard application.
 
 This module contains the sensor index and other configurations that are shared
-across the application, such as Streamlit visualization settings and data
-processing parameters.
+across the application, such as data processing parameters.
 """
 
 from lookout.secrets_loader import get_setting

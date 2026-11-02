@@ -10,7 +10,6 @@ import re
 
 import pandas as pd
 import pytest
-import streamlit as st
 from pandas.testing import assert_frame_equal
 
 from lookout.core import catalog_utils, day_periods, rain_corrections
@@ -161,9 +160,7 @@ def test_day_periods_delete_reports_that_it_deleted_nothing(fake_s3):
 # ---------- catalog_utils: the station is the pinned one ----------
 
 
-def test_generic_catalog_is_keyed_by_the_pinned_station(fake_s3, station, monkeypatch):
-    # Whatever device the UI put in session state, the pin decides the key.
-    monkeypatch.setitem(st.session_state, "device", {"macAddress": "AA:BB"})
+def test_generic_catalog_is_keyed_by_the_pinned_station(fake_s3, station):
     assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
     assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
 
