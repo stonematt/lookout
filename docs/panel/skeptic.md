@@ -39,3 +39,12 @@ Verdict: fix
 - [ ] the open-event flag ignores `active_rain_event` (#122 item 2) — `lookout/snapshot/events.py:146,250`
 - [ ] the SEASON rolling row is labelled with the calendar year — `lookout/snapshot/almanac.py:~147`
 - [x] station pinning (#63), #122 items 1 and 4, solar missing days (#123) — verified fixed on the goal branch
+
+### 2026-11-01 — release PR #241 (dev -> main, caf4f9f), release review
+Verdict: ship
+- [x] hours with no readings render as 0.0 — fixed: unknown hours publish as `None` (#147)
+- [x] event sums for each water year have no gap status — fixed: `EventSeason.status`
+- [x] the open-event flag ignores `active_rain_event` — fixed: uses the live reading
+- [x] the SEASON rolling row is labelled with the calendar year — fixed in the snapshot (`water_year`)
+- [ ] note: confirm the web renders `water_year` for the SEASON row — `lookout/snapshot/almanac.py:~135`
+- [ ] note: rain corrections log at INFO for each correction on every read — `lookout/core/rain_corrections.py:~150`
