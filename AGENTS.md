@@ -5,10 +5,10 @@
 > **For all messaging standards including commits, pull requests, and merge commits, see [CONTRIBUTION_STYLE_GUIDE.md](CONTRIBUTION_STYLE_GUIDE.md).
 
 ## Build/Lint/Test Commands
-- Run app: `streamlit run streamlit_app.py`
+- Run the site: `cd web && npm run dev`; web checks: `npm run build && npm test`
 - Format: `black .`
 - Lint: `flake8 .`
-- Run tests: `pytest` (test directory exists but is empty - no tests configured yet)
+- Run tests: `pytest tests/`
 - Run single test: `pytest path/to/test_file.py::test_function_name`
 - CLI scripts: `PYTHONPATH=. python lookout/cli/script_name.py`
 
@@ -195,32 +195,8 @@ Rationale: 5-minute intervals are normal; only gaps >10min indicate data loss.
 - Follow existing code standards in CONTRIBUTING.md
 
 **Code Structure:**
-- UI functions call core modules for data processing
-- Core modules return processed data ready for display
-- UI layer handles Streamlit widgets, charts, and user interaction
-- Avoid data processing, calculations, or business logic in UI layer
-
-**Streamlit Deprecations (AVOID):**
-- ❌ `st.plotly_chart(fig, use_container_width=True)` → ✅ `st.plotly_chart(fig, width='stretch')`
-- Always use current, non-deprecated Streamlit parameters to avoid warnings
-
-**Example Pattern:**
-```python
-# UI layer - only presentation
-import lookout.core.data_processing as lo_dp
-import lookout.core.visualization as lo_viz
-
-def render():
-    df = st.session_state["history_df"]
-    
-    # Call core for data processing
-    processed_data = lo_dp.calculate_statistics(df)
-    
-    # UI only handles display
-    st.metric("Total", processed_data["total"])
-    fig = lo_viz.create_chart(processed_data)
-    st.plotly_chart(fig)
-```
+- `lookout/snapshot/` turns the archive and catalogs into the dashboard snapshot
+- `web/` only reads the snapshot and draws it; no data processing in the site
 
 **Rationale:** Clean architecture improves maintainability, testability, and 
 follows separation of concerns principle. UI modules should only handle 

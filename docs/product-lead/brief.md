@@ -23,7 +23,7 @@ Tracker: GitHub Issues on `stonematt/lookout`. Labels: one category (`bug`, `enh
 
 Architecture review candidates Matt keeps become issues labelled `refactor` + `needs-triage`, each carrying its full grilling brief; he grills from the issue (2026-11-01).
 
-Integration branch: `dev` · release branch: `main` · deploy branch: `live` (Streamlit Cloud serves it until #86 retires Streamlit). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
+Integration branch: `dev` · release branch: `main` · production: `main` deploys to https://lookout.stonecover.com on Vercel (Streamlit retired by #86). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
 
 ## Drift
 

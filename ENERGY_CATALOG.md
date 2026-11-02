@@ -27,7 +27,6 @@ The Solar Energy Catalog system provides high-performance caching for 15-minute 
 
 #### Optimized Algorithm (`lookout/core/solar_energy_periods.py`)
 - **Vectorized operations**: Uses `pandas.resample()` instead of O(n²) iteration
-- **Streamlit caching**: `@st.cache_data()` with 20-entry, 2-hour TTL
 - **Timezone handling**: Proper UTC→Pacific conversion
 
 #### Data Pipeline Integration (`lookout/core/data_processing.py`)
