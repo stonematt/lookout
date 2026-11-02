@@ -39,7 +39,7 @@ Verdict: ship
 
 ### 2026-11-01 — release PR #241 (dev -> main, caf4f9f), release review
 Verdict: ship
-- [ ] fix: refresh runs can overlap; no lock in `cron_run.sh`, and its `--sleep` default is 900 s — #244
+- [ ] fix: `cron_run.sh` takes no lock of its own, and its `--sleep` default is 900 s — #244. Not a live risk: the itri crontab wraps the run in `flock -n` with `--sleep 30` (recorded on #76)
 - [ ] note: a missing `HC_PING_KEY` only warns, so the cron can run without alerts — `lookout/utils/healthchecks.py`
 - [ ] note: the dashboard and context documents publish one after the other; a failure between them leaves them out of step until the next run (the run exits 1) — `lookout/snapshot/publish.py`
 - [ ] note: streamlit import at `lookout/core/data_processing.py:9` — not rechecked; the refresh path does not import it
