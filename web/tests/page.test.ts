@@ -39,6 +39,7 @@ afterEach(() => {
   started = [];
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 /** A fresh copy of the raining snapshot, built at `builtAtMs` if given. */
@@ -128,6 +129,46 @@ describe("the refresh cycle", () => {
     await vi.advanceTimersByTimeAsync(CYCLE_MS);
     expect(panel("overview").firstElementChild).not.toBe(drawn);
     expect(panel("overview").firstElementChild).not.toBeNull();
+  });
+
+  it("keeps the Events tab's selection and Show more across a new snapshot", async () => {
+    // No network: the picked event's curve read never answers.
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    // Enough events past the golden's three to need Show more; no open curve,
+    // so the live event draws no chart.
+    const build = (builtAtMs: number) => {
+      const doc = snapshot(builtAtMs);
+      doc.rain_events.open_curve = null;
+      const oldest = doc.rain_events.events.at(-1)!;
+      for (let i = 1; i <= 30; i += 1) {
+        const start = oldest.start_ms - i * 86_400_000;
+        doc.rain_events.events.push({ ...oldest, start_ms: start, end_ms: start + 3_600_000 });
+      }
+      return doc;
+    };
+    const first = build(1);
+    const builds = [first, build(2)];
+    const dashboard = vi.fn(() => Promise.resolve(builds.shift() ?? build(2)));
+    await startPage(masthead, sections, { dashboard, current: quietCurrent }).booted;
+    open("events");
+    const events = panel("events");
+    const tap = (selector: string) =>
+      events.querySelector<HTMLElement>(selector)!.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+    const picked = first.rain_events.events[1]!.start_ms;
+    tap(".ev-more");
+    tap(`.ev-open[data-start='${picked}']`);
+    const shown = () => events.querySelectorAll(".ev-table tbody tr").length;
+    expect(shown()).toBe(33);
+    const table = events.querySelector(".ev-table");
+
+    await vi.advanceTimersByTimeAsync(CYCLE_MS);
+
+    expect(events.querySelector(".ev-table")).not.toBe(table); // redrawn
+    expect(shown()).toBe(33);
+    const current = events.querySelector<HTMLElement>("tr[aria-current=true] .ev-open")!;
+    expect(Number(current.dataset.start)).toBe(picked);
   });
 
   it("keeps the page it has when a later read fails", async () => {

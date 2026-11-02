@@ -17,6 +17,9 @@
  *   archive data shows its totals only, with "n/a: gap in record".
  * - The event is keyed by its start, which is stable across refresh runs,
  *   so a link opened while it is live still opens it once it has completed.
+ * - A newer snapshot mounts the tab again over the same panel; it keeps the
+ *   selected event, the water year, the order and the rows "Show more"
+ *   opened, and redraws a completed event from the curve it already read.
  */
 import "./events.css";
 
@@ -106,11 +109,45 @@ function yearButton(season: EventSeason): string {
   return `<button type="button" data-season="${year}" data-gap="${esc(status.reason ?? "gap")}" title="${esc(`${span}: ${reason}`)}">${year}<span class="ev-seg-gap gap-hatch" aria-hidden="true"></span><span class="sr-only">, ${esc(reason)}</span></button>`;
 }
 
-/** Each panel's listeners from its last mount, dropped by the next one. */
-const mounted = new WeakMap<HTMLElement, AbortController>();
+/** The list's shape the visitor picked: water year, order and rows shown. */
+interface View {
+  season: Season;
+  sort: EventSort;
+  limit: number;
+}
+
+/** What a panel keeps from its last mount for the next one. */
+interface Kept {
+  /** The last mount's listeners, dropped by the next mount. */
+  listening: AbortController;
+  /** The view, so a newer snapshot redraws the tab as the visitor left it. */
+  view: View;
+  /** The last completed event's curve read, redrawn without a second read. */
+  curve: EventCurve | null;
+}
 
 /**
- * Render the Rain Events tab into its panel.
+ * Each panel's kept state, across mounts. The selected event is not in it:
+ * it is in the URL (`?event=`), which every mount reads.
+ */
+const panels = new WeakMap<HTMLElement, Kept>();
+
+/**
+ * The view a mount starts from: the panel's last one, or the first page of
+ * every event, newest first. A water year the snapshot no longer lists goes
+ * back to All, with the first page and the order kept.
+ */
+function keptView(last: View | undefined, section: DashboardSnapshot["rain_events"]): View {
+  if (!last) return { season: "all", sort: "newest", limit: PAGE };
+  const { season } = last;
+  if (season === "all" || section.seasons.some((s) => s.water_year === season)) return last;
+  return { season: "all", sort: last.sort, limit: PAGE };
+}
+
+/**
+ * Render the Rain Events tab into its panel. Mounted again over the same
+ * panel (a newer snapshot), it keeps the selected event, the water year, the
+ * order and the rows "Show more" opened.
  *
  * @param panel - The tab's panel; its content is replaced.
  * @param snapshot - The dashboard snapshot.
@@ -121,17 +158,24 @@ export function mountEvents(
   snapshot: DashboardSnapshot,
   deps: EventsDeps = browserDeps(),
 ): void {
-  mounted.get(panel)?.abort();
-  const listening = new AbortController();
-  mounted.set(panel, listening);
+  const last = panels.get(panel);
+  last?.listening.abort();
   const section = snapshot.rain_events;
   const all = section.events;
   const asked = selectedStart(location.search);
-  let season: Season = "all";
-  let sort: EventSort = "newest";
-  let limit = PAGE;
+  const kept: Kept = {
+    listening: new AbortController(),
+    view: keptView(last?.view, section),
+    curve: last?.curve ?? null,
+  };
+  panels.set(panel, kept);
+  const { listening, view } = kept;
   let selected: RainEventRow | null =
     all.find((e) => e.start_ms === asked) ?? all[0] ?? null;
+  // A selected row the kept rows no longer reach (newer events above it)
+  // stays in the list.
+  const at = selected ? visibleEvents(section, view.season, view.sort).indexOf(selected) : -1;
+  if (at >= view.limit) view.limit = at + 1;
   let missing = asked !== null && !all.some((e) => e.start_ms === asked);
   let drawn = 0;
 
@@ -186,9 +230,10 @@ export function mountEvents(
   cue();
 
   function renderHead(): void {
-    const stats = statsFor(section, season);
+    const stats = statsFor(section, view.season);
     const oldest = all.length ? all[all.length - 1]!.start_ms : null;
-    $(".ev-title").textContent = listFinding(stats, season, oldest, visibleEvents(section, season, sort));
+    const rows = visibleEvents(section, view.season, view.sort);
+    $(".ev-title").textContent = listFinding(stats, view.season, oldest, rows);
     $(".ev-stats").innerHTML = [
       stat(String(stats.count), "events"),
       stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
@@ -199,24 +244,27 @@ export function mountEvents(
       ),
     ].join("");
     const note = $(".ev-season-gap");
-    const text = seasonNote(section, season);
+    const text = seasonNote(section, view.season);
     note.hidden = text === null;
     note.replaceChildren();
-    const year = season === "all" ? undefined : section.seasons.find((s) => s.water_year === season);
+    const year =
+      view.season === "all"
+        ? undefined
+        : section.seasons.find((s) => s.water_year === view.season);
     const status = year?.status;
     if (status && !isComparable(status)) note.append(gapElement(status), " ");
     if (text !== null) note.append(text);
     for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-season]")) {
-      b.setAttribute("aria-pressed", String(b.dataset.season === String(season)));
+      b.setAttribute("aria-pressed", String(b.dataset.season === String(view.season)));
     }
     for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-sort]")) {
-      b.setAttribute("aria-pressed", String(b.dataset.sort === sort));
+      b.setAttribute("aria-pressed", String(b.dataset.sort === view.sort));
     }
   }
 
   function renderList(): void {
-    const rows = visibleEvents(section, season, sort);
-    const shown = rows.slice(0, limit);
+    const rows = visibleEvents(section, view.season, view.sort);
+    const shown = rows.slice(0, view.limit);
     const now = deps.nowMs();
     const body = shown
       .map((e) => {
@@ -237,12 +285,12 @@ export function mountEvents(
       })
       .join("");
     const more =
-      rows.length > limit
-        ? `<button type="button" class="ev-more">Show ${Math.min(PAGE * 2, rows.length - limit)} more of ${rows.length}</button>`
+      rows.length > view.limit
+        ? `<button type="button" class="ev-more">Show ${Math.min(PAGE * 2, rows.length - view.limit)} more of ${rows.length}</button>`
         : "";
     $(".ev-list").innerHTML = `
 <table class="ev-table">
-  <caption class="sr-only">Rain events, ${sort === "newest" ? "newest" : "wettest"} first${rows.some((e) => e.live) ? ", the live event pinned on top" : ""}</caption>
+  <caption class="sr-only">Rain events, ${view.sort === "newest" ? "newest" : "wettest"} first${rows.some((e) => e.live) ? ", the live event pinned on top" : ""}</caption>
   <thead><tr><th scope="col">Start</th><th scope="col">Length</th><th scope="col">Total (in)</th><th scope="col" class="ev-peak">Peak (in/hr)</th><th scope="col" class="ev-quality">Quality</th></tr></thead>
   <tbody>${body}</tbody>
 </table>
@@ -325,8 +373,16 @@ ${note}
       charts.innerHTML = '<p class="ev-note">This event\'s readings are not in the snapshot yet.</p>';
       return;
     }
+    if (kept.curve?.start_ms === row.start_ms) {
+      show(kept.curve);
+      return;
+    }
     charts.innerHTML = '<p class="ev-note">Loading the event\'s readings…</p>';
-    deps.fetchCurve(row.start_ms).then(show, (error: unknown) => {
+    const read = (curve: EventCurve) => {
+      kept.curve = curve;
+      show(curve);
+    };
+    deps.fetchCurve(row.start_ms).then(read, (error: unknown) => {
       if (ticket !== drawn) return;
       if (error instanceof ReadError && error.status === 404) {
         charts.innerHTML =
@@ -367,8 +423,8 @@ ${note}
     const seasonButton = target.closest<HTMLButtonElement>("[data-season]");
     if (seasonButton) {
       const value = seasonButton.dataset.season!;
-      season = value === "all" ? "all" : Number(value);
-      limit = PAGE;
+      view.season = value === "all" ? "all" : Number(value);
+      view.limit = PAGE;
       renderHead();
       renderList();
       // A year tapped half under the fade comes whole into view.
@@ -377,14 +433,14 @@ ${note}
     }
     const sortButton = target.closest<HTMLButtonElement>("[data-sort]");
     if (sortButton) {
-      sort = sortButton.dataset.sort as EventSort;
-      limit = PAGE;
+      view.sort = sortButton.dataset.sort as EventSort;
+      view.limit = PAGE;
       renderHead();
       renderList();
       return;
     }
     if (target.closest(".ev-more")) {
-      limit += PAGE * 2;
+      view.limit += PAGE * 2;
       renderList();
     }
   }, { signal: listening.signal });
