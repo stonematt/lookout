@@ -41,22 +41,19 @@ pip install -r requirements.txt
 
 ### 3. Configure secrets
 
-Create a `.streamlit/secrets.toml` file or use Streamlit CLI to store:
+Copy `secrets.example.toml` to `~/.config/lookout/secrets.toml`, fill it in and
+`chmod 600` it. `lookout.secrets_loader.get_secret(name)` reads each secret on
+first use, in this order:
 
-```toml
-AMBIENT_API_KEY = "..."
-AMBIENT_APPLICATION_KEY = "..."
-AWS_ACCESS_KEY_ID = "..."
-AWS_SECRET_ACCESS_KEY = "..."
+1. an env var of the same flat name (`AMBIENT_API_KEY`, `STORJ_ENDPOINT_URL`, ...);
+2. `~/.config/lookout/secrets.toml`;
+3. `st.secrets` (`.streamlit/secrets.toml`), while Streamlit is loaded.
 
-# connnect to the lookout bucket on storj.io
-[lookout_storage_options]
-ACCESS_KEY_ID = "..."
-SECRET_ACCESS_KEY = "..."
-ENDPOINT_URL = "https://gateway.storjshare.io"
+The three Storj names (`STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`,
+`STORJ_ENDPOINT_URL`) map to the `[lookout_storage_options]` table, so an
+existing `.streamlit/secrets.toml` can be copied over unchanged.
 
-──
-```
+Tests need no secrets: `pytest tests/` runs on a clean checkout.
 
 ---
 
@@ -94,7 +91,7 @@ Test files live in the `test/` directory and mirror the `lookout/` package struc
 - Imports are fully qualified (`lookout.api.ambient_client`)
 - Logging is centralized in `log_util.py`
 - Follows standards defined in [`code_standards.md`](code_standards.md)
-- Domain glossary in [`CONTEXT.md`](CONTEXT.md); architectural decisions in
+- Domain glossary in [`GLOSSARY.md`](GLOSSARY.md); architectural decisions in
   [`docs/adr/`](docs/adr/) (e.g.
   [ADR-0001 — post-2020 dateutc floor](docs/adr/0001-dateutc-post-2020-floor.md),
   [ADR-0002 — station-local time as analytical frame](docs/adr/0002-station-local-time-as-analytical-frame.md))

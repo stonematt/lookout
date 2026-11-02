@@ -17,8 +17,9 @@ Functions:
 - load_archive_for_device: Load archived device data from S3.
 - get_device_history_to_date: Fetch records ending at a given timestamp.
 - get_device_history_from_date: Fetch records starting from a timestamp.
+- fetch_since_last_archive: Fetch Ambient's readings since the archive's newest.
 - get_history_since_last_archive: Incrementally extend archive forward.
-- combine_df: Merge and deduplicate DataFrames by 'dateutc'.
+- combine_df: Merge same-source frames by 'dateutc', later frame wins.
 
 Helper Functions:
 - validate_archive: Ensure archive is non-empty and valid.
@@ -27,36 +28,36 @@ Helper Functions:
 - combine_interim_data: Accumulate paged results.
 - update_last_date: Move forward in time for next fetch.
 - log_interim_progress: Log fetch progress in paged loop.
-- combine_full_history: Final merge of archive and updates.
 """
 
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-import streamlit as st
 
+from lookout.config import DEFAULT_BUCKET
+from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
 
 from lookout.utils.trend_utils import (
     calculate_temperature_trend,
     calculate_barometer_trend,
+    newest_row,
 )
 
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history
+from lookout.core import archive_merge
 from lookout.core.rain_corrections import apply_corrections
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
 # Constants
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
 sec_in_hour = 3600 * 1000
 
 # Local cache configuration
@@ -144,9 +145,14 @@ def is_dev_mode() -> bool:
     """
     Check if application is running in development mode.
 
+    Read from the `DEV_MODE` setting (env var, the secrets file, then
+    Streamlit's `[environment] dev`), so a run with no Streamlit secrets is
+    simply not in dev mode.
+
     :return: True if dev mode is enabled
     """
-    return st.secrets.get("environment", {}).get("dev", False)
+    value = get_setting("DEV_MODE", "") or ""
+    return value.strip().lower() in ("1", "true", "yes", "on")
 
 
 # Core Functions
@@ -162,6 +168,10 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
     :param pages: int - Number of pages to fetch, default 10.
     :return: None.
     """
+    # The Streamlit UI's entry point; imported here so the refresh run, which
+    # never calls it, never loads Streamlit.
+    import streamlit as st
+
     try:
         # Use provided or session state history
         current_df = (
@@ -170,14 +180,19 @@ def update_session_data(device, hist_df=None, limit=250, pages=10):
             else st.session_state.get("history_df", pd.DataFrame())
         )
 
-        # Fetch updated history
-        updated_df = get_history_since_last_archive(
-            device, current_df, limit=limit, pages=pages
+        # Fetch updated history; the session history is already corrected,
+        # so only the fetched rows get the rain corrections (#95)
+        updated_df = extend_corrected(
+            current_df,
+            get_history_since_last_archive(
+                device, current_df, limit=limit, pages=pages
+            ),
+            device["macAddress"],
         )
 
         # Calculate trends for latest data point
         if not updated_df.empty:
-            latest_row = updated_df.iloc[0]  # Most recent (archive is reverse sorted)
+            latest_row = newest_row(updated_df)  # any row order (#133)
             temp_trend = calculate_temperature_trend(updated_df, latest_row["tempf"])
             barom_trend = calculate_barometer_trend(
                 updated_df, latest_row["baromrelin"]
@@ -379,12 +394,20 @@ def seek_over_time_gap(
     last_date: datetime, gap_attempts: int, limit: int, max_attempts: int = 10
 ) -> tuple[datetime, int, bool]:
     """
-    Handles logic for gap-based time seeking during history fetch.
+    Move the cursor past a page that brought nothing new, one page at a time.
 
-    :param last_date: datetime - Current max date seen.
-    :param gap_attempts: int - Current number of failed fetch/validation attempts.
-    :param limit: int - Records per page used for offsetting.
-    :param max_attempts: int - Maximum retries before exiting.
+    Each empty probe advances the cursor by exactly one page of 5-minute
+    readings, whatever the attempt count, so the windows requested across
+    an outage touch and no stretch goes unrequested (#132). The walk's
+    reach is therefore about `max_attempts` pages from where the gap began:
+    some 208 hours at 250 records and 10 attempts. A longer outage ends on
+    the cap; `get_history_since_last_archive` then crosses it from the
+    other side (`_cross_long_gap`, #160).
+
+    :param last_date: datetime - The cursor the empty probe was made from.
+    :param gap_attempts: int - Consecutive empty probes before this one.
+    :param limit: int - Records per page; the step is `limit` readings.
+    :param max_attempts: int - Empty probes after which the walk gives up.
     :return: (next_date, new_gap_attempts, should_exit)
     """
     gap_attempts += 1
@@ -393,8 +416,72 @@ def seek_over_time_gap(
         return last_date, gap_attempts, True
 
     logger.info(f"Seeking ahead: {gap_attempts}/{max_attempts}")
-    next_date = _calculate_next_start_date(last_date, gap_attempts, limit)
+    next_date = _calculate_next_start_date(last_date, limit)
     return next_date, gap_attempts, False
+
+
+class CatchupStalled(RuntimeError):
+    """Ambient holds readings past a gap that one run could not cross (#160)."""
+
+
+def _cross_long_gap(
+    device: dict,
+    known_max_ms: int,
+    now_utc: datetime,
+    limit: int,
+    budget: int,
+    sleep: bool = False,
+) -> pd.DataFrame:
+    """
+    Cross a gap the forward walk gave up on, by walking back from `now_utc`.
+
+    Pages end at `now_utc`, then at each page's oldest reading, until a page
+    reaches back to `known_max_ms` (the newest row already held): every
+    reading after the gap is then fetched, whatever the gap's length (#160).
+    A walk back costs one page per 250 readings since the station resumed,
+    not per stretch of silence, so a gap of any length Ambient still holds
+    data on both sides of is crossed. The first page holding nothing newer
+    means the station is still silent: nothing to add.
+
+    :param device: The station's `/devices` entry.
+    :param known_max_ms: The newest `dateutc` already held (archive or
+        interim), epoch ms.
+    :param now_utc: The walk's start: now, or the caller's end bound.
+    :param limit: Records per page.
+    :param budget: Most pages the walk may fetch.
+    :param sleep: Wait a second before each page (Ambient's rate limit).
+    :return: The readings after `known_max_ms`; empty when there are none.
+    :raises CatchupStalled: If the budget runs out, or a page comes back
+        empty, before the walk reaches `known_max_ms`: saving what it found
+        would leave a hole the next run never revisits.
+    """
+    end_ms = int(_to_utc(now_utc).timestamp() * 1000)
+    found = pd.DataFrame()
+    reason = f"{budget} page(s) walking back from {now_utc} did not reach it"
+    for _ in range(budget):
+        if sleep:
+            time.sleep(1)
+        page = get_device_history_to_date(device, end_date=end_ms, limit=limit)
+        if page.empty:
+            if found.empty:
+                return found
+            reason = (
+                f"Ambient returned no readings before "
+                f"{pd.to_datetime(end_ms, unit='ms', utc=True)}"
+            )
+            break
+        newer = page[page["dateutc"] > known_max_ms]
+        if not newer.empty:
+            found = combine_interim_data(found, newer)
+        if len(newer) < len(page):
+            if not found.empty:
+                logger.info(f"Crossed a long gap: +{len(found)} rows after it")
+            return found
+        end_ms = int(page["dateutc"].min())
+    raise CatchupStalled(
+        f"Ambient holds readings after a gap past "
+        f"{pd.to_datetime(known_max_ms, unit='ms', utc=True)}, but {reason}"
+    )
 
 
 def _utc_now():
@@ -461,11 +548,62 @@ def get_history_since_last_archive(
     end_date: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
-    Retrieves device history from the last archive forward, avoiding duplicate fetches,
-    handling gaps, and skipping future timestamps.
+    The archive with what Ambient holds since its newest reading merged in.
+
+    `fetch_since_last_archive`, then the archive merge (Ambient wins for
+    each value it sends; `lookout.core.archive_merge`). The result is raw:
+    rain corrections are not applied; a reader applies them once, after
+    loading (#95), so the archive written to storage stays raw. A caller
+    that needs the merge report fetches and merges itself, as catchup does.
+
+    :return: `archive_df` itself when it is empty or has no `dateutc`; else
+        the merged archive, newest first.
+    :raises CatchupStalled: If Ambient holds readings past a gap that the
+        pages left could not cross.
     """
     if not validate_archive(archive_df):
         return archive_df
+    fetched = fetch_since_last_archive(
+        device, archive_df, limit=limit, pages=pages, sleep=sleep, end_date=end_date
+    )
+    merged = archive_merge.merge(archive_df, fetched)
+    log_full_history_range(merged.archive, merged.report.added)
+    return merged.archive
+
+
+def fetch_since_last_archive(
+    device: dict,
+    archive_df: pd.DataFrame,
+    limit: int = 250,
+    pages: int = 10,
+    sleep: bool = False,
+    end_date: Optional[datetime] = None,
+) -> pd.DataFrame:
+    """
+    Fetch Ambient's readings from the archive's newest reading forward.
+
+    Pages forward, avoiding duplicate fetches, handling gaps and skipping
+    future timestamps. A gap longer than the forward seek's reach (about
+    208 h, #132) is crossed by walking back from the end with the pages left
+    (`_cross_long_gap`, #160). Ambient's pages run back from their end, so
+    the first one usually repeats the archive's last readings.
+
+    The pages are merged in memory with a plain helper (`combine_df`, later
+    page wins); the result never meets the stored rows here.
+
+    :param device: The station's `/devices` entry.
+    :param archive_df: The archive; only its newest `dateutc` is used.
+    :param limit: Readings per page.
+    :param pages: Most pages to fetch.
+    :param sleep: Wait a second before each page (Ambient's rate limit).
+    :param end_date: Stop paging at this time instead of now.
+    :return: The fetched readings, raw, newest first; empty when there were
+        none or the archive is empty or has no `dateutc`.
+    :raises CatchupStalled: If Ambient holds readings past a gap that the
+        pages left could not cross.
+    """
+    if not validate_archive(archive_df):
+        return pd.DataFrame()
 
     interim_df = pd.DataFrame()
 
@@ -515,6 +653,16 @@ def get_history_since_last_archive(
                 last_date, gap_attempts, limit
             )
             if exit_flag:
+                held = int(archive_df["dateutc"].max())
+                if not interim_df.empty:
+                    held = max(held, int(interim_df["dateutc"].max()))
+                # At least one page, so a still-silent station is told
+                # apart from a stall even when the probes used every page.
+                crossed = _cross_long_gap(
+                    device, held, now_utc, limit, max(1, pages - page - 1), sleep
+                )
+                if not crossed.empty:
+                    interim_df = combine_interim_data(interim_df, crossed)
                 break
             continue
 
@@ -526,15 +674,44 @@ def get_history_since_last_archive(
         logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
         log_interim_progress(page + 1, pages, interim_df)
 
-    combined = combine_full_history(archive_df, interim_df)
+    # Raw, as Ambient reported it: rain corrections are applied on read,
+    # never before a save (#95).
+    return interim_df
 
-    # Apply rain carryover corrections
-    try:
-        corrected = apply_corrections(combined, device['macAddress'], "lookout")
+
+def extend_corrected(
+    corrected: pd.DataFrame,
+    extended: pd.DataFrame,
+    mac_address: str,
+    bucket: str = DEFAULT_BUCKET,
+) -> pd.DataFrame:
+    """
+    Add the rows of `extended` that `corrected` lacks, rain corrected once.
+
+    For a frame whose rain counters are already corrected (the Streamlit
+    session history) and a raw extension of it (what
+    `get_history_since_last_archive` or `fill_archive_gap` returns for it).
+    Corrections are per row, by date, so correcting only the new rows gives
+    the same counters as correcting a raw archive whole, and no row is
+    corrected twice. Rows `corrected` already holds are kept as they are.
+    Only for frames that are read, never saved: storage stays raw.
+
+    :param corrected: The rain-corrected frame, `dateutc` in epoch ms.
+    :param extended: A raw frame holding `corrected`'s rows and new ones.
+    :param mac_address: The station, whose corrections catalog applies.
+    :param bucket: The bucket holding the catalog.
+    :return: `corrected` itself when nothing is new; else the union, newest
+        first.
+    :raises StorageReadError: If the corrections catalog cannot be read.
+    """
+    if extended.empty or "dateutc" not in extended.columns:
         return corrected
-    except Exception as e:
-        logger.error(f"Failed to apply corrections: {e}")
-        return combined
+    if corrected.empty or "dateutc" not in corrected.columns:
+        return apply_corrections(extended, mac_address, bucket)
+    new_rows = extended[~extended["dateutc"].isin(corrected["dateutc"])]
+    if new_rows.empty:
+        return corrected
+    return combine_df(corrected, apply_corrections(new_rows, mac_address, bucket))
 
 
 # Helper Functions
@@ -558,53 +735,109 @@ def _should_stop_for_future(next_dt, now_utc) -> bool:
     return False
 
 
-def fill_archive_gap(device, history_df, start, end):
-    """Fetch missing data for a specified gap and append it to the in-memory history."""
+@dataclass
+class GapFill:
+    """
+    The outcome of `fill_archive_gap`.
+
+    :param history_df: The archive after the fill; the very frame passed in
+        when nothing was added, filled or updated.
+    :param start: The gap's start, UTC (the argument as parsed).
+    :param end: The gap's end, UTC.
+    :param status: "filled" (readings added, values filled or values
+        updated), "no_new_data" (Ambient changed nothing) or "refused"
+        (inverted gap, or no archive data before it).
+    :param report: What the merge changed (`MergeReport`); None when refused.
+    :param fetched: The readings Ambient sent for the gap, raw, as merged
+        into `history_df`; None when refused. A caller that saves later
+        merges these, not `history_df`, into the archive as stored then.
+    """
+
+    history_df: pd.DataFrame
+    start: pd.Timestamp
+    end: pd.Timestamp
+    status: str
+    report: Optional[archive_merge.MergeReport] = None
+    fetched: Optional[pd.DataFrame] = None
+
+    @property
+    def skipped(self) -> bool:
+        """True when the gap was tried and Ambient had no data for it."""
+        return self.status == "no_new_data"
+
+
+def fill_archive_gap(
+    device: dict,
+    history_df: pd.DataFrame,
+    start,
+    end,
+    pages: int = 20,
+    sleep: bool = False,
+) -> GapFill:
+    """
+    Fetch missing data for a specified gap and merge it into the history, raw.
+
+    Touches no session state: a caller that keeps a list of skipped gaps
+    (the Diagnostics tab) records the ones that come back `skipped`.
+
+    :param device: The station's `/devices` entry.
+    :param history_df: The archive, raw (as stored), `dateutc` in epoch ms.
+        The fill applies no rain corrections, so a raw archive saves raw.
+    :param start: The gap's start; anything `pd.to_datetime` reads, as UTC.
+    :param end: The gap's end.
+    :param pages: Most Ambient pages to fetch (about 246 new readings
+        each); a long window, like the rain repair's, needs more than the
+        default.
+    :param sleep: Wait a second before each page, to stay under Ambient's
+        rate limit on a long fill.
+    :return: A `GapFill`; its `history_df` is the merged archive on "filled".
+    :raises CatchupStalled: If Ambient holds readings past a gap that the
+        pages left could not cross.
+    """
     logger.info(f"*** Attempting to fill gap from {start} to {end} ***")
 
-    # Normalize input
-    working_history_df = history_df.copy()
-    working_history_df["dateutc"] = pd.to_datetime(
-        history_df["dateutc"], unit="ms", utc=True
-    )
     start = pd.to_datetime(start, utc=True)
     end = pd.to_datetime(end, utc=True)
 
     if start >= end:
         logger.warning("Invalid gap: start >= end")
-        return history_df
+        return GapFill(history_df, start, end, "refused")
 
-    # Trim to before the gap
-    archive_df = working_history_df[working_history_df["dateutc"] < start]
+    # Trim to before the gap, on the int ms column: a slice with Timestamp
+    # `dateutc` would meet the fetched int ms rows in one object column, and
+    # `normalize` would drop every archive row from the merge.
+    start_ms = int(start.value // 1_000_000)
+    archive_df = history_df[history_df["dateutc"] < start_ms]
 
     if archive_df.empty:
         logger.warning("No archive data before gap start; can't determine baseline.")
-        return history_df
+        return GapFill(history_df, start, end, "refused")
 
-    # Fetch new records to fill the gap
-    new_data_df = get_history_since_last_archive(
-        device, archive_df, end_date=end, pages=20
+    # Fetch from the baseline before the gap; the fetch may run past the
+    # gap's end into stored readings, which the merge leaves as they are
+    # wherever Ambient sends nothing.
+    fetched = fetch_since_last_archive(
+        device, archive_df, end_date=end, pages=pages, sleep=sleep
     )
 
-    # Merge new data back into full archive
-    full_combined = combine_full_history(history_df, new_data_df)
+    # Merge into the full archive; raw, like the fetched rows
+    merged = archive_merge.merge(history_df, fetched)
+    logger.info(f"Gap fill merged: {merged.report.describe()}")
 
-    # Apply rain carryover corrections
-    try:
-        corrected = apply_corrections(full_combined, device['macAddress'], "lookout")
-        full_combined = corrected
-    except Exception as e:
-        logger.error(f"Failed to apply corrections in gap fill: {e}")
-        # Continue with uncorrected data
+    if not merged.report.changed:
+        logger.info("No new data found. Gap skipped.")
+        return GapFill(
+            history_df,
+            start,
+            end,
+            "no_new_data",
+            report=merged.report,
+            fetched=fetched,
+        )
 
-    if len(full_combined) == len(history_df):
-        logger.info("No new data found. Marking gap as skipped.")
-        if "skipped_gaps" not in st.session_state:
-            st.session_state["skipped_gaps"] = []
-        st.session_state["skipped_gaps"].append({"start": start, "end": end})
-        return history_df
-
-    return full_combined
+    return GapFill(
+        merged.archive, start, end, "filled", report=merged.report, fetched=fetched
+    )
 
 
 def validate_archive(archive_df):
@@ -688,21 +921,13 @@ def log_interim_progress(page, pages, interim_df):
     )
 
 
-def combine_full_history(
-    archive_df: pd.DataFrame, interim_df: pd.DataFrame
-) -> pd.DataFrame:
+def log_full_history_range(combined: pd.DataFrame, added: int) -> None:
     """
-    Combine the archive with interim data, log added rows and final UTC range.
+    Log a merged archive's UTC range, rows added and total.
+
+    :param combined: The archive after a merge, `dateutc` in epoch ms.
+    :param added: Rows the merge added.
     """
-    before = len(archive_df)
-
-    if interim_df is None or interim_df.empty:
-        combined = archive_df
-        added = 0
-    else:
-        combined = combine_df(archive_df, interim_df)
-        added = len(combined) - before
-
     # Compute range from dateutc (ms) in UTC
     # (do not assume presence/correctness of any local 'date' column)
     dt = pd.to_datetime(combined["dateutc"], unit="ms", utc=True, errors="coerce")
@@ -711,7 +936,7 @@ def combine_full_history(
         logger.info(
             f"Full History Range: (n/a) - (n/a); +{added} rows (total={len(combined)})"
         )
-        return combined
+        return
 
     start = dt.min().strftime("%y-%m-%d %H:%M")
     end = dt.max().strftime("%y-%m-%d %H:%M")
@@ -720,43 +945,51 @@ def combine_full_history(
         f"Full History Range: ({start}) - ({end}); +{added} rows (total={len(combined)})"
     )
 
-    return combined
-
 
 def combine_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge two DataFrames on 'dateutc', keeping the last entry per timestamp.
+    Combine two same-source frames on 'dateutc', `df2`'s row winning.
 
-    Validation, cast to int64 ms, drop-invalid, and dedupe are delegated to
-    `lookout.utils.dateutc.normalize`. The result is re-sorted **descending**
-    to preserve the existing caller-visible order (an ergonomic affordance
-    for `df.head()` debugging).
+    The plain in-memory helper for frames from the same source, such as
+    catchup's fetched pages: whole rows, later frame wins, no report. Stored
+    rows meet Ambient's through the archive merge instead.
+
+    Validation, cast to int64 ms, drop-invalid, and dedupe within each frame
+    are delegated to `lookout.utils.dateutc.normalize`. The result is sorted
+    **descending** (newest first, the stored order).
 
     Behavioral note: as of the dateutc consolidation this path also drops
     rows below the post-2020 floor (see ADR-0001), closing the same class
     of corruption that the load/repair paths already guarded.
     """
     try:
-        df = pd.concat([df1, df2], ignore_index=True)
-        df = normalize(df)
-        return df.sort_values("dateutc", ascending=False).reset_index(drop=True)
+        frames = [f for f in (normalize(df1), normalize(df2)) if not f.empty]
+        if not frames:
+            return pd.DataFrame()
+        df = pd.concat(frames, ignore_index=True).drop_duplicates(
+            subset="dateutc", keep="last"
+        )
+        return df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
+            drop=True
+        )
     except Exception as e:
         logger.error(f"Error combining DataFrames: {e}")
         raise
 
 
-def _calculate_next_start_date(
-    current_max_date: datetime, gap_attempts: int, limit: int
-) -> datetime:
+def _calculate_next_start_date(current_cursor: datetime, limit: int) -> datetime:
     """
-    Calculates the next start date for fetching, offset by paging attempt.
+    The cursor one page of 5-minute readings after `current_cursor`.
 
-    :param current_max_date: The last known good datetime to start from.
-    :param gap_attempts: Number of consecutive non-advancing fetches.
+    A probe from a cursor requests the `limit` readings before
+    `cursor + (limit - 3) * 5` minutes, so the next probe's window starts
+    where this one's ended.
+
+    :param current_cursor: The cursor the empty probe was made from.
     :param limit: Number of records to fetch per page.
-    :return: New datetime for the next fetch attempt.
+    :return: The cursor for the next probe.
     """
-    return current_max_date + timedelta(minutes=5 * limit * gap_attempts)
+    return current_cursor + timedelta(minutes=5 * limit)
 
 
 def _is_data_new(interim_df, new_data):

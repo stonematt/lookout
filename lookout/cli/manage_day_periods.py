@@ -31,15 +31,16 @@ from datetime import datetime
 import pandas as pd
 
 # Lookout imports
-from lookout.api.ambient_client import get_devices
+from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.core.day_periods import (
     generate_day_periods_catalog,
     save_day_periods_catalog,
     backup_day_periods_catalog,
     delete_day_periods_catalog,
-    list_day_periods_catalogs,
+    get_catalog_path,
     load_day_periods_catalog,
 )
+from lookout.storage.storj import BackupError
 from lookout.utils.log_util import app_logger
 
 # Location configuration (Salem, OR)
@@ -48,14 +49,14 @@ LOCATION = {"latitude": 44.9429, "longitude": -123.0351}
 logger = app_logger(__name__)
 
 
-def get_first_device():
-    """Get the first device from Ambient API."""
-    devices = get_devices()
-    if not devices:
-        logger.error("❌ No devices found in Ambient API")
+def get_station():
+    """Get the pinned station (STATION_MAC) from the Ambient API, or exit 1."""
+    try:
+        device = get_station_device()
+    except StationNotFoundError as e:
+        logger.error(f"❌ {e}")
         sys.exit(1)
 
-    device = devices[0]
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
 
@@ -151,20 +152,16 @@ Examples:
     if args.list:
         logger.info("📋 Listing existing day periods catalogs...")
 
-        # Get first device to check for catalogs
+        # Get the pinned station to check for catalogs
         try:
-            mac_address, device = get_first_device()
+            mac_address, device = get_station()
             device_name = device.get("info", {}).get("name", "Unknown")
 
-            # List catalogs
-            catalogs = list_day_periods_catalogs(mac_address)
-            if catalogs:
-                logger.info(f"✅ Found {len(catalogs)} catalog(s):")
-                for catalog in catalogs:
-                    logger.info(f"   - {catalog}")
-
-                # Show detailed stats
-                catalog_df = load_day_periods_catalog(mac_address)
+            # One read: found, missing, or failed (raises, reported below)
+            catalog_df = load_day_periods_catalog(mac_address)
+            if catalog_df is not None:
+                logger.info("✅ Found the catalog:")
+                logger.info(f"   - {get_catalog_path(mac_address)}")
                 if not catalog_df.empty:
                     show_catalog_stats(catalog_df, mac_address, device_name)
             else:
@@ -179,29 +176,22 @@ Examples:
     if args.delete:
         logger.info("🗑️  Delete operation requested")
 
-        # Get first device automatically
-        mac_address, device = get_first_device()
+        # Get the pinned station (STATION_MAC)
+        mac_address, device = get_station()
 
-        # Create backup
-        if backup_day_periods_catalog(mac_address):
-            logger.info("✅ Backup created successfully")
-        else:
-            logger.warning("⚠️ Backup failed, proceeding anyway")
-
-        # Delete catalog
+        # Delete catalog (not implemented: it reports that nothing was deleted)
         if delete_day_periods_catalog(mac_address):
             logger.info("✅ Day periods catalog deleted successfully")
             return 0
-        else:
-            logger.info("📋 No day periods catalogs found")
-            return 0
+        logger.error("❌ Day periods catalog not deleted")
+        return 1
 
     # Handle dry run operation
     if args.dry_run:
         logger.info("🔍 Dry run mode - showing what would be generated...")
 
-        # Get first device automatically
-        mac_address, device = get_first_device()
+        # Get the pinned station (STATION_MAC)
+        mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
         lat = LOCATION["latitude"]
@@ -261,8 +251,8 @@ Examples:
     if args.generate:
         logger.info("🌅 Generating day periods catalog...")
 
-        # Get first device automatically
-        mac_address, device = get_first_device()
+        # Get the pinned station (STATION_MAC)
+        mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
         lat = LOCATION["latitude"]
@@ -297,8 +287,12 @@ Examples:
                 logger.error("❌ Failed to generate catalog - empty result")
                 return 1
 
-            # Create backup of existing catalog
-            backup_day_periods_catalog(mac_address)
+            # Back up the stored catalog; a failed backup stops the save
+            try:
+                backup_day_periods_catalog(mac_address)
+            except BackupError as e:
+                logger.error(f"❌ Backup failed; catalog not saved: {e}")
+                return 1
 
             # Save new catalog
             if save_day_periods_catalog(catalog_df, mac_address):

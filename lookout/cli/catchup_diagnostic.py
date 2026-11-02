@@ -13,12 +13,17 @@ Usage:
 """
 
 import argparse
+import sys
 from datetime import datetime, timedelta
 
 import pandas as pd
 
 import lookout.api.awn_controller as awn
-from lookout.api.ambient_client import get_device_history_raw, get_devices
+from lookout.api.ambient_client import (
+    StationNotFoundError,
+    get_device_history_raw,
+    get_station_device,
+)
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -213,12 +218,12 @@ def main():
     print("=" * 50)
 
     # Get device
-    devices = get_devices()
-    if not devices:
-        print("❌ No devices found")
-        return
+    try:
+        device = get_station_device()
+    except StationNotFoundError as e:
+        print(f"❌ {e}")
+        sys.exit(1)
 
-    device = devices[0]
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
     print(f"📡 Device: {name} ({mac})")

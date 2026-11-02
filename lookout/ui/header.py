@@ -5,10 +5,13 @@ This module provides header-specific rendering functions including
 current conditions display and weather station information.
 """
 
+from typing import Optional
+
 import streamlit as st
 import pandas as pd
 
 from lookout.models.weather import CurrentConditions, ActiveEvent, WeatherData
+from lookout.core.rain_events import RainEventCatalog
 from lookout.core.weather_events import get_active_rain_event
 from lookout.core.styles import get_style_manager
 from lookout.utils.weather_utils import (
@@ -97,11 +100,10 @@ def get_weather_data() -> WeatherData:
     active_event = None
     try:
         if "device" in st.session_state:
-            device = st.session_state["device"]
-            device_mac = device["macAddress"]
-            file_type = "parquet"
+            device_mac = st.session_state["device"]["macAddress"]
+            catalog = _session_event_catalog(device_mac)
 
-            active_event_data = get_active_rain_event(device_mac, file_type, event_rain)
+            active_event_data = get_active_rain_event(catalog, event_rain)
             if active_event_data:
                 active_event = ActiveEvent(
                     duration=active_event_data["duration"],
@@ -114,6 +116,18 @@ def get_weather_data() -> WeatherData:
         logger.debug(f"Active event not available (catalog may not be loaded yet): {e}")
 
     return WeatherData(current=current, active_event=active_event)
+
+
+def _session_event_catalog(device_mac: str) -> Optional[pd.DataFrame]:
+    """
+    The Event Catalog the UI has: the session's copy, else the stored one.
+
+    :param device_mac: The station's MAC address.
+    :return: The catalog, or None when neither holds one.
+    """
+    if "rain_events_catalog" in st.session_state:
+        return st.session_state["rain_events_catalog"]
+    return RainEventCatalog(device_mac, "parquet").load_catalog()
 
 
 def _render_active_event_display(weather_data: WeatherData) -> None:

@@ -3,15 +3,18 @@ Functional Energy Catalog Management
 
 Ultra-simplified pure functions for managing energy period catalogs.
 Reuses existing storage patterns from storj.py - no reinvention needed.
-MAC address automatically determined from session state context.
+The station is the pinned one (`lookout.config.get_station_mac`).
 """
 
 import pandas as pd
 
 from lookout.config import DEFAULT_BUCKET
 from lookout.storage.storj import backup_and_save_catalog
-from lookout.core.catalog_utils import load_catalog, catalog_exists
-from lookout.core.solar_energy_periods import calculate_15min_energy_periods
+from lookout.core.catalog_utils import load_catalog
+from lookout.core.solar_energy_periods import (
+    calculate_15min_energy_periods,
+    recompute_from_period,
+)
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -21,22 +24,16 @@ CATALOG_TYPE = "energy"
 
 
 def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
-    """Calculate energy periods - MAC from context, not parameters."""
+    """
+    Calculate energy periods - MAC from context, not parameters.
+
+    With `auto_save`, the save goes through `backup_and_save_catalog`, which
+    backs up the stored catalog first and saves nothing when that fails.
+    """
     bucket = kwargs.get("bucket", DEFAULT_BUCKET)
     auto_save = kwargs.get("auto_save", True)
-    backup_existing = kwargs.get("backup_existing", True)
 
     logger.info("Starting energy period calculation and cataloging...")
-
-    # Backup existing catalog if requested and auto-saving
-    if auto_save and backup_existing and catalog_exists(CATALOG_TYPE, bucket):
-        existing_catalog = load_catalog(CATALOG_TYPE, bucket)
-        if not existing_catalog.empty:
-            try:
-                backup_and_save_catalog(existing_catalog, CATALOG_TYPE, bucket)
-                logger.info("Existing energy catalog backed up")
-            except Exception as e:
-                logger.warning(f"Failed to backup existing catalog: {e}")
 
     # Prepare archive data for solar_energy_periods - convert 'date' to 'datetime'
     archive_df = archive_df.copy()
@@ -94,7 +91,17 @@ def update_energy_catalog(
     existing_catalog: pd.DataFrame = None,
     bucket: str = DEFAULT_BUCKET,
 ) -> pd.DataFrame:
-    """Update energy catalog with new data from archive."""
+    """
+    Update energy catalog with new data from archive.
+
+    The newest stored period and every later one are recomputed (see
+    `recompute_from_period`) and replace what was stored.
+
+    :param archive_df: Complete weather archive DataFrame
+    :param existing_catalog: Existing catalog DataFrame (will load if None)
+    :param bucket: S3 bucket name
+    :return: Updated catalog DataFrame
+    """
     if existing_catalog is None:
         existing_catalog = load_energy_catalog(bucket)
 
@@ -112,49 +119,29 @@ def update_energy_catalog(
     existing_catalog = existing_catalog.sort_values("period_start").reset_index(
         drop=True
     )
-    last_period = existing_catalog.iloc[-1]
-    last_period_end = last_period["period_end"]
+    # The newest period may still have been filling when it was stored, so it
+    # is recomputed with what came after and replaces its stored value.
+    last_period_start = existing_catalog.iloc[-1]["period_start"]
 
-    logger.info(f"Last energy period ends at {last_period_end}")
+    logger.info(f"Recomputing energy periods from {last_period_start}")
 
-    # Filter archive data to only what's after the last period
     archive_df = archive_df.copy()
     # Use 'date' column which is already TZ-aware datetime
     archive_df["datetime"] = archive_df["date"]
 
-    # Get data that starts after the last period end
-    mask = archive_df["datetime"] > last_period_end
-    new_data = archive_df[mask].copy()
-
-    # Ensure we have a DataFrame
-    if new_data.empty:
-        logger.debug("No new data to process for energy periods")
-        return existing_catalog
-
-    logger.debug(f"Processing {len(new_data)} new records after {last_period_end}")
-
-    # Calculate new periods from the new data
-    if isinstance(new_data, pd.DataFrame):
-        new_periods_df = calculate_15min_energy_periods(new_data)
-    else:
-        logger.error("new_data is not a DataFrame, cannot calculate periods")
-        return existing_catalog
+    new_periods_df = recompute_from_period(archive_df, last_period_start)
 
     if new_periods_df.empty:
         logger.debug("No new energy periods calculated")
         return existing_catalog
 
-    # Merge with existing catalog
-    updated_catalog = pd.concat([existing_catalog, new_periods_df], ignore_index=True)
+    kept = existing_catalog[existing_catalog["period_start"] < last_period_start]
+    updated_catalog = pd.concat([kept, new_periods_df], ignore_index=True)
     updated_catalog = updated_catalog.sort_values("period_start").reset_index(drop=True)
 
     logger.info(
-        f"Added {len(new_periods_df)} new energy periods to catalog (total: {len(updated_catalog)})"
+        f"Recomputed {len(new_periods_df)} energy periods "
+        f"(total: {len(updated_catalog)})"
     )
 
     return updated_catalog
-
-
-def energy_catalog_exists(bucket: str = DEFAULT_BUCKET) -> bool:
-    """Check if energy catalog exists in storage."""
-    return catalog_exists(CATALOG_TYPE, bucket)

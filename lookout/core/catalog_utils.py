@@ -11,9 +11,8 @@ from lookout.storage.storj import (
     get_df_from_s3,
     save_df_to_s3,
     backup_data,
-    get_s3_client,
 )
-from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, DEFAULT_MAC_ADDRESS
+from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -24,32 +23,9 @@ def get_catalog_path(mac_address: str, catalog_type: str) -> str:
     return f"{mac_address}.{catalog_type}_catalog.{DEFAULT_FILE_TYPE}"
 
 
-def _get_mac_address() -> str:
-    """Get MAC address from session state or default."""
-    try:
-        import streamlit as st
-
-        return st.session_state.get("device", {}).get("macAddress", DEFAULT_MAC_ADDRESS)
-    except Exception:
-        return DEFAULT_MAC_ADDRESS
-
-
-def catalog_exists(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> bool:
-    """Check if catalog exists in storage."""
-    mac_address = _get_mac_address()
-
-    try:
-        catalog_path = get_catalog_path(mac_address, catalog_type)
-        client = get_s3_client()
-        client.head_object(Bucket=bucket, Key=catalog_path)
-        return True
-    except Exception:
-        return False
-
-
 def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
     """Load catalog from storage."""
-    mac_address = _get_mac_address()
+    mac_address = get_station_mac()
     catalog_path = get_catalog_path(mac_address, catalog_type)
 
     try:
@@ -64,8 +40,16 @@ def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFram
 def save_catalog(
     df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
 ) -> bool:
-    """Save catalog to storage with metadata."""
-    mac_address = _get_mac_address()
+    """
+    Save catalog to storage with metadata.
+
+    :param df: The catalog to save.
+    :param catalog_type: The catalog's name, e.g. "energy".
+    :param bucket: The bucket.
+    :return: True when saved; False when the catalog is empty or the save
+        failed (logged at ERROR).
+    """
+    mac_address = get_station_mac()
 
     try:
         if df.empty:
@@ -78,9 +62,10 @@ def save_catalog(
         df["catalog_version"] = "1.0"
 
         catalog_path = get_catalog_path(mac_address, catalog_type)
-        save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE)
+        if not save_df_to_s3(df, bucket, catalog_path, DEFAULT_FILE_TYPE):
+            logger.error(f"Failed to save {catalog_type} catalog to {catalog_path}")
+            return False
 
-        # save_df_to_s3 returns None, so success is reaching this point
         logger.info(f"Saved {catalog_type} catalog with {len(df)} items")
         return True
 
@@ -93,7 +78,7 @@ def backup_catalog(
     df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
 ) -> Optional[str]:
     """Create backup using existing backup infrastructure."""
-    mac_address = _get_mac_address()
+    mac_address = get_station_mac()
     backup_prefix = f"{mac_address}.{catalog_type}_catalog"
 
     # Use existing backup_data with daily deduplication logic

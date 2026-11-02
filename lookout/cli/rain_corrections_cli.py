@@ -7,16 +7,19 @@ spanning midnight. When the station is offline at midnight, dailyrainin
 fails to reset, carrying forward the previous day's total.
 
 Usage:
-    python rain_corrections_cli.py detect [--data-dir data]
-    python rain_corrections_cli.py generate [--dry-run] [--bucket lookout]
-    python rain_corrections_cli.py show [--bucket lookout]
+    python -m lookout.cli.rain_corrections_cli [--bucket lookout] detect
+    python -m lookout.cli.rain_corrections_cli [--bucket lookout] generate [--dry-run]
+    python -m lookout.cli.rain_corrections_cli [--bucket lookout] show
+
+Exits 1 when the pinned station (STATION_MAC) is not on the Ambient account,
+or when `show` cannot read the stored corrections catalog.
 """
 
 import argparse
-from pathlib import Path
+import sys
+from typing import Tuple
 
 import pandas as pd
-import streamlit as st
 
 import lookout.api.ambient_client as ambient_client
 import lookout.core.rain_corrections as lo_rc
@@ -26,17 +29,21 @@ from lookout.utils.log_util import app_logger
 logger = app_logger(__name__)
 
 
-def get_primary_device():
-    """Get primary device from Ambient API, following existing patterns."""
-    devices = ambient_client.get_devices()
-    if not devices:
-        logger.error("No devices found in Ambient account")
-        return None, None, None
+def get_station() -> Tuple[dict, str, str]:
+    """
+    Get the pinned station (STATION_MAC) from the Ambient API, or exit 1.
 
-    if len(devices) > 1:
-        logger.warning(f"Found {len(devices)} devices, using first one")
+    :return: (device, mac, name).
+    :raises SystemExit: With code 1, after printing why the station was not
+        found (`StationNotFoundError`'s message).
+    """
+    try:
+        device = ambient_client.get_station_device()
+    except ambient_client.StationNotFoundError as e:
+        logger.error(str(e))
+        print(f"❌ {e}")
+        sys.exit(1)
 
-    device = devices[0]
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
 
@@ -55,11 +62,8 @@ def load_archive_s3(mac_address: str, bucket: str = "lookout") -> pd.DataFrame:
 
 
 def handle_detect(args):
-    """Handle detect command with auto-discovered device."""
-    device, mac, name = get_primary_device()
-    if not device or not mac:
-        print("❌ No devices found in Ambient account.")
-        return
+    """Handle detect command for the pinned station."""
+    device, mac, name = get_station()
 
     print(f"🔍 Scanning archive for: {name} ({mac})")
 
@@ -82,11 +86,8 @@ def handle_detect(args):
 
 
 def handle_generate(args):
-    """Handle generate command with auto-discovered device."""
-    device, mac, name = get_primary_device()
-    if not device or not mac:
-        print("❌ No devices found in Ambient account.")
-        return
+    """Handle generate command for the pinned station."""
+    device, mac, name = get_station()
 
     print(f"🔍 Scanning archive for: {name} ({mac})")
 
@@ -111,10 +112,10 @@ def handle_generate(args):
         return
 
     catalog_data = {
-        'version': '1.0',
-        'mac_address': mac,
-        'updated_at': pd.Timestamp.now(tz='UTC').isoformat(),
-        'corrections': carryovers,
+        "version": "1.0",
+        "mac_address": mac,
+        "updated_at": pd.Timestamp.now(tz="UTC").isoformat(),
+        "corrections": carryovers,
     }
 
     if lo_rc.save_catalog(catalog_data, mac, args.bucket):
@@ -124,55 +125,74 @@ def handle_generate(args):
 
 
 def handle_show(args):
-    """Handle show command with auto-discovered device."""
-    device, mac, name = get_primary_device()
-    if not device or not mac:
-        print("❌ No devices found in Ambient account.")
-        return
+    """
+    Handle show command for the pinned station.
+
+    :param args: Parsed arguments, with `bucket`.
+    :raises SystemExit: With code 1, after printing why, when the catalog
+        read fails (#181).
+    """
+    device, mac, name = get_station()
 
     print(f"📋 Showing catalog for: {name} ({mac})")
 
-    if not lo_rc.catalog_exists(mac, args.bucket):
+    try:
+        data = lo_rc.read_catalog(mac, args.bucket)
+    except lo_storj.StorageReadError as e:
+        logger.error(str(e))
+        print(f"❌ Could not read the corrections catalog: {e}")
+        sys.exit(1)
+
+    if data is None:
         print("📭 No corrections catalog found.")
         return
 
-    data = lo_rc.load_catalog(mac, args.bucket)
     print(f"Version: {data.get('version')}")
     print(f"Updated: {data.get('updated_at')}")
     print(f"Corrections: {len(data.get('corrections', []))}\n")
 
-    for c in data.get('corrections', []):
+    for c in data.get("corrections", []):
         print(f"  📅 {c['affected_date']}: {c['carryover_amount']:.3f}\"")
         print(f"     Gap: {c['gap_start']} → {c['gap_end']}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Rain carryover corrections management')
-    parser.add_argument('--bucket', default='lookout', help='S3 bucket name')
+    parser = argparse.ArgumentParser(
+        description="Rain carryover corrections management"
+    )
+    parser.add_argument("--bucket", default="lookout", help="S3 bucket name")
 
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # detect subcommand
-    detect_parser = subparsers.add_parser('detect', help='Scan archive for carryover gaps')
+    detect_parser = subparsers.add_parser(
+        "detect", help="Scan archive for carryover gaps"
+    )
 
     # generate subcommand
-    gen_parser = subparsers.add_parser('generate', help='Detect carryovers and save catalog to S3')
-    gen_parser.add_argument('--dry-run', action='store_true', help='Detect but do not save')
+    gen_parser = subparsers.add_parser(
+        "generate", help="Detect carryovers and save catalog to S3"
+    )
+    gen_parser.add_argument(
+        "--dry-run", action="store_true", help="Detect but do not save"
+    )
 
     # show subcommand
-    show_parser = subparsers.add_parser('show', help='Display current corrections catalog from S3')
+    show_parser = subparsers.add_parser(
+        "show", help="Display current corrections catalog from S3"
+    )
 
     args = parser.parse_args()
 
-    if args.command == 'detect':
+    if args.command == "detect":
         handle_detect(args)
-    elif args.command == 'generate':
+    elif args.command == "generate":
         handle_generate(args)
-    elif args.command == 'show':
+    elif args.command == "show":
         handle_show(args)
     else:
         parser.print_help()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

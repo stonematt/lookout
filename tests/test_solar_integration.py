@@ -13,11 +13,12 @@ class TestSolarTabIntegration:
     """Test solar tab integration with main Streamlit app."""
 
     def test_solar_module_in_tab_modules_mapping(self):
-        """Test that solar module is included in tab_modules mapping."""
-        from streamlit_app import tab_modules
+        """Test that solar module is included in the tab module mapping."""
+        from lookout.ui import solar
+        from lookout.ui.tabs import TAB_MODULES
 
-        assert "Solar" in tab_modules
-        assert hasattr(tab_modules["Solar"], "render")
+        assert TAB_MODULES["Solar"] is solar
+        assert callable(TAB_MODULES["Solar"].render)
 
     def test_solar_module_import(self):
         """Test that solar module can be imported from lookout.ui."""
@@ -193,54 +194,26 @@ class TestDateFiltering:
 
     def test_solar_tab_in_dev_mode_list(self):
         """Test that solar tab appears in dev mode tab names."""
-        # Simulate dev environment
-        import os
+        from lookout.ui.tabs import tab_names
 
-        original_env = os.environ.get("STREAMLIT_ENV")
-        os.environ["STREAMLIT_ENV"] = "development"
-
-        try:
-            # Import after setting env
-            import importlib
-            import streamlit_app
-
-            importlib.reload(streamlit_app)
-
-            # Check if Solar is in the dev tab list
-            # Note: This is a simplified check since full mocking is complex
-            assert "Solar" in [
-                "Overview",
-                "Rain",
-                "Rain Events",
-                "Solar",
-                "Diagnostics",
-                "Playground",
-            ]
-        finally:
-            if original_env is not None:
-                os.environ["STREAMLIT_ENV"] = original_env
-            else:
-                os.environ.pop("STREAMLIT_ENV", None)
+        assert tab_names(is_dev=True) == [
+            "Overview",
+            "Rain",
+            "Rain Events",
+            "Solar",
+            "Diagnostics",
+            "Playground",
+        ]
 
     def test_solar_tab_in_prod_mode_list(self):
         """Test that solar tab appears in production mode tab names."""
-        # Simulate prod environment
-        import os
+        from lookout.ui.tabs import tab_names
 
-        original_env = os.environ.get("STREAMLIT_ENV")
-        os.environ["STREAMLIT_ENV"] = "production"
+        assert tab_names(is_dev=False) == ["Overview", "Rain", "Rain Events", "Solar"]
 
-        try:
-            # Import after setting env
-            import importlib
-            import streamlit_app
+    def test_every_tab_name_has_a_module(self):
+        """Test that each dev and prod tab name maps to a renderable module."""
+        from lookout.ui.tabs import TAB_MODULES, tab_names
 
-            importlib.reload(streamlit_app)
-
-            # Check if Solar is in the prod tab list
-            assert "Solar" in ["Overview", "Rain", "Rain Events", "Solar"]
-        finally:
-            if original_env is not None:
-                os.environ["STREAMLIT_ENV"] = original_env
-            else:
-                os.environ.pop("STREAMLIT_ENV", None)
+        for name in tab_names(is_dev=True):
+            assert callable(TAB_MODULES[name].render)

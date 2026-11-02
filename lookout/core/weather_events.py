@@ -5,87 +5,58 @@ This module provides functionality for detecting and analyzing weather events,
 particularly rain events, from weather data.
 """
 
-import json
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 import pandas as pd
 
+from lookout.core.rain_events import is_event_ongoing
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
 
+def find_active_rain_event(
+    events_df: Optional[pd.DataFrame], current_eventrainin: Optional[float] = 0
+) -> Optional[pd.Series]:
+    """
+    Pick the Event Catalog's active rain event, as the catalog row itself.
+
+    An event is active when the catalog marks it ongoing and the live reading
+    still reports event rain. Of several, the one that started last wins.
+
+    :param events_df: The Event Catalog; None or empty means no events.
+    :param current_eventrainin: The live `eventrainin`; None or 0 means dry.
+    :return: The active event's catalog row, or None.
+    """
+    if events_df is None or events_df.empty:
+        return None
+    if not current_eventrainin or current_eventrainin <= 0:
+        return None
+
+    ongoing = [event for _, event in events_df.iterrows() if is_event_ongoing(event)]
+    if not ongoing:
+        return None
+    return max(ongoing, key=lambda event: event["start_time"])
+
+
 def get_active_rain_event(
-    device_mac: str, file_type: str, current_eventrainin: float = 0
+    events_df: Optional[pd.DataFrame], current_eventrainin: Optional[float] = 0
 ) -> Optional[Dict[str, Any]]:
     """
-    Detect and return active rain event information.
+    Detect the active rain event and format it for the header.
 
-    :param device_mac: Device MAC address
-    :param file_type: File type for data storage
+    :param events_df: The Event Catalog, passed in by the caller.
     :param current_eventrainin: Current event rain amount for validation
     :return: Active event information dict or None if no active event
     """
     try:
-        from lookout.core.rain_events import RainEventCatalog
-
-        catalog = RainEventCatalog(device_mac, file_type)
-
-        # Try to get events from session or storage
-        events_df = None
-        import streamlit as st
-
-        if "rain_events_catalog" in st.session_state:
-            events_df = st.session_state["rain_events_catalog"]
-        elif catalog.catalog_exists():
-            events_df = catalog.load_catalog()
-
-        if events_df is not None and not events_df.empty:
-            # Check for ongoing events
-            ongoing_events = []
-            for _, event in events_df.iterrows():
-                is_ongoing = _is_event_ongoing(event)
-                if is_ongoing:
-                    ongoing_events.append(event)
-
-            # Validate ongoing events with current data
-            validated_ongoing_events = []
-            for event in ongoing_events:
-                if current_eventrainin > 0:
-                    validated_ongoing_events.append(event)
-                else:
-                    logger.info(
-                        f"Event {event.get('event_id', 'unknown')[:8]} marked ongoing in catalog but current eventrainin=0, skipping"
-                    )
-
-            if validated_ongoing_events:
-                return _format_active_event_info(validated_ongoing_events)
-
-    except ImportError:
-        # Rain events not available
-        logger.debug("Rain events module not available")
+        event = find_active_rain_event(events_df, current_eventrainin)
+        if event is not None:
+            return _format_active_event_info([event])
     except Exception as e:
         logger.warning(f"Error detecting active rain events: {e}")
 
     return None
-
-
-def _is_event_ongoing(event: Dict[str, Any]) -> bool:
-    """
-    Check if an event is marked as ongoing.
-
-    :param event: Event data dictionary
-    :return: True if event is ongoing
-    """
-    is_ongoing = False
-    if "ongoing" in event and event["ongoing"]:
-        is_ongoing = True
-    elif "flags" in event and event["flags"]:
-        flags = event["flags"]
-        if isinstance(flags, str):
-            flags = json.loads(flags)
-        is_ongoing = flags.get("ongoing", False) is True
-
-    return is_ongoing
 
 
 def _format_active_event_info(ongoing_events: list) -> Dict[str, Any]:

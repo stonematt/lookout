@@ -11,15 +11,8 @@ import lookout.api.ambient_client as ambient_client
 import lookout.api.awn_controller as awn
 import lookout.core.data_processing as lo_dp
 from lookout.core.styles import get_style_manager
-from lookout.ui import (
-    diagnostics,
-    header,
-    overview,
-    playground,
-    rain,
-    rain_events,
-    solar,
-)
+from lookout.ui import header
+from lookout.ui.tabs import TAB_MODULES, tab_names
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import force_garbage_collection
 
@@ -61,10 +54,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-AMBIENT_ENDPOINT = st.secrets["AMBIENT_ENDPOINT"]
-AMBIENT_API_KEY = st.secrets["AMBIENT_API_KEY"]
-AMBIENT_APPLICATION_KEY = st.secrets["AMBIENT_APPLICATION_KEY"]
-
 
 # %%
 # define variables
@@ -82,35 +71,32 @@ if "devices" not in st.session_state:
 else:
     devices = st.session_state["devices"]
 
-device = False
-device_last_dateutc = 0
-last_data = {}
+# The pinned station (STATION_MAC), never Ambient's first device.
+try:
+    device = ambient_client.find_station(devices)
+except ambient_client.StationNotFoundError as e:
+    logger.error(str(e))
+    st.session_state.pop("devices", None)  # refetch on the next rerun
+    st.error(f"No connection to the station: {e}")
+    st.stop()
 
-device_menu = "98:CD:AC:22:0D:E5"
-if len(devices) == 1:
-    device = devices[0]
-    device_menu = device["macAddress"]
-    device_name = device["info"]["name"]
-    st.session_state["last_data"] = device["lastData"]
-    last_data = st.session_state["last_data"]
-    st.session_state["device"] = device  # ← Add this
-    logger.debug(f"One device found:  {device['info']['name']}")
+device_menu = device["macAddress"]
+device_name = device["info"]["name"]
+st.session_state["last_data"] = device["lastData"]
+last_data = st.session_state["last_data"]
+st.session_state["device"] = device
+logger.debug(f"Pinned station found: {device_name}")
 
-    # Create header placeholder for dynamic updates
-    header_placeholder = st.empty()
-    st.session_state["header_placeholder"] = header_placeholder
+# Create header placeholder for dynamic updates
+header_placeholder = st.empty()
+st.session_state["header_placeholder"] = header_placeholder
 
-    # Render weather header with current conditions
-    with header_placeholder.container():
-        header.render_weather_header(device_name)
+# Render weather header with current conditions
+with header_placeholder.container():
+    header.render_weather_header(device_name)
 
-    # Compare device's last data UTC with the archive max dateutc
-    device_last_dateutc = device["lastData"].get("dateutc")
-
-# if we dont' get a device from ambient. blow up.
-if not device:
-    st.write("No connection to Ambient Network")
-    exit()
+# Compare device's last data UTC with the archive max dateutc
+device_last_dateutc = device["lastData"].get("dateutc")
 
 file_type = "parquet"
 device_mac = device_menu
@@ -185,34 +171,13 @@ st.sidebar.write(last_data)
 is_dev = st.secrets.get("environment", {}).get("dev", False)
 
 # Create tab list based on environment
-if is_dev:
-    tab_names = [
-        "Overview",
-        "Rain",
-        "Rain Events",
-        "Solar",
-        "Diagnostics",
-        "Playground",
-    ]
-else:
-    tab_names = ["Overview", "Rain", "Rain Events", "Solar"]
-
-tabs = st.tabs(tab_names)
-
-# Map tab names to their corresponding render functions
-tab_modules = {
-    "Overview": overview,
-    "Rain": rain,
-    "Rain Events": rain_events,
-    "Solar": solar,
-    "Diagnostics": diagnostics,
-    "Playground": playground,
-}
+tab_labels = tab_names(is_dev)
+tabs = st.tabs(tab_labels)
 
 # Render each tab with its corresponding module
-for tab, name in zip(tabs, tab_names):
+for tab, name in zip(tabs, tab_labels):
     with tab:
-        tab_modules[name].render()
+        TAB_MODULES[name].render()
 
 # Reduced frequency memory cleanup to prevent disruptive reruns
 # Only cleanup on higher thresholds to avoid interfering with user interactions

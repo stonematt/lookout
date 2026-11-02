@@ -7,7 +7,7 @@ Single source of truth for what counts as a valid `dateutc` value
 controller's combine_df, UI date logic) goes through this module.
 
 See:
-    - CONTEXT.md  -- domain glossary (dateutc, normalize, post-2020 floor)
+    - GLOSSARY.md  -- domain glossary (dateutc, normalize, post-2020 floor)
     - docs/adr/0001-dateutc-post-2020-floor.md
     - docs/adr/0002-station-local-time-as-analytical-frame.md
 
@@ -18,7 +18,7 @@ Streamlit/config side effects.
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Union
+from typing import List, Union
 
 import pandas as pd
 
@@ -42,15 +42,17 @@ day-granularity reasoning. Persisting per-row tz is deferred work.
 """
 
 
-def normalize(
-    df: pd.DataFrame, *, min_ms: int = POST_2020_MS
-) -> pd.DataFrame:
+INTERVAL_MS: int = 5 * 60 * 1000
+"""The station's reading interval: one archived reading per 5-minute slot."""
+
+
+def normalize(df: pd.DataFrame, *, min_ms: int = POST_2020_MS) -> pd.DataFrame:
     """
     Validate and cast a DataFrame's `dateutc` column to canonical form.
 
     Operations (in order):
         1. Coerce `dateutc` to int64 epoch ms UTC. Accepts numeric or
-           datetime64-with-tz input.
+           datetime64 input at any unit, naive (read as UTC) or tz-aware.
         2. Drop rows whose `dateutc` is null, <= 0, or < ``min_ms``.
         3. De-duplicate on `dateutc` (keep last).
         4. Sort ascending.
@@ -79,9 +81,10 @@ def normalize(
     before = len(df)
 
     if pd.api.types.is_datetime64_any_dtype(original):
-        as_utc = pd.to_datetime(original, utc=True, errors="coerce")
-        ms = as_utc.astype("int64", copy=False) // 1_000_000
-        ms = ms.where(as_utc.notna())
+        # Cast to ms first: the int64 view of datetime64 counts in its own
+        # unit (`datetime64[us]` from parquet or pandas 3, not only ns).
+        as_utc = pd.to_datetime(original, utc=True, errors="coerce").dt.as_unit("ms")
+        ms = as_utc.astype("int64", copy=False).where(as_utc.notna())
     else:
         ms = pd.to_numeric(original, errors="coerce")
 
@@ -120,6 +123,30 @@ def to_local(series: pd.Series, tz: str = DEFAULT_TZ) -> pd.Series:
     return to_utc(series).dt.tz_convert(tz)
 
 
+def local_time(ms: int, tz: str = DEFAULT_TZ) -> pd.Timestamp:
+    """
+    One `dateutc` value as a station-local timestamp.
+
+    The scalar sibling of `to_local`.
+
+    :param ms: Epoch ms UTC.
+    :param tz: Station-local IANA tz. Defaults to ``DEFAULT_TZ``.
+    :return: tz-aware `pd.Timestamp` in ``tz``.
+    """
+    return pd.Timestamp(int(ms), unit="ms", tz="UTC").tz_convert(tz)
+
+
+def day_span(first: _dt.date, last: _dt.date) -> List[_dt.date]:
+    """
+    Every calendar day from ``first`` to ``last``, inclusive.
+
+    :param first: The first day.
+    :param last: The last day.
+    :return: The days, oldest first; empty when ``last`` is before ``first``.
+    """
+    return [first + _dt.timedelta(days=i) for i in range((last - first).days + 1)]
+
+
 def from_local_date(
     date: Union[_dt.date, _dt.datetime, pd.Timestamp, str],
     tz: str = DEFAULT_TZ,
@@ -127,8 +154,9 @@ def from_local_date(
     """
     Convert a station-local calendar date to its midnight `dateutc`.
 
-    Used by sliders that hand the user a local-day boundary and need
-    the matching int64 ms UTC for filtering.
+    The one definition of local midnight in epoch ms: the snapshot sections
+    use it, and so do sliders that hand the user a local-day boundary and
+    need the matching int64 ms UTC for filtering.
 
     :param date: Calendar date in the station-local zone.
     :param tz: Station-local IANA tz. Defaults to ``DEFAULT_TZ``.

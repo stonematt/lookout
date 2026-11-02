@@ -175,12 +175,7 @@ def main():
 
     try:
         # Get device info
-        devices = ambient_client.get_devices()
-        if not devices:
-            print("❌ No devices found")
-            return
-
-        device = devices[0]  # Use first device
+        device = ambient_client.get_station_device()
         print(f"📡 Using device: {device.get('info', {}).get('name', 'Unknown')}")
 
         # Load data using the same method as streamlit app
