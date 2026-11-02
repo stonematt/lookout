@@ -28,6 +28,21 @@ When your output names a domain concept (in an issue title, a refactor proposal,
 
 If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/grill-with-docs`).
 
+## Where a grill's glossary and ADR edits land
+
+`/grill-with-docs` writes glossary terms and ADRs as they settle. Ship them
+in a `docs/*` PR into the branch the grilled work targets (its spec names
+the target branch), not inside a code PR.
+
+Before opening one, list the open PRs that touch `GLOSSARY.md` or
+`docs/adr/`:
+`gh pr list --state open --json number,headRefName,baseRefName,files --jq '.[] | select((.headRefName | startswith("docs/")) and any(.files[].path; test("GLOSSARY.md|docs/adr/"))) | "\(.number) \(.headRefName) -> \(.baseRefName)"'`
+
+- **None open:** branch off the target and PR into it.
+- **Some open:** branch off the newest one and PR into its branch. State
+  the merge order in the PR body ("merge #N first"). Take the next free
+  ADR number across the whole stack, not only the target branch.
+
 ## Flag ADR conflicts
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
