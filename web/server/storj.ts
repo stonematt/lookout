@@ -7,6 +7,10 @@
  */
 import { AwsClient } from "aws4fetch";
 
+import type { RainEventRow } from "../src/snapshot.js";
+import { parseDashboard } from "../src/snapshot.js";
+import { describeError } from "./errors.js";
+
 /** The prefix every snapshot document lives under. */
 export const SNAPSHOT_PREFIX = "snapshot/";
 
@@ -102,12 +106,62 @@ function storjKeyReader(
 }
 
 /**
+ * How often, at most, one function instance reads a station's dashboard to
+ * learn the Event Catalog's starts: the bound on what `/event` misses cost.
+ */
+export const EVENT_STARTS_REFRESH_MS = 60_000;
+
+/** What one function instance knows of a station's curve files. */
+interface KnownStarts {
+  /** The starts with a curve file; null before a good dashboard read. */
+  starts: Set<number> | null;
+  /** When the last dashboard read began, whatever its outcome. */
+  askedAtMs: number;
+  /** The dashboard read under way, shared by requests that arrive together. */
+  pending: Promise<void> | null;
+}
+
+/**
+ * By endpoint, bucket and station. Module state, so it lasts as long as a
+ * warm function instance does, though the reader is built per request.
+ */
+const knownStarts = new Map<string, KnownStarts>();
+
+/**
+ * The starts a dashboard document says have a curve file: the Event
+ * Catalog's completed events with readings. The live event's file is
+ * written only once the catalog closes it.
+ *
+ * @param text - The dashboard document's text, or null when there is none.
+ * @returns The starts.
+ * @throws StorjReadError when the document breaks the contract.
+ */
+function curveStarts(text: string | null): Set<number> {
+  if (text === null) return new Set();
+  let events: RainEventRow[];
+  try {
+    events = parseDashboard(JSON.parse(text)).rain_events.events;
+  } catch (error) {
+    throw new StorjReadError(`dashboard breaks the contract: ${describeError(error)}`);
+  }
+  return new Set(events.filter((e) => e.has_curve && !e.live).map((e) => e.start_ms));
+}
+
+/**
  * A reader for event curve files on Storj.
+ *
+ * It reads a curve file only for a start the Event Catalog lists, as the
+ * station's dashboard document has it, so a caller varying `start` cannot
+ * drive Storj reads (#231). An instance reads the dashboard when asked for
+ * a start it does not know, at most once per `EVENT_STARTS_REFRESH_MS`;
+ * in between, such a start is null without any read.
  *
  * @param config - The read-only credential, endpoint and bucket.
  * @param fetchImpl - The fetch to send signed requests with.
  * @param timeoutMs - How long one read may take before it fails.
- * @returns The reader.
+ * @returns The reader. For a start it does not know, it rejects with a
+ *   `StorjReadError` when the dashboard read fails, or when no read has
+ *   succeeded yet.
  */
 export function storjCurveReader(
   config: StorjConfig,
@@ -115,7 +169,32 @@ export function storjCurveReader(
   timeoutMs: number = STORJ_TIMEOUT_MS,
 ): CurveReader {
   const read = storjKeyReader(config, fetchImpl, timeoutMs);
-  return (mac, startMs) => read(eventCurveKey(mac, startMs));
+  return async (mac, startMs) => {
+    const id = `${config.endpointUrl} ${config.bucket} ${mac}`;
+    let known = knownStarts.get(id);
+    if (!known) {
+      known = { starts: null, askedAtMs: -Infinity, pending: null };
+      knownStarts.set(id, known);
+    }
+    if (known.starts?.has(startMs)) return read(eventCurveKey(mac, startMs));
+
+    const state = known;
+    if (!state.pending && Date.now() - state.askedAtMs >= EVENT_STARTS_REFRESH_MS) {
+      state.askedAtMs = Date.now();
+      state.pending = read(snapshotKey(mac, "dashboard"))
+        .then((text) => {
+          state.starts = curveStarts(text);
+        })
+        .finally(() => {
+          state.pending = null;
+        });
+    }
+    if (state.pending) await state.pending;
+    else if (state.starts === null) {
+      throw new StorjReadError("the Event Catalog's starts could not be read");
+    }
+    return state.starts?.has(startMs) ? read(eventCurveKey(mac, startMs)) : null;
+  };
 }
 
 /**

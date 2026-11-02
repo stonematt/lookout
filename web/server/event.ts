@@ -6,6 +6,10 @@
  * by the CDN for a year. A missing one is a completed event the bounded
  * backfill has not reached yet (or an event with no archive data); it is
  * cached briefly so the next run's write shows up soon.
+ *
+ * Only a start the Event Catalog lists is read from Storj; any other is the
+ * same 404 with no curve read (#231). The curve source holds that bound:
+ * see `storjCurveReader` in `server/storj.ts`.
  */
 import { parseEventCurve } from "../src/snapshot.js";
 import type { ReadSources } from "./handlers.js";
@@ -34,7 +38,8 @@ function checkStart(value: string): string | Response {
  *   `?station=<MAC>` is optional; see `checkQuery`.
  * @param sources - Where to read; needs `readCurve`.
  * @returns 200 with the curve, 400 for a malformed start, 404 when it is
- *   not written, 502 when Storj fails or the file breaks the contract.
+ *   not written or the catalog does not list it, 502 when Storj fails or
+ *   the file breaks the contract.
  */
 export async function handleEvent(
   request: Request,

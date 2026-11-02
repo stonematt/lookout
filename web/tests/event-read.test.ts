@@ -6,14 +6,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET as eventGET } from "../api/event.js";
 import { devResponse } from "../server/dev-fixtures.js";
 import { CURVE_CACHE } from "../server/event.js";
 import { accumulationLine, gapSpans, stationWallClock } from "../src/events/charts.js";
 import { readUrl } from "../src/load.js";
 import type { EventCurve } from "../src/snapshot.js";
 import { SnapshotContractError, parseDashboard, parseEventCurve } from "../src/snapshot.js";
-import { golden, goldenCurve, goldenCurveText } from "./golden.js";
+import { golden, goldenCurve, goldenCurveText, goldenText } from "./golden.js";
 
 const MAC = "00:11:22:33:44:55";
 const STORJ = "https://gateway.storj.test";
@@ -30,12 +29,20 @@ const ENV = {
   STATION_MAC: MAC,
 };
 
+const DASHBOARD_KEY = `snapshot/${MAC}.dashboard.json`;
+
 let calls: Request[];
 let storjBody: (key: string) => Response;
+let eventGET: (request: Request) => Promise<Response>;
 
-beforeEach(() => {
+/** Only the curve-file reads: `/event` reads the dashboard to know the starts. */
+const curveCalls = () =>
+  calls.filter((request) => !new URL(request.url).pathname.endsWith(".dashboard.json"));
+
+beforeEach(async () => {
   calls = [];
   storjBody = (key) => {
+    if (key === DASHBOARD_KEY) return new Response(goldenText("raining", "dashboard"));
     const match = /^snapshot\/(.+)\.events\/(\d+)\.json$/.exec(key);
     if (!match || match[1] !== MAC) return new Response("NoSuchKey", { status: 404 });
     try {
@@ -54,6 +61,9 @@ beforeEach(() => {
       return Promise.resolve(storjBody(key));
     }),
   );
+  // A fresh module per test: the starts a function instance knows start empty.
+  vi.resetModules();
+  eventGET = (await import("../api/event.js")).GET;
 });
 
 afterEach(() => {
@@ -75,14 +85,15 @@ describe("GET /event", () => {
   it("reads the event's key under snapshot/ with a signed request", async () => {
     await eventGET(get(`/event?start=${EVENT_2}`));
 
-    expect(calls).toHaveLength(1);
-    expect(decodeURIComponent(new URL(calls[0]!.url).pathname)).toBe(
+    const curves = curveCalls();
+    expect(curves).toHaveLength(1);
+    expect(decodeURIComponent(new URL(curves[0]!.url).pathname)).toBe(
       `/lookout/snapshot/${MAC}.events/${EVENT_2}.json`,
     );
-    expect(calls[0]!.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
+    expect(curves[0]!.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
   });
 
-  it("answers 404, briefly cached, for a curve not written yet", async () => {
+  it("answers 404, briefly cached, for the live event, whose curve is not written yet", async () => {
     const response = await eventGET(get(`/event?start=${EVENT_3}`));
 
     expect(response.status).toBe(404);
@@ -139,7 +150,10 @@ describe("GET /event", () => {
   });
 
   it("answers 502 for a file that breaks the contract", async () => {
-    storjBody = () => Response.json({ kind: "event_curve", schema_version: 99 });
+    storjBody = (key) =>
+      key === DASHBOARD_KEY
+        ? new Response(goldenText("raining", "dashboard"))
+        : Response.json({ kind: "event_curve", schema_version: 99 });
 
     const response = await eventGET(get(`/event?start=${EVENT_2}`));
 
