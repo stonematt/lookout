@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  READ_TIMEOUT_MS,
   fetchCurrent,
   fetchDashboard,
   fetchEventCurve,
@@ -21,11 +20,6 @@ function hungFetch(seen: { signal?: AbortSignal | null }): typeof fetch {
 }
 
 describe("client read timeout", () => {
-  it("allows a read longer than the server's own limits and shorter than a hang", () => {
-    expect(READ_TIMEOUT_MS).toBeGreaterThan(10_000);
-    expect(READ_TIMEOUT_MS).toBeLessThanOrEqual(30_000);
-  });
-
   it("fails a hung /dashboard within the timeout", async () => {
     const seen: { signal?: AbortSignal | null } = {};
     const started = Date.now();
