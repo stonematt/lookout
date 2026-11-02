@@ -284,6 +284,36 @@ describe("a newer snapshot mounted over the tab", () => {
     expect(panel.querySelector(".ev-detail")!.textContent).not.toContain("not in the catalog");
   });
 
+  it("shows the selected event's row when newer events push it past the page", async () => {
+    const first = longer(30, 1);
+    mountEvents(panel, first, deps);
+    const last = starts().at(-1)!; // row 20, the page's last
+    click(`.ev-open[data-start='${last}']`);
+    await flush();
+
+    const next = longer(30, 2);
+    const newer = { ...next.rain_events.events[1]!, start_ms: EVENT_2 + HOUR };
+    next.rain_events.events.splice(1, 0, newer);
+    mountEvents(panel, next, deps);
+
+    expect(starts()).toContain(last);
+    expect(current()).toBe(last);
+  });
+
+  it("redraws a kept completed event from the curve it already read", async () => {
+    mountEvents(panel, raining(), deps);
+    click(`.ev-open[data-start='${EVENT_2}']`);
+    await flush();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(panel.querySelector(".ev-charts")!.textContent).not.toContain("Loading");
+    await flush();
+    expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
+    expect(deps.draw).toHaveBeenCalledTimes(3); // the live event, event 2, event 2 again
+    expect(deps.draw.mock.calls.at(-1)![1]).toEqual(curveOf(EVENT_2));
+  });
+
   it("keeps the water year and the order picked", () => {
     mountEvents(panel, raining(), deps);
     click("[data-sort=wettest]");

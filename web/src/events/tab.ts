@@ -106,9 +106,6 @@ function yearButton(season: EventSeason): string {
   return `<button type="button" data-season="${year}" data-gap="${esc(status.reason ?? "gap")}" title="${esc(`${span}: ${reason}`)}">${year}<span class="ev-seg-gap gap-hatch" aria-hidden="true"></span><span class="sr-only">, ${esc(reason)}</span></button>`;
 }
 
-/** Each panel's listeners from its last mount, dropped by the next one. */
-const mounted = new WeakMap<HTMLElement, AbortController>();
-
 /** The list's shape the visitor picked: water year, order and rows shown. */
 interface View {
   season: Season;
@@ -116,24 +113,32 @@ interface View {
   limit: number;
 }
 
+/** What a panel keeps from its last mount for the next one. */
+interface Kept {
+  /** The last mount's listeners, dropped by the next mount. */
+  listening: AbortController;
+  /** The view, so a newer snapshot redraws the tab as the visitor left it. */
+  view: View;
+  /** The last completed event's curve read, redrawn without a second read. */
+  curve: EventCurve | null;
+}
+
 /**
- * Each panel's view, kept across mounts, so a newer snapshot redraws the tab
- * as the visitor left it. The selected event needs no keeping here: it is in
- * the URL (`?event=`), which every mount reads.
+ * Each panel's kept state, across mounts. The selected event is not in it:
+ * it is in the URL (`?event=`), which every mount reads.
  */
-const views = new WeakMap<HTMLElement, View>();
+const panels = new WeakMap<HTMLElement, Kept>();
 
 /**
  * The view a mount starts from: the panel's last one, or the first page of
  * every event, newest first. A water year the snapshot no longer lists goes
- * back to All, with the first page.
+ * back to All, with the first page and the order kept.
  */
-function keptView(panel: HTMLElement, section: DashboardSnapshot["rain_events"]): View {
-  const kept = views.get(panel);
-  if (!kept) return { season: "all", sort: "newest", limit: PAGE };
-  const { season } = kept;
-  if (season === "all" || section.seasons.some((s) => s.water_year === season)) return kept;
-  return { season: "all", sort: kept.sort, limit: PAGE };
+function keptView(last: View | undefined, section: DashboardSnapshot["rain_events"]): View {
+  if (!last) return { season: "all", sort: "newest", limit: PAGE };
+  const { season } = last;
+  if (season === "all" || section.seasons.some((s) => s.water_year === season)) return last;
+  return { season: "all", sort: last.sort, limit: PAGE };
 }
 
 /**
@@ -150,16 +155,24 @@ export function mountEvents(
   snapshot: DashboardSnapshot,
   deps: EventsDeps = browserDeps(),
 ): void {
-  mounted.get(panel)?.abort();
-  const listening = new AbortController();
-  mounted.set(panel, listening);
+  const last = panels.get(panel);
+  last?.listening.abort();
   const section = snapshot.rain_events;
   const all = section.events;
   const asked = selectedStart(location.search);
-  const view = keptView(panel, section);
-  views.set(panel, view);
+  const kept: Kept = {
+    listening: new AbortController(),
+    view: keptView(last?.view, section),
+    curve: last?.curve ?? null,
+  };
+  panels.set(panel, kept);
+  const { listening, view } = kept;
   let selected: RainEventRow | null =
     all.find((e) => e.start_ms === asked) ?? all[0] ?? null;
+  // A selected row the kept rows no longer reach (newer events above it)
+  // stays in the list.
+  const at = selected ? visibleEvents(section, view.season, view.sort).indexOf(selected) : -1;
+  if (at >= view.limit) view.limit = at + 1;
   let missing = asked !== null && !all.some((e) => e.start_ms === asked);
   let drawn = 0;
 
@@ -357,8 +370,16 @@ ${note}
       charts.innerHTML = '<p class="ev-note">This event\'s readings are not in the snapshot yet.</p>';
       return;
     }
+    if (kept.curve?.start_ms === row.start_ms) {
+      show(kept.curve);
+      return;
+    }
     charts.innerHTML = '<p class="ev-note">Loading the event\'s readings…</p>';
-    deps.fetchCurve(row.start_ms).then(show, (error: unknown) => {
+    const read = (curve: EventCurve) => {
+      kept.curve = curve;
+      show(curve);
+    };
+    deps.fetchCurve(row.start_ms).then(read, (error: unknown) => {
       if (ticket !== drawn) return;
       if (error instanceof ReadError && error.status === 404) {
         charts.innerHTML =
