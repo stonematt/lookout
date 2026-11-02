@@ -5,7 +5,6 @@ Converts raw solar radiation measurements into 15-minute energy periods.
 
 import numpy as np
 import pandas as pd
-from typing import Callable, Optional
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -157,29 +156,6 @@ def recompute_from_period(
         from_start |= rows["datetime"] == earlier_times.max()
     periods = calculate_15min_energy_periods(rows[from_start])
     return periods[periods["period_start"] >= period_start].reset_index(drop=True)
-
-
-_cached_calculation: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None
-
-
-def calculate_15min_energy_periods_cached(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Streamlit-cached `calculate_15min_energy_periods`.
-
-    Streamlit is imported on first call, so importing this module (and the
-    refresh command that depends on it) never loads Streamlit.
-
-    :param df: DataFrame with datetime and solarradiation columns
-    :return: DataFrame with period_start, period_end, energy_kwh columns
-    """
-    global _cached_calculation
-    if _cached_calculation is None:
-        import streamlit as st
-
-        _cached_calculation = st.cache_data(
-            show_spinner=False, max_entries=20, ttl=7200
-        )(calculate_15min_energy_periods)
-    return _cached_calculation(df)
 
 
 def aggregate_to_daily(periods_df: pd.DataFrame) -> pd.DataFrame:

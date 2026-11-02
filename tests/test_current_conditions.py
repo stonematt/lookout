@@ -1,27 +1,22 @@
 """
 Characterizes current conditions and the active Rain Event decision.
 
-Covers the temperature and barometer trend arrows, `get_active_rain_event` for
-an ongoing and an ended event (the Event Catalog passed in), and
-`get_weather_data`, which assembles the header's current conditions from a fake
-Streamlit session state and finds the catalog in session or storage.
+Covers the temperature and barometer trend arrows, and `get_active_rain_event`
+for an ongoing and an ended event (the Event Catalog passed in).
 """
 
 import json
 
 import pandas as pd
 import pytest
-import streamlit as st
 
 from lookout.core.rain_events import RainEventCatalog
 from lookout.core.weather_events import get_active_rain_event
-from lookout.ui import header
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
     calculate_temperature_trend,
     newest_row,
 )
-from tests.fixtures.ambient import load_devices
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -31,14 +26,6 @@ from tests.fixtures.archive import (
 
 HOUR_MS = 3600 * 1000
 UP, DOWN, STEADY = "↑", "↓", "→"
-
-
-@pytest.fixture
-def session(monkeypatch):
-    """A fake Streamlit session state: a plain dict the code under test reads."""
-    state: dict = {}
-    monkeypatch.setattr(st, "session_state", state)
-    return state
 
 
 def _history(
@@ -276,139 +263,3 @@ class TestGetActiveRainEvent:
     def test_an_empty_or_missing_catalog_means_no_active_event(self):
         assert get_active_rain_event(pd.DataFrame(), 0.1) is None
         assert get_active_rain_event(None, 0.1) is None
-
-
-# ---- current conditions as the header assembles them -----------------------
-
-
-@pytest.fixture
-def last_data() -> dict:
-    """The recorded `lastData` of the fake station (dry, no event rain)."""
-    return dict(load_devices()[0]["lastData"])
-
-
-class TestWeatherData:
-    def test_dry_conditions_carry_the_reading_and_the_stored_trends(
-        self, session, last_data
-    ):
-        session.update(last_data=last_data, temp_trend=UP, barom_trend=DOWN)
-
-        data = header.get_weather_data()
-
-        assert data.active_event is None
-        current = data.current
-        assert current.temperature == 39.4
-        assert current.humidity == 99.0
-        assert current.barometer == 29.673
-        assert current.wind_speed == 1.8
-        assert current.uv_index == 0.0
-        assert (current.temp_trend, current.barom_trend) == (UP, DOWN)
-
-    def test_trends_default_to_steady_before_any_are_calculated(
-        self, session, last_data
-    ):
-        session["last_data"] = last_data
-
-        current = header.get_weather_data().current
-
-        assert (current.temp_trend, current.barom_trend) == (STEADY, STEADY)
-
-    def test_time_since_rain_comes_from_last_rain_and_the_reading_time(
-        self, session, last_data
-    ):
-        last_data["lastRain"] = "2026-01-04T11:00:00.000Z"
-        last_data["dateutc"] = (
-            int(pd.Timestamp("2026-01-04T11:30:00Z").timestamp()) * 1000
-        )
-        session["last_data"] = last_data
-
-        current = header.get_weather_data().current
-
-        assert current.time_since_rain == "30min"
-
-    def test_no_last_data_gives_zeros_not_an_error(self, session):
-        data = header.get_weather_data()
-
-        assert data.current.temperature == 0
-        assert data.current.barometer == 0
-        assert data.active_event is None
-
-    def test_an_ongoing_event_with_live_rain_becomes_the_active_event(
-        self, session, last_data, ongoing_catalog
-    ):
-        last_data["eventrainin"] = 0.24
-        session.update(
-            last_data=last_data,
-            device={"macAddress": FAKE_MAC},
-            rain_events_catalog=ongoing_catalog,
-        )
-
-        event = header.get_weather_data().active_event
-
-        assert event.total_rain == pytest.approx(0.24)
-        assert event.duration_hours == pytest.approx(115 / 60)
-        assert event.rain_rate == pytest.approx(0.24 / (115 / 60))
-
-    def test_an_ongoing_event_is_not_active_when_the_live_reading_is_dry(
-        self, session, last_data, ongoing_catalog
-    ):
-        last_data["eventrainin"] = 0.0
-        session.update(
-            last_data=last_data,
-            device={"macAddress": FAKE_MAC},
-            rain_events_catalog=ongoing_catalog,
-        )
-
-        assert header.get_weather_data().active_event is None
-
-    def test_a_missing_live_event_rain_counts_as_dry(
-        self, session, last_data, ongoing_catalog
-    ):
-        last_data["eventrainin"] = None
-        session.update(
-            last_data=last_data,
-            device={"macAddress": FAKE_MAC},
-            rain_events_catalog=ongoing_catalog,
-        )
-
-        assert header.get_weather_data().active_event is None
-
-    def test_without_a_device_in_session_there_is_no_active_event(
-        self, session, last_data, ongoing_catalog
-    ):
-        last_data["eventrainin"] = 0.24
-        session.update(last_data=last_data, rain_events_catalog=ongoing_catalog)
-
-        assert header.get_weather_data().active_event is None
-
-    def test_reads_the_stored_catalog_when_session_has_none(
-        self, session, last_data, fake_s3, ongoing_catalog
-    ):
-        RainEventCatalog(FAKE_MAC).save_catalog(ongoing_catalog)
-        last_data["eventrainin"] = 0.24
-        session.update(last_data=last_data, device={"macAddress": FAKE_MAC})
-
-        event = header.get_weather_data().active_event
-
-        assert event.total_rain == pytest.approx(0.24)
-
-    def test_no_catalog_anywhere_means_no_active_event(
-        self, session, last_data, fake_s3
-    ):
-        last_data["eventrainin"] = 0.24
-        session.update(last_data=last_data, device={"macAddress": FAKE_MAC})
-
-        assert header.get_weather_data().active_event is None
-
-    def test_the_session_catalog_takes_precedence_over_storage(
-        self, session, last_data, fake_s3, ongoing_catalog
-    ):
-        RainEventCatalog(FAKE_MAC).save_catalog(ongoing_catalog)
-        last_data["eventrainin"] = 0.24
-        session.update(
-            last_data=last_data,
-            device={"macAddress": FAKE_MAC},
-            rain_events_catalog=_fully_ended(ongoing_catalog),
-        )
-
-        assert header.get_weather_data().active_event is None

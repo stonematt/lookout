@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Lookout is a modular weather station dashboard built with Streamlit, Ambient Weather API, and S3-compatible storage (Storj). It supports data collection, archiving, visualization, and CLI-based maintenance tasks.
+Lookout is a weather station dashboard, live at https://lookout.stonecover.com. A VPS cron (the refresh run) pulls the Ambient Weather API into an archive on S3-compatible storage (Storj) and publishes a dashboard snapshot; a Vite + TypeScript site in `web/`, on Vercel, reads only the snapshot (ADR-0003). CLI scripts handle maintenance.
 
 ## Common Development Commands
 
-### Running the Application
+### Running the Site
 ```bash
-streamlit run streamlit_app.py
+cd web && npm ci && npm run dev     # local dev server
+cd web && npm run build && npm test # the web checks CI runs
 ```
 
 ### Running CLI Scripts
@@ -25,7 +26,7 @@ lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
 # the dashboard snapshot to Storj (snapshot/<MAC>.dashboard.json, .context.json)
 PYTHONPATH=. python lookout/cli/refresh.py [--bucket lookout] [--pages N]
 
-# Diagnostics (lookout/cli/diagnostics.py; plain text, no Streamlit).
+# Diagnostics (lookout/cli/diagnostics.py; plain text).
 # Read-only unless noted; exit 1 when refused or failed.
 PYTHONPATH=. python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]
 PYTHONPATH=. python -m lookout.cli.diagnostics coverage [--days 14]
@@ -34,6 +35,7 @@ PYTHONPATH=. python -m lookout.cli.diagnostics last-record     # the device's li
 # Writes: back up first, then save; --dry-run fetches and writes nothing
 PYTHONPATH=. python -m lookout.cli.diagnostics fill-gap (--index N | --start T --end T) [--dry-run]
 PYTHONPATH=. python -m lookout.cli.diagnostics energy-catalog [--save [--dry-run]]
+PYTHONPATH=. python -m lookout.cli.diagnostics rain-catalog [--save]   # dry run unless --save
 
 # Rain repair (lookout/cli/repair_rain.py): restore the raw rain counters in
 # the windows #95 damaged. Dry run unless --write; see --help before running
@@ -60,23 +62,22 @@ pytest tests/
 
 ### Package Structure
 - `lookout/api/` - API clients for external services (Ambient Weather Network)
-- `lookout/core/` - Data processing and visualization logic
+- `lookout/core/` - Data processing: archive merge, catalogs, rain and solar analysis
 - `lookout/models/` - Data models and type definitions (dataclasses)
 - `lookout/storage/` - S3/Storj integration for data archival
 - `lookout/utils/` - Shared utilities (logging, date handling, dataframe helpers)
 - `lookout/snapshot/` - The dashboard snapshot: `build_snapshot` (pure), its dataclass and JSON contract, and the publish to `snapshot/` on Storj
 - `lookout/cli/` - Command-line scripts for maintenance tasks, and `refresh.py`, the VPS cron's run
 - `lookout/bin/` - Shell scripts for cron and operational tasks
-- `lookout/ui/` - Streamlit UI components (overview, diagnostics)
 - `lookout/config.py` - Shared configuration and sensor mappings
+- `web/` - The site on Vercel: Vite + TypeScript + Plotly.js, reading the snapshot from Storj
 
 ### Key Components
 
 **Data Flow Architecture:**
 1. Ambient Weather API provides real-time and historical weather data
-2. CLI catchup script synchronizes new data to S3/Storj storage in parquet format
-3. Streamlit dashboard loads data from storage and displays visualizations
-4. Auto-refresh mechanism keeps dashboard current
+2. The refresh run (VPS cron, every 5 min) catches the archive up in S3/Storj (parquet), updates the catalogs, and publishes the dashboard snapshot to `snapshot/`
+3. The site on Vercel reads the snapshot and draws the four tabs: Overview, Rain, Rain Events, Solar
 
 **Storage Pattern:**
 - Historical data stored as parquet files in S3/Storj bucket
@@ -84,16 +85,16 @@ pytest tests/
 - Archive repair functionality normalizes schema inconsistencies
 
 **Event Catalog Management Strategy:**
-- The refresh run (`lookout/cli/refresh.py`) is the only automatic writer of the Event Catalog. Until Streamlit is retired, its Rain Events tab keeps manual "Save to Storage" and "Regenerate" buttons
-- Archive: saved after a backup on every catchup, whether run alone or as the refresh run's first step. It is stored **raw**: rain carryover corrections are never written back; they apply once, on read (`apply_corrections` after loading), so the refresh run and Streamlit both see corrected counters (#95, PR #113)
+- The refresh run (`lookout/cli/refresh.py`) is the only automatic writer of the Event Catalog. The manual way to rebuild it is `diagnostics rain-catalog --save`
+- Archive: saved after a backup on every catchup, whether run alone or as the refresh run's first step. It is stored **raw**: rain carryover corrections are never written back; they apply once, on read (`apply_corrections` after loading), so every reader sees corrected counters (#95, PR #113)
 - Event Catalog: brought up to the archive in memory on every refresh run, saved only when it holds a completed event the stored catalog lacks, matched by start time (`RainEventCatalog.save_if_events_completed`, `newly_completed`). The stored catalog is backed up first; if the backup fails, nothing is saved and the next run retries
 - No stored catalog: the first completed event seeds one
 - An ongoing event is re-detected under a new `event_id` every run; key events on their start (`start_ms`), never on `event_id`
 - Rationale: the archive is critical raw data; the catalog is derived and regenerable, so it is written only when its completed events change
 
 **Configuration Management:**
-- Secrets read by `lookout.secrets_loader.get_secret(name)`: env var, then `~/.config/lookout/secrets.toml`, then `st.secrets` while Streamlit is loaded; names listed in `secrets.example.toml`
-- Sensor mappings and UI configurations in `lookout/config.py`
+- Secrets read by `lookout.secrets_loader.get_secret(name)`: env var, then `~/.config/lookout/secrets.toml`; names listed in `secrets.example.toml`
+- Sensor mappings in `lookout/config.py`
 - Supports multiple sensor locations (outdoor, indoor, office)
 
 ### Import Conventions
@@ -119,11 +120,8 @@ pytest tests/
 - Pandas DataFrames used for all data manipulation
 - Schema validation and repair handled in catchup script
 
-### UI Components
-- Modular Streamlit tabs: Overview, Rain, Rain Events, Solar (+ Diagnostics & Playground in dev mode)
-- Gauge configurations defined in `config.py`
-- Auto-refresh with configurable intervals (6 minutes to 3 days)
-- Dev mode (via `st.secrets["environment"]["dev"]`) enables extra tabs, local archive caching, and diagnostic tools
+### Dev Mode
+- The `DEV_MODE` setting (env var, or `[environment] dev = true` in the secrets file) turns on local archive caching in `awn_controller`
 
 ## Agent skills
 

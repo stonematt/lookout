@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document outlines the revised coding standards for the Lookout project, focusing on Python development for weather dashboards with an emphasis on Pandas, NumPy, Streamlit.io, Storj.io for distributed storage, and Ambient Weather Network via AmbientAPI.
+This document outlines the revised coding standards for the Lookout project, focusing on Python development for weather dashboards with an emphasis on Pandas, NumPy, Storj.io for distributed storage, and Ambient Weather Network via AmbientAPI.
 
 ## Code Style and Quality
 
@@ -12,7 +12,6 @@ This document outlines the revised coding standards for the Lookout project, foc
 ## Python Libraries
 
 - **Pandas and NumPy**: For data manipulation and numerical analysis.
-- **Streamlit Integration**: For creating interactive dashboards.
 
 ## Data Handling and Storage
 
@@ -27,7 +26,7 @@ This document outlines the revised coding standards for the Lookout project, foc
 ## Module Documentation
 
 - **Purpose and Functionality**: Begin each module with a docstring detailing its purpose and key functionalities.
-- **Integration Points**: Highlight integration with other system parts (e.g., Streamlit, S3 storage).
+- **Integration Points**: Highlight integration with other system parts (e.g., the snapshot, S3 storage).
 - **List of Functions**: Concisely list and describe each function or class.
 - **Example Usage**: Include examples or references for using the module or key functions.
 
@@ -35,7 +34,7 @@ This document outlines the revised coding standards for the Lookout project, foc
 
 ```python
 """
-storj_df_s3.py: This module interacts with S3 storage, focusing on dataframe (pandas) and JSON object handling. It provides functionalities for reading and writing to S3 buckets, using s3fs and pandas. It integrates with Streamlit for secure access to S3. The module is essential for tasks like data backup, retrieval, and storage.
+storj_df_s3.py: This module interacts with S3 storage, focusing on dataframe (pandas) and JSON object handling. It provides functionalities for reading and writing to S3 buckets, using s3fs and pandas. The module is essential for tasks like data backup, retrieval, and storage.
 
 Functions:
 - Manage JSON files with S3.

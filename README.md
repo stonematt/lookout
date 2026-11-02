@@ -1,6 +1,11 @@
 # 🌤️ Lookout
 
-**Lookout** is a modular weather station dashboard built with Streamlit, Ambient Weather API, and S3-compatible storage (Storj). It supports data collection, archiving, visualization, and CLI-based maintenance tasks.
+**Lookout** is a weather station dashboard, live at
+[lookout.stonecover.com](https://lookout.stonecover.com). A cron on a VPS pulls
+readings from the Ambient Weather API into an archive on S3-compatible storage
+(Storj) and publishes a dashboard snapshot there. A Vite + TypeScript site on
+Vercel reads the snapshot and draws it ([ADR-0003](docs/adr/0003-vps-cron-precomputes-vercel-only-reads.md)).
+CLI scripts handle maintenance tasks.
 
 ---
 
@@ -9,13 +14,14 @@
 ```
 lookout/
 ├── api/            # API clients (e.g. Ambient Weather)
-├── core/           # Data processing and visualization
+├── core/           # Data processing: archive merge, catalogs, rain and solar analysis
+├── snapshot/       # The dashboard snapshot: build, JSON contract, publish
 ├── storage/        # S3/Storj integration
 ├── utils/          # Logging and shared utilities
-├── cli/            # Command-line scripts (e.g. catchup)
+├── cli/            # Command-line scripts (catchup, refresh, diagnostics)
+├── bin/            # Shell scripts for cron
 ├── config.py       # Shared config
-├── __init__.py     # Package root
-streamlit_app.py    # Main dashboard entry point
+web/                # The site on Vercel (Vite + TypeScript + Plotly.js)
 ```
 
 ---
@@ -25,7 +31,7 @@ streamlit_app.py    # Main dashboard entry point
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/lookout.git
+git clone https://github.com/stonematt/lookout.git
 cd lookout
 ```
 
@@ -46,12 +52,10 @@ Copy `secrets.example.toml` to `~/.config/lookout/secrets.toml`, fill it in and
 first use, in this order:
 
 1. an env var of the same flat name (`AMBIENT_API_KEY`, `STORJ_ENDPOINT_URL`, ...);
-2. `~/.config/lookout/secrets.toml`;
-3. `st.secrets` (`.streamlit/secrets.toml`), while Streamlit is loaded.
+2. `~/.config/lookout/secrets.toml`.
 
 The three Storj names (`STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`,
-`STORJ_ENDPOINT_URL`) map to the `[lookout_storage_options]` table, so an
-existing `.streamlit/secrets.toml` can be copied over unchanged.
+`STORJ_ENDPOINT_URL`) map to the `[lookout_storage_options]` table.
 
 Tests need no secrets: `pytest tests/` runs on a clean checkout.
 
@@ -59,10 +63,12 @@ Tests need no secrets: `pytest tests/` runs on a clean checkout.
 
 ## 🚀 Usage
 
-### Run the Streamlit dashboard
+### Run one refresh
+
+The VPS cron's job: catchup, catalogs, then the snapshot publish.
 
 ```bash
-streamlit run streamlit_app.py
+PYTHONPATH=. python lookout/cli/refresh.py
 ```
 
 ### Run the catchup CLI script
@@ -77,11 +83,22 @@ Use with cron (with logging + jitter):
 lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
 ```
 
+### Run the site locally
+
+```bash
+cd web
+npm ci
+npm run dev
+```
+
 ---
 
 ## 🧪 Testing
 
-Test files live in the `test/` directory and mirror the `lookout/` package structure.
+```bash
+pytest tests/
+cd web && npm run build && npm test
+```
 
 ---
 
@@ -100,12 +117,11 @@ Test files live in the `test/` directory and mirror the `lookout/` package struc
 
 ## 📡 Dependencies
 
-- Streamlit
-- Pandas / NumPy
+- Pandas / NumPy / PyArrow
 - Requests
 - Boto3 (for S3/Storj)
-- Plotly
 - Ambient Weather API
+- The site: Vite, TypeScript, Plotly.js
 
 ---
 

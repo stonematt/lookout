@@ -5,12 +5,12 @@ with S3-compatible object storage. Replaces legacy AmbientAPI with ambient_clien
 Relies on:
 - `ambient_client` for fetching AWN data via HTTP.
 - `storj.py` for S3-compatible persistence.
-- Streamlit for secrets management.
+- `secrets_loader` for secrets and settings.
 - Logging for operational observability.
 
 This module ensures reliable, incremental retrieval and synchronization of weather data archives,
 including deduplication, paging, and gap detection—supporting consistent backend storage for
-a Streamlit-based weather dashboard.
+the refresh run and the CLIs.
 
 Functions:
 - get_archive: Load local Parquet archive.
@@ -39,20 +39,12 @@ from typing import Optional
 
 import pandas as pd
 
-from lookout.config import DEFAULT_BUCKET
 from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
-
-from lookout.utils.trend_utils import (
-    calculate_temperature_trend,
-    calculate_barometer_trend,
-    newest_row,
-)
 
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_device_history
 from lookout.core import archive_merge
-from lookout.core.rain_corrections import apply_corrections
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -145,9 +137,8 @@ def is_dev_mode() -> bool:
     """
     Check if application is running in development mode.
 
-    Read from the `DEV_MODE` setting (env var, the secrets file, then
-    Streamlit's `[environment] dev`), so a run with no Streamlit secrets is
-    simply not in dev mode.
+    Read from the `DEV_MODE` setting (the env var, or `[environment] dev` in
+    the secrets file), so a run with neither is simply not in dev mode.
 
     :return: True if dev mode is enabled
     """
@@ -156,70 +147,6 @@ def is_dev_mode() -> bool:
 
 
 # Core Functions
-
-
-def update_session_data(device, hist_df=None, limit=250, pages=10):
-    """
-    Update session with latest historical data and reset session counter.
-
-    :param device: Object representing the device.
-    :param hist_df: DataFrame of current historical data, defaults to session state history.
-    :param limit: int - Max records to fetch per call, default 250.
-    :param pages: int - Number of pages to fetch, default 10.
-    :return: None.
-    """
-    # The Streamlit UI's entry point; imported here so the refresh run, which
-    # never calls it, never loads Streamlit.
-    import streamlit as st
-
-    try:
-        # Use provided or session state history
-        current_df = (
-            hist_df
-            if hist_df is not None
-            else st.session_state.get("history_df", pd.DataFrame())
-        )
-
-        # Fetch updated history; the session history is already corrected,
-        # so only the fetched rows get the rain corrections (#95)
-        updated_df = extend_corrected(
-            current_df,
-            get_history_since_last_archive(
-                device, current_df, limit=limit, pages=pages
-            ),
-            device["macAddress"],
-        )
-
-        # Calculate trends for latest data point
-        if not updated_df.empty:
-            latest_row = newest_row(updated_df)  # any row order (#133)
-            temp_trend = calculate_temperature_trend(updated_df, latest_row["tempf"])
-            barom_trend = calculate_barometer_trend(
-                updated_df, latest_row["baromrelin"]
-            )
-
-            # Store trends in session state
-            st.session_state["temp_trend"] = temp_trend
-            st.session_state["barom_trend"] = barom_trend
-
-        # Only update session state if data actually changed
-        if not updated_df.equals(current_df):
-            st.session_state["history_df"] = updated_df
-            st.session_state["history_max_dateutc"] = st.session_state["history_df"][
-                "dateutc"
-            ].max()
-
-            # Force garbage collection to free memory from old DataFrame
-            import gc
-
-            gc.collect()
-
-            logger.info("Session data updated successfully.")
-        else:
-            logger.debug("No data changes detected, skipping session state update")
-    except Exception as e:
-        logger.error(f"Failed to update session data: {e}")
-        st.error("An error occurred while updating session data. Please try again.")
 
 
 def get_archive(archive_file: str) -> pd.DataFrame:
@@ -677,44 +604,6 @@ def fetch_since_last_archive(
     # Raw, as Ambient reported it: rain corrections are applied on read,
     # never before a save (#95).
     return interim_df
-
-
-def extend_corrected(
-    corrected: pd.DataFrame,
-    extended: pd.DataFrame,
-    mac_address: str,
-    bucket: str = DEFAULT_BUCKET,
-) -> pd.DataFrame:
-    """
-    Add the rows of `extended` that `corrected` lacks, rain corrected once.
-
-    For a frame whose rain counters are already corrected (the Streamlit
-    session history) and a raw extension of it (what
-    `get_history_since_last_archive` or `fill_archive_gap` returns for it).
-    Corrections are per row, by date, so correcting only the new rows gives
-    the same counters as correcting a raw archive whole, and no row is
-    corrected twice. Rows `corrected` already holds are kept as they are.
-    Only for frames that are read, never saved: storage stays raw.
-
-    :param corrected: The rain-corrected frame, `dateutc` in epoch ms.
-    :param extended: A raw frame holding `corrected`'s rows and new ones.
-    :param mac_address: The station, whose corrections catalog applies.
-    :param bucket: The bucket holding the catalog.
-    :return: `corrected` itself when nothing is new; else the union, newest
-        first.
-    :raises StorageReadError: If the corrections catalog cannot be read.
-    """
-    if extended.empty or "dateutc" not in extended.columns:
-        return corrected
-    if corrected.empty or "dateutc" not in corrected.columns:
-        return apply_corrections(extended, mac_address, bucket)
-    new_rows = extended[~extended["dateutc"].isin(corrected["dateutc"])]
-    if new_rows.empty:
-        return corrected
-    return combine_df(corrected, apply_corrections(new_rows, mac_address, bucket))
-
-
-# Helper Functions
 
 
 def _should_stop_for_future(next_dt, now_utc) -> bool:

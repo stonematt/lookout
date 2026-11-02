@@ -95,7 +95,7 @@ def test_dev_mode_comes_from_the_dev_mode_setting(monkeypatch, value, dev):
     assert awn.is_dev_mode() is dev
 
 
-def test_dev_mode_is_off_with_no_setting_and_no_streamlit_secrets(
+def test_dev_mode_is_off_with_no_setting(
     monkeypatch, no_secrets
 ):
     monkeypatch.delenv("DEV_MODE", raising=False)

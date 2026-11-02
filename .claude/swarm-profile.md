@@ -1,10 +1,10 @@
 # Swarm profile
 
-**Repo** `stonematt/lookout` · root `/Users/mstone/src/github.com/stonematt/lookout` · base branch `dev` (release branch `main`, deploy branch `live`). Spec #66 work: phase 0 (#67, #68, #69, #70, #71, #63) lands on `dev`; phases 1–4 land on the integration branch `goal/off-streamlit`, cut from `dev` after phase 0.
+**Repo** `stonematt/lookout` · root `/Users/mstone/src/github.com/stonematt/lookout` · base branch `dev` (release branch `main`, which Vercel deploys to production). Spec #66 work: phase 0 (#67, #68, #69, #70, #71, #63) lands on `dev`; phases 1–4 land on the integration branch `goal/off-streamlit`, cut from `dev` after phase 0.
 
 **Ready label** none used for this run; every sub-issue of #66 took the finish-alone test.
 
-**Read before designing** `CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`, `GLOSSARY.md`, `docs/adr/` (ADR-0003 is the architecture), `code_standards.md`, `TESTING_GUIDELINES.md`, `DESIGN.md` (UI tickets), spec #66.
+**Read before designing** `CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`, `GLOSSARY.md`, `docs/adr/` (ADR-0003 is the architecture), `code_standards.md`, `DESIGN.md` (UI tickets), spec #66.
 
 **Dependency sync** Python: `source $(conda info --base)/etc/profile.d/conda.sh && conda activate lookout-new` (one shared conda env; it has no per-worktree copy). A lane that adds a Python dependency adds it to `requirements-dev.txt`/`requirements.txt` and installs it into `lookout-new` with `pip install -r requirements-dev.txt`. Web (after #77): `cd web && npm ci`.
 
@@ -23,7 +23,7 @@
 
 **Blast radius** — probes planted at `$TMPDIR`, `~/.config/`, `~`, and the main checkout's live `data/` dir; test suite run at `7592c37` in a clean worktree: all markers survived. The real risk is secrets, not deletes: the main checkout has `.streamlit/secrets.toml` with live Ambient and Storj keys, and modules read it at import. **Never run gates in the main checkout. Never copy `.streamlit/secrets.toml` into a worktree.** A lane's new tests pin to: no network, no real secrets (conftest stubs from #67), moto for S3, synthetic or committed fixtures, `tmp_path` for files.
 
-**Leave unrun** `streamlit run streamlit_app.py` — the owner's dashboard. `lookout/cli/catchup.py`, `lookout/bin/cron_run.sh`, the new refresh command against real secrets — they write the live Storj archive and Event Catalog. `lookout/cli/pull_archive.py`, `rain_corrections_cli.py`, `manage_day_periods.py`, `regenerate*`/catalog CLIs, `verify_energy_catalog.py`, `test_functional_energy.py` — they read or write live Storj. Anything that ssh's to the VPS (`itri`). Any Vercel deploy.
+**Leave unrun** `lookout/cli/catchup.py`, `lookout/bin/cron_run.sh`, the new refresh command against real secrets — they write the live Storj archive and Event Catalog. `lookout/cli/pull_archive.py`, `rain_corrections_cli.py`, `manage_day_periods.py`, `regenerate*`/catalog CLIs, `verify_energy_catalog.py`, `test_functional_energy.py` — they read or write live Storj. Anything that ssh's to the VPS (`itri`). Any Vercel deploy.
 
 **Lane server** `cd web && npm ci && npm run dev -- --port <port>` (from #77): runs the real `/dashboard` and `/current` handlers over the golden snapshots via a Vite plugin, no secrets. Page query `?fixture=dry|raining&age=<min>&theme=light|dark`. Screenshots: `npm run shots -- http://localhost:<port> <out-dir> "" "fixture=raining&age=3"` after `npx playwright install chromium` once. Port = 5170 + lane letter index (G 5177, H 5178, I 5179, J 5180, K 5181, L 5182, M 5183). Stop by killing the vite child PID too (the npm wrapper PID alone leaves vite running). Before #77: a command that serves one worktree's `web/` on a chosen port against the golden snapshot fixtures with no secrets (e.g. `cd web && npm run dev -- --port <port>`), and record it in its PR body; later UI lanes use it with a port of 5170 + lane letter index. Stop it with Ctrl-C / `kill` of its PID.
 
