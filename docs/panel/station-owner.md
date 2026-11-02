@@ -37,3 +37,11 @@ Verdict: fix
 - [x] Rain Events catalog ends Jan 2026, so "last event ended 294 d ago" sits beside "19 h since it last rained" — UAT build artifact: the build skipped the refresh run's catalog update; rebuilt
 - [ ] the "Oct 31 to Oct 30" 365-day window label reads backwards; add the start year — Overview rain-window table
 - [ ] note: `#rain-events` hash falls back to Overview (the hash is `#events`); favicon 404
+
+### 2026-11-01 — release PR #241 preview (lookout-neecvny0u), release review
+Verdict: ship
+- [x] the "Oct 31 to Oct 30" 365-day window label — fixed: reads "Nov 2, 2025 to Nov 1"
+- [x] Rain Events catalog gap — fixed: events through Oct 30
+- [x] note: the screenshots came back about 1158 px wide, not 390 px — Matt checked on his iPhone 2026-11-01: looks good
+- [ ] note: the event chart showed "Loading the event's readings…" — part of #239
+- [ ] note: `#rain-events` hash and favicon 404 — not rechecked
