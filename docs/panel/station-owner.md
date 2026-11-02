@@ -42,6 +42,6 @@ Verdict: fix
 Verdict: ship
 - [x] the "Oct 31 to Oct 30" 365-day window label — fixed: reads "Nov 2, 2025 to Nov 1"
 - [x] Rain Events catalog gap — fixed: events through Oct 30
-- [ ] note: the screenshots came back about 1158 px wide, not 390 px; phone width not truly checked
+- [x] note: the screenshots came back about 1158 px wide, not 390 px — Matt checked on his iPhone 2026-11-01: looks good
 - [ ] note: the event chart showed "Loading the event's readings…" — part of #239
 - [ ] note: `#rain-events` hash and favicon 404 — not rechecked
