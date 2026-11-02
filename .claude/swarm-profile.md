@@ -70,3 +70,10 @@
 - Goal branch `goal/deepen-reads-merge-rain`, cut off `goal/off-streamlit` at `a43d894` with `docs/station-tz` and `docs/glossary-archive` merged in (ADR-0004, ADR-0005, the archive and archive merge glossary entries). Its goal PR targets `dev`, is stacked on #96, and lands after it. Lane PRs target `goal/deepen-reads-merge-rain`; CI runs on them (`goal/**`).
 - Baseline at `d236bf9`: pytest **829 passed, 1 skipped** (~85s); web build ok, **381 passed**. Probes at `$TMPDIR`, `~`, `~/.config/` and `~/.config/lookout/` all survived; `tests/conftest.py` points the secrets loader at a missing file, so the real `~/.config/lookout/secrets.toml` is never read.
 - Owner fence for this run: `lookout/storage/storj.py`, the archive save path and `lookout/cli/refresh.py` change in build order only, never in two lanes at once.
+- Final gates at `356d7ab`: pytest **932 passed, 1 skipped** (~75s); web build ok, **391 passed**. Gates ran after each of the 19 merges into the goal branch, and none went red. Goal PR #201 landed in `dev` at `2ef606d`.
+- Open a PR with `gh pr create --repo stonematt/lookout --base <base> --head <branch> --body-file …`. Without `--repo` and `--head`, it fails with "you must first push the current branch", even after a successful push.
+- `gh issue view <n> --comments` sometimes prints nothing. Use `gh issue view <n> --json title,body,comments` instead.
+- `gh pr merge --delete-branch` removes the lane's worktree, local branch and remote branch. A lane's step g should check before it deletes. `git push origin --delete` is classifier-denied.
+- A pre-commit hook refuses commits on a branch whose PR has merged. Write profile updates after the goal lands on a fresh `docs/*` branch off `dev`.
+- `npm run shots` captures the Overview tab only. To check the other tabs, click them in your own Playwright script.
+- On the lane server, `age=` shifts the golden's timestamps but not its decided month labels and window texts, so the rain-by-month grid can box the wrong month (#226). This is a pre-existing fixture artifact, not a regression.
