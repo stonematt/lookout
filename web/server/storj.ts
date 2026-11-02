@@ -34,11 +34,18 @@ export interface StorjConfig {
  */
 export type SnapshotReader = (mac: string, kind: SnapshotKind) => Promise<string | null>;
 
+/** A start the Event Catalog does not list: its curve file was not read. */
+export const UNLISTED: unique symbol = Symbol("unlisted");
+
 /**
- * Read one completed event's curve file; null when it is not written yet.
+ * Read one completed event's curve file; null when it is not written yet,
+ * `UNLISTED` when the Event Catalog does not list the start.
  * Rejects with a `StorjReadError` on any other failure.
  */
-export type CurveReader = (mac: string, startMs: number) => Promise<string | null>;
+export type CurveReader = (
+  mac: string,
+  startMs: number,
+) => Promise<string | null | typeof UNLISTED>;
 
 /** Storj answered, but not with the document. */
 export class StorjReadError extends Error {
@@ -111,19 +118,65 @@ function storjKeyReader(
  */
 export const EVENT_STARTS_REFRESH_MS = 60_000;
 
-/** What one function instance knows of a station's curve files. */
-interface KnownStarts {
+/**
+ * What one function instance knows of a station's curve files: the starts
+ * the Event Catalog lists, learned from the dashboard document, which it
+ * reads at most once per `EVENT_STARTS_REFRESH_MS`.
+ */
+class KnownStarts {
   /** The starts with a curve file; null before a good dashboard read. */
-  starts: Set<number> | null;
+  private starts: Set<number> | null = null;
   /** When the last dashboard read began, whatever its outcome. */
-  askedAtMs: number;
+  private askedAtMs = -Infinity;
+  /** The last dashboard read failed: its starts may be out of date. */
+  private failed = false;
   /** The dashboard read under way, shared by requests that arrive together. */
-  pending: Promise<void> | null;
+  private pending: Promise<void> | null = null;
+
+  /**
+   * @param readDashboard - Reads the station's dashboard document's text.
+   */
+  constructor(private readonly readDashboard: () => Promise<string | null>) {}
+
+  /**
+   * Whether the Event Catalog lists a start, reading the dashboard only for
+   * a start not already known, and only when the interval allows.
+   *
+   * @param startMs - The start asked for.
+   * @returns True when it has a curve file to read.
+   * @throws StorjReadError when the dashboard read fails, or failed last
+   *   time, and the start is not already known.
+   */
+  async lists(startMs: number): Promise<boolean> {
+    if (this.starts?.has(startMs)) return true;
+    if (!this.pending && Date.now() - this.askedAtMs >= EVENT_STARTS_REFRESH_MS) {
+      this.askedAtMs = Date.now();
+      this.pending = this.refresh();
+    }
+    if (this.pending) await this.pending;
+    else if (this.failed) {
+      throw new StorjReadError("the Event Catalog's starts could not be read");
+    }
+    return this.starts?.has(startMs) ?? false;
+  }
+
+  private async refresh(): Promise<void> {
+    try {
+      this.starts = curveStarts(await this.readDashboard());
+      this.failed = false;
+    } catch (error) {
+      this.failed = true;
+      throw error;
+    } finally {
+      this.pending = null;
+    }
+  }
 }
 
 /**
- * By endpoint, bucket and station. Module state, so it lasts as long as a
- * warm function instance does, though the reader is built per request.
+ * By endpoint, bucket and station (`checkQuery` admits only the configured
+ * one). Module state, so it lasts as long as a warm function instance
+ * does, though the reader is built per request.
  */
 const knownStarts = new Map<string, KnownStarts>();
 
@@ -154,14 +207,13 @@ function curveStarts(text: string | null): Set<number> {
  * station's dashboard document has it, so a caller varying `start` cannot
  * drive Storj reads (#231). An instance reads the dashboard when asked for
  * a start it does not know, at most once per `EVENT_STARTS_REFRESH_MS`;
- * in between, such a start is null without any read.
+ * in between, such a start is `UNLISTED` without any read.
  *
  * @param config - The read-only credential, endpoint and bucket.
  * @param fetchImpl - The fetch to send signed requests with.
  * @param timeoutMs - How long one read may take before it fails.
  * @returns The reader. For a start it does not know, it rejects with a
- *   `StorjReadError` when the dashboard read fails, or when no read has
- *   succeeded yet.
+ *   `StorjReadError` while the last dashboard read failed.
  */
 export function storjCurveReader(
   config: StorjConfig,
@@ -173,27 +225,10 @@ export function storjCurveReader(
     const id = `${config.endpointUrl} ${config.bucket} ${mac}`;
     let known = knownStarts.get(id);
     if (!known) {
-      known = { starts: null, askedAtMs: -Infinity, pending: null };
+      known = new KnownStarts(() => read(snapshotKey(mac, "dashboard")));
       knownStarts.set(id, known);
     }
-    if (known.starts?.has(startMs)) return read(eventCurveKey(mac, startMs));
-
-    const state = known;
-    if (!state.pending && Date.now() - state.askedAtMs >= EVENT_STARTS_REFRESH_MS) {
-      state.askedAtMs = Date.now();
-      state.pending = read(snapshotKey(mac, "dashboard"))
-        .then((text) => {
-          state.starts = curveStarts(text);
-        })
-        .finally(() => {
-          state.pending = null;
-        });
-    }
-    if (state.pending) await state.pending;
-    else if (state.starts === null) {
-      throw new StorjReadError("the Event Catalog's starts could not be read");
-    }
-    return state.starts?.has(startMs) ? read(eventCurveKey(mac, startMs)) : null;
+    return (await known.lists(startMs)) ? read(eventCurveKey(mac, startMs)) : UNLISTED;
   };
 }
 

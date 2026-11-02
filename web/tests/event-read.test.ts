@@ -97,7 +97,8 @@ describe("GET /event", () => {
     const response = await eventGET(get(`/event?start=${EVENT_3}`));
 
     expect(response.status).toBe(404);
-    expect(response.headers.get("cache-control")).toBe("s-maxage=300");
+    expect(response.headers.get("cache-control")).toBe("s-maxage=60");
+    expect(curveCalls()).toHaveLength(0);
   });
 
   it.each(["", "?start=", "?start=abc", "?start=../dashboard", "?start=12"])(

@@ -16,6 +16,8 @@ const EVENT_1 = 1767549600000;
 const EVENT_2 = 1767758400000;
 /** The raining golden's live event: its curve file follows its close. */
 const LIVE = 1767909600000;
+/** A well-formed start no event has. */
+const UNKNOWN = 1600000000000;
 
 const ENV = {
   STORJ_ACCESS_KEY_ID: "test-access",
@@ -78,15 +80,16 @@ afterEach(() => {
 });
 
 describe("/event with a start the Event Catalog does not hold", () => {
-  it("answers 404 without reading a curve file", async () => {
-    const response = await ask(1600000000000);
+  it("answers 404 without reading a curve file, cached for the refresh interval", async () => {
+    const response = await ask(UNKNOWN);
 
     expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=60");
     expect(curveReads()).toEqual([]);
   });
 
   it("reads Storj once for any number of unknown starts", async () => {
-    for (let i = 0; i < 50; i++) await ask(1600000000000 + i);
+    for (let i = 0; i < 50; i++) await ask(UNKNOWN + i);
 
     expect(keys).toEqual([DASHBOARD_KEY]);
   });
@@ -95,14 +98,14 @@ describe("/event with a start the Event Catalog does not hold", () => {
     await ask(EVENT_2);
     keys = [];
 
-    const response = await ask(1600000000000);
+    const response = await ask(UNKNOWN);
 
     expect(response.status).toBe(404);
     expect(keys).toEqual([]);
   });
 
   it("asks the dashboard again at most once per refresh interval", async () => {
-    await ask(1600000000000);
+    await ask(UNKNOWN);
     vi.setSystemTime(NOW + refreshMs - 1);
     await ask(1600000000001);
     expect(dashboardReads()).toHaveLength(1);
@@ -116,7 +119,7 @@ describe("/event with a start the Event Catalog does not hold", () => {
   });
 
   it("shares one dashboard read between requests that arrive together", async () => {
-    await Promise.all([1, 2, 3, 4, 5].map((i) => ask(1600000000000 + i)));
+    await Promise.all([1, 2, 3, 4, 5].map((i) => ask(UNKNOWN + i)));
 
     expect(keys).toEqual([DASHBOARD_KEY]);
   });
@@ -185,7 +188,7 @@ describe("/event while the dashboard cannot be read", () => {
 
     const first = await ask(EVENT_2);
     await ask(EVENT_1);
-    await ask(1600000000000);
+    await ask(UNKNOWN);
 
     expect(first.status).toBe(502);
     expect(first.headers.get("cache-control")).toBe("s-maxage=15");
@@ -202,7 +205,22 @@ describe("/event while the dashboard cannot be read", () => {
       key === DASHBOARD_KEY ? new Response("slow down", { status: 503 }) : raining(key);
     vi.setSystemTime(NOW + refreshMs);
 
-    expect((await ask(1600000000000)).status).toBe(502);
+    expect((await ask(UNKNOWN)).status).toBe(502);
     expect((await ask(EVENT_1)).status).toBe(200);
+  });
+
+  it("keeps answering 502 for an unknown start until the next read is allowed", async () => {
+    await ask(EVENT_2);
+    storj = (key) =>
+      key === DASHBOARD_KEY ? new Response("slow down", { status: 503 }) : raining(key);
+    vi.setSystemTime(NOW + refreshMs);
+    await ask(UNKNOWN);
+    keys = [];
+
+    const response = await ask(UNKNOWN + 1);
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    expect(keys).toEqual([]);
   });
 });
