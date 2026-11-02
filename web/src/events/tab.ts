@@ -17,6 +17,9 @@
  *   archive data shows its totals only, with "n/a: gap in record".
  * - The event is keyed by its start, which is stable across refresh runs,
  *   so a link opened while it is live still opens it once it has completed.
+ * - A newer snapshot mounts the tab again over the same panel; it keeps the
+ *   selected event, the water year, the order and the rows "Show more"
+ *   opened, and redraws a completed event from the curve it already read.
  */
 import "./events.css";
 
