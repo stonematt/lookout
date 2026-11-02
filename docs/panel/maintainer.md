@@ -44,4 +44,4 @@ Verdict: ship
 - [ ] note: the dashboard and context documents publish one after the other; a failure between them leaves them out of step until the next run (the run exits 1) — `lookout/snapshot/publish.py`
 - [ ] note: streamlit import at `lookout/core/data_processing.py:9` — not rechecked; the refresh path does not import it
 - [ ] note: socket guard in `tests/conftest.py` — not rechecked
-- [ ] note: the Vercel Storj key's scope is still not verifiable from code — still open
+- [ ] fix: the Vercel Storj key covers the whole `lookout` bucket, not `snapshot/` (Matt, 2026-11-01) — #247
