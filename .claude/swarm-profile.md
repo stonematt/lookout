@@ -77,3 +77,11 @@
 - A pre-commit hook refuses commits on a branch whose PR has merged. Write profile updates after the goal lands on a fresh `docs/*` branch off `dev`.
 - `npm run shots` captures the Overview tab only. To check the other tabs, click them in your own Playwright script.
 - On the lane server, `age=` shifts the golden's timestamps but not its decided month labels and window texts, so the rain-by-month grid can box the wrong month (#226). This is a pre-existing fixture artifact, not a regression.
+
+**Go-live fixes run (2026-11-01, #222 items 1-4 → #229 #230 #231 #232)**
+- Baseline at `4e6d5dd`: pytest **932 passed, 1 skipped** (~75s); web build ok, **391 passed**. Final at `26f5b10`: pytest 932 passed, 1 skipped; web build ok, **416 passed**.
+- Lanes launched in one message collide on `.git/config` during `git worktree add -b`. The branch is created, the worktree is not. Recover with `git worktree add <path> fix/<slug>` (no `-b`).
+- `gh pr merge --delete-branch` from the main checkout now removes only the remote branch. The lane's sibling worktree and local branch stay behind, so step g must remove them. The main checkout's local `dev` lags `origin/dev`, so `git branch -d` refuses. Check `git merge-base --is-ancestor <branch> origin/dev`, then `-D`.
+- On the lane server, `age=` re-stamps every event start on each `/dashboard` read, so an Events tab selection looks lost after a refresh there. Without `age=` it holds. Same family as #226.
+- `/event` reads a curve only for a start the dashboard snapshot lists (`has_curve`, not `live`): `KnownStarts` in `web/server/storj.ts` re-reads the dashboard at most once per 60 s per instance (#237). Client reads time out at 15 s (`READ_TIMEOUT_MS`, `web/src/load.ts`, #236). Events tab state that should survive a refresh goes in the per-panel `Kept` record in `web/src/events/tab.ts` (#238).
+- An item from a review of an older range can already be fixed on `dev`. #222 item 1 was done by #182. Check each item against the base before you launch it.
