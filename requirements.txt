@@ -1,10 +1,8 @@
 pandas<3
 numpy
-streamlit
-plotly
+pyarrow
+requests
 python-dateutil
 pytz
 boto3==1.34.99
 botocore<1.35.0
-colour
-watchdog

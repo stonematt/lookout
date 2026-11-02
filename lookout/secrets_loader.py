@@ -5,14 +5,12 @@ secrets_loader.py: The one place Lookout reads a secret.
 
 1. the environment variable of that name;
 2. the TOML secrets file, `~/.config/lookout/secrets.toml` (mode 600, outside
-   the git checkout), read with stdlib `tomllib`;
-3. `st.secrets`, but only when Streamlit is already loaded in the process. This
-   fallback is deleted when Streamlit retires.
+   the git checkout), read with stdlib `tomllib`.
 
-The module never imports Streamlit, and nothing is read until `get_secret` is
-called, so importing a module that needs secrets never fails for lack of them.
+Nothing is read until `get_secret` is called, so importing a module that needs
+secrets never fails for lack of them.
 
-The TOML file keeps the shape of today's `.streamlit/secrets.toml`: the Ambient
+The TOML file keeps the shape of the old Streamlit secrets file: the Ambient
 and Healthchecks names are top-level keys, and the three Storj names map to
 keys in the `[lookout_storage_options]` table. `secrets.example.toml` at the
 repo root lists every name with no values.
@@ -31,7 +29,6 @@ Example:
 
 import os
 import stat
-import sys
 import tomllib
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -47,7 +44,7 @@ SECRETS_FILE = DEFAULT_SECRETS_FILE
 
 STORAGE_TABLE = "lookout_storage_options"
 
-# Flat name -> path of keys inside the TOML file (and st.secrets).
+# Flat name -> path of keys inside the TOML file.
 SECRET_PATHS: Dict[str, Tuple[str, ...]] = {
     "AMBIENT_API_KEY": ("AMBIENT_API_KEY",),
     "AMBIENT_APPLICATION_KEY": ("AMBIENT_APPLICATION_KEY",),
@@ -64,7 +61,7 @@ SECRET_NAMES: Tuple[str, ...] = tuple(SECRET_PATHS)
 # from SECRET_NAMES because a setting may be unset (its reader has a default).
 SETTING_PATHS: Dict[str, Tuple[str, ...]] = {
     "STATION_MAC": ("STATION_MAC",),
-    # Streamlit's `[environment] dev = true`; set DEV_MODE=1 anywhere else.
+    # `[environment] dev = true` in the file, or the DEV_MODE env var.
     "DEV_MODE": ("environment", "dev"),
 }
 
@@ -82,7 +79,7 @@ def _lookup(source: Any, path: Tuple[str, ...]) -> Optional[str]:
     """
     Walk a key path through a mapping-like source.
 
-    :param source: A dict, or Streamlit's secrets object.
+    :param source: A dict parsed from the secrets file.
     :param path: Keys to follow, outermost first.
     :return: The value as a string, or None when any key is absent or empty.
     """
@@ -113,55 +110,24 @@ def _read_file(path: Path) -> Dict[str, Any]:
         return tomllib.load(f)
 
 
-def _streamlit_secrets() -> Optional[Any]:
-    """
-    Return `st.secrets` when Streamlit is already loaded, without importing it.
-
-    :return: Streamlit's secrets object, or None when Streamlit is not loaded.
-    """
-    st = sys.modules.get("streamlit")
-    return getattr(st, "secrets", None) if st is not None else None
-
-
-def _lookup_streamlit(path: Tuple[str, ...]) -> Optional[str]:
-    """
-    Look a key path up in `st.secrets`, treating a missing secrets file as absent.
-
-    :param path: Keys to follow, outermost first.
-    :return: The value, or None.
-    """
-    secrets = _streamlit_secrets()
-    if secrets is None:
-        return None
-    try:
-        return _lookup(secrets, path)
-    except Exception as e:  # StreamlitSecretNotFound when no secrets.toml exists
-        logger.debug(f"st.secrets unavailable: {e}")
-        return None
-
-
 def _resolve(name: str, path: Tuple[str, ...]) -> Optional[str]:
     """
-    Look one name up in the env var, then the secrets file, then st.secrets.
+    Look one name up in the env var, then the secrets file.
 
     :param name: The flat name, also the env var's name.
-    :param path: Keys to follow inside the file and st.secrets.
+    :param path: Keys to follow inside the file.
     :return: The first value found, or None.
     """
     value = os.environ.get(name)
     if value:
         return value
 
-    value = _lookup(_read_file(SECRETS_FILE), path)
-    if value is not None:
-        return value
-
-    return _lookup_streamlit(path)
+    return _lookup(_read_file(SECRETS_FILE), path)
 
 
 def get_secret(name: str) -> str:
     """
-    Return one secret, from the env var, then the secrets file, then st.secrets.
+    Return one secret, from the env var, then the secrets file.
 
     :param name: A flat secret name from SECRET_NAMES, e.g. "AMBIENT_API_KEY".
     :return: The secret's value.
