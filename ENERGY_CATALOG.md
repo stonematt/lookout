@@ -29,15 +29,14 @@ The Solar Energy Catalog system provides high-performance caching for 15-minute 
 - **Vectorized operations**: Uses `pandas.resample()` instead of O(n²) iteration
 - **Timezone handling**: Proper UTC→Pacific conversion
 
-#### Data Pipeline Integration (`lookout/core/data_processing.py`)
-- **Auto-loading**: Loads catalog during app initialization
-- **Incremental updates**: Updates with new archive data
-- **Auto-save**: Saves when catalog >2 days old
-- **User feedback**: Progress messages during operations
+#### Data Pipeline Integration (`lookout/cli/refresh.py`)
+- **Loading**: The refresh run loads the stored catalog (`load_catalogs`)
+- **Incremental updates**: Brings it up to the archive on every run
+- **Saving**: Saves only when the stored catalog is older than `ENERGY_SAVE_AGE`
 
-#### UI Management (`lookout/ui/diagnostics.py`)
-- **Status display**: Shows catalog metrics and date range
-- **Management controls**: Regenerate and save buttons
+#### Manual Management (`lookout/cli/diagnostics.py`)
+- **Report**: `diagnostics energy-catalog` shows the catalog's metrics and date range
+- **Rebuild**: `energy-catalog --save [--dry-run]` backs up and replaces the stored catalog
 - **Details view**: Expandable catalog details
 
 ## Usage Patterns
@@ -146,14 +145,14 @@ solarradiation: float                              # W/m²
 
 ### Testing
 - **Unit tests**: `tests/test_energy_catalog.py` (13 tests)
-- **Integration tests**: Solar UI and data pipeline tests
+- **Integration tests**: `tests/test_refresh.py` (the refresh run)
 - **Performance tests**: `verify_energy_catalog.py` script
 
 ### Code Locations
 - **Core logic**: `lookout/core/energy_catalog.py`
 - **Algorithm**: `lookout/core/solar_energy_periods.py`
-- **Pipeline**: `lookout/core/data_processing.py`
-- **UI**: `lookout/ui/diagnostics.py`
+- **Pipeline**: `lookout/cli/refresh.py`, with `lookout/core/energy_catalog_func.py`
+- **Manual tools**: `lookout/cli/diagnostics.py` (`energy-catalog`)
 
 ### Future Enhancements
 - **Compression optimization**: Further reduce storage size
