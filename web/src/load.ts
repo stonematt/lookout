@@ -63,9 +63,27 @@ export class ReadError extends Error {
   }
 }
 
-/** GET a URL as JSON, rejecting with a `ReadError` on a non-2xx status. */
-async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
-  const response = await fetchImpl(url, { headers: { accept: "application/json" } });
+/**
+ * How long one client read may take before it fails. The read functions give
+ * Storj 5 s and Ambient 5 s, so a healthy call answers well inside 15 s even
+ * on a cold start; past it the call is hung, and failing lets the page's
+ * refresh cycle run again instead of waiting forever.
+ */
+export const READ_TIMEOUT_MS = 15_000;
+
+/**
+ * GET a URL as JSON, rejecting with a `ReadError` on a non-2xx status, and
+ * with the abort error when the call (headers or body) outlasts `timeoutMs`.
+ */
+async function getJson(
+  url: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): Promise<unknown> {
+  const response = await fetchImpl(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!response.ok) throw new ReadError(url, response.status);
   return response.json();
 }
@@ -75,13 +93,15 @@ async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
  *
  * @param pageSearch - The page's `location.search`.
  * @param fetchImpl - The fetch to use.
+ * @param timeoutMs - How long the call may take before it fails.
  * @returns The typed snapshot.
  */
 export async function fetchDashboard(
   pageSearch: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = READ_TIMEOUT_MS,
 ): Promise<DashboardSnapshot> {
-  return parseDashboard(await getJson(readUrl("/dashboard", pageSearch), fetchImpl));
+  return parseDashboard(await getJson(readUrl("/dashboard", pageSearch), fetchImpl, timeoutMs));
 }
 
 /**
@@ -89,13 +109,15 @@ export async function fetchDashboard(
  *
  * @param pageSearch - The page's `location.search`.
  * @param fetchImpl - The fetch to use.
+ * @param timeoutMs - How long the call may take before it fails.
  * @returns The typed reading.
  */
 export async function fetchCurrent(
   pageSearch: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = READ_TIMEOUT_MS,
 ): Promise<CurrentReading> {
-  return parseCurrent(await getJson(readUrl("/current", pageSearch), fetchImpl));
+  return parseCurrent(await getJson(readUrl("/current", pageSearch), fetchImpl, timeoutMs));
 }
 
 /**
@@ -104,13 +126,15 @@ export async function fetchCurrent(
  * @param startMs - The event's start, its key.
  * @param pageSearch - The page's `location.search`.
  * @param fetchImpl - The fetch to use.
+ * @param timeoutMs - How long the call may take before it fails.
  * @returns The typed curve; rejects with a `ReadError` (404: not written yet).
  */
 export async function fetchEventCurve(
   startMs: number,
   pageSearch: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = READ_TIMEOUT_MS,
 ): Promise<EventCurveDocument> {
   const url = readUrl("/event", pageSearch, { start: String(startMs) });
-  return parseEventCurve(await getJson(url, fetchImpl));
+  return parseEventCurve(await getJson(url, fetchImpl, timeoutMs));
 }
