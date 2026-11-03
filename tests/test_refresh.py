@@ -32,6 +32,7 @@ from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
 from lookout.snapshot import status as run_status
 from lookout.snapshot.status import CodeVersion
+from lookout.snapshot.station_index import STATION_INDEX_KEY
 from tests.snapshot_helpers import FIXED_CODE
 from lookout.storage import storj
 from lookout.storage.station_inventory import INVENTORY_KEY
@@ -94,8 +95,9 @@ def stored_json(station: CatchupStation, key: str) -> Dict:
 
 def snapshot_keys(station: CatchupStation) -> List[str]:
     """
-    The snapshot documents' keys: under `snapshot/`, not curve files and not
-    the run's status document (#268), which every run writes.
+    The snapshot documents' keys: under `snapshot/`, not curve files, not
+    the run's status document (#268), which every run writes, and not the
+    station index (#272), which every run that publishes writes.
     """
     return [
         key
@@ -103,6 +105,7 @@ def snapshot_keys(station: CatchupStation) -> List[str]:
         if key.startswith("snapshot/")
         and not key.startswith(CURVE_PREFIX)
         and not key.endswith(".status.json")
+        and key != STATION_INDEX_KEY
     ]
 
 

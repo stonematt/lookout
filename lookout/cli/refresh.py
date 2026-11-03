@@ -4,7 +4,8 @@ the VPS cron runs it (#271).
 
 For each station it runs catchup, loads the catalogs, builds the dashboard
 snapshot and publishes `snapshot/<MAC>.dashboard.json` and
-`snapshot/<MAC>.context.json` on Storj. It reads secrets only through
+`snapshot/<MAC>.context.json` on Storj; then the station index,
+`snapshot/stations.json`. It reads secrets only through
 `lookout.secrets_loader` (env vars, then `~/.config/lookout/secrets.toml`)
 and never imports Streamlit.
 
@@ -56,6 +57,14 @@ Usage:
 
 A station's failure, in either phase, is caught, logged with its MAC, and
 the other stations still run; `run` returns each station's `StationRun`.
+
+4. `publish_index(bucket, runs, clock)`, from `main` once `run` returns: the
+   station index, `snapshot/stations.json` (#272,
+   `lookout.snapshot.station_index`), last, after every station. A station
+   that published gets a fresh entry; one that failed keeps its entry from
+   the stored index, and one that has never published is not listed. An
+   index that cannot be built or written fails the run (exit 1) and leaves
+   the stored one as it was; each station keeps its own outcome.
 Every log line written while a station is worked on carries its name and
 MAC (`lookout.utils.log_util.station_context`).
 
@@ -119,6 +128,12 @@ from lookout.snapshot.model import CatalogName
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
+from lookout.snapshot.station_index import (
+    IndexEntry,
+    next_index,
+    publish_station_index,
+    read_station_index,
+)
 from lookout.snapshot.status import (
     CodeVersion,
     RunStatus,
@@ -170,6 +185,8 @@ class StationRun:
         once the station phase has merged it.
     :param archive_newest_ms: Its newest archived reading before the run,
         epoch ms; None when unread.
+    :param archive_start_ms: Its archive's first reading, epoch ms; None
+        until the station phase loads the archive.
     :param snapshot: The snapshot it published; None when it published none.
     :param error: Why it failed; None when it did not. A curve step failure
         (`CurveStepFailed`) comes with a published snapshot.
@@ -180,6 +197,7 @@ class StationRun:
     station: Optional[Station] = None
     fetched: Optional[pd.DataFrame] = None
     archive_newest_ms: Optional[int] = None
+    archive_start_ms: Optional[int] = None
     snapshot: Optional[Snapshot] = None
     error: Optional[Exception] = None
 
@@ -661,6 +679,7 @@ def refresh_station(
     # Logs its own peak lines, one per part (#280), so it skips `_step`'s.
     archive = update_archive(device, bucket, fetched)
     del fetched
+    station_run.archive_start_ms = int(archive["dateutc"].min())
     archive, live = _step(
         "correct_rain", correct_rain, station, bucket, archive, device.get("lastData")
     )
@@ -752,6 +771,52 @@ def run(
     return runs
 
 
+def publish_index(
+    bucket: str, runs: Sequence[StationRun], clock: Callable[[], datetime]
+) -> bool:
+    """
+    Step 4: the station index, published last, after every station (#272).
+
+    Each station that published this run gets a fresh entry; one that did
+    not keeps its entry from the stored index (`next_index`), so a failed
+    station never leaves the site, and one that has never published is
+    never listed. An index that would list no station is not written.
+    Never raises: a station index that cannot be built or written is logged
+    at ERROR and fails the run, while every station keeps its own outcome.
+
+    :param bucket: The bucket.
+    :param runs: Each station's part of the run, in inventory order.
+    :param clock: Returns the publish time.
+    :return: False when the index was needed and not written; else True.
+    """
+    published = {
+        r.mac: IndexEntry(
+            mac=r.mac,
+            name=r.snapshot.station.name,
+            tz=r.snapshot.station.tz,
+            newest_reading_ms=r.snapshot.observed_at_ms,
+            archive_start_ms=r.archive_start_ms,
+        )
+        for r in runs
+        if r.snapshot is not None
+    }
+    try:
+        index = next_index(
+            [r.mac for r in runs],
+            published,
+            lambda: read_station_index(bucket),
+            to_ms(clock()),
+        )
+        if not index.stations:
+            logger.warning("Station index not published: no station has published")
+            return True
+        publish_station_index(index, bucket)
+    except Exception as e:
+        logger.error(f"Station index not published: {e}", exc_info=e)
+        return False
+    return True
+
+
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     """
     Read the command line.
@@ -835,7 +900,8 @@ def main(
                 # No lock, so no work: failed like any other run that raises.
                 raise lock_error
             runs = run(bucket=args.bucket, pages=args.pages, clock=clock)
-            status = 0 if all(station_run.ok for station_run in runs) else 1
+            indexed = _step("publish_index", publish_index, args.bucket, runs, clock)
+            status = 0 if indexed and all(r.ok for r in runs) else 1
             for station_run in runs:
                 if station_run.snapshot is not None:
                     with station_context(station_run.name, station_run.mac):
