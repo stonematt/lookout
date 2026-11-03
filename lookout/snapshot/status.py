@@ -4,9 +4,10 @@ status.py: The refresh run's status document, `snapshot/<MAC>.status.json` (#268
 The refresh run writes one per station in the station inventory at the end of
 every run it starts, success or failure, so each station's outcome and the
 code the run was on can be read from outside without ssh to the VPS. The
-site serves the one its Vercel `STATION_MAC` names at `/status`. It is its
-own document, not part of the dashboard snapshot: the dashboard contract
-and its `SCHEMA_VERSION` do not cover it.
+site serves one at `/status`: the default station's, or the one
+`?station=<MAC>` names (#272). It is its own document, not part of the
+dashboard snapshot: the dashboard contract and its `SCHEMA_VERSION` do not
+cover it.
 
 Its fields:
 
