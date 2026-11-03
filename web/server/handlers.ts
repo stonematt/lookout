@@ -10,17 +10,25 @@
  * - `/status` returns the refresh run's status document (#268): how the last
  *   run ended, when, and the code version and git SHA it ran on. The page
  *   never reads it; it is for a post-release check.
+ * - `/stations` returns the station index (#272): the stations the site can
+ *   show, in inventory order, the first being the default station.
  *
  * The CDN keys its cache on the whole URL, so each read function reads its
- * sources only at one spelling of its URL: the bare path (and `/event`'s
- * `start`). An unknown or repeated query parameter is a 400 and another
- * spelling of the same request is a 308 to the one URL, both answered before
- * any read, so a caller cannot get past the cache with a query string.
+ * sources only at one spelling of its URL: the bare path, plus its own
+ * parameters (`station`, and `/event`'s `start`) in one spelling. An unknown
+ * or repeated query parameter is a 400 and another spelling of the same
+ * request is a 308 to the one URL, both answered before any read, so a
+ * caller cannot get past the cache with a query string.
  *
- * The optional `station` parameter (a MAC address) is kept for shared links:
- * the configured station, in any case, redirects to the URL without it; any
- * other MAC is a 404, never cached, so a caller cannot read another
- * station's snapshot or fill the CDN with keys.
+ * `/dashboard`, `/current`, `/event` and `/status` serve one station: the
+ * one `?station=<MAC>` names, or the default station (the station index's
+ * first) without it. A malformed MAC is a 400; a MAC the station index does
+ * not list is a 404, never cached, so a caller cannot fill the CDN with keys;
+ * and the index is read at most once a minute per function instance
+ * (`storjStationsReader`), so neither can they drive Storj reads with them.
+ * The default station named outright is served at its own URL, not
+ * redirected to the bare path: which station is the default is the index's
+ * call, and can change, so it is never baked into a cached redirect.
  */
 import type { CurrentReading, LastData, StationId } from "../src/snapshot.js";
 import {
@@ -29,9 +37,11 @@ import {
   parseContext,
   parseDashboard,
 } from "../src/snapshot.js";
+import type { StationIndex } from "../src/stations.js";
+import { findStation } from "../src/stations.js";
 import type { LiveReader } from "./ambient.js";
 import { describeError } from "./errors.js";
-import type { CurveReader, SnapshotReader } from "./storj.js";
+import type { CurveReader, SnapshotReader, StationsReader } from "./storj.js";
 
 /**
  * `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes.
@@ -44,6 +54,9 @@ export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60, stale-if-e
 
 /** `/status`: short, so a check after a run sees that run within a minute. */
 export const STATUS_CACHE = "s-maxage=60, stale-if-error=300";
+
+/** `/stations`: the refresh run rewrites it every 5 minutes, as the dashboard. */
+export const STATIONS_CACHE = DASHBOARD_CACHE;
 
 /**
  * A failed or partial read (an Ambient 429 included) is cached briefly, so
@@ -65,8 +78,8 @@ export type ParamCheck = (value: string) => string | Response;
 
 /** What the read functions read from. */
 export interface ReadSources {
-  /** The configured station's MAC address, upper case. */
-  defaultMac: string;
+  /** The station index: which stations are served, and the default one. */
+  readStations: StationsReader;
   readSnapshot: SnapshotReader;
   /** Only `/current` needs it. */
   readLive?: LiveReader;
@@ -119,37 +132,37 @@ export function errorResponse(status: number, error: string, cache = "no-store")
 }
 
 /**
+ * `station`'s one spelling: the MAC address in upper case.
+ *
+ * @param value - As the caller wrote it.
+ * @returns The upper-case MAC, or a 400 when it is not a MAC address.
+ */
+export function checkStation(value: string): string | Response {
+  return normaliseMac(value) ?? errorResponse(400, "station must be a MAC address");
+}
+
+/**
  * Hold a request to its read function's one URL, before anything is read.
  *
- * Only `station` and the parameters in `checks` are allowed, each at most
- * once. `station` must name the configured station and is then dropped:
- * the configured one is the default.
+ * Only the parameters in `checks` are allowed, each at most once.
  *
  * @param request - The incoming request.
- * @param sources - Holds the configured station.
  * @param checks - The function's own parameters, in the order its one URL
  *   carries them, each with its check.
  * @returns The checked parameters, by name; or a response to send instead:
- *   400 for an unknown, repeated or malformed parameter, 404 for another
- *   station (neither cached), 308 to the one URL for any other spelling.
+ *   400 (not cached) for an unknown, repeated or malformed parameter, 308
+ *   to the one URL for any other spelling.
  */
 export function checkQuery(
   request: Request,
-  sources: ReadSources,
   checks: Record<string, ParamCheck> = {},
 ): Record<string, string> | Response {
   const url = new URL(request.url);
   const seen = new Set<string>();
-  for (const [name, value] of url.searchParams) {
-    if (name !== "station" && !Object.hasOwn(checks, name)) {
-      return errorResponse(400, "unknown query parameter");
-    }
+  for (const [name] of url.searchParams) {
+    if (!Object.hasOwn(checks, name)) return errorResponse(400, "unknown query parameter");
     if (seen.has(name)) return errorResponse(400, `${name} given more than once`);
     seen.add(name);
-    if (name !== "station") continue;
-    const mac = normaliseMac(value);
-    if (mac === null) return errorResponse(400, "station must be a MAC address");
-    if (mac !== sources.defaultMac) return errorResponse(404, "no such station");
   }
 
   const params: Record<string, string> = {};
@@ -179,6 +192,72 @@ export function checkQuery(
 }
 
 /**
+ * The station a read is for: the checked `station` parameter when the
+ * station index lists it, else the index's first, the default station.
+ *
+ * @param station - The checked `station` parameter; undefined when absent.
+ * @param sources - Holds the station index.
+ * @param name - The read function, for the log line.
+ * @returns Its MAC, as the index spells it; or a response to send instead:
+ *   404 (not cached) for a station the index does not list, 404 (briefly
+ *   cached) when there is no index yet, 502 (briefly cached) when it cannot
+ *   be read.
+ */
+export async function resolveStation(
+  station: string | undefined,
+  sources: ReadSources,
+  name: string,
+): Promise<string | Response> {
+  const index = await readIndex(sources, name);
+  if (index instanceof Response) return index;
+  // `parseStationIndex` refuses an index with no stations.
+  if (station === undefined) return index.stations[0]!.mac;
+  return findStation(index, station)?.mac ?? errorResponse(404, "no such station");
+}
+
+/**
+ * The station index, or the response that stands in for it.
+ *
+ * @param sources - Holds the station index.
+ * @param name - The read function, for the log line.
+ * @returns The index; or 404 (briefly cached) when there is none yet, 502
+ *   (briefly cached) when it cannot be read.
+ */
+async function readIndex(sources: ReadSources, name: string): Promise<StationIndex | Response> {
+  let index: StationIndex | null;
+  try {
+    index = await sources.readStations();
+  } catch (error) {
+    console.error(`${name}: station index read failed`, describeError(error));
+    return errorResponse(502, "the station index could not be read", FAILURE_CACHE);
+  }
+  return index ?? errorResponse(404, "no station index yet", FAILURE_CACHE);
+}
+
+/**
+ * Check a station read's query and resolve its station.
+ *
+ * @param request - The incoming request.
+ * @param sources - Holds the station index.
+ * @param name - The read function, for the log line.
+ * @param checks - The function's own parameters besides `station`.
+ * @returns The station's MAC and the checked parameters (`station` among
+ *   them, as given), or a response to send instead; see `checkQuery` and
+ *   `resolveStation`.
+ */
+export async function stationQuery(
+  request: Request,
+  sources: ReadSources,
+  name: string,
+  checks: Record<string, ParamCheck> = {},
+): Promise<{ mac: string; params: Record<string, string> } | Response> {
+  const params = checkQuery(request, { ...checks, station: checkStation });
+  if (params instanceof Response) return params;
+  const mac = await resolveStation(params.station, sources, name);
+  return mac instanceof Response ? mac : { mac, params };
+}
+
+/**
  * GET /dashboard: the snapshot document.
  *
  * @param request - The incoming request; see `checkQuery`.
@@ -187,9 +266,9 @@ export function checkQuery(
  *   the document breaks the contract.
  */
 export async function handleDashboard(request: Request, sources: ReadSources): Promise<Response> {
-  const query = checkQuery(request, sources);
+  const query = await stationQuery(request, sources, "dashboard");
   if (query instanceof Response) return query;
-  const mac = sources.defaultMac;
+  const mac = query.mac;
   let text: string | null;
   try {
     text = await sources.readSnapshot(mac, "dashboard");
@@ -221,9 +300,9 @@ export async function handleDashboard(request: Request, sources: ReadSources): P
  *   Storj fails or holds something else.
  */
 export async function handleStatus(request: Request, sources: ReadSources): Promise<Response> {
-  const query = checkQuery(request, sources);
+  const query = await stationQuery(request, sources, "status");
   if (query instanceof Response) return query;
-  const mac = sources.defaultMac;
+  const mac = query.mac;
   let text: string | null;
   try {
     text = await sources.readSnapshot(mac, "status");
@@ -267,11 +346,11 @@ function isStatusDocument(text: string): boolean {
  * @returns 200 with whatever could be read, 502 when nothing could.
  */
 export async function handleCurrent(request: Request, sources: ReadSources): Promise<Response> {
-  const query = checkQuery(request, sources);
-  if (query instanceof Response) return query;
-  const mac = sources.defaultMac;
   const readLive = sources.readLive;
   if (!readLive) return errorResponse(500, "no live source configured");
+  const query = await stationQuery(request, sources, "current");
+  if (query instanceof Response) return query;
+  const mac = query.mac;
 
   const [contextResult, liveResult] = await Promise.allSettled([
     sources
@@ -311,4 +390,20 @@ export async function handleCurrent(request: Request, sources: ReadSources): Pro
   };
   const whole = context !== null && lastData !== null;
   return jsonResponse(body, 200, whole ? CURRENT_CACHE : FAILURE_CACHE);
+}
+
+/**
+ * GET /stations: the station index, for the page (#272).
+ *
+ * @param request - The incoming request; it takes no parameters.
+ * @param sources - Where to read.
+ * @returns 200 with the index; 404, briefly cached, before the refresh run
+ *   has published one; 502, briefly cached, when it cannot be read or
+ *   breaks the contract.
+ */
+export async function handleStations(request: Request, sources: ReadSources): Promise<Response> {
+  const query = checkQuery(request);
+  if (query instanceof Response) return query;
+  const index = await readIndex(sources, "stations");
+  return index instanceof Response ? index : jsonResponse(index, 200, STATIONS_CACHE);
 }
