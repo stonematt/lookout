@@ -21,6 +21,7 @@ import pytest
 from lookout.api import awn_controller as awn
 from lookout.core import archive_merge, rain_corrections
 from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
+from tests.archive_merge_oracle import merge_before_overlap
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -28,6 +29,7 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
+from tests.fixtures.real import load_real_slice
 
 COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
 CARRY_GAP = SCENARIO.gaps[0]
@@ -849,3 +851,93 @@ class TestArchiveReplace:
 
         assert list(archive["dateutc"]) == [T0]
         assert (report.replaced, report.written) == (0, 1)
+
+
+# ---------- the merge against the pre-#283 oracle ----------
+
+DERIVED = ["value_bin", "direction_bin", "hour"]
+
+
+def fetched(df: pd.DataFrame) -> pd.DataFrame:
+    """Rows of a stored frame as Ambient sends them: no derived columns."""
+    return df.drop(columns=[c for c in DERIVED if c in df.columns])
+
+
+def merge_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
+    """
+    `(case, stored, ambient)` for the equivalence tests, on the real slice.
+
+    The slice is newest first, as stored and as Ambient sends it, with the
+    archive's own dtypes (int64, object, tz-aware times, category).
+    """
+    real = load_real_slice()
+    newest, middle = real.head(40), real.iloc[200:240]
+
+    changed = fetched(newest).copy()
+    changed["tempf"] = changed["tempf"] + 1.5
+    changed["humidity"] = changed["humidity"].astype("int64")
+
+    holes = fetched(newest).copy()
+    holes.loc[holes.index[::3], "tempf"] = float("nan")
+    holes.loc[holes.index[::4], "battrain"] = None
+    gappy = real.copy()
+    gappy.loc[gappy.index[:40:5], ["tempf", "dewPoint"]] = float("nan")
+
+    extra = fetched(real.head(60)).copy()
+    extra["pm25_in"] = 7.0
+    extra["sensor_name"] = "new"
+
+    return [
+        ("overlap only", real, changed),
+        ("additions only", real.iloc[40:], fetched(newest)),
+        ("both", real.iloc[20:], changed),
+        ("additions inside the archive", real.drop(middle.index), fetched(middle)),
+        ("NaN in fetched values", gappy, holes),
+        ("a column only one side holds", real.iloc[30:], extra),
+        ("an empty fetch", real, pd.DataFrame()),
+        ("an empty fetch with columns", real, fetched(real).iloc[0:0]),
+        ("nothing stored", pd.DataFrame(), fetched(newest)),
+        ("stored oldest first", real.iloc[::-1].iloc[:-20], changed),
+    ]
+
+
+class TestMergeMatchesTheOracle:
+    """The overlap merge gives the pre-#283 merge's archive and counts."""
+
+    @pytest.mark.parametrize(
+        "stored,ambient",
+        [pytest.param(s, a, id=case) for case, s, a in merge_cases()],
+    )
+    def test_same_archive_and_counts_as_the_oracle(self, stored, ambient):
+        before = stored.copy()
+        expected = merge_before_overlap(stored.copy(), ambient.copy())
+
+        actual = archive_merge.merge(stored, ambient)
+
+        pd.testing.assert_frame_equal(actual.archive, expected.archive)
+        assert actual.report == expected.report
+        pd.testing.assert_frame_equal(stored, before)
+
+    def test_small_frames_match_the_oracle(self):
+        """Every stored reading shared, and Ambient's ints over stored floats."""
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "hour": 16},
+            {"slot": 1, "tempf": None, "hour": 16},
+        )
+        ambient = readings({"slot": 0, "tempf": 51}, {"slot": 1, "tempf": 52})
+
+        actual = archive_merge.merge(stored, ambient)
+        expected = merge_before_overlap(stored, ambient)
+
+        pd.testing.assert_frame_equal(actual.archive, expected.archive)
+        assert actual.report == expected.report
+
+    def test_changing_the_merged_archive_leaves_the_stored_one(self):
+        stored = load_real_slice()
+        before = stored.copy()
+
+        archive, _ = archive_merge.merge(stored, fetched(stored.head(10)))
+        archive["tempf"] = 0.0
+        archive.loc[0, "battrain"] = "x"
+
+        pd.testing.assert_frame_equal(stored, before)
