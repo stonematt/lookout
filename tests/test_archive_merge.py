@@ -298,6 +298,19 @@ class TestArchiveMerge:
         assert archive["battrain"].dtype == pd.CategoricalDtype(["1", "0"])
         assert report.updated == 1
 
+    def test_text_held_as_category_on_both_sides_is_compared_by_value(self):
+        stored = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}
+        ).astype({"battrain": "category"})
+        ambient = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "0"}
+        ).astype({"battrain": pd.CategoricalDtype(["0", "1"])})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].tolist() == ["0", "1"]
+        assert (report.filled, report.updated) == (0, 1)
+
     def test_text_mixed_with_numbers_takes_the_concat_type(self):
         stored = readings(
             {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}

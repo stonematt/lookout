@@ -197,24 +197,19 @@ class TestRefreshRun:
             archive.dtypes, ["battrain"]
         )
 
-    def test_the_steps_after_the_save_get_the_text_as_category(self, seed, monkeypatch):
+    def test_the_archive_step_hands_on_its_text_as_category(self, seed):
         # #285: the archive as saved, which every later step reads, holds
-        # its text as category whatever Ambient's fetch sent.
+        # its text as category, though Ambient's fetch sends plain text.
         station = seed()
-        saved = []
-        update = refresh.update_archive
+        (run,) = refresh.load_stations(BUCKET)
+        fetched, _ = refresh.fetch_delta(run.device, BUCKET, pages=20)
+        assert fetched["battrain"].dtype == object
 
-        def keep(*args, **kwargs):
-            saved.append(update(*args, **kwargs))
-            return saved[-1]
+        archive = refresh.update_archive(run.device, BUCKET, fetched)
 
-        monkeypatch.setattr(refresh, "update_archive", keep)
-
-        run_refresh(station)
-
-        (archive,) = saved
         assert archive["battrain"].dtype == "category"
         assert len(archive) == len(station.archive) + RECORDED_ROWS
+        assert archive["battrain"].isna().sum() == 0
 
     def test_the_snapshot_is_built_from_the_caught_up_archive(self, seed):
         station = seed()

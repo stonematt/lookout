@@ -558,9 +558,11 @@ def strings_as_category(df: pd.DataFrame) -> pd.DataFrame:
     """
     The archive with its string columns held as `category` (#285).
 
-    A column qualifies by a rule, not a list: its dtype is object and every
-    value it holds is a `str` or missing, with at least one `str`
-    (`passkey`, `loc` and `battrain` on today's archive). Such a column
+    A column qualifies by a rule, not a list: its dtype is object, every
+    value it holds is a `str` or missing, with at least one `str`, and it
+    repeats its values (fewer distinct ones than half its readings, else a
+    category costs more than the strings it replaces). On today's archive
+    that is `passkey`, `loc` and `battrain`. Such a column
     round-trips exactly: each value reads back as the same `str`, each
     missing one as missing, through the frame and through a parquet
     written dictionary-encoded. Any other column (numbers, times, text
@@ -574,7 +576,11 @@ def strings_as_category(df: pd.DataFrame) -> pd.DataFrame:
     :return: `df` itself when no column qualifies, else a frame with each
         qualifying column as an unordered `category` of its values.
     """
-    strings = [col for col in df.columns if _holds_strings(df[col])]
+    strings = [
+        col
+        for col in df.columns
+        if _holds_strings(df[col]) and df[col].nunique() < df[col].count() / 2
+    ]
     if not strings:
         return df
     held = df.copy(deep=False)
@@ -624,6 +630,12 @@ def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
     :return: A boolean Series; True also where the values cannot be
         compared (e.g. a tz-naive and a tz-aware time), which differ.
     """
+    if isinstance(old.dtype, pd.CategoricalDtype) or isinstance(
+        new.dtype, pd.CategoricalDtype
+    ):
+        # Two categories with different categories refuse to compare; their
+        # values compare as text (#285). Only the shared readings are copied.
+        old, new = old.astype(object), new.astype(object)
     try:
         return old.ne(new)
     except TypeError:

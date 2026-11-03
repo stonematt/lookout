@@ -628,7 +628,7 @@ def with_strings(df: pd.DataFrame) -> pd.DataFrame:
     out["passkey"] = pd.Series([None] * len(out), dtype=object)
     out.loc[older, "passkey"] = "A" * 32
     out["loc"] = pd.Series([None] * len(out), dtype=object)
-    out.loc[older, "loc"] = [f"ambient-prod-2022/{i:05d}" for i in range(older.sum())]
+    out.loc[older, "loc"] = [f"ambient-prod-2022/{i % 7}" for i in range(older.sum())]
     out.loc[out.index[::9], "battrain"] = "0"
     return out
 
@@ -656,6 +656,18 @@ def test_no_other_column_changes_type_on_load(fake_s3):
         if archive[col].dtype != plain[col].dtype
     }
     assert changed == {col: ("object", "category") for col in STRINGS}
+
+
+def test_a_column_of_distinct_text_stays_as_it_is(fake_s3):
+    # A category of values that never repeat holds more than the strings.
+    real = fetched_real()
+    plain = real.assign(note=[f"n{i}" for i in range(len(real))])
+    storj.save_df_to_s3(plain, BUCKET, ARCHIVE_KEY)
+
+    archive = storj.load_archive(BUCKET, FAKE_MAC)
+
+    assert archive["note"].dtype == object
+    assert archive["battrain"].dtype == "category"
 
 
 def test_a_save_then_a_load_round_trips_every_value(fake_s3):
