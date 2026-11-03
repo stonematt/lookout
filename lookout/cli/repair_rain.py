@@ -23,7 +23,7 @@ A dry run is the default. `--write` takes the archive-writer lock first
 
 Usage:
     python -m lookout.cli.repair_rain [--bucket lookout] [--station MAC] [--write]
-        [--station MAC] [--window FIRST LAST ...] [--tolerance 0.001]
+        [--window FIRST LAST ...] [--tolerance 0.001]
 """
 
 import argparse

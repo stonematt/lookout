@@ -1,5 +1,5 @@
 """
-diagnostics.py: Archive diagnostics for one station (the default unless told), as plain text.
+diagnostics.py: Archive diagnostics for one station, as plain text.
 
 The Streamlit Diagnostics tab's maintenance work, for an agent's terminal. It
 reads secrets only through `lookout.secrets_loader` (env vars, then
