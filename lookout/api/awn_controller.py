@@ -611,9 +611,14 @@ def fetch_since_last_archive(
         interim_df = combine_interim_data(interim_df, new_data)
         log_page_quality(interim_df, f"Interim after page {page+1}")
         log_interim_progress(page + 1, pages, interim_df)
-        # The page's end was clipped to now, so it already holds every reading
-        # from the cursor to now; another request would repeat it (#292).
-        if _page_window_end(last_date_utc, limit) >= now_utc:
+        # A page whose window reaches now, and which reaches back to the cursor
+        # (or holds all Ambient had), holds everything up to now; another
+        # request would repeat it (#292).
+        cursor_ms = int(last_date_utc.timestamp() * 1000)
+        reaches_cursor = (
+            len(new_data) < limit or int(new_data["dateutc"].min()) <= cursor_ms
+        )
+        if _page_window_end(last_date_utc, limit) >= now_utc and reaches_cursor:
             logger.info(f"Caught up to now ({now_utc}) after {page + 1} page(s).")
             break
         last_date = _advance_cursor_from_page(new_data, now_utc)

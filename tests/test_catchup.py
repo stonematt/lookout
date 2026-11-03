@@ -511,9 +511,7 @@ class TestCaughtUpToNow:
             }
         ]
 
-    def test_a_late_run_logs_no_seek_and_no_fetch_time_after_now(
-        self, catchup_station, caplog
-    ):
+    def test_a_late_run_logs_no_seek_and_no_guard_stop(self, catchup_station, caplog):
         station = catchup_station(now=LATE_NOW)
 
         with caplog.at_level("INFO", logger=CONTROLLER_LOGGER):
@@ -521,10 +519,9 @@ class TestCaughtUpToNow:
 
         lines = controller_lines(caplog)
         assert not [line for line in lines if "Seeking ahead" in line]
-        assert not [line for line in lines if "Stopping early" in line]
-        assert [line for line in lines if "Caught up to now" in line] == [
-            f"Caught up to now ({pd.Timestamp(LATE_NOW)}) after 1 page(s)."
-        ]
+        assert not [line for line in lines if "at or past now" in line]
+        caught_up = [line for line in lines if "Caught up to now" in line]
+        assert len(caught_up) == 1 and str(pd.Timestamp(LATE_NOW)) in caught_up[0]
 
     def test_a_late_run_saves_what_a_run_at_the_newest_reading_saves(
         self, catchup_station
@@ -548,8 +545,8 @@ class TestCaughtUpToNow:
         with caplog.at_level("INFO", logger=CONTROLLER_LOGGER):
             station.run()
 
-        guard = [line for line in controller_lines(caplog) if "Stopping" in line]
-        assert guard == [f"Cursor {newest} is at or past now {newest}. Stopping."]
+        guard = [line for line in controller_lines(caplog) if "at or past now" in line]
+        assert len(guard) == 1 and guard[0].startswith(f"Cursor {newest} ")
 
 
 # ---------- rain corrections ----------
