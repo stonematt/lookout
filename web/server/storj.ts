@@ -174,6 +174,7 @@ class KnownStarts {
   private starts: Set<number> | null = null;
   /** The last dashboard read failed: its starts may be out of date. */
   private failed = false;
+  /** Paces and shares the reads. */
   private readonly throttle = new ThrottledRead();
 
   /**
@@ -303,6 +304,7 @@ class KnownStations {
   private index: StationIndex | null = null;
   /** Whether any read has succeeded. */
   private known = false;
+  /** Paces and shares the reads. */
   private readonly throttle = new ThrottledRead();
 
   /**

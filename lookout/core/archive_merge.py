@@ -151,7 +151,8 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     :param stored: The stored archive (or the frame standing in for it).
     :param ambient: Readings fetched from Ambient, raw.
     :return: `Merged(archive, report)`. The archive's columns are the stored
-        columns in their order, then the Ambient-only ones.
+        columns in their order, then the Ambient-only ones. It may be the
+        input frame itself when that is already in stored order.
     """
     stored = normalize(stored)
     ambient = normalize(ambient)
@@ -530,7 +531,8 @@ def replace(
     :param end_ms: The window's end, epoch ms, exclusive.
     :param replacement: The corrected readings.
     :return: `Replaced(archive, report)`. The archive's columns are the
-        stored columns in their order, then the replacement-only ones.
+        stored columns in their order, then the replacement-only ones. It
+        may be the input frame itself when that is already in stored order.
     """
     stored = normalize(stored)
     if "dateutc" not in stored:
