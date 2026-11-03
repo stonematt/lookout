@@ -89,8 +89,9 @@ def publish_event_curves(
     """
     Write the curve files of completed events that have none yet.
 
-    Each event is written on its own (#160): one whose document or write
-    fails is logged at ERROR and skipped, and the others are still written;
+    Each event is written on its own (#160): one whose curve, document or
+    write fails (#233 for a curve that fails to build) is logged at ERROR
+    and skipped, and the others are still written;
     the next run retries it. Once the rest are written, it raises
     `StorageWriteError` naming the failures, and a failed listing raises
     `StorageReadError`: the refresh run then exits 1 (the snapshot has
@@ -109,14 +110,16 @@ def publish_event_curves(
         return []
     client = get_s3_client()
     stored = stored_curve_starts(client, bucket, station.mac)
+    unbuilt: List[int] = []
     curves = completed_curves(
         event_catalog,
         archive,
         skip=stored,
         limit=CURVE_BACKFILL_LIMIT if limit is None else limit,
+        failed=unbuilt,
     )
     written = []
-    failed = []
+    failed = [curve_key(station.mac, start_ms) for start_ms in unbuilt]
     for curve in curves:
         key = curve_key(station.mac, curve.start_ms)
         try:
