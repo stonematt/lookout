@@ -118,6 +118,39 @@ def test_save_archive_writes_mac_dot_parquet_newest_first(fake_s3):
     assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), new)
 
 
+def test_an_archive_already_newest_first_is_saved_as_handed(fake_s3):
+    # #284: the archive merge hands the save an archive in stored order.
+    new = load_real_slice()
+    handed = new.copy()
+
+    storj.save_archive(handed, BUCKET, FAKE_MAC, stored=new)
+
+    saved = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
+    assert_frame_equal(saved, storj.archive_merge.strip_derived(new))
+    assert_frame_equal(handed, new)
+
+
+def test_a_newest_first_archive_is_saved_with_the_default_index(fake_s3):
+    new = scenario_archive()
+    renumbered = new.set_axis(range(1000, 1000 + len(new)))
+
+    storj.save_archive(renumbered, BUCKET, FAKE_MAC, stored=new)
+
+    assert_frame_equal(storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet"), new)
+    assert list(renumbered.index[:2]) == [1000, 1001]
+
+
+def test_a_repeated_reading_keeps_its_handed_order_in_the_save(fake_s3):
+    new = scenario_archive().head(3)
+    repeated = pd.concat([new.iloc[:1], new], ignore_index=True)
+    repeated.loc[1, "tempf"] = -40.0
+
+    storj.save_archive(repeated, BUCKET, FAKE_MAC, stored=new)
+
+    saved = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
+    assert list(saved["tempf"])[:2] == [new["tempf"].iloc[0], -40.0]
+
+
 def test_archive_backup_copies_the_archive_and_not_the_catalogs(fake_s3, frozen_today):
     # Decided in #114: an archive backup is the archive only; catalogs are
     # backed up by their own catalog-specific path.
