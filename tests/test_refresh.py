@@ -1023,12 +1023,38 @@ class TestEventCurveFiles:
 
         monkeypatch.setattr(events, "_curve", curve)
 
-        run_refresh(station)
+        with pytest.raises(refresh.CurveStepFailed):
+            run_refresh(station)
 
         assert curve_keys(station) == sorted(
             curve_key(start) for start in (EVENT_1, EVENT_3)
         )
         assert "readings out of order" in caplog.text
+
+    def test_a_curve_failing_to_build_fails_the_run_after_publish(
+        self, seed, monkeypatch, fake_healthchecks
+    ):
+        """#233: not green; exit 1, `/1`, snapshot out, other curves landed."""
+        from lookout.snapshot import events
+
+        station = self.storm(seed, "2026-01-10T00:00:00Z")
+        real_curve = events._curve
+
+        def curve(readings, start_ms, end_ms):
+            if start_ms == EVENT_2:
+                raise ValueError("readings out of order")
+            return real_curve(readings, start_ms, end_ms)
+
+        monkeypatch.setattr(events, "_curve", curve)
+
+        status = refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+        assert status == 1
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+        assert DASHBOARD_KEY in snapshot_keys(station)
+        assert curve_keys(station) == sorted(
+            curve_key(start) for start in (EVENT_1, EVENT_3)
+        )
 
 
 # ---------- rain corrections, applied once on read (#95) ----------
