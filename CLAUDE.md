@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Lookout is a weather station dashboard, live at https://lookout.stonecover.com. A VPS cron on `itri` (the refresh run, every 5 minutes) catches the archive on Storj up from the Ambient Weather API, updates the catalogs, and publishes a dashboard snapshot. A Vite + TypeScript site in `web/`, on Vercel, reads only the snapshot (ADR-0003). Python owns every decision; the site draws what the snapshot says.
+Lookout is a weather station dashboard, live at https://lookout.stonecover.com. A VPS cron on `itri` (the refresh run, every 5 minutes) catches each archive on Storj up from the Ambient Weather API, updates the catalogs, and publishes a dashboard snapshot, for every station in the station inventory (ADR-0006). A Vite + TypeScript site in `web/`, on Vercel, reads only the snapshot (ADR-0003). Python owns every decision; the site draws what the snapshot says.
 
 ## Setup and checks
 
@@ -38,6 +38,7 @@ Each of these cost a fix run to learn. The ADR or test named holds the full reas
 - **Snapshot contract.** A shape change bumps `SCHEMA_VERSION` in `lookout/snapshot/model.py` and `web/src/snapshot.ts` together, then regenerates the goldens with `LOOKOUT_REGEN_GOLDEN=1 .venv/bin/python -m pytest tests/test_snapshot.py -p no:cacheprovider`. Goldens are regenerated, never hand-merged; vitest reads them, so a Python change shows up as a web test failure. Put decided values in the snapshot so the site never re-decides them. When `parseDashboard` tightens, the refresh run deploys before the site.
 - **Web security.** `web/vercel.json` sets the CSP (`script-src 'self'`). A new inline script, origin or worker updates the CSP and `web/tests/security-headers.test.ts` in the same change. Snapshot text reaches HTML through `escapeHtml` (`web/src/dom.ts`), and ESLint `no-unsanitized` fails an unescaped value in `innerHTML`; server errors go through `describeError`; read functions answer an unknown query param with 400 (`checkQuery`).
 - **Secrets.** `get_secret(name)` reads an env var, then `~/.config/lookout/secrets.toml`, at first use and never at import. Names are in `secrets.example.toml`. Print only named non-secret fields.
+- **Stations.** The station inventory is the only list of stations; there is no `STATION_MAC` setting on the Python side (#271). A job that works on one station resolves it with `ambient_client.get_station_device(bucket, mac=None)`, which takes the default station (the inventory's first) when no MAC is given. The refresh run handles every inventory station; a log line inside one station's work carries its name and MAC (`log_util.station_context`). Tests seed the inventory with `tests.fixtures.storage.seed_inventory` (`catchup_station` does it for `FAKE_MAC`).
 
 ## Code
 
