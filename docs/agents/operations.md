@@ -27,6 +27,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - Git: connected to `stonematt/lookout` (2026-11-01). Root Directory `web`, Framework `vite`, production branch `main`. Every other branch and every PR gets a preview deployment. Note that GitHub's default branch is `dev`, and Vercel picks the default branch as the production branch on connect. Check the production branch again after any reconnect.
 - Root Directory is `web`, so CLI deploys take the repo root as their path. Linking `web/` alone makes Vercel look for `web/web`.
 - Production guard: until the first production deploy, the Ignored Build Step is `[ "$VERCEL_ENV" = production ]`. It skips every Git-triggered production build. It exists so that nothing deploys production before the `dev` → `main` release PR merges. To go live: remove it (`vercel api /v9/projects/lookout -X PATCH` with `{"commandForIgnoringBuildStep": null}`), then deploy `main` to production. Read the live setting with `vercel api /v9/projects/lookout` before stating it.
+- The CLI prints a banner on stderr, which breaks a `jq` pipe. Run `vercel api … 2>/dev/null | jq`.
 - Deployment protection: Vercel Authentication, `all_except_custom_domains`. Previews need a Vercel login. A custom domain on Production is public.
 - The CLI sends a project's first deploy to Production. Pass `--target preview` for a preview.
 
@@ -35,6 +36,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - Project `lookout`, email alerts to the owner.
 - Cron check slug `lookout-refresh` (period 5 min, grace 10 min). Station check slug `station-<slugified Ambient station name>`, auto-created on first ping; set it to period 5 min, grace 30 min afterwards.
 - Ping URL shape: `https://hc-ping.com/<HC_PING_KEY>/<slug>`.
+- Agents cannot read Healthchecks. To check that the next refresh run succeeded, confirm the snapshot's `built_at_ms` advanced past the event (for a release, the `main` merge). Matt checks the `lookout-refresh` check itself. Refresh provenance (#268) replaces this proxy.
 
 ## Ambient Weather
 
