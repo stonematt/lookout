@@ -19,9 +19,9 @@ Environment:
   Logs status to: logs/cron_<script>.status (slashes converted to underscores)
 
 Setup:
-  git clone --single-branch --depth 1 --branch live git@github.com:user_name/repo_name.git
-  cd repo_name
-  python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+  git clone --single-branch --depth 1 --branch main git@github.com:stonematt/lookout.git
+  cd lookout
+  uv venv --python 3.12 .venv && uv pip install -r requirements.txt
 
 Crontab Example (runs every 8 hours with jitter):
   0 */8 * * * /path/to/cron_run.sh --sleep 900 scripts/uptime_check.py
