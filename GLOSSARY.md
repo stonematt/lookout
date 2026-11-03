@@ -123,10 +123,11 @@ _Avoid_: context file, mini snapshot.
 ### status document
 
 The JSON the refresh run writes at `snapshot/<MAC>.status.json` at the end of
-every run that takes the archive-writer lock, success or failure. It names the
-code version, the checkout SHA, the outcome (`ok` or `failed`) and, on
-failure, the exception class; the site serves it at `/status`. A run skipped
-for a held lock writes none. It is not part of the snapshot, so
+every run it does not skip, success or failure; a run that cannot open the
+archive-writer lock file is a failed run and writes one too. It names the code
+version and checkout SHA the run started on, the outcome (`ok` or `failed`)
+and, on failure, the exception class; the site serves it at `/status`. A run
+skipped for a held lock writes none. It is not part of the snapshot, so
 `SCHEMA_VERSION` does not cover it (`lookout/snapshot/status.py`).
 _Avoid_: heartbeat (that is the Healthchecks ping), run log.
 

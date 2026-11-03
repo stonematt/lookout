@@ -1721,7 +1721,8 @@ class TestStatusDocument:
             == 0
         )
 
-        assert stored_json(station, STATUS_KEY)["sha"] == started_on
+        status = stored_json(station, STATUS_KEY)
+        assert (status["version"], status["sha"]) == ("2026.11.1", started_on)
 
     def test_a_failed_run_writes_a_failed_status_and_still_exits_1(
         self, seed, monkeypatch, fake_healthchecks
