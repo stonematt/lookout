@@ -166,8 +166,7 @@ def catchup_station(
     """
     monkeypatch.setenv("STATION_MAC", FAKE_MAC)
     monkeypatch.setattr(awn, "time", SimpleNamespace(sleep=lambda _s: None))
-    # Dev mode reads st.secrets directly, which raises with no
-    # .streamlit/secrets.toml (held finding); pin the production branch.
+    # Pin the production branch so local archive caching (DEV_MODE) stays off.
     monkeypatch.setattr(awn, "is_dev_mode", lambda: False)
 
     def seed(

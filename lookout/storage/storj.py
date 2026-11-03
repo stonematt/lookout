@@ -124,7 +124,7 @@ def read_df_from_s3(
 
     For runs that save or publish after reading, which must not mistake a
     failed read for nothing stored (#160, #172); `get_df_from_s3` is the
-    forgiving wrapper Streamlit readers use.
+    forgiving wrapper for read-only callers.
 
     :param bucket: The name of the S3 bucket.
     :param key: The key of the file in the S3 bucket.
