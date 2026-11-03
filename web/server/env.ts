@@ -3,13 +3,14 @@
  *
  * Vercel sets these for Production and Preview (see `web/README.md`):
  * `STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`, `STORJ_ENDPOINT_URL`,
- * `STORJ_BUCKET`, `STATION_MAC`, `AMBIENT_API_KEY`, `AMBIENT_APPLICATION_KEY`,
- * and optionally `AMBIENT_ENDPOINT`.
+ * `STORJ_BUCKET`, `AMBIENT_API_KEY`, `AMBIENT_APPLICATION_KEY`, and
+ * optionally `AMBIENT_ENDPOINT`. Which stations are served, and the default
+ * one, come from the station index on Storj (#272), not from the env.
  */
 import { DEFAULT_AMBIENT_ENDPOINT, ambientReader } from "./ambient.js";
 import type { ReadSources } from "./handlers.js";
-import { errorResponse, normaliseMac } from "./handlers.js";
-import { storjCurveReader, storjReader } from "./storj.js";
+import { errorResponse } from "./handlers.js";
+import { storjCurveReader, storjReader, storjStationsReader } from "./storj.js";
 
 /** What every read function needs. */
 export const REQUIRED_NAMES = [
@@ -17,7 +18,6 @@ export const REQUIRED_NAMES = [
   "STORJ_SECRET_ACCESS_KEY",
   "STORJ_ENDPOINT_URL",
   "STORJ_BUCKET",
-  "STATION_MAC",
 ] as const;
 
 /** What `/current` needs on top. */
@@ -53,9 +53,6 @@ export function sourcesFromEnv(
   if (missing.length) throw new MissingEnvError(missing);
   const value = (name: string) => env[name]!.trim();
 
-  const defaultMac = normaliseMac(value("STATION_MAC"));
-  if (!defaultMac) throw new MissingEnvError(["STATION_MAC (not a MAC address)"]);
-
   const storj = {
     accessKeyId: value("STORJ_ACCESS_KEY_ID"),
     secretAccessKey: value("STORJ_SECRET_ACCESS_KEY"),
@@ -63,7 +60,7 @@ export function sourcesFromEnv(
     bucket: value("STORJ_BUCKET"),
   };
   const sources: ReadSources = {
-    defaultMac,
+    readStations: storjStationsReader(storj, fetchImpl),
     readSnapshot: storjReader(storj, fetchImpl),
     readCurve: storjCurveReader(storj, fetchImpl),
   };

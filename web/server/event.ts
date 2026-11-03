@@ -16,7 +16,14 @@
 import { parseEventCurve } from "../src/snapshot.js";
 import type { ReadSources } from "./handlers.js";
 import { describeError } from "./errors.js";
-import { FAILURE_CACHE, checkQuery, errorResponse, jsonResponse } from "./handlers.js";
+import {
+  FAILURE_CACHE,
+  checkQuery,
+  checkStation,
+  errorResponse,
+  jsonResponse,
+  resolveStation,
+} from "./handlers.js";
 import { EVENT_STARTS_REFRESH_MS, UNLISTED } from "./storj.js";
 
 /** A found curve file: immutable. */
@@ -44,20 +51,22 @@ function checkStart(value: string): string | Response {
  * GET /event: one event's curve file.
  *
  * @param request - The incoming request; `?start=<ms>` names the event,
- *   `?station=<MAC>` is optional; see `checkQuery`.
+ *   `?station=<MAC>` the station (the default station without it); see
+ *   `checkQuery` and `resolveStation`.
  * @param sources - Where to read; needs `readCurve`.
  * @returns 200 with the curve, 400 for a malformed start, 404 when it is
  *   not written or the catalog does not list it, 502 when Storj fails or
  *   the file breaks the contract.
  */
 export async function handleEvent(request: Request, sources: ReadSources): Promise<Response> {
-  const query = checkQuery(request, sources, { start: checkStart });
+  const query = checkQuery(request, { start: checkStart, station: checkStation });
   if (query instanceof Response) return query;
-  const mac = sources.defaultMac;
   const start = query.start;
   if (start === undefined) return errorResponse(400, START_ERROR);
   const readCurve = sources.readCurve;
   if (!readCurve) return errorResponse(500, "no curve source configured");
+  const mac = await resolveStation(query.station, sources, "event");
+  if (mac instanceof Response) return mac;
 
   let text: string | null | typeof UNLISTED;
   try {

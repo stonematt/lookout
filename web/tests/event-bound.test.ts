@@ -24,12 +24,28 @@ const ENV = {
   STORJ_SECRET_ACCESS_KEY: "test-secret",
   STORJ_ENDPOINT_URL: "https://gateway.storj.test",
   STORJ_BUCKET: "lookout",
-  STATION_MAC: MAC,
+};
+
+/** The station index the refresh run publishes: this station only. */
+const INDEX_KEY = "snapshot/stations.json";
+const INDEX = {
+  schema_version: 1,
+  kind: "station_index",
+  built_at_ms: 1_767_918_000_000,
+  stations: [
+    {
+      mac: MAC,
+      name: "Fixture Station",
+      tz: "America/Los_Angeles",
+      newest_reading_ms: 1_767_917_700_000,
+      archive_start_ms: 1_651_683_600_000,
+    },
+  ],
 };
 
 const DASHBOARD_KEY = `snapshot/${MAC}.dashboard.json`;
 
-/** The Storj keys read, in order. */
+/** The Storj keys read, in order, the station index's left out. */
 let keys: string[];
 /** What Storj answers for a key. */
 let storj: (key: string) => Response | Promise<Response>;
@@ -62,6 +78,7 @@ beforeEach(async () => {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       const key = decodeURIComponent(new URL(request.url).pathname).replace("/lookout/", "");
+      if (key === INDEX_KEY) return Response.json(INDEX);
       keys.push(key);
       return storj(key);
     }),

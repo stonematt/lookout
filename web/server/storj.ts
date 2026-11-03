@@ -9,6 +9,8 @@ import { AwsClient } from "aws4fetch";
 
 import type { RainEventRow } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
+import type { StationIndex } from "../src/stations.js";
+import { parseStationIndex } from "../src/stations.js";
 import { describeError } from "./errors.js";
 
 /** The prefix every snapshot document lives under. */
@@ -36,6 +38,16 @@ export interface StorjConfig {
  * Rejects with a `StorjReadError` on any other failure.
  */
 export type SnapshotReader = (mac: string, kind: SnapshotKind) => Promise<string | null>;
+
+/**
+ * The station index (#272), as one function instance last read it; null when
+ * Storj holds none. Rejects with a `StorjReadError` while no good read has
+ * been made.
+ */
+export type StationsReader = () => Promise<StationIndex | null>;
+
+/** The station index's key, as `lookout/snapshot/station_index.py` writes it. */
+export const STATION_INDEX_KEY = `${SNAPSHOT_PREFIX}stations.json`;
 
 /** A start the Event Catalog does not list: its curve file was not read. */
 export const UNLISTED: unique symbol = Symbol("unlisted");
@@ -177,8 +189,8 @@ class KnownStarts {
 }
 
 /**
- * By endpoint, bucket and station (`checkQuery` admits only the configured
- * one). Module state, so it lasts as long as a warm function instance
+ * By endpoint, bucket and station (only stations the station index lists
+ * reach it). Module state, so it lasts as long as a warm function instance
  * does, though the reader is built per request.
  */
 const knownStarts = new Map<string, KnownStarts>();
@@ -250,4 +262,102 @@ export function storjReader(
 ): SnapshotReader {
   const read = storjKeyReader(config, fetchImpl, timeoutMs);
   return (mac, kind) => read(snapshotKey(mac, kind));
+}
+
+/**
+ * How often, at most, one function instance reads the station index: the
+ * bound on what a request for an unknown station costs, and on how long a
+ * station newly in the index can go unserved by a warm instance.
+ */
+export const STATIONS_REFRESH_MS = 60_000;
+
+/**
+ * The station index as one function instance knows it, read at most once
+ * per `STATIONS_REFRESH_MS`. A read that fails (or finds an index that
+ * breaks the contract) keeps the last good one.
+ */
+class KnownStations {
+  /** The last good read's index; null when Storj held none. */
+  private index: StationIndex | null = null;
+  /** Whether any read has succeeded. */
+  private known = false;
+  /** When the last read began, whatever its outcome. */
+  private askedAtMs = -Infinity;
+  /** The read under way, shared by requests that arrive together. */
+  private pending: Promise<void> | null = null;
+
+  /**
+   * The station index, reading it only when the interval allows.
+   *
+   * @param readIndex - Reads the station index's text; null when missing.
+   * @returns The index, or null when Storj holds none.
+   * @throws StorjReadError while no read has succeeded.
+   */
+  async current(readIndex: () => Promise<string | null>): Promise<StationIndex | null> {
+    if (!this.pending && Date.now() - this.askedAtMs >= STATIONS_REFRESH_MS) {
+      this.askedAtMs = Date.now();
+      this.pending = this.refresh(readIndex);
+    }
+    if (this.pending) await this.pending;
+    if (!this.known) throw new StorjReadError("the station index could not be read");
+    return this.index;
+  }
+
+  private async refresh(readIndex: () => Promise<string | null>): Promise<void> {
+    try {
+      const text = await readIndex();
+      this.index = text === null ? null : parseIndexText(text);
+      this.known = true;
+    } catch (error) {
+      console.error("stations: station index read failed", describeError(error));
+    } finally {
+      this.pending = null;
+    }
+  }
+}
+
+/**
+ * Parse the station index's text.
+ *
+ * @param text - As Storj holds it.
+ * @returns The typed index.
+ * @throws StorjReadError when it breaks the contract.
+ */
+function parseIndexText(text: string): StationIndex {
+  try {
+    return parseStationIndex(JSON.parse(text));
+  } catch (error) {
+    throw new StorjReadError(`station index breaks the contract: ${describeError(error)}`);
+  }
+}
+
+/** By endpoint and bucket: module state, as long as a warm instance lasts. */
+const knownStations = new Map<string, KnownStations>();
+
+/**
+ * A reader for the station index on Storj.
+ *
+ * Each function instance reads it at most once per `STATIONS_REFRESH_MS`,
+ * however many requests (or unknown stations) it is asked about.
+ *
+ * @param config - The read-only credential, endpoint and bucket.
+ * @param fetchImpl - The fetch to send signed requests with.
+ * @param timeoutMs - How long one read may take before it fails.
+ * @returns The reader.
+ */
+export function storjStationsReader(
+  config: StorjConfig,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = STORJ_TIMEOUT_MS,
+): StationsReader {
+  const read = storjKeyReader(config, fetchImpl, timeoutMs);
+  const id = `${config.endpointUrl} ${config.bucket}`;
+  return () => {
+    let known = knownStations.get(id);
+    if (!known) {
+      known = new KnownStations();
+      knownStations.set(id, known);
+    }
+    return known.current(() => read(STATION_INDEX_KEY));
+  };
 }

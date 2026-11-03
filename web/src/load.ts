@@ -1,16 +1,19 @@
 /**
- * Fetch the two read functions from the browser.
+ * Fetch the read functions from the browser.
  *
  * The page's own query parameter `station` (a MAC address) is passed on to
- * every call as written: the read functions accept any spelling of the
- * configured station, answer 404 for another, and redirect to their one URL
- * (which leaves the configured station out), so a shared link keeps working.
- * The client cannot know the configured station, so it cannot skip that
- * redirect. `fixture` and `age` are passed on only by a lane server (see
+ * every station read (`/dashboard`, `/current`, `/event`) as written: the
+ * read functions serve any station the station index lists, the default
+ * station without it, answer 404 for a MAC the index lacks, and redirect
+ * any other spelling of a MAC to their one URL, so a shared link keeps
+ * working. `/stations`, the station index itself, takes no station.
+ * `fixture` and `age` are passed on only by a lane server (see
  * `LANE_SERVER`): the deployed functions answer 400 to them.
  */
 import type { CurrentReading, DashboardSnapshot, EventCurveDocument } from "./snapshot.js";
 import { parseCurrent, parseDashboard, parseEventCurve } from "./snapshot.js";
+import type { StationIndex } from "./stations.js";
+import { parseStationIndex } from "./stations.js";
 
 /**
  * True for `npm run dev`, and for a build made with `VITE_LANE_SERVER=1` to
@@ -25,21 +28,23 @@ const LANE_PASSED_ON = ["fixture", "age"] as const;
 /**
  * The URL of a read function, carrying the page's passed-on parameters.
  *
- * @param path - "/dashboard", "/current" or "/event".
+ * @param path - "/dashboard", "/current", "/event" or "/stations" (which is
+ *   not passed `station`).
  * @param pageSearch - The page's `location.search`.
  * @param own - The call's own parameters, e.g. `/event`'s `start`.
  * @param laneServer - Whether the server takes `fixture` and `age`.
  * @returns The path with its query.
  */
 export function readUrl(
-  path: "/dashboard" | "/current" | "/event",
+  path: "/dashboard" | "/current" | "/event" | "/stations",
   pageSearch: string,
   own: Record<string, string> = {},
   laneServer: boolean = LANE_SERVER,
 ): string {
   const page = new URLSearchParams(pageSearch);
   const query = new URLSearchParams(own);
-  for (const name of laneServer ? [...PASSED_ON, ...LANE_PASSED_ON] : PASSED_ON) {
+  const passed = path === "/stations" ? [] : PASSED_ON;
+  for (const name of laneServer ? [...passed, ...LANE_PASSED_ON] : passed) {
     const value = page.get(name);
     if (value !== null) query.set(name, value);
   }
@@ -128,4 +133,21 @@ export async function fetchEventCurve(
 ): Promise<EventCurveDocument> {
   const url = readUrl("/event", pageSearch, { start: String(startMs) });
   return parseEventCurve(await getJson(url, fetchImpl, timeoutMs));
+}
+
+/**
+ * The station index, from `/stations`: the stations the site can show, in
+ * order, the first being the default station.
+ *
+ * @param pageSearch - The page's `location.search`.
+ * @param fetchImpl - The fetch to use.
+ * @param timeoutMs - How long the call may take before it fails.
+ * @returns The typed index.
+ */
+export async function fetchStations(
+  pageSearch: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = READ_TIMEOUT_MS,
+): Promise<StationIndex> {
+  return parseStationIndex(await getJson(readUrl("/stations", pageSearch), fetchImpl, timeoutMs));
 }

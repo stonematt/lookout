@@ -26,11 +26,28 @@ const ENV = {
   STORJ_SECRET_ACCESS_KEY: "test-secret",
   STORJ_ENDPOINT_URL: STORJ,
   STORJ_BUCKET: "lookout",
-  STATION_MAC: MAC,
+};
+
+/** The station index the refresh run publishes: this station only. */
+const INDEX_KEY = "snapshot/stations.json";
+const INDEX = {
+  schema_version: 1,
+  kind: "station_index",
+  built_at_ms: 1_767_918_000_000,
+  stations: [
+    {
+      mac: MAC,
+      name: "Fixture Station",
+      tz: "America/Los_Angeles",
+      newest_reading_ms: 1_767_917_700_000,
+      archive_start_ms: 1_651_683_600_000,
+    },
+  ],
 };
 
 const DASHBOARD_KEY = `snapshot/${MAC}.dashboard.json`;
 
+/** The Storj requests, the station index's left out. */
 let calls: Request[];
 let storjBody: (key: string) => Response;
 let eventGET: (request: Request) => Promise<Response>;
@@ -56,8 +73,9 @@ beforeEach(async () => {
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
-      calls.push(request);
       const key = decodeURIComponent(new URL(request.url).pathname).replace("/lookout/", "");
+      if (key === INDEX_KEY) return Promise.resolve(Response.json(INDEX));
+      calls.push(request);
       return Promise.resolve(storjBody(key));
     }),
   );
@@ -121,7 +139,7 @@ describe("GET /event", () => {
     },
   );
 
-  it.each([`?start=0${EVENT_2}`, `?start=${EVENT_2}&station=${MAC.toLowerCase()}`])(
+  it.each([`?start=0${EVENT_2}`])(
     "sends another spelling of the event (%s) to its one cached URL",
     async (query) => {
       const response = await eventGET(get(`/event${query}`));
@@ -132,8 +150,25 @@ describe("GET /event", () => {
     },
   );
 
-  it("answers 404, uncached, for any station but the pinned one", async () => {
-    const response = await eventGET(get(`/event?start=${EVENT_2}&station=AA:BB:CC:DD:EE:FF`));
+  it("sends a station in another spelling to the event's one URL for it", async () => {
+    const response = await eventGET(get(`/event?start=${EVENT_2}&station=${MAC.toLowerCase()}`));
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(
+      `event?start=${EVENT_2}&station=${encodeURIComponent(MAC)}`,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("serves the station named outright, as the index lists it", async () => {
+    const response = await eventGET(
+      get(`/event?start=${EVENT_2}&station=${encodeURIComponent(MAC)}`),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("answers 404, uncached, for a station the index does not list, reading no curve", async () => {
+    const other = encodeURIComponent("AA:BB:CC:DD:EE:FF");
+    const response = await eventGET(get(`/event?start=${EVENT_2}&station=${other}`));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(calls).toHaveLength(0);
