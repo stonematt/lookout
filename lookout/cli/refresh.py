@@ -75,8 +75,12 @@ from lookout.snapshot.model import CatalogName
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
-from lookout.snapshot.status import CodeVersion, RunStatus, code_version
-from lookout.snapshot.status import publish_status
+from lookout.snapshot.status import (
+    CodeVersion,
+    RunStatus,
+    code_version,
+    publish_status,
+)
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
 from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
@@ -611,9 +615,9 @@ def main(
                 heartbeat.finish(status)
             write_status(
                 args.bucket,
-                (code or code_version)(),
+                code or code_version,
                 started,
-                clock(),
+                clock,
                 status,
                 error,
                 snapshot,
@@ -623,9 +627,9 @@ def main(
 
 def write_status(
     bucket: str,
-    code: CodeVersion,
+    code: Callable[[], CodeVersion],
     started: datetime,
-    ended: datetime,
+    clock: Callable[[], datetime],
     status: int,
     error: Optional[str],
     snapshot: Optional[Snapshot],
@@ -633,10 +637,14 @@ def write_status(
     """
     Write the run's status document; never raises (#268).
 
+    The code version and the end time are read here, inside the guard, so
+    nothing about the status document can raise out of `main`'s `finally`
+    and replace the run's own outcome.
+
     :param bucket: The bucket.
-    :param code: The code the run was on.
+    :param code: Returns the code the run was on.
     :param started: The run's start.
-    :param ended: The run's end.
+    :param clock: Returns now: the run's end.
     :param status: The exit status, 0 or 1.
     :param error: The failure's exception class name, or None.
     :param snapshot: The snapshot the run published, or None.
@@ -645,9 +653,9 @@ def write_status(
         publish_status(
             RunStatus(
                 station_mac=get_station_mac(),
-                code=code,
+                code=code(),
                 started_at_ms=to_ms(started),
-                ended_at_ms=to_ms(ended),
+                ended_at_ms=to_ms(clock()),
                 outcome="ok" if status == 0 else "failed",
                 error=error,
                 built_at_ms=None if snapshot is None else snapshot.built_at_ms,

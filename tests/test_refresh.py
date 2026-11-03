@@ -29,6 +29,7 @@ from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
 from lookout.snapshot import status as run_status
 from lookout.snapshot.status import CodeVersion
+from tests.snapshot_helpers import FIXED_CODE
 from lookout.storage import storj
 from lookout.utils.archive_lock import hold_archive_lock
 from tests.fixtures.ambient import load_devices, to_ambient_records
@@ -54,7 +55,6 @@ DASHBOARD_KEY = f"snapshot/{FAKE_MAC}.dashboard.json"
 CONTEXT_KEY = f"snapshot/{FAKE_MAC}.context.json"
 CURVE_PREFIX = f"snapshot/{FAKE_MAC}.events/"
 STATUS_KEY = f"snapshot/{FAKE_MAC}.status.json"
-FIXED_CODE = CodeVersion(version="2026.11.1", sha="0123456789abcdef" * 2 + "01234567")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_IS_DEV_MODE = awn.is_dev_mode
 
@@ -1666,9 +1666,14 @@ class TestStatusDocument:
 
     def test_the_run_is_timed_from_start_to_end(self, seed):
         station = seed()
-        times = iter([station.now, station.now, station.now + timedelta(seconds=42)])
+        calls = []
 
-        refresh.main(["--bucket", BUCKET], clock=lambda: next(times))
+        def clock():
+            # The run's start, then 42 s later for every later call.
+            calls.append(None)
+            return station.now + timedelta(seconds=0 if len(calls) == 1 else 42)
+
+        refresh.main(["--bucket", BUCKET], clock=clock)
 
         status = stored_json(station, STATUS_KEY)
         assert status["ended_at_ms"] - status["started_at_ms"] == 42_000

@@ -1,7 +1,8 @@
 /**
- * The read functions `/dashboard`, `/current` and `/status`, called the way Vercel calls them: `GET(request)`
- * with `process.env` set and `fetch` faked. Storj serves the golden
- * documents; Ambient serves a recorded-shape `/devices` body. No network.
+ * The read functions `/dashboard`, `/current` and `/status`, called the way
+ * Vercel calls them: `GET(request)` with `process.env` set and `fetch`
+ * faked. Storj serves the golden documents; Ambient serves a recorded-shape
+ * `/devices` body. No network.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

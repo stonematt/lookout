@@ -24,6 +24,9 @@ Offers `CodeVersion`, `code_version` (version and SHA, read at run time from
 the checkout), `RunStatus`, `status_key` and `publish_status`, which never
 raises: a status that cannot be written is logged and the run's own outcome
 stands.
+
+It sits in `lookout.snapshot` and under the `snapshot/` prefix because that
+prefix is all Vercel's read-only Storj credential can read.
 """
 
 import json
@@ -148,7 +151,7 @@ def status_key(mac: str) -> str:
     return f"{SNAPSHOT_PREFIX}{mac}.status.json"
 
 
-def publish_status(status: RunStatus, bucket: str) -> bool:
+def publish_status(status: RunStatus, bucket: str) -> None:
     """
     Write the status document, never raising.
 
@@ -158,7 +161,6 @@ def publish_status(status: RunStatus, bucket: str) -> bool:
 
     :param status: How the run ended.
     :param bucket: The bucket the snapshot lives in.
-    :return: True when written.
     """
     key = status_key(status.station_mac)
     try:
@@ -169,7 +171,6 @@ def publish_status(status: RunStatus, bucket: str) -> bool:
             ContentType="application/json",
         )
     except Exception as e:
-        logger.error(f"Status document not written to {key}: {type(e).__name__}")
-        return False
+        logger.error(f"Status document not written to {key}: {type(e).__name__}: {e}")
+        return
     logger.info(f"Published s3://{bucket}/{key} ({status.outcome})")
-    return True

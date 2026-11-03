@@ -12,31 +12,39 @@ golden status documents the lane server serves at `/status`, under
 """
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
 import lookout
-from lookout.snapshot.status import CodeVersion, RunStatus, code_version
-from tests.snapshot_helpers import REGENERATE, dry_station, raining_station
+from lookout.snapshot.status import RunStatus, code_version
+from tests.snapshot_helpers import FIXED_CODE, REGENERATE, dry_station
+from tests.snapshot_helpers import raining_station
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "status"
 SCENARIOS = {"dry": dry_station, "raining": raining_station}
-GOLDEN_CODE = CodeVersion(version="2026.11.1", sha="0123456789abcdef" * 2 + "01234567")
 
 
 def git(root: Path, *args: str) -> str:
     """
-    Run git in a throwaway repo, isolated from any global config.
+    Run git in a throwaway repo, isolated from the user's and the system's
+    git config (signing, hooks, templates).
 
     :param root: The repo.
     :param args: The git arguments.
     :return: Its stdout, stripped.
     """
+    env = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
     return subprocess.run(
         ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
         cwd=root,
+        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -72,7 +80,7 @@ def test_status_documents_match_the_golden_files(scenario):
     snapshot = SCENARIOS[scenario]()
     document = RunStatus(
         station_mac=snapshot.station.mac,
-        code=GOLDEN_CODE,
+        code=FIXED_CODE,
         started_at_ms=snapshot.built_at_ms - 40_000,
         ended_at_ms=snapshot.built_at_ms + 2_000,
         outcome="ok",
@@ -88,7 +96,7 @@ def test_status_documents_match_the_golden_files(scenario):
         "kind": "status",
         "station_mac": snapshot.station.mac,
         "version": "2026.11.1",
-        "sha": GOLDEN_CODE.sha,
+        "sha": FIXED_CODE.sha,
         "started_at_ms": snapshot.built_at_ms - 40_000,
         "ended_at_ms": snapshot.built_at_ms + 2_000,
         "outcome": "ok",
