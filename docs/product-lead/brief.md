@@ -17,6 +17,7 @@ One line each. The product lead infers the rung; write one here only when Matt o
 - **Move Lookout off Streamlit** — replace the Streamlit app with a cron-built snapshot on Storj and a Vite + TypeScript + Plotly.js site on Vercel · containers: map #51, spec #66 and its sub-issues #67–#86, bug #63 (sub-issue of #66)
 - **Deepen storage reads, archive merge and daily rain** — the three refactors kept from the 2026-11-01 architecture review · containers: specs #172, #173, #174 and their sub-issues #180–#199, goal PR #201 (merged to dev 2026-11-02), held ticket #191, follow-ups #219, #220, #224
 - **Release 2026.11.1** — shipped dev to main and introduced versioning (ADR-0007), 2026-11-03 · ledger #277, release PR #289, tag `v2026.11.1`
+- **Serve a second station: Salmon Run** — archive and show Salmon Run (WS-2902, installed 2026-11-03) beside Lookout Post, from a station inventory on Storj (ADR-0006) · two releases (Matt, 2026-11-02): first the station inventory, the `stations` command and the multi-station refresh run; then the station index on the site, the read functions and the station selector. Both follow Release 2026.11.1, shipped 2026-11-03. · containers: spec #179 (grilled 2026-11-02), ADR-0006 and glossary terms via #269 (merged to dev), in-scope tickets #244 (cron lock) and #234 (memory peak, does not block)
 
 ## Where the tickets live
 
