@@ -48,7 +48,7 @@ function isTimeOrNull(value: unknown): boolean {
   return value === null || (typeof value === "number" && Number.isInteger(value));
 }
 
-function checkEntry(entry: unknown): void {
+function assertEntry(entry: unknown): void {
   if (
     !isRecord(entry) ||
     typeof entry.mac !== "string" ||
@@ -87,7 +87,7 @@ export function parseStationIndex(doc: unknown): StationIndex {
   if (!Array.isArray(doc.stations) || doc.stations.length === 0) {
     throw new SnapshotContractError("station_index: no stations");
   }
-  doc.stations.forEach(checkEntry);
+  doc.stations.forEach(assertEntry);
   const macs = (doc.stations as StationEntry[]).map((s) => s.mac.toUpperCase());
   if (new Set(macs).size !== macs.length) {
     throw new SnapshotContractError("station_index: a station is listed twice");

@@ -37,6 +37,7 @@ import {
   parseContext,
   parseDashboard,
 } from "../src/snapshot.js";
+import type { StationIndex } from "../src/stations.js";
 import { findStation } from "../src/stations.js";
 import type { LiveReader } from "./ambient.js";
 import { describeError } from "./errors.js";
@@ -207,16 +208,30 @@ export async function resolveStation(
   sources: ReadSources,
   name: string,
 ): Promise<string | Response> {
-  let index;
+  const index = await readIndex(sources, name);
+  if (index instanceof Response) return index;
+  // `parseStationIndex` refuses an index with no stations.
+  if (station === undefined) return index.stations[0]!.mac;
+  return findStation(index, station)?.mac ?? errorResponse(404, "no such station");
+}
+
+/**
+ * The station index, or the response that stands in for it.
+ *
+ * @param sources - Holds the station index.
+ * @param name - The read function, for the log line.
+ * @returns The index; or 404 (briefly cached) when there is none yet, 502
+ *   (briefly cached) when it cannot be read.
+ */
+async function readIndex(sources: ReadSources, name: string): Promise<StationIndex | Response> {
+  let index: StationIndex | null;
   try {
     index = await sources.readStations();
   } catch (error) {
     console.error(`${name}: station index read failed`, describeError(error));
     return errorResponse(502, "the station index could not be read", FAILURE_CACHE);
   }
-  if (index === null) return errorResponse(404, "no station index yet", FAILURE_CACHE);
-  if (station === undefined) return index.stations[0]!.mac;
-  return findStation(index, station)?.mac ?? errorResponse(404, "no such station");
+  return index ?? errorResponse(404, "no station index yet", FAILURE_CACHE);
 }
 
 /**
@@ -226,8 +241,9 @@ export async function resolveStation(
  * @param sources - Holds the station index.
  * @param name - The read function, for the log line.
  * @param checks - The function's own parameters besides `station`.
- * @returns The station's MAC and the checked parameters, or a response to
- *   send instead; see `checkQuery` and `resolveStation`.
+ * @returns The station's MAC and the checked parameters (`station` among
+ *   them, as given), or a response to send instead; see `checkQuery` and
+ *   `resolveStation`.
  */
 export async function stationQuery(
   request: Request,
@@ -388,13 +404,6 @@ export async function handleCurrent(request: Request, sources: ReadSources): Pro
 export async function handleStations(request: Request, sources: ReadSources): Promise<Response> {
   const query = checkQuery(request);
   if (query instanceof Response) return query;
-  let index;
-  try {
-    index = await sources.readStations();
-  } catch (error) {
-    console.error("stations: station index read failed", describeError(error));
-    return errorResponse(502, "the station index could not be read", FAILURE_CACHE);
-  }
-  if (index === null) return errorResponse(404, "no station index yet", FAILURE_CACHE);
-  return jsonResponse(index, 200, STATIONS_CACHE);
+  const index = await readIndex(sources, "stations");
+  return index instanceof Response ? index : jsonResponse(index, 200, STATIONS_CACHE);
 }

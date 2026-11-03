@@ -46,6 +46,8 @@ const INDEX = {
 };
 
 const DASHBOARD_KEY = `snapshot/${MAC}.dashboard.json`;
+/** A station in the index with no snapshot yet. */
+const NEW = "00:11:22:33:44:77";
 
 /** The Storj requests, the station index's left out. */
 let calls: Request[];
@@ -164,6 +166,20 @@ describe("GET /event", () => {
       get(`/event?start=${EVENT_2}&station=${encodeURIComponent(MAC)}`),
     );
     expect(response.status).toBe(200);
+  });
+
+  it("answers 404, briefly cached, for a station in the index with no snapshot yet", async () => {
+    INDEX.stations.push({ ...INDEX.stations[0]!, mac: NEW });
+    try {
+      const response = await eventGET(
+        get(`/event?start=${EVENT_2}&station=${encodeURIComponent(NEW)}`),
+      );
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toMatch(/^s-maxage=\d+$/);
+      expect(curveCalls()).toHaveLength(0);
+    } finally {
+      INDEX.stations.pop();
+    }
   });
 
   it("answers 404, uncached, for a station the index does not list, reading no curve", async () => {

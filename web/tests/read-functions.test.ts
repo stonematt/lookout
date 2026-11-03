@@ -441,6 +441,16 @@ describe("GET /current", () => {
     expect(body.last_data).toBeNull();
   });
 
+  it("serves a station in the index with no snapshot yet only its live reading, briefly cached", async () => {
+    world.devices = [ambientDevice(333, NEW)];
+    const response = await currentGET(get(`/current?${station(NEW)}`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    const body = await response.json();
+    expect(body.context).toBeNull();
+    expect(body.last_data.dateutc).toBe(333);
+  });
+
   it("refuses a station that is not a MAC address", async () => {
     const response = await currentGET(get("/current?station=x"));
     expect(response.status).toBe(400);

@@ -62,9 +62,10 @@ the other stations still run; `run` returns each station's `StationRun`.
    station index, `snapshot/stations.json` (#272,
    `lookout.snapshot.station_index`), last, after every station. A station
    that published gets a fresh entry; one that failed keeps its entry from
-   the stored index, and one that has never published is not listed. An
-   index that cannot be built or written fails the run (exit 1) and leaves
-   the stored one as it was; each station keeps its own outcome.
+   the stored index, and one that has never published is not listed (a run
+   where no station has an entry writes none). An index that cannot be
+   built or written fails the run (exit 1) and leaves the stored one as it
+   was; each station keeps its own outcome.
 Every log line written while a station is worked on carries its name and
 MAC (`lookout.utils.log_util.station_context`).
 
@@ -780,9 +781,11 @@ def publish_index(
     Each station that published this run gets a fresh entry; one that did
     not keeps its entry from the stored index (`next_index`), so a failed
     station never leaves the site, and one that has never published is
-    never listed. An index that would list no station is not written.
-    Never raises: a station index that cannot be built or written is logged
-    at ERROR and fails the run, while every station keeps its own outcome.
+    never listed. An index that would list no station is not written, and
+    that is no failure of its own: every station failed, and they fail the
+    run. Never raises: a station index that cannot be built or written is
+    logged at ERROR and fails the run, while every station keeps its own
+    outcome.
 
     :param bucket: The bucket.
     :param runs: Each station's part of the run, in inventory order.
