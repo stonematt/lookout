@@ -12,7 +12,8 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 ## VPS (`itri`)
 
-- Non-interactive commands need `ssh -o RemoteCommand=none itri '…'` (add `-T` when piping). The host config runs a remote command, so plain `ssh itri <cmd>` fails with "Cannot execute command-line and remote command".
+- Agents use the host `s.itri.me`, which starts no tmux: `ssh -T -o RemoteCommand=none s.itri.me '…'`. Read-only checks this way worked on 2026-11-03 (the checkout HEAD, `logs/cron_lookout_cli_refresh.status`, `~/log/cron/refresh.log`).
+- The `itri` host alias runs a remote command, so plain `ssh itri <cmd>` fails with "Cannot execute command-line and remote command"; it also needs `-o RemoteCommand=none`.
 - Live checkout `~/src/stone/lookout`, tracking `origin/main`; venv `.venv` on a uv-managed Python 3.12.
 - The system `python3` is 3.10 with no `tomllib`; run Python through the venv or `uv run --no-project --python 3.12`.
 - In-place edits of the remote secrets file get denied. Prepare the file locally (mode 600, validated with `tomllib`) and hand Matt an `scp -p -o RemoteCommand=none` command. Top-level keys go above the first `[table]`.
