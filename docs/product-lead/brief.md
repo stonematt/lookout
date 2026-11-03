@@ -6,7 +6,7 @@ The product lead reads this on every run. Keep it short: point at the docs that 
 
 - A glance on a phone gives current conditions in the context of recent history.
 - Deeper views for rain, Rain Events and solar energy, each stating its finding.
-- The dashboard runs off Streamlit: a VPS cron precomputes it, Vercel serves it (ADR-0003).
+- The dashboard is a Vite site on Vercel that reads a snapshot a VPS cron precomputes (ADR-0003).
 
 Product context: `PRODUCT.md` (users, principles, constraints), `DESIGN.md` (The Annotated Almanac), `GLOSSARY.md`, `docs/adr/`.
 

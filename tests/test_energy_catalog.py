@@ -192,7 +192,7 @@ class TestUpdateRunAfterRun:
 
     @staticmethod
     def func_update(archive: pd.DataFrame, stored: pd.DataFrame) -> pd.DataFrame:
-        """The Streamlit app's update: `energy_catalog_func.update_energy_catalog`."""
+        """The functional update: `energy_catalog_func.update_energy_catalog`."""
         return energy_catalog_func.update_energy_catalog(archive, stored)
 
     @pytest.mark.parametrize("update", ["class_update", "func_update"])
