@@ -12,7 +12,7 @@ The release manager session named in #294, the release and ops sessions it dispa
 
 - **Merge on green.** Merge any PR into `dev`, a `goal/` branch or `main` when its CI is green and its review verdict is ship or fix-applied. Merge from a main session, pinned with `gh pr merge <n> --merge --match-head-commit <sha>`. Agent-tool subagents never merge (`.claude/swarm-profile.md`, landing policy).
 - **Release.** Cut the `chore(release)` PR, open and merge the `dev` → `main` release PR, and tag `v<version>` after production is verified (ADR-0007). The release head must equal a CI-tested tree.
-- **itri.** ssh with the agent form in `docs/agents/operations.md`, to read logs and state, to check the deploy, to change the crontab (save `~/crontab.bak-pre-<N>` first), and to run `stations scan` and `stations add` for Lookout Post and Salmon Run.
+- **itri.** ssh with the agent form in `docs/agents/operations.md`, to read logs and state, to check the deploy, to change the crontab (save `~/crontab.bak-pre-<N>` first), to run `stations scan` and `stations add` for Lookout Post and Salmon Run, and to start one refresh run early through the cron entry (`lookout/bin/cron_run.sh`, under the writer lock) so a new snapshot shape is published before the site that reads it.
 - **Vercel.** Change the production env (remove `STATION_MAC`, swap in the read-only Storj credential of #247), redeploy, and roll back to the last good deployment.
 - **Tickets.** Comment on and relabel the program's tickets, and record Matt's decisions on them. A new ticket found mid-run goes into the program ledger as a candidate; Matt triages it, because `triage` and `to-tickets` run only when he starts them.
 
