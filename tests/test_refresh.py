@@ -11,6 +11,7 @@ auto-save (#73), the Healthchecks heartbeats (#74).
 import importlib.abc
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import asdict
@@ -114,6 +115,34 @@ class TestRefreshRun:
         assert snapshot_keys(station) == [CONTEXT_KEY, DASHBOARD_KEY]
         assert stored_json(station, DASHBOARD_KEY) == snapshot.dashboard()
         assert stored_json(station, CONTEXT_KEY) == snapshot.context()
+
+    def test_each_step_logs_one_peak_memory_line_in_run_order(self, seed, caplog):
+        station = seed()
+
+        with caplog.at_level("INFO"):
+            run_refresh(station)
+
+        steps = [
+            m.group(1)
+            for m in (
+                re.fullmatch(r"Peak memory after (\w+): \d+ MB", r.getMessage())
+                for r in caplog.records
+            )
+            if m
+        ]
+        assert steps == [
+            "load_station",
+            "archive_load",
+            "ambient_fetch",
+            "archive_merge",
+            "archive_save",
+            "correct_rain",
+            "load_catalogs",
+            "update_catalogs",
+            "build",
+            "publish",
+            "publish_curves",
+        ]
 
     def test_the_archive_is_appended_first_with_the_schema_unchanged(self, seed):
         station = seed()

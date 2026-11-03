@@ -8,6 +8,7 @@ Offers:
 
 - `peak_rss_mb()`: the process's peak RSS so far (its high-water mark), from
   the standard library, so it needs no psutil; it only ever rises.
+- `log_peak_rss(step, log)`: one INFO line with the peak RSS after a step.
 - `track_step(name)`: a context manager that measures one step: its
   duration, the peak RSS after it, and the tracemalloc peak during it and
   the traced memory still held after it, filling a `StepMemory`.
@@ -18,6 +19,7 @@ Offers:
 """
 
 import gc
+import logging
 import sys
 import time
 import tracemalloc
@@ -153,6 +155,21 @@ def peak_rss_mb() -> float:
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     unit = 1 if sys.platform == "darwin" else 1024
     return peak * unit / BYTES_TO_MB
+
+
+def log_peak_rss(step: str, log: logging.Logger = logger) -> float:
+    """
+    Log the process's peak RSS so far after a step, one INFO line:
+    "Peak memory after <step>: N MB" (#280).
+
+    :param step: The step's name.
+    :param log: The logger to write to; the caller's, so the line carries
+        the caller's module.
+    :return: The peak in MB.
+    """
+    peak = peak_rss_mb()
+    log.info(f"Peak memory after {step}: {peak:.0f} MB")
+    return peak
 
 
 @dataclass
