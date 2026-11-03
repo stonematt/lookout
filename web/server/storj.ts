@@ -134,6 +134,37 @@ function storjKeyReader(
 export const EVENT_STARTS_REFRESH_MS = 60_000;
 
 /**
+ * A read one function instance makes at most once per interval, shared by
+ * the requests that arrive while it is under way.
+ */
+class ThrottledRead {
+  /** When the last read began, whatever its outcome. */
+  private askedAtMs = -Infinity;
+  /** The read under way, shared by requests that arrive together. */
+  private pending: Promise<void> | null = null;
+
+  /**
+   * Start a read when none is under way and the interval allows, then wait
+   * for the one under way, if any.
+   *
+   * @param intervalMs - The least time between two reads' beginnings.
+   * @param read - Does the read; a rejection reaches every waiter.
+   * @returns True when a read was under way (and has now settled).
+   */
+  async settle(intervalMs: number, read: () => Promise<void>): Promise<boolean> {
+    if (!this.pending && Date.now() - this.askedAtMs >= intervalMs) {
+      this.askedAtMs = Date.now();
+      this.pending = read().finally(() => {
+        this.pending = null;
+      });
+    }
+    if (!this.pending) return false;
+    await this.pending;
+    return true;
+  }
+}
+
+/**
  * What one function instance knows of a station's curve files: the starts
  * the Event Catalog lists, learned from the dashboard document, which it
  * reads at most once per `EVENT_STARTS_REFRESH_MS`.
@@ -141,12 +172,10 @@ export const EVENT_STARTS_REFRESH_MS = 60_000;
 class KnownStarts {
   /** The starts with a curve file; null before a good dashboard read. */
   private starts: Set<number> | null = null;
-  /** When the last dashboard read began, whatever its outcome. */
-  private askedAtMs = -Infinity;
   /** The last dashboard read failed: its starts may be out of date. */
   private failed = false;
-  /** The dashboard read under way, shared by requests that arrive together. */
-  private pending: Promise<void> | null = null;
+  /** Paces and shares the reads. */
+  private readonly throttle = new ThrottledRead();
 
   /**
    * @param readDashboard - Reads the station's dashboard document's text.
@@ -164,12 +193,8 @@ class KnownStarts {
    */
   async lists(startMs: number): Promise<boolean> {
     if (this.starts?.has(startMs)) return true;
-    if (!this.pending && Date.now() - this.askedAtMs >= EVENT_STARTS_REFRESH_MS) {
-      this.askedAtMs = Date.now();
-      this.pending = this.refresh();
-    }
-    if (this.pending) await this.pending;
-    else if (this.failed) {
+    const read = await this.throttle.settle(EVENT_STARTS_REFRESH_MS, () => this.refresh());
+    if (!read && this.failed) {
       throw new StorjReadError("the Event Catalog's starts could not be read");
     }
     return this.starts?.has(startMs) ?? false;
@@ -182,8 +207,6 @@ class KnownStarts {
     } catch (error) {
       this.failed = true;
       throw error;
-    } finally {
-      this.pending = null;
     }
   }
 }
@@ -281,10 +304,8 @@ class KnownStations {
   private index: StationIndex | null = null;
   /** Whether any read has succeeded. */
   private known = false;
-  /** When the last read began, whatever its outcome. */
-  private askedAtMs = -Infinity;
-  /** The read under way, shared by requests that arrive together. */
-  private pending: Promise<void> | null = null;
+  /** Paces and shares the reads. */
+  private readonly throttle = new ThrottledRead();
 
   /**
    * The station index, reading it only when the interval allows.
@@ -294,11 +315,7 @@ class KnownStations {
    * @throws StorjReadError while no read has succeeded.
    */
   async current(readIndex: () => Promise<string | null>): Promise<StationIndex | null> {
-    if (!this.pending && Date.now() - this.askedAtMs >= STATIONS_REFRESH_MS) {
-      this.askedAtMs = Date.now();
-      this.pending = this.refresh(readIndex);
-    }
-    if (this.pending) await this.pending;
+    await this.throttle.settle(STATIONS_REFRESH_MS, () => this.refresh(readIndex));
     if (!this.known) throw new StorjReadError("the station index could not be read");
     return this.index;
   }
@@ -310,8 +327,6 @@ class KnownStations {
       this.known = true;
     } catch (error) {
       console.error("stations: station index read failed", describeError(error));
-    } finally {
-      this.pending = null;
     }
   }
 }

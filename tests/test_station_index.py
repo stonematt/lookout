@@ -24,6 +24,7 @@ from lookout.snapshot.station_index import (
     STATION_INDEX_KEY,
     IndexEntry,
     StationIndex,
+    read_station_index,
 )
 from lookout.storage import storj
 from tests.fixtures.ambient import to_ambient_records
@@ -281,6 +282,37 @@ GOLDEN_SECOND = {
     "archive_start_ms": None,
 }
 SCENARIOS = {"dry": dry_station, "raining": raining_station}
+
+
+class TestTheReaderRefusesWhatTheSiteRefuses:
+    """`read_station_index` agrees with the site's `parseStationIndex`."""
+
+    @staticmethod
+    def stored(fake_s3, **changes) -> None:
+        doc = {
+            "schema_version": 1,
+            "kind": "station_index",
+            "built_at_ms": ms("2026-01-08T00:00:00Z"),
+            "stations": [OLD_FIXTURE_ENTRY],
+        }
+        doc.update(changes)
+        storj.save_json_to_s3(doc, BUCKET, STATION_INDEX_KEY)
+
+    def test_a_good_index_is_read(self, fake_s3):
+        self.stored(fake_s3)
+
+        index = read_station_index(BUCKET)
+
+        assert [e.mac for e in index.stations] == [FAKE_MAC]
+
+    @pytest.mark.parametrize(
+        "changes", [{"built_at_ms": True}, {"stations": []}], ids=["bool", "empty"]
+    )
+    def test_a_bool_time_or_no_stations_is_a_failed_read(self, fake_s3, changes):
+        self.stored(fake_s3, **changes)
+
+        with pytest.raises(storj.StorageReadError):
+            read_station_index(BUCKET)
 
 
 @pytest.mark.parametrize("scenario", sorted(SCENARIOS))

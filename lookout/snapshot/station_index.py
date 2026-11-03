@@ -142,7 +142,12 @@ def _parse(body: object, where: str) -> StationIndex:
             f"not {STATION_INDEX_SCHEMA_VERSION}"
         )
     built, stations = body.get("built_at_ms"), body.get("stations")
-    if not isinstance(built, int) or not isinstance(stations, list):
+    if (
+        not isinstance(built, int)
+        or isinstance(built, bool)
+        or not isinstance(stations, list)
+        or not stations
+    ):
         raise storj.StorageReadError(f"{where} lacks built_at_ms or stations")
     try:
         entries = tuple(IndexEntry.from_document(doc) for doc in stations)

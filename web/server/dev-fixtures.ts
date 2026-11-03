@@ -22,7 +22,7 @@
  *   file, matched to the nearest recorded start).
  * - The golden station index lists the golden's station, the default, then
  *   Salmon Run, which has no golden snapshot: `?station=` for it answers
- *   404, as a station added minutes ago does until its first run.
+ *   404, as a station whose snapshot is lost does.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";

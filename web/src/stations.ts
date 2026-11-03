@@ -11,7 +11,7 @@
  * Stations are in station inventory order; the first is the default
  * station, the one every read function serves when no `?station=` is given.
  */
-import { SnapshotContractError } from "./snapshot.js";
+import { SnapshotContractError, isRecord } from "./snapshot.js";
 
 /** The station index's own contract version. */
 export const STATION_INDEX_SCHEMA_VERSION = 1;
@@ -38,10 +38,6 @@ export interface StationIndex {
   built_at_ms: number;
   /** In inventory order; never empty. The first is the default station. */
   stations: StationEntry[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isTimeOrNull(value: unknown): boolean {

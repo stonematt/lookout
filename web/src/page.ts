@@ -76,12 +76,13 @@ const STATE_TEXT = {
 
 /**
  * What the page says for a station the index lists whose snapshot is not
- * written yet (`/dashboard` answers 404): a station added minutes ago. The
- * header says it short; the tabs say when it will appear.
+ * there (`/dashboard` answers 404): the index lists only stations that have
+ * published, so the snapshot is lost or not yet written. The words are
+ * neutral about why; the header says it short, the tabs add a retry.
  */
 function missingText(name: string | null): { header: string; tab: string } {
-  const header = `${name ?? "This station"} has no dashboard yet.`;
-  return { header, tab: `${header} It appears after its first refresh run, within 5 minutes.` };
+  const header = `${name ?? "This station"} has no dashboard right now.`;
+  return { header, tab: `${header} Try again shortly.` };
 }
 
 /** The station the page's URL names, or null for the default station. */

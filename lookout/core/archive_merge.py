@@ -31,6 +31,8 @@ Functions:
 - loss: What saving a new archive over the stored one would lose; `Loss`.
 - replace: Swap the stored readings in a window for corrected ones; `Replaced`.
 - strip_derived: The archive without its `DERIVED_COLUMNS`.
+- strings_as_category: The archive with its text columns as categories.
+- newest_first: The archive in stored order, newest `dateutc` first.
 
 Classes:
 - MergeReport: What one merge changed; `describe()` is its log line.
@@ -149,14 +151,15 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     :param stored: The stored archive (or the frame standing in for it).
     :param ambient: Readings fetched from Ambient, raw.
     :return: `Merged(archive, report)`. The archive's columns are the stored
-        columns in their order, then the Ambient-only ones.
+        columns in their order, then the Ambient-only ones. It may be the
+        input frame itself when that is already in stored order.
     """
     stored = normalize(stored)
     ambient = normalize(ambient)
     if ambient.empty:
-        return Merged(_newest_first(stored), MergeReport())
+        return Merged(newest_first(stored), MergeReport())
     if stored.empty:
-        return Merged(_newest_first(ambient), MergeReport(added=len(ambient)))
+        return Merged(newest_first(ambient), MergeReport(added=len(ambient)))
 
     # Both are ascending and unique on `dateutc`, so a sorted search gives
     # each fetched reading's place in the stored archive; it is shared when
@@ -528,7 +531,8 @@ def replace(
     :param end_ms: The window's end, epoch ms, exclusive.
     :param replacement: The corrected readings.
     :return: `Replaced(archive, report)`. The archive's columns are the
-        stored columns in their order, then the replacement-only ones.
+        stored columns in their order, then the replacement-only ones. It
+        may be the input frame itself when that is already in stored order.
     """
     stored = normalize(stored)
     if "dateutc" not in stored:
@@ -546,12 +550,10 @@ def replace(
     ]
     pieces = [p for p in (stored[~inside], new) if not p.empty]
     if not pieces:
-        return Replaced(
-            _newest_first(stored), ReplaceReport(replaced=int(inside.sum()))
-        )
+        return Replaced(newest_first(stored), ReplaceReport(replaced=int(inside.sum())))
     merged = pd.concat(pieces, sort=False).reindex(columns=columns)
     report = ReplaceReport(replaced=int(inside.sum()), written=len(new))
-    return Replaced(_newest_first(merged), report)
+    return Replaced(newest_first(merged), report)
 
 
 def strings_as_category(df: pd.DataFrame) -> pd.DataFrame:
@@ -642,13 +644,26 @@ def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
         return pd.Series(True, index=old.index)
 
 
-def _newest_first(df: pd.DataFrame) -> pd.DataFrame:
+def newest_first(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Sort readings newest `dateutc` first, the stored order.
+    The archive in stored order, newest `dateutc` first, index reset.
 
-    :param df: Readings with a `dateutc` column, or an empty frame.
-    :return: `df` sorted (stable) with its index reset; an empty `df` as is.
+    A stable sort, so readings with the same `dateutc` keep their order. An
+    archive already in that order is not sorted again: only its index is
+    reset, on a shallow copy.
+
+    :param df: The archive, any row order; a frame without `dateutc` as is.
+    :return: `df` itself when nothing changes, else the frame in stored order.
     """
-    if df.empty:
+    if "dateutc" not in df.columns:
         return df
-    return df.sort_values("dateutc", ascending=False, kind="stable", ignore_index=True)
+    if not df["dateutc"].is_monotonic_decreasing:
+        return df.sort_values(
+            "dateutc", ascending=False, kind="stable", ignore_index=True
+        )
+    idx = df.index
+    if isinstance(idx, pd.RangeIndex) and idx.start == 0 and idx.step == 1:
+        return df
+    renumbered = df.copy(deep=False)
+    renumbered.index = pd.RangeIndex(len(df))
+    return renumbered

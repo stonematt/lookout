@@ -396,35 +396,10 @@ def save_archive(
     if lost:
         logger.warning(f"Repair of s3://{bucket}/{key} will {lost.describe()}")
     df = archive_merge.strings_as_category(
-        archive_merge.strip_derived(_newest_first(df))
+        archive_merge.strip_derived(archive_merge.newest_first(df))
     )
     if not save_df_to_s3(df, bucket, key):
         raise StorageWriteError(f"Failed to save s3://{bucket}/{key}")
-
-
-def _newest_first(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    The archive in stored order, newest `dateutc` first, index reset.
-
-    A stable sort, so readings with the same `dateutc` keep their order. An
-    archive already in that order (as `archive_merge.merge` returns it) is
-    not sorted again: only its index is reset, on a shallow copy.
-
-    :param df: The archive, any row order; a frame without `dateutc` as is.
-    :return: `df` itself when nothing changes, else the frame in stored order.
-    """
-    if "dateutc" not in df.columns:
-        return df
-    if not df["dateutc"].is_monotonic_decreasing:
-        return df.sort_values(
-            "dateutc", ascending=False, kind="stable", ignore_index=True
-        )
-    idx = df.index
-    if isinstance(idx, pd.RangeIndex) and idx.start == 0 and idx.step == 1:
-        return df
-    renumbered = df.copy(deep=False)
-    renumbered.index = pd.RangeIndex(len(df))
-    return renumbered
 
 
 def list_bucket_items(bucket_name: str, depth: int = 2) -> list:
