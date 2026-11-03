@@ -8,7 +8,14 @@ Functions:
 - find_station(devices, mac) / get_station_device(mac): the pinned station
   (STATION_MAC), or StationNotFoundError
 - get_device_by_mac(mac)
-- get_device_history(mac, limit, end_date)
+- get_device_history(mac, limit, end_date, strict): one page, as a frame
+- get_device_history_raw(mac, limit, end_date, strict): one page, raw
+
+Every request waits a second first (Ambient's 1 request per second per API
+key), so this module is the one throttled path to Ambient. History fetchers
+read a failed request as an empty page by default; with `strict=True` they
+raise `AmbientRequestError` instead, for a caller that must not mistake a
+failure for "no older readings" (the first archive's backfill).
 
 Requires:
 - Secrets AMBIENT_ENDPOINT, AMBIENT_API_KEY, AMBIENT_APPLICATION_KEY, read via
@@ -72,6 +79,11 @@ def get_devices() -> List[Dict]:
     return resp.json()
 
 
+class AmbientRequestError(RuntimeError):
+    """A strict history request failed: an HTTP error, retries ran out, or
+    the body could not be read as history."""
+
+
 class StationNotFoundError(RuntimeError):
     """Raised when the pinned station is not in the account's device list."""
 
@@ -127,7 +139,10 @@ def get_device_by_mac(mac: str) -> Optional[Dict]:
 
 
 def get_device_history(
-    mac: str, limit: int = 288, end_date: Optional[int] = None
+    mac: str,
+    limit: int = 288,
+    end_date: Optional[int] = None,
+    strict: bool = False,
 ) -> pd.DataFrame:
     """
     Fetch historical weather data for a specific device.
@@ -137,13 +152,17 @@ def get_device_history(
     :param mac: MAC address of the device to fetch data for.
     :param limit: Max number of records to return (default: 288).
     :param end_date: Optional UNIX timestamp in milliseconds for the end of the time range.
-    :return: A DataFrame of weather data or empty DataFrame on failure.
+    :param strict: Raise on a failed request instead of returning empty.
+    :return: A DataFrame of weather data; empty when Ambient has none, or
+        (unless `strict`) on failure.
+    :raises AmbientRequestError: If `strict` and the request failed or its
+        body could not be read.
     """
     try:
         # human = format_ts_utc(end_date) if end_date else "latest"
         # logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})")
 
-        raw = get_device_history_raw(mac, limit=limit, end_date=end_date)
+        raw = get_device_history_raw(mac, limit=limit, end_date=end_date, strict=strict)
         if not raw:
             logger.debug("No data returned from device history.")
             return pd.DataFrame()
@@ -156,13 +175,20 @@ def get_device_history(
         df.sort_values(by="dateutc", inplace=True)
         return df
 
+    except AmbientRequestError:
+        raise
     except Exception as e:
         logger.exception(f"Error during device history fetch: {e}")
+        if strict:
+            raise AmbientRequestError(f"history for {mac} unreadable: {e}") from e
         return pd.DataFrame()
 
 
 def get_device_history_raw(
-    mac: str, limit: int = 288, end_date: Optional[int] = None
+    mac: str,
+    limit: int = 288,
+    end_date: Optional[int] = None,
+    strict: bool = False,
 ) -> list[dict]:
     """
     Fetch raw device history from the Ambient Weather Network.
@@ -170,7 +196,11 @@ def get_device_history_raw(
     :param mac: Device MAC address.
     :param limit: Number of records to retrieve.
     :param end_date: Optional end timestamp (ms).
-    :return: List of raw data records (dict).
+    :param strict: Raise on a failed request instead of returning `[]`.
+    :return: List of raw data records (dict); `[]` when Ambient has none,
+        or (unless `strict`) on failure.
+    :raises AmbientRequestError: If `strict` and the request failed or the
+        429 retries ran out.
     """
     url = f"{_base_url()}/devices/{mac}"
     params = {**_auth_params(), "limit": limit}
@@ -194,13 +224,31 @@ def get_device_history_raw(
                 continue
             if resp.status_code != 200:
                 logger.error(f"History fetch failed: {resp.status_code} {resp.text}")
-                return []
+                return _history_failed(
+                    strict, f"history fetch for {mac} failed: {resp.status_code}"
+                )
             return resp.json()
+        except AmbientRequestError:
+            raise
         except Exception as e:
             logger.error(f"Request error while fetching raw history: {e}")
-            return []
+            return _history_failed(strict, f"history fetch for {mac} failed: {e}")
 
     logger.error("Exceeded retry attempts after 429 errors")
+    return _history_failed(strict, f"history fetch for {mac} rate limited 3 times")
+
+
+def _history_failed(strict: bool, reason: str) -> list[dict]:
+    """
+    End a failed history request: an empty page, or a raise when strict.
+
+    :param strict: Whether the caller asked failures to raise.
+    :param reason: What failed, for the exception.
+    :return: `[]` when not strict.
+    :raises AmbientRequestError: If strict.
+    """
+    if strict:
+        raise AmbientRequestError(reason)
     return []
 
 

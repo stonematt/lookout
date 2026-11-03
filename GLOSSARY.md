@@ -60,6 +60,8 @@ station moves. Both stations are in Pacific time. See
 The ordered list of stations Lookout archives. Its order is the priority
 order. A person adds a station to it; nothing adds one automatically. See
 [ADR-0006](docs/adr/0006-station-inventory-on-storj-written-by-hand.md).
+It is stored at `station_inventory.json`, outside `snapshot/`, and only
+`stations add` writes it, after a backup.
 _Avoid_: "station list", "STATIONS".
 
 ### station index
