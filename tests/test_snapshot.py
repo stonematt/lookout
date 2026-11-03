@@ -24,7 +24,6 @@ from typing import Dict, List
 
 import pytest
 
-from lookout.config import DEFAULT_MAC_ADDRESS
 from lookout.snapshot import (
     CONTEXT_FIELDS,
     SCHEMA_VERSION,
@@ -50,6 +49,8 @@ from tests.snapshot_helpers import (
 )
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "snapshots"
+# Lookout Post, the real station; no golden may carry its MAC.
+REAL_MAC = "98:CD:AC:22:0D:E5"
 
 
 SCENARIOS = {"dry": dry_station, "raining": raining_station}
@@ -84,7 +85,7 @@ def test_golden_files_hold_no_real_station():
     texts = [p.read_text() for p in sorted(GOLDEN_DIR.glob("*.json"))]
 
     assert len(texts) == 2 * len(SCENARIOS)
-    assert not any(DEFAULT_MAC_ADDRESS in text for text in texts)
+    assert not any(REAL_MAC in text for text in texts)
 
 
 # ---------- live stitching ----------
@@ -327,4 +328,4 @@ def test_curve_golden_files_hold_no_real_station():
     texts = [p.read_text() for p in sorted(CURVE_DIR.glob("*.json"))]
 
     assert len(texts) == sum(len(scenario_curves(s)) for s in SCENARIOS)
-    assert not any(DEFAULT_MAC_ADDRESS in text for text in texts)
+    assert not any(REAL_MAC in text for text in texts)

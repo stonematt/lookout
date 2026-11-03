@@ -1,5 +1,5 @@
 """
-diagnostics.py: Archive diagnostics for the pinned station, as plain text.
+diagnostics.py: Archive diagnostics for the default station, as plain text.
 
 The Streamlit Diagnostics tab's maintenance work, for an agent's terminal. It
 reads secrets only through `lookout.secrets_loader` (env vars, then
@@ -119,18 +119,19 @@ def human_duration(minutes: float) -> str:
 
 def load_station(bucket: str) -> Tuple[Dict, pd.DataFrame]:
     """
-    The pinned station and its archive, normalized (ascending `dateutc`).
+    The default station and its archive, normalized (ascending `dateutc`).
 
     Read strictly (#160): `fill-gap` and the rain repair save over the
     archive, and hand it to the save as `stored`, which guards against it.
 
     :param bucket: The bucket.
     :return: The station's `/devices` entry and its archive.
-    :raises StationNotFoundError: If `STATION_MAC` is not on the account.
-    :raises StorageReadError: If the archive is missing, unreadable, or has
-        no valid rows.
+    :raises StationNotFoundError: If the default station is not on the
+        account.
+    :raises StorageReadError: If the station inventory or the archive is
+        missing or unreadable, or the archive has no valid rows.
     """
-    device = get_station_device()
+    device = get_station_device(bucket)
     # Straight from Storj: the dev-mode local cache would write a file here.
     return device, load_archive(bucket, device["macAddress"])
 
@@ -396,7 +397,7 @@ def cmd_last_record(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device = get_station_device()
+    device = get_station_device(args.bucket)
     last = device.get("lastData") or {}
     if not last:
         emit("The device reports no live reading.")
@@ -455,7 +456,9 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     if args.dry_run:
         emit("Dry run: would back up the stored catalog and save the regenerated one.")
         return 0
-    if not energy_catalog_func.save_energy_catalog(periods, args.bucket):
+    if not energy_catalog_func.save_energy_catalog(
+        periods, device["macAddress"], args.bucket
+    ):
         emit("Save failed (the backup or the write); the stored catalog is unchanged.")
         return 1
     emit("Stored catalog backed up and replaced.")

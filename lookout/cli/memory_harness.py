@@ -15,8 +15,9 @@ How a measurement runs:
 
 - The archive file is only read. The newest `--new` readings are held back
   (1 by default, as a cron run finds), and the rest is seeded into a moto
-  bucket as the stored archive, newest first; the optional catalogs and
-  rain corrections are seeded beside it under their usual keys.
+  bucket as the stored archive, newest first, and a station inventory
+  listing only the harness station; the optional catalogs and rain
+  corrections are seeded beside it under their usual keys.
 - Ambient is faked at `lookout.api.ambient_client`'s `requests`: `/devices`
   answers one station whose `lastData` is the newest reading, and the
   history endpoint pages over the newest readings, as Ambient does. No
@@ -81,11 +82,11 @@ FAKE_ENV = {
     "STORJ_SECRET_ACCESS_KEY": "memory-harness",
     "STORJ_ENDPOINT_URL": FAKE_STORJ_ENDPOINT,
     "MOTO_S3_CUSTOM_ENDPOINTS": FAKE_STORJ_ENDPOINT,
-    "STATION_MAC": HARNESS_MAC,
     "DEV_MODE": "false",
 }
 STEPS = (
-    "load_station",
+    "load_stations",
+    "fetch_delta",
     "update_archive",
     "correct_rain",
     "load_catalogs",
@@ -329,9 +330,15 @@ def _seed_bucket(config: Dict[str, Any]) -> Any:
     from lookout.core.energy_catalog import EnergyCatalog
     from lookout.core.rain_events import RainEventCatalog
     from lookout.storage import storj
+    from lookout.storage.station_inventory import INVENTORY_KEY
 
     client = storj.get_s3_client()
     client.create_bucket(Bucket=HARNESS_BUCKET)
+    client.put_object(
+        Bucket=HARNESS_BUCKET,
+        Key=INVENTORY_KEY,
+        Body=json.dumps({"stations": [HARNESS_MAC]}),
+    )
     seeds = {
         f"{HARNESS_MAC}.parquet": Path(config["workdir"]) / STORED_FILE,
         RainEventCatalog(HARNESS_MAC).catalog_path: config["events"],
@@ -474,10 +481,14 @@ def _measured_run(
     if config["trace"]:
         tracemalloc.start()
     try:
-        device = step("load_station", refresh.load_station)
+        (station_run,) = step("load_stations", lambda: refresh.load_stations(bucket))
+        device = station_run.device
         station = Station.from_device(device)
+        fetched, _newest = step(
+            "fetch_delta", lambda: refresh.fetch_delta(device, bucket, pages)
+        )
         archive = step(
-            "update_archive", lambda: refresh.update_archive(device, bucket, pages)
+            "update_archive", lambda: refresh.update_archive(device, bucket, fetched)
         )
         archive, live = step(
             "correct_rain",

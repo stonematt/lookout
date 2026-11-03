@@ -15,7 +15,8 @@ Functions:
   `StorageReadError`. `read_df_from_s3` and `read_json_from_s3` follow it;
   `backup_object` applies it to a copy, raising `BackupError` instead.
   `load_archive` raises on missing too, since a missing archive is an
-  error. `get_df_from_s3` forgives a failed read (an empty frame) for
+  error, and so does `archive_newest_ms`, which reads only the archive's
+  `dateutc`. `get_df_from_s3` forgives a failed read (an empty frame) for
   Streamlit. There is no separate existence check: callers read once and
   act on the outcome. Saves that fail raise `StorageWriteError`
   (`ArchiveLossError` for an archive save that would drop a stored reading
@@ -29,7 +30,7 @@ import datetime
 import json
 import os
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional
 
 import boto3
 import pandas as pd
@@ -116,7 +117,10 @@ def read_object(bucket: str, key: str) -> Optional[bytes]:
 
 
 def read_df_from_s3(
-    bucket: str, key: str, file_type: str = "json"
+    bucket: str,
+    key: str,
+    file_type: str = "json",
+    columns: Optional[List[str]] = None,
 ) -> Optional[pd.DataFrame]:
     """
     Read a DataFrame from a JSON-lines or Parquet object, by the reader
@@ -129,6 +133,8 @@ def read_df_from_s3(
     :param bucket: The name of the S3 bucket.
     :param key: The key of the file in the S3 bucket.
     :param file_type: The type of the file ('json' or 'parquet').
+    :param columns: For parquet, only these columns are parsed; all when
+        None. Ignored for JSON.
     :return: The DataFrame the object holds (possibly empty) when found;
         None when missing.
     :raises StorageReadError: If the read failed or the object cannot be
@@ -143,7 +149,7 @@ def read_df_from_s3(
         return None
     try:
         if file_type == "parquet":
-            return pd.read_parquet(BytesIO(body), engine="pyarrow")
+            return pd.read_parquet(BytesIO(body), engine="pyarrow", columns=columns)
         return pd.read_json(BytesIO(body), orient="records", lines=True)
     except Exception as e:
         raise StorageReadError(f"s3://{bucket}/{key} is unreadable: {e}") from e
@@ -197,6 +203,33 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     if archive.empty:
         raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
     return archive
+
+
+def archive_newest_ms(bucket: str, mac: str) -> int:
+    """
+    The `dateutc` of a station's newest archived reading, read cheaply.
+
+    Only the `dateutc` column is parsed, so the refresh run can fetch every
+    station's delta from Ambient before it loads any station's whole archive
+    (#271). Missing is an error, as for `load_archive`: a station is never
+    rebuilt because its archive is absent (ADR-0004).
+
+    :param bucket: The bucket.
+    :param mac: The station's MAC address.
+    :return: Epoch ms UTC.
+    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing,
+        unreadable, or has no valid `dateutc`.
+    """
+    key = f"{mac}.{HISTORY_FILE_TYPE}"
+    stored = read_df_from_s3(
+        bucket, key, file_type=HISTORY_FILE_TYPE, columns=["dateutc"]
+    )
+    if stored is None:
+        raise StorageReadError(f"s3://{bucket}/{key} is missing")
+    times = normalize(stored)
+    if times.empty:
+        raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
+    return int(times["dateutc"].iloc[-1])
 
 
 def read_json_from_s3(bucket: str, key: str) -> Optional[dict]:
@@ -521,26 +554,20 @@ def backup_archive(
 def backup_and_save_catalog(
     df: pd.DataFrame,
     catalog_type: str,
-    bucket: Optional[str] = None,
-    mac_address: Optional[str] = None,
+    bucket: str,
+    mac_address: str,
 ) -> None:
     """
     Back up the stored catalog, then save the new version over it.
 
     :param df: The catalog to save.
     :param catalog_type: The catalog's name, e.g. "energy".
-    :param bucket: The bucket; `DEFAULT_BUCKET` when None.
-    :param mac_address: The station; the pinned station
-        (`lookout.config.get_station_mac`) when None.
+    :param bucket: The bucket.
+    :param mac_address: The station the catalog belongs to.
     :raises BackupError: If the backup fails; nothing is saved then.
     :raises StorageWriteError: If the save fails.
     """
-    from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
-
-    if bucket is None:
-        bucket = DEFAULT_BUCKET
-    if mac_address is None:
-        mac_address = get_station_mac()
+    from lookout.config import DEFAULT_FILE_TYPE
 
     # Create prefix and path for catalog files
     catalog_prefix = f"{mac_address}.{catalog_type}_catalog"
