@@ -1,15 +1,10 @@
 // @vitest-environment happy-dom
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { figuresLag, figuresTime, mountHeader } from "../src/header.js";
 import type { CurrentReading } from "../src/snapshot.js";
 import { SCHEMA_VERSION, parseCurrent, parseDashboard } from "../src/snapshot.js";
-import type { StationIndex } from "../src/stations.js";
-import { parseStationIndex } from "../src/stations.js";
-import { golden } from "./golden.js";
+import { FIXTURE_MAC, SALMON_MAC, golden, oneStation, twoStations } from "./golden.js";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -248,20 +243,6 @@ describe("the figures' own age", () => {
   });
 });
 
-/** The golden station index: Fixture Station, then Salmon Run (no snapshot yet). */
-function twoStations(): StationIndex {
-  const path = resolve(import.meta.dirname, "../../tests/golden/stations/raining.stations.json");
-  return parseStationIndex(JSON.parse(readFileSync(path, "utf8")));
-}
-
-/** The live inventory today: one station. */
-function oneStation(): StationIndex {
-  const index = twoStations();
-  return { ...index, stations: index.stations.slice(0, 1) };
-}
-
-const FIXTURE_MAC = "00:11:22:33:44:55";
-const SALMON_MAC = "00:11:22:33:44:66";
 const select = () => host.querySelector<HTMLSelectElement>("select.station-select");
 
 describe("the station selector", () => {

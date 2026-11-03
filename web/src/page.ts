@@ -30,7 +30,7 @@ import { renderRain } from "./rain/index.js";
 import type { CurrentReading, DashboardSnapshot } from "./snapshot.js";
 import { renderSolar } from "./solar/index.js";
 import type { StationIndex } from "./stations.js";
-import { findStation } from "./stations.js";
+import { shownStation } from "./stations.js";
 import type { TabId } from "./tabs.js";
 import { TABS, mountTabs } from "./tabs.js";
 
@@ -90,7 +90,7 @@ function askedStation(): string | null {
 }
 
 /**
- * Start the page: mount the header and tabs, read both functions, and keep
+ * Start the page: mount the header and tabs, read the functions, and keep
  * reading them on the refresh cycle.
  *
  * @param masthead - The header's host.
@@ -110,6 +110,8 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
   let generation = 0;
   /** The read of every function under way, if any. */
   let running: Promise<void> | null = null;
+  /** The station index read under way, if any. */
+  let indexRead: Promise<void> = Promise.resolve();
 
   /** Draw a tab's panel from the snapshot, once per snapshot. */
   function renderTab(id: TabId, panel: HTMLElement): void {
@@ -130,8 +132,7 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
 
   /** The index's entry for the station shown, when the index is known. */
   function shownEntry() {
-    if (!index) return undefined;
-    return showing === null ? index.stations[0] : findStation(index, showing);
+    return index ? shownStation(index, showing) : undefined;
   }
 
   /** Show the station index in the header, for the station shown. */
@@ -192,7 +193,11 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
         return;
       }
       console.error("Lookout: /dashboard could not be read", error);
-      const listed = error instanceof ReadError && error.status === 404 ? shownEntry() : undefined;
+      const unbuilt = error instanceof ReadError && error.status === 404;
+      // Whether the index lists the station decides the words: wait for it.
+      if (unbuilt && !index) await indexRead;
+      if (asked !== generation) return;
+      const listed = unbuilt ? shownEntry() : undefined;
       const missing = listed ? missingText(listed.name) : null;
       stateText = missing?.tab ?? STATE_TEXT.failed;
       header.fail(() => void refresh(), missing?.header);
@@ -227,11 +232,13 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
   /** Read both functions, unless a read of both is already under way. */
   function refresh(): Promise<void> {
     if (running) return running;
-    const stations = readStations();
+    const asked = generation;
+    indexRead = readStations();
     const mine: Promise<void> = (async () => {
       await readDashboard();
-      void readCurrent();
-      await stations;
+      // A station chosen meanwhile has its own refresh and its own /current.
+      if (asked === generation) void readCurrent();
+      await indexRead;
     })().finally(() => {
       if (running === mine) running = null;
     });

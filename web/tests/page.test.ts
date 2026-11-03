@@ -3,9 +3,6 @@
  * The page as a visitor sees it: the header and the tabs, fed by the two
  * read functions (faked here), on the 5-minute refresh cycle. No network.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReadError } from "../src/load.js";
@@ -14,8 +11,14 @@ import { CYCLE_MS, startPage as start } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { SCHEMA_VERSION, parseCurrent, parseDashboard } from "../src/snapshot.js";
 import type { StationIndex } from "../src/stations.js";
-import { parseStationIndex } from "../src/stations.js";
-import { golden, goldenCurveText } from "./golden.js";
+import {
+  FIXTURE_MAC,
+  SALMON_MAC,
+  golden,
+  goldenCurveText,
+  oneStation,
+  twoStations,
+} from "./golden.js";
 
 const LOADING = "Loading the dashboard";
 const FAILED = "The dashboard could not be loaded.";
@@ -209,21 +212,7 @@ describe("the refresh cycle", () => {
   });
 });
 
-const FIXTURE_MAC = "00:11:22:33:44:55";
-const SALMON_MAC = "00:11:22:33:44:66";
 const SALMON_QUERY = "?station=00%3A11%3A22%3A33%3A44%3A66";
-
-/** The golden station index: Fixture Station, then Salmon Run. */
-function twoStations(): StationIndex {
-  const path = resolve(import.meta.dirname, "../../tests/golden/stations/raining.stations.json");
-  return parseStationIndex(JSON.parse(readFileSync(path, "utf8")));
-}
-
-/** The live inventory today: one station. */
-function oneStation(): StationIndex {
-  const index = twoStations();
-  return { ...index, stations: index.stations.slice(0, 1) };
-}
 
 /** The page's `?station=`, as a read function would be asked it. */
 const asked = () => new URLSearchParams(location.search).get("station") ?? FIXTURE_MAC;
@@ -405,6 +394,11 @@ describe("the station selector", () => {
   });
 
   it("draws every tab for a station that lacks soil, PM2.5 and WH31E sensors", async () => {
+    // No panel reads those sensors: the snapshot carries none of their
+    // fields, so a WS-2902's snapshot has every field a panel draws. A field
+    // added for one must be decided in the snapshot for a station without it.
+    const fields = JSON.stringify(golden("raining", "dashboard"));
+    expect(fields).not.toMatch(/"(soil\w*|pm25\w*|aqi\w*|temp[1-8]f|humidity[1-8]|batt\w*)"/);
     history.replaceState(null, "", `/${SALMON_QUERY}`);
     const errors = vi.spyOn(console, "error");
     await startPage(masthead, sections, byStation()).booted;
@@ -446,6 +440,54 @@ describe("the station selector", () => {
     expect(urls.filter((url) => url.includes("station="))).toEqual([
       `/event?start=${start}&station=00%3A11%3A22%3A33%3A44%3A66`,
     ]);
+  });
+
+  it("names a listed station with no snapshot even when /dashboard answers first", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    history.replaceState(null, "", `/${SALMON_QUERY}`);
+    let answer: (index: StationIndex) => void = () => undefined;
+    const reads = {
+      stations: () => new Promise<StationIndex>((resolve) => (answer = resolve)),
+      dashboard: () => Promise.reject(new ReadError("/dashboard", 404)),
+      current: quietCurrent,
+    };
+    const page = startPage(masthead, sections, reads);
+    await vi.advanceTimersByTimeAsync(0);
+    answer(twoStations());
+    await page.booted;
+
+    expect(panel("overview").textContent).toContain("Salmon Run has no dashboard yet.");
+  });
+
+  it("drops the last station's /dashboard when it answers after a choice", async () => {
+    let late: (snapshot: DashboardSnapshot) => void = () => undefined;
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+    // The fixture station's next read hangs until Salmon Run is shown.
+    reads.dashboard.mockImplementationOnce(
+      () => new Promise<DashboardSnapshot>((resolve) => (late = resolve)),
+    );
+    await vi.advanceTimersByTimeAsync(CYCLE_MS);
+
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+    late(snapshot(999));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(document.title).toBe("Salmon Run · Lookout");
+  });
+
+  it("stays on its station when Back only changes the tab", async () => {
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    history.replaceState(null, "", "/#rain");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(reads.dashboard).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the default station's page when the index cannot be read", async () => {

@@ -28,7 +28,7 @@ import { STALE_AFTER_MS, dataAge, dayText, formatStamp, localDay } from "./forma
 import type { CurrentReading, DashboardSnapshot, StationId } from "./snapshot.js";
 import { newestObservation } from "./snapshot.js";
 import type { StationIndex } from "./stations.js";
-import { findStation } from "./stations.js";
+import { shownStation } from "./stations.js";
 
 /** A mounted header. */
 export interface Header {
@@ -230,7 +230,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
   return {
     showStations(index, chosen, onChoose) {
       choose = onChoose;
-      const entry = chosen === null ? index.stations[0] : findStation(index, chosen);
+      const entry = shownStation(index, chosen);
       const shownPicker = showPicker(index);
       if (shownPicker) {
         if (entry) shownPicker.value = entry.mac;

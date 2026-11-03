@@ -14,6 +14,7 @@ charts. The design system is `DESIGN.md` at the repo root.
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard`, then `/current`, and `/stations`; choosing a station writes `?station=` |
 | `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions   |
+| `src/stations.ts`                      | The station index contract: `parseStationIndex`, `findStation`, `shownStation` (the default station when none is named)       |
 | `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` / `fetchStations` from the browser                                                          |
 | `src/header.ts`                        | `mountHeader`: station name (the station selector with two or more stations), reading time, data age, archive start           |
 | `src/tabs.ts`                          | `mountTabs`: the four sticky tabs, roving tabindex, URL hash                                                                  |
@@ -21,7 +22,7 @@ charts. The design system is `DESIGN.md` at the repo root.
 | `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                                |
 | `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                             |
 | `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                          |
-| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event` and `/status` to them                         |
+| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event`, `/status` and `/stations` to them            |
 | `server/handlers.ts`                   | `handleDashboard` / `handleCurrent` / `handleStatus`, with no Vercel or env in them                                           |
 | `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                         |
 | `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                  |

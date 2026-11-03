@@ -106,3 +106,15 @@ export function findStation(index: StationIndex, mac: string): StationEntry | un
   const wanted = mac.toUpperCase();
   return index.stations.find((s) => s.mac.toUpperCase() === wanted);
 }
+
+/**
+ * The station a page shows: the one its `?station=` names, or the default
+ * station (the index's first) when it names none.
+ *
+ * @param index - The station index.
+ * @param mac - The MAC the page names, or null.
+ * @returns Its entry, or undefined when the index does not list it.
+ */
+export function shownStation(index: StationIndex, mac: string | null): StationEntry | undefined {
+  return mac === null ? index.stations[0] : findStation(index, mac);
+}
