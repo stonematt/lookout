@@ -43,7 +43,7 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     sort work is delegated to `normalize`; this function only adapts
     the result into a metrics shape. The fixed frame also drops the derived
     columns stored (`archive_merge.DERIVED_COLUMNS`, #191), named in
-    `metrics["derived"]`.
+    `metrics["derived_columns"]`.
     """
     metrics: Dict = {}
     if df is None or df.empty:
@@ -60,8 +60,11 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     metrics["before_len"] = len(df)
     metrics["before_dtype"] = str(df["dateutc"].dtype)
 
-    metrics["derived"] = [c for c in archive_merge.DERIVED_COLUMNS if c in df.columns]
-    fixed = archive_merge.strip_derived(normalize(df))
+    normalized = normalize(df)
+    fixed = archive_merge.strip_derived(normalized)
+    metrics["derived_columns"] = [
+        c for c in normalized.columns if c not in fixed.columns
+    ]
 
     after = len(fixed)
     metrics["after_len"] = after
@@ -299,7 +302,7 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
             m.get("min"),
             m.get("max"),
         )
-        derived = m.get("derived")
+        derived = m.get("derived_columns")
         if derived:
             verb = "would strip" if dry_run else "strips"
             logger.info(f"Archive repair: {verb} derived columns {', '.join(derived)}")

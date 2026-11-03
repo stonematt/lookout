@@ -462,6 +462,8 @@ class TestRepairArchiveStripsDerived:
     def seed(self, catchup_station) -> CatchupStation:
         archive = load_real_slice()
         archive["hour"] = 3.0
+        archive["direction_bin"] = pd.Categorical(["N"] * len(archive))
+        archive["value_bin"] = pd.Categorical(["0-2"] * len(archive))
         return catchup_station(archive=archive)
 
     def repair(self, dry_run: bool, caplog) -> List[str]:
@@ -481,8 +483,8 @@ class TestRepairArchiveStripsDerived:
 
         stripping = [line for line in lines if "derived columns" in line]
         assert stripping == [
-            "Archive repair: would strip derived columns hour, direction_bin, "
-            "value_bin"
+            "Archive repair: would strip derived columns value_bin, "
+            "direction_bin, hour"
         ]
         assert station.keys() == keys
         assert stored_bytes(station) == before
@@ -495,7 +497,7 @@ class TestRepairArchiveStripsDerived:
         lines = self.repair(False, caplog)
 
         assert (
-            "Archive repair: strips derived columns hour, direction_bin, value_bin"
+            "Archive repair: strips derived columns value_bin, direction_bin, hour"
             in lines
         )
         assert_frame_equal(station.stored(), newest_first(raw(station.archive)))
