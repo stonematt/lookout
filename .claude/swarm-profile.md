@@ -4,9 +4,9 @@
 
 **Ready label** none used for this run; every sub-issue of #66 took the finish-alone test.
 
-**Read before designing** `CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`, `GLOSSARY.md`, `docs/adr/` (ADR-0003 is the architecture), `code_standards.md`, `DESIGN.md` (UI tickets), spec #66.
+**Read before designing** `CLAUDE.md` (it holds the code standards and the rules that bite), `GLOSSARY.md`, `docs/adr/` (ADR-0003 is the architecture), `DESIGN.md` (UI tickets), spec #66.
 
-**Dependency sync** Python: `source $(conda info --base)/etc/profile.d/conda.sh && conda activate lookout-new` (one shared conda env; it has no per-worktree copy). A lane that adds a Python dependency adds it to `requirements-dev.txt`/`requirements.txt` and installs it into `lookout-new` with `pip install -r requirements-dev.txt`. Web (after #77): `cd web && npm ci`.
+**Dependency sync** Python: one venv per worktree, `uv venv --python 3.12 .venv && uv pip install -r requirements.txt -r requirements-dev.txt` from the worktree root (seconds, from uv's cache); run the gates with `.venv/bin/python`, `.venv/bin/black`, `.venv/bin/flake8`. A lane that adds a Python dependency adds it to `requirements.txt` or `requirements-dev.txt` and reruns the install. Runs before 2026-11-02 used the shared conda env `lookout-new`. Web (after #77): `cd web && npm ci`.
 
 **Lanes at once** 3.
 
@@ -14,7 +14,7 @@
 
 | gate | command | baseline at `7592c37` | time |
 | --- | --- | --- | --- |
-| tests | `python -m pytest tests/ -q -p no:cacheprovider` (in `lookout-new`, from the worktree root) | **789 passed, 1 skipped at `974c644`** (after the 2026-10-31 QA/UAT fixes #147 #148 #149 #156; ~80s). 738 passed, 1 skipped at `ce6c582` (after the 2026-10-31 follow-ups; #114 deleted the one strict xfail). 701 passed, 1 skipped, 1 xfailed at `dfff58b` (goal branch end of the spec #66 run; clean worktree, no secrets; ~85s). At the goal cut `bef4bb7`: 356/1/1. Before #67: clean worktree: **2 collection errors** (`StreamlitSecretNotFound`, from import-time `st.secrets` reads — the defect #67 fixes). Main checkout with real secrets: 141 passed, 1 skipped. After #67 lands, the clean-worktree number is the baseline. | 28s |
+| tests | `.venv/bin/python -m pytest tests/ -q -p no:cacheprovider` (from the worktree root) | **816 passed at `70b80f0`** (after Streamlit retired; uv venv, 79s). **789 passed, 1 skipped at `974c644`** (after the 2026-10-31 QA/UAT fixes #147 #148 #149 #156; ~80s). 738 passed, 1 skipped at `ce6c582` (after the 2026-10-31 follow-ups; #114 deleted the one strict xfail). 701 passed, 1 skipped, 1 xfailed at `dfff58b` (goal branch end of the spec #66 run; clean worktree, no secrets; ~85s). At the goal cut `bef4bb7`: 356/1/1. Before #67: clean worktree: **2 collection errors** (`StreamlitSecretNotFound`, from import-time `st.secrets` reads — the defect #67 fixes). Main checkout with real secrets: 141 passed, 1 skipped. After #67 lands, the clean-worktree number is the baseline. | 28s |
 | format | `black --check <changed .py files>` | 14 files already fail on `dev`; gate is: every file you create or edit passes | 2s |
 | lint | `flake8 --max-line-length 88 <changed .py files>` | 375 lines on `dev`; gate is: files you create are clean, files you edit gain no new lines | 2s |
 | web | `cd web && npm ci && npm run format:check && npm run lint && npm run build && npm test` (build runs `tsc --noEmit` then vite; lint includes `no-unsanitized`, so an unescaped value in `innerHTML` fails, #260; `npm run format` fixes formatting) | format and lint clean, build ok, **419 passed** at `2a2cdcf` | 25s |
@@ -23,7 +23,7 @@
 
 **Blast radius** — probes planted at `$TMPDIR`, `~/.config/`, `~`, and the main checkout's live `data/` dir; test suite run at `7592c37` in a clean worktree: all markers survived. The real risk is secrets, not deletes: the main checkout has `.streamlit/secrets.toml` with live Ambient and Storj keys, and modules read it at import. **Never run gates in the main checkout. Never copy `.streamlit/secrets.toml` into a worktree.** A lane's new tests pin to: no network, no real secrets (conftest stubs from #67), moto for S3, synthetic or committed fixtures, `tmp_path` for files.
 
-**Leave unrun** `lookout/cli/catchup.py`, `lookout/bin/cron_run.sh`, the new refresh command against real secrets — they write the live Storj archive and Event Catalog. `lookout/cli/pull_archive.py`, `rain_corrections_cli.py`, `manage_day_periods.py`, `regenerate*`/catalog CLIs, `verify_energy_catalog.py`, `test_functional_energy.py` — they read or write live Storj. Anything that ssh's to the VPS (`itri`). Any Vercel deploy.
+**Leave unrun** `lookout/cli/catchup.py`, `lookout/bin/cron_run.sh`, the new refresh command against real secrets — they write the live Storj archive and Event Catalog. `lookout/cli/pull_archive.py`, `rain_corrections_cli.py`, `manage_day_periods.py`, `regenerate*`/catalog CLIs — they read or write live Storj. Anything that ssh's to the VPS (`itri`). Any Vercel deploy.
 
 **Lane server** `cd web && npm ci && npm run dev -- --port <port>` (from #77): runs the real `/dashboard` and `/current` handlers over the golden snapshots via a Vite plugin, no secrets. Page query `?fixture=dry|raining&age=<min>&theme=light|dark`. Screenshots: `npm run shots -- http://localhost:<port> <out-dir> "" "fixture=raining&age=3"` after `npx playwright install chromium` once. Port = 5170 + lane letter index (G 5177, H 5178, I 5179, J 5180, K 5181, L 5182, M 5183). Stop by killing the vite child PID too (the npm wrapper PID alone leaves vite running). Before #77: a command that serves one worktree's `web/` on a chosen port against the golden snapshot fixtures with no secrets (e.g. `cd web && npm run dev -- --port <port>`), and record it in its PR body; later UI lanes use it with a port of 5170 + lane letter index. Stop it with Ctrl-C / `kill` of its PID.
 

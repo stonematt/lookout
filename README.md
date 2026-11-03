@@ -37,13 +37,13 @@ cd lookout
 
 ### 2. Set up virtual environment
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+With [uv](https://docs.astral.sh/uv/), on the same Python 3.12 the VPS and CI run:
 
-> Optional: Use `env_lookout_frozen.yml` if you're managing with Conda.
+```bash
+uv venv --python 3.12 .venv
+source .venv/bin/activate
+uv pip install -r requirements.txt -r requirements-dev.txt
+```
 
 ### 3. Configure secrets
 
@@ -57,7 +57,7 @@ first use, in this order:
 The three Storj names (`STORJ_ACCESS_KEY_ID`, `STORJ_SECRET_ACCESS_KEY`,
 `STORJ_ENDPOINT_URL`) map to the `[lookout_storage_options]` table.
 
-Tests need no secrets: `pytest tests/` runs on a clean checkout.
+Tests need no secrets: `python -m pytest tests/` runs on a clean checkout.
 
 ---
 
@@ -97,17 +97,15 @@ npm run dev
 
 ```bash
 pytest tests/
-cd web && npm run build && npm test
+cd web && npm run format:check && npm run lint && npm run build && npm test
 ```
 
 ---
 
 ## 🛠 Developer Notes
 
-- Code formatted with **Black** and **Ruff**
-- Imports are fully qualified (`lookout.api.ambient_client`)
-- Logging is centralized in `log_util.py`
-- Follows standards defined in [`code_standards.md`](code_standards.md)
+- Code standards, the checks CI runs, and the rules for agents are in
+  [`CLAUDE.md`](CLAUDE.md); contributing workflow in [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Domain glossary in [`GLOSSARY.md`](GLOSSARY.md); architectural decisions in
   [`docs/adr/`](docs/adr/) (e.g.
   [ADR-0001 — post-2020 dateutc floor](docs/adr/0001-dateutc-post-2020-floor.md),

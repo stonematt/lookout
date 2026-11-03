@@ -1,161 +1,38 @@
-# Solar Energy Catalog System
+# Solar Energy Catalog
 
-## Overview
+The energy catalog stores 15-minute solar energy periods so the refresh run does not recompute them from the whole archive. The refresh run brings it up to the archive on every run and saves it when the stored copy is stale.
 
-The Solar Energy Catalog system provides high-performance caching for 15-minute solar energy period calculations, eliminating the 30-second bottleneck that previously occurred on every page load.
+## Components
 
-### Key Benefits
-- **30x faster loads**: <1s cached vs 30s uncached
-- **Incremental updates**: Only processes new data since last period
-- **Persistent storage**: Automatic saving to Storj with backup strategy
-- **Session-first approach**: Instant loads after initial calculation
+- **`EnergyCatalog`** (`lookout/core/energy_catalog.py`) manages storage, retrieval and updates:
+  - `load_catalog()` reads the stored catalog once: the catalog when found, `None` when none is stored. A failed read raises `StorageReadError` (ADR-0004).
+  - `detect_and_calculate_periods()` builds a catalog from archive data.
+  - `update_catalog_with_new_data()` adds only the periods after the catalog's last one.
+  - `save_catalog()` backs up the stored catalog, then replaces it.
+- **Algorithm** (`lookout/core/solar_energy_periods.py`): vectorized with `pandas.resample()`, in station-local time.
+- **Refresh run** (`lookout/cli/refresh.py`, with `lookout/core/energy_catalog_func.py`): loads the stored catalog (`load_catalogs`), updates it in memory every run, and saves only when the stored one is older than `ENERGY_SAVE_AGE` (2 days).
+- **Manual** (`lookout/cli/diagnostics.py`): `diagnostics energy-catalog` reports the catalog's metrics and date range; `--save --dry-run` says what a save would do; `--save` backs up and replaces the stored catalog. Both read and write live Storj; see `docs/agents/operations.md` first.
 
-## Architecture
+## Storage
 
-### Core Components
+- **Catalog**: `<MAC>.energy_catalog.parquet` in the `lookout` bucket, parquet with snappy compression.
+- **Backups**: `backups/<MAC>.energy_catalog_<timestamp>.parquet`, written before every overwrite.
 
-#### EnergyCatalog Class (`lookout/core/energy_catalog.py`)
-- **Purpose**: Manages storage, retrieval, and updates of energy catalogs
-- **Storage**: `{mac_address}.energy_catalog.parquet` in Storj bucket
-- **Backup**: `backups/{mac_address}.energy_catalog_{timestamp}.parquet`
-- **Methods**:
-  - `load_catalog()`: Read the stored catalog once: the catalog when found,
-    `None` when none is stored; a failed read raises `StorageReadError`
-  - `detect_and_calculate_periods()`: Generate new catalog from data
-  - `update_catalog_with_new_data()`: Incremental updates
-  - `save_catalog()`: Persist to storage with backup
+## Data
 
-#### Optimized Algorithm (`lookout/core/solar_energy_periods.py`)
-- **Vectorized operations**: Uses `pandas.resample()` instead of O(n²) iteration
-- **Timezone handling**: Proper UTC→Pacific conversion
+Catalog columns:
 
-#### Data Pipeline Integration (`lookout/cli/refresh.py`)
-- **Loading**: The refresh run loads the stored catalog (`load_catalogs`)
-- **Incremental updates**: Brings it up to the archive on every run
-- **Saving**: Saves only when the stored catalog is older than `ENERGY_SAVE_AGE`
-
-#### Manual Management (`lookout/cli/diagnostics.py`)
-- **Report**: `diagnostics energy-catalog` shows the catalog's metrics and date range
-- **Rebuild**: `energy-catalog --save [--dry-run]` backs up and replaces the stored catalog
-- **Details view**: Expandable catalog details
-
-## Usage Patterns
-
-### Automatic Operation
 ```python
-# During app startup - automatic loading
-if "energy_catalog" not in st.session_state:
-    catalog = EnergyCatalog(device_mac)
-    periods_df = catalog.load_catalog()  # raises if the read failed
-    if periods_df is not None:
-        # Update with any new data
-        updated_df = catalog.update_catalog_with_new_data(history_df, periods_df)
-        st.session_state["energy_catalog"] = updated_df
-    else:
-        # Generate new catalog
-        periods_df = catalog.detect_and_calculate_periods(history_df)
-        st.session_state["energy_catalog"] = periods_df
+period_start: datetime64[ns, <station zone>]  # start of the 15-minute period
+period_end: datetime64[ns, <station zone>]    # end of the 15-minute period
+energy_kwh: float                             # energy in kWh
+updated_at: datetime                          # last update
+catalog_version: str                          # version identifier
 ```
 
-### Manual Management
-```python
-# From diagnostics UI
-catalog = EnergyCatalog(device_mac)
-periods_df = catalog.detect_and_calculate_periods(history_df, auto_save=False)
-catalog.save_catalog(periods_df)
-```
+Source columns read from the archive: `dateutc` (epoch ms) and `solarradiation` (W/m²).
 
-## Performance Characteristics
+## Tests
 
-| Scenario | Time | Improvement |
-|----------|------|-------------|
-| First load (no cache) | ~30s | Same |
-| Cached loads | <1s | **30x faster** |
-| Incremental updates | <5s | **6x faster** |
-| Algorithm only | ~6s | **5x faster** |
-
-## Storage Strategy
-
-### Primary Storage
-- **Location**: `lookout` bucket in Storj
-- **Format**: Parquet with snappy compression
-- **Naming**: `{mac_address}.energy_catalog.parquet`
-
-### Backup Strategy
-- **Location**: `backups/` folder in same bucket
-- **Naming**: `{mac_address}.energy_catalog_{timestamp}.parquet`
-- **Trigger**: Automatic before overwriting existing catalog
-
-### Auto-Save Policy
-- **Threshold**: >2 days since last save
-- **Trigger**: During data pipeline loading
-- **Purpose**: Ensure data durability without excessive I/O
-
-## Data Structure
-
-### Catalog DataFrame
-```python
-period_start: datetime64[ns, America/Los_Angeles]  # Start of 15min period
-period_end: datetime64[ns, America/Los_Angeles]    # End of 15min period
-energy_kwh: float                                  # Energy in kWh
-updated_at: datetime                               # Last update timestamp
-catalog_version: str                               # Version identifier
-```
-
-### Source Data Requirements
-```python
-date: datetime64[ns, America/Los_Angeles]          # TZ-aware datetime
-dateutc: int64                                     # Milliseconds timestamp
-solarradiation: float                              # W/m²
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### "Missing required columns: ['datetime']"
-**Cause**: Data doesn't have expected 'datetime' column
-**Solution**: Ensure data has 'date' column (TZ-aware datetime)
-
-#### "Energy catalog not loaded"
-**Cause**: Catalog loading failed during startup
-**Solution**: Check diagnostics tab for error details, try manual regeneration
-
-#### Slow initial loads
-**Cause**: First-time catalog generation
-**Solution**: Expected behavior, subsequent loads will be cached
-
-### Manual Recovery
-
-#### Force catalog regeneration:
-1. Go to Diagnostics tab
-2. Click "🔄 Regenerate Energy Catalog"
-3. Wait for completion message
-
-#### Check catalog status:
-1. Go to Diagnostics tab
-2. View "Solar Energy Catalog Management" section
-3. Check metrics and date range
-
-#### Clear session cache:
-1. Refresh browser page
-2. Catalog will reload from storage
-
-## Development Notes
-
-### Testing
-- **Unit tests**: `tests/test_energy_catalog.py` (13 tests)
-- **Integration tests**: `tests/test_refresh.py` (the refresh run)
-- **Performance tests**: `verify_energy_catalog.py` script
-
-### Code Locations
-- **Core logic**: `lookout/core/energy_catalog.py`
-- **Algorithm**: `lookout/core/solar_energy_periods.py`
-- **Pipeline**: `lookout/cli/refresh.py`, with `lookout/core/energy_catalog_func.py`
-- **Manual tools**: `lookout/cli/diagnostics.py` (`energy-catalog`)
-
-### Future Enhancements
-- **Compression optimization**: Further reduce storage size
-- **Memory optimization**: Reduce memory footprint for large catalogs
-- **Parallel processing**: Multi-threaded calculation for very large datasets
-- **Advanced caching**: LRU eviction for memory-constrained environments
+- `tests/test_energy_catalog.py`: the catalog class and algorithm
+- `tests/test_refresh.py`: the load, update and save inside the refresh run
