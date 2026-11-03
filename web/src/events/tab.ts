@@ -215,6 +215,8 @@ export function mountEvents(
     return;
   }
 
+  // Each button is escaped in yearButton; the linter cannot follow it (#261).
+  // eslint-disable-next-line no-unsanitized/property
   seasons.innerHTML = [
     `<button type="button" data-season="all">All</button>`,
     ...section.seasons.map(yearButton),
@@ -234,6 +236,8 @@ export function mountEvents(
     const oldest = all.length ? all[all.length - 1]!.start_ms : null;
     const rows = visibleEvents(section, view.season, view.sort);
     $(".ev-title").textContent = listFinding(stats, view.season, oldest, rows);
+    // Each cell is escaped in stat; the linter cannot follow it (#261).
+    // eslint-disable-next-line no-unsanitized/property
     $(".ev-stats").innerHTML = [
       stat(String(stats.count), "events"),
       stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
@@ -288,6 +292,8 @@ export function mountEvents(
       rows.length > view.limit
         ? `<button type="button" class="ev-more">Show ${Math.min(PAGE * 2, rows.length - view.limit)} more of ${rows.length}</button>`
         : "";
+    // Rows escape their text with esc and when; the rest is numbers (#261).
+    // eslint-disable-next-line no-unsanitized/property
     $(".ev-list").innerHTML = `
 <table class="ev-table">
   <caption class="sr-only">Rain events, ${view.sort === "newest" ? "newest" : "wettest"} first${rows.some((e) => e.live) ? ", the live event pinned on top" : ""}</caption>
@@ -317,6 +323,8 @@ ${more}
       ? '<p class="ev-note">The linked event is not in the catalog; showing the newest one instead.</p>'
       : "";
     missing = false;
+    // Snapshot text goes through esc; the note is a literal (#261).
+    // eslint-disable-next-line no-unsanitized/property
     host.innerHTML = `
 ${note}
 <p class="ev-kicker">${row.live ? '<span class="ev-live">Live</span> ' : ""}Water year ${esc(row.water_year)}</p>
