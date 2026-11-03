@@ -66,6 +66,16 @@ def test_each_refresh_step_reports_its_peaks_and_nothing_leaves(tmp_path):
     assert archive.read_bytes() == before
 
 
+def test_the_fetch_catches_up_in_one_page_however_old_the_archive(tmp_path):
+    # The real slice is long past; the fetch's now is the harness's, not the
+    # wall clock's, so one page reaches it, as a cron run's does (#292).
+    archive = fixture_archive(tmp_path)
+
+    report = memory_harness.measure(archive, tz=STATION_TZ, new=12, trace=False)
+
+    assert report.history_requests == 1
+
+
 def test_an_archive_cannot_hold_back_all_its_readings(tmp_path):
     archive = fixture_archive(tmp_path)
 

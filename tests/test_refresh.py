@@ -31,7 +31,7 @@ from lookout.snapshot import status as run_status
 from lookout.snapshot.status import CodeVersion
 from tests.snapshot_helpers import FIXED_CODE
 from lookout.storage import storj
-from lookout.utils.archive_lock import hold_archive_lock
+from lookout.utils.archive_lock import LOCK_FILE_ENV, hold_archive_lock
 from tests.fixtures.ambient import load_devices, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -1637,6 +1637,26 @@ class TestArchiveWriterLock:
         with hold_archive_lock():
             pass
 
+    def test_a_lock_that_cannot_be_opened_fails_the_run(
+        self, seed, tmp_path, monkeypatch, fake_healthchecks, caplog
+    ):
+        # The lock's directory cannot be made: a file stands where it goes.
+        station = seed()
+        keys = station.keys()
+        blocker = tmp_path / "not-a-directory"
+        blocker.write_text("")
+        monkeypatch.setenv(LOCK_FILE_ENV, str(blocker / "archive-writer.lock"))
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+        assert station.replay.calls == []
+        status = stored_json(station, STATUS_KEY)
+        assert status["outcome"] == "failed"
+        assert status["error"] in ("FileExistsError", "NotADirectoryError")
+        assert set(station.keys()) - set(keys) == {STATUS_KEY}
+        assert "Refresh failed" in caplog.text
+
 
 # ---------- the run's status document (#268) ----------
 
@@ -1677,6 +1697,32 @@ class TestStatusDocument:
 
         status = stored_json(station, STATUS_KEY)
         assert status["ended_at_ms"] - status["started_at_ms"] == 42_000
+
+    def test_the_status_names_the_code_the_run_started_on(self, seed, monkeypatch):
+        # A `git pull` from the next cron tick moves HEAD while this run works;
+        # the status still names the commit the run started on.
+        station = seed()
+        started_on, pulled = "a" * 40, "b" * 40
+        head = {"sha": started_on}
+        real_load_station = refresh.load_station
+
+        def load_station_then_pull():
+            device = real_load_station()
+            head["sha"] = pulled
+            return device
+
+        monkeypatch.setattr(refresh, "load_station", load_station_then_pull)
+
+        def code() -> CodeVersion:
+            return CodeVersion(version="2026.11.1", sha=head["sha"])
+
+        assert (
+            refresh.main(["--bucket", BUCKET], clock=lambda: station.now, code=code)
+            == 0
+        )
+
+        status = stored_json(station, STATUS_KEY)
+        assert (status["version"], status["sha"]) == ("2026.11.1", started_on)
 
     def test_a_failed_run_writes_a_failed_status_and_still_exits_1(
         self, seed, monkeypatch, fake_healthchecks

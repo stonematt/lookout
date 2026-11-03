@@ -49,20 +49,25 @@ exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
 First it takes the archive-writer lock (#244, `lookout.utils.archive_lock`);
 when another archive writer holds it, the run logs one line and exits 0 with
 no heartbeat, so only the holder's pings reach the `lookout-refresh` check.
+A lock that cannot be opened at all (an OSError) is a failed run, not a skip.
 Every run it starts ends by writing the status document (#268,
 `lookout.snapshot.status`): its outcome, start and end, and the code version
-and git SHA it ran on, served by the site at `/status`. A skipped run writes
-none, as it sends no heartbeat: the holder's run writes its own.
+and git SHA it ran on, served by the site at `/status`. The code is read once
+as the run starts, so a `git pull` by a later cron tick, while this run still
+works, never names code this run did not run. A skipped run writes none, as
+it sends no heartbeat: the holder's run writes its own.
 """
 
 import argparse
+import contextlib
 import sys
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import Callable, ContextManager, Dict, List, Optional, Tuple, TypeVar
 
 import pandas as pd
 
+import lookout
 from lookout.api.ambient_client import get_station_device
 from lookout.cli import catchup
 from lookout.config import DEFAULT_BUCKET, get_station_mac
@@ -560,25 +565,35 @@ def main(
     The archive-writer lock is taken before anything else and released when
     the run ends, however it ends. When another archive writer holds it,
     the run is skipped: one log line, no heartbeat, no status document,
-    exit 0.
+    exit 0. A lock that cannot be opened (an OSError: say, a lock directory
+    that cannot be made) fails the run before any work: it pings failure and
+    writes a failed status, exit 1.
+
+    The code the status document names is read once, as the run starts.
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :param clock: Returns the build time, and the run's start and end;
         injected so tests can fix it.
-    :param code: Returns the code version and SHA the status document names;
-        `lookout.snapshot.status.code_version` when None.
+    :param code: Returns the code version and SHA the status document names,
+        called once as the run starts; `lookout.snapshot.status.code_version`
+        when None.
     :return: The exit status: 0 when the run finished clean or was skipped
         for a held lock, else 1 (a curve step failure after publish
         included).
     """
     args = parse_args(argv)
+    lock_error: Optional[OSError] = None
+    lock: ContextManager[object] = contextlib.nullcontext()
     try:
         lock = hold_archive_lock()
     except ArchiveLockHeld as e:
         logger.warning(f"{e}; this refresh run is skipped, no heartbeat sent")
         return 0
+    except OSError as e:
+        lock_error = e
     with lock:
         started = clock()
+        ran_on = code_at_start(code or code_version)
         status = 1
         snapshot: Optional[Snapshot] = None
         error: Optional[str] = None
@@ -586,6 +601,9 @@ def main(
         try:
             heartbeat = Heartbeat.from_secrets()
             heartbeat.start()
+            if lock_error is not None:
+                # No lock, so no work: failed like any other run that raises.
+                raise lock_error
             try:
                 snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
                 status = 0
@@ -615,7 +633,7 @@ def main(
                 heartbeat.finish(status)
             write_status(
                 args.bucket,
-                code or code_version,
+                ran_on,
                 started,
                 clock,
                 status,
@@ -625,9 +643,23 @@ def main(
         return status
 
 
+def code_at_start(code: Callable[[], CodeVersion]) -> CodeVersion:
+    """
+    The code the run starts on, read once; never raises (#268).
+
+    :param code: Returns the code version and SHA.
+    :return: Its answer; when it raises, the imported version with no SHA.
+    """
+    try:
+        return code()
+    except Exception as e:
+        logger.warning(f"No code version for the status document: {e!r}")
+        return CodeVersion(version=lookout.__version__, sha=None)
+
+
 def write_status(
     bucket: str,
-    code: Callable[[], CodeVersion],
+    code: CodeVersion,
     started: datetime,
     clock: Callable[[], datetime],
     status: int,
@@ -637,12 +669,12 @@ def write_status(
     """
     Write the run's status document; never raises (#268).
 
-    The code version and the end time are read here, inside the guard, so
-    nothing about the status document can raise out of `main`'s `finally`
-    and replace the run's own outcome.
+    The end time is read here, inside the guard, so nothing about the
+    status document can raise out of `main`'s `finally` and replace the
+    run's own outcome.
 
     :param bucket: The bucket.
-    :param code: Returns the code the run was on.
+    :param code: The code the run started on (`code_at_start`).
     :param started: The run's start.
     :param clock: Returns now: the run's end.
     :param status: The exit status, 0 or 1.
@@ -653,7 +685,7 @@ def write_status(
         publish_status(
             RunStatus(
                 station_mac=get_station_mac(),
-                code=code(),
+                code=code,
                 started_at_ms=to_ms(started),
                 ended_at_ms=to_ms(clock()),
                 outcome="ok" if status == 0 else "failed",
