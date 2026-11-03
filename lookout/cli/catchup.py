@@ -4,7 +4,8 @@ catchup.py: Synchronize new Ambient Weather data with archived records in S3.
 This module pulls data since the last known timestamp in the archive and updates
 S3 storage with any newly retrieved data. Supports a dry-run mode for simulation
 and offline testing. Also supports archive repair (schema normalization) with
---repair-archive and optional --dry-run. A run that writes takes the
+--repair-archive and optional --dry-run; the repair also strips the derived
+columns stored (#191). A run that writes takes the
 archive-writer lock first (#244); `--dry-run` alone takes none.
 
 Usage:
@@ -40,7 +41,9 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
 
     Returns (fixed_df, metrics dict). The actual validation/cast/dedupe/
     sort work is delegated to `normalize`; this function only adapts
-    the result into a metrics shape.
+    the result into a metrics shape. The fixed frame also drops the derived
+    columns stored (`archive_merge.DERIVED_COLUMNS`, #191), named in
+    `metrics["derived"]`.
     """
     metrics: Dict = {}
     if df is None or df.empty:
@@ -57,7 +60,8 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     metrics["before_len"] = len(df)
     metrics["before_dtype"] = str(df["dateutc"].dtype)
 
-    fixed = normalize(df)
+    metrics["derived"] = [c for c in archive_merge.DERIVED_COLUMNS if c in df.columns]
+    fixed = archive_merge.strip_derived(normalize(df))
 
     after = len(fixed)
     metrics["after_len"] = after
@@ -295,6 +299,12 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
             m.get("min"),
             m.get("max"),
         )
+        derived = m.get("derived")
+        if derived:
+            verb = "would strip" if dry_run else "strips"
+            logger.info(f"Archive repair: {verb} derived columns {', '.join(derived)}")
+        else:
+            logger.info("Archive repair: no derived columns stored")
         if dry_run:
             logger.info("Dry-run: NOT saving repaired archive.")
             return
@@ -317,7 +327,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--repair-archive",
         action="store_true",
-        help="Validate/fix archive (dateutc), de-dupe, sort. Can be used with --dry-run.",
+        help=(
+            "Validate/fix archive (dateutc), de-dupe, sort, strip derived "
+            "columns. Can be used with --dry-run."
+        ),
     )
     args = parser.parse_args()
 

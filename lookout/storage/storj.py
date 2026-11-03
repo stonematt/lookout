@@ -365,12 +365,14 @@ def save_archive(
     The one save step every archive writer goes through (#133): the stored
     archive has a single defined order, newest `dateutc` first, whatever
     order the caller built it in. The sort is stable and the index is reset;
-    the rows and columns are saved as handed.
+    the rows are saved as handed. The archive holds only what Ambient sends
+    (#191): the columns Lookout derives (`archive_merge.DERIVED_COLUMNS`)
+    are stripped, and every other column is saved as handed.
 
     Every save is guarded against the stored archive itself (#190), so a
     caller that built `df` without the archive merge is guarded too: it is
     refused if any stored `dateutc` is absent from `df`, or any stored
-    value is NaN in `df` (`archive_merge.loss`). Updated values and added
+    raw value is NaN in `df` (`archive_merge.loss`). Updated values and added
     readings pass. Only an explicit repair (the rain repair and catchup's
     `--repair-archive`) passes `repair=True`, which logs the loss and saves.
 
@@ -396,6 +398,7 @@ def save_archive(
         df = df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
             drop=True
         )
+    df = archive_merge.strip_derived(df)
     if not save_df_to_s3(df, bucket, key):
         raise StorageWriteError(f"Failed to save s3://{bucket}/{key}")
 

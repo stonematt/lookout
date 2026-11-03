@@ -420,6 +420,81 @@ def test_the_repair_allowance_lets_a_dropping_and_blanking_save_through(
     assert_frame_equal(stored_now(), newest_first.reset_index(drop=True))
 
 
+# ---------- the archive holds only what Ambient sends (#191) ----------
+
+
+DERIVED = ["hour", "direction_bin", "value_bin"]
+
+
+def with_derived(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    `df` carrying the columns old UI code derived and saved, all filled.
+
+    :param df: Archive rows.
+    :return: A copy with `hour`, `direction_bin` and `value_bin` set.
+    """
+    out = df.copy()
+    out["hour"] = pd.to_datetime(out["dateutc"], unit="ms").dt.hour.astype(float)
+    out["direction_bin"] = pd.Categorical(["N"] * len(out))
+    out["value_bin"] = pd.Categorical(["0-2"] * len(out))
+    return out
+
+
+def test_a_save_never_writes_a_derived_column(fake_s3):
+    stored = with_derived(scenario_archive())
+    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+
+    storj.save_archive(stored, BUCKET, FAKE_MAC, stored=stored)
+
+    assert not set(DERIVED) & set(stored_now().columns)
+    assert_frame_equal(stored_now(), scenario_archive())
+
+
+def test_a_save_that_leaves_out_the_stored_derived_columns_is_not_a_blank(fake_s3):
+    stored = with_derived(scenario_archive())
+    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+    raw = scenario_archive()
+
+    storj.save_archive(raw, BUCKET, FAKE_MAC, stored=stored)
+
+    assert_frame_equal(stored_now(), raw)
+
+
+def test_a_blanked_raw_value_is_still_refused_beside_the_derived_columns(fake_s3):
+    stored = with_derived(scenario_archive())
+    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+    before = stored_now()
+    blanked = scenario_archive()
+    blanked.loc[0, "tempf"] = float("nan")
+
+    with pytest.raises(storj.ArchiveLossError, match=r"blank 1 stored value.*tempf"):
+        storj.save_archive(blanked, BUCKET, FAKE_MAC, stored=stored)
+
+    assert_frame_equal(stored_now(), before)
+
+
+def test_a_dropped_reading_is_still_refused_beside_the_derived_columns(fake_s3):
+    stored = with_derived(scenario_archive())
+    storj.save_df_to_s3(stored, BUCKET, ARCHIVE_KEY)
+    before = stored_now()
+
+    with pytest.raises(storj.ArchiveLossError, match="drop 1 stored reading"):
+        storj.save_archive(scenario_archive().iloc[1:], BUCKET, FAKE_MAC, stored=stored)
+
+    assert_frame_equal(stored_now(), before)
+
+
+def test_a_column_not_on_the_derived_list_is_kept(fake_s3):
+    # A sensor Ambient adds later, and fields Ambient sends that Lookout
+    # does not use, are raw.
+    stored = scenario_archive()
+    new = stored.assign(pm10_in_aqin=3.0, passkey="k", time=1.0, loc="k/daily")
+
+    storj.save_archive(new, BUCKET, FAKE_MAC, stored=stored)
+
+    assert_frame_equal(stored_now(), new)
+
+
 def _calls_passing_repair() -> set:
     """
     (file, enclosing function) of every archive save that passes `repair`,

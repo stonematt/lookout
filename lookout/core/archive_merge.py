@@ -17,6 +17,12 @@ The same comparison guards every archive save (`storj.save_archive`):
 dropped and values blanked, whoever built it. No routine write may lose
 either (GLOSSARY: **archive**); only an explicit repair may.
 
+The archive holds only what Ambient sends (#191). `DERIVED_COLUMNS` names
+the columns Lookout once derived and saved; every archive save strips them
+(`strip_derived`), and `loss` does not count them, so leaving them out is
+never a blank. Any column not on the list is raw and kept, so a sensor
+Ambient adds later is never dropped.
+
 Pure frame logic: no storage access, no Streamlit. A deliberate correction
 is a replace, never a merge.
 
@@ -24,6 +30,7 @@ Functions:
 - merge: Merge Ambient's readings into the stored archive; returns `Merged`.
 - loss: What saving a new archive over the stored one would lose; `Loss`.
 - replace: Swap the stored readings in a window for corrected ones; `Replaced`.
+- strip_derived: The archive without its `DERIVED_COLUMNS`.
 
 Classes:
 - MergeReport: What one merge changed; `describe()` is its log line.
@@ -57,6 +64,13 @@ from pandas.core.dtypes.cast import ensure_dtype_can_hold_na, find_common_type
 from lookout.utils.dateutc import normalize
 
 Dtype = Union[np.dtype, ExtensionDtype]
+
+# Columns Lookout derived that old UI code saved into the archive, never
+# Ambient's (#191): the hour of a reading and the wind rose's direction and
+# speed bins. The archive's first data, Ambient's 2022 history (a3b1246),
+# has none of them; it does carry `passkey`, `time` and `loc`, which no
+# Lookout code ever set, so those are Ambient's and stay.
+DERIVED_COLUMNS = ("hour", "direction_bin", "value_bin")
 
 
 @dataclass(frozen=True)
@@ -358,7 +372,8 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
     or invalid row is not a reading `new` could drop. Readings are matched
     on `dateutc`. A changed value is not a loss (that is an update); only a
     stored value with nothing in its place is. A value missing on both
-    sides is not lost.
+    sides is not lost. `DERIVED_COLUMNS` are not compared: the save strips
+    them, so a stored derived value is never a loss.
 
     :param stored: The stored archive, as read.
     :param new: The archive about to be saved, any order.
@@ -371,7 +386,8 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
     stored_at = stored.set_index("dateutc")
     new_at = new.set_index("dateutc") if not new.empty else pd.DataFrame()
     kept = stored_at.index.intersection(new_at.index)
-    old = stored_at.loc[kept]
+    raw = [col for col in stored_at.columns if col not in DERIVED_COLUMNS]
+    old = stored_at.loc[kept, raw]
     # A column `new` lacks reindexes to NaN: every stored value in it is lost.
     now = new_at.reindex(index=kept, columns=old.columns)
     per_column = (old.notna() & now.isna()).sum()
@@ -459,6 +475,17 @@ def replace(
     merged = pd.concat(pieces, sort=False).reindex(columns=columns)
     report = ReplaceReport(replaced=int(inside.sum()), written=len(new))
     return Replaced(_newest_first(merged), report)
+
+
+def strip_derived(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The archive without the columns Lookout derives (`DERIVED_COLUMNS`).
+
+    :param df: An archive frame.
+    :return: `df` itself when it holds none of them, else a copy without them.
+    """
+    derived = [col for col in DERIVED_COLUMNS if col in df.columns]
+    return df.drop(columns=derived) if derived else df
 
 
 def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
