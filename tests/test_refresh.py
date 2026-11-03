@@ -45,6 +45,7 @@ from tests.fixtures.archive import (
     STATION_TZ,
     RainSpell,
     build_archive,
+    text_as_category,
 )
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj, seed_inventory
@@ -190,9 +191,30 @@ class TestRefreshRun:
         # The save strips the columns Lookout derived (#191); the rest stay.
         archive = station.archive.drop(columns=["hour", "direction_bin", "value_bin"])
         assert list(stored.columns) == list(archive.columns)
-        assert stored.dtypes.astype(str).to_dict() == (
-            archive.dtypes.astype(str).to_dict()
+        # The text column is stored dictionary-encoded (#285); `passkey` and
+        # `loc` hold nothing on the slice, so they stay as they are.
+        assert stored.dtypes.astype(str).to_dict() == text_as_category(
+            archive.dtypes, ["battrain"]
         )
+
+    def test_the_steps_after_the_save_get_the_text_as_category(self, seed, monkeypatch):
+        # #285: the archive as saved, which every later step reads, holds
+        # its text as category whatever Ambient's fetch sent.
+        station = seed()
+        saved = []
+        update = refresh.update_archive
+
+        def keep(*args, **kwargs):
+            saved.append(update(*args, **kwargs))
+            return saved[-1]
+
+        monkeypatch.setattr(refresh, "update_archive", keep)
+
+        run_refresh(station)
+
+        (archive,) = saved
+        assert archive["battrain"].dtype == "category"
+        assert len(archive) == len(station.archive) + RECORDED_ROWS
 
     def test_the_snapshot_is_built_from_the_caught_up_archive(self, seed):
         station = seed()

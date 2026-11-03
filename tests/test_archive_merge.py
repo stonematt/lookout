@@ -258,6 +258,57 @@ class TestArchiveMerge:
         assert archive["count"].tolist()[1:] == [2.0, 1.0]
         assert archive["pm25"].tolist()[:2] == [4.0, 3.0]
 
+    def test_a_category_text_column_stays_category_through_the_merge(self):
+        """
+        The archive holds its text as category (#285); Ambient sends text.
+
+        The concat rule would make the column object again, a full copy of
+        its strings in every later step; the merge keeps it category, its
+        categories grown by any new text, with the same values.
+        """
+        stored = readings(
+            {"slot": 0, "battrain": "1", "loc": "a"},
+            {"slot": 1, "battrain": "1", "loc": None},
+            {"slot": 2, "battrain": "1", "loc": "b"},
+        ).astype({"battrain": "category", "loc": "category"})
+        ambient = readings(
+            {"slot": 2, "battrain": "1"},
+            {"slot": 3, "battrain": "0"},
+        )
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].dtype == pd.CategoricalDtype(["1", "0"])
+        assert archive["loc"].dtype == pd.CategoricalDtype(["a", "b"])
+        assert archive["battrain"].tolist() == ["0", "1", "1", "1"]
+        assert archive["loc"].astype(object).where(
+            archive["loc"].notna(), None
+        ).tolist() == [None, "b", None, "a"]
+        assert (report.added, report.filled, report.updated) == (1, 0, 0)
+
+    def test_a_changed_text_value_is_an_update_against_a_category(self):
+        stored = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}
+        ).astype({"battrain": "category"})
+        ambient = readings({"slot": 1, "battrain": "0"})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].tolist() == ["0", "1"]
+        assert archive["battrain"].dtype == pd.CategoricalDtype(["1", "0"])
+        assert report.updated == 1
+
+    def test_text_mixed_with_numbers_takes_the_concat_type(self):
+        stored = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}
+        ).astype({"battrain": "category"})
+        ambient = readings({"slot": 2, "battrain": 1.0})
+
+        archive, _ = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].dtype == object
+        assert archive["battrain"].tolist() == [1.0, "1", "1"]
+
     def test_the_report_describes_itself_for_a_log_line(self):
         report = archive_merge.MergeReport(
             added=3, filled=1, updated=24, stored_only=("hour",), ambient_only=()
@@ -942,6 +993,13 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
     stored_repeats = pd.concat([stored, stored.iloc[:10]])
     stored_repeats.loc[stored_repeats.index[:2], "dateutc"] = 12345
 
+    # The archive holds its text as category (#285): the first save over a
+    # stored archive of plain strings, and a category value blanked.
+    held = raw.astype({"battrain": "category"})
+    stored_held = stored.astype({"battrain": "category"})
+    held_blanked = held.copy()
+    held_blanked.loc[held_blanked.index[::13], "battrain"] = None
+
     window = (int(real["dateutc"].iloc[300]), int(real["dateutc"].iloc[250]))
     repaired, _ = archive_merge.replace(stored, *window, raw.iloc[260:280])
     merged, _ = archive_merge.merge(stored.iloc[30:], raw.head(40))
@@ -970,6 +1028,9 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
         ("a new archive without dateutc", stored, raw.drop(columns=["dateutc"])),
         ("an empty new archive with columns", stored, raw.iloc[0:0]),
         ("nothing stored", pd.DataFrame(), raw),
+        ("category text over plain text", stored, held),
+        ("plain text over category text", stored_held, raw),
+        ("a blanked category value", stored_held, held_blanked),
     ]
 
 
@@ -1000,6 +1061,11 @@ EXPECTED_LOSS = {
     "a new archive without dateutc": (520, 0, ()),
     "an empty new archive with columns": (520, 0, ()),
     "nothing stored": (0, 0, ()),
+    # Added with #285, after the old guard was deleted: by hand, every 13th
+    # of the 520 readings blanked.
+    "category text over plain text": (0, 0, ()),
+    "plain text over category text": (0, 0, ()),
+    "a blanked category value": (0, 40, ("battrain",)),
 }
 
 

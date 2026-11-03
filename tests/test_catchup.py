@@ -35,7 +35,13 @@ from tests.fixtures.ambient import (
     load_history,
     to_ambient_records,
 )
-from tests.fixtures.archive import FAKE_MAC, build_archive, scenario_archive
+from tests.fixtures.archive import (
+    FAKE_MAC,
+    build_archive,
+    scenario_archive,
+    text_as_category,
+    text_as_values,
+)
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import (
     BUCKET,
@@ -237,8 +243,10 @@ class TestCatchupRun:
         stored = station.stored()
         archive = raw(station.archive)
         assert list(stored.columns) == list(archive.columns)
-        assert stored.dtypes.astype(str).to_dict() == (
-            archive.dtypes.astype(str).to_dict()
+        # The text column is stored dictionary-encoded (#285); `passkey` and
+        # `loc` hold nothing on the slice, so they stay as they are.
+        assert stored.dtypes.astype(str).to_dict() == text_as_category(
+            archive.dtypes, ["battrain"]
         )
 
     def test_rows_before_the_overlap_are_kept_as_they_were(self, catchup_station):
@@ -250,7 +258,7 @@ class TestCatchupRun:
         stored = station.stored()
         archive = raw(station.archive)
         before = archive[archive["dateutc"] <= overlap_from]
-        after = stored[stored["dateutc"] <= overlap_from]
+        after = text_as_values(stored[stored["dateutc"] <= overlap_from])
         assert_frame_equal(after.reset_index(drop=True), before.reset_index(drop=True))
 
     def test_new_rows_carry_the_readings_ambient_sent(self, catchup_station):
@@ -364,7 +372,8 @@ class TestOverlapMerge:
 
         rows = station.stored().set_index("dateutc").loc[self.overlap.index]
         assert_frame_equal(
-            rows[["humidity", "passkey"]], self.overlap[["humidity", "passkey"]]
+            text_as_values(rows[["humidity", "passkey"]]),
+            self.overlap[["humidity", "passkey"]],
         )
 
     def test_the_stored_derived_columns_are_stripped_not_refused(self, catchup_station):
@@ -453,7 +462,7 @@ class TestStoredOrder:
 
         stored = station.stored()
         assert stored["dateutc"].is_monotonic_decreasing
-        assert_frame_equal(stored, newest_first(raw(archive)))
+        assert_frame_equal(text_as_values(stored), newest_first(raw(archive)))
 
 
 class TestRepairArchiveStripsDerived:
@@ -500,7 +509,9 @@ class TestRepairArchiveStripsDerived:
             "Archive repair: strips derived columns value_bin, direction_bin, hour"
             in lines
         )
-        assert_frame_equal(station.stored(), newest_first(raw(station.archive)))
+        assert_frame_equal(
+            text_as_values(station.stored()), newest_first(raw(station.archive))
+        )
 
     def test_a_repair_of_a_raw_archive_reports_none(self, catchup_station, caplog):
         catchup_station(archive=raw(load_real_slice()))

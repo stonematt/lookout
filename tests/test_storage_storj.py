@@ -6,16 +6,19 @@ These pin today's behaviour, quirks included; a test that reads oddly says so.
 """
 
 import ast
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from pandas.testing import assert_frame_equal
 
 import lookout
 import lookout.api.awn_controller as awn
 from lookout.storage import storj
-from tests.fixtures.archive import FAKE_MAC, scenario_archive
+from tests.fixtures.archive import FAKE_MAC, scenario_archive, text_as_values
 from tests.fixtures.real import load_real_slice
 from tests.fixtures.storage import BUCKET, bucket_keys
 from tests.fixtures.storage import flaky_storj
@@ -126,7 +129,8 @@ def test_an_archive_already_newest_first_is_saved_as_handed(fake_s3):
     storj.save_archive(handed, BUCKET, FAKE_MAC, stored=new)
 
     saved = storj.get_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
-    assert_frame_equal(saved, storj.archive_merge.strip_derived(new))
+    # The same values; the text columns are written dictionary-encoded (#285).
+    assert_frame_equal(text_as_values(saved), storj.archive_merge.strip_derived(new))
     assert_frame_equal(handed, new)
 
 
@@ -527,7 +531,7 @@ def test_a_column_not_on_the_derived_list_is_kept(fake_s3):
 
     storj.save_archive(new, BUCKET, FAKE_MAC, stored=stored)
 
-    assert_frame_equal(stored_now(), new)
+    assert_frame_equal(text_as_values(stored_now()), new)
 
 
 def _calls_passing_repair() -> set:
@@ -595,3 +599,98 @@ def test_a_failed_catalog_backup_raises_backup_error_and_saves_nothing(
 
     assert bucket_keys(fake_s3) == [key]
     assert fake_s3.get_object(Bucket=BUCKET, Key=key)["Body"].read() == b"old"
+
+
+# ---------- the archive holds its string columns as category (#285) ----------
+
+
+STRINGS = ["battrain", "passkey", "loc"]
+
+
+def fetched_real() -> pd.DataFrame:
+    """The real slice, newest first, without the derived columns a save strips."""
+    real = load_real_slice()
+    return real.drop(columns=[c for c in DERIVED if c in real.columns])
+
+
+def with_strings(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    `df` with Ambient's old string fields on its older half, as the real
+    archive holds them: `passkey` and `loc` text on the 2022 history, None
+    after; `battrain` "1" or "0" throughout.
+
+    :param df: Archive rows, newest first, `battrain` held as text.
+    :return: A copy; the string columns are object, as a parquet of plain
+        strings reads.
+    """
+    out = df.copy()
+    older = out.index >= len(out) // 2
+    out["passkey"] = pd.Series([None] * len(out), dtype=object)
+    out.loc[older, "passkey"] = "A" * 32
+    out["loc"] = pd.Series([None] * len(out), dtype=object)
+    out.loc[older, "loc"] = [f"ambient-prod-2022/{i:05d}" for i in range(older.sum())]
+    out.loc[out.index[::9], "battrain"] = "0"
+    return out
+
+
+def test_the_archive_loads_its_string_columns_as_category(fake_s3):
+    plain = with_strings(fetched_real())
+    storj.save_df_to_s3(plain, BUCKET, ARCHIVE_KEY)
+
+    archive = storj.load_archive(BUCKET, FAKE_MAC)
+
+    assert [str(archive[col].dtype) for col in STRINGS] == ["category"] * 3
+    oldest_first = plain.iloc[::-1].reset_index(drop=True)
+    assert_frame_equal(text_as_values(archive), oldest_first)
+
+
+def test_no_other_column_changes_type_on_load(fake_s3):
+    plain = with_strings(fetched_real())
+    storj.save_df_to_s3(plain, BUCKET, ARCHIVE_KEY)
+
+    archive = storj.load_archive(BUCKET, FAKE_MAC)
+
+    changed = {
+        col: (str(plain[col].dtype), str(archive[col].dtype))
+        for col in plain.columns
+        if archive[col].dtype != plain[col].dtype
+    }
+    assert changed == {col: ("object", "category") for col in STRINGS}
+
+
+def test_a_save_then_a_load_round_trips_every_value(fake_s3):
+    plain = with_strings(fetched_real())
+    storj.save_df_to_s3(plain, BUCKET, ARCHIVE_KEY)
+    stored = storj.load_archive(BUCKET, FAKE_MAC)
+
+    storj.save_archive(stored, BUCKET, FAKE_MAC, stored=stored)
+    again = storj.load_archive(BUCKET, FAKE_MAC)
+
+    assert_frame_equal(again, stored)
+    assert_frame_equal(text_as_values(again), plain.iloc[::-1].reset_index(drop=True))
+
+
+def test_the_first_category_save_over_a_plain_string_archive_is_accepted(fake_s3):
+    plain = with_strings(fetched_real())
+    storj.save_df_to_s3(plain, BUCKET, ARCHIVE_KEY)
+    as_read = storj.read_df_from_s3(BUCKET, ARCHIVE_KEY, "parquet")
+    assert [as_read[col].dtype for col in STRINGS] == [object] * 3
+    archive = storj.load_archive(BUCKET, FAKE_MAC)
+
+    storj.save_archive(archive, BUCKET, FAKE_MAC, stored=as_read)
+
+    assert_frame_equal(text_as_values(stored_now()), plain)
+
+
+def test_the_save_writes_the_string_columns_dictionary_encoded(fake_s3):
+    plain = with_strings(fetched_real())
+    storj.save_df_to_s3(plain, BUCKET, ARCHIVE_KEY)
+    stored = storj.load_archive(BUCKET, FAKE_MAC)
+
+    # Handed as plain strings, saved dictionary-encoded all the same.
+    storj.save_archive(plain, BUCKET, FAKE_MAC, stored=stored)
+
+    body = fake_s3.get_object(Bucket=BUCKET, Key=ARCHIVE_KEY)["Body"].read()
+    schema = pq.read_schema(BytesIO(body))
+    assert all(pa.types.is_dictionary(schema.field(col).type) for col in STRINGS)
+    assert_frame_equal(text_as_values(stored_now()), plain)
