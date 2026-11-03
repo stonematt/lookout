@@ -1,0 +1,11 @@
+{
+  "kind": "status",
+  "station_mac": "00:11:22:33:44:55",
+  "version": "2026.11.1",
+  "sha": "0123456789abcdef0123456789abcdef01234567",
+  "started_at_ms": 1767918380000,
+  "ended_at_ms": 1767918422000,
+  "outcome": "ok",
+  "error": null,
+  "built_at_ms": 1767918420000
+}
