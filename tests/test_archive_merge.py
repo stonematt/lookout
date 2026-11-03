@@ -975,7 +975,7 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
 
 # What the pre-#284 save guard found on each case, recorded from it before it
 # was deleted; the overlap guard matched it on every case and on the full
-# real archive (PR for #284).
+# real archive (#284).
 EXPECTED_LOSS = {
     "a clean save of the merge": (0, 0, ()),
     "the same archive": (0, 0, ()),

@@ -429,9 +429,11 @@ def _rows_kept(new: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     :return: `(dateutc, rows)`: the kept readings' int64 ms keys, ascending
         and unique, and their positions in `new`.
     """
-    if new.empty or "dateutc" not in new.columns:
-        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.intp)
-    keys = pd.DataFrame({"dateutc": new["dateutc"].array, "row": np.arange(len(new))})
+    keys = pd.DataFrame()
+    if "dateutc" in new.columns:
+        keys = pd.DataFrame(
+            {"dateutc": new["dateutc"].array, "row": np.arange(len(new))}
+        )
     kept = normalize(keys)
     if kept.empty:
         return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.intp)
