@@ -255,14 +255,14 @@ def load_stations(bucket: str) -> List[StationRun]:
         )
     runs = []
     for mac in inventory.macs:
-        run_ = StationRun(mac=mac)
+        station_run = StationRun(mac=mac)
         try:
-            run_.device = find_station(devices, mac)
+            station_run.device = find_station(devices, mac)
         except StationNotFoundError as e:
             with station_context(None, mac):
                 logger.error(f"Station {mac} failed: {e}")
-            run_.error = e
-        runs.append(run_)
+            station_run.error = e
+        runs.append(station_run)
     logger.info(f"Refreshing {', '.join(r.mac for r in runs)}")
     return runs
 
@@ -286,8 +286,7 @@ def fetch_delta(device: Dict, bucket: str, pages: int) -> Tuple[pd.DataFrame, in
         could not cross.
     """
     newest = archive_newest_ms(bucket, device["macAddress"])
-    newest_only = pd.DataFrame({"dateutc": [newest]})
-    return catchup.fetch_delta(device, newest_only, pages), newest
+    return catchup.fetch_delta(device, newest, pages), newest
 
 
 def update_archive(device: Dict, bucket: str, fetched: pd.DataFrame) -> pd.DataFrame:
@@ -635,17 +634,17 @@ def _step(name: str, fn: Callable[..., T], *args: object) -> T:
 
 
 def refresh_station(
-    run_: StationRun, bucket: str, clock: Callable[[], datetime]
+    station_run: StationRun, bucket: str, clock: Callable[[], datetime]
 ) -> Snapshot:
     """
     Step 3, for one station: the per-station pipeline, from the archive
     save to the curve files.
 
-    The fetched readings are taken off `run_` before the archive loads, and
+    The fetched readings are taken off `station_run` before the archive loads, and
     nothing here outlives the call but the snapshot, so the station's
     archive and frames are released before the next station loads.
 
-    :param run_: The station, after the Ambient phase (`device`, `station`
+    :param station_run: The station, after the Ambient phase (`device`, `station`
         and `fetched` set).
     :param bucket: The bucket.
     :param clock: Returns the build time.
@@ -653,8 +652,12 @@ def refresh_station(
     :raises CurveStepFailed: If the curve step failed after the snapshot
         published; it carries the snapshot.
     """
-    device, station, fetched = run_.device, run_.station, run_.fetched
-    run_.fetched = None
+    device, station, fetched = (
+        station_run.device,
+        station_run.station,
+        station_run.fetched,
+    )
+    station_run.fetched = None
     # Logs its own peak lines, one per part (#280), so it skips `_step`'s.
     archive = update_archive(device, bucket, fetched)
     del fetched
@@ -677,18 +680,18 @@ def refresh_station(
     return snapshot
 
 
-def _station_failed(run_: StationRun, error: Exception) -> None:
+def _station_failed(station_run: StationRun, error: Exception) -> None:
     """
     Record a station's failure and log it with its traceback.
 
     Called inside the station's `station_context`, so the line carries its
     name and MAC too.
 
-    :param run_: The station.
+    :param station_run: The station.
     :param error: Why it failed.
     """
-    run_.error, run_.fetched = error, None
-    logger.error(f"Station {run_.mac} failed: {error}", exc_info=error)
+    station_run.error, station_run.fetched = error, None
+    logger.error(f"Station {station_run.mac} failed: {error}", exc_info=error)
 
 
 def run(
@@ -717,35 +720,35 @@ def run(
     :raises StationNotFoundError: If Ambient lists no device.
     """
     runs = _step("load_stations", load_stations, bucket)
-    for run_ in runs:  # the Ambient phase: every Ambient call of the run
-        if run_.error is not None:
+    for station_run in runs:  # the Ambient phase: every Ambient call of the run
+        if station_run.error is not None:
             continue
-        with station_context(run_.name, run_.mac):
+        with station_context(station_run.name, station_run.mac):
             try:
                 # With no zone the station fails here, before any write.
-                run_.station = Station.from_device(run_.device)
-                run_.fetched, run_.archive_newest_ms = fetch_delta(
-                    run_.device, bucket, pages
+                station_run.station = Station.from_device(station_run.device)
+                station_run.fetched, station_run.archive_newest_ms = fetch_delta(
+                    station_run.device, bucket, pages
                 )
             except Exception as e:
-                _station_failed(run_, e)
-    for run_ in runs:  # the station phase: one station's archive at a time
-        if run_.error is not None:
+                _station_failed(station_run, e)
+    for station_run in runs:  # the station phase: one station's archive at a time
+        if station_run.error is not None:
             continue
-        with station_context(run_.name, run_.mac):
+        with station_context(station_run.name, station_run.mac):
             try:
-                run_.snapshot = refresh_station(run_, bucket, clock)
+                station_run.snapshot = refresh_station(station_run, bucket, clock)
             except CurveStepFailed as e:
                 # Published, so the station heartbeat still goes out; the
                 # station still counts as failed.
-                run_.snapshot, run_.error = e.snapshot, e
+                station_run.snapshot, station_run.error = e.snapshot, e
                 logger.error(
-                    f"Station {run_.mac} failed: event curve files not "
+                    f"Station {station_run.mac} failed: event curve files not "
                     f"written: {e.__cause__}",
                     exc_info=e.__cause__,
                 )
             except Exception as e:
-                _station_failed(run_, e)
+                _station_failed(station_run, e)
     return runs
 
 
@@ -832,15 +835,15 @@ def main(
                 # No lock, so no work: failed like any other run that raises.
                 raise lock_error
             runs = run(bucket=args.bucket, pages=args.pages, clock=clock)
-            status = 0 if all(run_.ok for run_ in runs) else 1
-            for run_ in runs:
-                if run_.snapshot is not None:
-                    with station_context(run_.name, run_.mac):
+            status = 0 if all(station_run.ok for station_run in runs) else 1
+            for station_run in runs:
+                if station_run.snapshot is not None:
+                    with station_context(station_run.name, station_run.mac):
                         heartbeat.station(
-                            run_.snapshot.station.name,
-                            run_.snapshot.station.mac,
-                            run_.snapshot.observed_at_ms,
-                            run_.snapshot.built_at_ms,
+                            station_run.snapshot.station.name,
+                            station_run.snapshot.station.mac,
+                            station_run.snapshot.observed_at_ms,
+                            station_run.snapshot.built_at_ms,
                         )
         except Exception as e:
             error = type(e).__name__
@@ -910,11 +913,15 @@ def write_statuses(
         else:
             outcomes = [
                 (
-                    run_.mac,
-                    None if run_.ok else type(run_.error).__name__,
-                    None if run_.snapshot is None else run_.snapshot.built_at_ms,
+                    station_run.mac,
+                    None if station_run.ok else type(station_run.error).__name__,
+                    (
+                        None
+                        if station_run.snapshot is None
+                        else station_run.snapshot.built_at_ms
+                    ),
                 )
-                for run_ in runs
+                for station_run in runs
             ]
         for mac, failure, built_at_ms in outcomes:
             publish_status(
@@ -961,17 +968,17 @@ def log_summary(runs: Sequence[StationRun], clock: Callable[[], datetime]) -> No
     :param clock: Returns now, to age the readings by.
     """
     now_ms = to_ms(clock())
-    for run_ in runs:
-        name = run_.name or "unnamed"
-        newest = run_.newest_ms()
+    for station_run in runs:
+        name = station_run.name or "unnamed"
+        newest = station_run.newest_ms()
         age = "unknown" if newest is None else f"{_age(now_ms - newest)} old"
-        if run_.ok:
-            logger.info(f"{run_.mac} {name}: published, newest reading {age}")
+        if station_run.ok:
+            logger.info(f"{station_run.mac} {name}: published, newest reading {age}")
             continue
-        outcome = "published, then failed" if run_.snapshot else "failed"
+        outcome = "published, then failed" if station_run.snapshot else "failed"
+        error = type(station_run.error).__name__
         logger.error(
-            f"{run_.mac} {name}: {outcome} ({type(run_.error).__name__}), "
-            f"newest reading {age}"
+            f"{station_run.mac} {name}: {outcome} ({error}), newest reading {age}"
         )
 
 

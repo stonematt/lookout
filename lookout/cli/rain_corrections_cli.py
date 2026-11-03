@@ -25,12 +25,13 @@ import pandas as pd
 import lookout.api.ambient_client as ambient_client
 import lookout.core.rain_corrections as lo_rc
 import lookout.storage.storj as lo_storj
+from lookout.config import DEFAULT_BUCKET
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
 
-def get_station(bucket: str = "lookout") -> Tuple[dict, str, str]:
+def get_station(bucket: str = DEFAULT_BUCKET) -> Tuple[dict, str, str]:
     """
     Get the default station from the Ambient API, or exit 1.
 

@@ -132,23 +132,23 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     archive_df = _load_archive(device, bucket_name)
     log_peak_rss("archive_load", logger)
 
-    fetched = fetch_delta(device, archive_df, pages)
+    fetched = fetch_delta(device, int(archive_df["dateutc"].iloc[-1]), pages)
     return _merge_and_save(device, bucket_name, archive_df, fetched)
 
 
-def fetch_delta(device: Dict, archive_df: pd.DataFrame, pages: int) -> pd.DataFrame:
+def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
     """
     Fetch what Ambient holds after the archive's newest reading.
 
     :param device: The station's `/devices` entry.
-    :param archive_df: The archive; only its newest `dateutc` is read, so a
-        frame holding that one column is enough.
+    :param newest_ms: The archive's newest `dateutc`, epoch ms.
     :param pages: Maximum number of pages to retrieve.
     :return: The fetched readings, raw; empty when there are none.
     :raises CatchupStalled: If Ambient holds readings past a gap the fetch
         could not cross.
     """
-    fetched = awn.fetch_since_last_archive(device, archive_df, sleep=True, pages=pages)
+    newest_only = pd.DataFrame({"dateutc": [newest_ms]})
+    fetched = awn.fetch_since_last_archive(device, newest_only, sleep=True, pages=pages)
     log_peak_rss("ambient_fetch", logger)
     return fetched
 

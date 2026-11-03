@@ -35,7 +35,7 @@ from typing import List, Optional
 import boto3
 import pandas as pd
 
-from lookout.config import HISTORY_FILE_TYPE
+from lookout.config import DEFAULT_FILE_TYPE, HISTORY_FILE_TYPE
 from lookout.core import archive_merge
 from lookout.secrets_loader import get_secret
 from lookout.utils.dateutc import normalize
@@ -567,8 +567,6 @@ def backup_and_save_catalog(
     :raises BackupError: If the backup fails; nothing is saved then.
     :raises StorageWriteError: If the save fails.
     """
-    from lookout.config import DEFAULT_FILE_TYPE
-
     # Create prefix and path for catalog files
     catalog_prefix = f"{mac_address}.{catalog_type}_catalog"
     catalog_path = f"{mac_address}.{catalog_type}_catalog.{DEFAULT_FILE_TYPE}"

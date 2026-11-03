@@ -13,6 +13,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
@@ -28,7 +29,9 @@ DATA_DIR = Path(__file__).parent.parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 
-def get_device_info(bucket_name: str, mac_address: str = None) -> tuple:
+def get_device_info(
+    bucket_name: str, mac_address: Optional[str] = None
+) -> Tuple[str, str, Dict]:
     """
     Get the station's (mac, name, device) from the Ambient API.
 
