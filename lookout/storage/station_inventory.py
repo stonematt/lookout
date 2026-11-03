@@ -62,7 +62,7 @@ class StationInventory:
         :param mac: The MAC to look for.
         :return: True when listed.
         """
-        return str(mac).strip().upper() in {m.upper() for m in self.macs}
+        return self.position(str(mac)) is not None
 
     def position(self, mac: str) -> Optional[int]:
         """
@@ -148,7 +148,7 @@ def append_station(
     bucket: str,
     mac: str,
     stored: Optional[StationInventory],
-    before_write: Callable[[], None] = lambda: None,
+    before_write: Callable[[], None],
 ) -> StationInventory:
     """
     Back the stored inventory up, run `before_write`, then append `mac`.
