@@ -8,13 +8,13 @@ import pandas as pd
 import pytest
 
 from lookout.utils.dateutc import (
+    _normalize_full,
     DEFAULT_TZ,
     INTERVAL_MS,
     POST_2020_MS,
     day_span,
     from_local_date,
     from_local_date_ts,
-    _normalize_full,
     local_time,
     normalize,
     to_local,
@@ -285,6 +285,13 @@ def test_normalize_valid_archive_is_returned_without_a_copy():
 def test_normalize_matches_full_oracle(values, dtype):
     df = _frame(values, dtype)
     pd.testing.assert_frame_equal(normalize(df.copy()), _normalize_full(df.copy()))
+
+
+def test_normalize_fast_path_matches_oracle_and_skips_the_copy():
+    df = _frame([POST_2020_MS, POST_2020_MS + 1, POST_2020_MS + 2])
+    out = normalize(df)
+    assert out is df
+    pd.testing.assert_frame_equal(out, _normalize_full(df.copy()))
 
 
 def test_normalize_matches_oracle_on_non_default_index():

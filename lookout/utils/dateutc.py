@@ -51,7 +51,7 @@ def _is_valid_archive(df: pd.DataFrame, min_ms: int) -> bool:
     Whether ``df`` is already what `_normalize_full` would return.
 
     True when `dateutc` is int64, strictly ascending (sorted and unique),
-    at or above both zero and ``min_ms``, and the index is the default
+    above zero and at or above ``min_ms``, and the index is the default
     ``RangeIndex(0, n)``. Reads the column without copying it.
 
     :param df: Non-empty DataFrame with a `dateutc` column.
