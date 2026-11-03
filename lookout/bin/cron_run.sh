@@ -97,8 +97,8 @@ fi
 # Activate virtualenv
 source "$REPO_ROOT/.venv/bin/activate"
 
-# Run the script and exit with its status. The `if` keeps set -e from
-# aborting before the status is logged.
+# Run the script and exit with its status. The `|| STATUS=$?` keeps set -e
+# from aborting before the status is logged.
 STATUS=0
 PYTHONPATH=. python "$SCRIPT_PATH" || STATUS=$?
 
