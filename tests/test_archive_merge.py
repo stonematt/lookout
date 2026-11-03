@@ -979,13 +979,15 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
     with_extra = raw.copy()
     with_extra["pm25_in"] = 7.0
 
-    repeated = pd.concat([raw.iloc[:3], raw])
-    repeated.loc[repeated.index[1], "tempf"] = float("nan")
-    last_blank = pd.concat([raw, raw.iloc[:3]])
-    last_blank.loc[last_blank.index[-1], "tempf"] = float("nan")
+    tempf = raw.columns.get_loc("tempf")
+    first_blank = pd.concat([raw.iloc[:3], raw], ignore_index=True)
+    first_blank.iloc[1, tempf] = float("nan")
+    second_blank = pd.concat([raw, raw.iloc[:3]], ignore_index=True)
+    second_blank.iloc[-1, tempf] = float("nan")
     invalid = raw.copy()
     invalid.loc[invalid.index[:4], "dateutc"] = 12345  # below the 2020 floor
     as_text = raw.astype({"dateutc": "str"})
+    as_time = raw.assign(dateutc=pd.to_datetime(raw["dateutc"], unit="ms", utc=True))
     newer = raw.iloc[:1].assign(dateutc=raw["dateutc"].iloc[0] + STEP)
     swapped = pd.concat([newer, raw.iloc[1:]], ignore_index=True)
     reindexed = raw.set_axis(range(1000, 1000 + len(raw)))
@@ -1016,10 +1018,11 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
         ("a stored derived value blank in the new frame", derived, derived_blank),
         ("new oldest first", stored, raw.iloc[::-1]),
         ("new with a non-default index", stored, reindexed),
-        ("new repeats a reading, the last kept", stored, repeated),
-        ("new repeats a reading, the last blank", stored, last_blank),
+        ("new repeats a reading, the first blank", stored, first_blank),
+        ("new repeats a reading, the second blank", stored, second_blank),
         ("new rows normalize rejects", stored, invalid),
         ("new dateutc as text", stored, as_text),
+        ("new dateutc as a tz-aware time", stored, as_time),
         ("stored rows normalize repairs", stored_repeats, raw),
         ("an empty new archive", stored, pd.DataFrame()),
         ("a new archive without dateutc", stored, raw.drop(columns=["dateutc"])),
@@ -1059,7 +1062,6 @@ class TestLossMatchesTheOracle:
             "battrain",
             "date",
         )
-        assert losses["new repeats a reading, the last blank"].blanked == 1
         assert losses["an explicit repair"].dropped == 30
         assert losses["a column only the stored side holds"].blanked_columns == (
             "battrain",

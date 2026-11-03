@@ -375,27 +375,66 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
     sides is not lost. `DERIVED_COLUMNS` are not compared: the save strips
     them, so a stored derived value is never a loss.
 
+    Only `dateutc` keys and one column at a time are worked on, never a copy
+    of either frame: `new`'s readings are the rows `normalize` would keep
+    (`_rows_kept`), a stored reading absent from them is dropped, and each
+    stored column is compared on the readings both hold.
+
     :param stored: The stored archive, as read.
     :param new: The archive about to be saved, any order.
     :return: The `Loss`; falsy when nothing stored would be lost.
     """
-    stored = strip_derived(normalize(stored))
+    stored = normalize(stored)
     if stored.empty:
         return Loss()
-    new = strip_derived(normalize(new))
-    stored_at = stored.set_index("dateutc")
-    new_at = new.set_index("dateutc") if not new.empty else pd.DataFrame()
-    kept = stored_at.index.intersection(new_at.index)
-    old = stored_at.loc[kept]
-    # A column `new` lacks reindexes to NaN: every stored value in it is lost.
-    now = new_at.reindex(index=kept, columns=old.columns)
-    per_column = (old.notna() & now.isna()).sum()
-    lost = per_column[per_column > 0]
+    stored_ms = stored["dateutc"].to_numpy()
+    new_ms, new_rows = _rows_kept(new)
+    # Both key arrays are ascending and unique, so a sorted search finds each
+    # stored reading's place among the new ones; it is kept when the new
+    # reading there has the same `dateutc` (a place past the end never is).
+    place = np.searchsorted(new_ms, stored_ms)
+    is_kept = place < len(new_ms)
+    is_kept[is_kept] = new_ms[place[is_kept]] == stored_ms[is_kept]
+    kept = np.flatnonzero(is_kept)
+    at_new = new_rows[place[kept]]
+
+    blanked = {}
+    for col in stored.columns:
+        if col == "dateutc" or col in DERIVED_COLUMNS:
+            continue
+        had = stored[col].notna().to_numpy()[kept]
+        if col in new.columns:
+            # A column `new` lacks blanks every stored value in it.
+            had &= new[col].isna().to_numpy()[at_new]
+        count = int(had.sum())
+        if count:
+            blanked[col] = count
     return Loss(
-        dropped=len(stored_at) - len(kept),
-        blanked=int(lost.sum()),
-        blanked_columns=tuple(lost.index),
+        dropped=len(stored) - len(kept),
+        blanked=sum(blanked.values()),
+        blanked_columns=tuple(blanked),
     )
+
+
+def _rows_kept(new: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    The readings of `new` that `normalize(new)` keeps, without copying `new`.
+
+    `normalize` runs on `new`'s `dateutc` beside each row's position, so the
+    same rows survive (invalid and repeated ones are left out, the same
+    repeat kept) and come back in its ascending order.
+
+    :param new: An archive frame, any order and index.
+    :return: `(dateutc, rows)`: the kept readings' int64 ms keys, ascending
+        and unique, and their positions in `new`.
+    """
+    if new.empty or "dateutc" not in new.columns:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.intp)
+    keys = pd.DataFrame({"dateutc": new["dateutc"].array, "row": np.arange(len(new))})
+    kept = normalize(keys)
+    if kept.empty:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.intp)
+    return kept["dateutc"].to_numpy(), kept["row"].to_numpy()
 
 
 @dataclass(frozen=True)
