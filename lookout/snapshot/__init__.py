@@ -9,6 +9,8 @@ The dashboard snapshot: built in Python, published on Storj, read by the site.
 - `rain_tab`: the Rain tab's section: window totals, daily and hourly rain,
   dry spells and the water-year curves.
 - `publish`: the Storj keys and the write.
+- `status`: the refresh run's status document, written at the end of every
+  run (#268); not part of the snapshot contract.
 - `events`: the Rain Events tab's section and event curves (#84).
 - `curves`: each completed event's curve file, written once.
 - `almanac`: the Overview's almanac grid and rolling-window rain table (#82).

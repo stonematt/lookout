@@ -17,8 +17,11 @@ export const SNAPSHOT_PREFIX = "snapshot/";
 /** How long one Storj read may take, body included, before it fails. */
 export const STORJ_TIMEOUT_MS = 5_000;
 
-/** The two documents a refresh run publishes per station. */
-export type SnapshotKind = "dashboard" | "context";
+/**
+ * The documents a refresh run publishes per station: the snapshot's two, and
+ * the run's status document (#268, `lookout/snapshot/status.py`).
+ */
+export type SnapshotKind = "dashboard" | "context" | "status";
 
 /** What Storj needs to sign a read. */
 export interface StorjConfig {
@@ -57,10 +60,10 @@ export class StorjReadError extends Error {
 
 /**
  * The Storj key of one station's document, as `lookout/snapshot/publish.py`
- * writes it.
+ * (or, for "status", `lookout/snapshot/status.py`) writes it.
  *
  * @param mac - The station's MAC address.
- * @param kind - "dashboard" or "context".
+ * @param kind - "dashboard", "context" or "status".
  * @returns e.g. `snapshot/00:11:22:33:44:55.dashboard.json`.
  */
 export function snapshotKey(mac: string, kind: SnapshotKind): string {
