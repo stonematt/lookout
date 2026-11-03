@@ -70,7 +70,7 @@ def test_an_archive_cannot_hold_back_all_its_readings(tmp_path):
     archive = fixture_archive(tmp_path)
 
     with pytest.raises(ValueError, match="--new"):
-        memory_harness.measure(archive, new=len(load_real_slice()))
+        memory_harness.measure(archive, tz=STATION_TZ, new=len(load_real_slice()))
 
 
 def test_dataframe_sizes_are_in_megabytes():

@@ -188,6 +188,8 @@ def _prepare(
     :raises ValueError: If `new` is out of range or no zone is known.
     """
     df = pd.read_parquet(archive, engine="pyarrow")
+    if len(df) < 2:
+        raise ValueError("The archive needs at least 2 readings to hold one back")
     if not 1 <= new < len(df):
         raise ValueError(f"--new must be 1 to {len(df) - 1}; got {new}")
     zone = tz or _archive_zone(df)
@@ -266,31 +268,41 @@ def _run_steps(config: Dict[str, Any]) -> HarnessReport:
     )
 
 
-def _block_internet() -> List[tuple]:
+def _block_internet() -> List[object]:
     """
     Make every internet socket connect in this process raise.
 
     :return: The list each attempted address is appended to.
     """
-    attempts: List[tuple] = []
+    attempts: List[object] = []
     real_connect = socket.socket.connect
     real_connect_ex = socket.socket.connect_ex
 
     def refuse(address: object) -> NoReturn:
-        attempts.append((address,))
+        """Count the attempt and refuse it. :param address: Its target."""
+        attempts.append(address)
         raise ConnectionRefusedError(f"memory harness: no network ({address})")
 
     def connect(sock: socket.socket, address: object) -> None:
+        """`socket.connect`, refused for internet sockets.
+
+        :param sock: The socket. :param address: Its target."""
         if sock.family in (socket.AF_INET, socket.AF_INET6):
             refuse(address)
         real_connect(sock, address)
 
     def connect_ex(sock: socket.socket, address: object) -> int:
+        """`socket.connect_ex`, refused for internet sockets.
+
+        :param sock: The socket. :param address: Its target."""
         if sock.family in (socket.AF_INET, socket.AF_INET6):
             refuse(address)
         return real_connect_ex(sock, address)
 
     def create_connection(address: object, *args: object, **kwargs: object) -> NoReturn:
+        """`socket.create_connection`, always refused.
+
+        :param address: Its target. :param args: Ignored. :param kwargs: Ignored."""
         refuse(address)
 
     socket.socket.connect = connect
@@ -358,7 +370,10 @@ def _fake_ambient(history: pd.DataFrame, tz: str) -> Dict:
         "info": {"name": "Memory harness"},
     }
 
-    def get(url: str, params: Optional[Dict] = None) -> SimpleNamespace:
+    def get(url: str, params: Optional[Dict[str, Any]] = None) -> SimpleNamespace:
+        """Ambient's answer to one request.
+
+        :param url: The request URL. :param params: Its query parameters."""
         params = params or {}
         if url.endswith("/devices"):
             body: List[Dict] = [device]
@@ -434,6 +449,9 @@ def _measured_run(
     steps: List[StepMemory] = []
 
     def step(name: str, fn: Callable[[], Any]) -> Any:
+        """Run and measure one step.
+
+        :param name: Its name. :param fn: The step. :return: Its result."""
         with track_step(name) as record:
             result = fn()
         steps.append(record)
@@ -484,6 +502,7 @@ def format_report(report: HarnessReport) -> str:
     """
 
     def mb(value: Optional[float]) -> str:
+        """A figure for the table. :param value: MB, or None. :return: Text."""
         return "-" if value is None else f"{value:,.1f}"
 
     lines = [
