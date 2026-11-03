@@ -972,8 +972,8 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
 
     stored_holes = stored.copy()
     stored_holes.loc[stored_holes.index[::5], ["tempf", "battrain"]] = None
-    refilled = raw.copy()
-    refilled.loc[refilled.index[::5], "tempf"] = float("nan")
+    refilled = fetched(stored_holes)
+    refilled.loc[refilled.index[1::5], "tempf"] = float("nan")
 
     without = raw.drop(columns=["dewPoint", "battrain"])
     with_extra = raw.copy()
