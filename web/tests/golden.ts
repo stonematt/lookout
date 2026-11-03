@@ -6,6 +6,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import type { StationIndex } from "../src/stations.js";
+import { parseStationIndex } from "../src/stations.js";
+
 /** The golden scenarios `tests/test_snapshot.py` writes. */
 export type Scenario = "dry" | "raining";
 
@@ -64,4 +67,30 @@ export function goldenCurveText(scenario: Scenario, startMs: number): string {
  */
 export function goldenCurve(scenario: Scenario, startMs: number): unknown {
   return JSON.parse(goldenCurveText(scenario, startMs));
+}
+
+/** The golden station index's two stations (`tests/golden/stations/`). */
+export const FIXTURE_MAC = "00:11:22:33:44:55";
+export const SALMON_MAC = "00:11:22:33:44:66";
+
+/**
+ * The golden station index, parsed: Fixture Station (the default), then
+ * Salmon Run, which has no snapshot yet.
+ *
+ * @returns The typed index.
+ */
+export function twoStations(): StationIndex {
+  const path = resolve(import.meta.dirname, "../../tests/golden/stations/raining.stations.json");
+  return parseStationIndex(JSON.parse(readFileSync(path, "utf8")));
+}
+
+/**
+ * The golden station index cut to its first station, as the live inventory
+ * stands today.
+ *
+ * @returns The typed index.
+ */
+export function oneStation(): StationIndex {
+  const index = twoStations();
+  return { ...index, stations: index.stations.slice(0, 1) };
 }

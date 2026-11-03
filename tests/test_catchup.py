@@ -35,7 +35,13 @@ from tests.fixtures.ambient import (
     load_history,
     to_ambient_records,
 )
-from tests.fixtures.archive import FAKE_MAC, build_archive, scenario_archive
+from tests.fixtures.archive import (
+    FAKE_MAC,
+    build_archive,
+    scenario_archive,
+    text_as_category,
+    text_as_values,
+)
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import (
     BUCKET,
@@ -52,6 +58,9 @@ FIVE_MIN_MS = 5 * 60 * 1000
 # The recorded history: 36 readings, 05:00Z to 07:55Z on 2025-11-19, right
 # after the real slice's newest row (04:55Z).
 RECORDED_ROWS = 36
+# The columns Lookout derived that the real slice still carries; every
+# archive save strips them (#191).
+DERIVED = ["hour", "direction_bin", "value_bin"]
 
 
 def ms(when: str) -> int:
@@ -232,9 +241,12 @@ class TestCatchupRun:
         station.run()
 
         stored = station.stored()
-        assert list(stored.columns) == list(station.archive.columns)
-        assert stored.dtypes.astype(str).to_dict() == (
-            station.archive.dtypes.astype(str).to_dict()
+        archive = raw(station.archive)
+        assert list(stored.columns) == list(archive.columns)
+        # The text column is stored dictionary-encoded (#285); `passkey` and
+        # `loc` hold nothing on the slice, so they stay as they are.
+        assert stored.dtypes.astype(str).to_dict() == text_as_category(
+            archive.dtypes, ["battrain"]
         )
 
     def test_rows_before_the_overlap_are_kept_as_they_were(self, catchup_station):
@@ -244,8 +256,9 @@ class TestCatchupRun:
         station.run()
 
         stored = station.stored()
-        before = station.archive[station.archive["dateutc"] <= overlap_from]
-        after = stored[stored["dateutc"] <= overlap_from]
+        archive = raw(station.archive)
+        before = archive[archive["dateutc"] <= overlap_from]
+        after = text_as_values(stored[stored["dateutc"] <= overlap_from])
         assert_frame_equal(after.reset_index(drop=True), before.reset_index(drop=True))
 
     def test_new_rows_carry_the_readings_ambient_sent(self, catchup_station):
@@ -260,7 +273,7 @@ class TestCatchupRun:
             assert row["yearlyrainin"] == record["yearlyrainin"]
             assert row["date"] == pd.Timestamp(record["date"])
             # Archive-only columns stay empty on rows Ambient sent.
-            assert pd.isna(row["passkey"]) and pd.isna(row["hour"])
+            assert pd.isna(row["passkey"]) and pd.isna(row["loc"])
 
     def test_backs_the_archive_up_before_writing(self, catchup_station):
         station = catchup_station()
@@ -324,14 +337,15 @@ class TestOverlapMerge:
 
     Ambient pages run back from `endDate`, so each run re-fetches the last
     two hours the archive holds. Here Ambient now reports those readings
-    1 degree warmer and without `humidity`, and the stored rows carry an
-    `hour` Ambient never sends.
+    1 degree warmer and without `humidity`, and the stored rows carry a
+    `passkey` Ambient no longer sends and an `hour` Lookout once derived.
     """
 
     def seed(self, catchup_station) -> CatchupStation:
         archive = load_real_slice()
         newest = int(archive["dateutc"].max())
         overlap = archive["dateutc"] > newest - 2 * HOUR_MS
+        archive.loc[overlap, "passkey"] = "stored-passkey"
         archive.loc[overlap, "hour"] = 20.0
         resent = []
         for record in to_ambient_records(archive[overlap]):
@@ -358,8 +372,19 @@ class TestOverlapMerge:
 
         rows = station.stored().set_index("dateutc").loc[self.overlap.index]
         assert_frame_equal(
-            rows[["humidity", "hour"]], self.overlap[["humidity", "hour"]]
+            text_as_values(rows[["humidity", "passkey"]]),
+            self.overlap[["humidity", "passkey"]],
         )
+
+    def test_the_stored_derived_columns_are_stripped_not_refused(self, catchup_station):
+        # The guard does not count a derived column as blanked (#191).
+        station = self.seed(catchup_station)
+
+        station.run()
+
+        stored = station.stored()
+        assert len(stored) == len(station.archive) + RECORDED_ROWS
+        assert not set(DERIVED) & set(stored.columns)
 
     def test_the_run_logs_what_the_merge_changed(self, catchup_station, caplog):
         station = self.seed(catchup_station)
@@ -378,6 +403,16 @@ class TestOverlapMerge:
 
 
 # ---------- the stored order (#133) ----------
+
+
+def raw(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The frame as an archive save stores it: without the derived columns.
+
+    :param df: Archive rows.
+    :return: A copy without `DERIVED`.
+    """
+    return df.drop(columns=DERIVED)
 
 
 def newest_first(df: pd.DataFrame) -> pd.DataFrame:
@@ -427,7 +462,63 @@ class TestStoredOrder:
 
         stored = station.stored()
         assert stored["dateutc"].is_monotonic_decreasing
-        assert_frame_equal(stored, newest_first(archive))
+        assert_frame_equal(text_as_values(stored), newest_first(raw(archive)))
+
+
+class TestRepairArchiveStripsDerived:
+    """`--repair-archive` strips the derived columns already stored (#191)."""
+
+    def seed(self, catchup_station) -> CatchupStation:
+        archive = load_real_slice()
+        archive["hour"] = 3.0
+        archive["direction_bin"] = pd.Categorical(["N"] * len(archive))
+        archive["value_bin"] = pd.Categorical(["0-2"] * len(archive))
+        return catchup_station(archive=archive)
+
+    def repair(self, dry_run: bool, caplog) -> List[str]:
+        from lookout.cli import catchup
+
+        with caplog.at_level("INFO", logger="lookout.cli.catchup"):
+            catchup.main(BUCKET, dry_run=dry_run, pages=20, repair_archive=True)
+        return [r.getMessage() for r in caplog.records]
+
+    def test_a_dry_run_reports_the_derived_columns_and_writes_nothing(
+        self, catchup_station, caplog
+    ):
+        station = self.seed(catchup_station)
+        keys, before = station.keys(), stored_bytes(station)
+
+        lines = self.repair(True, caplog)
+
+        stripping = [line for line in lines if "derived columns" in line]
+        assert stripping == [
+            "Archive repair: would strip derived columns value_bin, "
+            "direction_bin, hour"
+        ]
+        assert station.keys() == keys
+        assert stored_bytes(station) == before
+
+    def test_a_repair_strips_them_and_keeps_every_other_column(
+        self, catchup_station, caplog
+    ):
+        station = self.seed(catchup_station)
+
+        lines = self.repair(False, caplog)
+
+        assert (
+            "Archive repair: strips derived columns value_bin, direction_bin, hour"
+            in lines
+        )
+        assert_frame_equal(
+            text_as_values(station.stored()), newest_first(raw(station.archive))
+        )
+
+    def test_a_repair_of_a_raw_archive_reports_none(self, catchup_station, caplog):
+        catchup_station(archive=raw(load_real_slice()))
+
+        lines = self.repair(True, caplog)
+
+        assert "Archive repair: no derived columns stored" in lines
 
 
 # ---------- paging over a longer outage ----------

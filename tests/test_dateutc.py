@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 
 from lookout.utils.dateutc import (
-    _normalize_full,
     DEFAULT_TZ,
     INTERVAL_MS,
     POST_2020_MS,
@@ -268,45 +267,73 @@ def test_normalize_valid_archive_is_returned_without_a_copy():
     assert normalize(df) is df
 
 
+B = POST_2020_MS
+
+
 @pytest.mark.parametrize(
-    "values,dtype",
+    "values,dtype,expected",
     [
-        ([POST_2020_MS, POST_2020_MS + 1, POST_2020_MS + 2], "int64"),
-        ([POST_2020_MS + 2, POST_2020_MS, POST_2020_MS + 1], "int64"),
-        ([POST_2020_MS, POST_2020_MS, POST_2020_MS + 1], "int64"),
-        ([POST_2020_MS + 1, POST_2020_MS + 1, POST_2020_MS], "int64"),
-        ([str(POST_2020_MS + 5), str(POST_2020_MS)], "object"),
-        ([POST_2020_MS - 1, POST_2020_MS, POST_2020_MS + 1], "int64"),
-        ([5, 10, POST_2020_MS], "int64"),
-        ([POST_2020_MS, POST_2020_MS + 1.5], "float64"),
-        ([POST_2020_MS + 1, float("nan"), POST_2020_MS], "float64"),
+        ([B + 2, B, B + 1], "int64", [B, B + 1, B + 2]),
+        ([B, B, B + 1], "int64", [B, B + 1]),
+        ([B + 1, B + 1, B], "int64", [B, B + 1]),
+        ([str(B + 5), str(B)], "object", [B, B + 5]),
+        ([B - 1, B, B + 1], "int64", [B, B + 1]),
+        ([5, 10, B], "int64", [B]),
+        ([B, B + 1.5], "float64", [B, B + 1]),
+        ([B + 1, float("nan"), B], "float64", [B, B + 1]),
+    ],
+    ids=[
+        "unsorted",
+        "repeated",
+        "repeated, descending",
+        "text",
+        "below the floor",
+        "near zero",
+        "fractional ms",
+        "a missing dateutc",
     ],
 )
-def test_normalize_matches_full_oracle(values, dtype):
+def test_normalize_repairs_what_is_not_already_an_archive(values, dtype, expected):
     df = _frame(values, dtype)
-    pd.testing.assert_frame_equal(normalize(df.copy()), _normalize_full(df.copy()))
+    before = df.copy()
 
-
-def test_normalize_fast_path_matches_oracle_and_skips_the_copy():
-    df = _frame([POST_2020_MS, POST_2020_MS + 1, POST_2020_MS + 2])
     out = normalize(df)
-    assert out is df
-    pd.testing.assert_frame_equal(out, _normalize_full(df.copy()))
 
-
-def test_normalize_matches_oracle_on_non_default_index():
-    df = _frame([POST_2020_MS, POST_2020_MS + 1])
-    df.index = [7, 9]
-    out = normalize(df)
-    pd.testing.assert_frame_equal(out, _normalize_full(df.copy()))
-    assert list(out.index) == [0, 1]
-
-
-def test_normalize_matches_oracle_on_datetime_input():
-    df = pd.DataFrame(
-        {"dateutc": pd.to_datetime([POST_2020_MS, POST_2020_MS + 1], unit="ms")}
+    assert out is not df
+    assert out["dateutc"].dtype == "int64"
+    assert out["dateutc"].tolist() == expected
+    assert isinstance(out.index, pd.RangeIndex) and list(out.index) == list(
+        range(len(expected))
     )
-    pd.testing.assert_frame_equal(normalize(df.copy()), _normalize_full(df.copy()))
+    pd.testing.assert_frame_equal(df, before)
+
+
+def test_normalize_keeps_each_readings_values_beside_its_dateutc():
+    df = _frame([B + 2, B, B + 1])
+
+    out = normalize(df)
+
+    assert out["tempf"].tolist() == [1, 2, 0]
+
+
+def test_normalize_resets_a_non_default_index():
+    df = _frame([B, B + 1])
+    df.index = [7, 9]
+
+    out = normalize(df)
+
+    assert out["dateutc"].tolist() == [B, B + 1]
+    assert out["tempf"].tolist() == [0, 1]
+    assert isinstance(out.index, pd.RangeIndex) and list(out.index) == [0, 1]
+
+
+def test_normalize_casts_a_datetime_dateutc_to_int_ms():
+    df = pd.DataFrame({"dateutc": pd.to_datetime([B, B + 1], unit="ms")})
+
+    out = normalize(df)
+
+    assert out["dateutc"].dtype == "int64"
+    assert out["dateutc"].tolist() == [B, B + 1]
 
 
 def test_normalize_fast_path_respects_min_ms():

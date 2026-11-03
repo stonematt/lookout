@@ -1,8 +1,9 @@
 /**
- * The lane server's read functions: `/dashboard`, `/current`, `/event` and
- * `/status` served by the real handlers from the golden documents in
- * `tests/golden/snapshots/` (and, for `/status`, `tests/golden/status/`),
- * with no secrets and no network.
+ * The lane server's read functions: `/dashboard`, `/current`, `/event`,
+ * `/status` and `/stations` served by the real handlers from the golden
+ * documents in `tests/golden/snapshots/` (for `/status`,
+ * `tests/golden/status/`; for `/stations`, `tests/golden/stations/`), with no
+ * secrets and no network.
  *
  * - `?fixture=dry|raining` (or `LOOKOUT_FIXTURE`) picks the golden; `dry` by
  *   default.
@@ -19,6 +20,9 @@
  *   `tests/golden/snapshots/events/<scenario>.<start_ms>.json`, shifted by
  *   the same offset (so a start read from a shifted `/dashboard` finds its
  *   file, matched to the nearest recorded start).
+ * - The golden station index lists the golden's station, the default, then
+ *   Salmon Run, which has no golden snapshot: `?station=` for it answers
+ *   404, as a station whose snapshot is lost does.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -26,10 +30,17 @@ import { resolve } from "node:path";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 
 import { DAY_MS, addDays } from "../src/format.js";
+import { parseStationIndex } from "../src/stations.js";
 import type { Env } from "./env.js";
 import { handleEvent } from "./event.js";
 import type { ReadSources } from "./handlers.js";
-import { errorResponse, handleCurrent, handleDashboard, handleStatus } from "./handlers.js";
+import {
+  errorResponse,
+  handleCurrent,
+  handleDashboard,
+  handleStations,
+  handleStatus,
+} from "./handlers.js";
 import type { SnapshotKind } from "./storj.js";
 
 /** Where the goldens live, relative to this file. */
@@ -38,12 +49,15 @@ const GOLDEN_DIR = resolve(import.meta.dirname, "../../tests/golden/snapshots");
 /** Where the golden status documents live (`tests/test_status.py`). */
 const STATUS_DIR = resolve(import.meta.dirname, "../../tests/golden/status");
 
+/** Where the golden station indexes live (`tests/test_station_index.py`). */
+const STATIONS_DIR = resolve(import.meta.dirname, "../../tests/golden/stations");
+
 const SCENARIOS = ["dry", "raining"] as const;
 type Scenario = (typeof SCENARIOS)[number];
 
 /** One golden document, parsed. */
-function goldenDoc(scenario: Scenario, kind: SnapshotKind): Record<string, unknown> {
-  const dir = kind === "status" ? STATUS_DIR : GOLDEN_DIR;
+function goldenDoc(scenario: Scenario, kind: SnapshotKind | "stations"): Record<string, unknown> {
+  const dir = kind === "status" ? STATUS_DIR : kind === "stations" ? STATIONS_DIR : GOLDEN_DIR;
   const text = readFileSync(`${dir}/${scenario}.${kind}.json`, "utf8");
   return JSON.parse(text) as Record<string, unknown>;
 }
@@ -127,7 +141,7 @@ function fixtureSources(scenario: Scenario, ageMinutes: number | null, nowMs: nu
     days: observed === null ? 0 : daysBetween(tz, observed, observed + delta),
   };
   return {
-    defaultMac: mac,
+    readStations: async () => parseStationIndex(shiftTimes(goldenDoc(scenario, "stations"), shift)),
     readSnapshot: async (asked, kind) =>
       asked === mac ? JSON.stringify(shiftTimes(goldenDoc(scenario, kind), shift)) : null,
     readLive: async () => null,
@@ -142,8 +156,8 @@ function fixtureSources(scenario: Scenario, ageMinutes: number | null, nowMs: nu
 const DEV_PARAMS = ["fixture", "age"] as const;
 
 /**
- * Answer a lane-server request for `/dashboard`, `/current`, `/event` or
- * `/status`.
+ * Answer a lane-server request for `/dashboard`, `/current`, `/event`,
+ * `/status` or `/stations`.
  *
  * @param url - The request path and query, e.g. `/dashboard?fixture=raining`.
  * @param env - The environment (`LOOKOUT_FIXTURE`, `LOOKOUT_AGE_MIN`).
@@ -157,6 +171,7 @@ export async function devResponse(url: string, env: Env, nowMs: number): Promise
     "/current": handleCurrent,
     "/event": handleEvent,
     "/status": handleStatus,
+    "/stations": handleStations,
   }[parsed.pathname];
   if (!handler) return null;
 
@@ -188,8 +203,8 @@ export async function devResponse(url: string, env: Env, nowMs: number): Promise
 }
 
 /**
- * A Vite plugin serving `/dashboard`, `/current`, `/event` and `/status` from the
- * goldens on the dev server, and on `vite preview` over the built page.
+ * A Vite plugin serving `/dashboard`, `/current`, `/event`, `/status` and
+ * `/stations` from the goldens on the dev server, and on `vite preview` over the built page.
  *
  * @returns The plugin.
  */

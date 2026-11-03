@@ -93,12 +93,36 @@ describe("the lane server's read functions", () => {
   it("keeps its own parameters on a redirect the read function answers", async () => {
     const mac = (golden("raining", "dashboard") as { station: { mac: string } }).station.mac;
     const response = await devResponse(
-      `/current?fixture=raining&age=3&station=${mac.toLowerCase()}`,
+      `/current?fixture=raining&age=3&station=%20${encodeURIComponent(mac)}`,
       {},
       NOW,
     );
     expect(response!.status).toBe(308);
-    expect(response!.headers.get("location")).toBe("current?fixture=raining&age=3");
+    expect(response!.headers.get("location")).toBe(
+      `current?station=${encodeURIComponent(mac)}&fixture=raining&age=3`,
+    );
+  });
+
+  it("serves /stations from the golden station index, shifted with the snapshot", async () => {
+    const dashboard = (await (await devResponse("/dashboard?age=3", {}, NOW))!.json()) as {
+      observed_at_ms: number;
+    };
+    const response = await devResponse("/stations?age=3", {}, NOW);
+    expect(response!.status).toBe(200);
+    const index = (await response!.json()) as {
+      stations: { mac: string; name: string; newest_reading_ms: number | null }[];
+    };
+    expect(index.stations.map((s) => s.name)).toEqual(["Fixture Station", "Salmon Run"]);
+    expect(index.stations[0]!.newest_reading_ms).toBe(dashboard.observed_at_ms);
+  });
+
+  it("answers 404 for Salmon Run, in the golden index with no golden snapshot", async () => {
+    const response = await devResponse(
+      `/dashboard?station=${encodeURIComponent("00:11:22:33:44:66")}`,
+      {},
+      NOW,
+    );
+    expect(response!.status).toBe(404);
   });
 
   it("leaves every other path to Vite", async () => {

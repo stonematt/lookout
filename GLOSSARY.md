@@ -67,7 +67,13 @@ _Avoid_: "station list", "STATIONS".
 ### station index
 
 The published list of stations the site can show, in inventory order,
-with each station's name and zone.
+with each station's MAC, name, zone, newest reading and archive start. The
+refresh run publishes it last, at `snapshot/stations.json`, after every
+station; a station whose run failed keeps its entry from the last good
+index, and one that has never published is not listed. The site reads it,
+never the station inventory, and serves `?station=` only for a station it
+lists. It has its own `schema_version`, outside the snapshot's
+(`lookout/snapshot/station_index.py`).
 
 ### default station
 

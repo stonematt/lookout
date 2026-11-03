@@ -1,22 +1,27 @@
 /**
- * The read functions `/dashboard`, `/current` and `/status`, called the way
- * Vercel calls them: `GET(request)` with `process.env` set and `fetch`
- * faked. Storj serves the golden documents; Ambient serves a recorded-shape
+ * The read functions `/dashboard`, `/current`, `/status` and `/stations`,
+ * called the way Vercel calls them: `GET(request)` with `process.env` set
+ * and `fetch` faked. Storj serves a station index and the golden documents
+ * for the stations it has snapshots of; Ambient serves a recorded-shape
  * `/devices` body. No network.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET as currentGET } from "../api/current.js";
-import { GET as dashboardGET } from "../api/dashboard.js";
-import { GET as statusGET } from "../api/status.js";
 import { describeError } from "../server/errors.js";
 import { SCHEMA_VERSION } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
 import { golden, goldenText } from "./golden.js";
 
 const MAC = "00:11:22:33:44:55";
+/** A second station in the index, with the dry golden as its snapshot. */
+const OTHER = "00:11:22:33:44:66";
+/** A station in the index with no snapshot yet: added minutes ago. */
+const NEW = "00:11:22:33:44:77";
+/** A MAC the index does not list. */
+const STRANGER = "AA:BB:CC:DD:EE:FF";
 const STORJ = "https://gateway.storj.test";
 const AMBIENT = "https://ambient.test/v1";
+const INDEX_KEY = "snapshot/stations.json";
 
 const ENV = {
   STORJ_ACCESS_KEY_ID: "test-access",
@@ -26,34 +31,76 @@ const ENV = {
   AMBIENT_API_KEY: "test-api",
   AMBIENT_APPLICATION_KEY: "test-app",
   AMBIENT_ENDPOINT: AMBIENT,
-  STATION_MAC: MAC,
 };
 
 interface FakeWorld {
   scenario: Scenario;
-  storjStatus: number | null; // null: serve the golden
+  /** The station index's stations, in order; null: no index stored. */
+  index: string[] | null;
+  /** Storj's answer to the index read; null: serve `index`. */
+  indexStatus: number | null;
+  /** Storj's answer to a snapshot document read; null: serve the golden. */
+  storjStatus: number | null;
   ambientStatus: number | null; // null: serve `devices`
   devices: unknown[];
+  /** A key's text, served in place of the usual answer. */
+  bodies: Record<string, string>;
   calls: Request[];
 }
 
 let world: FakeWorld;
+
+/** A station index document listing `macs`, as the refresh run writes it. */
+function indexDocument(macs: string[]) {
+  return {
+    schema_version: 1,
+    kind: "station_index",
+    built_at_ms: 1_767_918_000_000,
+    stations: macs.map((mac) => ({
+      mac,
+      name: `Station ${mac.slice(-2)}`,
+      tz: "America/Los_Angeles",
+      newest_reading_ms: 1_767_917_700_000,
+      archive_start_ms: 1_651_683_600_000,
+    })),
+  };
+}
+
+/** Which golden each station's snapshot documents are; `NEW` has none. */
+const SNAPSHOTS: Record<string, () => Scenario> = {
+  [MAC]: () => world.scenario,
+  [OTHER]: () => "dry",
+};
 
 function fakeFetch(input: RequestInfo | URL, init?: RequestInit) {
   const request = new Request(input, init);
   world.calls.push(request);
   const url = new URL(request.url);
   if (url.origin === STORJ) {
+    const key = decodeURIComponent(url.pathname).replace("/lookout/", "");
+    if (Object.hasOwn(world.bodies, key)) {
+      return Promise.resolve(new Response(world.bodies[key]));
+    }
+    if (key === INDEX_KEY) {
+      if (world.indexStatus !== null) {
+        return Promise.resolve(new Response("nope", { status: world.indexStatus }));
+      }
+      return Promise.resolve(
+        world.index === null
+          ? new Response("NoSuchKey", { status: 404 })
+          : Response.json(indexDocument(world.index)),
+      );
+    }
     if (world.storjStatus !== null) {
       return Promise.resolve(new Response("nope", { status: world.storjStatus }));
     }
-    const key = decodeURIComponent(url.pathname).replace("/lookout/", "");
     const match = /^snapshot\/(.+)\.(dashboard|context|status)\.json$/.exec(key);
-    if (!match || match[1] !== MAC) {
+    const scenario = match ? SNAPSHOTS[match[1]!]?.() : undefined;
+    if (!match || scenario === undefined) {
       return Promise.resolve(new Response("NoSuchKey", { status: 404 }));
     }
     const kind = match[2] as "dashboard" | "context" | "status";
-    return Promise.resolve(new Response(goldenText(world.scenario, kind)));
+    return Promise.resolve(new Response(goldenText(scenario, kind)));
   }
   if (url.origin + "/v1" === AMBIENT) {
     if (world.ambientStatus !== null) {
@@ -79,16 +126,32 @@ function ambientDevice(dateutc: number, mac = MAC) {
   };
 }
 
-beforeEach(() => {
+type Get = (request: Request) => Promise<Response>;
+let currentGET: Get;
+let dashboardGET: Get;
+let statusGET: Get;
+let stationsGET: Get;
+
+beforeEach(async () => {
   world = {
     scenario: "raining",
+    index: [MAC, OTHER, NEW],
+    indexStatus: null,
     storjStatus: null,
     ambientStatus: null,
     devices: [],
+    bodies: {},
     calls: [],
   };
   for (const [name, value] of Object.entries(ENV)) vi.stubEnv(name, value);
   vi.stubGlobal("fetch", vi.fn(fakeFetch));
+  // A fresh module per test: what a function instance knows of the station
+  // index starts empty.
+  vi.resetModules();
+  currentGET = (await import("../api/current.js")).GET;
+  dashboardGET = (await import("../api/dashboard.js")).GET;
+  statusGET = (await import("../api/status.js")).GET;
+  stationsGET = (await import("../api/stations.js")).GET;
 });
 
 afterEach(() => {
@@ -97,6 +160,15 @@ afterEach(() => {
 });
 
 const get = (path: string) => new Request(`https://lookout.test${path}`);
+
+/** A station's one URL spelling: `?station=` with the MAC upper case, encoded. */
+const station = (mac: string) => `station=${encodeURIComponent(mac)}`;
+
+/** The Storj keys read, in order. */
+const storjKeys = () =>
+  world.calls
+    .filter((c) => c.url.startsWith(STORJ))
+    .map((c) => decodeURIComponent(new URL(c.url).pathname).replace("/lookout/", ""));
 
 describe("GET /dashboard", () => {
   it("returns the snapshot document as Storj holds it, CDN-cached", async () => {
@@ -110,27 +182,49 @@ describe("GET /dashboard", () => {
     expect(await response.json()).toEqual(golden("raining", "dashboard"));
   });
 
-  it("reads the default station's key with a signed request", async () => {
+  it("reads the station index, then the default station's key, with signed requests", async () => {
     world.scenario = "dry";
     await dashboardGET(get("/dashboard"));
 
-    expect(world.calls).toHaveLength(1);
-    const call = world.calls[0]!;
-    expect(decodeURIComponent(new URL(call.url).pathname)).toBe(
-      `/lookout/snapshot/${MAC}.dashboard.json`,
+    expect(storjKeys()).toEqual([INDEX_KEY, `snapshot/${MAC}.dashboard.json`]);
+    for (const call of world.calls) {
+      expect(call.headers.get("authorization")).toMatch(
+        /^AWS4-HMAC-SHA256 Credential=test-access\//,
+      );
+    }
+  });
+
+  it("serves the index's first station when none is given", async () => {
+    world.index = [OTHER, MAC];
+    const response = await dashboardGET(get("/dashboard"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(golden("dry", "dashboard"));
+    expect(storjKeys()).toEqual([INDEX_KEY, `snapshot/${OTHER}.dashboard.json`]);
+  });
+
+  it("serves any station in the index by ?station=", async () => {
+    const response = await dashboardGET(get(`/dashboard?${station(OTHER)}`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(
+      "s-maxage=300, stale-while-revalidate=300, stale-if-error=300",
     );
-    expect(call.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 Credential=test-access\//);
+    expect(await response.json()).toEqual(golden("dry", "dashboard"));
+    expect(storjKeys()).toEqual([INDEX_KEY, `snapshot/${OTHER}.dashboard.json`]);
+  });
+
+  it("serves the default station named outright at its own URL", async () => {
+    const response = await dashboardGET(get(`/dashboard?${station(MAC)}`));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(golden("raining", "dashboard"));
   });
 
   it("redirects a trailing-slash path to a location that is never empty", async () => {
-    const response = await dashboardGET(
-      get(`/dashboard/?station=${encodeURIComponent(MAC.toLowerCase())}`),
-    );
+    const response = await dashboardGET(get(`/dashboard/?station=${MAC}`));
     expect(response.status).toBe(308);
     const location = response.headers.get("location");
-    expect(location).toBe("./");
+    expect(location).toBe(`./?${station(MAC)}`);
     expect(new URL(location!, "https://x.test/dashboard/?station=a").href).toBe(
-      "https://x.test/dashboard/",
+      `https://x.test/dashboard/?${station(MAC)}`,
     );
   });
 
@@ -139,32 +233,59 @@ describe("GET /dashboard", () => {
     expect(world.calls.every((c) => c.url.startsWith(STORJ))).toBe(true);
   });
 
-  it("sends the pinned station, in either case, to the bare path unread", async () => {
-    const response = await dashboardGET(
-      get(`/dashboard?station=${encodeURIComponent(MAC.toLowerCase())}`),
-    );
+  it("sends a station in any other spelling to its one URL, unread", async () => {
+    const response = await dashboardGET(get(`/dashboard?station=${OTHER.toLowerCase()}`));
     expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe("dashboard");
+    expect(response.headers.get("location")).toBe(`dashboard?${station(OTHER)}`);
     expect(world.calls).toHaveLength(0);
   });
 
-  it("answers 404, uncached, for any other station, without reading Storj", async () => {
-    const response = await dashboardGET(get("/dashboard?station=AA:BB:CC:DD:EE:FF"));
+  it("answers 404, uncached, for a station the index does not list, reading only the index", async () => {
+    const response = await dashboardGET(get(`/dashboard?${station(STRANGER)}`));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(world.calls).toHaveLength(0);
+    expect(storjKeys()).toEqual([INDEX_KEY]);
   });
 
-  it("refuses a station that is not a MAC address", async () => {
+  it("refuses a station that is not a MAC address, reading nothing", async () => {
     const response = await dashboardGET(get("/dashboard?station=../archive"));
     expect(response.status).toBe(400);
     expect(world.calls).toHaveLength(0);
   });
 
-  it("answers 404, briefly cached, when the station has no snapshot", async () => {
-    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
+  it("answers 404, briefly cached, for a station in the index with no snapshot yet", async () => {
+    const response = await dashboardGET(get(`/dashboard?${station(NEW)}`));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+  });
+
+  it("answers 404, briefly cached, before the refresh run has published an index", async () => {
+    world.index = null;
     const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    expect(storjKeys()).toEqual([INDEX_KEY]);
+  });
+
+  it.each([[500], [403]])(
+    "answers 502, briefly cached, when the station index read gets %s",
+    async (status) => {
+      world.indexStatus = status;
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await dashboardGET(get("/dashboard"));
+      logged.mockRestore();
+      expect(response.status).toBe(502);
+      expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+      expect(storjKeys()).toEqual([INDEX_KEY]);
+    },
+  );
+
+  it("answers 502, briefly cached, when the station index breaks its contract", async () => {
+    world.bodies[INDEX_KEY] = JSON.stringify({ ...indexDocument([MAC]), schema_version: 2 });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await dashboardGET(get("/dashboard"));
+    logged.mockRestore();
+    expect(response.status).toBe(502);
     expect(response.headers.get("cache-control")).toBe("s-maxage=15");
   });
 
@@ -176,23 +297,27 @@ describe("GET /dashboard", () => {
   });
 
   it("answers 502 when the document breaks the contract", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(Response.json({ schema_version: 99 }))),
-    );
+    world.bodies[`snapshot/${MAC}.dashboard.json`] = JSON.stringify({ schema_version: 99 });
     const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(502);
   });
 
   it("names the env vars it is missing, not their values", async () => {
     vi.stubEnv("STORJ_SECRET_ACCESS_KEY", "");
-    vi.stubEnv("STATION_MAC", "");
+    vi.stubEnv("STORJ_BUCKET", "");
     const response = await dashboardGET(get("/dashboard"));
     expect(response.status).toBe(500);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain("STORJ_SECRET_ACCESS_KEY");
-    expect(body.error).toContain("STATION_MAC");
+    expect(body.error).toContain("STORJ_BUCKET");
     expect(world.calls).toHaveLength(0);
+  });
+
+  it("needs no STATION_MAC: the station index names the stations", async () => {
+    vi.stubEnv("STATION_MAC", STRANGER);
+    const response = await dashboardGET(get("/dashboard"));
+    expect(response.status).toBe(200);
+    expect(storjKeys()).toEqual([INDEX_KEY, `snapshot/${MAC}.dashboard.json`]);
   });
 });
 
@@ -316,17 +441,52 @@ describe("GET /current", () => {
     expect(body.last_data).toBeNull();
   });
 
+  it("serves a station in the index with no snapshot yet only its live reading, briefly cached", async () => {
+    world.devices = [ambientDevice(333, NEW)];
+    const response = await currentGET(get(`/current?${station(NEW)}`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    const body = await response.json();
+    expect(body.context).toBeNull();
+    expect(body.last_data.dateutc).toBe(333);
+  });
+
   it("refuses a station that is not a MAC address", async () => {
     const response = await currentGET(get("/current?station=x"));
     expect(response.status).toBe(400);
   });
 
-  it("answers 404, uncached, for any other station, reading nothing", async () => {
-    world.devices = [ambientDevice(1, "AA:BB:CC:DD:EE:FF")];
-    const response = await currentGET(get("/current?station=AA:BB:CC:DD:EE:FF"));
+  it("reads Ambient and the context for the chosen station only", async () => {
+    world.devices = [ambientDevice(111, MAC), ambientDevice(222, OTHER)];
+
+    const response = await currentGET(get(`/current?${station(OTHER)}`));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.station).toEqual({ mac: OTHER, name: "Fixture Station" });
+    expect(body.last_data.dateutc).toBe(222);
+    expect(body.context).toEqual(golden("dry", "context"));
+    expect(storjKeys()).toEqual([INDEX_KEY, `snapshot/${OTHER}.context.json`]);
+  });
+
+  it("answers 404, uncached, for a station the index does not list, never asking Ambient", async () => {
+    world.devices = [ambientDevice(1, STRANGER)];
+    const response = await currentGET(get(`/current?${station(STRANGER)}`));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(world.calls).toHaveLength(0);
+    expect(storjKeys()).toEqual([INDEX_KEY]);
+    expect(world.calls.some((c) => c.url.startsWith(AMBIENT))).toBe(false);
+  });
+
+  it("answers 502, briefly cached, when the station index cannot be read", async () => {
+    world.indexStatus = 500;
+    world.devices = [ambientDevice(1)];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await currentGET(get("/current"));
+    logged.mockRestore();
+    expect(response.status).toBe(502);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    expect(world.calls.some((c) => c.url.startsWith(AMBIENT))).toBe(false);
   });
 });
 
@@ -343,18 +503,21 @@ describe("GET /status", () => {
     expect(body.sha).toMatch(/^[0-9a-f]{40}$/);
   });
 
-  it("reads only the station's status key from Storj, never Ambient", async () => {
+  it("reads only the index and the station's status key from Storj, never Ambient", async () => {
     await statusGET(get("/status"));
 
-    expect(world.calls).toHaveLength(1);
-    expect(decodeURIComponent(new URL(world.calls[0]!.url).pathname)).toBe(
-      `/lookout/snapshot/${MAC}.status.json`,
-    );
+    expect(world.calls.every((c) => c.url.startsWith(STORJ))).toBe(true);
+    expect(storjKeys()).toEqual([INDEX_KEY, `snapshot/${MAC}.status.json`]);
+  });
+
+  it("serves another station's status by ?station=", async () => {
+    const response = await statusGET(get(`/status?${station(OTHER)}`));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(golden("dry", "status"));
   });
 
   it("answers 404, briefly cached, when no run has written one", async () => {
-    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
-    const response = await statusGET(get("/status"));
+    const response = await statusGET(get(`/status?${station(NEW)}`));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("s-maxage=15");
   });
@@ -378,11 +541,107 @@ describe("GET /status", () => {
     },
   );
 
-  it("sends the pinned station to the bare path unread", async () => {
-    const response = await statusGET(get(`/status?station=${MAC}`));
-    expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe("status");
-    expect(world.calls).toHaveLength(0);
+  it("answers 404, uncached, for a station the index does not list", async () => {
+    const response = await statusGET(get(`/status?${station(STRANGER)}`));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+describe("GET /stations", () => {
+  it("returns the station index, CDN-cached like the dashboard", async () => {
+    const response = await stationsGET(get("/stations"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(
+      "s-maxage=300, stale-while-revalidate=300, stale-if-error=300",
+    );
+    expect(response.headers.get("content-type")).toMatch(/application\/json/);
+    expect(await response.json()).toEqual(indexDocument([MAC, OTHER, NEW]));
+    expect(storjKeys()).toEqual([INDEX_KEY]);
+  });
+
+  it.each(["/stations?x=1", `/stations?${station(MAC)}`, "/stations?fixture=dry"])(
+    "refuses %s without reading anything",
+    async (path) => {
+      const response = await stationsGET(get(path));
+      expect(response.status).toBe(400);
+      expect(world.calls).toHaveLength(0);
+    },
+  );
+
+  it("answers 404, briefly cached, before the refresh run has published one", async () => {
+    world.index = null;
+    const response = await stationsGET(get("/stations"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+  });
+
+  it.each([JSON.stringify(indexDocument([])), "not json"])(
+    "answers 502, briefly cached, for an index that breaks the contract: %s",
+    async (body) => {
+      world.bodies[INDEX_KEY] = body;
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await stationsGET(get("/stations"));
+      logged.mockRestore();
+      expect(response.status).toBe(502);
+      expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+    },
+  );
+});
+
+describe("the station index, as one function instance knows it", () => {
+  const NOW = Date.UTC(2026, 10, 3, 12, 0);
+  const indexReads = () => storjKeys().filter((key) => key === INDEX_KEY).length;
+  let logged: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logged.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("is read once for any number of requests and unknown stations", async () => {
+    await dashboardGET(get("/dashboard"));
+    for (const mac of [STRANGER, "AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"]) {
+      expect((await currentGET(get(`/current?${station(mac)}`))).status).toBe(404);
+    }
+    await stationsGET(get("/stations"));
+    expect(indexReads()).toBe(1);
+  });
+
+  it("is read again once the refresh interval has passed", async () => {
+    expect((await dashboardGET(get(`/dashboard?${station(OTHER)}`))).status).toBe(200);
+    world.index = [MAC];
+    vi.setSystemTime(NOW + 59_000);
+    expect((await dashboardGET(get(`/dashboard?${station(OTHER)}`))).status).toBe(200);
+    vi.setSystemTime(NOW + 60_000);
+    expect((await dashboardGET(get(`/dashboard?${station(OTHER)}`))).status).toBe(404);
+    expect(indexReads()).toBe(2);
+  });
+
+  it("keeps the last good index when a later read fails", async () => {
+    await dashboardGET(get("/dashboard"));
+    world.indexStatus = 500;
+    vi.setSystemTime(NOW + 60_000);
+    const response = await dashboardGET(get(`/dashboard?${station(OTHER)}`));
+    expect(response.status).toBe(200);
+    expect(indexReads()).toBe(2);
+  });
+
+  it("is not read again within the interval after a failed read", async () => {
+    world.indexStatus = 500;
+    expect((await dashboardGET(get("/dashboard"))).status).toBe(502);
+    world.indexStatus = null;
+    expect((await dashboardGET(get("/dashboard"))).status).toBe(502);
+    vi.setSystemTime(NOW + 60_000);
+    expect((await dashboardGET(get("/dashboard"))).status).toBe(200);
+    expect(indexReads()).toBe(2);
   });
 });
 
@@ -395,7 +654,9 @@ describe("a query string", () => {
       ? currentGET(get(path))
       : path.startsWith("/status")
         ? statusGET(get(path))
-        : dashboardGET(get(path));
+        : path.startsWith("/stations")
+          ? stationsGET(get(path))
+          : dashboardGET(get(path));
 
   it.each([
     "/current?x=1",
@@ -413,15 +674,18 @@ describe("a query string", () => {
     expect(world.calls).toHaveLength(0);
   });
 
-  it.each([`/current?station=${MAC}`, `/current?station=${encodeURIComponent(MAC)}`])(
-    "sends %s to the one cached URL",
-    async (path) => {
-      const response = await read(path);
-      expect(response.status).toBe(308);
-      expect(response.headers.get("location")).toBe("current");
-      expect(world.calls).toHaveLength(0);
-    },
-  );
+  it.each([
+    `/current?station=${MAC}`,
+    `/current?station=${MAC.toLowerCase()}`,
+    `/dashboard?station=${encodeURIComponent(MAC).replaceAll("%3A", "%3a")}`,
+    `/status?station=%20${encodeURIComponent(MAC)}`,
+  ])("sends %s to the station's one cached URL", async (path) => {
+    const response = await read(path);
+    expect(response.status).toBe(308);
+    const fn = path.slice(1, path.indexOf("?"));
+    expect(response.headers.get("location")).toBe(`${fn}?${station(MAC)}`);
+    expect(world.calls).toHaveLength(0);
+  });
 });
 
 describe("an error as a log line", () => {

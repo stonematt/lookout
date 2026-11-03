@@ -58,7 +58,14 @@ describe("a hung upstream", () => {
 
   it("leaves /current serving the context when Ambient hangs", async () => {
     const response = await handleCurrent(new Request("https://lookout.test/current"), {
-      defaultMac: MAC,
+      readStations: async () => ({
+        schema_version: 1,
+        kind: "station_index",
+        built_at_ms: 0,
+        stations: [
+          { mac: MAC, name: null, tz: "UTC", newest_reading_ms: null, archive_start_ms: null },
+        ],
+      }),
       readSnapshot: async () => goldenText("raining", "context"),
       readLive: ambientReader(AMBIENT, hungFetch, TIMEOUT_MS),
     });

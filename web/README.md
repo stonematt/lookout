@@ -1,6 +1,6 @@
 # Lookout web
 
-The static site and its two read functions, deployed on Vercel. The VPS
+The static site and its read functions, deployed on Vercel. The VPS
 cron builds the snapshot in Python and publishes it on Storj; this side only
 reads it (ADR-0003, `docs/adr/0003-vps-cron-precomputes-vercel-only-reads.md`).
 Vite and TypeScript with no UI framework. Plotly.js is installed for the tab
@@ -10,24 +10,25 @@ charts. The design system is `DESIGN.md` at the repo root.
 
 `web/` is the Vercel project root.
 
-| Path                                   | What it is                                                                                                                  |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard` and then `/current`                                                    |
-| `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions |
-| `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` from the browser                                                                          |
-| `src/header.ts`                        | `mountHeader`: station name, reading time, data age (stale past 15 min)                                                     |
-| `src/tabs.ts`                          | `mountTabs`: the four sticky tabs, roving tabindex, URL hash                                                                |
-| `src/format.ts`                        | The One Format Rule: `formatStamp`, `formatDuration`, `dataAge`                                                             |
-| `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                              |
-| `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                           |
-| `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                        |
-| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event` and `/status` to them                       |
-| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent` / `handleStatus`, with no Vercel or env in them                                         |
-| `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                       |
-| `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                |
-| `server/dev-fixtures.ts`               | The lane server's read functions, served from the goldens                                                                   |
-| `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                      |
-| `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                    |
+| Path                                   | What it is                                                                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard`, then `/current`, and `/stations`; choosing a station writes `?station=` |
+| `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions   |
+| `src/stations.ts`                      | The station index contract: `parseStationIndex`, `findStation`, `shownStation` (the default station when none is named)       |
+| `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` / `fetchStations` from the browser                                                          |
+| `src/header.ts`                        | `mountHeader`: station name (the station selector with two or more stations), reading time, data age, archive start           |
+| `src/tabs.ts`                          | `mountTabs`: the four sticky tabs, roving tabindex, URL hash                                                                  |
+| `src/format.ts`                        | The One Format Rule: `formatStamp`, `formatDuration`, `dataAge`                                                               |
+| `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                                |
+| `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                             |
+| `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                          |
+| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event`, `/status` and `/stations` to them            |
+| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent` / `handleStatus`, with no Vercel or env in them                                           |
+| `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                         |
+| `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                  |
+| `server/dev-fixtures.ts`               | The lane server's read functions, served from the goldens                                                                     |
+| `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                        |
+| `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                      |
 
 ## Commands
 
@@ -91,13 +92,24 @@ deployed, does not send `fixture` or `age`, which the deployed functions reject.
 ## Read functions
 
 The CDN keys its cache on the whole URL, so each read function reads Storj or
-Ambient only at one URL: the bare path, and for `/event` exactly
-`?start=<ms>`. Before any read, an unknown or repeated query parameter
-answers 400 (uncached), and another spelling of the same request answers 308
-to the one URL. The optional `?station=<MAC>` is kept for shared links: the
-configured `STATION_MAC`, in any case, redirects to the URL without it; any
-other station answers 404, uncached. `fixture` and `age` are the lane
-server's only: the deployed functions refuse them.
+Ambient only at one URL per request: the bare path, plus its own parameters
+in one spelling (`/event`'s `?start=<ms>`, then `station`). Before any read,
+an unknown or repeated query parameter answers 400 (uncached), and another
+spelling of the same request answers 308 to the one URL. `fixture` and `age`
+are the lane server's only: the deployed functions refuse them.
+
+`/dashboard`, `/current`, `/event` and `/status` serve one station (#272): the
+one `?station=<MAC>` names, if the station index lists it, or the default
+station (the index's first) without it. The one spelling of `station` is the
+MAC in upper case, URL-encoded (`?station=98%3ACD%3AAC%3A22%3A0D%3AE5`); any
+other spelling is a 308 to it. A malformed MAC is a 400 and a MAC the index
+does not list a 404, both uncached; a station in the index with no snapshot
+yet is a 404 cached `s-maxage=15`, so the next 5-minute refresh run fills it.
+The default station named outright is served at its own URL, not redirected
+to the bare path. Each function instance reads the station index at most
+once a minute and keeps the last good copy through a failed read; before any
+good read, a station read answers 502 (`s-maxage=15`), and before the
+refresh run has published an index, 404 (`s-maxage=15`).
 
 - `GET /dashboard`: the station's `snapshot/<MAC>.dashboard.json`, as Storj
   holds it, with `Cache-Control: s-maxage=300, stale-while-revalidate=300,
@@ -115,6 +127,14 @@ stale-if-error=300` so that Ambient is called at most about once a minute
   with `s-maxage=15`, so that a rate-limit episode does not feed itself with
   a call per visitor, and a blip is not served on for long.
 
+- `GET /stations`: the station index, `snapshot/stations.json`, as the
+  refresh run publishes it last on every run (#272): `{schema_version: 1,
+kind: "station_index", built_at_ms, stations: [{mac, name, tz,
+newest_reading_ms, archive_start_ms}]}`, in station inventory order, the
+  first being the default station. It has its own `schema_version`, outside
+  the dashboard contract. It takes no parameters. Cached like `/dashboard`;
+  404 before the refresh run has published one, 502 when Storj fails or the
+  index breaks its contract (both `s-maxage=15`).
 - `GET /status`: the refresh run's status document,
   `snapshot/<MAC>.status.json`, as Storj holds it (#268): `{kind: "status",
 station_mac, version, sha, started_at_ms, ended_at_ms, outcome, error,
@@ -143,12 +163,14 @@ with no values.
 | `STORJ_SECRET_ACCESS_KEY` | both       | same credential                                              |
 | `STORJ_ENDPOINT_URL`      | both       | that credential's S3 gateway endpoint                        |
 | `STORJ_BUCKET`            | both       | `lookout`                                                    |
-| `STATION_MAC`             | both       | the station's MAC address, the same value as on the VPS      |
 | `AMBIENT_API_KEY`         | `/current` | Vercel's own Ambient key, or the VPS key                     |
 | `AMBIENT_APPLICATION_KEY` | `/current` | the existing application key                                 |
 | `AMBIENT_ENDPOINT`        | `/current` | optional, default `https://rt.ambientweather.net/v1`         |
 
-`HC_PING_KEY` is for the VPS only and is not set on Vercel.
+`HC_PING_KEY` is for the VPS only and is not set on Vercel. There is no
+`STATION_MAC` (#272): the station index names the stations and the default
+one, so a station added to the station inventory is served after its first
+refresh run, with no Vercel change.
 
 ## Deploy checklist (owner)
 
@@ -159,7 +181,8 @@ with no values.
    The framework preset is Vite, which `vercel.json` also sets. Set the
    production branch.
 3. Add the environment variables above for Production and Preview.
-4. Deploy. Check `https://<domain>/dashboard` (JSON with the cache header),
+4. Deploy. Check `https://<domain>/stations` (the station index),
+   `https://<domain>/dashboard` (JSON with the cache header),
    `https://<domain>/current` (JSON with `last_data` not null),
    `https://<domain>/status` (the last refresh run's outcome) and the page
    (station name, reading time, a fresh data age).

@@ -118,6 +118,8 @@ interface View {
 
 /** What a panel keeps from its last mount for the next one. */
 interface Kept {
+  /** The station the panel was drawn for: another station keeps nothing. */
+  station: string;
   /** The last mount's listeners, dropped by the next mount. */
   listening: AbortController;
   /** The view, so a newer snapshot redraws the tab as the visitor left it. */
@@ -147,7 +149,8 @@ function keptView(last: View | undefined, section: DashboardSnapshot["rain_event
 /**
  * Render the Rain Events tab into its panel. Mounted again over the same
  * panel (a newer snapshot), it keeps the selected event, the water year, the
- * order and the rows "Show more" opened.
+ * order and the rows "Show more" opened; for another station it keeps
+ * nothing.
  *
  * @param panel - The tab's panel; its content is replaced.
  * @param snapshot - The dashboard snapshot.
@@ -158,12 +161,15 @@ export function mountEvents(
   snapshot: DashboardSnapshot,
   deps: EventsDeps = browserDeps(),
 ): void {
-  const last = panels.get(panel);
-  last?.listening.abort();
+  const before = panels.get(panel);
+  before?.listening.abort();
+  // Two stations can share an event start; a curve is one station's.
+  const last = before?.station === snapshot.station.mac ? before : undefined;
   const section = snapshot.rain_events;
   const all = section.events;
   const asked = selectedStart(location.search);
   const kept: Kept = {
+    station: snapshot.station.mac,
     listening: new AbortController(),
     view: keptView(last?.view, section),
     curve: last?.curve ?? null,
