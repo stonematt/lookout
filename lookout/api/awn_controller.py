@@ -18,6 +18,8 @@ Functions:
 - get_device_history_to_date: Fetch records ending at a given timestamp.
 - get_device_history_from_date: Fetch records starting from a timestamp.
 - fetch_since_last_archive: Fetch Ambient's readings since the archive's newest.
+- fetch_full_history: Every reading Ambient holds for a device, for the
+  station's first archive.
 - get_history_since_last_archive: Incrementally extend archive forward.
 - combine_df: Merge same-source frames by 'dateutc', later frame wins.
 
@@ -43,7 +45,7 @@ from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
 
 import lookout.storage.storj as sj
-from lookout.api.ambient_client import get_device_history
+from lookout.api.ambient_client import AmbientRequestError, get_device_history
 from lookout.core import archive_merge
 from lookout.utils.log_util import app_logger
 
@@ -227,14 +229,18 @@ def load_archive_for_device(
         return pd.DataFrame()
 
 
-def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame:
+def get_device_history_to_date(
+    device, end_date=None, limit=288, strict: bool = False
+) -> pd.DataFrame:
     """
     Fetches historical data for a device up to a specified date.
 
     :param device: The device to fetch data for.
     :param end_date: End date for data retrieval, defaults to None.
     :param limit: Max records to retrieve, defaults to 288.
+    :param strict: Raise on a failed request instead of returning empty.
     :return: DataFrame of device history data.
+    :raises AmbientRequestError: If `strict` and the request failed.
     """
     mac = device.get("macAddress")
     if not isinstance(mac, str):
@@ -255,7 +261,7 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
                 logger.error(f"Invalid end_date value: {params['end_date']} ({e})")
                 human = None
         logger.debug(f"to_date:params={params}, human_end={human}")
-        df = get_device_history(mac, **params)
+        df = get_device_history(mac, strict=strict, **params)
 
         if df.empty:
             logger.debug("Empty response, no new data")
@@ -268,6 +274,8 @@ def get_device_history_to_date(device, end_date=None, limit=288) -> pd.DataFrame
 
         return df
 
+    except AmbientRequestError:
+        raise
     except Exception as e:
         logger.error(f"Fetch error: {e}")
         return pd.DataFrame()
@@ -409,6 +417,51 @@ def _cross_long_gap(
         f"Ambient holds readings after a gap past "
         f"{pd.to_datetime(known_max_ms, unit='ms', utc=True)}, but {reason}"
     )
+
+
+class HistoryWalkStuck(RuntimeError):
+    """A page back through Ambient's history reached no older reading."""
+
+
+def fetch_full_history(device: dict, limit: int = 288) -> pd.DataFrame:
+    """
+    Every reading Ambient holds for a device: the station's first archive.
+
+    Pages back from now, each page ending at the previous page's oldest
+    reading, until Ambient returns no older readings. A gap in the history
+    costs nothing: a page holds the `limit` readings before its end, however
+    far back they lie. Each page goes through the Ambient client, which
+    waits a second before every request (the throttle), and is strict: a
+    failed request raises rather than reading as the end of the history,
+    so a transient error never cuts the first archive short.
+
+    :param device: The station's `/devices` entry.
+    :param limit: Records per page (Ambient's maximum is 288).
+    :return: The readings, raw (as pages come back), oldest page last;
+        empty when Ambient holds none.
+    :raises AmbientRequestError: If a page request failed.
+    :raises HistoryWalkStuck: If a page holds no reading older than the
+        page before it, which would otherwise loop forever.
+    """
+    pages = []
+    end_ms: Optional[int] = None
+    while True:
+        page = get_device_history_to_date(
+            device, end_date=end_ms, limit=limit, strict=True
+        )
+        if page.empty:
+            break
+        oldest = int(page["dateutc"].min())
+        if end_ms is not None and oldest >= end_ms:
+            raise HistoryWalkStuck(
+                f"Ambient's page before {end_ms} reached no older reading"
+            )
+        pages.append(page)
+        end_ms = oldest
+    logger.info(f"Full history: {len(pages)} page(s)")
+    if not pages:
+        return pd.DataFrame()
+    return pd.concat(pages, ignore_index=True)
 
 
 def _utc_now():
