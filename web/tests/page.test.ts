@@ -383,8 +383,8 @@ describe("the station selector", () => {
     choose(SALMON_MAC);
     await vi.advanceTimersByTimeAsync(0);
 
-    const missing = "Salmon Run has no dashboard yet.";
-    expect(panel("overview").textContent).toContain(`${missing} It appears after`);
+    const missing = "Salmon Run has no dashboard right now.";
+    expect(panel("overview").textContent).toContain(`${missing} Try again shortly`);
     expect(masthead.querySelector(".masthead-reading .masthead-when")?.textContent).toBe(
       `${missing} Try again`,
     );
@@ -456,7 +456,7 @@ describe("the station selector", () => {
     answer(twoStations());
     await page.booted;
 
-    expect(panel("overview").textContent).toContain("Salmon Run has no dashboard yet.");
+    expect(panel("overview").textContent).toContain("Salmon Run has no dashboard right now.");
   });
 
   it("drops the last station's /dashboard when it answers after a choice", async () => {
