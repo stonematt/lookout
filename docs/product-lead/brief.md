@@ -24,6 +24,7 @@ Tracker: GitHub Issues on `stonematt/lookout`. Labels: one category (`bug`, `enh
 Architecture review candidates Matt keeps become issues labelled `refactor` + `needs-triage`, each carrying its full grilling brief; he grills from the issue (2026-11-01).
 
 Branch flow: feature branch → `dev` (integration) → `main` (release). Vercel deploys `main` to production, https://lookout.stonecover.com; there is no separate deploy branch (Streamlit and its `live` branch retired by #86). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
+Each `dev` → `main` release bumps `VERSION` through a `chore(release)` PR into `dev` and is tagged `v<version>` on `main` after production is verified (ADR-0007).
 
 ## Drift
 
