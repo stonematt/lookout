@@ -93,7 +93,11 @@ const weekdayOf = () => stationFormat("en-US", { weekday: "short" });
 export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
   const span = spanMs(ribbon);
   const ticks: RibbonTick[] = [];
-  for (let t = Math.ceil(ribbon.start_ms / HOUR_MS) * HOUR_MS; t < ribbon.start_ms + span; t += HOUR_MS) {
+  for (
+    let t = Math.ceil(ribbon.start_ms / HOUR_MS) * HOUR_MS;
+    t < ribbon.start_ms + span;
+    t += HOUR_MS
+  ) {
     const hour = localHour(t);
     if (hour % 6) continue;
     const pct = ((t - ribbon.start_ms) / span) * 100;
@@ -257,7 +261,11 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const ticks = make("div", "ribbon-ticks");
   ticks.setAttribute("aria-hidden", "true");
   for (const tick of ribbonTicks(ribbon)) {
-    const node = make("span", tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick", tick.label);
+    const node = make(
+      "span",
+      tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick",
+      tick.label,
+    );
     node.style.left = `${tick.pct}%`;
     ticks.append(node);
   }

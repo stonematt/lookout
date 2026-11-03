@@ -24,8 +24,7 @@ beforeEach(() => {
 const text = (selector: string) => host.querySelector(selector)?.textContent?.trim();
 const stale = (selector = ".masthead-reading") =>
   host.querySelector(selector)?.getAttribute("data-stale");
-const figuresShown = () =>
-  !host.querySelector<HTMLElement>(".masthead-figures")?.hidden;
+const figuresShown = () => !host.querySelector<HTMLElement>(".masthead-figures")?.hidden;
 
 /** A `/current` body whose live reading was taken at `observedAtMs`. */
 function live(
@@ -50,9 +49,7 @@ describe("the header", () => {
 
     expect(text("h1")).toBe("Fixture Station");
     expect(text(".masthead-reading time")).toBe("Jan 8, 4:25 pm");
-    expect(host.querySelector("time")?.getAttribute("datetime")).toBe(
-      "2026-01-09T00:25:00.000Z",
-    );
+    expect(host.querySelector("time")?.getAttribute("datetime")).toBe("2026-01-09T00:25:00.000Z");
     expect(text(".masthead-reading .masthead-age")).toBe("3 m ago");
     expect(stale()).toBe("false");
   });

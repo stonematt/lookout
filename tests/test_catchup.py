@@ -556,11 +556,12 @@ class TestArchiveSafety:
         station = catchup_station()
         before = stored_bytes(station)
         # A merge never drops a stored reading, so stand in for one that did.
+        # It reports a change: a merge that changed nothing skips the save (#242).
         monkeypatch.setattr(
             archive_merge,
             "merge",
             lambda stored, _ambient: archive_merge.Merged(
-                stored.iloc[1:], archive_merge.MergeReport()
+                stored.iloc[1:], archive_merge.MergeReport(added=1)
             ),
         )
 

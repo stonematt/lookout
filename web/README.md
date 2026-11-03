@@ -10,24 +10,24 @@ charts. The design system is `DESIGN.md` at the repo root.
 
 `web/` is the Vercel project root.
 
-| Path | What it is |
-| --- | --- |
-| `index.html`, `src/main.ts` | The page: header plus tab shell, fed by `/dashboard` and then `/current` |
-| `src/snapshot.ts` | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions |
-| `src/load.ts` | `fetchDashboard` / `fetchCurrent` from the browser |
-| `src/header.ts` | `mountHeader`: station name, reading time, data age (stale past 15 min) |
-| `src/tabs.ts` | `mountTabs`: the four sticky tabs, roving tabindex, URL hash |
-| `src/format.ts` | The One Format Rule: `formatStamp`, `formatDuration`, `dataAge` |
-| `src/theme.ts` | The `?theme=light\|dark` override (the default follows the OS) |
-| `src/styles/tokens.css` | DESIGN.md tokens, light plus dark |
-| `src/styles/base.css` | Base type, page column, header, tabs |
-| `api/dashboard.ts`, `api/current.ts` | The Vercel functions; `vercel.json` rewrites `/dashboard` and `/current` to them |
-| `server/handlers.ts` | `handleDashboard` / `handleCurrent`, with no Vercel or env in them |
-| `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers |
-| `server/env.ts` | Builds the readers from `process.env` and answers 500 naming unset variables |
-| `server/dev-fixtures.ts` | The lane server's `/dashboard` and `/current`, served from the goldens |
-| `tests/` | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place |
-| `scripts/shots.mjs` | Headless screenshots at 390px and 1280px, light and dark |
+| Path                                   | What it is                                                                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard` and then `/current`                                                    |
+| `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions |
+| `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` from the browser                                                                          |
+| `src/header.ts`                        | `mountHeader`: station name, reading time, data age (stale past 15 min)                                                     |
+| `src/tabs.ts`                          | `mountTabs`: the four sticky tabs, roving tabindex, URL hash                                                                |
+| `src/format.ts`                        | The One Format Rule: `formatStamp`, `formatDuration`, `dataAge`                                                             |
+| `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                              |
+| `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                           |
+| `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                        |
+| `api/dashboard.ts`, `api/current.ts`   | The Vercel functions; `vercel.json` rewrites `/dashboard` and `/current` to them                                            |
+| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent`, with no Vercel or env in them                                                          |
+| `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                       |
+| `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                |
+| `server/dev-fixtures.ts`               | The lane server's `/dashboard` and `/current`, served from the goldens                                                      |
+| `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                      |
+| `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                    |
 
 ## Commands
 
@@ -101,16 +101,16 @@ server's only: the deployed functions refuse them.
 
 - `GET /dashboard`: the station's `snapshot/<MAC>.dashboard.json`, as Storj
   holds it, with `Cache-Control: s-maxage=300, stale-while-revalidate=300,
-  stale-if-error=300`. It answers 404 when the station has no snapshot, 502
+stale-if-error=300`. It answers 404 when the station has no snapshot, 502
   when Storj fails or the document breaks the contract (both `s-maxage=15`),
   and 500 when an env var is unset.
 - `GET /current`: `{schema_version, kind: "current", station, observed_at_ms,
-  built_at_ms, last_data, context}`. `last_data` is Ambient's live `lastData`,
+built_at_ms, last_data, context}`. `last_data` is Ambient's live `lastData`,
   and `context` is `snapshot/<MAC>.context.json`. Either can be null when its
   source fails; it answers 502 only when both fail. `observed_at_ms` is the
   newer of the live `dateutc` and the context's observation. When both halves are
   read, it is cached with `s-maxage=60, stale-while-revalidate=60,
-  stale-if-error=300` so that Ambient is called at most about once a minute
+stale-if-error=300` so that Ambient is called at most about once a minute
   per region. A partial body (an Ambient 429 included) and the 502 are cached
   with `s-maxage=15`, so that a rate-limit episode does not feed itself with
   a call per visitor, and a blip is not served on for long.
@@ -125,16 +125,16 @@ seconds, so a hung upstream fails the read rather than stalling it.
 These are set on Vercel for Production and Preview. `.env.example` lists them
 with no values.
 
-| Name | Used by | Value |
-| --- | --- | --- |
-| `STORJ_ACCESS_KEY_ID` | both | read-only S3 credential, limited to `sj://lookout/snapshot/` |
-| `STORJ_SECRET_ACCESS_KEY` | both | same credential |
-| `STORJ_ENDPOINT_URL` | both | that credential's S3 gateway endpoint |
-| `STORJ_BUCKET` | both | `lookout` |
-| `STATION_MAC` | both | the station's MAC address, the same value as on the VPS |
-| `AMBIENT_API_KEY` | `/current` | Vercel's own Ambient key, or the VPS key |
-| `AMBIENT_APPLICATION_KEY` | `/current` | the existing application key |
-| `AMBIENT_ENDPOINT` | `/current` | optional, default `https://rt.ambientweather.net/v1` |
+| Name                      | Used by    | Value                                                        |
+| ------------------------- | ---------- | ------------------------------------------------------------ |
+| `STORJ_ACCESS_KEY_ID`     | both       | read-only S3 credential, limited to `sj://lookout/snapshot/` |
+| `STORJ_SECRET_ACCESS_KEY` | both       | same credential                                              |
+| `STORJ_ENDPOINT_URL`      | both       | that credential's S3 gateway endpoint                        |
+| `STORJ_BUCKET`            | both       | `lookout`                                                    |
+| `STATION_MAC`             | both       | the station's MAC address, the same value as on the VPS      |
+| `AMBIENT_API_KEY`         | `/current` | Vercel's own Ambient key, or the VPS key                     |
+| `AMBIENT_APPLICATION_KEY` | `/current` | the existing application key                                 |
+| `AMBIENT_ENDPOINT`        | `/current` | optional, default `https://rt.ambientweather.net/v1`         |
 
 `HC_PING_KEY` is for the VPS only and is not set on Vercel.
 

@@ -112,7 +112,8 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     :param device: The pinned station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
     :param pages: Maximum number of pages to retrieve.
-    :return: The archive as saved.
+    :return: The archive as stored after the run. When the merge changed
+        nothing the save is skipped (#242); the content is the archive as read.
     :raises BackupError: If the backup fails.
     :raises StorageReadError: If the archive cannot be read or holds no rows.
     :raises CatchupStalled: If Ambient holds readings past a gap the run
@@ -134,6 +135,12 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     logger.info(f"Archive merge: {report.describe()}")
     _log_archive_range(new_archive_df, "Updated archive")
     logger.info(f"Total records after update: {len(new_archive_df)}")
+
+    if not report.changed:
+        # Nothing to write: skip the 13 MB rewrite, and its window for a
+        # partial write, every 5 minutes (#242). The backup above still ran.
+        logger.info("Archive save skipped: the merge changed nothing.")
+        return new_archive_df
 
     # Save updated archive to S3, newest first whatever came back (#133)
     sj.save_archive(new_archive_df, bucket_name, mac, stored=archive_df)

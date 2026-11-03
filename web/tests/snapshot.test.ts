@@ -23,18 +23,14 @@ describe("the contract version", () => {
 });
 
 describe("parseDashboard", () => {
-  it.each([
-    "gaps",
-    "rain_events",
-    "hero_lead",
-    "rain_tab",
-    "temperature_context",
-    "almanac",
-  ])("refuses a dashboard missing %s", (section) => {
-    const doc = { ...(golden("dry", "dashboard") as Record<string, unknown>) };
-    delete doc[section];
-    expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
-  });
+  it.each(["gaps", "rain_events", "hero_lead", "rain_tab", "temperature_context", "almanac"])(
+    "refuses a dashboard missing %s",
+    (section) => {
+      const doc = { ...(golden("dry", "dashboard") as Record<string, unknown>) };
+      delete doc[section];
+      expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
+    },
+  );
 
   it("refuses a water year of events with no gap status (#156)", () => {
     const doc = structuredClone(golden("raining", "dashboard")) as {
@@ -84,9 +80,7 @@ describe("parseDashboard", () => {
   });
 
   it("refuses a context block", () => {
-    expect(() => parseDashboard(golden("dry", "context"))).toThrow(
-      SnapshotContractError,
-    );
+    expect(() => parseDashboard(golden("dry", "context"))).toThrow(SnapshotContractError);
   });
 
   it("refuses another schema version", () => {
@@ -103,15 +97,11 @@ describe("parseDashboard", () => {
 describe("parseContext", () => {
   it("reads both context goldens", () => {
     expect(parseContext(golden("raining", "context")).kind).toBe("context");
-    expect(parseContext(golden("dry", "context")).built_at_ms).toBe(
-      1763539200000,
-    );
+    expect(parseContext(golden("dry", "context")).built_at_ms).toBe(1763539200000);
   });
 
   it("names the station's zone", () => {
-    expect(parseContext(golden("dry", "context")).station.tz).toBe(
-      "America/Los_Angeles",
-    );
+    expect(parseContext(golden("dry", "context")).station.tz).toBe("America/Los_Angeles");
   });
 
   it("refuses a station with no zone (#197)", () => {
@@ -123,9 +113,7 @@ describe("parseContext", () => {
   });
 
   it("refuses a dashboard document", () => {
-    expect(() => parseContext(golden("dry", "dashboard"))).toThrow(
-      /expected kind "context"/,
-    );
+    expect(() => parseContext(golden("dry", "dashboard"))).toThrow(/expected kind "context"/);
   });
 });
 

@@ -128,7 +128,13 @@ export function monthTicks(
     const day = addDays(first, i);
     if (day.slice(8) !== "01") continue;
     svg.append(svgEl("line", { x1: x(i), x2: x(i), y1: y - 4, y2: y, class: `${prefix}-axis` }));
-    svg.append(svgEl("text", { x: x(i) + 2, y: y + 13, class: `${prefix}-tick` }, MONTHS[Number(day.slice(5, 7)) - 1]!));
+    svg.append(
+      svgEl(
+        "text",
+        { x: x(i) + 2, y: y + 13, class: `${prefix}-tick` },
+        MONTHS[Number(day.slice(5, 7)) - 1]!,
+      ),
+    );
   }
 }
 
@@ -163,15 +169,31 @@ export function yAxis(
 ): void {
   ticks.forEach((tick, i) => {
     const at = y(tick);
-    svg.append(svgEl("line", { x1: left, x2: right, y1: at, y2: at, class: i ? `${prefix}-grid` : `${prefix}-axis` }));
+    svg.append(
+      svgEl("line", {
+        x1: left,
+        x2: right,
+        y1: at,
+        y2: at,
+        class: i ? `${prefix}-grid` : `${prefix}-axis`,
+      }),
+    );
     const suffix = unit.place === "tick" && i === ticks.length - 1 ? unit.text : "";
     const text = String(Math.round(tick * 100) / 100) + suffix;
-    svg.append(svgEl("text", { x: left - 6, y: at + 4, class: `${prefix}-tick`, "text-anchor": "end" }, text));
+    svg.append(
+      svgEl(
+        "text",
+        { x: left - 6, y: at + 4, class: `${prefix}-tick`, "text-anchor": "end" },
+        text,
+      ),
+    );
   });
   if (unit.place === "above") {
     // Above the axis, where it never clips at phone width.
     const topTick = ticks[ticks.length - 1] ?? 0;
-    svg.append(svgEl("text", { x: 0, y: Math.max(12, y(topTick) - 12), class: `${prefix}-tick` }, unit.text));
+    svg.append(
+      svgEl("text", { x: 0, y: Math.max(12, y(topTick) - 12), class: `${prefix}-tick` }, unit.text),
+    );
   }
 }
 
@@ -205,7 +227,8 @@ export function niceTicks(lo: number, hi: number): number[] {
   const mag = 10 ** Math.floor(Math.log10(raw));
   const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= 5) ?? raw;
   const ticks: number[] = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(Number(v.toPrecision(6)));
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step)
+    ticks.push(Number(v.toPrecision(6)));
   return ticks;
 }
 

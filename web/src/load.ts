@@ -9,11 +9,7 @@
  * redirect. `fixture` and `age` are passed on only by a lane server (see
  * `LANE_SERVER`): the deployed functions answer 400 to them.
  */
-import type {
-  CurrentReading,
-  DashboardSnapshot,
-  EventCurveDocument,
-} from "./snapshot.js";
+import type { CurrentReading, DashboardSnapshot, EventCurveDocument } from "./snapshot.js";
 import { parseCurrent, parseDashboard, parseEventCurve } from "./snapshot.js";
 
 /**
@@ -21,8 +17,7 @@ import { parseCurrent, parseDashboard, parseEventCurve } from "./snapshot.js";
  * be served by `vite preview`: both run the golden read functions that take
  * `fixture` and `age`. False in the deployed build.
  */
-export const LANE_SERVER: boolean =
-  import.meta.env.DEV || import.meta.env.VITE_LANE_SERVER === "1";
+export const LANE_SERVER: boolean = import.meta.env.DEV || import.meta.env.VITE_LANE_SERVER === "1";
 
 const PASSED_ON = ["station"] as const;
 const LANE_PASSED_ON = ["fixture", "age"] as const;
@@ -75,11 +70,7 @@ export const READ_TIMEOUT_MS = 15_000;
  * GET a URL as JSON, rejecting with a `ReadError` on a non-2xx status, and
  * with the abort error when the call (headers or body) outlasts `timeoutMs`.
  */
-async function getJson(
-  url: string,
-  fetchImpl: typeof fetch,
-  timeoutMs: number,
-): Promise<unknown> {
+async function getJson(url: string, fetchImpl: typeof fetch, timeoutMs: number): Promise<unknown> {
   const response = await fetchImpl(url, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(timeoutMs),

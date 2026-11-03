@@ -76,12 +76,7 @@ export interface ActiveRainEvent {
 export type GapState = "valid" | "prorated" | "invalid";
 
 /** Why a month or window is not valid. */
-export type GapReason =
-  | "gap"
-  | "low_coverage"
-  | "not_archived"
-  | "before_archive"
-  | "in_progress";
+export type GapReason = "gap" | "low_coverage" | "not_archived" | "before_archive" | "in_progress";
 
 /**
  * One month's or one window's gap status (`lookout/snapshot/gaps.py` holds
@@ -715,9 +710,7 @@ function checkHead(doc: unknown, kind: string): Record<string, unknown> {
     );
   }
   if (doc.kind !== kind) {
-    throw new SnapshotContractError(
-      `expected kind "${kind}", got ${JSON.stringify(doc.kind)}`,
-    );
+    throw new SnapshotContractError(`expected kind "${kind}", got ${JSON.stringify(doc.kind)}`);
   }
   const station = doc.station;
   if (!isRecord(station) || typeof station.mac !== "string") {
@@ -757,9 +750,7 @@ function checkHead(doc: unknown, kind: string): Record<string, unknown> {
 export function parseDashboard(doc: unknown): DashboardSnapshot {
   const head = checkHead(doc, "dashboard");
   if (head.archive_newest_ms !== null && !isTime(head.archive_newest_ms)) {
-    throw new SnapshotContractError(
-      "dashboard: archive_newest_ms not an integer",
-    );
+    throw new SnapshotContractError("dashboard: archive_newest_ms not an integer");
   }
   const gaps = head.gaps;
   if (!isRecord(gaps) || !Array.isArray(gaps.months) || !Array.isArray(gaps.windows)) {
@@ -877,7 +868,10 @@ function checkRibbon(ribbon: unknown): void {
   }
   const slots = ribbon.temperature_f;
   const parallel = [ribbon.rain_in, ribbon.daylight];
-  if (!Array.isArray(slots) || !parallel.every((a) => Array.isArray(a) && a.length === slots.length)) {
+  if (
+    !Array.isArray(slots) ||
+    !parallel.every((a) => Array.isArray(a) && a.length === slots.length)
+  ) {
     throw new SnapshotContractError("dashboard: condition_ribbon slots not parallel");
   }
 }

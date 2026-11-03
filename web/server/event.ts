@@ -50,10 +50,7 @@ function checkStart(value: string): string | Response {
  *   not written or the catalog does not list it, 502 when Storj fails or
  *   the file breaks the contract.
  */
-export async function handleEvent(
-  request: Request,
-  sources: ReadSources,
-): Promise<Response> {
+export async function handleEvent(request: Request, sources: ReadSources): Promise<Response> {
   const query = checkQuery(request, sources, { start: checkStart });
   if (query instanceof Response) return query;
   const mac = sources.defaultMac;

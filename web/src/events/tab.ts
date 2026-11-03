@@ -170,8 +170,7 @@ export function mountEvents(
   };
   panels.set(panel, kept);
   const { listening, view } = kept;
-  let selected: RainEventRow | null =
-    all.find((e) => e.start_ms === asked) ?? all[0] ?? null;
+  let selected: RainEventRow | null = all.find((e) => e.start_ms === asked) ?? all[0] ?? null;
   // A selected row the kept rows no longer reach (newer events above it)
   // stays in the list.
   const at = selected ? visibleEvents(section, view.season, view.sort).indexOf(selected) : -1;
@@ -215,6 +214,8 @@ export function mountEvents(
     return;
   }
 
+  // Each button is escaped in yearButton; the linter cannot follow it (#261).
+  // eslint-disable-next-line no-unsanitized/property
   seasons.innerHTML = [
     `<button type="button" data-season="all">All</button>`,
     ...section.seasons.map(yearButton),
@@ -222,7 +223,11 @@ export function mountEvents(
   // The control scrolls in place at phone width; the edge with years hidden
   // past it fades (events.css), so the scroll is not a secret.
   const cue = () => {
-    seasons.dataset.more = scrollEdges(seasons.scrollLeft, seasons.scrollWidth, seasons.clientWidth);
+    seasons.dataset.more = scrollEdges(
+      seasons.scrollLeft,
+      seasons.scrollWidth,
+      seasons.clientWidth,
+    );
   };
   seasons.addEventListener("scroll", cue, { passive: true });
   // Also fires once the tab is first shown, when the control gets its width.
@@ -234,10 +239,15 @@ export function mountEvents(
     const oldest = all.length ? all[all.length - 1]!.start_ms : null;
     const rows = visibleEvents(section, view.season, view.sort);
     $(".ev-title").textContent = listFinding(stats, view.season, oldest, rows);
+    // Each cell is escaped in stat; the linter cannot follow it (#261).
+    // eslint-disable-next-line no-unsanitized/property
     $(".ev-stats").innerHTML = [
       stat(String(stats.count), "events"),
       stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
-      stat(stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }), "median event"),
+      stat(
+        stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }),
+        "median event",
+      ),
       stat(
         stats.mean_duration_minutes === null ? "n/a" : minutes(stats.mean_duration_minutes),
         "mean length",
@@ -248,9 +258,7 @@ export function mountEvents(
     note.hidden = text === null;
     note.replaceChildren();
     const year =
-      view.season === "all"
-        ? undefined
-        : section.seasons.find((s) => s.water_year === view.season);
+      view.season === "all" ? undefined : section.seasons.find((s) => s.water_year === view.season);
     const status = year?.status;
     if (status && !isComparable(status)) note.append(gapElement(status), " ");
     if (text !== null) note.append(text);
@@ -271,10 +279,13 @@ export function mountEvents(
         const current = selected?.start_ms === e.start_ms ? ' aria-current="true"' : "";
         const live = e.live ? '<span class="ev-live">Live</span> ' : "";
         const href = `${withEvent(location.search, e.start_ms)}#events`;
-        const peak = e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : e.peak_rate_in_hr.toFixed(2);
+        const peak =
+          e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : e.peak_rate_in_hr.toFixed(2);
         const chip = `<span class="ev-chip${lowQuality(e) ? " low" : ""}">${esc(qualityLabel(e))}</span>`;
         // At phone width the Quality column drops; a low one folds into the row.
-        const fold = lowQuality(e) ? ` <span class="ev-chip low ev-chip-fold">${esc(qualityLabel(e))}</span>` : "";
+        const fold = lowQuality(e)
+          ? ` <span class="ev-chip low ev-chip-fold">${esc(qualityLabel(e))}</span>`
+          : "";
         return `<tr class="${e.live ? "pin" : ""}"${current}>
   <th scope="row"><a class="ev-open" href="${esc(href)}" data-start="${esc(e.start_ms)}">${live}${when(startLabel(e.start_ms, now))}</a>${fold}</th>
   <td>${esc(minutes(e.duration_minutes))}</td>
@@ -288,6 +299,8 @@ export function mountEvents(
       rows.length > view.limit
         ? `<button type="button" class="ev-more">Show ${Math.min(PAGE * 2, rows.length - view.limit)} more of ${rows.length}</button>`
         : "";
+    // Rows escape their text with esc and when; the rest is numbers (#261).
+    // eslint-disable-next-line no-unsanitized/property
     $(".ev-list").innerHTML = `
 <table class="ev-table">
   <caption class="sr-only">Rain events, ${view.sort === "newest" ? "newest" : "wettest"} first${rows.some((e) => e.live) ? ", the live event pinned on top" : ""}</caption>
@@ -317,6 +330,8 @@ ${more}
       ? '<p class="ev-note">The linked event is not in the catalog; showing the newest one instead.</p>'
       : "";
     missing = false;
+    // Snapshot text goes through esc; the note is a literal (#261).
+    // eslint-disable-next-line no-unsanitized/property
     host.innerHTML = `
 ${note}
 <p class="ev-kicker">${row.live ? '<span class="ev-live">Live</span> ' : ""}Water year ${esc(row.water_year)}</p>
@@ -335,7 +350,8 @@ ${note}
     if (!row.has_curve) {
       charts.innerHTML =
         '<p class="ev-gap gap-hatch" role="note">n/a: gap in record<span class="sr-only">. The archive has no readings for this event, so only its catalog totals are shown.</span></p>';
-      source.textContent = "Source: Event Catalog. The archive holds no readings in this event's time range.";
+      source.textContent =
+        "Source: Event Catalog. The archive holds no readings in this event's time range.";
       return;
     }
     source.textContent = row.live
@@ -370,7 +386,8 @@ ${note}
       return;
     }
     if (row.live) {
-      charts.innerHTML = '<p class="ev-note">This event\'s readings are not in the snapshot yet.</p>';
+      charts.innerHTML =
+        '<p class="ev-note">This event\'s readings are not in the snapshot yet.</p>';
       return;
     }
     if (kept.curve?.start_ms === row.start_ms) {
@@ -411,39 +428,43 @@ ${note}
     if (detail.getBoundingClientRect().top < 0) detail.scrollIntoView({ block: "start" });
   }
 
-  panel.addEventListener("click", (event) => {
-    const target = event.target as Element;
-    const link = target.closest<HTMLAnchorElement>("a.ev-open");
-    if (link) {
-      if ((event as MouseEvent).metaKey || (event as MouseEvent).ctrlKey) return;
-      event.preventDefault();
-      open(Number(link.dataset.start));
-      return;
-    }
-    const seasonButton = target.closest<HTMLButtonElement>("[data-season]");
-    if (seasonButton) {
-      const value = seasonButton.dataset.season!;
-      view.season = value === "all" ? "all" : Number(value);
-      view.limit = PAGE;
-      renderHead();
-      renderList();
-      // A year tapped half under the fade comes whole into view.
-      seasonButton.scrollIntoView({ block: "nearest", inline: "nearest" });
-      return;
-    }
-    const sortButton = target.closest<HTMLButtonElement>("[data-sort]");
-    if (sortButton) {
-      view.sort = sortButton.dataset.sort as EventSort;
-      view.limit = PAGE;
-      renderHead();
-      renderList();
-      return;
-    }
-    if (target.closest(".ev-more")) {
-      view.limit += PAGE * 2;
-      renderList();
-    }
-  }, { signal: listening.signal });
+  panel.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as Element;
+      const link = target.closest<HTMLAnchorElement>("a.ev-open");
+      if (link) {
+        if ((event as MouseEvent).metaKey || (event as MouseEvent).ctrlKey) return;
+        event.preventDefault();
+        open(Number(link.dataset.start));
+        return;
+      }
+      const seasonButton = target.closest<HTMLButtonElement>("[data-season]");
+      if (seasonButton) {
+        const value = seasonButton.dataset.season!;
+        view.season = value === "all" ? "all" : Number(value);
+        view.limit = PAGE;
+        renderHead();
+        renderList();
+        // A year tapped half under the fade comes whole into view.
+        seasonButton.scrollIntoView({ block: "nearest", inline: "nearest" });
+        return;
+      }
+      const sortButton = target.closest<HTMLButtonElement>("[data-sort]");
+      if (sortButton) {
+        view.sort = sortButton.dataset.sort as EventSort;
+        view.limit = PAGE;
+        renderHead();
+        renderList();
+        return;
+      }
+      if (target.closest(".ev-more")) {
+        view.limit += PAGE * 2;
+        renderList();
+      }
+    },
+    { signal: listening.signal },
+  );
 
   renderHead();
   renderList();

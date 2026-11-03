@@ -24,19 +24,22 @@ import {
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import { MONTHS, stationFormat, addDays, daysBetween, formatTime, dayText, hourText, kwhPerM2, localDay, wattsPerM2 } from "../format.js";
+import {
+  MONTHS,
+  stationFormat,
+  addDays,
+  daysBetween,
+  formatTime,
+  dayText,
+  hourText,
+  kwhPerM2,
+  localDay,
+  wattsPerM2,
+} from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
 import type { GapReason, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
-import {
-  FIRST_SLOT,
-  LAST_SLOT,
-  lastDay,
-  monthText,
-  peakSlot,
-  slotText,
-  wh,
-} from "./text.js";
+import { FIRST_SLOT, LAST_SLOT, lastDay, monthText, peakSlot, slotText, wh } from "./text.js";
 
 /** Called with the day a chart picks. */
 export type Pick = (day: string) => void;
@@ -119,7 +122,11 @@ export function drawTrace(
   const values = trace.solar_wm2;
   const n = values.length;
   const high = trace.usual_high_wm2 ?? [];
-  const top_value = Math.max(100, ...values.filter((v): v is number => v !== null), ...high.filter((v): v is number => v !== null));
+  const top_value = Math.max(
+    100,
+    ...values.filter((v): v is number => v !== null),
+    ...high.filter((v): v is number => v !== null),
+  );
   const ticks = zeroTicks(top_value, 4);
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
@@ -128,7 +135,12 @@ export function drawTrace(
   const stepMs = trace.step_minutes * 60_000;
   const at = (i: number) => trace.start_ms + i * stepMs;
 
-  const { svg, hatch } = canvas(width, height, "Solar radiation over the last 24 hours against its usual range", "solar-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    "Solar radiation over the last 24 hours against its usual range",
+    "solar-svg",
+  );
   yAxis(svg, ticks, y, left, right, "solar", { text: "W/m²", place: "above" });
 
   // The usual range at the back, then its median.
@@ -156,22 +168,50 @@ export function drawTrace(
 
   // The archived span ends at the archive's newest slot; after it, only live.
   const archived =
-    archiveNewestMs === null ? n - 1 : Math.min(n - 1, Math.floor((archiveNewestMs - trace.start_ms) / stepMs));
+    archiveNewestMs === null
+      ? n - 1
+      : Math.min(n - 1, Math.floor((archiveNewestMs - trace.start_ms) / stepMs));
   if (archived < n - 1) {
     const from = Math.max(0, archived);
-    svg.append(svgEl("rect", { x: x(from), y: top, width: x(n - 1) - x(from), height: bottom - top, fill: hatch, rx: 2 }));
+    svg.append(
+      svgEl("rect", {
+        x: x(from),
+        y: top,
+        width: x(n - 1) - x(from),
+        height: bottom - top,
+        fill: hatch,
+        rx: 2,
+      }),
+    );
     const words = x(n - 1) - x(from) > 150 ? "only the live reading is known" : "live only";
     svg.append(chartLabel(x(n - 1), top - 8, words, "solar-label", "end"));
     const last = values[n - 1];
     const before = archived >= 0 ? values[archived] : null;
     if (last !== null && last !== undefined && before !== null && before !== undefined) {
-      svg.append(svgEl("line", { x1: x(archived), y1: y(before), x2: x(n - 1), y2: y(last), class: "solar-live-join" }));
+      svg.append(
+        svgEl("line", {
+          x1: x(archived),
+          y1: y(before),
+          x2: x(n - 1),
+          y2: y(last),
+          class: "solar-live-join",
+        }),
+      );
     }
   }
   // Readings missing inside the archived span are hatched, never bridged.
   for (const [a, b] of runs(archived + 1, (i) => values[i] === null)) {
     if (b - a < 1) continue;
-    svg.append(svgEl("rect", { x: x(a), y: top, width: Math.max(2, x(b) - x(a)), height: bottom - top, fill: hatch, rx: 2 }));
+    svg.append(
+      svgEl("rect", {
+        x: x(a),
+        y: top,
+        width: Math.max(2, x(b) - x(a)),
+        height: bottom - top,
+        fill: hatch,
+        rx: 2,
+      }),
+    );
   }
   for (const [a, b] of runs(archived + 1, (i) => values[i] !== null)) {
     const points = [];
@@ -184,14 +224,30 @@ export function drawTrace(
   for (let i = 0; i < n; i++) {
     const [h, m] = localClock(at(i));
     if (m !== 0 || h % 6 !== 0) continue;
-    svg.append(svgEl("line", { x1: x(i), x2: x(i), y1: bottom, y2: bottom + 4, class: "solar-axis" }));
-    svg.append(svgEl("text", { x: x(i), y: bottom + 16, class: "solar-tick", "text-anchor": "middle" }, hourText(h)));
+    svg.append(
+      svgEl("line", { x1: x(i), x2: x(i), y1: bottom, y2: bottom + 4, class: "solar-axis" }),
+    );
+    svg.append(
+      svgEl(
+        "text",
+        { x: x(i), y: bottom + 16, class: "solar-tick", "text-anchor": "middle" },
+        hourText(h),
+      ),
+    );
   }
 
   const now = values[n - 1];
   if (now !== null && now !== undefined) {
     svg.append(svgEl("circle", { cx: x(n - 1), cy: y(now), r: 5, class: "solar-now-dot" }));
-    svg.append(chartLabel(x(n - 1) - 8, Math.max(top + 4, y(now) - 10), `now ${wattsPerM2(now)}`, "solar-now-label", "end"));
+    svg.append(
+      chartLabel(
+        x(n - 1) - 8,
+        Math.max(top + 4, y(now) - 10),
+        `now ${wattsPerM2(now)}`,
+        "solar-now-label",
+        "end",
+      ),
+    );
   }
 
   host.replaceChildren(svg);
@@ -207,19 +263,29 @@ export function drawTrace(
         median && low && trace.usual_high_wm2 && median[i] !== null && median[i] !== undefined
           ? `; usually ${wattsPerM2(median[i]!)} (${Math.round(low[i] ?? 0)} to ${Math.round(trace.usual_high_wm2[i] ?? 0)})`
           : "";
-      if (i === n - 1 && value !== null && value !== undefined) return readout(`Now, ${clock}: ${wattsPerM2(value)}, the live reading${usual}.`);
-      if (i > archived) return readout(`${clock}: not archived yet; only the live reading is known${usual}.`);
-      if (value === null || value === undefined) return readout(`${clock}: no reading in the record.`);
+      if (i === n - 1 && value !== null && value !== undefined)
+        return readout(`Now, ${clock}: ${wattsPerM2(value)}, the live reading${usual}.`);
+      if (i > archived)
+        return readout(`${clock}: not archived yet; only the live reading is known${usual}.`);
+      if (value === null || value === undefined)
+        return readout(`${clock}: no reading in the record.`);
       readout(`${when}, ${clock}: ${wattsPerM2(value)}${usual}.`);
     },
   );
 }
 
 /** A day's sentence: its energy, or why it is not counted. */
-function daySentence(day: string, energy: number | null, reason: GapReason | null, isToday: boolean): string {
+function daySentence(
+  day: string,
+  energy: number | null,
+  reason: GapReason | null,
+  isToday: boolean,
+): string {
   if (reason) return gapSentence(dayStatus(day, reason));
   const when = `${dayText(day, true)}${isToday ? " (today, so far)" : ""}`;
-  return energy === null ? `${when}: not in the record.` : `${when}: ${kwhPerM2(energy)}. Select to see its 15 minutes.`;
+  return energy === null
+    ? `${when}: not in the record.`
+    : `${when}: ${kwhPerM2(energy)}. Select to see its 15 minutes.`;
 }
 
 /**
@@ -256,7 +322,12 @@ export function drawDailyBars(
   const x = (i: number) => left + i * step;
   const pad = step > 4 ? 1 : 0;
 
-  const { svg, hatch } = canvas(width, height, `Solar energy each day, ${dayText(first)} to today`, "solar-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    `Solar energy each day, ${dayText(first)} to today`,
+    "solar-svg",
+  );
   yAxis(svg, ticks, y, left, right, "solar", { text: "kWh/m²", place: "above" });
   hatchMissingDays(svg, reasons, hatch, x, step, top, bottom, "solar-label");
   energy.forEach((value, i) => {
@@ -270,7 +341,11 @@ export function drawDailyBars(
         width: Math.max(1, step - pad),
         height: bottom - y(value),
         rx: step > 6 ? 2 : 0,
-        class: isToday ? "solar-bar solar-bar-now" : recent ? "solar-bar solar-bar-week" : "solar-bar",
+        class: isToday
+          ? "solar-bar solar-bar-now"
+          : recent
+            ? "solar-bar solar-bar-week"
+            : "solar-bar",
       }),
     );
   });
@@ -282,7 +357,16 @@ export function drawDailyBars(
   }
   const s = daysBetween(first, selected);
   if (s >= 0 && s < count) {
-    svg.append(svgEl("rect", { x: x(s) - 1, y: top - 2, width: step + 2, height: bottom - top + 4, rx: 3, class: "solar-selected" }));
+    svg.append(
+      svgEl("rect", {
+        x: x(s) - 1,
+        y: top - 2,
+        width: step + 2,
+        height: bottom - top + 4,
+        rx: 3,
+        class: "solar-selected",
+      }),
+    );
   }
   monthTicks(svg, first, count, x, bottom + 4, "solar");
   host.replaceChildren(svg);
@@ -307,7 +391,12 @@ export function drawDailyBars(
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
  */
-export function drawDaySlots(host: HTMLElement, day: SolarDay, width: number, readout: Readout): void {
+export function drawDaySlots(
+  host: HTMLElement,
+  day: SolarDay,
+  width: number,
+  readout: Readout,
+): void {
   const slots = day.slots ?? [];
   const count = LAST_SLOT - FIRST_SLOT + 1;
   const height = 180;
@@ -325,10 +414,27 @@ export function drawDaySlots(host: HTMLElement, day: SolarDay, width: number, re
     if (v !== null) lastKnown = i;
   });
 
-  const { svg, hatch } = canvas(width, height, `Solar energy each 15 minutes on ${dayText(day.day, true)}`, "solar-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    `Solar energy each 15 minutes on ${dayText(day.day, true)}`,
+    "solar-svg",
+  );
   yAxis(svg, ticks, y, left, right, "solar", { text: "Wh/m²", place: "above" });
-  for (const [a, b] of runs(LAST_SLOT + 1, (i) => i >= FIRST_SLOT && slots[i] === null && (!day.isToday || i < lastKnown))) {
-    svg.append(svgEl("rect", { x: x(a), y: top, width: x(b) + step - x(a), height: bottom - top, fill: hatch, rx: 2 }));
+  for (const [a, b] of runs(
+    LAST_SLOT + 1,
+    (i) => i >= FIRST_SLOT && slots[i] === null && (!day.isToday || i < lastKnown),
+  )) {
+    svg.append(
+      svgEl("rect", {
+        x: x(a),
+        y: top,
+        width: x(b) + step - x(a),
+        height: bottom - top,
+        fill: hatch,
+        rx: 2,
+      }),
+    );
   }
   for (let i = FIRST_SLOT; i <= LAST_SLOT; i++) {
     const v = slots[i];
@@ -348,12 +454,26 @@ export function drawDaySlots(host: HTMLElement, day: SolarDay, width: number, re
   if (peak) {
     const cx = x(peak[0]) + step / 2;
     const anchor = cx > (left + right) / 2 ? "end" : "start";
-    svg.append(chartLabel(cx + (anchor === "end" ? 4 : -4), Math.max(top - 6, y(peak[1]) - 8), `${slotText(peak[0])}, ${wh(peak[1])}`, "solar-now-label", anchor));
+    svg.append(
+      chartLabel(
+        cx + (anchor === "end" ? 4 : -4),
+        Math.max(top - 6, y(peak[1]) - 8),
+        `${slotText(peak[0])}, ${wh(peak[1])}`,
+        "solar-now-label",
+        anchor,
+      ),
+    );
   }
   for (const h of [6, 9, 12, 15, 18, 21]) {
     const at = x(h * 4);
     svg.append(svgEl("line", { x1: at, x2: at, y1: bottom, y2: bottom + 4, class: "solar-axis" }));
-    svg.append(svgEl("text", { x: at, y: bottom + 16, class: "solar-tick", "text-anchor": "middle" }, hourText(h)));
+    svg.append(
+      svgEl(
+        "text",
+        { x: at, y: bottom + 16, class: "solar-tick", "text-anchor": "middle" },
+        hourText(h),
+      ),
+    );
   }
   host.replaceChildren(svg);
   scrub(
@@ -365,7 +485,11 @@ export function drawDaySlots(host: HTMLElement, day: SolarDay, width: number, re
       const v = slots[slot];
       const when = `${slotText(slot)} to ${slotText(slot + 1)}`;
       if (v === null || v === undefined) {
-        return readout(day.isToday && slot > lastKnown ? `${when}: still to come.` : `${when}: no reading in the record.`);
+        return readout(
+          day.isToday && slot > lastKnown
+            ? `${when}: still to come.`
+            : `${when}: no reading in the record.`,
+        );
       }
       readout(`${when}: ${wh(v)}.`);
     },
@@ -381,10 +505,17 @@ export function drawDaySlots(host: HTMLElement, day: SolarDay, width: number, re
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
  */
-export function drawYearMonth(host: HTMLElement, tab: SolarTab, width: number, readout: Readout): void {
+export function drawYearMonth(
+  host: HTMLElement,
+  tab: SolarTab,
+  width: number,
+  readout: Readout,
+): void {
   const byKey = new Map(tab.months.map((m) => [m.key, m.status]));
   const energy = new Map(tab.months.map((m) => [m.key, m.energy_kwh_m2]));
-  const years = [...new Set(tab.months.map((m) => Number(m.key.slice(0, 4))))].sort((a, b) => b - a);
+  const years = [...new Set(tab.months.map((m) => Number(m.key.slice(0, 4))))].sort(
+    (a, b) => b - a,
+  );
   const left = 44;
   const gap = 3;
   const cell = Math.min(52, Math.floor((width - left - 4) / 12) - gap);
@@ -394,14 +525,31 @@ export function drawYearMonth(host: HTMLElement, tab: SolarTab, width: number, r
   const max = Math.max(1, ...tab.months.map((m) => m.energy_kwh_m2 ?? 0));
   const months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
-  const { svg, hatch } = canvas(width, height, "Solar energy each month, one row per year", "solar-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    "Solar energy each month, one row per year",
+    "solar-svg",
+  );
   MONTHS.forEach((name, m) => {
     const cx = left + m * (cell + gap) + cell / 2;
-    svg.append(svgEl("text", { x: cx, y: 12, class: "solar-tick", "text-anchor": "middle" }, cell >= 30 ? name : months[m]!));
+    svg.append(
+      svgEl(
+        "text",
+        { x: cx, y: 12, class: "solar-tick", "text-anchor": "middle" },
+        cell >= 30 ? name : months[m]!,
+      ),
+    );
   });
   years.forEach((year, r) => {
     const ry = top + r * (rowH + gap);
-    svg.append(svgEl("text", { x: left - 6, y: ry + rowH / 2 + 4, class: "solar-tick", "text-anchor": "end" }, String(year)));
+    svg.append(
+      svgEl(
+        "text",
+        { x: left - 6, y: ry + rowH / 2 + 4, class: "solar-tick", "text-anchor": "end" },
+        String(year),
+      ),
+    );
     for (let m = 0; m < 12; m++) {
       const key = `${year}-${String(m + 1).padStart(2, "0")}`;
       const status = byKey.get(key);
@@ -412,13 +560,30 @@ export function drawYearMonth(host: HTMLElement, tab: SolarTab, width: number, r
       if (status.reason === "before_archive") {
         svg.append(svgEl("rect", { ...attrs, class: "solar-before" }));
       } else if (value === null) {
-        svg.append(svgEl("rect", { ...attrs, fill: hatch, class: status.reason === "in_progress" ? "solar-current" : "" }));
+        svg.append(
+          svgEl("rect", {
+            ...attrs,
+            fill: hatch,
+            class: status.reason === "in_progress" ? "solar-current" : "",
+          }),
+        );
       } else {
         const level = shade(value, max);
         svg.append(svgEl("rect", { ...attrs, class: cellClass(level) }));
         if (cell >= 30) {
           const text = `${status.status === "prorated" ? "≈" : ""}${Math.round(value)}`;
-          svg.append(svgEl("text", { x: cx + cell / 2, y: ry + rowH / 2 + 4, class: level >= 4 ? "solar-cell-text solar-cell-text-strong" : "solar-cell-text", "text-anchor": "middle" }, text));
+          svg.append(
+            svgEl(
+              "text",
+              {
+                x: cx + cell / 2,
+                y: ry + rowH / 2 + 4,
+                class: level >= 4 ? "solar-cell-text solar-cell-text-strong" : "solar-cell-text",
+                "text-anchor": "middle",
+              },
+              text,
+            ),
+          );
         }
       }
     }
@@ -478,7 +643,14 @@ function monthLength(key: string): number {
  * @param readout - Where position sentences go.
  * @param pick - Receives a picked day.
  */
-export function drawMonthDay(host: HTMLElement, tab: SolarTab, selected: string, width: number, readout: Readout, pick: Pick): void {
+export function drawMonthDay(
+  host: HTMLElement,
+  tab: SolarTab,
+  selected: string,
+  width: number,
+  readout: Readout,
+  pick: Pick,
+): void {
   const today = lastDay(tab);
   const keys = monthKeys(tab.days.first_day, today);
   const left = 64;
@@ -495,19 +667,47 @@ export function drawMonthDay(host: HTMLElement, tab: SolarTab, selected: string,
     return day < tab.days.first_day || day > today ? null : day;
   };
 
-  const { svg, hatch } = canvas(width, height, "Solar energy each day, one row per month", "solar-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    "Solar energy each day, one row per month",
+    "solar-svg",
+  );
   for (const d of [1, 8, 15, 22, 29]) {
-    svg.append(svgEl("text", { x: left + (d - 1) * step + step / 2, y: 12, class: "solar-tick", "text-anchor": "middle" }, String(d)));
+    svg.append(
+      svgEl(
+        "text",
+        {
+          x: left + (d - 1) * step + step / 2,
+          y: 12,
+          class: "solar-tick",
+          "text-anchor": "middle",
+        },
+        String(d),
+      ),
+    );
   }
   keys.forEach((key, r) => {
     const ry = top + r * rowH;
-    svg.append(svgEl("text", { x: left - 6, y: ry + rowH - 2, class: "solar-tick", "text-anchor": "end" }, monthText(key)));
+    svg.append(
+      svgEl(
+        "text",
+        { x: left - 6, y: ry + rowH - 2, class: "solar-tick", "text-anchor": "end" },
+        monthText(key),
+      ),
+    );
     for (let d = 1; d <= 31; d++) {
       const day = dayAt(r, d);
       if (day === null) continue;
       const i = daysBetween(tab.days.first_day, day);
       const value = tab.days.energy_kwh_m2[i] ?? null;
-      const attrs = { x: left + (d - 1) * step, y: ry, width: Math.max(1, step - 1), height: rowH - 1, rx: 2 };
+      const attrs = {
+        x: left + (d - 1) * step,
+        y: ry,
+        width: Math.max(1, step - 1),
+        height: rowH - 1,
+        rx: 2,
+      };
       if (value === null) svg.append(svgEl("rect", { ...attrs, fill: hatch }));
       else svg.append(svgEl("rect", { ...attrs, class: cellClass(shade(value, max)) }));
       if (day === selected) svg.append(svgEl("rect", { ...attrs, class: "solar-selected" }));
@@ -521,9 +721,17 @@ export function drawMonthDay(host: HTMLElement, tab: SolarTab, selected: string,
     (px) => Math.floor((px - left) / step),
     (d, r) => {
       under = dayAt(r, d + 1);
-      if (under === null) return readout(`${monthText(keys[r] ?? "")}, day ${d + 1}: not in the record.`);
+      if (under === null)
+        return readout(`${monthText(keys[r] ?? "")}, day ${d + 1}: not in the record.`);
       const i = daysBetween(tab.days.first_day, under);
-      readout(daySentence(under, tab.days.energy_kwh_m2[i] ?? null, tab.days.reason[i] ?? null, under === today));
+      readout(
+        daySentence(
+          under,
+          tab.days.energy_kwh_m2[i] ?? null,
+          tab.days.reason[i] ?? null,
+          under === today,
+        ),
+      );
     },
     keys.length,
     (py) => Math.floor((py - top) / rowH),
@@ -543,7 +751,14 @@ export function drawMonthDay(host: HTMLElement, tab: SolarTab, selected: string,
  * @param readout - Where position sentences go.
  * @param pick - Receives a picked day.
  */
-export function drawDayGrid(host: HTMLElement, tab: SolarTab, selected: string, width: number, readout: Readout, pick: Pick): void {
+export function drawDayGrid(
+  host: HTMLElement,
+  tab: SolarTab,
+  selected: string,
+  width: number,
+  readout: Readout,
+  pick: Pick,
+): void {
   const recent = tab.recent;
   const count = recent.energy_wh_m2.length;
   const rows = LAST_SLOT - FIRST_SLOT + 1;
@@ -555,24 +770,59 @@ export function drawDayGrid(host: HTMLElement, tab: SolarTab, selected: string, 
   const x = (i: number) => left + i * step;
   const max = Math.max(1, ...recent.energy_wh_m2.flat().map((v) => v ?? 0));
   const offset = daysBetween(tab.days.first_day, recent.first_day);
-  const reasons = recent.energy_wh_m2.map((_, i) => tab.days.reason[offset + i] ?? (offset + i < 0 ? "before_archive" : null));
+  const reasons = recent.energy_wh_m2.map(
+    (_, i) => tab.days.reason[offset + i] ?? (offset + i < 0 ? "before_archive" : null),
+  );
 
-  const { svg, hatch } = canvas(width, height, `Solar energy each 15 minutes, ${dayText(recent.first_day)} to today`, "solar-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    `Solar energy each 15 minutes, ${dayText(recent.first_day)} to today`,
+    "solar-svg",
+  );
   recent.energy_wh_m2.forEach((slots, i) => {
     if (reasons[i] !== null) return;
     for (let s = FIRST_SLOT; s <= LAST_SLOT; s++) {
       const v = slots[s];
       if (v === null || v === undefined) continue;
-      svg.append(svgEl("rect", { x: x(i), y: top + (s - FIRST_SLOT) * row, width: Math.max(1, step - (step > 4 ? 1 : 0)), height: row, class: cellClass(shade(v, max)) }));
+      svg.append(
+        svgEl("rect", {
+          x: x(i),
+          y: top + (s - FIRST_SLOT) * row,
+          width: Math.max(1, step - (step > 4 ? 1 : 0)),
+          height: row,
+          class: cellClass(shade(v, max)),
+        }),
+      );
     }
   });
   hatchMissingDays(svg, reasons, hatch, x, step, top, bottom, "solar-label");
   const s = daysBetween(recent.first_day, selected);
   if (s >= 0 && s < count) {
-    svg.append(svgEl("rect", { x: x(s) - 1, y: top - 1, width: step + 2, height: bottom - top + 2, rx: 2, class: "solar-selected" }));
+    svg.append(
+      svgEl("rect", {
+        x: x(s) - 1,
+        y: top - 1,
+        width: step + 2,
+        height: bottom - top + 2,
+        rx: 2,
+        class: "solar-selected",
+      }),
+    );
   }
   for (const h of [6, 12, 18]) {
-    svg.append(svgEl("text", { x: left - 6, y: top + (h * 4 - FIRST_SLOT) * row + 4, class: "solar-tick", "text-anchor": "end" }, hourText(h)));
+    svg.append(
+      svgEl(
+        "text",
+        {
+          x: left - 6,
+          y: top + (h * 4 - FIRST_SLOT) * row + 4,
+          class: "solar-tick",
+          "text-anchor": "end",
+        },
+        hourText(h),
+      ),
+    );
   }
   monthTicks(svg, recent.first_day, count, x, bottom + 4, "solar");
   host.replaceChildren(svg);
@@ -589,7 +839,11 @@ export function drawDayGrid(host: HTMLElement, tab: SolarTab, selected: string, 
       const slot = r + FIRST_SLOT;
       const v = recent.energy_wh_m2[i]?.[slot];
       const when = `${dayText(day, true)}, ${slotText(slot)}`;
-      readout(v === null || v === undefined ? `${when}: no reading.` : `${when}: ${wh(v)}. Select to see the whole day.`);
+      readout(
+        v === null || v === undefined
+          ? `${when}: no reading.`
+          : `${when}: ${wh(v)}. Select to see the whole day.`,
+      );
     },
     rows,
     (py) => Math.floor((py - top) / row),

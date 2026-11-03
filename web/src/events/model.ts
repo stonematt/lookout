@@ -118,9 +118,11 @@ export function seasonNote(section: RainEvents, season: Season): string | null {
     if (!lost.length && !prorated.length) return null;
     const many = lost.length > 1;
     const notCovered = `The record does not cover all of water year${many ? "s" : ""} ${listText(lost)}`;
-    if (!prorated.length) return `${notCovered}, so the list can miss ${many ? "their" : "its"} events.`;
+    if (!prorated.length)
+      return `${notCovered}, so the list can miss ${many ? "their" : "its"} events.`;
     const few = listText(prorated);
-    if (!lost.length) return `${few} are missing from the record, so the list can miss events in them.`;
+    if (!lost.length)
+      return `${few} are missing from the record, so the list can miss events in them.`;
     return `${notCovered}, and ${few} are missing from it, so the list can miss events in them.`;
   }
   const found = section.seasons.find((s) => s.water_year === season);

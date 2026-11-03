@@ -181,11 +181,7 @@ export function gapValue(status: GapStatus, text: string): string | null {
  * @param options - `compact` for "n/a" alone in place.
  * @returns True when it was hatched.
  */
-export function hatchGap(
-  el: HTMLElement,
-  status: GapStatus,
-  options: HatchOptions = {},
-): boolean {
+export function hatchGap(el: HTMLElement, status: GapStatus, options: HatchOptions = {}): boolean {
   el.querySelector(":scope > .gap-sr")?.remove();
   if (isComparable(status)) {
     // Undo an earlier hatch, so an element can follow a status that changes.

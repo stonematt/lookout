@@ -54,7 +54,11 @@ const wallClock = () =>
  * @returns The local time string.
  */
 export function stationWallClock(ms: number): string {
-  const p = Object.fromEntries(wallClock().formatToParts(ms).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(
+    wallClock()
+      .formatToParts(ms)
+      .map((x) => [x.type, x.value]),
+  );
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 
@@ -308,7 +312,11 @@ export async function drawEventCharts(
   // and one set of ticks. The plot is the host less the side margins.
   const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
   const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
-  const ticks = timeTicks(fromMs, toMs, (hosts.rate.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r);
+  const ticks = timeTicks(
+    fromMs,
+    toMs,
+    (hosts.rate.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r,
+  );
   const accLayout = baseLayout(240, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
   accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
@@ -342,7 +350,11 @@ export async function drawEventCharts(
     },
   ];
   const rateLayout = baseLayout(150, "", ticks);
-  rateLayout.yaxis = { ...rateLayout.yaxis, range: [0, topRate], title: { text: "in/hr", font: { size: 12, color: token("--ink-2") } } };
+  rateLayout.yaxis = {
+    ...rateLayout.yaxis,
+    range: [0, topRate],
+    title: { text: "in/hr", font: { size: 12, color: token("--ink-2") } },
+  };
   rateLayout.margin = { ...MARGIN, t: 4, b: 44 };
   rateLayout.xaxis = { ...rateLayout.xaxis, range: xRange };
   await Plotly.react(hosts.rate, rateTraces, rateLayout, config);

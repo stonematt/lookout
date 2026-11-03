@@ -127,7 +127,9 @@ export function monthSentence(month: AlmanacMonth): string {
     return `${soFar} ${gapSentence(month.status)}`;
   }
   const value = month.rain_in === null ? null : gapValue(month.status, inches(month.rain_in));
-  return value ? `${name}: ${value} of rain. ${gapSentence(month.status)}` : `${name}: ${gapSentence(month.status)}`;
+  return value
+    ? `${name}: ${value} of rain. ${gapSentence(month.status)}`
+    : `${name}: ${gapSentence(month.status)}`;
 }
 
 /**
@@ -176,14 +178,18 @@ export function gridHeadline(almanac: Almanac): string {
     for (let column = 11; column >= 0; column--) {
       const month = year.months[column];
       if (!month || month.rain_in === null) continue;
-      const amount = month.rain_in === 0 ? "no rain" : `${shown(month.status, month.rain_in)} of rain`;
+      const amount =
+        month.rain_in === 0 ? "no rain" : `${shown(month.status, month.rain_in)} of rain`;
       const lead = `${monthName(month.status.key)} had ${amount}`;
       const earlier = almanac.years
         .slice(row + 1)
         .map((other) => other.months[column])
         .filter((m): m is AlmanacMonth => m != null && m.rain_in !== null)
         .slice(0, NAMED_YEARS)
-        .map((m) => `${m.rain_in === 0 ? "no rain" : shown(m.status, m.rain_in!)} (${m.status.key.slice(0, 4)})`);
+        .map(
+          (m) =>
+            `${m.rain_in === 0 ? "no rain" : shown(m.status, m.rain_in!)} (${m.status.key.slice(0, 4)})`,
+        );
       return earlier.length ? `${lead}, against ${listText(earlier)}` : lead;
     }
   }
@@ -208,7 +214,9 @@ export function rollingHeadline(almanac: Almanac): string {
     const earlier = shownYears(window).slice(1, NAMED_YEARS + 1);
     // The season is named by its water year; `year` is a year behind from
     // Oct through Dec (#147).
-    const named = earlier.map((y) => `${y.text} (${key === "water_year" ? `water year ${y.water_year}` : y.year})`);
+    const named = earlier.map(
+      (y) => `${y.text} (${key === "water_year" ? `water year ${y.water_year}` : y.year})`,
+    );
     return named.length ? `${lead}, against ${listText(named)} over the same days` : lead;
   }
   return "Rain over the last week, month and season";
@@ -246,4 +254,3 @@ function shownYears(window: RollingWindow): { year: number; water_year: number; 
 function shown(status: GapStatus, value: number): string {
   return gapValue(status, inches(value)) ?? inches(value);
 }
-

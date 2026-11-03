@@ -21,12 +21,7 @@ const key = (target: Element, name: string) =>
 describe("the tabs", () => {
   it("shows the four tabs with Overview open by default", () => {
     mountTabs(host);
-    expect(tabs().map((t) => t.textContent)).toEqual([
-      "Overview",
-      "Rain",
-      "Rain Events",
-      "Solar",
-    ]);
+    expect(tabs().map((t) => t.textContent)).toEqual(["Overview", "Rain", "Rain Events", "Solar"]);
     expect(host.querySelector("[role=tablist]")).not.toBeNull();
     expect(selected()?.textContent).toBe("Overview");
     expect(visiblePanels().map((p) => p.id)).toEqual(["panel-overview"]);
@@ -104,9 +99,7 @@ describe("the tabs", () => {
     for (const { id } of TABS) {
       const panel = host.querySelector(`#panel-${id}`)!;
       expect(panel.getAttribute("aria-labelledby")).toBe(`tab-${id}`);
-      expect(host.querySelector(`#tab-${id}`)!.getAttribute("aria-controls")).toBe(
-        `panel-${id}`,
-      );
+      expect(host.querySelector(`#tab-${id}`)!.getAttribute("aria-controls")).toBe(`panel-${id}`);
     }
   });
 });

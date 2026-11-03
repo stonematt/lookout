@@ -18,7 +18,10 @@ const year = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "../../tests/golden/temperature/year.json"), "utf8"),
 ) as TemperatureContext;
 
-const withYear = (ctx: TemperatureContext = year): DashboardSnapshot => ({ ...dry, temperature_context: ctx });
+const withYear = (ctx: TemperatureContext = year): DashboardSnapshot => ({
+  ...dry,
+  temperature_context: ctx,
+});
 
 let host: HTMLElement;
 
@@ -28,14 +31,19 @@ function show(snapshot: DashboardSnapshot): void {
   SECTIONS.find((s) => s.id === "temperature-context")!.render(host, snapshot);
 }
 
-const text = (selector: string) => host.querySelector(selector)?.textContent?.replace(/\s+/g, " ").trim();
+const text = (selector: string) =>
+  host.querySelector(selector)?.textContent?.replace(/\s+/g, " ").trim();
 const all = (selector: string) => [...host.querySelectorAll(selector)];
 
 beforeEach(() => show(withYear()));
 
 describe("the temperature context's place", () => {
   it("follows the hero lead", () => {
-    expect(SECTIONS.map((s) => s.id).slice(0, 3)).toEqual(["first-screen", "hero-lead", "temperature-context"]);
+    expect(SECTIONS.map((s) => s.id).slice(0, 3)).toEqual([
+      "first-screen",
+      "hero-lead",
+      "temperature-context",
+    ]);
   });
 
   it("renders in the Overview for both golden scenarios", () => {
@@ -48,7 +56,10 @@ describe("the temperature context's place", () => {
   });
 
   it("parses the section and rejects a snapshot without it", () => {
-    const { temperature_context: _gone, ...rest } = golden("dry", "dashboard") as Record<string, unknown>;
+    const { temperature_context: _gone, ...rest } = golden("dry", "dashboard") as Record<
+      string,
+      unknown
+    >;
     expect(() => parseDashboard(rest)).toThrow(/temperature_context/);
   });
 });
@@ -91,9 +102,13 @@ describe("temperature across periods", () => {
     show(withYear(ctx));
 
     expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(1);
-    expect(all("[data-part=periods-chart] .tc-reason").map((el) => el.textContent)).toEqual(["n/a: gap in record"]);
+    expect(all("[data-part=periods-chart] .tc-reason").map((el) => el.textContent)).toEqual([
+      "n/a: gap in record",
+    ]);
     expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(5);
-    expect(text("[data-block=periods] .ov-sr")).toContain("7 days: Dec 31, 2025 to Jan 6, 2026: 5 of 7 days");
+    expect(text("[data-block=periods] .ov-sr")).toContain(
+      "7 days: Dec 31, 2025 to Jan 6, 2026: 5 of 7 days",
+    );
   });
 
   it("marks a prorated window with ≈ on its values", () => {
@@ -110,7 +125,11 @@ describe("temperature across periods", () => {
     show(dry);
 
     expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(6);
-    expect(all("[data-part=periods-chart] .tc-reason").every((el) => el.textContent === "not archived yet")).toBe(true);
+    expect(
+      all("[data-part=periods-chart] .tc-reason").every(
+        (el) => el.textContent === "not archived yet",
+      ),
+    ).toBe(true);
     expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(0);
   });
 });
@@ -147,10 +166,13 @@ describe("the ten-day list", () => {
   it("has nothing to set the days against in a young archive", () => {
     const ctx = structuredClone(year);
     ctx.ten_day_years = [];
-    for (const d of ctx.ten_days) Object.assign(d, { usual_low: null, usual_high: null, usual_years: [], usual_days: 0 });
+    for (const d of ctx.ten_days)
+      Object.assign(d, { usual_low: null, usual_high: null, usual_years: [], usual_days: 0 });
     show(withYear(ctx));
 
-    expect(text("[data-block=ten-days] [data-part=headline]")).toBe("The last ten days, with no earlier year to set them against");
+    expect(text("[data-block=ten-days] [data-part=headline]")).toBe(
+      "The last ten days, with no earlier year to set them against",
+    );
     expect(all("[data-part=days-chart] .tc-usual")).toHaveLength(0);
   });
 });
@@ -165,17 +187,29 @@ describe("now against normal", () => {
   });
 
   it("states the rain claim and draws today so far", () => {
-    expect(text("[data-strip=rain] [data-part=claim]")).toMatch(/^Dry so far today, as on 90% of 30 past days/);
+    expect(text("[data-strip=rain] [data-part=claim]")).toMatch(
+      /^Dry so far today, as on 90% of 30 past days/,
+    );
     expect(text("[data-strip=rain] .tc-note")).toBe("today 0.00 in so far");
     expect(all("[data-strip=rain] .tc-dot")).toHaveLength(30);
   });
 
   it("names the years in the heading, newest first", () => {
-    expect(text("[data-block=strips] [data-part=headline]")).toBe("Now against normal for this date in 2025 and 2024");
+    expect(text("[data-block=strips] [data-part=headline]")).toBe(
+      "Now against normal for this date in 2025 and 2024",
+    );
   });
 
   it("says why a strip cannot be drawn rather than drawing one", () => {
-    const strip = { ...year.strips[0]!, missing: "no_comparison" as const, values: [], below_pct: null, equal_pct: null, above_pct: null, years: [] };
+    const strip = {
+      ...year.strips[0]!,
+      missing: "no_comparison" as const,
+      values: [],
+      below_pct: null,
+      equal_pct: null,
+      above_pct: null,
+      years: [],
+    };
     expect(stripClaim(strip)).toBe("No earlier year is complete enough to set this against.");
     const ctx = structuredClone(year);
     ctx.strips = [strip, ctx.strips[1]!];
@@ -186,9 +220,19 @@ describe("now against normal", () => {
   });
 
   it("says the no-comparison sentence once when both strips lack one", () => {
-    const none = { missing: "no_comparison" as const, values: [], below_pct: null, equal_pct: null, above_pct: null, years: [] };
+    const none = {
+      missing: "no_comparison" as const,
+      values: [],
+      below_pct: null,
+      equal_pct: null,
+      above_pct: null,
+      years: [],
+    };
     const ctx = structuredClone(year);
-    ctx.strips = [{ ...year.strips[0]!, ...none }, { ...year.strips[1]!, ...none }];
+    ctx.strips = [
+      { ...year.strips[0]!, ...none },
+      { ...year.strips[1]!, ...none },
+    ];
     show(withYear(ctx));
 
     const claims = all("[data-block=strips] [data-part=claim]").map((el) => el.textContent);

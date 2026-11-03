@@ -143,7 +143,10 @@ export function calmRule(snapshot: DashboardSnapshot): LeadRule | null {
 export function dryHeadline(snapshot: DashboardSnapshot): string {
   const calm = calmRule(snapshot);
   if (!calm || calm.value === null) return "Dry spells in the record";
-  const usual = calm.reference === null ? "" : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
+  const usual =
+    calm.reference === null
+      ? ""
+      : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
   return `${formatDays(calm.value)} since it last rained${usual}`;
 }
 
@@ -225,7 +228,10 @@ export function hoursHeadline(snapshot: DashboardSnapshot): string {
   if (wet === null) return `Rain by the hour over ${span}`;
   if (wet === 0 || !wettest) return `No rain fell in ${span}`;
   const count = Math.round(wet);
-  const hours = gapValue(rainStatus(snapshot, recent.window), `${count} ${count === 1 ? "hour" : "hours"}`);
+  const hours = gapValue(
+    rainStatus(snapshot, recent.window),
+    `${count} ${count === 1 ? "hour" : "hours"}`,
+  );
   return (
     `Rain fell in ${hours} of ${span}, the heaviest ` +
     `${inches(wettest.rain_in)} at ${hourText(wettest.hour)} on ${dayText(wettest.day)}`

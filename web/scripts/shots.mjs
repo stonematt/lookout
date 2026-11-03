@@ -37,9 +37,7 @@ try {
         await page.goto(url, { waitUntil: "load" });
         await page.waitForSelector(".masthead-age:not(:empty)", { timeout: 5000 });
         // Plotly charts load lazily; give any chart host time to draw one.
-        const hasChart = await page.evaluate(
-          () => document.querySelector(".ev-chart") !== null,
-        );
+        const hasChart = await page.evaluate(() => document.querySelector(".ev-chart") !== null);
         if (hasChart) {
           await page
             .waitForSelector(".js-plotly-plot", { timeout: 5000 })

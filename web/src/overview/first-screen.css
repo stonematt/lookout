@@ -103,12 +103,24 @@
   display: block;
 }
 
-.ribbon-band rect[data-light="night"] { fill: var(--night); }
-.ribbon-band rect[data-light="day"] { fill: var(--sun-soft); }
-.ribbon-band rect[data-rain="1"] { fill: var(--rain-1); }
-.ribbon-band rect[data-rain="2"] { fill: var(--rain-2); }
-.ribbon-band rect[data-rain="3"] { fill: var(--rain-3); }
-.ribbon-band rect[data-rain="4"] { fill: var(--rain-4); }
+.ribbon-band rect[data-light="night"] {
+  fill: var(--night);
+}
+.ribbon-band rect[data-light="day"] {
+  fill: var(--sun-soft);
+}
+.ribbon-band rect[data-rain="1"] {
+  fill: var(--rain-1);
+}
+.ribbon-band rect[data-rain="2"] {
+  fill: var(--rain-2);
+}
+.ribbon-band rect[data-rain="3"] {
+  fill: var(--rain-3);
+}
+.ribbon-band rect[data-rain="4"] {
+  fill: var(--rain-4);
+}
 
 .ribbon-hatch {
   position: absolute;
@@ -236,12 +248,24 @@
   border-radius: 0;
 }
 
-.ribbon-key-night { background: var(--night); }
-.ribbon-key-day { background: var(--sun-soft); }
-.ribbon-key-rain-1 { background: var(--rain-1); }
-.ribbon-key-rain-2 { background: var(--rain-2); }
-.ribbon-key-rain-3 { background: var(--rain-3); }
-.ribbon-key-rain-4 { background: var(--rain-4); }
+.ribbon-key-night {
+  background: var(--night);
+}
+.ribbon-key-day {
+  background: var(--sun-soft);
+}
+.ribbon-key-rain-1 {
+  background: var(--rain-1);
+}
+.ribbon-key-rain-2 {
+  background: var(--rain-2);
+}
+.ribbon-key-rain-3 {
+  background: var(--rain-3);
+}
+.ribbon-key-rain-4 {
+  background: var(--rain-4);
+}
 
 @media (min-width: 600px) {
   .right-now dd {

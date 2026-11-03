@@ -54,7 +54,9 @@ const cell = (month: string) => host.querySelector<HTMLElement>(`[data-month="${
 
 describe("the almanac's words", () => {
   it("names the newest month against the same month in earlier years", () => {
-    expect(gridHeadline(october)).toBe("September 2025 had 0.70 in of rain, against 0.50 in (2024)");
+    expect(gridHeadline(october)).toBe(
+      "September 2025 had 0.70 in of rain, against 0.50 in (2024)",
+    );
   });
 
   it("says a dry month had no rain", () => {
@@ -68,7 +70,9 @@ describe("the almanac's words", () => {
     const almanac = copy(october);
     almanac.years[2]!.months[11]!.rain_in = 0;
 
-    expect(gridHeadline(almanac)).toBe("September 2025 had 0.70 in of rain, against no rain (2024)");
+    expect(gridHeadline(almanac)).toBe(
+      "September 2025 had 0.70 in of rain, against no rain (2024)",
+    );
   });
 
   it("names the last 30 days against the same days a year before", () => {
@@ -89,7 +93,8 @@ describe("the almanac's words", () => {
   it("names an earlier season by its water year, not the calendar year", () => {
     // Oct 1 to 12, 2024 is water year 2025 (#147).
     const almanac = copy(october);
-    for (const key of ["30d", "7d"]) almanac.rolling.find((w) => w.key === key)!.years[0]!.rain_in = null;
+    for (const key of ["30d", "7d"])
+      almanac.rolling.find((w) => w.key === key)!.years[0]!.rain_in = null;
 
     expect(rollingHeadline(almanac)).toBe(
       "0.30 in of rain since Oct 1, against 0.25 in (water year 2025) over the same days",
@@ -119,7 +124,9 @@ describe("the almanac's words", () => {
   it("writes a season's total, and the running season so far", () => {
     const [wy2026, wy2025] = october.years;
 
-    expect(seasonSentence(wy2025!, null)).toBe("Water year 2025, Oct 1 to Sep 30: 1.95 in of rain.");
+    expect(seasonSentence(wy2025!, null)).toBe(
+      "Water year 2025, Oct 1 to Sep 30: 1.95 in of rain.",
+    );
     expect(seasonSentence(wy2026!, seasonSoFar(october))).toBe(
       "Water year 2026 so far: 0.30 in of rain since Oct 1.",
     );
@@ -146,7 +153,20 @@ describe("the almanac grid", () => {
     const months = [...host.querySelectorAll("thead .alm-long")].map(text);
 
     expect(years).toEqual(["2026", "2025", "2024"]);
-    expect(months).toEqual(["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]);
+    expect(months).toEqual([
+      "Oct",
+      "Nov",
+      "Dec",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+    ]);
   });
 
   it("fills a month from the ramp with its value", () => {
@@ -276,7 +296,9 @@ describe("the rolling-window table", () => {
     // A season cell is read by its row and its water year, not the calendar column.
     const row = host.querySelector('tr[data-window="water_year"] th')!;
     const ids = [...head.querySelectorAll("th")].map((th) => th.id);
-    const cells = [...host.querySelectorAll<HTMLTableCellElement>('tr[data-window="water_year"] td')];
+    const cells = [
+      ...host.querySelectorAll<HTMLTableCellElement>('tr[data-window="water_year"] td'),
+    ];
     expect(row.id).not.toBe("");
     expect(cells.map((td) => td.getAttribute("headers"))).toEqual([
       `${row.id} ${ids[1]}`,
@@ -357,17 +379,20 @@ describe("text on a ramp cell", () => {
     return (hi! + 0.05) / (lo! + 0.05);
   }
 
-  it.each([0, 1, 2, 3, 4])("rain-%i takes whichever ink has more contrast, by day and by night", (step) => {
-    const fills = values("styles/tokens.css", `rain-${step}`);
-    const inks = values("overview/almanac.css", `alm-on-${step}`);
-    // Light first; then the OS dark block and the explicit dark block.
-    expect(fills).toHaveLength(3);
-    expect(inks).toHaveLength(3);
-    fills.forEach((fill, i) => {
-      const ink = inks[i]!;
-      const other = ink === "#1b1a18" ? "#f7f4ee" : "#1b1a18";
-      expect(contrast(fill, ink)).toBeGreaterThan(contrast(fill, other));
-      expect(contrast(fill, ink)).toBeGreaterThanOrEqual(4.5);
-    });
-  });
+  it.each([0, 1, 2, 3, 4])(
+    "rain-%i takes whichever ink has more contrast, by day and by night",
+    (step) => {
+      const fills = values("styles/tokens.css", `rain-${step}`);
+      const inks = values("overview/almanac.css", `alm-on-${step}`);
+      // Light first; then the OS dark block and the explicit dark block.
+      expect(fills).toHaveLength(3);
+      expect(inks).toHaveLength(3);
+      fills.forEach((fill, i) => {
+        const ink = inks[i]!;
+        const other = ink === "#1b1a18" ? "#f7f4ee" : "#1b1a18";
+        expect(contrast(fill, ink)).toBeGreaterThan(contrast(fill, other));
+        expect(contrast(fill, ink)).toBeGreaterThanOrEqual(4.5);
+      });
+    },
+  );
 });

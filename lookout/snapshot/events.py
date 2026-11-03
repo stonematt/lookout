@@ -276,6 +276,7 @@ def completed_curves(
     archive: pd.DataFrame,
     skip: Collection[int] = (),
     limit: Optional[int] = None,
+    failed: Optional[List[int]] = None,
 ) -> List[EventCurve]:
     """
     The curves of completed events, newest first, for curve files.
@@ -284,12 +285,15 @@ def completed_curves(
     shows its totals only). Only the curves returned are computed, so a
     run that skips every stored one does no slicing beyond the new ones.
     An event whose curve fails to compute is logged at ERROR and left out,
-    so it never blocks the older ones (#160); the next run retries it.
+    so it never blocks the older ones (#160); the next run retries it. Its
+    start is appended to `failed` when given, so the caller can fail the run
+    (#233).
 
     :param event_catalog: The Event Catalog, or None.
     :param archive: The archive.
     :param skip: Starts (ms) to leave out: those already stored.
     :param limit: At most this many curves; None for all.
+    :param failed: Collects the starts (ms) whose curve failed to build.
     :return: The curves.
     """
     if event_catalog is None or event_catalog.empty:
@@ -306,4 +310,6 @@ def completed_curves(
             curves.append(_curve(readings, start_ms, end_ms))
         except Exception as e:
             logger.exception(f"No curve for the event starting {start_ms}: {e}")
+            if failed is not None:
+                failed.append(start_ms)
     return curves

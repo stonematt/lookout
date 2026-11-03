@@ -38,7 +38,10 @@ describe("the lane server's read functions", () => {
 
   it("shifts every ISO day with the times, so day labels agree with them", async () => {
     type Doc = {
-      gaps: { windows: { key: string; first_day: string; last_day: string }[]; months: { key: string }[] };
+      gaps: {
+        windows: { key: string; first_day: string; last_day: string }[];
+        months: { key: string }[];
+      };
       rain_tab: { recent: { first_day: string; wettest_hour: { day: string } | null } };
     };
     const recorded = golden("raining", "dashboard") as unknown as Doc;

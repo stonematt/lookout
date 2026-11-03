@@ -33,8 +33,7 @@ import type { CurveReader, SnapshotReader } from "./storj.js";
  * `/dashboard`: the CDN serves it; Storj is read about once per 5 minutes.
  * While a read fails, the CDN may serve the last good copy for 5 more.
  */
-export const DASHBOARD_CACHE =
-  "s-maxage=300, stale-while-revalidate=300, stale-if-error=300";
+export const DASHBOARD_CACHE = "s-maxage=300, stale-while-revalidate=300, stale-if-error=300";
 
 /** `/current`: short, so the live reading stays live and Ambient is spared. */
 export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60, stale-if-error=300";
@@ -180,10 +179,7 @@ export function checkQuery(
  * @returns 200 with the document, 404 without one, 502 when Storj fails or
  *   the document breaks the contract.
  */
-export async function handleDashboard(
-  request: Request,
-  sources: ReadSources,
-): Promise<Response> {
+export async function handleDashboard(request: Request, sources: ReadSources): Promise<Response> {
   const query = checkQuery(request, sources);
   if (query instanceof Response) return query;
   const mac = sources.defaultMac;
@@ -216,10 +212,7 @@ export async function handleDashboard(
  * @param sources - Where to read; needs `readLive`.
  * @returns 200 with whatever could be read, 502 when nothing could.
  */
-export async function handleCurrent(
-  request: Request,
-  sources: ReadSources,
-): Promise<Response> {
+export async function handleCurrent(request: Request, sources: ReadSources): Promise<Response> {
   const query = checkQuery(request, sources);
   if (query instanceof Response) return query;
   const mac = sources.defaultMac;
@@ -227,9 +220,9 @@ export async function handleCurrent(
   if (!readLive) return errorResponse(500, "no live source configured");
 
   const [contextResult, liveResult] = await Promise.allSettled([
-    sources.readSnapshot(mac, "context").then((text) =>
-      text === null ? null : parseContext(JSON.parse(text)),
-    ),
+    sources
+      .readSnapshot(mac, "context")
+      .then((text) => (text === null ? null : parseContext(JSON.parse(text)))),
     readLive(mac),
   ]);
   if (contextResult.status === "rejected") {

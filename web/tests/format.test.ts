@@ -163,9 +163,7 @@ describe("dataAge", () => {
       stale: true,
       text: "Stale: 16 m old",
     });
-    expect(dataAge(observed, observed + (26 * 60 + 3) * MIN).text).toBe(
-      "Stale: 1 d 2 h old",
-    );
+    expect(dataAge(observed, observed + (26 * 60 + 3) * MIN).text).toBe("Stale: 1 d 2 h old");
   });
 
   it("is stale with no observation at all", () => {

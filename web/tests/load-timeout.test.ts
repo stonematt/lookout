@@ -4,11 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  fetchCurrent,
-  fetchDashboard,
-  fetchEventCurve,
-} from "../src/load.js";
+import { fetchCurrent, fetchDashboard, fetchEventCurve } from "../src/load.js";
 
 /** A fetch that never answers, and rejects only when its signal aborts. */
 function hungFetch(seen: { signal?: AbortSignal | null }): typeof fetch {

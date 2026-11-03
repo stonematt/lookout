@@ -49,8 +49,18 @@ export const DAY_MS = 24 * HOUR_MS;
 
 /** The calendar's months, short, January first. */
 export const MONTHS: readonly string[] = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 /** The water year starts on Oct 1 (calendar month 10). */
@@ -100,7 +110,9 @@ const stamp = () =>
  */
 export function formatStamp(ms: number): string {
   const parts = Object.fromEntries(
-    stamp().formatToParts(ms).map((part) => [part.type, part.value]),
+    stamp()
+      .formatToParts(ms)
+      .map((part) => [part.type, part.value]),
   );
   const period = (parts.dayPeriod ?? "").toLowerCase();
   return `${parts.month} ${parts.day}, ${parts.hour}:${parts.minute} ${period}`;
@@ -114,7 +126,9 @@ export function formatStamp(ms: number): string {
  */
 export function formatTime(ms: number): string {
   const parts = Object.fromEntries(
-    stamp().formatToParts(ms).map((part) => [part.type, part.value]),
+    stamp()
+      .formatToParts(ms)
+      .map((part) => [part.type, part.value]),
   );
   return `${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toLowerCase()}`;
 }
@@ -158,8 +172,7 @@ export function formatDuration(ms: number): string {
  */
 export function formatHours(ms: number, options: { noBreak?: boolean } = {}): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  const text =
-    minutes < 1 ? "under 1 m" : minutes < 60 ? `${minutes} m` : hoursAndMinutes(minutes);
+  const text = minutes < 1 ? "under 1 m" : minutes < 60 ? `${minutes} m` : hoursAndMinutes(minutes);
   return options.noBreak ? text.replaceAll(" ", "\u00a0") : text;
 }
 

@@ -54,7 +54,9 @@ function render(snapshot: DashboardSnapshot, query = ""): string[] {
 
 /** The value shown for a window in the strip. */
 function stripValue(label: string): Element | undefined {
-  const item = [...section("daily").querySelectorAll(".solar-stats div")].find((d) => text(d.querySelector("dt")) === label);
+  const item = [...section("daily").querySelectorAll(".solar-stats div")].find(
+    (d) => text(d.querySelector("dt")) === label,
+  );
   return item?.querySelector("dd") ?? undefined;
 }
 
@@ -71,7 +73,9 @@ describe("the contract", () => {
   });
 
   it("rejects a Solar window without its own gap status", () => {
-    const doc = golden("raining", "dashboard") as { solar_tab: { windows: { status?: unknown }[] } };
+    const doc = golden("raining", "dashboard") as {
+      solar_tab: { windows: { status?: unknown }[] };
+    };
     delete doc.solar_tab.windows[0]!.status;
     expect(() => parseDashboard(doc)).toThrow(SnapshotContractError);
   });
@@ -138,14 +142,18 @@ describe("the 24-hour view", () => {
   it("names the live reading when the 24 hours cannot be totalled", () => {
     render(dry);
     expect(text(section("now").querySelector("h2"))).toBe("Solar radiation is 0 W/m² now");
-    expect(text(section("now").querySelector(".solar-source"))).toContain("The 24-hour energy is not totalled");
+    expect(text(section("now").querySelector(".solar-source"))).toContain(
+      "The 24-hour energy is not totalled",
+    );
   });
 });
 
 describe("the selected day in the URL", () => {
   it("opens on the day the URL names", () => {
     render(raining, "?fixture=raining&solar_day=2026-01-06");
-    expect(text(section("day").querySelector("h2"))).toBe("Jan 6, 2026: 6.11 kWh/m², brightest at 11:45 am");
+    expect(text(section("day").querySelector("h2"))).toBe(
+      "Jan 6, 2026: 6.11 kWh/m², brightest at 11:45 am",
+    );
   });
 
   it("opens on today without one, or with one outside the record", () => {
@@ -191,7 +199,9 @@ describe("the selected day in the URL", () => {
 describe("the heatmaps", () => {
   it("switches between its three views", () => {
     render(raining);
-    const buttons = [...section("heatmaps").querySelectorAll<HTMLButtonElement>(".solar-seg button")];
+    const buttons = [
+      ...section("heatmaps").querySelectorAll<HTMLButtonElement>(".solar-seg button"),
+    ];
     expect(buttons.map((b) => text(b))).toEqual(["Months", "Days", "15 minutes"]);
     expect(buttons[1]!.getAttribute("aria-pressed")).toBe("true");
     expect(text(section("heatmaps").querySelector("h2"))).toBe(
@@ -220,9 +230,13 @@ describe("words", () => {
 
   it("compares the 24 hours with the 24 before", () => {
     const trace = { energy_kwh_m2: 3.1, previous_kwh_m2: 2.0 } as SolarTrace;
-    expect(traceHeadline(trace, 500)).toBe("3.10 kWh/m² of sun in the last 24 hours, up from 2.00 the 24 before");
+    expect(traceHeadline(trace, 500)).toBe(
+      "3.10 kWh/m² of sun in the last 24 hours, up from 2.00 the 24 before",
+    );
     expect(traceHeadline({ ...trace, previous_kwh_m2: 4.0 }, 500)).toContain("down from 4.00");
-    expect(traceHeadline({ ...trace, previous_kwh_m2: null }, 500)).toBe("3.10 kWh/m² of sun in the last 24 hours");
+    expect(traceHeadline({ ...trace, previous_kwh_m2: null }, 500)).toBe(
+      "3.10 kWh/m² of sun in the last 24 hours",
+    );
   });
 
   it("compares the last 7 full days with the same dates in earlier years", () => {
@@ -231,7 +245,9 @@ describe("words", () => {
     // Jan 1, 2024 to Jan 8, 2026: 2.00 a day, then 3.10 on Jan 1-7, 2026.
     const count = 739;
     days.first_day = "2024-01-01";
-    days.energy_kwh_m2 = Array.from({ length: count }, (_, i) => (i >= count - 8 && i < count - 1 ? 3.1 : 2.0));
+    days.energy_kwh_m2 = Array.from({ length: count }, (_, i) =>
+      i >= count - 8 && i < count - 1 ? 3.1 : 2.0,
+    );
     days.reason = days.energy_kwh_m2.map(() => null);
     expect(dailyHeadline(copy)).toBe(
       "Brighter than this week in earlier years: 3.10 kWh/m² a day over the last 7 full days, against 2.00 (2025) and 2.00 (2024)",

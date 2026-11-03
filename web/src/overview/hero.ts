@@ -38,7 +38,6 @@ import type { OverviewSection } from "./index.js";
 /** A live reading further ahead of the archive than this is hatched. */
 const LAG_HATCH_MS = 15 * 60_000;
 
-
 // ---------- words ----------
 
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${degrees(Math.abs(v))}`;
@@ -73,8 +72,12 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
   const now = lead.now;
   switch (lead.kind) {
     case "rain": {
-      const usual = lead.usual_median === null ? "" : `, against ${inches(lead.usual_median, { digits: 2 })} for a usual event`;
-      if (snapshot.active_rain_event) return `Raining now: ${inches(now ?? 0, { digits: 2 })} so far${usual}`;
+      const usual =
+        lead.usual_median === null
+          ? ""
+          : `, against ${inches(lead.usual_median, { digits: 2 })} for a usual event`;
+      if (snapshot.active_rain_event)
+        return `Raining now: ${inches(now ?? 0, { digits: 2 })} so far${usual}`;
       const since = rule(lead, "rain").value ?? 0;
       return `Rain ended ${sinceText(since)} ago, after ${inches(now ?? 0, { digits: 2 })}${usual}`;
     }
@@ -96,7 +99,10 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
     case "calm": {
       const calm = rule(lead, "calm");
       if (calm.value === null) return "No rain on record to count a dry spell from";
-      const usual = calm.reference === null ? "" : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
+      const usual =
+        calm.reference === null
+          ? ""
+          : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
       return `${formatDays(calm.value)} since it last rained${usual}`;
     }
   }
@@ -146,8 +152,14 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
       const active = snapshot.active_rain_event;
       const since = rule(lead, "rain").value;
       return [
-        [lead.now === null ? na : `${inches(lead.now, { digits: 2 })}`, active ? "so far" : "event total"],
-        [lead.usual_median === null ? na : `${inches(lead.usual_median, { digits: 2 })}`, "usual event"],
+        [
+          lead.now === null ? na : `${inches(lead.now, { digits: 2 })}`,
+          active ? "so far" : "event total",
+        ],
+        [
+          lead.usual_median === null ? na : `${inches(lead.usual_median, { digits: 2 })}`,
+          "usual event",
+        ],
         active
           ? [formatDuration(active.duration_minutes * 60_000), "running for"]
           : [since === null ? na : `${sinceText(since)} ago`, "ended"],
@@ -157,7 +169,10 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
       const t = rule(lead, "temperature");
       return [
         [lead.now === null ? na : `${degrees(lead.now)}`, "now"],
-        [t.reference === null ? na : `${degrees(t.reference)}`, `${monthOf(snapshot)} median at ${hourOf(snapshot)}`],
+        [
+          t.reference === null ? na : `${degrees(t.reference)}`,
+          `${monthOf(snapshot)} median at ${hourOf(snapshot)}`,
+        ],
         [t.value === null ? na : signed(t.value), "from the median"],
       ];
     }
@@ -165,17 +180,27 @@ export function heroFacts(snapshot: DashboardSnapshot): [string, string][] {
       const known = lead.trace?.values.filter((v): v is number => v !== null) ?? [];
       return [
         [lead.now === null ? na : wattsPerM2(lead.now), "now"],
-        [lead.usual_median === null ? na : wattsPerM2(lead.usual_median), `usual at ${hourOf(snapshot)}`],
+        [
+          lead.usual_median === null ? na : wattsPerM2(lead.usual_median),
+          `usual at ${hourOf(snapshot)}`,
+        ],
         [known.length ? wattsPerM2(Math.max(...known)) : na, "brightest hour today"],
       ];
     }
     case "calm": {
       const calm = rule(lead, "calm");
-      const since: [string, string] = [calm.value === null ? na : formatDays(calm.value), "since rain"];
+      const since: [string, string] = [
+        calm.value === null ? na : formatDays(calm.value),
+        "since rain",
+      ];
       if (calm.reference === null) {
         // No usual spell to compare: say when it last rained instead.
         const last = snapshot.current.last_rain_ms;
-        return [since, [last === null ? na : formatStamp(last), "last rain"], ["not compared", "usual dry spell"]];
+        return [
+          since,
+          [last === null ? na : formatStamp(last), "last rain"],
+          ["not compared", "usual dry spell"],
+        ];
       }
       return [
         since,
@@ -233,7 +258,10 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
  */
 export function heroSource(snapshot: DashboardSnapshot): string {
   const lead = snapshot.hero_lead;
-  const lag = liveLagMs(snapshot) > LAG_HATCH_MS ? " The hatched span is not archived yet; only the live reading is known there." : "";
+  const lag =
+    liveLagMs(snapshot) > LAG_HATCH_MS
+      ? " The hatched span is not archived yet; only the live reading is known there."
+      : "";
   switch (lead.kind) {
     case "rain":
       return `Events from the Event Catalog; rain from the station's event counter, in 15-minute slots, with the live total as now.${lag}`;
@@ -308,7 +336,8 @@ function bandPath(xs: number[], lo: (number | null)[], hi: (number | null)[]): s
 
 function lineColour(snapshot: DashboardSnapshot): string {
   const lead = snapshot.hero_lead;
-  if (lead.kind === "temperature") return (rule(lead, "temperature").value ?? 0) >= 0 ? "warm" : "cold";
+  if (lead.kind === "temperature")
+    return (rule(lead, "temperature").value ?? 0) >= 0 ? "warm" : "cold";
   return lead.kind;
 }
 
@@ -327,10 +356,7 @@ function nowLabel(lead: HeroLead): string {
 }
 
 /** The ticks, band, median, bold line and now dot of a time chart. */
-function timeChart(
-  snapshot: DashboardSnapshot,
-  width: number,
-): SVGSVGElement | null {
+function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const lead = snapshot.hero_lead;
   const trace = lead.trace;
   if (!trace || lead.now === null || lead.now_ms === null) return null;
@@ -349,7 +375,9 @@ function timeChart(
   const archived = snapshot.archive_newest_ms ?? nowMs;
   const lagging = nowMs - archived > LAG_HATCH_MS;
   const shown = trace.values.map((v, i) =>
-    v === null || at(i) > nowMs || (lagging && (hourly ? at(i) > archived : i === trace.values.length - 1))
+    v === null ||
+    at(i) > nowMs ||
+    (lagging && (hourly ? at(i) > archived : i === trace.values.length - 1))
       ? null
       : v,
   );
@@ -375,7 +403,12 @@ function timeChart(
 
   const x = scale(t0, t1, 0, iw);
   const y = scale(lo, hi, ih, 0);
-  const root = svgEl("svg", { width: f.w, height: f.h, viewBox: `0 0 ${f.w} ${f.h}`, class: "hero-svg" });
+  const root = svgEl("svg", {
+    width: f.w,
+    height: f.h,
+    viewBox: `0 0 ${f.w} ${f.h}`,
+    class: "hero-svg",
+  });
   const hatch = svgHatch(root);
   const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
   root.append(g);
@@ -383,7 +416,13 @@ function timeChart(
   const unit = lead.unit === "f" ? "°" : "";
   for (const v of ticks) {
     g.append(svgEl("line", { class: "hero-grid", x1: 0, x2: iw, y1: y(v), y2: y(v) }));
-    g.append(svgEl("text", { class: "hero-tick", x: -6, y: y(v) + 4, "text-anchor": "end" }, `${lead.unit === "in" ? inches(v, { digits: 2, unit: false }) : Math.round(v)}${unit}`));
+    g.append(
+      svgEl(
+        "text",
+        { class: "hero-tick", x: -6, y: y(v) + 4, "text-anchor": "end" },
+        `${lead.unit === "in" ? inches(v, { digits: 2, unit: false }) : Math.round(v)}${unit}`,
+      ),
+    );
   }
   // Time ticks: every six hours of the day, or the event's start and now.
   if (hourly) {
@@ -392,7 +431,13 @@ function timeChart(
       const hour = localHour(t);
       if (hour % 6 || i === trace.values.length) continue;
       g.append(svgEl("line", { class: "hero-grid", x1: x(t), x2: x(t), y1: ih, y2: ih + 4 }));
-      g.append(svgEl("text", { class: "hero-tick", x: x(t), y: ih + 18, "text-anchor": i === 0 ? "start" : "middle" }, hourName(t)));
+      g.append(
+        svgEl(
+          "text",
+          { class: "hero-tick", x: x(t), y: ih + 18, "text-anchor": i === 0 ? "start" : "middle" },
+          hourName(t),
+        ),
+      );
     }
   } else {
     g.append(svgEl("text", { class: "hero-tick", x: 0, y: ih + 18 }, `started ${hourName(t0)}`));
@@ -405,36 +450,85 @@ function timeChart(
     const yl = bandLo.map((v) => (v === null ? null : y(v)));
     const yh = bandHi.map((v) => (v === null ? null : y(v)));
     g.append(svgEl("path", { class: band, d: bandPath(xs, yl, yh) }));
-    const median = trace.usual_median.map((v, i) => (v === null ? null : ([xs[i]!, y(v)] as [number, number])));
+    const median = trace.usual_median.map((v, i) =>
+      v === null ? null : ([xs[i]!, y(v)] as [number, number]),
+    );
     g.append(svgEl("path", { class: "hero-median", d: linePath(median) }));
   } else if (lead.usual_low !== null && lead.usual_high !== null && lead.usual_median !== null) {
-    g.append(svgEl("rect", { class: band, x: 0, width: iw, y: y(lead.usual_high), height: Math.max(1, y(lead.usual_low) - y(lead.usual_high)) }));
-    g.append(svgEl("line", { class: "hero-median", x1: 0, x2: iw, y1: y(lead.usual_median), y2: y(lead.usual_median) }));
-    g.append(svgEl("text", { class: "hero-label", x: 4, y: y(lead.usual_high) - 6 }, `usual event ${inches(lead.usual_median, { digits: 2 })}`));
+    g.append(
+      svgEl("rect", {
+        class: band,
+        x: 0,
+        width: iw,
+        y: y(lead.usual_high),
+        height: Math.max(1, y(lead.usual_low) - y(lead.usual_high)),
+      }),
+    );
+    g.append(
+      svgEl("line", {
+        class: "hero-median",
+        x1: 0,
+        x2: iw,
+        y1: y(lead.usual_median),
+        y2: y(lead.usual_median),
+      }),
+    );
+    g.append(
+      svgEl(
+        "text",
+        { class: "hero-label", x: 4, y: y(lead.usual_high) - 6 },
+        `usual event ${inches(lead.usual_median, { digits: 2 })}`,
+      ),
+    );
   }
 
   // The span only the live reading covers.
   if (lagging && archived >= t0) {
-    g.append(svgEl("rect", { class: "hero-hatch", x: x(archived), width: Math.max(0, x(nowMs) - x(archived)), y: 0, height: ih, fill: hatch }));
     g.append(
-      svgEl("text", { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" }, hourly ? "only the live reading is known" : "only the live total is known"),
+      svgEl("rect", {
+        class: "hero-hatch",
+        x: x(archived),
+        width: Math.max(0, x(nowMs) - x(archived)),
+        y: 0,
+        height: ih,
+        fill: hatch,
+      }),
+    );
+    g.append(
+      svgEl(
+        "text",
+        { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" },
+        hourly ? "only the live reading is known" : "only the live total is known",
+      ),
     );
   }
 
   const points = shown.map((v, i) => (v === null ? null : ([x(at(i)), y(v)] as [number, number])));
-  g.append(svgEl("path", { class: `hero-line hero-line-${lineColour(snapshot)}`, d: linePath(points) }));
+  g.append(
+    svgEl("path", { class: `hero-line hero-line-${lineColour(snapshot)}`, d: linePath(points) }),
+  );
   const last = [...points].reverse().find((p) => p !== null);
   const dot: [number, number] = [x(nowMs), y(lead.now)];
   if (last) {
     const join = lagging ? "hero-join" : "hero-line";
-    g.append(svgEl("path", { class: `${join} hero-line-${lineColour(snapshot)}`, d: `M${last[0].toFixed(1)},${last[1].toFixed(1)}L${dot[0].toFixed(1)},${dot[1].toFixed(1)}` }));
+    g.append(
+      svgEl("path", {
+        class: `${join} hero-line-${lineColour(snapshot)}`,
+        d: `M${last[0].toFixed(1)},${last[1].toFixed(1)}L${dot[0].toFixed(1)},${dot[1].toFixed(1)}`,
+      }),
+    );
   }
   g.append(svgEl("circle", { class: "hero-dot", cx: dot[0], cy: dot[1], r: 5 }));
   const right = dot[0] + 8 + 110 > iw + f.r;
   g.append(
     svgEl(
       "text",
-      { class: "hero-note", x: right ? dot[0] - 8 : dot[0] + 8, y: dot[1] - 8, "text-anchor": right ? "end" : "start" },
+      {
+        class: "hero-note",
+        x: right ? dot[0] - 8 : dot[0] + 8,
+        y: dot[1] - 8,
+        "text-anchor": right ? "end" : "start",
+      },
       nowLabel(lead),
     ),
   );
@@ -449,20 +543,67 @@ function spellChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement |
   const iw = f.w - f.l - f.r;
   const max = Math.max(lead.now, (lead.usual_high ?? 0) * 1.25, 7) * 1.1;
   const x = scale(0, max, 0, iw);
-  const root = svgEl("svg", { width: f.w, height: f.h, viewBox: `0 0 ${f.w} ${f.h}`, class: "hero-svg" });
+  const root = svgEl("svg", {
+    width: f.w,
+    height: f.h,
+    viewBox: `0 0 ${f.w} ${f.h}`,
+    class: "hero-svg",
+  });
   const g = svgEl("g", { transform: `translate(${f.l},${f.t})` });
   root.append(g);
   if (lead.usual_low !== null && lead.usual_high !== null && lead.usual_median !== null) {
-    g.append(svgEl("rect", { class: "hero-band", x: x(lead.usual_low), width: Math.max(3, x(lead.usual_high) - x(lead.usual_low)), y: 0, height: 34, rx: 3 }));
-    g.append(svgEl("line", { class: "hero-median", x1: x(lead.usual_median), x2: x(lead.usual_median), y1: -2, y2: 36 }));
-    g.append(svgEl("text", { class: "hero-label", x: x(lead.usual_median) + 6, y: 52 }, `usual ${formatDayCount(lead.usual_median)}`));
+    g.append(
+      svgEl("rect", {
+        class: "hero-band",
+        x: x(lead.usual_low),
+        width: Math.max(3, x(lead.usual_high) - x(lead.usual_low)),
+        y: 0,
+        height: 34,
+        rx: 3,
+      }),
+    );
+    g.append(
+      svgEl("line", {
+        class: "hero-median",
+        x1: x(lead.usual_median),
+        x2: x(lead.usual_median),
+        y1: -2,
+        y2: 36,
+      }),
+    );
+    g.append(
+      svgEl(
+        "text",
+        { class: "hero-label", x: x(lead.usual_median) + 6, y: 52 },
+        `usual ${formatDayCount(lead.usual_median)}`,
+      ),
+    );
   }
-  g.append(svgEl("line", { class: "hero-line hero-line-calm", x1: 0, x2: x(lead.now), y1: 17, y2: 17 }));
+  g.append(
+    svgEl("line", { class: "hero-line hero-line-calm", x1: 0, x2: x(lead.now), y1: 17, y2: 17 }),
+  );
   g.append(svgEl("circle", { class: "hero-dot", cx: x(lead.now), cy: 17, r: 5 }));
   const right = x(lead.now) + 110 > iw;
-  g.append(svgEl("text", { class: "hero-note", x: right ? x(lead.now) - 10 : x(lead.now) + 10, y: 12, "text-anchor": right ? "end" : "start" }, nowLabel(lead)));
+  g.append(
+    svgEl(
+      "text",
+      {
+        class: "hero-note",
+        x: right ? x(lead.now) - 10 : x(lead.now) + 10,
+        y: 12,
+        "text-anchor": right ? "end" : "start",
+      },
+      nowLabel(lead),
+    ),
+  );
   for (let d = 0; d <= max; d += max > 30 ? 10 : max > 14 ? 5 : 2) {
-    g.append(svgEl("text", { class: "hero-tick", x: x(d), y: 68, "text-anchor": d === 0 ? "start" : "middle" }, d === 0 ? "0 days" : String(d)));
+    g.append(
+      svgEl(
+        "text",
+        { class: "hero-tick", x: x(d), y: 68, "text-anchor": d === 0 ? "start" : "middle" },
+        d === 0 ? "0 days" : String(d),
+      ),
+    );
   }
   return root;
 }
@@ -479,7 +620,8 @@ export function chartLabel(snapshot: DashboardSnapshot): string {
 
 function drawChart(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const width = Math.floor(host.clientWidth) || 640;
-  const chart = snapshot.hero_lead.kind === "calm" ? spellChart(snapshot, width) : timeChart(snapshot, width);
+  const chart =
+    snapshot.hero_lead.kind === "calm" ? spellChart(snapshot, width) : timeChart(snapshot, width);
   host.replaceChildren();
   if (!chart) return;
   chart.setAttribute("role", "img");
