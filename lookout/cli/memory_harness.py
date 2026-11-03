@@ -21,16 +21,22 @@ How a measurement runs:
   answers one station whose `lastData` is the newest reading, and the
   history endpoint pages over the newest readings, as Ambient does. No
   request waits out the rate limit.
-- The steps run in a fresh child process, so the RSS high-water mark starts
-  after the imports and the seeding, not after the parent's own copy of the
-  archive. Its secrets are fakes in the environment, its secrets file a
-  path that does not exist, and every internet socket connect raises: a
-  write lands in the moto bucket or nowhere, and Ambient is never called.
+- The archive is split in one short-lived child process and the steps run
+  in another, so the parent never holds the archive: Linux carries a
+  process's RSS high-water mark across the `exec` that starts a child, and
+  the steps' child would otherwise start at the split's peak. The steps'
+  child reports its mark before the first step (`baseline_rss_mb`): the
+  imports, and the stored archive's bytes the moto bucket keeps resident
+  for the whole run, which real Storj does not. Its secrets are fakes in
+  the environment, its secrets file a path that does not exist, and every
+  internet socket connect raises: a write lands in the moto bucket or
+  nowhere, and Ambient is never called.
 - Each step runs under `lookout.utils.memory_utils.track_step`, which gives
   the RSS high-water mark after it and the tracemalloc peak during it. The
   RSS mark only rises, so the step where it jumps is the one that set it.
-  tracemalloc slows the run and adds its own overhead to the RSS;
-  `--no-tracemalloc` measures the RSS alone.
+  tracemalloc slows the run and adds its own overhead to the RSS, so take
+  the RSS figures from a `--no-tracemalloc` run and the traced peaks from a
+  run with it.
 
 Needs `requirements-dev.txt` (moto). Numbers on macOS are relative only,
 never the #234 gate. Never run it on itri alongside a cron run.
@@ -53,11 +59,11 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple
 
 import pandas as pd
 
-from lookout.utils.memory_utils import StepMemory, track_step
+from lookout.utils.memory_utils import StepMemory, peak_rss_mb, track_step
 
 HARNESS_MAC = "00:00:00:00:00:00"
 HARNESS_BUCKET = "memory-harness"
@@ -99,6 +105,8 @@ class HarnessReport:
     One measurement.
 
     :param steps: Each refresh step's figures, in run order.
+    :param baseline_rss_mb: The steps' process's peak RSS before the first
+        step: its imports and the seeded moto bucket.
     :param readings: Readings in the local archive.
     :param new: Readings held back from the stored archive for Ambient.
     :param tracemalloc: Whether tracemalloc was on.
@@ -108,6 +116,7 @@ class HarnessReport:
     """
 
     steps: List[StepMemory]
+    baseline_rss_mb: float
     readings: int
     new: int
     tracemalloc: bool
@@ -145,24 +154,29 @@ def measure(
     :raises ValueError: If `new` is out of range or no zone is known.
     """
     with tempfile.TemporaryDirectory(prefix="memory-harness-") as workdir:
-        readings, zone = _prepare(Path(archive), Path(workdir), new, tz)
-        config = {
-            "workdir": workdir,
-            "tz": zone,
-            "new": new,
-            "readings": readings,
-            "pages": pages,
-            "trace": trace,
-            "events": str(events) if events else None,
-            "energy": str(energy) if energy else None,
-            "corrections": str(corrections) if corrections else None,
-        }
         context = multiprocessing.get_context("spawn")
-        with context.Pool(1) as pool:
+        # A fresh process per task, so the split's peak never reaches the steps.
+        with context.Pool(1, maxtasksperchild=1) as pool:
+            readings, zone = pool.apply(
+                _prepare, (Path(archive), Path(workdir), new, tz)
+            )
+            config = {
+                "workdir": workdir,
+                "tz": zone,
+                "new": new,
+                "readings": readings,
+                "pages": pages,
+                "trace": trace,
+                "events": str(events) if events else None,
+                "energy": str(energy) if energy else None,
+                "corrections": str(corrections) if corrections else None,
+            }
             return pool.apply(_run_steps, (config,))
 
 
-def _prepare(archive: Path, workdir: Path, new: int, tz: Optional[str]) -> tuple:
+def _prepare(
+    archive: Path, workdir: Path, new: int, tz: Optional[str]
+) -> Tuple[int, str]:
     """
     Split the local archive into the stored archive and Ambient's history.
 
@@ -206,10 +220,15 @@ def _run_steps(config: Dict[str, Any]) -> HarnessReport:
     """
     In the child process: fake Storj and Ambient, then run and measure.
 
+    Every `lookout` import here is deferred until the fake environment and
+    secrets file are in place, so nothing reads a real secret or endpoint.
+
     :param config: What `measure` prepared.
     :return: The report.
     """
     workdir = Path(config["workdir"])
+    # Relative import paths (`PYTHONPATH=.`) must survive the chdir below.
+    sys.path[:] = [os.path.abspath(entry) for entry in sys.path]
     # The refresh logger opens refresh.log in the working directory.
     os.chdir(workdir)
     os.environ.update(FAKE_ENV)
@@ -231,11 +250,14 @@ def _run_steps(config: Dict[str, Any]) -> HarnessReport:
         device = _fake_ambient(history, config["tz"])
         newest_ms = int(history["dateutc"].max())
         del history
+        gc.collect()
+        baseline = peak_rss_mb()
         steps = _measured_run(device, newest_ms, config)
         after = _object_tags(client)
 
     return HarnessReport(
         steps=steps,
+        baseline_rss_mb=baseline,
         readings=config["readings"],
         new=config["new"],
         tracemalloc=config["trace"],
@@ -252,8 +274,9 @@ def _block_internet() -> List[tuple]:
     """
     attempts: List[tuple] = []
     real_connect = socket.socket.connect
+    real_connect_ex = socket.socket.connect_ex
 
-    def refuse(address: object) -> None:
+    def refuse(address: object) -> NoReturn:
         attempts.append((address,))
         raise ConnectionRefusedError(f"memory harness: no network ({address})")
 
@@ -262,10 +285,16 @@ def _block_internet() -> List[tuple]:
             refuse(address)
         real_connect(sock, address)
 
-    def create_connection(address: object, *args: object, **kwargs: object) -> None:
+    def connect_ex(sock: socket.socket, address: object) -> int:
+        if sock.family in (socket.AF_INET, socket.AF_INET6):
+            refuse(address)
+        return real_connect_ex(sock, address)
+
+    def create_connection(address: object, *args: object, **kwargs: object) -> NoReturn:
         refuse(address)
 
     socket.socket.connect = connect
+    socket.socket.connect_ex = connect_ex
     socket.create_connection = create_connection
     return attempts
 
@@ -353,7 +382,7 @@ def _without_sleep() -> SimpleNamespace:
 
     :return: A stand-in for `time`.
     """
-    names = {name: getattr(time, name) for name in dir(time) if not name[0] == "_"}
+    names = {name: getattr(time, name) for name in dir(time) if name[0] != "_"}
     return SimpleNamespace(**{**names, "sleep": lambda _seconds: None})
 
 
@@ -410,7 +439,6 @@ def _measured_run(
         steps.append(record)
         return result
 
-    gc.collect()
     if config["trace"]:
         tracemalloc.start()
     try:
@@ -439,7 +467,8 @@ def _measured_run(
             lambda: refresh.publish_curves(station, archive, catalogs, bucket),
         )
     finally:
-        tracemalloc.stop()
+        if config["trace"]:
+            tracemalloc.stop()
     return steps
 
 
@@ -459,7 +488,8 @@ def format_report(report: HarnessReport) -> str:
 
     lines = [
         f"Archive: {report.readings:,} readings, {report.new:,} held back for "
-        f"Ambient; tracemalloc {'on' if report.tracemalloc else 'off'}",
+        f"Ambient; tracemalloc {'on' if report.tracemalloc else 'off'}; "
+        f"peak RSS before the first step {mb(report.baseline_rss_mb)} MB",
         f"{'step':<16}{'seconds':>9}{'peak RSS MB':>14}"
         f"{'traced peak MB':>17}{'traced held MB':>17}",
     ]
