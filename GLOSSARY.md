@@ -55,6 +55,34 @@ an archive belongs to one station, so a stored zone matters only if a
 station moves. Both stations are in Pacific time. See
 [ADR-0005](docs/adr/0005-station-time-zone-from-ambient-per-build.md).
 
+### station inventory
+
+The ordered list of stations Lookout archives. Its order is the priority
+order. A person adds a station to it; nothing adds one automatically. See
+[ADR-0006](docs/adr/0006-station-inventory-on-storj-written-by-hand.md).
+_Avoid_: "station list", "STATIONS".
+
+### station index
+
+The published list of stations the site can show, in inventory order,
+with each station's name and zone.
+
+### default station
+
+The first station in the station inventory, shown when no station is
+chosen: Lookout Post.
+
+### station selector
+
+The dropdown on the dashboard that chooses which one station every tab
+shows. It lists each station by name. It never mixes stations: a view
+that combines stations is the blended dashboard, which comes later.
+_Avoid_: "navigator", "station picker".
+
+### blended dashboard
+
+A later view that combines stations. Not built yet.
+
 ### post-2020 floor
 
 `POST_2020_MS = 1577836800000` (2020-01-01 UTC, ms). Minimum legal
