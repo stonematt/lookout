@@ -42,13 +42,15 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, NamedTuple, Optional, Tuple, Union
+from typing import NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
-# The type rule `pd.concat` uses, so a merged column keeps the type the old
-# whole-frame concat gave it (pandas < 3 is pinned in requirements.txt).
+# The type rule `pd.concat` uses, so a merged column keeps the type a
+# whole-frame concat gives it. A private pandas API: `pandas<3` is pinned in
+# requirements.txt, and the equivalence tests (TestMergeMatchesTheOracle in
+# tests/test_archive_merge.py) catch a pandas upgrade that changes the rule.
 from pandas.api.extensions import ExtensionArray, ExtensionDtype
 from pandas.core.dtypes.cast import ensure_dtype_can_hold_na, find_common_type
 
@@ -121,12 +123,13 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     is dropped; only rows `normalize` rejects (no valid `dateutc`, a
     repeated one) are left out, as `storj.load_archive` already does.
 
-    Only the shared readings and the added ones are worked on: Ambient's
-    values are written into the shared readings, the added readings are
-    appended, and the archive is built once, column by column, in stored
-    order. `stored` is never changed. Each column takes the type pandas
-    gives the stored, shared and added values together, as a concat of them
-    would.
+    Only the shared readings and the added ones are worked on: the stored
+    archive is taken once into stored order with room for the added
+    readings, and Ambient's values and the added readings are written into
+    that copy. `stored` is never changed. Each column takes the type a
+    concat of the stored, shared and added readings would give it, so the
+    archive, its column order and its dtypes are what a whole-frame merge
+    gives.
 
     :param stored: The stored archive (or the frame standing in for it).
     :param ambient: Readings fetched from Ambient, raw.
@@ -140,37 +143,40 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     if stored.empty:
         return Merged(_newest_first(ambient), MergeReport(added=len(ambient)))
 
-    # Both are ascending and unique on `dateutc`, so a sorted search finds
-    # each fetched reading's place in the stored archive.
+    # Both are ascending and unique on `dateutc`, so a sorted search gives
+    # each fetched reading's place in the stored archive; it is shared when
+    # the stored reading there has the same `dateutc` (a place past the end
+    # is never shared).
     stored_ms = stored["dateutc"].to_numpy()
     ambient_ms = ambient["dateutc"].to_numpy()
     place = np.searchsorted(stored_ms, ambient_ms)
     is_shared = place < len(stored_ms)
     is_shared[is_shared] = stored_ms[place[is_shared]] == ambient_ms[is_shared]
-    rows = place[is_shared]
-    sent_rows = ambient[is_shared].reset_index(drop=True)
+    shared = place[is_shared]
+    ambient_shared = ambient[is_shared].reset_index(drop=True)
     added = ambient[~is_shared].reset_index(drop=True)
 
     common = [c for c in stored.columns if c in ambient.columns]
     ambient_only = tuple(c for c in ambient.columns if c not in stored.columns)
-    both = stored.iloc[rows].reset_index(drop=True)
+    both = stored.iloc[shared].reset_index(drop=True)
     filled = updated = 0
     for col in common:
         if col == "dateutc":
             continue
-        old, new = both[col], sent_rows[col]
+        old, new = both[col], ambient_shared[col]
         sent = new.notna()
         had = old.notna()
         filled += int((sent & ~had).sum())
         updated += int((sent & had & _differs(old, new)).sum())
         both[col] = new.where(sent, old)
     for col in ambient_only:
-        both[col] = sent_rows[col]
+        both[col] = ambient_shared[col]
 
     kept = np.ones(len(stored), dtype=bool)
-    kept[rows] = False
-    pieces = _Pieces(stored, np.flatnonzero(kept), rows, both, added)
-    merged = pieces.build(ambient_only)
+    kept[shared] = False
+    merged = _Pieces(stored, np.flatnonzero(kept), shared, both, added).build(
+        ambient_only
+    )
     report = MergeReport(
         added=len(added),
         filled=filled,
@@ -185,20 +191,21 @@ class _Pieces(NamedTuple):
     """
     The three pieces a merged archive is built from.
 
-    The stored readings Ambient did not send (`kept`) stay in `stored`; the
-    shared readings (`both`, at `rows` in `stored`) and the added ones are
-    small frames of their own.
+    The stored readings Ambient did not send stay in `stored`, at `kept`;
+    the shared readings (`both`, at `shared` in `stored`) and the added
+    ones are small frames of their own. In that order, end to end, they are
+    the merged archive's readings before the sort into stored order.
 
     :param stored: The stored archive, normalized; read, never changed.
     :param kept: Positions in `stored` of the readings Ambient did not send.
-    :param rows: Positions in `stored` of the shared readings.
+    :param shared: Positions in `stored` of the shared readings.
     :param both: The shared readings, Ambient's values written in.
     :param added: The readings only Ambient has.
     """
 
     stored: pd.DataFrame
     kept: np.ndarray
-    rows: np.ndarray
+    shared: np.ndarray
     both: pd.DataFrame
     added: pd.DataFrame
 
@@ -214,110 +221,88 @@ class _Pieces(NamedTuple):
         :param ambient_only: Ambient's columns `stored` lacks, in order.
         :return: The archive; stored columns, then `ambient_only`.
         """
+        stored_ms = self.stored["dateutc"].to_numpy()
         keys = np.concatenate(
             [
-                self.stored["dateutc"].to_numpy()[self.kept],
-                self.both["dateutc"].to_numpy(),
+                stored_ms[self.kept],
+                stored_ms[self.shared],
                 self.added["dateutc"].to_numpy(),
             ]
         )
         order = np.argsort(keys, kind="stable")[::-1]
-        # Where each reading of the pieces, end to end, lands in the archive.
-        lands = np.empty_like(order)
-        lands[order] = np.arange(len(order))
-        first_sent = len(self.kept)
-        sent_at = lands[first_sent:]
+        # The archive position of each reading of the pieces, end to end.
+        position = np.empty_like(order)
+        position[order] = np.arange(len(order))
+        from_ambient = len(self.kept)
+        written_at = position[from_ambient:]
         source = np.concatenate(
-            [self.kept, self.rows, np.zeros(len(self.added), dtype=np.intp)]
+            [self.kept, self.shared, np.zeros(len(self.added), dtype=np.intp)]
         )
         merged = self.stored.take(source[order])
         merged.index = pd.RangeIndex(len(merged))
         for i, col in enumerate(self.stored.columns):
-            dtype = self.dtype(col)
+            dtype = self.merged_dtype(col)
             if dtype == self.stored[col].dtype:
-                merged.iloc[sent_at, i] = self.sent(col, dtype)
+                merged.iloc[written_at, i] = self.values(col, dtype, whole=False)
             else:
-                merged[col] = self.column(col, dtype).take(order)
+                merged[col] = self.values(col, dtype, whole=True).take(order)
         for col in ambient_only:
-            merged[col] = self.column(col, self.dtype(col)).take(order)
+            dtype = self.merged_dtype(col)
+            merged[col] = self.values(col, dtype, whole=True).take(order)
         return merged
 
-    def parts(self, col: str) -> List[Tuple[int, Optional[pd.Series]]]:
+    def merged_dtype(self, col: str) -> Dtype:
         """
-        A column's part in each piece, with the piece's size.
+        The column's type in the merged archive.
 
-        :param col: A column of one piece or more.
-        :return: `(size, part)` for the kept, shared and added pieces; the
-            part is None where the piece lacks the column.
+        The rule `pd.concat` follows for a column across the non-empty
+        pieces: one type when every piece has it; else the common type,
+        widened to hold NA when a piece lacks the column (an int column
+        becomes float).
+
+        :param col: A column of `stored`, of Ambient's frame, or both.
+        :return: The merged column's dtype.
         """
-        stored = self.stored.get(col)
-        return [
-            (len(self.kept), None if stored is None else stored.iloc[self.kept]),
+        sides = [
+            (len(self.kept), self.stored.get(col)),
             (len(self.both), self.both.get(col)),
             (len(self.added), self.added.get(col)),
         ]
+        present = [part for size, part in sides if size]
+        held = [part.dtype for part in present if part is not None]
+        dtype = find_common_type(held)
+        if len(held) < len(present):
+            dtype = ensure_dtype_can_hold_na(dtype)
+        return dtype
 
-    def dtype(self, col: str) -> Dtype:
+    def values(self, col: str, dtype: Dtype, *, whole: bool) -> ExtensionArray:
         """
-        The column's merged type, from its parts in the non-empty pieces.
+        A column's values piece after piece, in its merged type.
 
-        :param col: A column of one piece or more.
-        :return: The type, as a concat of the pieces gives it.
-        """
-        return _merged_dtype([part for size, part in self.parts(col) if size], col)
-
-    def sent(self, col: str, dtype: Dtype) -> ExtensionArray:
-        """
-        The column's shared values, then its added ones, in `dtype`.
-
-        :param col: A column of one piece or more.
+        :param col: A column of `stored`, of Ambient's frame, or both.
         :param dtype: The column's merged type.
-        :return: The values; NA where Ambient's frame lacks the column.
+        :param whole: True for the kept, shared and added values; False for
+            the shared and added ones only, the values Ambient's fetch puts
+            in place.
+        :return: The values; NA where a piece lacks the column.
         """
+        stored = self.stored.get(col)
+        pieces = [
+            (len(self.both), self.both.get(col)),
+            (len(self.added), self.added.get(col)),
+        ]
+        if whole:
+            kept = None if stored is None else stored.iloc[self.kept]
+            pieces.insert(0, (len(self.kept), kept))
         return pd.concat(
-            [_as(part, size, dtype) for size, part in self.parts(col)[1:]],
-            ignore_index=True,
-        ).array
-
-    def column(self, col: str, dtype: Dtype) -> ExtensionArray:
-        """
-        The whole column: kept, shared and added values, end to end.
-
-        :param col: A column of one piece or more.
-        :param dtype: The column's merged type.
-        :return: The values piece after piece; NA where a piece lacks it.
-        """
-        return pd.concat(
-            [_as(part, size, dtype) for size, part in self.parts(col)],
+            [_cast_piece(part, size, dtype) for size, part in pieces],
             ignore_index=True,
         ).array
 
 
-def _merged_dtype(parts: List[Optional[pd.Series]], col: str) -> Dtype:
+def _cast_piece(part: Optional[pd.Series], size: int, dtype: Dtype) -> pd.Series:
     """
-    The type a column takes when its parts are put together.
-
-    The rule `pd.concat` follows for a column across frames: one type when
-    every part has it; else the common type, widened to hold NA when a part
-    lacks the column (an int column becomes float).
-
-    :param parts: The column in each non-empty part; None where a part
-        lacks it.
-    :param col: The column's name, for the error.
-    :return: The merged column's dtype.
-    """
-    held = [p.dtype for p in parts if p is not None]
-    if not held:
-        raise ValueError(f"No part holds column {col!r}")
-    dtype = find_common_type(held)
-    if len(held) < len(parts):
-        dtype = ensure_dtype_can_hold_na(dtype)
-    return dtype
-
-
-def _as(part: Optional[pd.Series], size: int, dtype: Dtype) -> pd.Series:
-    """
-    A piece's column in the merged type.
+    One piece's column in the merged type.
 
     :param part: The column, or None when the piece lacks it.
     :param size: The piece's length in readings.

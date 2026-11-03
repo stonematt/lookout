@@ -20,8 +20,8 @@ import pytest
 
 from lookout.api import awn_controller as awn
 from lookout.core import archive_merge, rain_corrections
-from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.archive_merge_oracle import merge_before_overlap
+from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
@@ -887,8 +887,16 @@ def merge_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
     extra["pm25_in"] = 7.0
     extra["sensor_name"] = "new"
 
+    counted = real.iloc[30:].copy()
+    counted["readings_seen"] = range(len(counted))
+
+    repeated = pd.concat([real.iloc[10:], real.iloc[50:60]])
+    repeated.loc[repeated.index[:3], "dateutc"] = 12345  # below the 2020 floor
+
     return [
         ("overlap only", real, changed),
+        ("a stored-only int column with additions", counted, fetched(newest)),
+        ("stored rows normalize repairs", repeated, changed),
         ("additions only", real.iloc[40:], fetched(newest)),
         ("both", real.iloc[20:], changed),
         ("additions inside the archive", real.drop(middle.index), fetched(middle)),
