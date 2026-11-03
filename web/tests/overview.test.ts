@@ -42,10 +42,7 @@ describe("the Overview", () => {
     ]);
 
     expect(seen).toEqual(["a", "b"]);
-    expect(all(".ov-section").map((el) => el.getAttribute("aria-label"))).toEqual([
-      "A",
-      "B",
-    ]);
+    expect(all(".ov-section").map((el) => el.getAttribute("aria-label"))).toEqual(["A", "B"]);
   });
 
   it("starts its section list with the first screen", () => {
@@ -202,7 +199,12 @@ describe("the 48-hour condition ribbon", () => {
     expect(ticks).toEqual(["Wed", "6 am", "noon", "6 pm", "Thu", "6 am"]);
     // Thursday 6 am (78%) would run into it on a phone: marked late.
     expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.late)).toEqual([
-      false, false, false, false, false, true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
     ]);
   });
 
@@ -222,14 +224,24 @@ describe("the 48-hour condition ribbon", () => {
     // The one before it (320-350px) is clear by more than the 6px a label
     // keeps from its neighbour.
     expect(ticks.map((t) => t.classList.contains("ribbon-tick-hidden"))).toEqual([
-      false, false, false, false, false, true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
     ]);
 
     // A wider now label, from 354px: within 6px of the fifth tick too.
     panel.querySelector<HTMLElement>(".ribbon-now")!.getBoundingClientRect = box(354, 136);
     clearNowLabel(row);
     expect(ticks.map((t) => t.classList.contains("ribbon-tick-hidden"))).toEqual([
-      false, false, false, false, true, true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
     ]);
   });
 
@@ -251,9 +263,7 @@ describe("the 48-hour condition ribbon", () => {
         "The ribbon is the archive in 15-minute slots, to Jan 8, 3:55 pm; " +
         "the 30 m after it is hatched, as only the live total is known there.",
     );
-    expect(panel.querySelector("[data-part=condition]")?.textContent).not.toMatch(
-      /archive/,
-    );
+    expect(panel.querySelector("[data-part=condition]")?.textContent).not.toMatch(/archive/);
   });
 
   it("dates the strip's reading itself, so it never borrows a fresher one", () => {

@@ -96,7 +96,9 @@ function daily(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   host.append(strip);
   const { chart, readout } = figure(host, "Rain each day over the last 90 days");
   charts.push(() =>
-    drawSized(chart, (width) => drawDailyBars(chart, tab.recent, width, (t) => (readout.textContent = t))),
+    drawSized(chart, (width) =>
+      drawDailyBars(chart, tab.recent, width, (t) => (readout.textContent = t)),
+    ),
   );
   const todayStatus = rainStatus(snapshot, "today");
   const live = snapshot.current.rain_today_in;
@@ -106,7 +108,9 @@ function daily(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
       : null;
   source(host, [
     "Source: the station archive, each day's highest daily rain counter, with today's live total.",
-    snapshot.archive_newest_ms === null ? null : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`,
+    snapshot.archive_newest_ms === null
+      ? null
+      : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`,
     liveNote,
     windowsNote(snapshot),
   ]);
@@ -126,7 +130,11 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   const calm = calmRule(snapshot);
   stat(strip, "Since it last rained", calm?.value == null ? null : formatDays(calm.value));
-  const usualDd = stat(strip, "Usual dry spell", calm?.reference == null ? null : formatDayCount(calm.reference));
+  const usualDd = stat(
+    strip,
+    "Usual dry spell",
+    calm?.reference == null ? null : formatDayCount(calm.reference),
+  );
   if (calm?.reference == null) hatchGap(usualDd, windowStatus(snapshot, "365d"));
   const longest = spells.longest;
   stat(
@@ -178,7 +186,9 @@ function years(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   } else {
     const { chart, readout } = figure(host, "Rain since Oct 1, one line per water year");
     charts.push(() =>
-      drawSized(chart, (width) => drawYearCurves(chart, tab, width, (t) => (readout.textContent = t))),
+      drawSized(chart, (width) =>
+        drawYearCurves(chart, tab, width, (t) => (readout.textContent = t)),
+      ),
     );
   }
   const left = tab.water_years
@@ -213,7 +223,10 @@ function hours(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   key.setAttribute("aria-label", "Key");
   KEY_STEPS.forEach(([word, amount], i) => {
     const item = make("li", "");
-    item.append(make("span", `rain-swatch rain-step-${i + 1}`), document.createTextNode(`${word}, ${amount}`));
+    item.append(
+      make("span", `rain-swatch rain-step-${i + 1}`),
+      document.createTextNode(`${word}, ${amount}`),
+    );
     key.append(item);
   });
   const gap = make("li", "");

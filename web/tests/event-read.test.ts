@@ -133,9 +133,7 @@ describe("GET /event", () => {
   );
 
   it("answers 404, uncached, for any station but the pinned one", async () => {
-    const response = await eventGET(
-      get(`/event?start=${EVENT_2}&station=AA:BB:CC:DD:EE:FF`),
-    );
+    const response = await eventGET(get(`/event?start=${EVENT_2}&station=AA:BB:CC:DD:EE:FF`));
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(calls).toHaveLength(0);
@@ -242,24 +240,21 @@ describe("the curve contract", () => {
   });
 
   it("asks a lane server with fixture and age as well as the start", () => {
-    expect(
-      readUrl("/event", "?fixture=raining&age=3&theme=dark", { start: "17" }, true),
-    ).toBe("/event?start=17&fixture=raining&age=3");
+    expect(readUrl("/event", "?fixture=raining&age=3&theme=dark", { start: "17" }, true)).toBe(
+      "/event?start=17&fixture=raining&age=3",
+    );
   });
 
   it("sends the deployed functions only station, never fixture or age", () => {
-    expect(
-      readUrl("/event", "?fixture=raining&age=3&station=aa:bb", { start: "17" }, false),
-    ).toBe("/event?start=17&station=aa%3Abb");
-    expect(readUrl("/dashboard", "?fixture=dry&age=3&theme=dark", {}, false)).toBe(
-      "/dashboard",
+    expect(readUrl("/event", "?fixture=raining&age=3&station=aa:bb", { start: "17" }, false)).toBe(
+      "/event?start=17&station=aa%3Abb",
     );
+    expect(readUrl("/dashboard", "?fixture=dry&age=3&theme=dark", {}, false)).toBe("/dashboard");
   });
 });
 
 describe("the chart helpers", () => {
-  const ongoing = () =>
-    parseDashboard(golden("raining", "dashboard")).rain_events.open_curve!;
+  const ongoing = () => parseDashboard(golden("raining", "dashboard")).rain_events.open_curve!;
 
   it("plots in the station zone", () => {
     expect(stationWallClock(EVENT_3)).toBe("2026-01-08 14:00:00");

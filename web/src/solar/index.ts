@@ -93,7 +93,9 @@ function sized(host: HTMLElement, draw: (width: number) => void): () => void {
 
 /** The archive line for a source. */
 function archived(snapshot: DashboardSnapshot): string | null {
-  return snapshot.archive_newest_ms === null ? null : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`;
+  return snapshot.archive_newest_ms === null
+    ? null
+    : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`;
 }
 
 /** What the tab draws later, once its sections are placed. */
@@ -112,27 +114,39 @@ function lastDaySection(snapshot: DashboardSnapshot, tab: SolarTab, mount: Mount
     "The bold line is solar radiation over the last 24 hours; 1 kWh/m² is an hour of full midday sun. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
   );
   if (!trace) {
-    host.append(source(["Source: the station's solar sensor. There is no observation in this snapshot yet."]));
+    host.append(
+      source(["Source: the station's solar sensor. There is no observation in this snapshot yet."]),
+    );
     return host;
   }
   const { chart, readout } = figure("Solar radiation over the last 24 hours");
   host.append(chart, readout);
   mount.setup.push(() => {
-    sized(chart, (w) => drawTrace(chart, trace, snapshot.archive_newest_ms, w, (t) => (readout.textContent = t)));
+    sized(chart, (w) =>
+      drawTrace(chart, trace, snapshot.archive_newest_ms, w, (t) => (readout.textContent = t)),
+    );
   });
   host.append(
     source([
       "Source: the station's five-minute solar readings, the live reading at the end; energy is the sum of the energy catalog's 15-minute periods.",
       archived(snapshot),
       trace.usual.status === "invalid" ? `No usual range: ${gapSentence(trace.usual)}` : null,
-      trace.energy_kwh_m2 === null ? `The 24-hour energy is not totalled: ${gapSentence(trace.energy)}` : null,
+      trace.energy_kwh_m2 === null
+        ? `The 24-hour energy is not totalled: ${gapSentence(trace.energy)}`
+        : null,
     ]),
   );
   return host;
 }
 
 /** The daily section: window totals, then 90 days of bars. */
-function dailySection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day: string }, pick: (day: string) => void, mount: Mount): HTMLElement {
+function dailySection(
+  snapshot: DashboardSnapshot,
+  tab: SolarTab,
+  state: { day: string },
+  pick: (day: string) => void,
+  mount: Mount,
+): HTMLElement {
   const host = section(
     "daily",
     dailyHeadline(snapshot),
@@ -152,7 +166,11 @@ function dailySection(snapshot: DashboardSnapshot, tab: SolarTab, state: { day: 
   const { chart, readout } = figure("Solar energy each day over the last 90 days");
   host.append(strip, chart, readout);
   mount.setup.push(() => {
-    mount.redraws.push(sized(chart, (w) => drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick)));
+    mount.redraws.push(
+      sized(chart, (w) =>
+        drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick),
+      ),
+    );
   });
   const invalid = notShown(tab);
   host.append(
@@ -180,20 +198,33 @@ function notShown(tab: SolarTab): string | null {
   for (const w of tab.windows) {
     if (w.energy_kwh_m2 !== null) continue;
     const reason = w.status.reason ?? "gap";
-    byReason.set(reason, [...(byReason.get(reason) ?? []), (WINDOW_NAMES[w.key] ?? w.key).toLowerCase()]);
+    byReason.set(reason, [
+      ...(byReason.get(reason) ?? []),
+      (WINDOW_NAMES[w.key] ?? w.key).toLowerCase(),
+    ]);
   }
-  const parts = [...byReason].map(([reason, names]) => `${listText(names)} ${REASON_WORDS[reason] ?? "cannot be compared"}`);
+  const parts = [...byReason].map(
+    ([reason, names]) => `${listText(names)} ${REASON_WORDS[reason] ?? "cannot be compared"}`,
+  );
   return parts.length ? `Not shown: ${parts.join("; ")}.` : null;
 }
 
 /** The selected day's section, redrawn in place on every pick. */
-function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) => void): { host: HTMLElement; render: () => void } {
+function daySection(
+  tab: SolarTab,
+  state: { day: string },
+  pick: (day: string) => void,
+): { host: HTMLElement; render: () => void } {
   const host = make("section", "solar-section solar-day");
   host.dataset.section = "day";
   const title = make("h2", "solar-title");
   title.id = "solar-day-title";
   host.setAttribute("aria-labelledby", title.id);
-  const standfirst = make("p", "standfirst", "Each bar is 15 minutes of the selected day, 4 am to 10 pm. The marked bar is its brightest.");
+  const standfirst = make(
+    "p",
+    "standfirst",
+    "Each bar is 15 minutes of the selected day, 4 am to 10 pm. The marked bar is its brightest.",
+  );
 
   const controls = make("div", "solar-controls");
   const prev = make("button", "solar-button", "Previous day");
@@ -233,7 +264,13 @@ function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) =
       return;
     }
     if (day.slots === null) {
-      body.replaceChildren(make("p", "solar-older", `${dayText(day.day, true)} gave ${kwhPerM2(day.energy)}. Its 15-minute energy is kept for the last 90 days only.`));
+      body.replaceChildren(
+        make(
+          "p",
+          "solar-older",
+          `${dayText(day.day, true)} gave ${kwhPerM2(day.energy)}. Its 15-minute energy is kept for the last 90 days only.`,
+        ),
+      );
       note.textContent = "Source: the energy catalog's daily sum.";
       return;
     }
@@ -241,11 +278,16 @@ function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) =
     body.replaceChildren(chart, readout);
     const slots = day.slots;
     drawSized(chart, (w) => drawDaySlots(chart, day, w, (t) => (readout.textContent = t)));
-    const outside = slots.slice(0, FIRST_SLOT).concat(slots.slice(LAST_SLOT + 1)).some((v) => v !== null && v > 0);
+    const outside = slots
+      .slice(0, FIRST_SLOT)
+      .concat(slots.slice(LAST_SLOT + 1))
+      .some((v) => v !== null && v > 0);
     note.textContent = [
       "Source: the energy catalog's 15-minute periods, in Wh per m².",
       day.isToday ? "Today's bars stop at the archive's newest period." : null,
-      outside ? `Some energy fell before ${slotText(FIRST_SLOT)} or after ${slotText(LAST_SLOT + 1)}; the total counts it.` : null,
+      outside
+        ? `Some energy fell before ${slotText(FIRST_SLOT)} or after ${slotText(LAST_SLOT + 1)}; the total counts it.`
+        : null,
     ]
       .filter(Boolean)
       .join(" ");
@@ -255,7 +297,12 @@ function daySection(tab: SolarTab, state: { day: string }, pick: (day: string) =
 }
 
 /** The heatmap section, with a control to switch between its views. */
-function heatmapSection(tab: SolarTab, state: { day: string }, pick: (day: string) => void, mount: Mount): HTMLElement {
+function heatmapSection(
+  tab: SolarTab,
+  state: { day: string },
+  pick: (day: string) => void,
+  mount: Mount,
+): HTMLElement {
   const host = make("section", "solar-section");
   host.dataset.section = "heatmaps";
   const title = make("h2", "solar-title");
@@ -292,7 +339,10 @@ function heatmapSection(tab: SolarTab, state: { day: string }, pick: (day: strin
       key.append(item);
     }
     const gap = make("li", "");
-    gap.append(make("span", "solar-swatch gap-hatch"), document.createTextNode("not in the record"));
+    gap.append(
+      make("span", "solar-swatch gap-hatch"),
+      document.createTextNode("not in the record"),
+    );
     key.append(gap);
   }
 
@@ -310,24 +360,34 @@ function heatmapSection(tab: SolarTab, state: { day: string }, pick: (day: strin
     readout.textContent = "";
     if (view === "months") {
       const best = brightestMonth(tab);
-      title.textContent = best ? `${monthText(best.key)} is the brightest month on record, at ${kwhPerM2(best.energy)}` : "Solar energy each month";
-      standfirst.textContent = "One row per year, one column per month; the deeper the shade, the more energy. The month under way is not compared yet.";
+      title.textContent = best
+        ? `${monthText(best.key)} is the brightest month on record, at ${kwhPerM2(best.energy)}`
+        : "Solar energy each month";
+      standfirst.textContent =
+        "One row per year, one column per month; the deeper the shade, the more energy. The month under way is not compared yet.";
       fillKey(Math.max(1, ...tab.months.map((m) => m.energy_kwh_m2 ?? 0)), "kWh/m²");
-      note.textContent = "Source: the energy catalog's daily sums. ≈ marks a month scaled up over a few missing days; a hatched month has too many.";
+      note.textContent =
+        "Source: the energy catalog's daily sums. ≈ marks a month scaled up over a few missing days; a hatched month has too many.";
     } else if (view === "days") {
       const best = brightestDay(tab);
-      title.textContent = best ? `The brightest day on record was ${dayText(best.day, true)}, at ${kwhPerM2(best.energy)}` : "Solar energy each day";
-      standfirst.textContent = "One row per month, newest at the top, one column per day; select a day to see its 15 minutes.";
+      title.textContent = best
+        ? `The brightest day on record was ${dayText(best.day, true)}, at ${kwhPerM2(best.energy)}`
+        : "Solar energy each day";
+      standfirst.textContent =
+        "One row per month, newest at the top, one column per day; select a day to see its 15 minutes.";
       fillKey(Math.max(1, ...tab.days.energy_kwh_m2.map((v) => v ?? 0)), "kWh/m²");
-      note.textContent = "Source: the energy catalog's daily sums. The outlined day is the one selected.";
+      note.textContent =
+        "Source: the energy catalog's daily sums. The outlined day is the one selected.";
     } else {
       const peak = recentPeak(tab);
       title.textContent = peak
         ? `The brightest 15 minutes of the last 90 days: ${dayText(peak.day, true)}, ${slotText(peak.slot)}, ${wh(peak.energy)}`
         : "Solar energy each 15 minutes over the last 90 days";
-      standfirst.textContent = "One column per day of the last 90, one row per 15 minutes from 4 am at the top to 10 pm; select a day to see it below.";
+      standfirst.textContent =
+        "One column per day of the last 90, one row per 15 minutes from 4 am at the top to 10 pm; select a day to see it below.";
       fillKey(Math.max(1, ...tab.recent.energy_wh_m2.flat().map((v) => v ?? 0)), "Wh/m²");
-      note.textContent = "Source: the energy catalog's 15-minute periods. The outlined column is the day selected.";
+      note.textContent =
+        "Source: the energy catalog's 15-minute periods. The outlined column is the day selected.";
     }
     if (width) draw(width);
   }
@@ -344,7 +404,8 @@ function recentPeak(tab: SolarTab): { day: string; slot: number; energy: number 
   let best: { day: string; slot: number; energy: number } | null = null;
   tab.recent.energy_wh_m2.forEach((slots, i) => {
     slots.forEach((v, s) => {
-      if (v !== null && v > 0 && (best === null || v > best.energy)) best = { day: addDays(tab.recent.first_day, i), slot: s, energy: v };
+      if (v !== null && v > 0 && (best === null || v > best.energy))
+        best = { day: addDays(tab.recent.first_day, i), slot: s, energy: v };
     });
   });
   return best;

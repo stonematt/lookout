@@ -131,10 +131,22 @@ button.alm-cell {
   /* a dry month must not read as a hole where rain-0 sits near the ground */
   box-shadow: inset 0 0 0 1px var(--rule-strong);
 }
-.alm-cell[data-step="1"] { background: var(--rain-1); color: var(--alm-on-1); }
-.alm-cell[data-step="2"] { background: var(--rain-2); color: var(--alm-on-2); }
-.alm-cell[data-step="3"] { background: var(--rain-3); color: var(--alm-on-3); }
-.alm-cell[data-step="4"] { background: var(--rain-4); color: var(--alm-on-4); }
+.alm-cell[data-step="1"] {
+  background: var(--rain-1);
+  color: var(--alm-on-1);
+}
+.alm-cell[data-step="2"] {
+  background: var(--rain-2);
+  color: var(--alm-on-2);
+}
+.alm-cell[data-step="3"] {
+  background: var(--rain-3);
+  color: var(--alm-on-3);
+}
+.alm-cell[data-step="4"] {
+  background: var(--rain-4);
+  color: var(--alm-on-4);
+}
 
 /* before the archive began: a dashed outline, nothing inside */
 .alm-cell[data-kind="before"] {
@@ -248,11 +260,21 @@ th.alm-season {
   border-radius: var(--r-xs);
 }
 
-.alm-key-swatch[data-step="0"] { background: var(--rain-0); }
-.alm-key-swatch[data-step="1"] { background: var(--rain-1); }
-.alm-key-swatch[data-step="2"] { background: var(--rain-2); }
-.alm-key-swatch[data-step="3"] { background: var(--rain-3); }
-.alm-key-swatch[data-step="4"] { background: var(--rain-4); }
+.alm-key-swatch[data-step="0"] {
+  background: var(--rain-0);
+}
+.alm-key-swatch[data-step="1"] {
+  background: var(--rain-1);
+}
+.alm-key-swatch[data-step="2"] {
+  background: var(--rain-2);
+}
+.alm-key-swatch[data-step="3"] {
+  background: var(--rain-3);
+}
+.alm-key-swatch[data-step="4"] {
+  background: var(--rain-4);
+}
 
 .alm-key-swatch[data-kind="invalid"] {
   background: repeating-linear-gradient(135deg, var(--gap-a) 0 3px, var(--gap-b) 3px 6px);

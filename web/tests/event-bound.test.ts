@@ -49,8 +49,7 @@ function raining(key: string): Response {
 
 const curveReads = () => keys.filter((key) => key !== DASHBOARD_KEY);
 const dashboardReads = () => keys.filter((key) => key === DASHBOARD_KEY);
-const ask = (start: number) =>
-  eventGET(new Request(`https://lookout.test/event?start=${start}`));
+const ask = (start: number) => eventGET(new Request(`https://lookout.test/event?start=${start}`));
 
 beforeEach(async () => {
   keys = [];
@@ -168,11 +167,8 @@ describe("/event with a start the Event Catalog holds", () => {
     const without = JSON.parse(goldenText("raining", "dashboard")) as {
       rain_events: { events: { start_ms: number }[] };
     };
-    without.rain_events.events = without.rain_events.events.filter(
-      (e) => e.start_ms !== EVENT_2,
-    );
-    storj = (key) =>
-      key === DASHBOARD_KEY ? Response.json(without) : raining(key);
+    without.rain_events.events = without.rain_events.events.filter((e) => e.start_ms !== EVENT_2);
+    storj = (key) => (key === DASHBOARD_KEY ? Response.json(without) : raining(key));
     expect((await ask(EVENT_2)).status).toBe(404);
 
     storj = raining;

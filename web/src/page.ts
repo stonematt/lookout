@@ -67,11 +67,7 @@ const STATE_TEXT = {
  * @param reads - The read functions.
  * @returns The started page.
  */
-export function startPage(
-  masthead: HTMLElement,
-  sections: HTMLElement,
-  reads: PageReads,
-): Page {
+export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: PageReads): Page {
   const header = mountHeader(masthead);
   let dashboard: DashboardSnapshot | null = null;
   let state: keyof typeof STATE_TEXT = "loading";

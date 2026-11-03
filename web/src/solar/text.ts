@@ -9,7 +9,13 @@
  */
 import { MONTHS, addDays, daysBetween, dayText, kwhPerM2, wattsPerM2 } from "../format.js";
 import { gapValue } from "../gaps.js";
-import type { DashboardSnapshot, GapReason, SolarTab, SolarTrace, SolarWindow } from "../snapshot.js";
+import type {
+  DashboardSnapshot,
+  GapReason,
+  SolarTab,
+  SolarTrace,
+  SolarWindow,
+} from "../snapshot.js";
 
 /** The URL query parameter holding the selected solar day. */
 export const SOLAR_DAY_PARAM = "solar_day";
@@ -98,7 +104,6 @@ export function wh(value: number): string {
   return `${Math.round(value)} Wh/m²`;
 }
 
-
 /**
  * A slot's clock time in the One Format Rule, e.g. "10:15 am", "noon".
  *
@@ -154,11 +159,15 @@ function change(now: number, before: number): string {
 export function traceHeadline(trace: SolarTrace, liveWm2: number | null): string {
   const now = trace.energy_kwh_m2;
   if (now === null) {
-    return liveWm2 === null ? "The last 24 hours cannot be totalled yet" : `Solar radiation is ${wattsPerM2(liveWm2)} now`;
+    return liveWm2 === null
+      ? "The last 24 hours cannot be totalled yet"
+      : `Solar radiation is ${wattsPerM2(liveWm2)} now`;
   }
   const before = trace.previous_kwh_m2;
   const head = `${kwhPerM2(now)} of sun in the last 24 hours`;
-  return before === null ? head : `${head}, ${change(now, before)} ${kwhPerM2(before, { unit: false })} the 24 before`;
+  return before === null
+    ? head
+    : `${head}, ${change(now, before)} ${kwhPerM2(before, { unit: false })} the 24 before`;
 }
 
 /** How many earlier years the daily headline names, newest first. */
@@ -172,7 +181,9 @@ export const NAMED_YEARS = 3;
  * @returns This year's average and the earlier years', newest first; null
  *   when the last 7 full days are not all counted.
  */
-export function sameWeek(tab: SolarTab): { now: number; years: { year: number; perDay: number }[] } | null {
+export function sameWeek(
+  tab: SolarTab,
+): { now: number; years: { year: number; perDay: number }[] } | null {
   const end = addDays(lastDay(tab), -1);
   const dates = Array.from({ length: 7 }, (_, i) => addDays(end, i - 6));
   const average = (days: string[]): number | null => {
@@ -221,7 +232,10 @@ export function dailyHeadline(snapshot: DashboardSnapshot): string {
           ? "Brighter than this week in earlier years"
           : "Duller than this week in earlier years";
     const against = named.map((y) => `${kwhPerM2(y.perDay, { unit: false })} (${y.year})`);
-    const list = against.length > 1 ? `${against.slice(0, -1).join(", ")} and ${against[against.length - 1]}` : against[0];
+    const list =
+      against.length > 1
+        ? `${against.slice(0, -1).join(", ")} and ${against[against.length - 1]}`
+        : against[0];
     return `${lead}: ${kwhPerM2(week.now)} a day over the last 7 full days, against ${list}`;
   }
   const month = perDay(snapshot, "30d");
@@ -273,7 +287,8 @@ export function brightestMonth(tab: SolarTab): { key: string; energy: number } |
 export function brightestDay(tab: SolarTab): { day: string; energy: number } | null {
   let best: { day: string; energy: number } | null = null;
   tab.days.energy_kwh_m2.forEach((v, i) => {
-    if (v !== null && (best === null || v > best.energy)) best = { day: addDays(tab.days.first_day, i), energy: v };
+    if (v !== null && (best === null || v > best.energy))
+      best = { day: addDays(tab.days.first_day, i), energy: v };
   });
   return best;
 }

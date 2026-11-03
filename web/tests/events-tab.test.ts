@@ -38,9 +38,9 @@ const rows = () => [...panel.querySelectorAll<HTMLTableRowElement>(".ev-table tb
 const starts = () =>
   rows().map((r) => Number(r.querySelector<HTMLElement>(".ev-open")!.dataset.start));
 const click = (selector: string) =>
-  panel.querySelector<HTMLElement>(selector)!.dispatchEvent(
-    new MouseEvent("click", { bubbles: true, cancelable: true }),
-  );
+  panel
+    .querySelector<HTMLElement>(selector)!
+    .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 beforeEach(() => {
   history.replaceState(null, "", "/?fixture=raining#events");
@@ -82,9 +82,7 @@ describe("the event list", () => {
     click("[data-sort=wettest]");
 
     expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
-    expect(panel.querySelector("[data-sort=wettest]")!.getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    expect(panel.querySelector("[data-sort=wettest]")!.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("picks one water year's events and its summary", () => {
@@ -92,8 +90,15 @@ describe("the event list", () => {
     const section = snapshot.rain_events;
     section.events[2]!.water_year = 2025;
     section.seasons = [
-      { ...section.seasons[0]!, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 } },
-      { ...section.seasons[0]!, water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 } },
+      {
+        ...section.seasons[0]!,
+        stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 },
+      },
+      {
+        ...section.seasons[0]!,
+        water_year: 2025,
+        stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 },
+      },
     ];
     mountEvents(panel, snapshot, deps);
 
@@ -212,9 +217,7 @@ describe("the selected event", () => {
     expect(deps.fetchCurve).not.toHaveBeenCalled();
     expect(deps.draw).not.toHaveBeenCalled();
     const detail = panel.querySelector(".ev-detail")!;
-    expect(detail.querySelector(".ev-gap.gap-hatch")!.textContent).toContain(
-      "n/a: gap in record",
-    );
+    expect(detail.querySelector(".ev-gap.gap-hatch")!.textContent).toContain("n/a: gap in record");
     expect(detail.querySelector(".ev-facts")!.textContent).toContain("0.36 in");
     expect(detail.textContent).not.toMatch(/error/i);
     expect(rows()[2]!.textContent).toContain("no data");
@@ -321,7 +324,8 @@ describe("a newer snapshot mounted over the tab", () => {
 
     mountEvents(panel, raining(), deps);
 
-    const pressed = (selector: string) => panel.querySelector(selector)!.getAttribute("aria-pressed");
+    const pressed = (selector: string) =>
+      panel.querySelector(selector)!.getAttribute("aria-pressed");
     expect(pressed("[data-sort=wettest]")).toBe("true");
     expect(pressed(`[data-season='${raining().rain_events.seasons[0]!.water_year}']`)).toBe("true");
     expect(pressed("[data-season=all]")).toBe("false");
@@ -369,9 +373,7 @@ describe("an empty catalog", () => {
 
     mountEvents(panel, snapshot, deps);
 
-    expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "No rain events in the catalog yet",
-    );
+    expect(panel.querySelector(".ev-title")!.textContent).toBe("No rain events in the catalog yet");
   });
 });
 
@@ -391,8 +393,16 @@ describe("each water year's gap status", () => {
     const snapshot = raining();
     snapshot.rain_events.events[2]!.water_year = 2025;
     snapshot.rain_events.seasons = [
-      { water_year: 2026, stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 }, status: status({ first_day: "2025-10-01", last_day: "2026-01-09", days: 101 }) },
-      { water_year: 2025, stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 }, status: older },
+      {
+        water_year: 2026,
+        stats: { count: 2, total_in: 0.78, median_in: 0.39, mean_duration_minutes: 547.5 },
+        status: status({ first_day: "2025-10-01", last_day: "2026-01-09", days: 101 }),
+      },
+      {
+        water_year: 2025,
+        stats: { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 },
+        status: older,
+      },
     ];
     return snapshot;
   }
@@ -439,7 +449,11 @@ describe("each water year's gap status", () => {
   });
 
   it("notes a prorated year without a hatch or a ≈ on the events-only sum", () => {
-    mountEvents(panel, twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })), deps);
+    mountEvents(
+      panel,
+      twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })),
+      deps,
+    );
 
     const button = panel.querySelector<HTMLElement>("[data-season='2025']")!;
     expect(button.querySelector(".gap-hatch")).toBeNull();
@@ -454,7 +468,11 @@ describe("each water year's gap status", () => {
   });
 
   it("words a prorated year under All as it does for the one year", () => {
-    mountEvents(panel, twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })), deps);
+    mountEvents(
+      panel,
+      twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })),
+      deps,
+    );
 
     expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
       "3 of 365 days of water year 2025 are missing from the record, so the list can miss events in them.",
@@ -479,7 +497,11 @@ describe("each water year's gap status", () => {
   });
 
   it("names the years the record does not cover under All", () => {
-    mountEvents(panel, twoYears(status({ missing_days: 40, status: "invalid", reason: "gap" })), deps);
+    mountEvents(
+      panel,
+      twoYears(status({ missing_days: 40, status: "invalid", reason: "gap" })),
+      deps,
+    );
 
     expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
       "The record does not cover all of water year 2025, so the list can miss its events.",

@@ -153,9 +153,9 @@ describe("the refresh cycle", () => {
     open("events");
     const events = panel("events");
     const tap = (selector: string) =>
-      events.querySelector<HTMLElement>(selector)!.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, cancelable: true }),
-      );
+      events
+        .querySelector<HTMLElement>(selector)!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     const picked = first.rain_events.events[1]!.start_ms;
     tap(".ev-more");
     tap(`.ev-open[data-start='${picked}']`);

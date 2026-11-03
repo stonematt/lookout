@@ -58,7 +58,11 @@ function row(change: Partial<RainEventRow> = {}): RainEventRow {
 
 /** The Rain Events tab's sources, faked: no network, no Plotly. */
 function deps(): EventsDeps {
-  return { fetchCurve: async () => curve(1), draw: async () => {}, nowMs: () => Date.UTC(2026, 0, 9, 0, 30) };
+  return {
+    fetchCurve: async () => curve(1),
+    draw: async () => {},
+    nowMs: () => Date.UTC(2026, 0, 9, 0, 30),
+  };
 }
 
 beforeEach(() => {
@@ -67,12 +71,18 @@ beforeEach(() => {
 });
 
 describe("the event charts", () => {
-  async function draw(): Promise<{ data: Record<string, unknown>[]; layout: Record<string, unknown> }[]> {
+  async function draw(): Promise<
+    { data: Record<string, unknown>[]; layout: Record<string, unknown> }[]
+  > {
     const accumulation = document.createElement("div");
     const rate = document.createElement("div");
     await drawEventCharts({ accumulation, rate }, curve(20), row());
     return react.mock.calls.map((call) => {
-      const [, data, layout] = call as unknown as [unknown, Record<string, unknown>[], Record<string, unknown>];
+      const [, data, layout] = call as unknown as [
+        unknown,
+        Record<string, unknown>[],
+        Record<string, unknown>,
+      ];
       return { data, layout };
     });
   }
@@ -109,7 +119,11 @@ describe("the event time axis", () => {
     const ticks = timeTicks(START, START + 20 * HOUR, 294);
 
     expect(ticks.text).toEqual(["6 pm<br>Jan 8", "Jan 9", "6 am"]);
-    expect(ticks.values).toEqual(["2026-01-08 18:00:00", "2026-01-09 00:00:00", "2026-01-09 06:00:00"]);
+    expect(ticks.values).toEqual([
+      "2026-01-08 18:00:00",
+      "2026-01-09 00:00:00",
+      "2026-01-09 06:00:00",
+    ]);
     expect(ticks.text.join(" ")).not.toMatch(/\d\d:\d\d/);
   });
 
@@ -177,7 +191,12 @@ describe("the water-year chart at phone width", () => {
       const x = Number(label.getAttribute("x"));
       const room = label.textContent!.length * LABEL_CHAR_PX;
       const anchor = label.getAttribute("text-anchor") ?? "start";
-      const [from, to] = anchor === "end" ? [x - room, x] : anchor === "middle" ? [x - room / 2, x + room / 2] : [x, x + room];
+      const [from, to] =
+        anchor === "end"
+          ? [x - room, x]
+          : anchor === "middle"
+            ? [x - room / 2, x + room / 2]
+            : [x, x + room];
       expect(from, label.textContent!).toBeGreaterThanOrEqual(0);
       expect(to, label.textContent!).toBeLessThanOrEqual(WIDTH);
     }
@@ -191,7 +210,6 @@ describe("the water-year chart at phone width", () => {
 });
 
 describe("the event table at phone width", () => {
-
   it("folds a low quality into the event's row and marks the column to drop", () => {
     history.replaceState(null, "", "/?fixture=raining#events");
     document.body.innerHTML = "<section id=panel></section>";
@@ -226,7 +244,11 @@ describe("the event table's start column", () => {
 });
 
 describe("the event list's headline", () => {
-  const events = [row({ total_in: 0.48, start_ms: 2 }), row({ total_in: 0.3, start_ms: 3 }), row({ total_in: 0.36, start_ms: 1 })];
+  const events = [
+    row({ total_in: 0.48, start_ms: 2 }),
+    row({ total_in: 0.3, start_ms: 3 }),
+    row({ total_in: 0.36, start_ms: 1 }),
+  ];
   const stats = { count: 3, total_in: 1.14, median_in: 0.36, mean_duration_minutes: 541 };
 
   it("leads with the wettest event against the median", () => {
@@ -243,7 +265,9 @@ describe("the event list's headline", () => {
 
   it("names a lone event and an empty water year plainly", () => {
     const one = { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 };
-    expect(listFinding(one, 2025, null, [events[2]!])).toBe("The one rain event in water year 2025 brought 0.36 in");
+    expect(listFinding(one, 2025, null, [events[2]!])).toBe(
+      "The one rain event in water year 2025 brought 0.36 in",
+    );
     const none = { count: 0, total_in: 0, median_in: null, mean_duration_minutes: null };
     expect(listFinding(none, 2024, null, [])).toBe("No rain events in water year 2024");
   });

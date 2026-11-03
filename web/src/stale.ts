@@ -19,16 +19,11 @@ const SUBJECT: Record<CatalogName, { catalog: string; figures: string }> = {
  * @param catalog - The tab's catalog.
  * @returns The note, or null when the run updated the catalog.
  */
-export function staleCatalogNote(
-  snapshot: DashboardSnapshot,
-  catalog: CatalogName,
-): string | null {
+export function staleCatalogNote(snapshot: DashboardSnapshot, catalog: CatalogName): string | null {
   const stale = staleCatalog(snapshot, catalog);
   if (!stale) return null;
   const { catalog: name, figures } = SUBJECT[catalog];
   const when =
-    stale.as_of_ms === null
-      ? "may be out of date"
-      : `are as of ${formatStamp(stale.as_of_ms)}`;
+    stale.as_of_ms === null ? "may be out of date" : `are as of ${formatStamp(stale.as_of_ms)}`;
   return `${name} could not be updated on the latest refresh, so ${figures} ${when}.`;
 }

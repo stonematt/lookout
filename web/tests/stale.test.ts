@@ -20,10 +20,7 @@ import { golden, goldenCurve } from "./golden.js";
 
 const AS_OF = Date.UTC(2026, 0, 8, 0, 45);
 
-function withStale(
-  scenario: "dry" | "raining",
-  stale: unknown,
-): DashboardSnapshot {
+function withStale(scenario: "dry" | "raining", stale: unknown): DashboardSnapshot {
   const doc = structuredClone(golden(scenario, "dashboard")) as Record<string, unknown>;
   doc.stale_catalogs = stale;
   return parseDashboard(doc);
@@ -37,8 +34,7 @@ beforeEach(() => {
   panel = document.getElementById("panel")!;
 });
 
-const text = (el: Element | null | undefined) =>
-  el?.textContent?.replace(/\s+/g, " ").trim();
+const text = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, " ").trim();
 
 describe("the stale_catalogs contract", () => {
   it("is empty in a normal run's goldens", () => {
@@ -93,9 +89,7 @@ describe("the note", () => {
 
 describe("the Rain Events tab", () => {
   const deps = () => ({
-    fetchCurve: vi.fn(async (start: number) =>
-      parseEventCurve(goldenCurve("raining", start)),
-    ),
+    fetchCurve: vi.fn(async (start: number) => parseEventCurve(goldenCurve("raining", start))),
     draw: vi.fn(async () => {}),
     nowMs: () => Date.UTC(2026, 0, 9, 0, 30),
   });
@@ -127,15 +121,18 @@ describe("the Rain Events tab", () => {
 
 describe("the Solar tab", () => {
   const render = (snap: DashboardSnapshot) =>
-    renderSolar(panel, snap, () => "", () => {});
+    renderSolar(
+      panel,
+      snap,
+      () => "",
+      () => {},
+    );
 
   it("shows its catalog as old when it is stale", () => {
     const snap = withStale("dry", [{ catalog: "energy", as_of_ms: AS_OF }]);
     render(snap);
 
-    expect(text(panel.querySelector(".solar-stale"))).toBe(
-      staleCatalogNote(snap, "energy"),
-    );
+    expect(text(panel.querySelector(".solar-stale"))).toBe(staleCatalogNote(snap, "energy"));
   });
 
   it("shows the note when there is no solar record either", () => {
