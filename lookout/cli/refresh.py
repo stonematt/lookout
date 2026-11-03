@@ -39,6 +39,11 @@ The steps, each its own function, run in this order by `run`:
    each completed event that has none yet, under `snapshot/<MAC>.events/`,
    at most `curves.CURVE_BACKFILL_LIMIT` per run (#84).
 
+Each step runs through `_step`, which logs "Peak memory after <step>: N MB"
+(#280): the process's peak RSS so far, which only rises, so the step where it
+jumps set the peak. The archive load, fetch, merge and save are one line,
+for `update_archive`.
+
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
 First it takes the archive-writer lock (#244, `lookout.utils.archive_lock`);
@@ -50,7 +55,7 @@ import argparse
 import sys
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 
 import pandas as pd
 
@@ -70,8 +75,11 @@ from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
 from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import peak_rss_mb
 
 logger = app_logger(__name__, log_file="refresh.log")
+
+T = TypeVar("T")
 
 DEFAULT_PAGES = 20
 ENERGY_SAVE_AGE = pd.Timedelta(days=2)
@@ -444,6 +452,24 @@ class CurveStepFailed(RuntimeError):
         self.snapshot = snapshot
 
 
+def _step(name: str, fn: Callable[..., T], *args: object) -> T:
+    """
+    Run one step of the run and log the process's peak RSS after it (#280).
+
+    Every step of `run` goes through here, so what must happen around each
+    step (the peak line today) has one place to grow. A step that raises
+    logs nothing and the exception passes through.
+
+    :param name: The step's name, as the log line shows it.
+    :param fn: The step's function.
+    :param args: Its arguments.
+    :return: What the step returned.
+    """
+    result = fn(*args)
+    logger.info(f"Peak memory after {name}: {peak_rss_mb():.0f} MB")
+    return result
+
+
 def run(
     bucket: str = DEFAULT_BUCKET,
     pages: int = DEFAULT_PAGES,
@@ -461,17 +487,20 @@ def run(
     :param clock: Returns the build time; injected so tests can fix it.
     :return: The published snapshot.
     """
-    device = load_station()
+    device = _step("load_station", load_station)
     station = Station.from_device(device)
-    archive, live = correct_rain(
-        station, bucket, update_archive(device, bucket, pages), device.get("lastData")
+    archive = _step("update_archive", update_archive, device, bucket, pages)
+    archive, live = _step(
+        "correct_rain", correct_rain, station, bucket, archive, device.get("lastData")
     )
-    catalogs = load_catalogs(station, bucket)
-    catalogs = update_catalogs(station, bucket, archive, catalogs)
-    snapshot = build(station, live, archive, catalogs, clock())
-    publish(snapshot, bucket)
+    catalogs = _step("load_catalogs", load_catalogs, station, bucket)
+    catalogs = _step(
+        "update_catalogs", update_catalogs, station, bucket, archive, catalogs
+    )
+    snapshot = _step("build", build, station, live, archive, catalogs, clock())
+    _step("publish", publish, snapshot, bucket)
     try:
-        publish_curves(station, archive, catalogs, bucket)
+        _step("publish_curves", publish_curves, station, archive, catalogs, bucket)
     except Exception as e:
         # The snapshot is out and the next run's bounded backfill writes
         # whatever is missing, but a persistent curve problem must not stay
