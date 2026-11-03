@@ -157,6 +157,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
 
   function tick(): void {
     if (!shown) return;
+    delete reading.root.dataset.failed;
     const clock = now();
     const age = dataAge(observedAtMs, clock);
     reading.age.textContent = age.text;
@@ -205,7 +206,8 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     for (const entry of index.stations) {
       const option = document.createElement("option");
       option.value = entry.mac;
-      option.textContent = entry.name ?? entry.mac;
+      // An unnamed station (Ambient allows it) is told apart by its MAC's end.
+      option.textContent = entry.name ?? `Unnamed station …${entry.mac.slice(-5)}`;
       picker.append(option);
     }
     picker.addEventListener("change", () => choose(picker!.value));
@@ -214,13 +216,10 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     return picker;
   }
 
-  /** The chosen station's archive start, as a station-local day. */
+  /** The chosen station's archive start, as a station-local day; none when unknown. */
   function showArchive(startMs: number | null): void {
-    archive.hidden = false;
-    if (startMs === null) {
-      archive.textContent = "Archive start not known yet";
-      return;
-    }
+    archive.hidden = startMs === null;
+    if (startMs === null) return;
     const time = document.createElement("time");
     const day = localDay(startMs);
     time.dateTime = day;
@@ -237,8 +236,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
         if (entry) shownPicker.value = entry.mac;
         else shownPicker.selectedIndex = -1;
       }
-      if (entry) showArchive(entry.archive_start_ms);
-      else archive.hidden = true;
+      showArchive(entry?.archive_start_ms ?? null);
     },
     reset() {
       station = null;
@@ -250,6 +248,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       reading.when.replaceChildren("Loading the newest reading");
       reading.age.textContent = "";
       reading.root.dataset.stale = "false";
+      delete reading.root.dataset.failed;
       figures.root.hidden = true;
     },
     showSnapshot(snapshot) {
@@ -274,6 +273,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       reading.when.replaceChildren(message, " ", button);
       reading.age.textContent = "";
       reading.root.dataset.stale = "true";
+      reading.root.dataset.failed = "true";
       figures.root.hidden = true;
     },
     tick,

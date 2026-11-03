@@ -154,6 +154,15 @@ a {
   display: none;
 }
 
+/* a failure's words stay beside the dot, wrapping within their own box */
+.masthead-line[data-failed="true"] {
+  flex-wrap: nowrap;
+}
+
+.masthead-line[data-failed="true"] .masthead-when {
+  min-width: 0;
+}
+
 .masthead-retry {
   min-height: 32px;
   margin-left: var(--s-1);

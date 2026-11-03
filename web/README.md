@@ -10,24 +10,24 @@ charts. The design system is `DESIGN.md` at the repo root.
 
 `web/` is the Vercel project root.
 
-| Path                                   | What it is                                                                                                                  |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard` and then `/current`                                                    |
-| `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions |
-| `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` from the browser                                                                          |
-| `src/header.ts`                        | `mountHeader`: station name, reading time, data age (stale past 15 min)                                                     |
-| `src/tabs.ts`                          | `mountTabs`: the four sticky tabs, roving tabindex, URL hash                                                                |
-| `src/format.ts`                        | The One Format Rule: `formatStamp`, `formatDuration`, `dataAge`                                                             |
-| `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                              |
-| `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                           |
-| `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                        |
-| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event` and `/status` to them                       |
-| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent` / `handleStatus`, with no Vercel or env in them                                         |
-| `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                       |
-| `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                |
-| `server/dev-fixtures.ts`               | The lane server's read functions, served from the goldens                                                                   |
-| `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                      |
-| `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                    |
+| Path                                   | What it is                                                                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard`, then `/current`, and `/stations`; choosing a station writes `?station=` |
+| `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions   |
+| `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` / `fetchStations` from the browser                                                          |
+| `src/header.ts`                        | `mountHeader`: station name (the station selector with two or more stations), reading time, data age, archive start           |
+| `src/tabs.ts`                          | `mountTabs`: the four sticky tabs, roving tabindex, URL hash                                                                  |
+| `src/format.ts`                        | The One Format Rule: `formatStamp`, `formatDuration`, `dataAge`                                                               |
+| `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                                |
+| `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                             |
+| `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                          |
+| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event` and `/status` to them                         |
+| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent` / `handleStatus`, with no Vercel or env in them                                           |
+| `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                         |
+| `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                  |
+| `server/dev-fixtures.ts`               | The lane server's read functions, served from the goldens                                                                     |
+| `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                        |
+| `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                      |
 
 ## Commands
 

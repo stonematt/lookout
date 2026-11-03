@@ -316,9 +316,7 @@ describe("the station selector", () => {
     expect(reads.dashboard).toHaveBeenCalledTimes(2);
     expect(document.title).toBe("Salmon Run · Lookout");
     expect(picker()!.value).toBe(SALMON_MAC);
-    expect(masthead.querySelector(".masthead-archive")?.textContent).toBe(
-      "Archive start not known yet",
-    );
+    expect(masthead.querySelector<HTMLElement>(".masthead-archive")!.hidden).toBe(true);
     for (const id of ["overview", "rain", "events", "solar"]) {
       open(id);
       expect(panel(id).firstElementChild).not.toBe(before.get(id));
@@ -396,9 +394,11 @@ describe("the station selector", () => {
     choose(SALMON_MAC);
     await vi.advanceTimersByTimeAsync(0);
 
-    const missing = "Salmon Run has no dashboard yet";
-    expect(panel("overview").textContent).toContain(missing);
-    expect(masthead.textContent).toContain(missing);
+    const missing = "Salmon Run has no dashboard yet.";
+    expect(panel("overview").textContent).toContain(`${missing} It appears after`);
+    expect(masthead.querySelector(".masthead-reading .masthead-when")?.textContent).toBe(
+      `${missing} Try again`,
+    );
     expect(masthead.querySelector(".masthead-retry")).not.toBeNull();
     open("solar");
     expect(panel("solar").textContent).toContain(missing);

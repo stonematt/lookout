@@ -76,10 +76,12 @@ const STATE_TEXT = {
 
 /**
  * What the page says for a station the index lists whose snapshot is not
- * written yet (`/dashboard` answers 404): a station added minutes ago.
+ * written yet (`/dashboard` answers 404): a station added minutes ago. The
+ * header says it short; the tabs say when it will appear.
  */
-function missingText(name: string | null): string {
-  return `${name ?? "This station"} has no dashboard yet. It appears after its first refresh run, within 5 minutes.`;
+function missingText(name: string | null): { header: string; tab: string } {
+  const header = `${name ?? "This station"} has no dashboard yet.`;
+  return { header, tab: `${header} It appears after its first refresh run, within 5 minutes.` };
 }
 
 /** The station the page's URL names, or null for the default station. */
@@ -190,9 +192,10 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
         return;
       }
       console.error("Lookout: /dashboard could not be read", error);
-      const missing = error instanceof ReadError && error.status === 404 && shownEntry();
-      stateText = missing ? missingText(missing.name) : STATE_TEXT.failed;
-      header.fail(() => void refresh(), missing ? stateText : undefined);
+      const listed = error instanceof ReadError && error.status === 404 ? shownEntry() : undefined;
+      const missing = listed ? missingText(listed.name) : null;
+      stateText = missing?.tab ?? STATE_TEXT.failed;
+      header.fail(() => void refresh(), missing?.header);
       renderTab(tabs.current(), tabs.panel(tabs.current()));
       if (tabs.current() !== "overview") renderTab("overview", tabs.panel("overview"));
     }

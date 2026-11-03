@@ -340,10 +340,19 @@ describe("the details strip", () => {
     expect(text(".masthead-archive")).toBe("Archive from May 4, 2022");
   });
 
-  it("says when a station's archive start is not known yet", () => {
+  it("leaves out an archive start that is not known yet", () => {
     const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), null, () => undefined);
     header.showStations(twoStations(), SALMON_MAC, () => undefined);
-    expect(text(".masthead-archive")).toBe("Archive start not known yet");
+    expect(host.querySelector<HTMLElement>(".masthead-archive")!.hidden).toBe(true);
+  });
+
+  it("tells an unnamed station apart by the end of its MAC", () => {
+    const index = twoStations();
+    index.stations[1] = { ...index.stations[1]!, name: null };
+    const header = mountHeader(host, () => clock);
+    header.showStations(index, null, () => undefined);
+    expect(select()!.options[1]!.textContent).toBe("Unnamed station …44:66");
   });
 
   it("starts over for a newly chosen station, keeping nothing of the last one's reading", () => {
