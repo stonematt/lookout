@@ -469,6 +469,86 @@ class TestPaging:
         )
 
 
+# ---------- a first page that already reaches now (#292) ----------
+
+
+CONTROLLER_LOGGER = "lookout.api.awn_controller"
+# 25 minutes after the newest recorded reading (07:55Z): the usual cron run,
+# whose now is more than one reading interval past what Ambient holds.
+LATE_NOW = "2025-11-19T08:20:00Z"
+
+
+def controller_lines(caplog: pytest.LogCaptureFixture) -> List[str]:
+    """
+    The controller's log messages from a run.
+
+    :param caplog: The capture the run logged into.
+    :return: Each message, in order.
+    """
+    return [r.getMessage() for r in caplog.records if r.name == CONTROLLER_LOGGER]
+
+
+class TestCaughtUpToNow:
+    """
+    A progressing page whose window reaches now ends the run (#292).
+
+    Ambient clips that page's end to now, so it already holds every reading
+    from the cursor to now; a second request would ask for the same window,
+    find nothing new and seek a page ahead as if over an outage.
+    """
+
+    def test_a_late_run_makes_one_history_call(self, catchup_station):
+        station = catchup_station(now=LATE_NOW)
+
+        station.run()
+
+        assert history_calls(station) == [
+            {
+                "apiKey": "test-ambient-api-key",
+                "applicationKey": "test-ambient-application-key",
+                "limit": 250,
+                "endDate": ms(LATE_NOW),
+            }
+        ]
+
+    def test_a_late_run_logs_no_seek_and_no_guard_stop(self, catchup_station, caplog):
+        station = catchup_station(now=LATE_NOW)
+
+        with caplog.at_level("INFO", logger=CONTROLLER_LOGGER):
+            station.run()
+
+        lines = controller_lines(caplog)
+        assert not [line for line in lines if "Seeking ahead" in line]
+        assert not [line for line in lines if "at or past now" in line]
+        caught_up = [line for line in lines if "Caught up to now" in line]
+        assert len(caught_up) == 1 and str(pd.Timestamp(LATE_NOW)) in caught_up[0]
+
+    def test_a_late_run_saves_what_a_run_at_the_newest_reading_saves(
+        self, catchup_station
+    ):
+        on_time = catchup_station()
+        on_time.run()
+        expected = on_time.stored()
+
+        late = catchup_station(archive=on_time.archive, now=LATE_NOW)
+        late.run()
+
+        assert_frame_equal(late.stored(), expected)
+        assert len(expected) == len(on_time.archive) + RECORDED_ROWS
+
+    def test_the_future_guard_names_the_cursor(self, catchup_station, caplog):
+        """A run whose now is the archive's newest reading trips the guard."""
+        archive = load_real_slice()
+        newest = pd.Timestamp(int(archive["dateutc"].max()), unit="ms", tz="UTC")
+        station = catchup_station(archive=archive, now=newest.isoformat())
+
+        with caplog.at_level("INFO", logger=CONTROLLER_LOGGER):
+            station.run()
+
+        guard = [line for line in controller_lines(caplog) if "at or past now" in line]
+        assert len(guard) == 1 and guard[0].startswith(f"Cursor {newest} ")
+
+
 # ---------- rain corrections ----------
 
 

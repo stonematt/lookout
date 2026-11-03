@@ -300,7 +300,7 @@ def get_device_history_from_date(
     end_date = (
         pd.to_datetime(end_date, utc=True)
         if end_date
-        else start_date + timedelta(minutes=(limit - 3) * 5)
+        else _page_window_end(start_date, limit)
     )
     end_date = min(end_date, current_time)
     end_ms = int(end_date.timestamp() * 1000)
@@ -422,6 +422,17 @@ def _to_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def _page_window_end(cursor: datetime, limit: int) -> datetime:
+    """
+    The end a page requested from `cursor` asks for, before the clip to now.
+
+    :param cursor: The page's start.
+    :param limit: Records per page.
+    :return: `cursor` plus `limit - 3` five-minute intervals.
+    """
+    return cursor + timedelta(minutes=(limit - 3) * 5)
+
+
 def _advance_cursor_from_page(new_data: pd.DataFrame, now_utc: datetime) -> datetime:
     """
     Advance the cursor using page's max dateutc (UTC) + 5 minutes, capped at now.
@@ -513,7 +524,9 @@ def fetch_since_last_archive(
     future timestamps. A gap longer than the forward seek's reach (about
     208 h, #132) is crossed by walking back from the end with the pages left
     (`_cross_long_gap`, #160). Ambient's pages run back from their end, so
-    the first one usually repeats the archive's last readings.
+    the first one usually repeats the archive's last readings. Paging stops
+    once a progressing page's window reaches now (or `end_date`): that page,
+    clipped to now, already holds every reading after its start (#292).
 
     The pages are merged in memory with a plain helper (`combine_df`, later
     page wins); the result never meets the stored rows here.
@@ -597,9 +610,19 @@ def fetch_since_last_archive(
         gap_attempts = 0
         interim_df = combine_interim_data(interim_df, new_data)
         log_page_quality(interim_df, f"Interim after page {page+1}")
+        log_interim_progress(page + 1, pages, interim_df)
+        # A page whose window reaches now, and which reaches back to the cursor
+        # (or holds all Ambient had), holds everything up to now; another
+        # request would repeat it (#292).
+        cursor_ms = int(last_date_utc.timestamp() * 1000)
+        reaches_cursor = (
+            len(new_data) < limit or int(new_data["dateutc"].min()) <= cursor_ms
+        )
+        if _page_window_end(last_date_utc, limit) >= now_utc and reaches_cursor:
+            logger.info(f"Caught up to now ({now_utc}) after {page + 1} page(s).")
+            break
         last_date = _advance_cursor_from_page(new_data, now_utc)
         logger.debug(f"cursor advance: page_max->next_cursor={last_date} now={now_utc}")
-        log_interim_progress(page + 1, pages, interim_df)
 
     # Raw, as Ambient reported it: rain corrections are applied on read,
     # never before a save (#95).
@@ -608,7 +631,7 @@ def fetch_since_last_archive(
 
 def _should_stop_for_future(next_dt, now_utc) -> bool:
     """
-    True if the next fetch timestamp would be in the future.
+    True if the cursor, the next page's start, is at or past now.
     Normalizes naive datetimes to UTC for a fair comparison.
     """
     next_utc = (
@@ -617,9 +640,7 @@ def _should_stop_for_future(next_dt, now_utc) -> bool:
         else next_dt.replace(tzinfo=timezone.utc)
     )
     if next_utc >= now_utc:
-        logger.info(
-            f"Next fetch timestamp {next_utc} is in the future vs now {now_utc}. Stopping early."
-        )
+        logger.info(f"Cursor {next_utc} is at or past now {now_utc}. Stopping.")
         return True
     return False
 
