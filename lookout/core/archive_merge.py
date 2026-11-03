@@ -379,15 +379,14 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
     :param new: The archive about to be saved, any order.
     :return: The `Loss`; falsy when nothing stored would be lost.
     """
-    stored = normalize(stored)
+    stored = strip_derived(normalize(stored))
     if stored.empty:
         return Loss()
-    new = normalize(new)
+    new = strip_derived(normalize(new))
     stored_at = stored.set_index("dateutc")
     new_at = new.set_index("dateutc") if not new.empty else pd.DataFrame()
     kept = stored_at.index.intersection(new_at.index)
-    raw = [col for col in stored_at.columns if col not in DERIVED_COLUMNS]
-    old = stored_at.loc[kept, raw]
+    old = stored_at.loc[kept]
     # A column `new` lacks reindexes to NaN: every stored value in it is lost.
     now = new_at.reindex(index=kept, columns=old.columns)
     per_column = (old.notna() & now.isna()).sum()
@@ -481,11 +480,19 @@ def strip_derived(df: pd.DataFrame) -> pd.DataFrame:
     """
     The archive without the columns Lookout derives (`DERIVED_COLUMNS`).
 
+    A shallow copy, so stripping costs no copy of the archive's values: the
+    frame returned shares them with `df`, and `df` keeps its columns.
+
     :param df: An archive frame.
-    :return: `df` itself when it holds none of them, else a copy without them.
+    :return: `df` itself when it holds none of them, else a frame without them.
     """
     derived = [col for col in DERIVED_COLUMNS if col in df.columns]
-    return df.drop(columns=derived) if derived else df
+    if not derived:
+        return df
+    stripped = df.copy(deep=False)
+    for col in derived:
+        del stripped[col]
+    return stripped
 
 
 def _differs(old: pd.Series, new: pd.Series) -> pd.Series:

@@ -448,6 +448,8 @@ def test_a_save_never_writes_a_derived_column(fake_s3):
 
     assert not set(DERIVED) & set(stored_now().columns)
     assert_frame_equal(stored_now(), scenario_archive())
+    # The caller's frame is left as handed.
+    assert set(DERIVED) <= set(stored.columns)
 
 
 def test_a_save_that_leaves_out_the_stored_derived_columns_is_not_a_blank(fake_s3):
