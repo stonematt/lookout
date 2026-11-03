@@ -31,7 +31,8 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
-from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj
+from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj, seed_inventory
+from tests.test_refresh import SECOND_MAC, second_device
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
@@ -67,6 +68,26 @@ def seed(catchup_station) -> Callable[..., CatchupStation]:  # noqa: F811
         )
 
     return _seed
+
+
+SECOND_ROWS = 300  # the second station's archive: the newest of the first's
+
+
+def with_second_station(station: CatchupStation) -> None:
+    """
+    Add Salmon Run to the account, the inventory (second) and the bucket.
+
+    Its archive is the first station's newest `SECOND_ROWS` rows, so the two
+    stations tell apart by row count.
+
+    :param station: The seeded fixture station.
+    """
+    (first,) = station.replay.devices
+    station.replay.devices = [second_device(first), first]
+    storj.save_df_to_s3(
+        station.archive.head(SECOND_ROWS), BUCKET, f"{SECOND_MAC}.parquet"
+    )
+    seed_inventory(FAKE_MAC, SECOND_MAC)
 
 
 def run(argv: List[str], capsys: pytest.CaptureFixture) -> Tuple[int, str]:
@@ -112,6 +133,78 @@ class TestGaps:
         assert status == 0
         assert "Gaps over 30 minutes: 1" in out
         assert PLAIN_GAP_LINE in out
+
+
+class TestStationFlag:
+    """`--station` picks the station; none means the default; unknown is refused."""
+
+    def test_without_it_the_default_station_is_used(self, seed, capsys):
+        with_second_station(seed())
+
+        status, out = run(["gaps"], capsys)
+
+        assert status == 0
+        assert f"Station {FAKE_MAC}, " in out
+        assert f"{SECOND_ROWS} archive rows" not in out
+
+    @pytest.mark.parametrize("spelling", [SECOND_MAC, SECOND_MAC.lower()])
+    def test_it_picks_the_second_station(self, seed, capsys, spelling):
+        with_second_station(seed())
+
+        status, out = run(["gaps", "--station", spelling], capsys)
+
+        assert status == 0
+        assert f"Station {SECOND_MAC}, {SECOND_ROWS} archive rows" in out
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["gaps"],
+            ["coverage"],
+            ["status"],
+            ["last-record"],
+            ["fill-gap", "--index", "0"],
+            ["fill-gap", "--index", "0", "--dry-run"],
+            ["energy-catalog", "--save"],
+            ["rain-catalog", "--save"],
+        ],
+    )
+    def test_a_mac_outside_the_inventory_is_refused_before_ambient_or_a_write(
+        self, seed, capsys, argv
+    ):
+        station = seed()
+        with_second_station(station)
+        keys = station.keys()
+        station.replay.calls.clear()
+
+        status, out = run([*argv, "--station", "00:00:00:00:00:99"], capsys)
+
+        assert status == 1
+        assert "Refused: Station 00:00:00:00:00:99 is not in the station" in out
+        assert station.replay.calls == []
+        assert station.keys() == keys
+
+    def test_the_station_flag_reaches_the_live_reading_and_status(self, seed, capsys):
+        with_second_station(seed())
+
+        _, last = run(["last-record", "--station", SECOND_MAC], capsys)
+        _, state = run(["status", "--station", SECOND_MAC], capsys)
+
+        assert f"Station {SECOND_MAC}" in last
+        assert f"Station {SECOND_MAC}" in state
+        assert f"Archive: {SECOND_ROWS} rows" in state
+
+    def test_a_fill_dry_run_on_the_second_station_reads_its_archive(self, seed, capsys):
+        station = seed()
+        with_second_station(station)
+
+        status, out = run(
+            ["fill-gap", "--station", SECOND_MAC, "--index", "0", "--dry-run"], capsys
+        )
+
+        assert status == 0
+        assert "Dry run" in out
+        assert "No gap" not in out
 
 
 class TestFillGap:
@@ -594,3 +687,17 @@ class TestArchiveWriterLock:
         assert status == 0
         with hold_archive_lock():
             pass
+
+
+class TestAwnControllerDiagnostic:
+    def test_it_lists_every_device_on_the_account(self, seed, caplog):
+        station = seed()
+        with_second_station(station)
+
+        with caplog.at_level("INFO"):
+            awn.main()
+
+        text = caplog.text
+        assert "Found 2 device(s)" in text
+        assert f"({FAKE_MAC})" in text
+        assert f"({SECOND_MAC})" in text

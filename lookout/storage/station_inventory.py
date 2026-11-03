@@ -16,11 +16,14 @@ Functions:
   where missing is an error too.
 - default_station(bucket): the default station's MAC, for a job that works
   on one station and was not told which.
+- resolve_station(bucket, mac): the station a single-station job works on:
+  `mac` checked against the inventory, or the default station when None.
 - append_station(bucket, mac, stored, before_write): back the inventory up,
   run `before_write` (the add's archive step), then write it with `mac`
   appended.
 
 Classes:
+- StationNotInInventory: a MAC the inventory does not list.
 - StationInventory: the MACs in priority order; `default` is the first.
 """
 
@@ -35,6 +38,10 @@ logger = app_logger(__name__)
 
 INVENTORY_KEY = "station_inventory.json"
 BACKUP_PREFIX = "backups/station_inventory"
+
+
+class StationNotInInventory(ValueError):
+    """A station was asked for that the station inventory does not list."""
 
 
 @dataclass(frozen=True)
@@ -159,6 +166,33 @@ def default_station(bucket: str) -> str:
         or it is corrupt.
     """
     return load_inventory(bucket).default
+
+
+def resolve_station(bucket: str, mac: Optional[str] = None) -> str:
+    """
+    The station a single-station job works on, checked against the inventory.
+
+    The one refusal path for a `--station` flag: an unknown MAC is refused
+    here, from the inventory alone, before any Ambient call or write.
+
+    :param bucket: The bucket.
+    :param mac: The station asked for, any case; the default station when
+        None.
+    :return: Its MAC, as the inventory spells it.
+    :raises StationNotInInventory: If `mac` is not in the inventory.
+    :raises StorageReadError: If the inventory is missing, the read failed,
+        or it is corrupt.
+    """
+    inventory = load_inventory(bucket)
+    if mac is None:
+        return inventory.default
+    position = inventory.position(mac)
+    if position is None:
+        raise StationNotInInventory(
+            f"Station {mac} is not in the station inventory "
+            f"({', '.join(inventory.macs)}); add it with `stations add`"
+        )
+    return inventory.macs[position - 1]
 
 
 def append_station(

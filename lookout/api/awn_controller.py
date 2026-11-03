@@ -45,7 +45,11 @@ from lookout.secrets_loader import get_setting
 from lookout.utils.dateutc import normalize
 
 import lookout.storage.storj as sj
-from lookout.api.ambient_client import AmbientRequestError, get_device_history
+from lookout.api.ambient_client import (
+    AmbientRequestError,
+    get_device_history,
+    get_devices,
+)
 from lookout.core import archive_merge
 from lookout.utils.log_util import app_logger
 
@@ -1098,8 +1102,6 @@ def main() -> None:
             raw = device.get("data", [])[:1]
             if raw:
                 print("  🧾 Raw sample:\n", json.dumps(raw[0], indent=2))
-
-            break  # Remove to check all devices
 
     except Exception as e:
         logger.exception(f"❌ Exception during diagnostic: {e}")
