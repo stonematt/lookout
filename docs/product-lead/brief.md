@@ -6,7 +6,7 @@ The product lead reads this on every run. Keep it short: point at the docs that 
 
 - A glance on a phone gives current conditions in the context of recent history.
 - Deeper views for rain, Rain Events and solar energy, each stating its finding.
-- The dashboard runs off Streamlit: a VPS cron precomputes it, Vercel serves it (ADR-0003).
+- The dashboard is a Vite site on Vercel that reads a snapshot a VPS cron precomputes (ADR-0003).
 
 Product context: `PRODUCT.md` (users, principles, constraints), `DESIGN.md` (The Annotated Almanac), `GLOSSARY.md`, `docs/adr/`.
 
@@ -16,6 +16,8 @@ One line each. The product lead infers the rung; write one here only when Matt o
 
 - **Move Lookout off Streamlit** — replace the Streamlit app with a cron-built snapshot on Storj and a Vite + TypeScript + Plotly.js site on Vercel · containers: map #51, spec #66 and its sub-issues #67–#86, bug #63 (sub-issue of #66)
 - **Deepen storage reads, archive merge and daily rain** — the three refactors kept from the 2026-11-01 architecture review · containers: specs #172, #173, #174 and their sub-issues #180–#199, goal PR #201 (merged to dev 2026-11-02), held ticket #191, follow-ups #219, #220, #224
+- **Release 2026.11.1** — shipped dev to main and introduced versioning (ADR-0007), 2026-11-03 · ledger #277, release PR #289, tag `v2026.11.1`
+- **Serve a second station: Salmon Run** — archive and show Salmon Run (WS-2902, installed 2026-11-03) beside Lookout Post, from a station inventory on Storj (ADR-0006) · two releases (Matt, 2026-11-02): first the station inventory, the `stations` command and the multi-station refresh run; then the station index on the site, the read functions and the station selector. Both follow Release 2026.11.1, shipped 2026-11-03. · containers: spec #179 (grilled 2026-11-02), ADR-0006 and glossary terms via #269 (merged to dev), in-scope tickets #244 (cron lock) and #234 (memory peak, does not block)
 
 ## Where the tickets live
 
@@ -24,7 +26,7 @@ Tracker: GitHub Issues on `stonematt/lookout`. Labels: one category (`bug`, `enh
 Architecture review candidates Matt keeps become issues labelled `refactor` + `needs-triage`, each carrying its full grilling brief; he grills from the issue (2026-11-01).
 
 Branch flow: feature branch → `dev` (integration) → `main` (release). Vercel deploys `main` to production, https://lookout.stonecover.com; there is no separate deploy branch (Streamlit and its `live` branch retired by #86). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
-Each `dev` → `main` release bumps `VERSION` through a `chore(release)` PR into `dev` and is tagged `v<version>` on `main` after production is verified (ADR-0007).
+Each `dev` → `main` release bumps `VERSION` through a `chore(release)` PR into `dev` and is tagged `v<version>` on `main` after production is verified (ADR-0007). Merge the `chore(release)` PR, then open the release PR at once; the release head must equal that PR's tested head.
 
 ## Drift
 

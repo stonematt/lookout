@@ -11,6 +11,7 @@ auto-save (#73), the Healthchecks heartbeats (#74).
 import importlib.abc
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import asdict
@@ -26,7 +27,11 @@ from lookout.cli import refresh
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
+from lookout.snapshot import status as run_status
+from lookout.snapshot.status import CodeVersion
+from tests.snapshot_helpers import FIXED_CODE
 from lookout.storage import storj
+from lookout.utils.archive_lock import LOCK_FILE_ENV, hold_archive_lock
 from tests.fixtures.ambient import load_devices, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -49,6 +54,7 @@ from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
 DASHBOARD_KEY = f"snapshot/{FAKE_MAC}.dashboard.json"
 CONTEXT_KEY = f"snapshot/{FAKE_MAC}.context.json"
 CURVE_PREFIX = f"snapshot/{FAKE_MAC}.events/"
+STATUS_KEY = f"snapshot/{FAKE_MAC}.status.json"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_IS_DEV_MODE = awn.is_dev_mode
 
@@ -76,12 +82,29 @@ def stored_json(station: CatchupStation, key: str) -> Dict:
 
 
 def snapshot_keys(station: CatchupStation) -> List[str]:
-    """The snapshot documents' keys: under `snapshot/`, not curve files."""
+    """
+    The snapshot documents' keys: under `snapshot/`, not curve files and not
+    the run's status document (#268), which every run writes.
+    """
     return [
         key
         for key in station.keys()
-        if key.startswith("snapshot/") and not key.startswith(CURVE_PREFIX)
+        if key.startswith("snapshot/")
+        and not key.startswith(CURVE_PREFIX)
+        and not key.endswith(".status.json")
     ]
+
+
+@pytest.fixture(autouse=True)
+def fixed_code(monkeypatch: pytest.MonkeyPatch) -> CodeVersion:
+    """
+    The code a run reports in its status document, fixed, so no test here
+    asks git about the real checkout.
+
+    :return: The fixed version and SHA.
+    """
+    monkeypatch.setattr(refresh, "code_version", lambda: FIXED_CODE)
+    return FIXED_CODE
 
 
 def curve_keys(station: CatchupStation) -> List[str]:
@@ -113,6 +136,34 @@ class TestRefreshRun:
         assert snapshot_keys(station) == [CONTEXT_KEY, DASHBOARD_KEY]
         assert stored_json(station, DASHBOARD_KEY) == snapshot.dashboard()
         assert stored_json(station, CONTEXT_KEY) == snapshot.context()
+
+    def test_each_step_logs_one_peak_memory_line_in_run_order(self, seed, caplog):
+        station = seed()
+
+        with caplog.at_level("INFO"):
+            run_refresh(station)
+
+        steps = [
+            m.group(1)
+            for m in (
+                re.fullmatch(r"Peak memory after (\w+): \d+ MB", r.getMessage())
+                for r in caplog.records
+            )
+            if m
+        ]
+        assert steps == [
+            "load_station",
+            "archive_load",
+            "ambient_fetch",
+            "archive_merge",
+            "archive_save",
+            "correct_rain",
+            "load_catalogs",
+            "update_catalogs",
+            "build",
+            "publish",
+            "publish_curves",
+        ]
 
     def test_the_archive_is_appended_first_with_the_schema_unchanged(self, seed):
         station = seed()
@@ -1545,3 +1596,245 @@ class TestNoopArchiveSave:
 
         assert ARCHIVE_KEY in writes
         assert len(station.stored()) == len(station.archive) + RECORDED_ROWS
+
+
+# ---------- the archive-writer lock (#244) ----------
+
+
+class TestArchiveWriterLock:
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    def test_a_held_lock_skips_the_run_with_no_pings_and_exits_0(
+        self, seed, fake_healthchecks, caplog
+    ):
+        station = seed()
+        keys = station.keys()
+
+        with hold_archive_lock():
+            assert self.run_main(station) == 0
+
+        assert fake_healthchecks.pings == []
+        skips = [r for r in caplog.records if "holds the lock" in r.getMessage()]
+        assert len(skips) == 1
+        assert station.replay.calls == []
+        assert station.keys() == keys
+
+    def test_a_finished_run_leaves_the_lock_free(self, seed):
+        station = seed()
+
+        assert self.run_main(station) == 0
+
+        with hold_archive_lock():
+            pass
+
+    def test_a_failed_run_leaves_the_lock_free(self, seed, monkeypatch):
+        station = seed()
+        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+
+        assert self.run_main(station) == 1
+
+        with hold_archive_lock():
+            pass
+
+    def test_a_lock_that_cannot_be_opened_fails_the_run(
+        self, seed, tmp_path, monkeypatch, fake_healthchecks, caplog
+    ):
+        # The lock's directory cannot be made: a file stands where it goes.
+        station = seed()
+        keys = station.keys()
+        blocker = tmp_path / "not-a-directory"
+        blocker.write_text("")
+        monkeypatch.setenv(LOCK_FILE_ENV, str(blocker / "archive-writer.lock"))
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+        assert station.replay.calls == []
+        status = stored_json(station, STATUS_KEY)
+        assert status["outcome"] == "failed"
+        assert status["error"] in ("FileExistsError", "NotADirectoryError")
+        assert set(station.keys()) - set(keys) == {STATUS_KEY}
+        assert "Refresh failed" in caplog.text
+
+
+# ---------- the run's status document (#268) ----------
+
+
+class TestStatusDocument:
+    """`main` writes `snapshot/<MAC>.status.json` at the end of every run."""
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    def test_a_published_run_writes_an_ok_status_with_its_code(self, seed):
+        station = seed()
+
+        assert self.run_main(station) == 0
+
+        assert stored_json(station, STATUS_KEY) == {
+            "kind": "status",
+            "station_mac": FAKE_MAC,
+            "version": "2026.11.1",
+            "sha": FIXED_CODE.sha,
+            "started_at_ms": ms(AMBIENT_END),
+            "ended_at_ms": ms(AMBIENT_END),
+            "outcome": "ok",
+            "error": None,
+            "built_at_ms": stored_json(station, DASHBOARD_KEY)["built_at_ms"],
+        }
+
+    def test_the_run_is_timed_from_start_to_end(self, seed):
+        station = seed()
+        calls = []
+
+        def clock():
+            # The run's start, then 42 s later for every later call.
+            calls.append(None)
+            return station.now + timedelta(seconds=0 if len(calls) == 1 else 42)
+
+        refresh.main(["--bucket", BUCKET], clock=clock)
+
+        status = stored_json(station, STATUS_KEY)
+        assert status["ended_at_ms"] - status["started_at_ms"] == 42_000
+
+    def test_the_status_names_the_code_the_run_started_on(self, seed, monkeypatch):
+        # A `git pull` from the next cron tick moves HEAD while this run works;
+        # the status still names the commit the run started on.
+        station = seed()
+        started_on, pulled = "a" * 40, "b" * 40
+        head = {"sha": started_on}
+        real_load_station = refresh.load_station
+
+        def load_station_then_pull():
+            device = real_load_station()
+            head["sha"] = pulled
+            return device
+
+        monkeypatch.setattr(refresh, "load_station", load_station_then_pull)
+
+        def code() -> CodeVersion:
+            return CodeVersion(version="2026.11.1", sha=head["sha"])
+
+        assert (
+            refresh.main(["--bucket", BUCKET], clock=lambda: station.now, code=code)
+            == 0
+        )
+
+        status = stored_json(station, STATUS_KEY)
+        assert (status["version"], status["sha"]) == ("2026.11.1", started_on)
+
+    def test_a_failed_run_writes_a_failed_status_and_still_exits_1(
+        self, seed, monkeypatch, fake_healthchecks
+    ):
+        station = seed()
+        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+
+        assert self.run_main(station) == 1
+
+        status = stored_json(station, "snapshot/AA:BB:CC:DD:EE:FF.status.json")
+        assert (status["outcome"], status["error"]) == (
+            "failed",
+            "StationNotFoundError",
+        )
+        assert status["built_at_ms"] is None
+        assert snapshot_keys(station) == []
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+
+    def test_a_failed_archive_read_still_writes_the_status(self, seed, monkeypatch):
+        station = seed()
+        flaky_storj(monkeypatch, station.s3, read=ARCHIVE_KEY)
+
+        assert self.run_main(station) == 1
+
+        status = stored_json(station, STATUS_KEY)
+        assert (status["outcome"], status["error"]) == ("failed", "StorageReadError")
+
+    def test_a_curve_failure_after_publish_is_failed_with_the_snapshot_built(
+        self, seed, monkeypatch
+    ):
+        station = TestCatalogUpdatesAndSaves().storm(seed, "2026-01-10T00:00:00Z")
+
+        def refuse(*args, **kwargs):
+            raise OSError("curve write refused at s3://secret-ish/path")
+
+        monkeypatch.setattr(refresh, "publish_event_curves", refuse)
+
+        assert self.run_main(station) == 1
+
+        status = stored_json(station, STATUS_KEY)
+        assert (status["outcome"], status["error"]) == ("failed", "CurveStepFailed")
+        assert (
+            status["built_at_ms"] == stored_json(station, DASHBOARD_KEY)["built_at_ms"]
+        )
+        assert "secret-ish" not in json.dumps(status)
+
+    def test_a_failed_status_write_leaves_a_good_run_green(
+        self, seed, monkeypatch, fake_healthchecks, caplog
+    ):
+        station = seed()
+        real_put = station.s3.put_object
+
+        class StatusRefused:
+            def __getattr__(self, name):
+                return getattr(station.s3, name)
+
+            def put_object(self, **kwargs):
+                if kwargs["Key"] == STATUS_KEY:
+                    raise OSError("status write refused")
+                return real_put(**kwargs)
+
+        monkeypatch.setattr(run_status, "get_s3_client", lambda: StatusRefused())
+
+        assert self.run_main(station) == 0
+
+        assert STATUS_KEY not in station.keys()
+        assert snapshot_keys(station) == [CONTEXT_KEY, DASHBOARD_KEY]
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+        assert "Status document not written" in caplog.text
+
+    def test_a_failed_status_write_does_not_mask_the_run_failure(
+        self, seed, monkeypatch, fake_healthchecks, caplog
+    ):
+        station = seed()
+        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+
+        def refuse():
+            raise OSError("status write refused")
+
+        monkeypatch.setattr(run_status, "get_s3_client", refuse)
+
+        assert self.run_main(station) == 1
+
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+        assert "Refresh failed: Station AA:BB:CC:DD:EE:FF" in caplog.text
+        assert "Status document not written" in caplog.text
+
+    def test_an_interrupted_run_writes_a_failed_status(self, seed, monkeypatch):
+        station = seed()
+
+        def interrupt(*args, **kwargs):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(refresh, "load_station", interrupt)
+
+        with pytest.raises(KeyboardInterrupt):
+            self.run_main(station)
+
+        status = stored_json(station, STATUS_KEY)
+        assert (status["outcome"], status["error"]) == ("failed", "KeyboardInterrupt")
+
+    def test_a_skipped_run_writes_no_status(self, seed):
+        station = seed()
+
+        with hold_archive_lock():
+            assert self.run_main(station) == 0
+
+        assert STATUS_KEY not in station.keys()
+
+    def test_run_alone_writes_no_status(self, seed):
+        station = seed()
+
+        run_refresh(station)
+
+        assert STATUS_KEY not in station.keys()

@@ -21,11 +21,11 @@ charts. The design system is `DESIGN.md` at the repo root.
 | `src/theme.ts`                         | The `?theme=light\|dark` override (the default follows the OS)                                                              |
 | `src/styles/tokens.css`                | DESIGN.md tokens, light plus dark                                                                                           |
 | `src/styles/base.css`                  | Base type, page column, header, tabs                                                                                        |
-| `api/dashboard.ts`, `api/current.ts`   | The Vercel functions; `vercel.json` rewrites `/dashboard` and `/current` to them                                            |
-| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent`, with no Vercel or env in them                                                          |
+| `api/*.ts`                             | The Vercel functions; `vercel.json` rewrites `/dashboard`, `/current`, `/event` and `/status` to them                       |
+| `server/handlers.ts`                   | `handleDashboard` / `handleCurrent` / `handleStatus`, with no Vercel or env in them                                         |
 | `server/storj.ts`, `server/ambient.ts` | The Storj (SigV4 via `aws4fetch`) and Ambient readers                                                                       |
 | `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                |
-| `server/dev-fixtures.ts`               | The lane server's `/dashboard` and `/current`, served from the goldens                                                      |
+| `server/dev-fixtures.ts`               | The lane server's read functions, served from the goldens                                                                   |
 | `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                      |
 | `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                    |
 
@@ -50,9 +50,9 @@ The web gate is `npm run build && npm test`. `build` runs the typecheck.
 cd web && npm run dev -- --port <port>
 ```
 
-This serves this worktree's `web/` on that port. `/dashboard` and `/current`
-come from the golden snapshot documents in `tests/golden/snapshots/`, run
-through the real handlers. It needs no secrets and makes no network calls.
+This serves this worktree's `web/` on that port. `/dashboard`, `/current` and
+`/event` come from the golden snapshot documents in `tests/golden/snapshots/`,
+and `/status` from `tests/golden/status/`, run through the real handlers. It needs no secrets and makes no network calls.
 Stop it with Ctrl-C, or `kill` its PID.
 
 - `?fixture=dry|raining` on the page picks the golden. The default is `dry`,
@@ -115,6 +115,18 @@ stale-if-error=300` so that Ambient is called at most about once a minute
   with `s-maxage=15`, so that a rate-limit episode does not feed itself with
   a call per visitor, and a blip is not served on for long.
 
+- `GET /status`: the refresh run's status document,
+  `snapshot/<MAC>.status.json`, as Storj holds it (#268): `{kind: "status",
+station_mac, version, sha, started_at_ms, ended_at_ms, outcome, error,
+built_at_ms}`. The refresh run writes it at the end of every run, success or
+  failure: `outcome` is `ok` or `failed`, `error` the failure's exception
+  class name (never its message), `sha` the checkout's `git rev-parse HEAD`
+  (null when git cannot say) and `built_at_ms` the published snapshot's (null
+  when the run published none). It is outside the snapshot contract and the
+  page never reads it. Cached `s-maxage=60, stale-if-error=300`; 404 before
+  any run has written one, 502 when Storj fails or holds something other than
+  a status document (both `s-maxage=15`).
+
 Vercel's CDN does not cache a 5xx response, so a 502's `s-maxage=15` holds
 only for other caches; there, `stale-if-error` lets the CDN keep serving the
 last good copy instead. Each Ambient and Storj fetch times out after 5
@@ -148,7 +160,8 @@ with no values.
    production branch.
 3. Add the environment variables above for Production and Preview.
 4. Deploy. Check `https://<domain>/dashboard` (JSON with the cache header),
-   `https://<domain>/current` (JSON with `last_data` not null) and the page
+   `https://<domain>/current` (JSON with `last_data` not null),
+   `https://<domain>/status` (the last refresh run's outcome) and the page
    (station name, reading time, a fresh data age).
 5. Make sure the production URL is public: Deployment Protection must not
    cover Production. Preview deployments stay behind Vercel login, which is

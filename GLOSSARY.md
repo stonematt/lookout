@@ -120,6 +120,17 @@ and the active rain event (`CONTEXT_FIELDS`). Published as
 context it is read against.
 _Avoid_: context file, mini snapshot.
 
+### status document
+
+The JSON the refresh run writes at `snapshot/<MAC>.status.json` at the end of
+every run it does not skip, success or failure; a run that cannot open the
+archive-writer lock file is a failed run and writes one too. It names the code
+version and checkout SHA the run started on, the outcome (`ok` or `failed`)
+and, on failure, the exception class; the site serves it at `/status`. A run
+skipped for a held lock writes none. It is not part of the snapshot, so
+`SCHEMA_VERSION` does not cover it (`lookout/snapshot/status.py`).
+_Avoid_: heartbeat (that is the Healthchecks ping), run log.
+
 ### gap status
 
 The verdict on one month or window of the archive before any value is
@@ -149,6 +160,17 @@ nothing, the stored value stays. A merge reports readings **added**,
 values **filled** (stored had none) and values **updated** (Ambient's
 differs). A deliberate correction is a **replace**, never a merge.
 _Avoid_: combine, overwrite, "fetched wins".
+
+### archive writer
+
+A command that saves the archive or a catalog (the Event Catalog or the
+energy catalog), of which at most one runs on a host at a time. The refresh
+run, catchup, `diagnostics fill-gap`, `diagnostics energy-catalog --save`,
+`diagnostics rain-catalog --save` and `repair_rain --write` are archive
+writers; each takes the per-host archive-writer lock
+(`lookout.utils.archive_lock`) before it does any work. A read-only command,
+or a writer run without its save flag, is not one and takes no lock.
+_Avoid_: saver, cron job (the refresh run is one writer among several).
 
 ### counted day
 

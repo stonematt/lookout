@@ -3,7 +3,7 @@ solar_analysis.py
 Core solar data processing and calculation functions for Lookout weather station.
 
 This module contains reusable functions for solar radiation analysis,
-extracted from CLI scripts to enable both command-line and Streamlit usage.
+extracted from CLI scripts so the CLIs and the snapshot build share them.
 """
 
 import pandas as pd

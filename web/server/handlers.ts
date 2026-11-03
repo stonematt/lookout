@@ -1,11 +1,15 @@
 /**
- * The two read functions, free of Vercel and of `process.env`.
+ * The read functions, free of Vercel and of `process.env` (`/event` is in
+ * `event.ts`).
  *
  * - `/dashboard` returns the station's snapshot document as Storj holds it,
  *   cached by the CDN for 5 minutes (the refresh run's period).
  * - `/current` returns Ambient's live `lastData` with the context block, for
  *   the page header and any widget. Either half may be null when its source
  *   fails; only both failing is an error.
+ * - `/status` returns the refresh run's status document (#268): how the last
+ *   run ended, when, and the code version and git SHA it ran on. The page
+ *   never reads it; it is for a post-release check.
  *
  * The CDN keys its cache on the whole URL, so each read function reads its
  * sources only at one spelling of its URL: the bare path (and `/event`'s
@@ -37,6 +41,9 @@ export const DASHBOARD_CACHE = "s-maxage=300, stale-while-revalidate=300, stale-
 
 /** `/current`: short, so the live reading stays live and Ambient is spared. */
 export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60, stale-if-error=300";
+
+/** `/status`: short, so a check after a run sees that run within a minute. */
+export const STATUS_CACHE = "s-maxage=60, stale-if-error=300";
 
 /**
  * A failed or partial read (an Ambient 429 included) is cached briefly, so
@@ -200,6 +207,53 @@ export async function handleDashboard(request: Request, sources: ReadSources): P
     return errorResponse(502, "the snapshot does not match this site", FAILURE_CACHE);
   }
   return jsonResponse(text, 200, DASHBOARD_CACHE);
+}
+
+/**
+ * GET /status: the refresh run's status document, as Storj holds it.
+ *
+ * It is the refresh run's own document, outside the snapshot contract, so
+ * it is checked only for being a status document (`kind: "status"`).
+ *
+ * @param request - The incoming request; see `checkQuery`.
+ * @param sources - Where to read.
+ * @returns 200 with the document; 404 when no run has written one; 502 when
+ *   Storj fails or holds something else.
+ */
+export async function handleStatus(request: Request, sources: ReadSources): Promise<Response> {
+  const query = checkQuery(request, sources);
+  if (query instanceof Response) return query;
+  const mac = sources.defaultMac;
+  let text: string | null;
+  try {
+    text = await sources.readSnapshot(mac, "status");
+  } catch (error) {
+    console.error("status: Storj read failed", describeError(error));
+    return errorResponse(502, "the status could not be read", FAILURE_CACHE);
+  }
+  if (text === null) {
+    return errorResponse(404, `no status for station ${mac}`, FAILURE_CACHE);
+  }
+  if (!isStatusDocument(text)) {
+    console.error("status: the stored document is not a status document");
+    return errorResponse(502, "the status is not a status document", FAILURE_CACHE);
+  }
+  return jsonResponse(text, 200, STATUS_CACHE);
+}
+
+/**
+ * Whether a document's text is a status document.
+ *
+ * @param text - The stored text.
+ * @returns True for a JSON object whose `kind` is "status".
+ */
+function isStatusDocument(text: string): boolean {
+  try {
+    const doc: unknown = JSON.parse(text);
+    return typeof doc === "object" && doc !== null && (doc as { kind?: unknown }).kind === "status";
+  } catch {
+    return false;
+  }
 }
 
 /**

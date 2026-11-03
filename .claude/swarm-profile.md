@@ -1,6 +1,6 @@
 # Swarm profile
 
-**Repo** `stonematt/lookout` · root `/Users/mstone/src/github.com/stonematt/lookout` · base branch `dev` (release branch `main`, which Vercel deploys to production). Spec #66 work: phase 0 (#67, #68, #69, #70, #71, #63) lands on `dev`; phases 1–4 land on the integration branch `goal/off-streamlit`, cut from `dev` after phase 0.
+**Repo** `stonematt/lookout` · root `/Users/mstone/src/github.com/stonematt/lookout` · base branch `dev` (release branch `main`, which Vercel deploys to production). Each run names its goal branch (`goal/<slug>`, cut from `dev`) in its own dated section below.
 
 **Ready label** none used for this run; every sub-issue of #66 took the finish-alone test.
 
@@ -19,9 +19,9 @@
 | lint | `flake8 --max-line-length 88 <changed .py files>` | 375 lines on `dev`; gate is: files you create are clean, files you edit gain no new lines | 2s |
 | web | `cd web && npm ci && npm run format:check && npm run lint && npm run build && npm test` (build runs `tsc --noEmit` then vite; lint includes `no-unsanitized`, so an unescaped value in `innerHTML` fails, #260; `npm run format` fixes formatting) | format and lint clean, build ok, **419 passed** at `2a2cdcf` | 25s |
 
-**CI** `.github/workflows/tests.yml` (from #67): pytest on PRs into `dev` and `goal/**`, Python 3.12, 15-minute job timeout (a slow fixture once hit it). `.github/workflows/web.yml` (from #77): web format check, lint, build and test. Before #67 there was none. #67 added one workflow running pytest on PRs into `dev` and into `goal/off-streamlit`. Until #67 merges, the gates above are the only check.
+**CI** `.github/workflows/tests.yml` (from #67): pytest on PRs into `dev`, `goal/**` and `main`, Python 3.12, 15-minute job timeout (a slow fixture once hit it). `.github/workflows/web.yml` (from #77): web format check, lint, build and test. Before #67 there was none. #67 added one workflow running pytest on PRs into `dev` and into `goal/off-streamlit`. Until #67 merges, the gates above are the only check.
 
-**Blast radius** — probes planted at `$TMPDIR`, `~/.config/`, `~`, and the main checkout's live `data/` dir; test suite run at `7592c37` in a clean worktree: all markers survived. The real risk is secrets, not deletes: the main checkout has `.streamlit/secrets.toml` with live Ambient and Storj keys, and modules read it at import. **Never run gates in the main checkout. Never copy `.streamlit/secrets.toml` into a worktree.** A lane's new tests pin to: no network, no real secrets (conftest stubs from #67), moto for S3, synthetic or committed fixtures, `tmp_path` for files.
+**Blast radius** — probes planted at `$TMPDIR`, `~/.config/`, `~`, and the main checkout's live `data/` dir; test suite run at `7592c37` in a clean worktree: all markers survived. The real risk is secrets, not deletes: live Ambient and Storj keys sit in `~/.config/lookout/secrets.toml`, and the main checkout also holds a `.streamlit/secrets.toml` symlink to it. Nothing reads the symlink any more. **Never run gates in the main checkout. Never copy either secrets file into a worktree.** A lane's new tests pin to: no network, no real secrets (conftest stubs from #67), moto for S3, synthetic or committed fixtures, `tmp_path` for files.
 
 **Leave unrun** `lookout/cli/catchup.py`, `lookout/bin/cron_run.sh`, the new refresh command against real secrets — they write the live Storj archive and Event Catalog. `lookout/cli/pull_archive.py`, `rain_corrections_cli.py`, `manage_day_periods.py`, `regenerate*`/catalog CLIs — they read or write live Storj. Anything that ssh's to the VPS (`itri`). Any Vercel deploy.
 
@@ -31,7 +31,7 @@
 
 **Verbs** — implement `tdd` · review `code-review` · commit `stone-commit` · merge `stone-merge`
 
-**Landing policy** Lanes never run `gh pr merge`; the orchestrator does. Phase 0 PRs target `dev`; phase 1+ PRs target `goal/off-streamlit`. Only the owner lands `goal/off-streamlit` into `dev`. Never push to `main`, `live` or `dev` directly. No Claude/AI attribution in commits or PR bodies (no `Co-Authored-By: Claude`, no "Generated with" footer). Conventional Commits.
+**Landing policy** Lanes never run `gh pr merge`; the orchestrator does. While program ledger #294 is open, the orchestrator merges on green without asking, within `docs/agents/autonomy.md`. Lane PRs target the run's goal branch, or `dev` when the run has none. Only the owner lands a goal branch into `dev`. Never push to `main` or `dev` directly. No Claude/AI attribution in commits or PR bodies (no `Co-Authored-By: Claude`, no "Generated with" footer). Conventional Commits.
 
 **Test layout** Shared fixtures in `tests/fixtures/` (#68: `build_archive`, `scenario_archive`, `load_real_slice`, `AmbientReplay`; conftest `fake_s3`, `ambient_replay`, `frozen_today`). Golden/generated files go under `tests/golden/`; the fixture leak scans (`tests/test_fixture_real.py`, `tests/test_load_path_golden.py`) name the files they expect, so a new fixture under `tests/fixtures/` must be added to that list. Shared snapshot test builders: `tests/snapshot_helpers.py`. Registered marks in `pytest.ini`. Catchup end-to-end setup: `catchup_station` fixture in `tests/test_catchup.py` (#71). Tests that use `FAKE_MAC` must `monkeypatch.setenv('STATION_MAC', FAKE_MAC)`. Load-path golden tests (`tests/test_load_path_golden.py`, `tests/golden/load_path_*.json`) are marked `temporary`; regenerate with `LOOKOUT_REGEN_GOLDEN=1 python -m pytest tests/test_load_path_golden.py -p no:cacheprovider`.
 

@@ -12,7 +12,7 @@ cd web && npm ci && npm run format:check && npm run lint && npm run build && npm
 cd web && npm run dev                                     # site on golden fixtures, no secrets
 ```
 
-CI runs both gates on PRs into `dev` and `goal/**` only, never on PRs into `main`. `npm run format` fixes web formatting. Tests go through the public entry points, with Storj and Ambient faked at the boundary (`CONTRIBUTING.md` names the one exception). Python format and lint are local: `.venv/bin/black` and `.venv/bin/flake8 --max-line-length 88` on the `.py` files you change. Older files still fail both, so a file you create or edit passes and the rest stay as they are. Tests need no secrets: `tests/conftest.py` points the secrets loader at a missing file. Web scripts live in `web/package.json`; the dev server's `?fixture=`, `?age=` and `?theme=` switches, the API routes and the CSP check are in `web/README.md`.
+CI runs both gates on PRs into `dev`, `goal/**` and `main`. `npm run format` fixes web formatting. Tests go through the public entry points, with Storj and Ambient faked at the boundary (`CONTRIBUTING.md` names the one exception). Python format and lint are local: `.venv/bin/black` and `.venv/bin/flake8 --max-line-length 88` on the `.py` files you change. Older files still fail both, so a file you create or edit passes and the rest stay as they are. Tests need no secrets: `tests/conftest.py` points the secrets loader at a missing file. Web scripts live in `web/package.json`; the dev server's `?fixture=`, `?age=` and `?theme=` switches, the API routes and the CSP check are in `web/README.md`.
 
 ## Layout
 
@@ -23,13 +23,13 @@ CI runs both gates on PRs into `dev` and `goal/**` only, never on PRs into `main
 - `lookout/api/`, `lookout/utils/`, `lookout/config.py`, `lookout/secrets_loader.py`
 - `web/src/` the site; `web/api/` thin Vercel functions; `web/server/` their logic, free of Vercel and env
 
-Storj keys, all per station MAC: the archive `<MAC>.parquet` (stored newest first; `load_archive` returns it oldest first), `<MAC>.rain_events_catalog.parquet`, `<MAC>.energy_catalog.parquet`, `<MAC>.rain_corrections.json`, `snapshot/<MAC>.dashboard.json`, `snapshot/<MAC>.context.json`, event curves `snapshot/<MAC>.events/<start_ms>.json`, and backups under `backups/` and `.backups/<MAC>/<date>/`.
+Storj keys, all per station MAC: the archive `<MAC>.parquet` (stored newest first; `load_archive` returns it oldest first), `<MAC>.event_catalog.parquet`, `<MAC>.energy_catalog.parquet`, `<MAC>.rain_corrections.json`, `snapshot/<MAC>.dashboard.json`, `snapshot/<MAC>.context.json`, `snapshot/<MAC>.status.json`, event curves `snapshot/<MAC>.events/<start_ms>.json`, and backups under `backups/` and `.backups/<MAC>/<date>/`.
 
 ## Rules that bite
 
 Each of these cost a fix run to learn. The ADR or test named holds the full reason.
 
-- **Live writes.** Catchup, refresh, `fill-gap`, `repair_rain --write` and the catalog `--save` commands write the live archive. Run them only on `itri` or a checkout holding real secrets, and only while no cron run can save: one archive writer at a time. Worktrees and tests stay on fixtures and moto.
+- **Live writes.** Catchup, refresh, `fill-gap`, `repair_rain --write` and the catalog `--save` commands write the live archive. Run them only on `itri` or a checkout holding real secrets. One archive writer at a time is enforced by the archive-writer lock (`lookout/utils/archive_lock.py`, #244): each writer takes it at its entry point, a second writer exits 1 naming the lock file, and a refresh run that finds it held skips. A new writer takes it too. Worktrees and tests stay on fixtures and moto; `tests/conftest.py` points `LOOKOUT_LOCK_FILE` under `tmp_path`.
 - **Storage reads.** A read ends found, missing or failed (ADR-0004). Read through `read_object`, `read_df_from_s3` or `read_json_from_s3`. A failed read raises `StorageReadError` and aborts the run; only a found-nothing read means missing.
 - **Archive saves.** Load with `load_archive` and save with `save_archive(df, bucket, mac, stored=..., repair=False)`, merging through `lookout/core/archive_merge.py`. A save that would drop or blank a stored reading raises `ArchiveLossError`. Catchup, gap fill and rain repair all take this path; a new writer takes it too.
 - **Raw archive.** Rain carryover corrections apply on read (`apply_corrections` after loading) and are never written back (#95).
@@ -48,8 +48,9 @@ Python: type hints on every parameter and return; a module docstring stating pur
 - **Branching**: feature (`feat/*`, `fix/*`, `docs/*`) → `dev` → `main`. `dev` is the default branch; Vercel deploys production from `main`. Release flow: `docs/product-lead/brief.md`.
 - **Domain terms**: `GLOSSARY.md`, using its terms exactly. Decisions: `docs/adr/`. See `docs/agents/domain.md`.
 - **Live services** (Storj, `itri`, Vercel, Healthchecks, Ambient) and every live CLI command: `docs/agents/operations.md` first.
-- **Issues**: GitHub `stonematt/lookout` via `gh`; read an issue's Agent Brief comment before working it. `docs/agents/issue-tracker.md`, labels in `docs/agents/triage-labels.md`.
+- **Issues**: GitHub `stonematt/lookout` via `gh`; read an issue's brief before working it: a ticket's body, or a triaged issue's Agent Brief comment. `docs/agents/issue-tracker.md`, labels in `docs/agents/triage-labels.md`.
 - **Swarm runs**: `.claude/swarm-profile.md` owns the gates, landing policy and per-run repo facts.
+- **Autonomy grant**: while program ledger #294 is open, `docs/agents/autonomy.md` says what its sessions may merge, release and change on itri and Vercel without asking.
 - **Initiatives and lessons**: `docs/product-lead/`. Release reviews: `docs/panel/`.
 - **UI work**: `DESIGN.md` and `PRODUCT.md`.
 - **Energy catalog design**: `ENERGY_CATALOG.md`.

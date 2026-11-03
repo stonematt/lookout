@@ -12,7 +12,7 @@ Arguments:
   <script>        Path to the Python script relative to repo root (e.g., scripts/uptime_check.py)
 
 Options:
-  --sleep N       Sleep for a random delay up to N seconds before execution (default: 900)
+  --sleep N       Sleep for a random delay up to N seconds before execution (default: 0)
 
 Environment:
   Assumes virtualenv at: <repo_root>/.venv
@@ -23,14 +23,18 @@ Setup:
   cd lookout
   uv venv --python 3.12 .venv && uv pip install -r requirements.txt
 
-Crontab Example (runs every 8 hours with jitter):
-  0 */8 * * * /path/to/cron_run.sh --sleep 900 scripts/uptime_check.py
+Crontab Example (the refresh run, every 5 minutes, no jitter):
+  */5 * * * * cd /path/to/lookout && lookout/bin/cron_run.sh lookout/cli/refresh.py
+
+Archive writers (refresh, catchup, ...) take the repo's archive-writer lock
+themselves (#244), so the crontab needs no flock.
 
 EOF
 }
 
-# Defaults
-SLEEP_MAX=900
+# Defaults: no jitter. The refresh run is one client on one Ambient account,
+# so jitter would only delay the data (#244).
+SLEEP_MAX=0
 
 # Parse args
 POSITIONAL=()
@@ -73,12 +77,6 @@ if [[ "$SLEEP_MAX" -gt 0 ]]; then
   sleep "$SLEEP_TIME"
 fi
 
-# Git pull
-git pull --rebase || echo "Warning: git pull failed, continuing..."
-
-# Activate virtualenv
-source "$REPO_ROOT/.venv/bin/activate"
-
 SCRIPT_PATH="$REPO_ROOT/$SCRIPT_REL"
 SCRIPT_KEY="${SCRIPT_REL//\//_}"
 LOG_FILE="$REPO_ROOT/logs/cron_${SCRIPT_KEY%.*}.status"
@@ -87,10 +85,26 @@ TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
 # Ensure logs directory exists
 mkdir -p "$REPO_ROOT/logs"
 
-{
-  PYTHONPATH=. python "$SCRIPT_PATH"
-  echo "$TIMESTAMP SUCCESS" >>"$LOG_FILE"
-} || {
-  echo "$TIMESTAMP FAIL" >>"$LOG_FILE"
+# Git pull: a failed pull fails the run before python starts, so a cron
+# never runs stale code unnoticed. No python means no Healthchecks start
+# ping, and the check goes late.
+if ! git pull --rebase; then
+  echo "$TIMESTAMP FAIL git pull --rebase failed" >>"$LOG_FILE"
+  echo "Error: git pull --rebase failed; not running $SCRIPT_REL" >&2
   exit 1
-}
+fi
+
+# Activate virtualenv
+source "$REPO_ROOT/.venv/bin/activate"
+
+# Run the script and exit with its status. The `|| STATUS=$?` keeps set -e
+# from aborting before the status is logged.
+STATUS=0
+PYTHONPATH=. python "$SCRIPT_PATH" || STATUS=$?
+
+if [[ "$STATUS" -eq 0 ]]; then
+  echo "$TIMESTAMP SUCCESS" >>"$LOG_FILE"
+else
+  echo "$TIMESTAMP FAIL exit $STATUS" >>"$LOG_FILE"
+fi
+exit "$STATUS"

@@ -12,11 +12,19 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 ## VPS (`itri`)
 
-- Non-interactive commands need `ssh -o RemoteCommand=none itri '…'` (add `-T` when piping). The host config runs a remote command, so plain `ssh itri <cmd>` fails with "Cannot execute command-line and remote command".
+- Agents use the host `s.itri.me`, which starts no tmux: `ssh -T -o RemoteCommand=none s.itri.me '…'`. Read-only checks this way worked on 2026-11-03 (the checkout HEAD, `logs/cron_lookout_cli_refresh.status`, `~/log/cron/refresh.log`).
+- The `itri` host alias runs a remote command, so plain `ssh itri <cmd>` fails with "Cannot execute command-line and remote command"; it also needs `-o RemoteCommand=none`.
 - Live checkout `~/src/stone/lookout`, tracking `origin/main`; venv `.venv` on a uv-managed Python 3.12.
 - The system `python3` is 3.10 with no `tomllib`; run Python through the venv or `uv run --no-project --python 3.12`.
 - In-place edits of the remote secrets file get denied. Prepare the file locally (mode 600, validated with `tomllib`) and hand Matt an `scp -p -o RemoteCommand=none` command. Top-level keys go above the first `[table]`.
 - Crontab: the refresh run every 5 minutes under `flock`, and the daily 06:00 catchup through `~/bin/run_catchup.sh` (paused for #95). The `tickle_streamlit` keep-alive was removed by #86; its checkout sits at `~/src/stone/tickle_streamlit.retired-20261102`. Logs in `~/log/cron/`. A pause comments a line out as `# paused for lookout#<N> (<date>)`, with the full crontab saved to `~/crontab.bak-pre-<N>`. Read the live state with `ssh -T -o RemoteCommand=none itri 'crontab -l'` before stating it.
+- Target refresh crontab line (#244), with no `flock` and no sleep, since the run takes the repo's archive-writer lock itself:
+
+  ```
+  */5 * * * * cd /home/mstone/src/stone/lookout && lookout/bin/cron_run.sh lookout/cli/refresh.py >> /home/mstone/log/cron/refresh.log 2>&1
+  ```
+
+  It replaces the current `/usr/bin/flock -n /home/mstone/log/cron/refresh.lock lookout/bin/cron_run.sh --sleep 30 lookout/cli/refresh.py` line. Swap order: #179's ops session installs it only after the repo lock is deployed to itri (the checkout's HEAD includes #244), never before. Until the swap both locks run, which is harmless.
 
 ## Vercel
 
@@ -27,6 +35,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - Git: connected to `stonematt/lookout` (2026-11-01). Root Directory `web`, Framework `vite`, production branch `main`. Every other branch and every PR gets a preview deployment. Note that GitHub's default branch is `dev`, and Vercel picks the default branch as the production branch on connect. Check the production branch again after any reconnect.
 - Root Directory is `web`, so CLI deploys take the repo root as their path. Linking `web/` alone makes Vercel look for `web/web`.
 - Production guard: until the first production deploy, the Ignored Build Step is `[ "$VERCEL_ENV" = production ]`. It skips every Git-triggered production build. It exists so that nothing deploys production before the `dev` → `main` release PR merges. To go live: remove it (`vercel api /v9/projects/lookout -X PATCH` with `{"commandForIgnoringBuildStep": null}`), then deploy `main` to production. Read the live setting with `vercel api /v9/projects/lookout` before stating it.
+- The CLI prints a banner on stderr, which breaks a `jq` pipe. Run `vercel api … 2>/dev/null | jq`.
 - Deployment protection: Vercel Authentication, `all_except_custom_domains`. Previews need a Vercel login. A custom domain on Production is public.
 - The CLI sends a project's first deploy to Production. Pass `--target preview` for a preview.
 
@@ -35,6 +44,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - Project `lookout`, email alerts to the owner.
 - Cron check slug `lookout-refresh` (period 5 min, grace 10 min). Station check slug `station-<slugified Ambient station name>`, auto-created on first ping; set it to period 5 min, grace 30 min afterwards.
 - Ping URL shape: `https://hc-ping.com/<HC_PING_KEY>/<slug>`.
+- Agents cannot read Healthchecks. To check the refresh run from outside, read its status document, which every run writes at its end, naming the code version and SHA it started on (#268): `curl -s https://lookout.stonecover.com/status | jq '{outcome, sha, version, ended_at_ms, built_at_ms, error}'`. After a release, the check is: `sha` equals the release head on `main` (`git rev-parse origin/main`), `outcome` is `ok`, and `ended_at_ms` is after the merge. A failed run shows as `outcome: "failed"` with `error` naming the exception class; the log on itri has the rest. `sha` is null when git cannot answer in the checkout the cron runs. A run skipped for a held lock writes no status, so the document stays the last run that ran until the holder's run (or the next one) writes its own. The response is CDN-cached for up to a minute. Matt checks the `lookout-refresh` check itself.
 
 ## Ambient Weather
 
@@ -43,9 +53,9 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 ## Lookout commands against live services
 
-Each of these reads live secrets and Storj (and most call Ambient). Run them from the repo root with `PYTHONPATH=.`, on the VPS or a checkout with real secrets, never from a test worktree. Only one writer at a time: never run a writing command while a catchup or refresh cron run could save the archive.
+Each of these reads live secrets and Storj (and most call Ambient). Run them from the repo root with `PYTHONPATH=.`, on the VPS or a checkout with real secrets, never from a test worktree. Only one archive writer runs on a host at a time, and the code enforces it: each writing command below takes the archive-writer lock (`~/.local/state/lookout/archive-writer.lock`, moved by `LOOKOUT_LOCK_FILE`) before any work (#244). A writer started while the lock is held exits 1 naming the lock file; a refresh run that finds it held logs one line and exits 0 with no Healthchecks ping. A refresh run that cannot open the lock file at all (an OSError) is a failed run: it pings exit 1 and writes a failed status. Read-only commands, and writers without their save flag, take no lock.
 
-- **Refresh run**, the VPS cron's job: catchup, catalogs, snapshot publish. `python lookout/cli/refresh.py [--bucket lookout] [--pages N]`. Pings Healthchecks `lookout-refresh` (start, then the exit status) and the station check.
+- **Refresh run**, the VPS cron's job: catchup, catalogs, snapshot publish. `python lookout/cli/refresh.py [--bucket lookout] [--pages N]`. Pings Healthchecks `lookout-refresh` (start, then the exit status) and the station check, then writes its status document `snapshot/<MAC>.status.json` (served at `/status`); a run skipped for a held lock writes none.
 - **Diagnostics**, plain text, exit 1 when refused or failed. Read-only: `python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]`, `coverage [--days 14]`, `status`, `last-record`.
 - **Diagnostics writes**, each backs up before it saves:
   - `python -m lookout.cli.diagnostics fill-gap (--index N | --start T --end T) --dry-run` says what it would fetch and writes nothing; drop `--dry-run` to fill and save. Exits 1 when Ambient has no data for the gap.

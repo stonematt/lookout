@@ -3,8 +3,8 @@ Every lookout module imports with no secrets anywhere.
 
 Each import runs in a fresh interpreter whose HOME and working directory are an
 empty temp dir and whose env carries no secret names, so neither
-`~/.config/lookout/secrets.toml` nor any `.streamlit/secrets.toml` can be
-found. A module that reads a secret at import fails here.
+`~/.config/lookout/secrets.toml` nor a secrets file in the working directory
+can be found. A module that reads a secret at import fails here.
 """
 
 import os

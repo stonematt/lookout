@@ -77,11 +77,17 @@ PYTHONPATH=. python lookout/cli/refresh.py
 PYTHONPATH=. python lookout/cli/catchup.py
 ```
 
-Use with cron (with logging + jitter):
+Use with cron (with logging; `--sleep N` adds up to N seconds of jitter,
+default 0):
 
 ```bash
-lookout/bin/cron_run.sh --sleep 300 lookout/cli/catchup.py
+lookout/bin/cron_run.sh lookout/cli/refresh.py
 ```
+
+The refresh run, catchup and the other archive writers take a per-host lock
+themselves (`~/.local/state/lookout/archive-writer.lock`, moved by
+`LOOKOUT_LOCK_FILE`), so at most one runs at a time and a crontab needs no
+`flock`.
 
 ### Run the site locally
 

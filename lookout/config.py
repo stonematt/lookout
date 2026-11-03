@@ -23,9 +23,9 @@ def get_station_mac() -> str:
     """
     Return the MAC address of the one station Lookout archives.
 
-    Read from the `STATION_MAC` setting (env var, then the secrets file, then
-    st.secrets), falling back to `DEFAULT_MAC_ADDRESS`. Never taken from
-    Ambient's device order, so a second station on the account cannot take over.
+    Read from the `STATION_MAC` setting (env var, then the secrets file),
+    falling back to `DEFAULT_MAC_ADDRESS`. Never taken from Ambient's device
+    order, so a second station on the account cannot take over.
 
     :return: The pinned MAC address, upper-cased.
     """

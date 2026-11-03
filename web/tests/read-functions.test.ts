@@ -1,12 +1,14 @@
 /**
- * The two read functions, called the way Vercel calls them: `GET(request)`
- * with `process.env` set and `fetch` faked. Storj serves the golden
- * documents; Ambient serves a recorded-shape `/devices` body. No network.
+ * The read functions `/dashboard`, `/current` and `/status`, called the way
+ * Vercel calls them: `GET(request)` with `process.env` set and `fetch`
+ * faked. Storj serves the golden documents; Ambient serves a recorded-shape
+ * `/devices` body. No network.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as currentGET } from "../api/current.js";
 import { GET as dashboardGET } from "../api/dashboard.js";
+import { GET as statusGET } from "../api/status.js";
 import { describeError } from "../server/errors.js";
 import { SCHEMA_VERSION } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
@@ -46,11 +48,11 @@ function fakeFetch(input: RequestInfo | URL, init?: RequestInit) {
       return Promise.resolve(new Response("nope", { status: world.storjStatus }));
     }
     const key = decodeURIComponent(url.pathname).replace("/lookout/", "");
-    const match = /^snapshot\/(.+)\.(dashboard|context)\.json$/.exec(key);
+    const match = /^snapshot\/(.+)\.(dashboard|context|status)\.json$/.exec(key);
     if (!match || match[1] !== MAC) {
       return Promise.resolve(new Response("NoSuchKey", { status: 404 }));
     }
-    const kind = match[2] as "dashboard" | "context";
+    const kind = match[2] as "dashboard" | "context" | "status";
     return Promise.resolve(new Response(goldenText(world.scenario, kind)));
   }
   if (url.origin + "/v1" === AMBIENT) {
@@ -328,17 +330,79 @@ describe("GET /current", () => {
   });
 });
 
+describe("GET /status", () => {
+  it("returns the refresh run's status document as Storj holds it", async () => {
+    const response = await statusGET(get("/status"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=60, stale-if-error=300");
+    expect(response.headers.get("content-type")).toMatch(/application\/json/);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual(golden("raining", "status"));
+    expect(body.outcome).toBe("ok");
+    expect(body.sha).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it("reads only the station's status key from Storj, never Ambient", async () => {
+    await statusGET(get("/status"));
+
+    expect(world.calls).toHaveLength(1);
+    expect(decodeURIComponent(new URL(world.calls[0]!.url).pathname)).toBe(
+      `/lookout/snapshot/${MAC}.status.json`,
+    );
+  });
+
+  it("answers 404, briefly cached, when no run has written one", async () => {
+    vi.stubEnv("STATION_MAC", "AA:BB:CC:DD:EE:FF");
+    const response = await statusGET(get("/status"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+  });
+
+  it("answers 502, briefly cached, when Storj fails", async () => {
+    world.storjStatus = 500;
+    const response = await statusGET(get("/status"));
+    expect(response.status).toBe(502);
+    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
+  });
+
+  it.each([JSON.stringify({ kind: "dashboard" }), "not json"])(
+    "answers 502 when Storj holds something else: %s",
+    async (body) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => Promise.resolve(new Response(body))),
+      );
+      const response = await statusGET(get("/status"));
+      expect(response.status).toBe(502);
+    },
+  );
+
+  it("sends the pinned station to the bare path unread", async () => {
+    const response = await statusGET(get(`/status?station=${MAC}`));
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe("status");
+    expect(world.calls).toHaveLength(0);
+  });
+});
+
 describe("a query string", () => {
   // The CDN keys on the whole URL, so only the bare path may read a source:
   // anything else is refused or redirected, and no variant reaches Storj or
   // Ambient.
   const read = (path: string) =>
-    path.startsWith("/current") ? currentGET(get(path)) : dashboardGET(get(path));
+    path.startsWith("/current")
+      ? currentGET(get(path))
+      : path.startsWith("/status")
+        ? statusGET(get(path))
+        : dashboardGET(get(path));
 
   it.each([
     "/current?x=1",
     "/current?x=2",
     "/dashboard?x=1",
+    "/status?x=1",
+    "/status?verbose",
     "/current?fixture=dry",
     "/dashboard?age=3",
     `/current?station=${MAC}&station=${MAC}`,

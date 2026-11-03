@@ -39,21 +39,38 @@ The steps, each its own function, run in this order by `run`:
    each completed event that has none yet, under `snapshot/<MAC>.events/`,
    at most `curves.CURVE_BACKFILL_LIMIT` per run (#84).
 
+Each step runs through `_step`, which logs "Peak memory after <step>: N MB"
+(#280): the process's peak RSS so far, which only rises, so the step where it
+jumps set the peak. `update_archive` logs its own four (archive_load,
+ambient_fetch, archive_merge, archive_save; see `catchup.update_archive`).
+
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
+First it takes the archive-writer lock (#244, `lookout.utils.archive_lock`);
+when another archive writer holds it, the run logs one line and exits 0 with
+no heartbeat, so only the holder's pings reach the `lookout-refresh` check.
+A lock that cannot be opened at all (an OSError) is a failed run, not a skip.
+Every run it starts ends by writing the status document (#268,
+`lookout.snapshot.status`): its outcome, start and end, and the code version
+and git SHA it ran on, served by the site at `/status`. The code is read once
+as the run starts, so a `git pull` by a later cron tick, while this run still
+works, never names code this run did not run. A skipped run writes none, as
+it sends no heartbeat: the holder's run writes its own.
 """
 
 import argparse
+import contextlib
 import sys
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, ContextManager, Dict, List, Optional, Tuple, TypeVar
 
 import pandas as pd
 
+import lookout
 from lookout.api.ambient_client import get_station_device
 from lookout.cli import catchup
-from lookout.config import DEFAULT_BUCKET
+from lookout.config import DEFAULT_BUCKET, get_station_mac
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
 from lookout.core.rain_corrections import correct_counters, read_catalog
@@ -63,11 +80,21 @@ from lookout.snapshot.model import CatalogName
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
+from lookout.snapshot.status import (
+    CodeVersion,
+    RunStatus,
+    code_version,
+    publish_status,
+)
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
+from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__, log_file="refresh.log")
+
+T = TypeVar("T")
 
 DEFAULT_PAGES = 20
 ENERGY_SAVE_AGE = pd.Timedelta(days=2)
@@ -440,6 +467,24 @@ class CurveStepFailed(RuntimeError):
         self.snapshot = snapshot
 
 
+def _step(name: str, fn: Callable[..., T], *args: object) -> T:
+    """
+    Run one step of the run and log the process's peak RSS after it (#280).
+
+    Every step of `run` goes through here, so what must happen around each
+    step (the peak line today) has one place to grow. A step that raises
+    logs nothing and the exception passes through.
+
+    :param name: The step's name, as the log line shows it.
+    :param fn: The step's function.
+    :param args: Its arguments.
+    :return: What the step returned.
+    """
+    result = fn(*args)
+    log_peak_rss(name, logger)
+    return result
+
+
 def run(
     bucket: str = DEFAULT_BUCKET,
     pages: int = DEFAULT_PAGES,
@@ -457,17 +502,21 @@ def run(
     :param clock: Returns the build time; injected so tests can fix it.
     :return: The published snapshot.
     """
-    device = load_station()
+    device = _step("load_station", load_station)
     station = Station.from_device(device)
-    archive, live = correct_rain(
-        station, bucket, update_archive(device, bucket, pages), device.get("lastData")
+    # Logs its own peak lines, one per part (#280), so it skips `_step`'s.
+    archive = update_archive(device, bucket, pages)
+    archive, live = _step(
+        "correct_rain", correct_rain, station, bucket, archive, device.get("lastData")
     )
-    catalogs = load_catalogs(station, bucket)
-    catalogs = update_catalogs(station, bucket, archive, catalogs)
-    snapshot = build(station, live, archive, catalogs, clock())
-    publish(snapshot, bucket)
+    catalogs = _step("load_catalogs", load_catalogs, station, bucket)
+    catalogs = _step(
+        "update_catalogs", update_catalogs, station, bucket, archive, catalogs
+    )
+    snapshot = _step("build", build, station, live, archive, catalogs, clock())
+    _step("publish", publish, snapshot, bucket)
     try:
-        publish_curves(station, archive, catalogs, bucket)
+        _step("publish_curves", publish_curves, station, archive, catalogs, bucket)
     except Exception as e:
         # The snapshot is out and the next run's bounded backfill writes
         # whatever is missing, but a persistent curve problem must not stay
@@ -499,6 +548,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 def main(
     argv: Optional[List[str]] = None,
     clock: Callable[[], datetime] = utc_now,
+    code: Optional[Callable[[], CodeVersion]] = None,
 ) -> int:
     """
     The shell entry point, wrapped in the Healthchecks heartbeats.
@@ -508,37 +558,144 @@ def main(
     once. The station heartbeat goes out after a published run. A heartbeat
     that cannot be sent never changes the exit status.
 
+    The status document (#268) is written last, from the same `finally`, so
+    every run that starts writes one, however it ends. A status write that
+    fails is logged and never changes the exit status either.
+
+    The archive-writer lock is taken before anything else and released when
+    the run ends, however it ends. When another archive writer holds it,
+    the run is skipped: one log line, no heartbeat, no status document,
+    exit 0. A lock that cannot be opened (an OSError: say, a lock directory
+    that cannot be made) fails the run before any work: it pings failure and
+    writes a failed status, exit 1.
+
+    The code the status document names is read once, as the run starts.
+
     :param argv: Arguments, without the program name; `sys.argv` when None.
-    :param clock: Returns the build time; injected so tests can fix it.
-    :return: The exit status: 0 when the run finished clean, else 1 (a
-        curve step failure after publish included).
+    :param clock: Returns the build time, and the run's start and end;
+        injected so tests can fix it.
+    :param code: Returns the code version and SHA the status document names,
+        called once as the run starts; `lookout.snapshot.status.code_version`
+        when None.
+    :return: The exit status: 0 when the run finished clean or was skipped
+        for a held lock, else 1 (a curve step failure after publish
+        included).
     """
     args = parse_args(argv)
-    heartbeat = Heartbeat.from_secrets()
-    heartbeat.start()
-    status = 1
+    lock_error: Optional[OSError] = None
+    lock: ContextManager[object] = contextlib.nullcontext()
     try:
+        lock = hold_archive_lock()
+    except ArchiveLockHeld as e:
+        logger.warning(f"{e}; this refresh run is skipped, no heartbeat sent")
+        return 0
+    except OSError as e:
+        lock_error = e
+    with lock:
+        started = clock()
+        ran_on = code_at_start(code or code_version)
+        status = 1
+        snapshot: Optional[Snapshot] = None
+        error: Optional[str] = None
+        heartbeat: Optional[Heartbeat] = None
         try:
-            snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
-            status = 0
-        except CurveStepFailed as e:
-            # Published, so the station heartbeat still goes out; the
-            # status stays 1 and the failure is logged below.
-            snapshot = e.snapshot
-            logger.error(
-                f"Event curve files not written: {e.__cause__}", exc_info=e.__cause__
+            heartbeat = Heartbeat.from_secrets()
+            heartbeat.start()
+            if lock_error is not None:
+                # No lock, so no work: failed like any other run that raises.
+                raise lock_error
+            try:
+                snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
+                status = 0
+            except CurveStepFailed as e:
+                # Published, so the station heartbeat still goes out; the
+                # status stays 1 and the failure is logged below.
+                snapshot, error = e.snapshot, type(e).__name__
+                logger.error(
+                    f"Event curve files not written: {e.__cause__}",
+                    exc_info=e.__cause__,
+                )
+            heartbeat.station(
+                snapshot.station.name,
+                snapshot.station.mac,
+                snapshot.observed_at_ms,
+                snapshot.built_at_ms,
             )
-        heartbeat.station(
-            snapshot.station.name,
-            snapshot.station.mac,
-            snapshot.observed_at_ms,
-            snapshot.built_at_ms,
+        except Exception as e:
+            error = error or type(e).__name__
+            logger.exception(f"Refresh failed: {e}")
+        except BaseException as e:
+            # An interrupt: still reported below, then it propagates.
+            error = type(e).__name__
+            raise
+        finally:
+            if heartbeat is not None:
+                heartbeat.finish(status)
+            write_status(
+                args.bucket,
+                ran_on,
+                started,
+                clock,
+                status,
+                error,
+                snapshot,
+            )
+        return status
+
+
+def code_at_start(code: Callable[[], CodeVersion]) -> CodeVersion:
+    """
+    The code the run starts on, read once; never raises (#268).
+
+    :param code: Returns the code version and SHA.
+    :return: Its answer; when it raises, the imported version with no SHA.
+    """
+    try:
+        return code()
+    except Exception as e:
+        logger.warning(f"No code version for the status document: {e!r}")
+        return CodeVersion(version=lookout.__version__, sha=None)
+
+
+def write_status(
+    bucket: str,
+    code: CodeVersion,
+    started: datetime,
+    clock: Callable[[], datetime],
+    status: int,
+    error: Optional[str],
+    snapshot: Optional[Snapshot],
+) -> None:
+    """
+    Write the run's status document; never raises (#268).
+
+    The end time is read here, inside the guard, so nothing about the
+    status document can raise out of `main`'s `finally` and replace the
+    run's own outcome.
+
+    :param bucket: The bucket.
+    :param code: The code the run started on (`code_at_start`).
+    :param started: The run's start.
+    :param clock: Returns now: the run's end.
+    :param status: The exit status, 0 or 1.
+    :param error: The failure's exception class name, or None.
+    :param snapshot: The snapshot the run published, or None.
+    """
+    try:
+        publish_status(
+            RunStatus(
+                station_mac=get_station_mac(),
+                code=code,
+                started_at_ms=to_ms(started),
+                ended_at_ms=to_ms(clock()),
+                outcome="ok" if status == 0 else "failed",
+                error=error,
+                built_at_ms=None if snapshot is None else snapshot.built_at_ms,
+            ),
+            bucket,
         )
     except Exception as e:
-        logger.exception(f"Refresh failed: {e}")
-    finally:
-        heartbeat.finish(status)
-    return status
+        logger.error(f"Status document not written: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":
