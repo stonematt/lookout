@@ -12,7 +12,7 @@ Arguments:
   <script>        Path to the Python script relative to repo root (e.g., scripts/uptime_check.py)
 
 Options:
-  --sleep N       Sleep for a random delay up to N seconds before execution (default: 900)
+  --sleep N       Sleep for a random delay up to N seconds before execution (default: 0)
 
 Environment:
   Assumes virtualenv at: <repo_root>/.venv
@@ -23,14 +23,18 @@ Setup:
   cd lookout
   uv venv --python 3.12 .venv && uv pip install -r requirements.txt
 
-Crontab Example (runs every 8 hours with jitter):
-  0 */8 * * * /path/to/cron_run.sh --sleep 900 scripts/uptime_check.py
+Crontab Example (the refresh run, every 5 minutes, no jitter):
+  */5 * * * * cd /path/to/lookout && lookout/bin/cron_run.sh lookout/cli/refresh.py
+
+Archive writers (refresh, catchup, ...) take the repo's archive-writer lock
+themselves (#244), so the crontab needs no flock.
 
 EOF
 }
 
-# Defaults
-SLEEP_MAX=900
+# Defaults: no jitter. The refresh run is one client on one Ambient account,
+# so jitter would only delay the data (#244).
+SLEEP_MAX=0
 
 # Parse args
 POSITIONAL=()

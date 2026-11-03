@@ -10,11 +10,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pytest
 
-CRON_RUN = Path(__file__).resolve().parent.parent / "lookout" / "bin" / "cron_run.sh"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CRON_RUN = REPO_ROOT / "lookout" / "bin" / "cron_run.sh"
 SCRIPT_REL = "scripts/stub.py"
 STATUS_REL = "logs/cron_scripts_stub.status"
 MARKER_REL = "ran.marker"
@@ -42,15 +43,19 @@ def _git(cwd: Path, *args: str) -> None:
     )
 
 
-def _run(repo: Path, *args: str) -> "subprocess.CompletedProcess[str]":
+def _run(
+    repo: Path, *args: str, sleep: Optional[str] = "0"
+) -> "subprocess.CompletedProcess[str]":
     """Run the wrapper from the repo with no jitter.
 
     :param repo: working clone to run in
-    :param args: wrapper arguments after --sleep 0
+    :param args: wrapper arguments after --sleep
+    :param sleep: the --sleep value; None leaves the option out
     :return: the finished process
     """
+    sleep_args = [] if sleep is None else ["--sleep", sleep]
     return subprocess.run(
-        ["bash", str(CRON_RUN), "--sleep", "0", *args],
+        ["bash", str(CRON_RUN), *sleep_args, *args],
         cwd=repo,
         capture_output=True,
         text=True,
@@ -150,3 +155,33 @@ def test_failed_pull_stops_the_run_before_the_script(
     assert len(lines) == 1 and "FAIL" in lines[0] and "pull" in lines[0]
     assert "pull" in result.stderr
     assert not (repo / MARKER_REL).exists()
+
+
+def test_help_shows_a_sleep_default_of_zero_and_no_jitter_example(
+    repo: Path,
+) -> None:
+    """--help gives --sleep a default of 0 and no Streamlit-era sleep example."""
+    result = _run(repo, "--help", sleep=None)
+    assert result.returncode == 0
+    assert "(default: 0)" in result.stdout
+    assert "--sleep 900" not in result.stdout
+    assert "--sleep 300" not in result.stdout
+
+
+def test_no_sleep_option_runs_the_script_without_jitter(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --sleep the wrapper runs the script at once and logs SUCCESS."""
+    _with_exit(monkeypatch, repo, 0)
+    result = _run(repo, SCRIPT_REL, sleep=None)
+    assert result.returncode == 0
+    assert "Sleeping" not in result.stdout
+    assert (repo / MARKER_REL).exists()
+    assert _status_lines(repo)[-1].endswith("SUCCESS")
+
+
+def test_no_streamlit_era_sleep_example_is_left_in_the_readme() -> None:
+    """The README's cron example drops --sleep 900 and --sleep 300."""
+    readme = (REPO_ROOT / "README.md").read_text()
+    assert "--sleep 900" not in readme
+    assert "--sleep 300" not in readme
