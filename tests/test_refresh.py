@@ -1490,3 +1490,58 @@ class TestCatalogFailureIsolation:
             for r in caplog.records
             if r.levelname == "ERROR" and r.name == refresh.logger.name
         ]
+
+
+# ---------- a run that changes nothing leaves the archive alone (#242) ----------
+
+
+class TestNoopArchiveSave:
+    def archive_writes(self, station, monkeypatch) -> List[str]:
+        """Record every key written; the archive goes up by upload_fileobj."""
+        writes: List[str] = []
+        real_put = station.s3.put_object
+        real_upload = station.s3.upload_fileobj
+
+        def counting_put(**kwargs):
+            writes.append(kwargs["Key"])
+            return real_put(**kwargs)
+
+        def counting_upload(**kwargs):
+            writes.append(kwargs["Key"])
+            return real_upload(**kwargs)
+
+        monkeypatch.setattr(station.s3, "put_object", counting_put)
+        monkeypatch.setattr(station.s3, "upload_fileobj", counting_upload)
+        monkeypatch.setattr(storj, "get_s3_client", lambda: station.s3)
+        return writes
+
+    def test_a_merge_that_changes_nothing_saves_no_archive(
+        self, seed, monkeypatch, caplog
+    ):
+        station = seed(history=[])
+        writes = self.archive_writes(station, monkeypatch)
+        before = stored_bytes(station, ARCHIVE_KEY)
+
+        with caplog.at_level("INFO"):
+            run_refresh(station)
+
+        assert ARCHIVE_KEY not in writes
+        assert stored_bytes(station, ARCHIVE_KEY) == before
+        assert "skipped" in caplog.text.lower()
+
+    def test_a_skipped_save_still_publishes_the_snapshot(self, seed):
+        station = seed(history=[])
+
+        snapshot = run_refresh(station)
+
+        assert snapshot_keys(station) == [CONTEXT_KEY, DASHBOARD_KEY]
+        assert stored_json(station, DASHBOARD_KEY) == snapshot.dashboard()
+
+    def test_a_run_that_adds_a_reading_saves_the_archive(self, seed, monkeypatch):
+        station = seed()
+        writes = self.archive_writes(station, monkeypatch)
+
+        run_refresh(station)
+
+        assert ARCHIVE_KEY in writes
+        assert len(station.stored()) == len(station.archive) + RECORDED_ROWS
