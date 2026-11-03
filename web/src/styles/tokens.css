@@ -29,8 +29,9 @@
   --gap-a: #e6e1d6;
   --gap-b: #f7f4ee;
 
-  --sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next",
-    "Atkinson Hyperlegible", system-ui, sans-serif;
+  --sans:
+    "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "Atkinson Hyperlegible",
+    system-ui, sans-serif;
 
   /* type steps */
   --step--1: 0.875rem;

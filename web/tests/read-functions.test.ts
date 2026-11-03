@@ -117,9 +117,7 @@ describe("GET /dashboard", () => {
     expect(decodeURIComponent(new URL(call.url).pathname)).toBe(
       `/lookout/snapshot/${MAC}.dashboard.json`,
     );
-    expect(call.headers.get("authorization")).toMatch(
-      /^AWS4-HMAC-SHA256 Credential=test-access\//,
-    );
+    expect(call.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 Credential=test-access\//);
   });
 
   it("redirects a trailing-slash path to a location that is never empty", async () => {

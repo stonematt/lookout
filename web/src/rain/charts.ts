@@ -11,7 +11,15 @@
  * says what the mark under it means, so nothing relies on a title (phones
  * do not show one).
  */
-import { WATER_MONTHS, WATER_YEAR_START_MONTH, addDays, daysBetween, dayText, hourText, inches } from "../format.js";
+import {
+  WATER_MONTHS,
+  WATER_YEAR_START_MONTH,
+  addDays,
+  daysBetween,
+  dayText,
+  hourText,
+  inches,
+} from "../format.js";
 import {
   LABEL_CHAR_PX,
   NARROW,
@@ -59,7 +67,9 @@ function hatchDays(
     svg.append(svgEl("line", { x1: at, x2: at, y1: top, y2: bottom, class: "rain-edge" }));
     const words = `record begins ${dayText(addDays(recent.first_day, b + 1))}`;
     const anchor = at > 140 ? "end" : "start";
-    svg.append(chartLabel(anchor === "end" ? at - 4 : at + 4, top + 14, words, "rain-label", anchor));
+    svg.append(
+      chartLabel(anchor === "end" ? at - 4 : at + 4, top + 14, words, "rain-label", anchor),
+    );
   }
 }
 
@@ -81,7 +91,12 @@ function daySentence(recent: RecentRain, i: number, isToday: boolean): string {
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
  */
-export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: number, readout: Readout): void {
+export function drawDailyBars(
+  host: HTMLElement,
+  recent: RecentRain,
+  width: number,
+  readout: Readout,
+): void {
   const count = recent.rain_in.length;
   const height = 168;
   const [left, right, top, bottom] = [40, width - 6, 22, height - 22];
@@ -93,7 +108,12 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
   const x = (i: number) => left + i * step;
   const pad = step > 4 ? 1 : 0;
 
-  const { svg, hatch } = canvas(width, height, `Rain each day, ${dayText(recent.first_day)} to today`, "rain-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    `Rain each day, ${dayText(recent.first_day)} to today`,
+    "rain-svg",
+  );
   yAxis(svg, ticks, y, left, right, "rain", { text: " in", place: "tick" });
   hatchDays(svg, recent, hatch, x, step, top, bottom);
   recent.rain_in.forEach((value, i) => {
@@ -117,7 +137,12 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
   }
   monthTicks(svg, recent.first_day, count, x, bottom + 4, "rain");
   host.replaceChildren(svg);
-  scrub(host, count, (px) => Math.floor((px - left) / step), (i) => readout(daySentence(recent, i, i === count - 1)));
+  scrub(
+    host,
+    count,
+    (px) => Math.floor((px - left) / step),
+    (i) => readout(daySentence(recent, i, i === count - 1)),
+  );
 }
 
 /**
@@ -129,7 +154,12 @@ export function drawDailyBars(host: HTMLElement, recent: RecentRain, width: numb
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
  */
-export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, readout: Readout): void {
+export function drawYearCurves(
+  host: HTMLElement,
+  tab: RainTab,
+  width: number,
+  readout: Readout,
+): void {
   const narrow = width < NARROW;
   const height = narrow ? 240 : 300;
   const shown = tab.water_years.filter((c) => c.cumulative_in.some((v) => v !== null));
@@ -155,16 +185,21 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
   yAxis(svg, ticks, y, left, right, "rain", { text: " in", place: "tick" });
   // Every month is ticked and named to Sep, by its initial on a phone.
   MONTH_PLACES.forEach((place, i) => {
-    svg.append(svgEl("line", { x1: x(place), x2: x(place), y1: bottom, y2: bottom + 4, class: "rain-axis" }));
+    svg.append(
+      svgEl("line", { x1: x(place), x2: x(place), y1: bottom, y2: bottom + 4, class: "rain-axis" }),
+    );
     const name = narrow ? WATER_MONTHS[i]!.charAt(0) : WATER_MONTHS[i];
-    svg.append(svgEl("text", { x: x(place) + 2, y: bottom + 16, class: "rain-tick rain-month" }, name));
+    svg.append(
+      svgEl("text", { x: x(place) + 2, y: bottom + 16, class: "rain-tick rain-month" }, name),
+    );
   });
 
   const draw = (curve: WaterYearCurve, cls: string) => {
     const keep = (i: number) => curve.cumulative_in[i] !== null;
     for (const [a, b] of runs(curve.cumulative_in.length, keep)) {
       const points = [];
-      for (let i = a; i <= b; i++) points.push(`${x(i).toFixed(1)},${y(curve.cumulative_in[i]!).toFixed(1)}`);
+      for (let i = a; i <= b; i++)
+        points.push(`${x(i).toFixed(1)},${y(curve.cumulative_in[i]!).toFixed(1)}`);
       if (points.length === 1) points.push(points[0]);
       svg.append(svgEl("polyline", { points: points.join(" "), class: cls }));
     }
@@ -209,7 +244,15 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
       svg.append(svgEl("circle", { cx, cy: y(value), r: 5, class: "rain-now-dot" }));
       const text = `${current.water_year} now ${curveValue(current, place)}`;
       const anchor = cx > (left + right) / 2 ? "end" : "start";
-      svg.append(chartLabel(cx + (anchor === "end" ? -8 : 8), Math.max(top + 4, y(value) - 10), text, "rain-now-label", anchor));
+      svg.append(
+        chartLabel(
+          cx + (anchor === "end" ? -8 : 8),
+          Math.max(top + 4, y(value) - 10),
+          text,
+          "rain-now-label",
+          anchor,
+        ),
+      );
     }
   }
 
@@ -223,7 +266,9 @@ export function drawYearCurves(host: HTMLElement, tab: RainTab, width: number, r
         .filter((c): c is WaterYearCurve => Boolean(c))
         .filter((c) => place < c.cumulative_in.length)
         .map((c) => `${c.water_year} ${curveValue(c, place) ?? "not compared"}`);
-      readout(`By ${dayText(addDays(REFERENCE_START, place))}: ${parts.length ? parts.join("; ") : "no year reaches this date yet"}.`);
+      readout(
+        `By ${dayText(addDays(REFERENCE_START, place))}: ${parts.length ? parts.join("; ") : "no year reaches this date yet"}.`,
+      );
     },
   );
 }
@@ -258,7 +303,12 @@ export function drawHourGrid(
   const x = (i: number) => left + i * step;
   const toCome = (i: number, h: number) => i === count - 1 && h >= recent.first_hour_to_come;
 
-  const { svg, hatch } = canvas(width, height, `Rain by the hour, ${dayText(recent.first_day)} to today`, "rain-svg");
+  const { svg, hatch } = canvas(
+    width,
+    height,
+    `Rain by the hour, ${dayText(recent.first_day)} to today`,
+    "rain-svg",
+  );
   recent.hourly_in.forEach((hours, i) => {
     if (recent.reason[i] !== null) return;
     hours.forEach((rain, h) => {
@@ -290,7 +340,13 @@ export function drawHourGrid(
   });
   hatchDays(svg, recent, hatch, x, step, top, bottom);
   HOUR_TICKS.forEach((h) => {
-    svg.append(svgEl("text", { x: left - 6, y: top + h * row + row, class: "rain-tick", "text-anchor": "end" }, hourText(h)));
+    svg.append(
+      svgEl(
+        "text",
+        { x: left - 6, y: top + h * row + row, class: "rain-tick", "text-anchor": "end" },
+        hourText(h),
+      ),
+    );
   });
   monthTicks(svg, recent.first_day, count, x, bottom + 4, "rain");
   host.replaceChildren(svg);
@@ -305,7 +361,9 @@ export function drawHourGrid(
       const rain = recent.hourly_in[i]?.[h];
       const when = `${dayText(day, true)}, ${hourText(h)}`;
       if (rain === null || rain === undefined) {
-        return readout(toCome(i, h) ? `${when}: still to come.` : `${when}: no readings in the record.`);
+        return readout(
+          toCome(i, h) ? `${when}: still to come.` : `${when}: no readings in the record.`,
+        );
       }
       readout(rain > 0 ? `${when}: ${inches(rain)} of rain.` : `${when}: no rain.`);
     },
@@ -313,4 +371,3 @@ export function drawHourGrid(
     (py) => Math.floor((py - top) / row),
   );
 }
-

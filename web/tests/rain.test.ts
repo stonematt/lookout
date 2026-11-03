@@ -42,7 +42,12 @@ function withTab(snapshot: DashboardSnapshot, change: Partial<RainTab>): Dashboa
 }
 
 /** A water year whose value at `place` is `value`. */
-function year(water_year: number, place: number, value: number | null, prorated = false): WaterYearCurve {
+function year(
+  water_year: number,
+  place: number,
+  value: number | null,
+  prorated = false,
+): WaterYearCurve {
   const cumulative = Array.from({ length: place + 1 }, () => value);
   return {
     water_year,
@@ -105,7 +110,10 @@ describe("the Rain tab's words", () => {
 
   it("states the dry spell with the calm lead's own numbers", () => {
     const calm = structuredClone(dry);
-    Object.assign(calm.hero_lead.rules.find((r) => r.kind === "calm")!, { value: 12.5, reference: 4 });
+    Object.assign(
+      calm.hero_lead.rules.find((r) => r.kind === "calm")!,
+      { value: 12.5, reference: 4 },
+    );
     expect(dryHeadline(calm)).toBe(
       "12 d 12 h since it last rained, against a usual dry spell of 4 days",
     );
@@ -135,7 +143,10 @@ describe("the Rain tab's words", () => {
   it("says which earlier years the headline leaves out at this date", () => {
     const cut = { ...year(2025, 364, 9.5), to_date_in: null };
     cut.cumulative_in = cut.cumulative_in.map((v, i) => (i < 50 ? v : null));
-    const tab = withTab(raining, { day_index: 99, water_years: [year(2024, 364, 8), cut, year(2026, 99, 4.2)] });
+    const tab = withTab(raining, {
+      day_index: 99,
+      water_years: [year(2024, 364, 8), cut, year(2026, 99, 4.2)],
+    });
     renderRain(panel, tab);
 
     expect(yearsHeadline(tab.rain_tab)).toBe(
@@ -182,7 +193,10 @@ describe("the Rain tab", () => {
     // A day with rows but no rain counter: the archive counts the 7 days,
     // the rain does not.
     const week = structuredClone(raining);
-    Object.assign(week.gaps.windows.find((w) => w.key === "7d")!, { status: "valid", reason: null });
+    Object.assign(
+      week.gaps.windows.find((w) => w.key === "7d")!,
+      { status: "valid", reason: null },
+    );
     const window = week.rain_tab.windows.find((w) => w.key === "7d")!;
     Object.assign(window.status, { status: "invalid", reason: "gap", missing_days: 1 });
     window.total_in = null;
@@ -196,7 +210,9 @@ describe("the Rain tab", () => {
   it("renders its four sections in order", () => {
     renderRain(panel, raining);
 
-    const ids = [...panel.querySelectorAll(".rain-section")].map((s) => s.getAttribute("data-section"));
+    const ids = [...panel.querySelectorAll(".rain-section")].map((s) =>
+      s.getAttribute("data-section"),
+    );
     expect(ids).toEqual(["daily", "dry", "years", "hours"]);
     for (const host of panel.querySelectorAll(".rain-section")) {
       expect(host.querySelector("h2")?.textContent).toBeTruthy();
@@ -232,7 +248,13 @@ describe("the Rain tab", () => {
     const cells = [...section("daily").querySelectorAll(".rain-windows dd")];
 
     expect(cells.map((dd) => dd.classList.contains("gap-hatch"))).toEqual([
-      false, false, true, true, true, true, true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
     ]);
     expect(text(cells[2]?.querySelector(".gap-label"))).toBe("n/a");
     expect(cells[2]?.querySelector(".gap-sr")?.textContent).toContain("before the archive began");
@@ -312,7 +334,8 @@ describe("the Rain tab", () => {
     expect(section("hours").querySelectorAll(".rain-key li").length).toBe(5);
     const readout = section("hours").querySelector(".rain-readout")!;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }));
-    for (let i = 0; i < 14; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    for (let i = 0; i < 14; i++)
+      grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(readout.textContent).toBe("Jan 8, 2026, 2 pm: 0.12 in of rain.");
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
@@ -330,9 +353,11 @@ describe("the Rain tab", () => {
     expect(grid.querySelectorAll("rect.rain-cell.rain-unknown").length).toBe(1);
     const readout = section("hours").querySelector(".rain-readout")!;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }));
-    for (let i = 0; i < 3; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    for (let i = 0; i < 3; i++)
+      grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(readout.textContent).toBe("Jan 8, 2026, 3 am: no readings in the record.");
-    for (let i = 0; i < 14; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    for (let i = 0; i < 14; i++)
+      grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(readout.textContent).toBe("Jan 8, 2026, 5 pm: still to come.");
   });
 
@@ -346,9 +371,11 @@ describe("the Rain tab", () => {
     const readout = section("hours").querySelector(".rain-readout")!;
 
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "End" }));
-    for (let i = 0; i < 17; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    for (let i = 0; i < 17; i++)
+      grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(readout.textContent).toBe("Jan 8, 2026, 5 pm: no readings in the record.");
-    for (let i = 0; i < 3; i++) grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    for (let i = 0; i < 3; i++)
+      grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(readout.textContent).toBe("Jan 8, 2026, 8 pm: still to come.");
   });
 
@@ -362,9 +389,9 @@ describe("the Rain tab", () => {
     expect(stats[0]).toEqual(["Last rain", "Nov 17, 9:03 am"]);
     expect(stats[1]).toEqual(["Since it last rained", "1 d 14 h"]);
     expect(stats[2]?.[0]).toBe("Usual dry spell");
-    expect(text(section("dry").querySelectorAll(".rain-dry-stats dd")[2]?.querySelector(".gap-label"))).toBe(
-      "not archived yet",
-    );
+    expect(
+      text(section("dry").querySelectorAll(".rain-dry-stats dd")[2]?.querySelector(".gap-label")),
+    ).toBe("not archived yet");
   });
 });
 

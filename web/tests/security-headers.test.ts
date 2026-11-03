@@ -11,9 +11,9 @@ interface HeaderRule {
   headers: { key: string; value: string }[];
 }
 
-const config = JSON.parse(
-  readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
-) as { headers: HeaderRule[] };
+const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8")) as {
+  headers: HeaderRule[];
+};
 
 /** The headers the catch-all rule sets, by lower-case name. */
 function everyResponse(): Map<string, string> {

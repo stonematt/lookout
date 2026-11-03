@@ -42,11 +42,10 @@ function snapshotIn(tz: string) {
 /** Render the page for a snapshot in `tz`; the header and overview text. */
 async function renderedIn(tz: string): Promise<string> {
   const snapshot = snapshotIn(tz);
-  page = startPage(
-    document.getElementById("masthead")!,
-    document.getElementById("sections")!,
-    { dashboard: async () => snapshot, current: () => new Promise<CurrentReading>(() => {}) },
-  );
+  page = startPage(document.getElementById("masthead")!, document.getElementById("sections")!, {
+    dashboard: async () => snapshot,
+    current: () => new Promise<CurrentReading>(() => {}),
+  });
   await page.booted;
   return document.body.textContent ?? "";
 }

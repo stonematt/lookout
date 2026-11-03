@@ -21,7 +21,13 @@ import { WATER_MONTHS, dayText, formatStamp, inches } from "../format.js";
 import { make } from "../dom.js";
 import { hatchGap } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
-import type { Almanac, AlmanacMonth, AlmanacYear, DashboardSnapshot, RollingWindow } from "../snapshot.js";
+import type {
+  Almanac,
+  AlmanacMonth,
+  AlmanacYear,
+  DashboardSnapshot,
+  RollingWindow,
+} from "../snapshot.js";
 import {
   ROLLING_NAMES,
   cellKind,
@@ -112,7 +118,8 @@ function monthMark(month: AlmanacMonth | null, max: number): HTMLElement {
     mark.append(make("span", "alm-value", `${prefix}${cellText(month.rain_in!)}`));
     mark.title = sentence;
   } else if (kind === "current") {
-    if (month.to_date_in !== null) mark.append(make("span", "alm-value", cellText(month.to_date_in)));
+    if (month.to_date_in !== null)
+      mark.append(make("span", "alm-value", cellText(month.to_date_in)));
     mark.title = sentence;
   } else if (kind === "before") {
     mark.title = sentence;
@@ -183,7 +190,9 @@ function gridTable(almanac: Almanac, max: number): HTMLTableElement {
 /** The mark the readout starts on: the newest month with a value. */
 function startingMark(rows: HTMLButtonElement[][]): HTMLButtonElement | undefined {
   for (const row of rows) {
-    const found = [...row].reverse().find((m) => m.dataset.kind === "valid" || m.dataset.kind === "prorated");
+    const found = [...row]
+      .reverse()
+      .find((m) => m.dataset.kind === "valid" || m.dataset.kind === "prorated");
     if (found) return found;
   }
   const marks = rows.flat();
@@ -199,9 +208,9 @@ function startingMark(rows: HTMLButtonElement[][]): HTMLButtonElement | undefine
  * @param almanac - The snapshot's almanac, for each row's season line.
  */
 function wire(table: HTMLTableElement, readout: HTMLElement, almanac: Almanac): void {
-  const rows = [...table.querySelectorAll("tbody tr")].map((tr) =>
-    [...tr.querySelectorAll<HTMLButtonElement>("button.alm-cell")],
-  );
+  const rows = [...table.querySelectorAll("tbody tr")].map((tr) => [
+    ...tr.querySelectorAll<HTMLButtonElement>("button.alm-cell"),
+  ]);
   const marks = rows.flat();
   if (!marks.length) {
     readout.textContent = "No month is in the record yet.";
@@ -349,7 +358,9 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
 
   const table = make("table", "alm-table");
   table.dataset.part = "table";
-  table.append(make("caption", "ov-sr", "Rain over rolling windows, inches, by year, newest first"));
+  table.append(
+    make("caption", "ov-sr", "Rain over rolling windows, inches, by year, newest first"),
+  );
   const head = document.createElement("thead");
   const headRow = document.createElement("tr");
   const corner = make("th", "", "Window");

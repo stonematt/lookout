@@ -111,11 +111,7 @@ function shiftTimes(value: unknown, shift: Shift): unknown {
 }
 
 /** Read sources over one golden, shifted so it is `ageMinutes` old. */
-function fixtureSources(
-  scenario: Scenario,
-  ageMinutes: number | null,
-  nowMs: number,
-): ReadSources {
+function fixtureSources(scenario: Scenario, ageMinutes: number | null, nowMs: number): ReadSources {
   const head = goldenDoc(scenario, "dashboard");
   const { mac, tz } = head.station as { mac: string; tz: string };
   const observed = head.observed_at_ms as number | null;
@@ -148,11 +144,7 @@ const DEV_PARAMS = ["fixture", "age"] as const;
  * @param nowMs - The clock, for `age`.
  * @returns The response, or null for any other path.
  */
-export async function devResponse(
-  url: string,
-  env: Env,
-  nowMs: number,
-): Promise<Response | null> {
+export async function devResponse(url: string, env: Env, nowMs: number): Promise<Response | null> {
   const parsed = new URL(url, "http://lane.local");
   const handler = {
     "/dashboard": handleDashboard,
@@ -187,7 +179,6 @@ export async function devResponse(
   headers.set("location", `${location}${location.includes("?") ? "&" : "?"}${own}`);
   return new Response(response.body, { status: response.status, headers });
 }
-
 
 /**
  * A Vite plugin serving `/dashboard`, `/current` and `/event` from the
