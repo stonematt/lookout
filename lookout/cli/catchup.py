@@ -106,13 +106,15 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     for each value it sends while values it omits keep their stored value.
     The merge report (added, filled, updated, one-sided columns) is logged.
 
-    The refresh command runs this as its first step. Every failure raises,
-    so the run exits non-zero (#160): a failed backup before anything is
-    read, a failed or empty archive read before anything is saved, a save
-    that would drop a stored reading or blank a stored value, and a failed
-    save.
+    The catchup CLI runs this. The refresh run does the same work in two
+    phases, so all its Ambient calls come before any station's archive is
+    loaded (#271): `fetch_delta` first, then `save_fetched`. Every failure
+    raises, so the run exits non-zero (#160): a failed backup before
+    anything is read, a failed or empty archive read before anything is
+    saved, a save that would drop a stored reading or blank a stored value,
+    and a failed save.
 
-    :param device: The pinned station's `/devices` entry.
+    :param device: The station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
     :param pages: Maximum number of pages to retrieve.
     :return: The archive as stored after the run. When the merge changed
@@ -124,16 +126,72 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
         would drop a stored reading or blank a stored value.
     """
-    mac = device["macAddress"]
-
     # Always back up before mutating the current archive
-    sj.backup_archive(bucket=bucket_name, mac=mac)
+    sj.backup_archive(bucket=bucket_name, mac=device["macAddress"])
 
     archive_df = _load_archive(device, bucket_name)
     log_peak_rss("archive_load", logger)
 
-    fetched = awn.fetch_since_last_archive(device, archive_df, sleep=True, pages=pages)
+    fetched = fetch_delta(device, int(archive_df["dateutc"].iloc[-1]), pages)
+    return _merge_and_save(device, bucket_name, archive_df, fetched)
+
+
+def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
+    """
+    Fetch what Ambient holds after the archive's newest reading.
+
+    :param device: The station's `/devices` entry.
+    :param newest_ms: The archive's newest `dateutc`, epoch ms.
+    :param pages: Maximum number of pages to retrieve.
+    :return: The fetched readings, raw; empty when there are none.
+    :raises CatchupStalled: If Ambient holds readings past a gap the fetch
+        could not cross.
+    """
+    newest_only = pd.DataFrame({"dateutc": [newest_ms]})
+    fetched = awn.fetch_since_last_archive(device, newest_only, sleep=True, pages=pages)
     log_peak_rss("ambient_fetch", logger)
+    return fetched
+
+
+def save_fetched(device: Dict, bucket_name: str, fetched: pd.DataFrame) -> pd.DataFrame:
+    """
+    Back up the archive, merge in readings already fetched, save.
+
+    The refresh run's archive step (#271): `fetch_delta` ran earlier, in the
+    run's Ambient phase. Every failure raises, as `update_archive`'s do.
+
+    :param device: The station's `/devices` entry.
+    :param bucket_name: S3 bucket to read/write data.
+    :param fetched: What `fetch_delta` returned for this station.
+    :return: The archive as stored after the run (the archive as read when
+        the merge changed nothing and the save was skipped, #242).
+    :raises BackupError: If the backup fails.
+    :raises StorageReadError: If the archive cannot be read or holds no rows.
+    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
+        would drop a stored reading or blank a stored value.
+    """
+    sj.backup_archive(bucket=bucket_name, mac=device["macAddress"])
+
+    archive_df = _load_archive(device, bucket_name)
+    log_peak_rss("archive_load", logger)
+
+    return _merge_and_save(device, bucket_name, archive_df, fetched)
+
+
+def _merge_and_save(
+    device: Dict, bucket_name: str, archive_df: pd.DataFrame, fetched: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Merge fetched readings into the loaded archive and save it when changed.
+
+    :param device: The station's `/devices` entry.
+    :param bucket_name: S3 bucket to write to.
+    :param archive_df: The archive as loaded; the save's `stored` guard.
+    :param fetched: The fetched readings, raw.
+    :return: The merged archive.
+    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
+        would drop a stored reading or blank a stored value.
+    """
     # Ambient wins for each value it sends; the routine re-fetch of the last
     # readings shows up as updated values, never as a failure.
     new_archive_df, report = archive_merge.merge(archive_df, fetched)
@@ -150,7 +208,9 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
         return new_archive_df
 
     # Save updated archive to S3, newest first whatever came back (#133)
-    sj.save_archive(new_archive_df, bucket_name, mac, stored=archive_df)
+    sj.save_archive(
+        new_archive_df, bucket_name, device["macAddress"], stored=archive_df
+    )
     logger.info("Updated archive saved.")
     log_peak_rss("archive_save", logger)
     return new_archive_df
@@ -166,7 +226,7 @@ def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
     after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
     it is the archive the save is guarded by (`save_archive`'s `stored`).
 
-    :param device: The pinned station's `/devices` entry.
+    :param device: The station's `/devices` entry.
     :param bucket_name: S3 bucket to read from.
     :return: The normalized archive, at least one row.
     :raises StorageReadError: If the archive is missing, unreadable, or has
@@ -190,11 +250,14 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
     :raises ArchiveLockHeld: If a run that writes (any but `--dry-run`)
         finds another archive writer holding the lock (#244); raised before
         anything is read or written.
-    :raises StationNotFoundError: If the pinned station (STATION_MAC) is not on
-        the Ambient account; raised before anything is read or written.
+    :raises StorageReadError: If the station inventory is missing or cannot
+        be read; raised before anything is written.
+    :raises StationNotFoundError: If the default station (the station
+        inventory's first) is not on the Ambient account; raised before
+        anything is written.
     """
     with writer_lock(saves=not dry_run):
-        device = get_station_device()
+        device = get_station_device(bucket_name)
         mac = device.get("macAddress")
         name = device.get("info", {}).get("name", "Unnamed Device")
         logger.info(f"Selected device: {name} ({mac})")

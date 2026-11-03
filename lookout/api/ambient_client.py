@@ -5,8 +5,11 @@ testable, and debuggable calls.
 
 Functions:
 - get_devices()
-- find_station(devices, mac) / get_station_device(mac): the pinned station
-  (STATION_MAC), or StationNotFoundError
+- find_station(devices, mac): one station out of a device list, by MAC and
+  never by list position, or StationNotFoundError
+- get_station_device(bucket, mac): the device list's entry for `mac`, or for
+  the default station (the station inventory's first, ADR-0006) when no MAC
+  is given; the one path every single-station CLI picks its station by
 - get_device_by_mac(mac)
 - get_device_history(mac, limit, end_date, strict): one page, as a frame
 - get_device_history_raw(mac, limit, end_date, strict): one page, raw
@@ -31,8 +34,10 @@ from typing import Dict, List, Optional
 import pandas as pd
 import requests
 
-from lookout.config import get_station_mac
+from lookout.config import DEFAULT_BUCKET
 from lookout.secrets_loader import get_secret
+from lookout.storage.station_inventory import default_station
+from lookout.storage.storj import StorageReadError
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -85,19 +90,19 @@ class AmbientRequestError(RuntimeError):
 
 
 class StationNotFoundError(RuntimeError):
-    """Raised when the pinned station is not in the account's device list."""
+    """Raised when a station is not in the account's device list."""
 
 
-def find_station(devices: List[Dict], mac: Optional[str] = None) -> Dict:
+def find_station(devices: List[Dict], mac: str) -> Dict:
     """
-    Pick the pinned station out of a device list, never by list position.
+    Pick one station out of a device list, never by list position.
 
     :param devices: The `/devices` body, as `get_devices()` returns it.
-    :param mac: The station's MAC address; defaults to `get_station_mac()`.
+    :param mac: The station's MAC address, any case.
     :return: That station's device dict.
     :raises StationNotFoundError: If the list is empty or lacks the station.
     """
-    mac = (mac or get_station_mac()).strip().upper()
+    mac = mac.strip().upper()
     if not devices:
         raise StationNotFoundError(
             f"Ambient returned no devices, so station {mac} cannot be found "
@@ -108,19 +113,24 @@ def find_station(devices: List[Dict], mac: Optional[str] = None) -> Dict:
             return device
     listed = ", ".join(str(d.get("macAddress")) for d in devices)
     raise StationNotFoundError(
-        f"Station {mac} is not on this Ambient account (it lists: {listed}); "
-        "set STATION_MAC to the station to archive"
+        f"Station {mac} is not on this Ambient account (it lists: {listed})"
     )
 
 
-def get_station_device(mac: Optional[str] = None) -> Dict:
+def get_station_device(bucket: str, mac: Optional[str] = None) -> Dict:
     """
-    Fetch the device list and return the pinned station from it.
+    Fetch the device list and return one station from it.
 
-    :param mac: The station's MAC address; defaults to `get_station_mac()`.
+    :param bucket: The bucket holding the station inventory.
+    :param mac: The station's MAC address; the default station (the first
+        in the station inventory) when None.
     :return: That station's device dict, including `lastData`.
+    :raises StorageReadError: If no MAC is given and the station inventory
+        is missing, unreadable or corrupt.
     :raises StationNotFoundError: If the account does not list the station.
     """
+    # The station first: with no inventory, Ambient is never called.
+    mac = mac or default_station(bucket)
     return find_station(get_devices(), mac)
 
 
@@ -254,12 +264,12 @@ def _history_failed(strict: bool, reason: str) -> list[dict]:
 
 def main():
     try:
-        device = get_station_device()
-    except StationNotFoundError as e:
+        device = get_station_device(DEFAULT_BUCKET)
+    except (StationNotFoundError, StorageReadError) as e:
         logger.error(f"❌ {e}")
         sys.exit(1)
 
-    print("✅ Pinned station:")
+    print("✅ Default station:")
     pprint(device)
 
     mac = device.get("macAddress")

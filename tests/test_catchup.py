@@ -27,6 +27,7 @@ from pandas.testing import assert_frame_equal
 from lookout.api import awn_controller as awn
 from lookout.core import archive_merge, rain_corrections
 from lookout.storage import storj
+from lookout.storage.station_inventory import INVENTORY_KEY
 from lookout.utils.archive_lock import hold_archive_lock
 from tests.fixtures.ambient import (
     AmbientReplay,
@@ -36,7 +37,13 @@ from tests.fixtures.ambient import (
 )
 from tests.fixtures.archive import FAKE_MAC, build_archive, scenario_archive
 from tests.fixtures.real import AMBIENT_END, load_real_slice
-from tests.fixtures.storage import BUCKET, FROZEN_DAY, bucket_keys, flaky_storj
+from tests.fixtures.storage import (
+    BUCKET,
+    FROZEN_DAY,
+    bucket_keys,
+    flaky_storj,
+    seed_inventory,
+)
 
 ARCHIVE_KEY = f"{FAKE_MAC}.parquet"
 BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}/{ARCHIVE_KEY}"
@@ -155,9 +162,10 @@ def catchup_station(
     """
     Seed the fixture station for a catchup run.
 
-    Pins `STATION_MAC` to `FAKE_MAC`, drops the controller's one-second
-    sleeps, and reads the archive from the bucket, not a dev-mode local
-    cache. `backup_data` stamps `FROZEN_DAY`.
+    Stores the station inventory listing only `FAKE_MAC` (the default
+    station), drops the controller's one-second sleeps, and reads the
+    archive from the bucket, not a dev-mode local cache. `backup_data`
+    stamps `FROZEN_DAY`.
 
     :return: `seed(archive=None, history=None, devices=None, now=None)`,
         which writes the archive to the bucket, loads the fake Ambient API,
@@ -166,7 +174,7 @@ def catchup_station(
         `recorded_pages()`, `/devices` is the recorded body (its `lastData`
         is the newest recorded reading) and now is `AMBIENT_END`.
     """
-    monkeypatch.setenv("STATION_MAC", FAKE_MAC)
+    seed_inventory(FAKE_MAC)
     monkeypatch.setattr(awn, "time", SimpleNamespace(sleep=lambda _s: None))
     # Pin the production branch so local archive caching (DEV_MODE) stays off.
     monkeypatch.setattr(awn, "is_dev_mode", lambda: False)
@@ -259,7 +267,7 @@ class TestCatchupRun:
 
         station.run()
 
-        assert station.keys() == [BACKUP_KEY, ARCHIVE_KEY]
+        assert station.keys() == [BACKUP_KEY, ARCHIVE_KEY, INVENTORY_KEY]
         assert_frame_equal(station.stored(BACKUP_KEY), station.archive)
 
     def test_the_archive_backup_leaves_the_catalogs_out(self, catchup_station, fake_s3):
@@ -269,7 +277,9 @@ class TestCatchupRun:
 
         station.run()
 
-        assert station.keys() == sorted([BACKUP_KEY, ARCHIVE_KEY, catalog_key])
+        assert station.keys() == sorted(
+            [BACKUP_KEY, ARCHIVE_KEY, catalog_key, INVENTORY_KEY]
+        )
 
     def test_asks_ambient_for_one_page_ending_now(self, catchup_station):
         station = catchup_station()
@@ -301,7 +311,7 @@ class TestCatchupRun:
 
         station.run(dry_run=True)
 
-        assert station.keys() == [ARCHIVE_KEY]
+        assert station.keys() == [ARCHIVE_KEY, INVENTORY_KEY]
         assert_frame_equal(station.stored(), station.archive)
 
 
