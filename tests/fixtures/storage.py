@@ -49,7 +49,7 @@ class FlakyStorj:
 
     :param s3: The moto client every other call goes to.
     :param read: A key whose `get_object` raises.
-    :param write: A key whose `upload_fileobj` raises.
+    :param write: A key whose `upload_fileobj` or `put_object` raises.
     :param copy: Whether `copy_object` (the backup) raises.
     """
 
@@ -77,6 +77,11 @@ class FlakyStorj:
         if kwargs["Key"] == self.write:
             raise OSError("storj write refused")
         return self.s3.upload_fileobj(**kwargs)
+
+    def put_object(self, **kwargs: object) -> Dict:
+        if kwargs["Key"] == self.write:
+            raise OSError("storj write refused")
+        return self.s3.put_object(**kwargs)
 
     def copy_object(self, **kwargs: object) -> Dict:
         if self.copy:
