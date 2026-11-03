@@ -56,8 +56,9 @@ import pandas as pd
 
 # The type rule `pd.concat` uses, so a merged column keeps the type a
 # whole-frame concat gives it. A private pandas API: `pandas<3` is pinned in
-# requirements.txt, and the equivalence tests (TestMergeMatchesTheOracle in
-# tests/test_archive_merge.py) catch a pandas upgrade that changes the rule.
+# requirements.txt, and the merge tests in tests/test_archive_merge.py
+# (`test_a_column_takes_the_type_a_concat_gives_it`) catch a pandas upgrade
+# that changes the rule.
 from pandas.api.extensions import ExtensionArray, ExtensionDtype
 from pandas.core.dtypes.cast import ensure_dtype_can_hold_na, find_common_type
 

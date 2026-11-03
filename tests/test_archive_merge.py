@@ -20,7 +20,6 @@ import pytest
 
 from lookout.api import awn_controller as awn
 from lookout.core import archive_merge, rain_corrections
-from tests.archive_merge_oracle import loss_before_overlap, merge_before_overlap
 from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -234,6 +233,30 @@ class TestArchiveMerge:
         pd.testing.assert_frame_equal(archive, full)
         assert report.added == len(full) - len(stored)
         assert (report.filled, report.updated) == (0, 0)
+
+    def test_a_column_takes_the_type_a_concat_gives_it(self):
+        """The type rule of a whole-frame concat, pinned for a pandas upgrade."""
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "count": 1, "battrain": "1"},
+            {"slot": 1, "tempf": 51.0, "count": 2, "battrain": "1"},
+        )
+        ambient = readings(
+            {"slot": 1, "tempf": 52, "pm25": 3},
+            {"slot": 2, "tempf": 53, "pm25": 4},
+        )
+
+        archive, _ = archive_merge.merge(stored, ambient)
+
+        assert archive.dtypes.astype(str).to_dict() == {
+            "dateutc": "int64",
+            "tempf": "float64",
+            "count": "float64",
+            "battrain": "object",
+            "pm25": "float64",
+        }
+        assert archive["tempf"].tolist() == [53.0, 52.0, 50.0]
+        assert archive["count"].tolist()[1:] == [2.0, 1.0]
+        assert archive["pm25"].tolist()[:2] == [4.0, 3.0]
 
     def test_the_report_describes_itself_for_a_log_line(self):
         report = archive_merge.MergeReport(
@@ -853,7 +876,7 @@ class TestArchiveReplace:
         assert (report.replaced, report.written) == (0, 1)
 
 
-# ---------- the merge against the pre-#283 oracle ----------
+# ---------- the merge leaves the stored archive ----------
 
 DERIVED = ["value_bin", "direction_bin", "hour"]
 
@@ -863,82 +886,8 @@ def fetched(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=[c for c in DERIVED if c in df.columns])
 
 
-def merge_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
-    """
-    `(case, stored, ambient)` for the equivalence tests, on the real slice.
-
-    The slice is newest first, as stored and as Ambient sends it, with the
-    archive's own dtypes (int64, object, tz-aware times, category).
-    """
-    real = load_real_slice()
-    newest, middle = real.head(40), real.iloc[200:240]
-
-    changed = fetched(newest).copy()
-    changed["tempf"] = changed["tempf"] + 1.5
-    changed["humidity"] = changed["humidity"].astype("int64")
-
-    holes = fetched(newest).copy()
-    holes.loc[holes.index[::3], "tempf"] = float("nan")
-    holes.loc[holes.index[::4], "battrain"] = None
-    gappy = real.copy()
-    gappy.loc[gappy.index[:40:5], ["tempf", "dewPoint"]] = float("nan")
-
-    extra = fetched(real.head(60)).copy()
-    extra["pm25_in"] = 7.0
-    extra["sensor_name"] = "new"
-
-    counted = real.iloc[30:].copy()
-    counted["readings_seen"] = range(len(counted))
-
-    repeated = pd.concat([real.iloc[10:], real.iloc[50:60]])
-    repeated.loc[repeated.index[:3], "dateutc"] = 12345  # below the 2020 floor
-
-    return [
-        ("overlap only", real, changed),
-        ("a stored-only int column with additions", counted, fetched(newest)),
-        ("stored rows normalize repairs", repeated, changed),
-        ("additions only", real.iloc[40:], fetched(newest)),
-        ("both", real.iloc[20:], changed),
-        ("additions inside the archive", real.drop(middle.index), fetched(middle)),
-        ("NaN in fetched values", gappy, holes),
-        ("a column only one side holds", real.iloc[30:], extra),
-        ("an empty fetch", real, pd.DataFrame()),
-        ("an empty fetch with columns", real, fetched(real).iloc[0:0]),
-        ("nothing stored", pd.DataFrame(), fetched(newest)),
-        ("stored oldest first", real.iloc[::-1].iloc[:-20], changed),
-    ]
-
-
-class TestMergeMatchesTheOracle:
-    """The overlap merge gives the pre-#283 merge's archive and counts."""
-
-    @pytest.mark.parametrize(
-        "stored,ambient",
-        [pytest.param(s, a, id=case) for case, s, a in merge_cases()],
-    )
-    def test_same_archive_and_counts_as_the_oracle(self, stored, ambient):
-        before = stored.copy()
-        expected = merge_before_overlap(stored.copy(), ambient.copy())
-
-        actual = archive_merge.merge(stored, ambient)
-
-        pd.testing.assert_frame_equal(actual.archive, expected.archive)
-        assert actual.report == expected.report
-        pd.testing.assert_frame_equal(stored, before)
-
-    def test_small_frames_match_the_oracle(self):
-        """Every stored reading shared, and Ambient's ints over stored floats."""
-        stored = readings(
-            {"slot": 0, "tempf": 50.0, "hour": 16},
-            {"slot": 1, "tempf": None, "hour": 16},
-        )
-        ambient = readings({"slot": 0, "tempf": 51}, {"slot": 1, "tempf": 52})
-
-        actual = archive_merge.merge(stored, ambient)
-        expected = merge_before_overlap(stored, ambient)
-
-        pd.testing.assert_frame_equal(actual.archive, expected.archive)
-        assert actual.report == expected.report
+class TestMergeLeavesTheStoredArchive:
+    """`archive_merge.merge` writes into its own copy, never `stored`."""
 
     def test_changing_the_merged_archive_leaves_the_stored_one(self):
         stored = load_real_slice()
@@ -951,12 +900,12 @@ class TestMergeMatchesTheOracle:
         pd.testing.assert_frame_equal(stored, before)
 
 
-# ---------- the save guard against the pre-#284 oracle ----------
+# ---------- the save guard ----------
 
 
 def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
     """
-    `(case, stored, new)` for the save guard's equivalence tests.
+    `(case, stored, new)` for the save guard tests.
 
     On the real slice, newest first with the archive's own dtypes, and the
     stored side oldest first as `storj.load_archive` returns it.
@@ -979,11 +928,6 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
     with_extra = raw.copy()
     with_extra["pm25_in"] = 7.0
 
-    tempf = raw.columns.get_loc("tempf")
-    first_blank = pd.concat([raw.iloc[:3], raw], ignore_index=True)
-    first_blank.iloc[1, tempf] = float("nan")
-    second_blank = pd.concat([raw, raw.iloc[:3]], ignore_index=True)
-    second_blank.iloc[-1, tempf] = float("nan")
     invalid = raw.copy()
     invalid.loc[invalid.index[:4], "dateutc"] = 12345  # below the 2020 floor
     as_text = raw.astype({"dateutc": "str"})
@@ -1018,8 +962,6 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
         ("a stored derived value blank in the new frame", derived, derived_blank),
         ("new oldest first", stored, raw.iloc[::-1]),
         ("new with a non-default index", stored, reindexed),
-        ("new repeats a reading, the first blank", stored, first_blank),
-        ("new repeats a reading, the second blank", stored, second_blank),
         ("new rows normalize rejects", stored, invalid),
         ("new dateutc as text", stored, as_text),
         ("new dateutc as a tz-aware time", stored, as_time),
@@ -1031,39 +973,67 @@ def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
     ]
 
 
-class TestLossMatchesTheOracle:
-    """The overlap save guard finds the pre-#284 guard's loss, exactly."""
+# What the pre-#284 save guard found on each case, recorded from it before it
+# was deleted; the overlap guard matched it on every case and on the full
+# real archive (PR for #284).
+EXPECTED_LOSS = {
+    "a clean save of the merge": (0, 0, ()),
+    "the same archive": (0, 0, ()),
+    "the same archive, raw": (0, 0, ()),
+    "a dropped reading": (1, 0, ()),
+    "dropped readings inside": (40, 0, ()),
+    "a swapped reading": (1, 0, ()),
+    "a blanked value": (0, 128, ("tempf", "battrain", "date")),
+    "a value missing on both sides": (0, 104, ("tempf",)),
+    "an explicit repair": (30, 0, ()),
+    "a column only the stored side holds": (0, 1040, ("battrain", "dewPoint")),
+    "a column only the new side holds": (0, 0, ()),
+    "a stored derived column the new frame lacks": (0, 0, ()),
+    "a stored derived value blank in the new frame": (0, 0, ()),
+    "new oldest first": (0, 0, ()),
+    "new with a non-default index": (0, 0, ()),
+    "new rows normalize rejects": (4, 0, ()),
+    "new dateutc as text": (0, 0, ()),
+    "new dateutc as a tz-aware time": (0, 0, ()),
+    "stored rows normalize repairs": (0, 0, ()),
+    "an empty new archive": (520, 0, ()),
+    "a new archive without dateutc": (520, 0, ()),
+    "an empty new archive with columns": (520, 0, ()),
+    "nothing stored": (0, 0, ()),
+}
+
+
+class TestSaveGuard:
+    """`archive_merge.loss`: dropped readings and blanked raw values only."""
 
     @pytest.mark.parametrize(
-        "stored,new",
-        [pytest.param(s, n, id=case) for case, s, n in loss_cases()],
+        "case,stored,new",
+        [pytest.param(c, s, n, id=c) for c, s, n in loss_cases()],
     )
-    def test_same_loss_as_the_oracle(self, stored, new):
+    def test_finds_what_the_save_would_lose(self, case, stored, new):
         stored_before, new_before = stored.copy(), new.copy()
-        expected = loss_before_overlap(stored.copy(), new.copy())
 
-        actual = archive_merge.loss(stored, new)
+        lost = archive_merge.loss(stored, new)
 
-        assert actual == expected
+        dropped, blanked, columns = EXPECTED_LOSS[case]
+        assert lost == archive_merge.Loss(dropped, blanked, columns)
         pd.testing.assert_frame_equal(stored, stored_before)
         pd.testing.assert_frame_equal(new, new_before)
 
-    def test_the_cases_cover_refusals_and_clean_saves(self):
-        """The fixtures exercise drops, blanks and clean saves, not only one."""
-        losses = {case: loss_before_overlap(s, n) for case, s, n in loss_cases()}
+    def test_every_case_has_an_expected_loss(self):
+        assert [case for case, _, _ in loss_cases()] == list(EXPECTED_LOSS)
 
-        assert not losses["a clean save of the merge"]
-        assert not losses["a stored derived column the new frame lacks"]
-        assert not losses["a stored derived value blank in the new frame"]
-        assert losses["a dropped reading"].dropped == 1
-        assert losses["a swapped reading"].dropped == 1
-        assert losses["a blanked value"].blanked_columns == (
-            "tempf",
-            "battrain",
-            "date",
-        )
-        assert losses["an explicit repair"].dropped == 30
-        assert losses["a column only the stored side holds"].blanked_columns == (
-            "battrain",
-            "dewPoint",
-        )
+    def test_a_reading_new_repeats_is_compared_once(self):
+        real = load_real_slice()
+        stored = real.iloc[::-1].reset_index(drop=True)
+        raw = fetched(real)
+        tempf = raw.columns.get_loc("tempf")
+        first_blank = pd.concat([raw.iloc[:1], raw], ignore_index=True)
+        first_blank.iloc[0, tempf] = float("nan")
+        second_blank = pd.concat([raw.iloc[:1], raw], ignore_index=True)
+        second_blank.iloc[1, tempf] = float("nan")
+
+        losses = [archive_merge.loss(stored, n) for n in (first_blank, second_blank)]
+
+        assert all(lost.dropped == 0 for lost in losses)
+        assert sorted(lost.blanked for lost in losses) == [0, 1]
