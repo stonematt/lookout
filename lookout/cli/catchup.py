@@ -21,6 +21,7 @@ import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
 from lookout.core import archive_merge
+from lookout.storage.station_inventory import resolve_station
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
@@ -257,7 +258,7 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         anything is written.
     """
     with writer_lock(saves=not dry_run):
-        device = get_station_device(bucket_name)
+        device = get_station_device(resolve_station(bucket_name))
         mac = device.get("macAddress")
         name = device.get("info", {}).get("name", "Unnamed Device")
         logger.info(f"Selected device: {name} ({mac})")

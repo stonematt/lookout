@@ -14,10 +14,9 @@ Functions:
   corrupt) raises `StorageReadError`.
 - load_inventory(bucket): the same read for a job that needs the inventory,
   where missing is an error too.
-- default_station(bucket): the default station's MAC, for a job that works
-  on one station and was not told which.
-- resolve_station(bucket, mac): the station a single-station job works on:
-  `mac` checked against the inventory, or the default station when None.
+- resolve_station(bucket, mac): the one way a single-station job decides
+  which station it works on: `mac` checked against the inventory (refused
+  when absent), or the default station when None.
 - append_station(bucket, mac, stored, before_write): back the inventory up,
   run `before_write` (the add's archive step), then write it with `mac`
   appended.
@@ -151,21 +150,6 @@ def load_inventory(bucket: str) -> StationInventory:
             "`stations add <MAC>`"
         )
     return inventory
-
-
-def default_station(bucket: str) -> str:
-    """
-    The default station: the first in the station inventory.
-
-    A single-station job that is not told which station to work on works on
-    this one; there is no fallback MAC (ADR-0006).
-
-    :param bucket: The bucket.
-    :return: Its MAC, as the inventory spells it.
-    :raises StorageReadError: If the inventory is missing, the read failed,
-        or it is corrupt.
-    """
-    return load_inventory(bucket).default
 
 
 def resolve_station(bucket: str, mac: Optional[str] = None) -> str:

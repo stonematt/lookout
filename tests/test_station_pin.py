@@ -10,12 +10,14 @@ take over. A device the inventory does not list is ignored by every job,
 the refresh run among them.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from lookout.api import ambient_client
 from lookout.api.ambient_client import StationNotFoundError
 from lookout.cli import refresh
-from lookout.storage.station_inventory import INVENTORY_KEY
+from lookout.storage.station_inventory import INVENTORY_KEY, resolve_station
 from lookout.storage.storj import StorageReadError
 from tests.fixtures.ambient import devices_body, load_devices
 from tests.fixtures.archive import FAKE_MAC
@@ -65,28 +67,23 @@ def test_find_station_matches_the_mac_case_insensitively():
     assert found["macAddress"] == FAKE_MAC
 
 
-def test_get_station_device_defaults_to_the_inventory_s_first(
-    inventory, ambient_replay
-):
+def test_get_station_device_returns_the_named_station(ambient_replay):
     ambient_replay.devices = _two_stations()
-    device = ambient_client.get_station_device(BUCKET)
-    assert device["macAddress"] == FAKE_MAC
-    assert [path for path, _ in ambient_replay.calls] == ["/devices"]
-
-
-def test_get_station_device_takes_a_named_station_over_the_default(
-    inventory, ambient_replay
-):
-    ambient_replay.devices = _two_stations()
-    device = ambient_client.get_station_device(BUCKET, OTHER_MAC)
+    device = ambient_client.get_station_device(OTHER_MAC)
     assert device["macAddress"] == OTHER_MAC
+
+
+def test_resolve_station_defaults_to_the_inventory_s_first(inventory):
+    assert resolve_station(BUCKET) == FAKE_MAC
 
 
 def test_with_no_inventory_there_is_no_default_and_ambient_is_not_called(
     fake_s3, ambient_replay
 ):
+    from lookout.cli import pull_archive
+
     with pytest.raises(StorageReadError, match="station_inventory.json is missing"):
-        ambient_client.get_station_device(BUCKET)
+        pull_archive.get_device_info(BUCKET)
     assert ambient_replay.calls == []
 
 
@@ -171,11 +168,26 @@ def test_manage_day_periods_exits_when_the_default_is_missing(ambient_replay, fa
     assert exited.value.code == 1
 
 
-def test_pull_archive_device_mac_overrides_the_default(inventory, ambient_replay):
+def test_pull_archive_device_mac_overrides_the_default(fake_s3, ambient_replay):
+    from lookout.cli import pull_archive
+
+    seed_inventory(FAKE_MAC, OTHER_MAC)
+    ambient_replay.devices = _two_stations()
+    assert pull_archive.get_device_info(BUCKET, OTHER_MAC)[0] == OTHER_MAC
+
+
+def test_pull_archive_refuses_a_device_mac_outside_the_inventory(
+    inventory, ambient_replay, capsys
+):
     from lookout.cli import pull_archive
 
     ambient_replay.devices = _two_stations()
-    assert pull_archive.get_device_info(BUCKET, OTHER_MAC)[0] == OTHER_MAC
+    with pytest.raises(SystemExit) as exited:
+        with patch("sys.argv", ["pull_archive", "--device-mac", OTHER_MAC]):
+            pull_archive.main()
+    assert exited.value.code == 1
+    assert "not in the station inventory" in capsys.readouterr().out
+    assert ambient_replay.calls == []
 
 
 # ---------- the refresh run ----------

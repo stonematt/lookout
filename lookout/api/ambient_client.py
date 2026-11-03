@@ -7,9 +7,8 @@ Functions:
 - get_devices()
 - find_station(devices, mac): one station out of a device list, by MAC and
   never by list position, or StationNotFoundError
-- get_station_device(bucket, mac): the device list's entry for `mac`, or for
-  the default station (the station inventory's first, ADR-0006) when no MAC
-  is given; the one path every single-station CLI picks its station by
+- get_station_device(mac): the device list's entry for `mac`; a caller
+  decides `mac` first with `station_inventory.resolve_station`
 - get_device_by_mac(mac)
 - get_device_history(mac, limit, end_date, strict): one page, as a frame
 - get_device_history_raw(mac, limit, end_date, strict): one page, raw
@@ -36,7 +35,6 @@ import requests
 
 from lookout.config import DEFAULT_BUCKET
 from lookout.secrets_loader import get_secret
-from lookout.storage.station_inventory import default_station
 from lookout.storage.storj import StorageReadError
 from lookout.utils.log_util import app_logger
 
@@ -117,20 +115,18 @@ def find_station(devices: List[Dict], mac: str) -> Dict:
     )
 
 
-def get_station_device(bucket: str, mac: Optional[str] = None) -> Dict:
+def get_station_device(mac: str) -> Dict:
     """
     Fetch the device list and return one station from it.
 
-    :param bucket: The bucket holding the station inventory.
-    :param mac: The station's MAC address; the default station (the first
-        in the station inventory) when None.
+    The caller decides which station: a single-station job passes the MAC
+    `station_inventory.resolve_station` returned, so this module does not
+    read the station inventory.
+
+    :param mac: The station's MAC address.
     :return: That station's device dict, including `lastData`.
-    :raises StorageReadError: If no MAC is given and the station inventory
-        is missing, unreadable or corrupt.
     :raises StationNotFoundError: If the account does not list the station.
     """
-    # The station first: with no inventory, Ambient is never called.
-    mac = mac or default_station(bucket)
     return find_station(get_devices(), mac)
 
 
@@ -263,8 +259,10 @@ def _history_failed(strict: bool, reason: str) -> list[dict]:
 
 
 def main():
+    from lookout.storage.station_inventory import resolve_station
+
     try:
-        device = get_station_device(DEFAULT_BUCKET)
+        device = get_station_device(resolve_station(DEFAULT_BUCKET))
     except (StationNotFoundError, StorageReadError) as e:
         logger.error(f"❌ {e}")
         sys.exit(1)

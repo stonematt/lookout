@@ -152,7 +152,7 @@ def load_station(
     :raises StorageReadError: If the station inventory or the archive is
         missing or unreadable, or the archive has no valid rows.
     """
-    device = get_station_device(bucket, resolve_station(bucket, station))
+    device = get_station_device(resolve_station(bucket, station))
     # Straight from Storj: the dev-mode local cache would write a file here.
     return device, load_archive(bucket, device["macAddress"])
 
@@ -418,7 +418,7 @@ def cmd_last_record(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device = get_station_device(args.bucket, resolve_station(args.bucket, args.station))
+    device = get_station_device(resolve_station(args.bucket, args.station))
     last = device.get("lastData") or {}
     if not last:
         emit("The device reports no live reading.")

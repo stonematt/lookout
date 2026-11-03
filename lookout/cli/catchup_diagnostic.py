@@ -24,6 +24,7 @@ from lookout.api.ambient_client import (
     get_device_history_raw,
     get_station_device,
 )
+from lookout.storage.station_inventory import resolve_station
 from lookout.storage.storj import StorageReadError
 from lookout.utils.log_util import app_logger
 
@@ -220,7 +221,7 @@ def main():
 
     # Get device
     try:
-        device = get_station_device(args.bucket)
+        device = get_station_device(resolve_station(args.bucket))
     except (StationNotFoundError, StorageReadError) as e:
         print(f"❌ {e}")
         sys.exit(1)

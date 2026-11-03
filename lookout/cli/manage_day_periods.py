@@ -43,6 +43,7 @@ from lookout.core.day_periods import (
     get_catalog_path,
     load_day_periods_catalog,
 )
+from lookout.storage.station_inventory import resolve_station
 from lookout.storage.storj import BackupError, StorageReadError
 from lookout.utils.log_util import app_logger
 
@@ -62,7 +63,7 @@ def get_station(bucket: str = DEFAULT_BUCKET) -> Tuple[str, dict]:
         station is not on the account.
     """
     try:
-        device = get_station_device(bucket)
+        device = get_station_device(resolve_station(bucket))
     except (StationNotFoundError, StorageReadError) as e:
         logger.error(f"❌ {e}")
         sys.exit(1)
