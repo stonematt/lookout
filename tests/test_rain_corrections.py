@@ -26,17 +26,18 @@ from tests.fixtures.archive import (
     scenario_archive,
 )
 from tests.fixtures.real import load_real_slice
-from tests.fixtures.storage import flaky_storj
+from tests.fixtures.storage import flaky_storj, seed_inventory
 
 CORRECTIONS_KEY = f"{FAKE_MAC}.rain_corrections.json"
 
 
 class TestDeviceDiscovery:
-    """Test device auto-discovery functionality."""
+    """The CLI works on the default station: the station inventory's first."""
 
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_single_device_discovery(self, mock_get_devices):
-        """Test discovery when one device available."""
+    def test_single_device_discovery(self, mock_get_devices, fake_s3):
+        """The default station, found on the account."""
+        seed_inventory("98:CD:AC:22:0D:E5")
         mock_devices = [
             {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Test Station"}}
         ]
@@ -48,26 +49,27 @@ class TestDeviceDiscovery:
         assert device == mock_devices[0]
 
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_multiple_devices_uses_the_pinned_station(
-        self, mock_get_devices, monkeypatch
-    ):
-        """The pinned STATION_MAC is used, even when it is listed second."""
-        monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
+    def test_multiple_devices_uses_the_default_station(self, mock_get_devices, fake_s3):
+        """The default station is used, even when the account lists it second."""
+        seed_inventory("12:34:56:78:9A:BC", "98:CD:AC:22:0D:E5")
         mock_devices = [
             {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Other Station"}},
-            {"macAddress": "12:34:56:78:9A:BC", "info": {"name": "Pinned Station"}},
+            {"macAddress": "12:34:56:78:9A:BC", "info": {"name": "Default Station"}},
         ]
         mock_get_devices.return_value = mock_devices
 
         device, mac, name = get_station()
         assert mac == "12:34:56:78:9A:BC"
-        assert name == "Pinned Station"
+        assert name == "Default Station"
         assert device == mock_devices[1]
 
     @mock.patch("builtins.print")
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_no_devices_exits_with_the_reason(self, mock_get_devices, mock_print):
+    def test_no_devices_exits_with_the_reason(
+        self, mock_get_devices, mock_print, fake_s3
+    ):
         """No device list: exit 1, saying why the station was not found."""
+        seed_inventory(FAKE_MAC)
         mock_get_devices.return_value = []
 
         with pytest.raises(SystemExit) as exited:
@@ -75,6 +77,15 @@ class TestDeviceDiscovery:
 
         assert exited.value.code == 1
         assert "Ambient returned no devices" in str(mock_print.call_args)
+
+    @mock.patch("builtins.print")
+    def test_no_inventory_exits_with_the_reason(self, mock_print, fake_s3):
+        """No station inventory: exit 1, naming the missing inventory."""
+        with pytest.raises(SystemExit) as exited:
+            get_station()
+
+        assert exited.value.code == 1
+        assert "station_inventory.json is missing" in str(mock_print.call_args)
 
 
 class TestArchiveLoading:
@@ -110,15 +121,15 @@ class TestCliCommands:
 
     @mock.patch("builtins.print")
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_detect_no_device(self, mock_get_devices, mock_print, monkeypatch):
-        """detect exits 1 with the reason when the pinned station is missing."""
-        monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
+    def test_detect_no_device(self, mock_get_devices, mock_print, fake_s3):
+        """detect exits 1 with the reason when the default station is missing."""
+        seed_inventory("12:34:56:78:9A:BC")
         mock_get_devices.return_value = [
             {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Other"}}
         ]
 
         with pytest.raises(SystemExit) as exited:
-            handle_detect(mock.Mock())
+            handle_detect(mock.Mock(bucket="lookout"))
 
         assert exited.value.code == 1
         assert "Station 12:34:56:78:9A:BC is not on this Ambient account" in str(
@@ -290,15 +301,15 @@ class TestCliCommands:
 
     @mock.patch("builtins.print")
     @mock.patch("lookout.cli.rain_corrections_cli.ambient_client.get_devices")
-    def test_show_no_device(self, mock_get_devices, mock_print, monkeypatch):
-        """show exits 1 with the reason when the pinned station is missing."""
-        monkeypatch.setenv("STATION_MAC", "12:34:56:78:9A:BC")
+    def test_show_no_device(self, mock_get_devices, mock_print, fake_s3):
+        """show exits 1 with the reason when the default station is missing."""
+        seed_inventory("12:34:56:78:9A:BC")
         mock_get_devices.return_value = [
             {"macAddress": "98:CD:AC:22:0D:E5", "info": {"name": "Other"}}
         ]
 
         with pytest.raises(SystemExit) as exited:
-            handle_show(mock.Mock())
+            handle_show(mock.Mock(bucket="lookout"))
 
         assert exited.value.code == 1
         assert "Station 12:34:56:78:9A:BC is not on this Ambient account" in str(

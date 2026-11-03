@@ -9,7 +9,6 @@ from pathlib import Path
 import pandas as pd
 
 from lookout.api import ambient_client
-from lookout.config import DEFAULT_MAC_ADDRESS
 from tests.conftest import FAKE_SECRETS
 from tests.fixtures.ambient import (
     devices_body,
@@ -21,6 +20,8 @@ from tests.fixtures.archive import FAKE_MAC, STATION_TZ, build_archive
 from tests.fixtures.real import FAKE_PASSKEY, SLICE_END, SLICE_START, load_real_slice
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
+# Lookout Post, the real station; no fixture may carry its MAC.
+REAL_MAC = "98:CD:AC:22:0D:E5"
 
 
 def _ms(iso: str) -> int:
@@ -81,7 +82,7 @@ def _fixture_texts() -> list:
 
 
 def test_fixtures_hold_no_station_identifier_or_key():
-    real_macs = {DEFAULT_MAC_ADDRESS, DEFAULT_MAC_ADDRESS.replace(":", "-")}
+    real_macs = {REAL_MAC, REAL_MAC.replace(":", "-")}
     hex32 = re.compile(r"[0-9a-fA-F]{32}")
     texts = _fixture_texts()
     scanned = {path.relative_to(FIXTURE_DIR).as_posix() for path, _ in texts}

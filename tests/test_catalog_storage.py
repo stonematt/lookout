@@ -20,19 +20,6 @@ from tests.fixtures.archive import FAKE_MAC
 from tests.fixtures.storage import BUCKET, bucket_keys, flaky_storj
 
 
-@pytest.fixture
-def station(monkeypatch):
-    """Pin the fake station; nothing is put in session state."""
-    monkeypatch.setenv("STATION_MAC", FAKE_MAC)
-    return FAKE_MAC
-
-
-@pytest.fixture
-def no_station(monkeypatch):
-    """Leave STATION_MAC unset."""
-    monkeypatch.delenv("STATION_MAC", raising=False)
-
-
 def _periods() -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -157,26 +144,21 @@ def test_day_periods_delete_reports_that_it_deleted_nothing(fake_s3):
     assert bucket_keys(fake_s3) == [DAY_PERIODS_KEY]
 
 
-# ---------- catalog_utils: the station is the pinned one ----------
+# ---------- catalog_utils: the station is the caller's ----------
 
 
-def test_generic_catalog_is_keyed_by_the_pinned_station(fake_s3, station):
-    assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
+def test_generic_catalog_is_keyed_by_the_station_it_is_given(fake_s3):
+    assert catalog_utils.save_catalog(_periods(), "energy", FAKE_MAC, BUCKET) is True
     assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
 
 
-def test_generic_catalog_unpinned_uses_the_default_station(fake_s3, no_station):
-    assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
-    assert bucket_keys(fake_s3) == ["98:CD:AC:22:0D:E5.energy_catalog.parquet"]
+def test_generic_catalog_load_and_save(fake_s3):
+    assert catalog_utils.load_catalog("energy", FAKE_MAC, BUCKET).empty
 
-
-def test_generic_catalog_load_and_save(fake_s3, station):
-    assert catalog_utils.load_catalog("energy", BUCKET).empty
-
-    assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is True
+    assert catalog_utils.save_catalog(_periods(), "energy", FAKE_MAC, BUCKET) is True
 
     assert bucket_keys(fake_s3) == [f"{FAKE_MAC}.energy_catalog.parquet"]
-    loaded = catalog_utils.load_catalog("energy", BUCKET)
+    loaded = catalog_utils.load_catalog("energy", FAKE_MAC, BUCKET)
     # save stamps two metadata columns onto the stored copy.
     assert list(loaded.columns) == [
         "period_start",
@@ -189,35 +171,37 @@ def test_generic_catalog_load_and_save(fake_s3, station):
     assert_frame_equal(loaded[["period_start", "energy_kwh"]], _periods())
 
 
-def test_a_failed_generic_catalog_save_reports_failure(fake_s3, station, monkeypatch):
+def test_a_failed_generic_catalog_save_reports_failure(fake_s3, monkeypatch):
     flaky_storj(monkeypatch, fake_s3, write=f"{FAKE_MAC}.energy_catalog.parquet")
 
-    assert catalog_utils.save_catalog(_periods(), "energy", BUCKET) is False
+    assert catalog_utils.save_catalog(_periods(), "energy", FAKE_MAC, BUCKET) is False
     assert bucket_keys(fake_s3) == []
 
 
-def test_generic_catalog_refuses_an_empty_save(fake_s3, station):
-    assert catalog_utils.save_catalog(pd.DataFrame(), "energy", BUCKET) is False
+def test_generic_catalog_refuses_an_empty_save(fake_s3):
+    assert (
+        catalog_utils.save_catalog(pd.DataFrame(), "energy", FAKE_MAC, BUCKET) is False
+    )
     assert bucket_keys(fake_s3) == []
 
 
-def test_generic_catalog_backup_copies_to_a_dated_folder(
-    fake_s3, station, frozen_today
-):
-    catalog_utils.save_catalog(_periods(), "energy", BUCKET)
+def test_generic_catalog_backup_copies_to_a_dated_folder(fake_s3, frozen_today):
+    catalog_utils.save_catalog(_periods(), "energy", FAKE_MAC, BUCKET)
 
-    result = catalog_utils.backup_catalog(_periods(), "energy", BUCKET)
+    result = catalog_utils.backup_catalog(_periods(), "energy", FAKE_MAC, BUCKET)
 
     prefix = f"{FAKE_MAC}.energy_catalog"
     assert result == f"backed_up_{prefix}"
     assert f".backups/{prefix}/{frozen_today}/{prefix}.parquet" in bucket_keys(fake_s3)
 
 
-def test_catalog_save_with_backup_writes_both(fake_s3, station, frozen_today):
+def test_catalog_save_with_backup_writes_both(fake_s3, frozen_today):
     prefix = f"{FAKE_MAC}.energy_catalog"
     storj.save_df_to_s3(_periods().iloc[:1], BUCKET, f"{prefix}.parquet")
 
-    storj.backup_and_save_catalog(_periods(), "energy", bucket=BUCKET)
+    storj.backup_and_save_catalog(
+        _periods(), "energy", bucket=BUCKET, mac_address=FAKE_MAC
+    )
 
     assert bucket_keys(fake_s3) == [
         f".backups/{prefix}/{frozen_today}/{prefix}.parquet",
@@ -228,7 +212,7 @@ def test_catalog_save_with_backup_writes_both(fake_s3, station, frozen_today):
 
 
 def test_catalog_save_with_backup_takes_the_station_as_a_parameter(
-    fake_s3, no_station, frozen_today
+    fake_s3, frozen_today
 ):
     other = "AA:BB:CC:DD:EE:FF"
 

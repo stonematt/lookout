@@ -1,24 +1,27 @@
 """
 status.py: The refresh run's status document, `snapshot/<MAC>.status.json` (#268).
 
-The refresh run writes it once at the end of every run it starts, success or
-failure, so its outcome and the code it ran on can be read from outside (the
-site serves it at `/status`) without ssh to the VPS. It is its own document,
-not part of the dashboard snapshot: the dashboard contract and its
-`SCHEMA_VERSION` do not cover it.
+The refresh run writes one per station in the station inventory at the end of
+every run it starts, success or failure, so each station's outcome and the
+code the run was on can be read from outside without ssh to the VPS. The
+site serves the one its Vercel `STATION_MAC` names at `/status`. It is its
+own document, not part of the dashboard snapshot: the dashboard contract
+and its `SCHEMA_VERSION` do not cover it.
 
 Its fields:
 
 - `kind`: always "status".
-- `station_mac`: the pinned station.
+- `station_mac`: the station the document reports on.
 - `version`: the release version (`VERSION`, ADR-0007) the run's code carries.
 - `sha`: the checkout's `git rev-parse HEAD`, or null when git cannot say.
 - `started_at_ms`, `ended_at_ms`: the run's start and end, epoch ms.
-- `outcome`: "ok" (exit 0) or "failed" (exit 1).
+- `outcome`: this station's part of the run: "ok" when it published clean,
+  "failed" when it, or the whole run, failed. A run with one failed station
+  exits 1, while the other stations' documents still say "ok" (#271).
 - `error`: the failure's exception class name, or null. Only the name: an
   exception's message can carry a URL or a key, and this document is public.
-- `built_at_ms`: the `built_at_ms` of the snapshot this run published, or
-  null when it published none.
+- `built_at_ms`: the `built_at_ms` of the snapshot this run published for
+  the station, or null when it published none.
 
 Offers `CodeVersion`, `code_version` (version and SHA, read at run time from
 the checkout), `RunStatus`, `status_key` and `publish_status`, which never
@@ -102,13 +105,13 @@ def git_head(root: Path) -> Optional[str]:
 @dataclass(frozen=True)
 class RunStatus:
     """
-    How one refresh run ended.
+    How one refresh run ended for one station.
 
-    :param station_mac: The pinned station.
+    :param station_mac: The station.
     :param code: The code it ran on.
     :param started_at_ms: Its start, epoch ms.
     :param ended_at_ms: Its end, epoch ms.
-    :param outcome: "ok" or "failed", as its exit status says.
+    :param outcome: "ok" when the station published clean, else "failed".
     :param error: The failure's exception class name; None when none raised.
     :param built_at_ms: The published snapshot's `built_at_ms`; None when it
         published none.

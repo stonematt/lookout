@@ -11,7 +11,8 @@ Usage:
     python -m lookout.cli.rain_corrections_cli [--bucket lookout] generate [--dry-run]
     python -m lookout.cli.rain_corrections_cli [--bucket lookout] show
 
-Exits 1 when the pinned station (STATION_MAC) is not on the Ambient account,
+Works on the default station (the station inventory's first). Exits 1 when
+the inventory cannot be read or that station is not on the Ambient account,
 or when `show` cannot read the stored corrections catalog.
 """
 
@@ -24,22 +25,25 @@ import pandas as pd
 import lookout.api.ambient_client as ambient_client
 import lookout.core.rain_corrections as lo_rc
 import lookout.storage.storj as lo_storj
+from lookout.config import DEFAULT_BUCKET
+from lookout.storage.station_inventory import resolve_station
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
 
-def get_station() -> Tuple[dict, str, str]:
+def get_station(bucket: str = DEFAULT_BUCKET) -> Tuple[dict, str, str]:
     """
-    Get the pinned station (STATION_MAC) from the Ambient API, or exit 1.
+    Get the default station from the Ambient API, or exit 1.
 
+    :param bucket: The bucket holding the station inventory.
     :return: (device, mac, name).
     :raises SystemExit: With code 1, after printing why the station was not
-        found (`StationNotFoundError`'s message).
+        found (the inventory unreadable, or the station not on the account).
     """
     try:
-        device = ambient_client.get_station_device()
-    except ambient_client.StationNotFoundError as e:
+        device = ambient_client.get_station_device(resolve_station(bucket))
+    except (ambient_client.StationNotFoundError, lo_storj.StorageReadError) as e:
         logger.error(str(e))
         print(f"❌ {e}")
         sys.exit(1)
@@ -62,8 +66,8 @@ def load_archive_s3(mac_address: str, bucket: str = "lookout") -> pd.DataFrame:
 
 
 def handle_detect(args):
-    """Handle detect command for the pinned station."""
-    device, mac, name = get_station()
+    """Handle detect command for the default station."""
+    device, mac, name = get_station(args.bucket)
 
     print(f"🔍 Scanning archive for: {name} ({mac})")
 
@@ -86,8 +90,8 @@ def handle_detect(args):
 
 
 def handle_generate(args):
-    """Handle generate command for the pinned station."""
-    device, mac, name = get_station()
+    """Handle generate command for the default station."""
+    device, mac, name = get_station(args.bucket)
 
     print(f"🔍 Scanning archive for: {name} ({mac})")
 
@@ -126,13 +130,13 @@ def handle_generate(args):
 
 def handle_show(args):
     """
-    Handle show command for the pinned station.
+    Handle show command for the default station.
 
     :param args: Parsed arguments, with `bucket`.
     :raises SystemExit: With code 1, after printing why, when the catalog
         read fails (#181).
     """
-    device, mac, name = get_station()
+    device, mac, name = get_station(args.bucket)
 
     print(f"📋 Showing catalog for: {name} ({mac})")
 

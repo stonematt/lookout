@@ -5,10 +5,19 @@ testable, and debuggable calls.
 
 Functions:
 - get_devices()
-- find_station(devices, mac) / get_station_device(mac): the pinned station
-  (STATION_MAC), or StationNotFoundError
+- find_station(devices, mac): one station out of a device list, by MAC and
+  never by list position, or StationNotFoundError
+- get_station_device(mac): the device list's entry for `mac`; a caller
+  decides `mac` first with `station_inventory.resolve_station`
 - get_device_by_mac(mac)
-- get_device_history(mac, limit, end_date)
+- get_device_history(mac, limit, end_date, strict): one page, as a frame
+- get_device_history_raw(mac, limit, end_date, strict): one page, raw
+
+Every request waits a second first (Ambient's 1 request per second per API
+key), so this module is the one throttled path to Ambient. History fetchers
+read a failed request as an empty page by default; with `strict=True` they
+raise `AmbientRequestError` instead, for a caller that must not mistake a
+failure for "no older readings" (the first archive's backfill).
 
 Requires:
 - Secrets AMBIENT_ENDPOINT, AMBIENT_API_KEY, AMBIENT_APPLICATION_KEY, read via
@@ -24,8 +33,9 @@ from typing import Dict, List, Optional
 import pandas as pd
 import requests
 
-from lookout.config import get_station_mac
+from lookout.config import DEFAULT_BUCKET
 from lookout.secrets_loader import get_secret
+from lookout.storage.storj import StorageReadError
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -72,20 +82,25 @@ def get_devices() -> List[Dict]:
     return resp.json()
 
 
+class AmbientRequestError(RuntimeError):
+    """A strict history request failed: an HTTP error, retries ran out, or
+    the body could not be read as history."""
+
+
 class StationNotFoundError(RuntimeError):
-    """Raised when the pinned station is not in the account's device list."""
+    """Raised when a station is not in the account's device list."""
 
 
-def find_station(devices: List[Dict], mac: Optional[str] = None) -> Dict:
+def find_station(devices: List[Dict], mac: str) -> Dict:
     """
-    Pick the pinned station out of a device list, never by list position.
+    Pick one station out of a device list, never by list position.
 
     :param devices: The `/devices` body, as `get_devices()` returns it.
-    :param mac: The station's MAC address; defaults to `get_station_mac()`.
+    :param mac: The station's MAC address, any case.
     :return: That station's device dict.
     :raises StationNotFoundError: If the list is empty or lacks the station.
     """
-    mac = (mac or get_station_mac()).strip().upper()
+    mac = mac.strip().upper()
     if not devices:
         raise StationNotFoundError(
             f"Ambient returned no devices, so station {mac} cannot be found "
@@ -96,16 +111,19 @@ def find_station(devices: List[Dict], mac: Optional[str] = None) -> Dict:
             return device
     listed = ", ".join(str(d.get("macAddress")) for d in devices)
     raise StationNotFoundError(
-        f"Station {mac} is not on this Ambient account (it lists: {listed}); "
-        "set STATION_MAC to the station to archive"
+        f"Station {mac} is not on this Ambient account (it lists: {listed})"
     )
 
 
-def get_station_device(mac: Optional[str] = None) -> Dict:
+def get_station_device(mac: str) -> Dict:
     """
-    Fetch the device list and return the pinned station from it.
+    Fetch the device list and return one station from it.
 
-    :param mac: The station's MAC address; defaults to `get_station_mac()`.
+    The caller decides which station: a single-station job passes the MAC
+    `station_inventory.resolve_station` returned, so this module does not
+    read the station inventory.
+
+    :param mac: The station's MAC address.
     :return: That station's device dict, including `lastData`.
     :raises StationNotFoundError: If the account does not list the station.
     """
@@ -127,7 +145,10 @@ def get_device_by_mac(mac: str) -> Optional[Dict]:
 
 
 def get_device_history(
-    mac: str, limit: int = 288, end_date: Optional[int] = None
+    mac: str,
+    limit: int = 288,
+    end_date: Optional[int] = None,
+    strict: bool = False,
 ) -> pd.DataFrame:
     """
     Fetch historical weather data for a specific device.
@@ -137,13 +158,17 @@ def get_device_history(
     :param mac: MAC address of the device to fetch data for.
     :param limit: Max number of records to return (default: 288).
     :param end_date: Optional UNIX timestamp in milliseconds for the end of the time range.
-    :return: A DataFrame of weather data or empty DataFrame on failure.
+    :param strict: Raise on a failed request instead of returning empty.
+    :return: A DataFrame of weather data; empty when Ambient has none, or
+        (unless `strict`) on failure.
+    :raises AmbientRequestError: If `strict` and the request failed or its
+        body could not be read.
     """
     try:
         # human = format_ts_utc(end_date) if end_date else "latest"
         # logger.info(f"Fetching history: {mac}, limit={limit}, end_date={end_date} ({human})")
 
-        raw = get_device_history_raw(mac, limit=limit, end_date=end_date)
+        raw = get_device_history_raw(mac, limit=limit, end_date=end_date, strict=strict)
         if not raw:
             logger.debug("No data returned from device history.")
             return pd.DataFrame()
@@ -156,13 +181,20 @@ def get_device_history(
         df.sort_values(by="dateutc", inplace=True)
         return df
 
+    except AmbientRequestError:
+        raise
     except Exception as e:
         logger.exception(f"Error during device history fetch: {e}")
+        if strict:
+            raise AmbientRequestError(f"history for {mac} unreadable: {e}") from e
         return pd.DataFrame()
 
 
 def get_device_history_raw(
-    mac: str, limit: int = 288, end_date: Optional[int] = None
+    mac: str,
+    limit: int = 288,
+    end_date: Optional[int] = None,
+    strict: bool = False,
 ) -> list[dict]:
     """
     Fetch raw device history from the Ambient Weather Network.
@@ -170,7 +202,11 @@ def get_device_history_raw(
     :param mac: Device MAC address.
     :param limit: Number of records to retrieve.
     :param end_date: Optional end timestamp (ms).
-    :return: List of raw data records (dict).
+    :param strict: Raise on a failed request instead of returning `[]`.
+    :return: List of raw data records (dict); `[]` when Ambient has none,
+        or (unless `strict`) on failure.
+    :raises AmbientRequestError: If `strict` and the request failed or the
+        429 retries ran out.
     """
     url = f"{_base_url()}/devices/{mac}"
     params = {**_auth_params(), "limit": limit}
@@ -194,24 +230,44 @@ def get_device_history_raw(
                 continue
             if resp.status_code != 200:
                 logger.error(f"History fetch failed: {resp.status_code} {resp.text}")
-                return []
+                return _history_failed(
+                    strict, f"history fetch for {mac} failed: {resp.status_code}"
+                )
             return resp.json()
+        except AmbientRequestError:
+            raise
         except Exception as e:
             logger.error(f"Request error while fetching raw history: {e}")
-            return []
+            return _history_failed(strict, f"history fetch for {mac} failed: {e}")
 
     logger.error("Exceeded retry attempts after 429 errors")
+    return _history_failed(strict, f"history fetch for {mac} rate limited 3 times")
+
+
+def _history_failed(strict: bool, reason: str) -> list[dict]:
+    """
+    End a failed history request: an empty page, or a raise when strict.
+
+    :param strict: Whether the caller asked failures to raise.
+    :param reason: What failed, for the exception.
+    :return: `[]` when not strict.
+    :raises AmbientRequestError: If strict.
+    """
+    if strict:
+        raise AmbientRequestError(reason)
     return []
 
 
 def main():
+    from lookout.storage.station_inventory import resolve_station
+
     try:
-        device = get_station_device()
-    except StationNotFoundError as e:
+        device = get_station_device(resolve_station(DEFAULT_BUCKET))
+    except (StationNotFoundError, StorageReadError) as e:
         logger.error(f"❌ {e}")
         sys.exit(1)
 
-    print("✅ Pinned station:")
+    print("✅ Default station:")
     pprint(device)
 
     mac = device.get("macAddress")

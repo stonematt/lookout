@@ -60,6 +60,8 @@ station moves. Both stations are in Pacific time. See
 The ordered list of stations Lookout archives. Its order is the priority
 order. A person adds a station to it; nothing adds one automatically. See
 [ADR-0006](docs/adr/0006-station-inventory-on-storj-written-by-hand.md).
+It is stored at `station_inventory.json`, outside `snapshot/`, and only
+`stations add` writes it, after a backup.
 _Avoid_: "station list", "STATIONS".
 
 ### station index
@@ -70,7 +72,9 @@ with each station's name and zone.
 ### default station
 
 The first station in the station inventory, shown when no station is
-chosen: Lookout Post.
+chosen: Lookout Post. A job that works on one station and is not told which
+works on the default station (`station_inventory.resolve_station`); there
+is no pinned MAC.
 
 ### station selector
 
@@ -122,11 +126,13 @@ _Avoid_: context file, mini snapshot.
 
 ### status document
 
-The JSON the refresh run writes at `snapshot/<MAC>.status.json` at the end of
-every run it does not skip, success or failure; a run that cannot open the
-archive-writer lock file is a failed run and writes one too. It names the code
-version and checkout SHA the run started on, the outcome (`ok` or `failed`)
-and, on failure, the exception class; the site serves it at `/status`. A run
+The JSON the refresh run writes at `snapshot/<MAC>.status.json`, one per
+station in the station inventory, at the end of every run it does not skip,
+success or failure; a run that cannot open the archive-writer lock file is a
+failed run and writes them too. It names the code version and checkout SHA
+the run started on, that station's outcome (`ok` or `failed`: one station's
+failure leaves the others' documents `ok`, while the run exits 1) and, on
+failure, the exception class; the site serves one at `/status`. A run
 skipped for a held lock writes none. It is not part of the snapshot, so
 `SCHEMA_VERSION` does not cover it (`lookout/snapshot/status.py`).
 _Avoid_: heartbeat (that is the Healthchecks ping), run log.

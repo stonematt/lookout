@@ -135,7 +135,6 @@ def test_example_file_lists_every_name_with_no_values():
         "AMBIENT_APPLICATION_KEY": "",
         "AMBIENT_ENDPOINT": "",
         "HC_PING_KEY": "",
-        "STATION_MAC": "",
     }
 
 
@@ -161,23 +160,29 @@ def test_default_file_is_under_user_config():
 
 
 def test_setting_falls_back_to_its_default_when_unset(no_secrets, monkeypatch):
-    monkeypatch.delenv("STATION_MAC", raising=False)
-    assert get_setting("STATION_MAC") is None
-    assert get_setting("STATION_MAC", "fallback") == "fallback"
+    monkeypatch.delenv("DEV_MODE", raising=False)
+    assert get_setting("DEV_MODE") is None
+    assert get_setting("DEV_MODE", "fallback") == "fallback"
 
 
 def test_setting_read_from_env_then_file(no_secrets, monkeypatch):
-    monkeypatch.delenv("STATION_MAC", raising=False)
-    path = _write_file(no_secrets / "secrets.toml", 'STATION_MAC = "AA:01"\n')
+    monkeypatch.delenv("DEV_MODE", raising=False)
+    path = _write_file(no_secrets / "secrets.toml", "[environment]\ndev = false\n")
     monkeypatch.setattr(secrets_loader, "SECRETS_FILE", path)
-    assert get_setting("STATION_MAC", "fallback") == "AA:01"
-    monkeypatch.setenv("STATION_MAC", "AA:02")
-    assert get_setting("STATION_MAC", "fallback") == "AA:02"
+    assert get_setting("DEV_MODE", "fallback") == "False"
+    monkeypatch.setenv("DEV_MODE", "true")
+    assert get_setting("DEV_MODE", "fallback") == "true"
 
 
 def test_unknown_setting_name_is_rejected():
     with pytest.raises(ValueError):
         get_setting("STATION_NAME")
+
+
+def test_the_station_pin_is_not_a_setting():
+    # Which stations Lookout archives is the station inventory (#271).
+    with pytest.raises(ValueError):
+        get_setting("STATION_MAC")
 
 
 def test_dev_mode_setting_reads_the_files_environment_table(no_secrets, monkeypatch):
@@ -188,5 +193,5 @@ def test_dev_mode_setting_reads_the_files_environment_table(no_secrets, monkeypa
 
 
 def test_settings_are_not_secret_names():
-    assert secrets_loader.SETTING_NAMES == ("STATION_MAC", "DEV_MODE")
+    assert secrets_loader.SETTING_NAMES == ("DEV_MODE",)
     assert not set(secrets_loader.SETTING_NAMES) & set(secrets_loader.SECRET_NAMES)

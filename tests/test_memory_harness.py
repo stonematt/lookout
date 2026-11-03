@@ -22,7 +22,8 @@ from tests.fixtures.archive import STATION_TZ
 from tests.fixtures.real import load_real_slice
 
 REFRESH_STEPS = [
-    "load_station",
+    "load_stations",
+    "fetch_delta",
     "update_archive",
     "correct_rain",
     "load_catalogs",

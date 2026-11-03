@@ -3,6 +3,7 @@ storage.py: Helpers for tests that run against the `fake_s3` fixture.
 
 `BUCKET` is the bucket `fake_s3` creates. `bucket_keys(client)` lists it.
 `FlakyStorj` and `flaky_storj` make chosen storage calls fail like an outage.
+`seed_inventory(*macs)` stores the station inventory listing them.
 `FrozenDatetime` stands in for `datetime.datetime` with a fixed `now()`; the
 `frozen_today` fixture in conftest installs it where `backup_data` reads it.
 """
@@ -32,6 +33,17 @@ class FrozenDatetime(real_datetime.datetime):
         return cls(2026, 1, 5, 12, 0, 0, tzinfo=tz)
 
 
+def seed_inventory(*macs: str) -> None:
+    """
+    Store the station inventory in `BUCKET`, listing `macs` in that order.
+
+    :param macs: The stations; the first is the default station.
+    """
+    from lookout.storage.station_inventory import INVENTORY_KEY
+
+    storj.save_json_to_s3({"stations": list(macs)}, BUCKET, INVENTORY_KEY)
+
+
 def bucket_keys(client: object) -> List[str]:
     """
     Every key in `BUCKET`, sorted.
@@ -49,7 +61,7 @@ class FlakyStorj:
 
     :param s3: The moto client every other call goes to.
     :param read: A key whose `get_object` raises.
-    :param write: A key whose `upload_fileobj` raises.
+    :param write: A key whose `upload_fileobj` or `put_object` raises.
     :param copy: Whether `copy_object` (the backup) raises.
     """
 
@@ -77,6 +89,11 @@ class FlakyStorj:
         if kwargs["Key"] == self.write:
             raise OSError("storj write refused")
         return self.s3.upload_fileobj(**kwargs)
+
+    def put_object(self, **kwargs: object) -> Dict:
+        if kwargs["Key"] == self.write:
+            raise OSError("storj write refused")
+        return self.s3.put_object(**kwargs)
 
     def copy_object(self, **kwargs: object) -> Dict:
         if self.copy:
