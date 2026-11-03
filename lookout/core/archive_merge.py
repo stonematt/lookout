@@ -49,7 +49,7 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NamedTuple, Optional, Tuple, Union
+from typing import List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -288,6 +288,9 @@ class _Pieces(NamedTuple):
         dtype = find_common_type(held)
         if len(held) < len(present):
             dtype = ensure_dtype_can_hold_na(dtype)
+        if dtype == object:
+            # Category text meeting more text stays category (#285).
+            return _text_category([p for p in present if p is not None]) or dtype
         return dtype
 
     def values(self, col: str, dtype: Dtype, *, whole: bool) -> ExtensionArray:
@@ -313,6 +316,39 @@ class _Pieces(NamedTuple):
             [_cast_piece(part, size, dtype) for size, part in pieces],
             ignore_index=True,
         ).array
+
+
+def _text_category(parts: List[pd.Series]) -> Optional[pd.CategoricalDtype]:
+    """
+    The category a text column keeps across the merge's pieces (#285).
+
+    Where the concat rule makes a column object, a column the archive holds
+    as category (`strings_as_category`) would come out as plain strings, a
+    full copy of them in every later step. When at least one piece holds it
+    as an unordered category of text and every other piece holds category
+    text or object text (`_holds_strings`), the column stays category: the
+    first category piece's categories, then each new text value, sorted.
+    Values are unchanged; only how the frame holds them differs.
+
+    :param parts: The pieces' columns, each present.
+    :return: The merged category, or None when the concat rule stands.
+    """
+    held = [p.dtype for p in parts if isinstance(p.dtype, pd.CategoricalDtype)]
+    if not held or any(
+        dtype.ordered or dtype.categories.inferred_type != "string" for dtype in held
+    ):
+        return None
+    text = set()
+    for part in parts:
+        if isinstance(part.dtype, pd.CategoricalDtype):
+            text.update(part.dtype.categories)
+        elif _holds_strings(part):
+            text.update(part.dropna())
+        elif part.notna().any():
+            return None
+    categories = held[0].categories
+    new = sorted(text.difference(categories))
+    return pd.CategoricalDtype(categories.append(pd.Index(new, dtype=object)))
 
 
 def _cast_piece(part: Optional[pd.Series], size: int, dtype: Dtype) -> pd.Series:
@@ -518,6 +554,54 @@ def replace(
     return Replaced(_newest_first(merged), report)
 
 
+def strings_as_category(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The archive with its string columns held as `category` (#285).
+
+    A column qualifies by a rule, not a list: its dtype is object, every
+    value it holds is a `str` or missing, with at least one `str`, and it
+    repeats its values (fewer distinct ones than half its readings, else a
+    category costs more than the strings it replaces). On today's archive
+    that is `passkey`, `loc` and `battrain`. Such a column
+    round-trips exactly: each value reads back as the same `str`, each
+    missing one as missing, through the frame and through a parquet
+    written dictionary-encoded. Any other column (numbers, times, text
+    mixed with other types, a column of nothing) is left as it is, so no
+    float column changes type.
+
+    A shallow copy when anything changes, so the other columns are shared
+    with `df`, and `df` keeps its types.
+
+    :param df: An archive frame.
+    :return: `df` itself when no column qualifies, else a frame with each
+        qualifying column as an unordered `category` of its values.
+    """
+    strings = [
+        col
+        for col in df.columns
+        if _holds_strings(df[col]) and df[col].nunique() < df[col].count() / 2
+    ]
+    if not strings:
+        return df
+    held = df.copy(deep=False)
+    for col in strings:
+        held[col] = df[col].astype("category")
+    return held
+
+
+def _holds_strings(column: pd.Series) -> bool:
+    """
+    Whether a column is object text: every value a `str` or missing.
+
+    :param column: An archive column.
+    :return: True for an object column with at least one `str` and no value
+        of another type.
+    """
+    return column.dtype == object and (
+        pd.api.types.infer_dtype(column, skipna=True) == "string"
+    )
+
+
 def strip_derived(df: pd.DataFrame) -> pd.DataFrame:
     """
     The archive without the columns Lookout derives (`DERIVED_COLUMNS`).
@@ -546,6 +630,12 @@ def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
     :return: A boolean Series; True also where the values cannot be
         compared (e.g. a tz-naive and a tz-aware time), which differ.
     """
+    if isinstance(old.dtype, pd.CategoricalDtype) or isinstance(
+        new.dtype, pd.CategoricalDtype
+    ):
+        # Two categories with different categories refuse to compare; their
+        # values compare as text (#285). Only the shared readings are copied.
+        old, new = old.astype(object), new.astype(object)
     try:
         return old.ne(new)
     except TypeError:

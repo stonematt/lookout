@@ -202,7 +202,7 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     archive = normalize(stored)
     if archive.empty:
         raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
-    return archive
+    return archive_merge.strings_as_category(archive)
 
 
 def archive_newest_ms(bucket: str, mac: str) -> int:
@@ -395,7 +395,9 @@ def save_archive(
         )
     if lost:
         logger.warning(f"Repair of s3://{bucket}/{key} will {lost.describe()}")
-    df = archive_merge.strip_derived(_newest_first(df))
+    df = archive_merge.strings_as_category(
+        archive_merge.strip_derived(_newest_first(df))
+    )
     if not save_df_to_s3(df, bucket, key):
         raise StorageWriteError(f"Failed to save s3://{bucket}/{key}")
 

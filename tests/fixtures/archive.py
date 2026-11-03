@@ -276,3 +276,34 @@ def scenario_archive(newest_first: bool = True) -> pd.DataFrame:
         gaps=SCENARIO.gaps,
         newest_first=newest_first,
     )
+
+
+def text_as_values(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    `df` with each category column back as plain objects, missing as None.
+
+    The archive holds and stores its text columns as category (#285); this
+    gives the values they hold, to compare with a frame of plain strings.
+
+    :param df: An archive frame.
+    :return: A copy; every other column as it is.
+    """
+    out = df.copy()
+    for col in out.columns:
+        if isinstance(out[col].dtype, pd.CategoricalDtype):
+            out[col] = out[col].astype(object).where(out[col].notna(), None)
+    return out
+
+
+def text_as_category(dtypes: pd.Series, text: Sequence[str]) -> dict:
+    """
+    An archive's column types as stored, its text columns category (#285).
+
+    :param dtypes: The column types of a frame of plain strings
+        (`df.dtypes`).
+    :param text: The columns that hold text.
+    :return: `{column: dtype name}`, each of `text` as "category".
+    """
+    return {
+        col: "category" if col in text else str(dtype) for col, dtype in dtypes.items()
+    }
