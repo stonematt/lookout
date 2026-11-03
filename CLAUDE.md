@@ -12,7 +12,7 @@ cd web && npm ci && npm run format:check && npm run lint && npm run build && npm
 cd web && npm run dev                                     # site on golden fixtures, no secrets
 ```
 
-CI runs both gates on PRs into `dev` and `goal/**` only, never on PRs into `main`. `npm run format` fixes web formatting. Tests go through the public entry points, with Storj and Ambient faked at the boundary (`CONTRIBUTING.md` names the one exception). Python format and lint are local: `.venv/bin/black` and `.venv/bin/flake8 --max-line-length 88` on the `.py` files you change. Older files still fail both, so a file you create or edit passes and the rest stay as they are. Tests need no secrets: `tests/conftest.py` points the secrets loader at a missing file. Web scripts live in `web/package.json`; the dev server's `?fixture=`, `?age=` and `?theme=` switches, the API routes and the CSP check are in `web/README.md`.
+CI runs both gates on PRs into `dev`, `goal/**` and `main`. `npm run format` fixes web formatting. Tests go through the public entry points, with Storj and Ambient faked at the boundary (`CONTRIBUTING.md` names the one exception). Python format and lint are local: `.venv/bin/black` and `.venv/bin/flake8 --max-line-length 88` on the `.py` files you change. Older files still fail both, so a file you create or edit passes and the rest stay as they are. Tests need no secrets: `tests/conftest.py` points the secrets loader at a missing file. Web scripts live in `web/package.json`; the dev server's `?fixture=`, `?age=` and `?theme=` switches, the API routes and the CSP check are in `web/README.md`.
 
 ## Layout
 
