@@ -1,2 +1,4 @@
 pytest
 moto[s3]>=5.0,<6
+black==25.1.0
+flake8>=7,<8
