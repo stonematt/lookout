@@ -28,6 +28,7 @@ from tests.fixtures.archive import (
     build_archive,
     scenario_archive,
 )
+from tests.fixtures.real import load_real_slice
 
 COUNTERS = ["dailyrainin", "weeklyrainin", "monthlyrainin", "yearlyrainin"]
 CARRY_GAP = SCENARIO.gaps[0]
@@ -232,6 +233,94 @@ class TestArchiveMerge:
         pd.testing.assert_frame_equal(archive, full)
         assert report.added == len(full) - len(stored)
         assert (report.filled, report.updated) == (0, 0)
+
+    def test_a_column_takes_the_type_a_concat_gives_it(self):
+        """The type rule of a whole-frame concat, pinned for a pandas upgrade."""
+        stored = readings(
+            {"slot": 0, "tempf": 50.0, "count": 1, "battrain": "1"},
+            {"slot": 1, "tempf": 51.0, "count": 2, "battrain": "1"},
+        )
+        ambient = readings(
+            {"slot": 1, "tempf": 52, "pm25": 3},
+            {"slot": 2, "tempf": 53, "pm25": 4},
+        )
+
+        archive, _ = archive_merge.merge(stored, ambient)
+
+        assert archive.dtypes.astype(str).to_dict() == {
+            "dateutc": "int64",
+            "tempf": "float64",
+            "count": "float64",
+            "battrain": "object",
+            "pm25": "float64",
+        }
+        assert archive["tempf"].tolist() == [53.0, 52.0, 50.0]
+        assert archive["count"].tolist()[1:] == [2.0, 1.0]
+        assert archive["pm25"].tolist()[:2] == [4.0, 3.0]
+
+    def test_a_category_text_column_stays_category_through_the_merge(self):
+        """
+        The archive holds its text as category (#285); Ambient sends text.
+
+        The concat rule would make the column object again, a full copy of
+        its strings in every later step; the merge keeps it category, its
+        categories grown by any new text, with the same values.
+        """
+        stored = readings(
+            {"slot": 0, "battrain": "1", "loc": "a"},
+            {"slot": 1, "battrain": "1", "loc": None},
+            {"slot": 2, "battrain": "1", "loc": "b"},
+        ).astype({"battrain": "category", "loc": "category"})
+        ambient = readings(
+            {"slot": 2, "battrain": "1"},
+            {"slot": 3, "battrain": "0"},
+        )
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].dtype == pd.CategoricalDtype(["1", "0"])
+        assert archive["loc"].dtype == pd.CategoricalDtype(["a", "b"])
+        assert archive["battrain"].tolist() == ["0", "1", "1", "1"]
+        assert archive["loc"].astype(object).where(
+            archive["loc"].notna(), None
+        ).tolist() == [None, "b", None, "a"]
+        assert (report.added, report.filled, report.updated) == (1, 0, 0)
+
+    def test_a_changed_text_value_is_an_update_against_a_category(self):
+        stored = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}
+        ).astype({"battrain": "category"})
+        ambient = readings({"slot": 1, "battrain": "0"})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].tolist() == ["0", "1"]
+        assert archive["battrain"].dtype == pd.CategoricalDtype(["1", "0"])
+        assert report.updated == 1
+
+    def test_text_held_as_category_on_both_sides_is_compared_by_value(self):
+        stored = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}
+        ).astype({"battrain": "category"})
+        ambient = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "0"}
+        ).astype({"battrain": pd.CategoricalDtype(["0", "1"])})
+
+        archive, report = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].tolist() == ["0", "1"]
+        assert (report.filled, report.updated) == (0, 1)
+
+    def test_text_mixed_with_numbers_takes_the_concat_type(self):
+        stored = readings(
+            {"slot": 0, "battrain": "1"}, {"slot": 1, "battrain": "1"}
+        ).astype({"battrain": "category"})
+        ambient = readings({"slot": 2, "battrain": 1.0})
+
+        archive, _ = archive_merge.merge(stored, ambient)
+
+        assert archive["battrain"].dtype == object
+        assert archive["battrain"].tolist() == [1.0, "1", "1"]
 
     def test_the_report_describes_itself_for_a_log_line(self):
         report = archive_merge.MergeReport(
@@ -849,3 +938,181 @@ class TestArchiveReplace:
 
         assert list(archive["dateutc"]) == [T0]
         assert (report.replaced, report.written) == (0, 1)
+
+
+# ---------- the merge leaves the stored archive ----------
+
+DERIVED = ["value_bin", "direction_bin", "hour"]
+
+
+def fetched(df: pd.DataFrame) -> pd.DataFrame:
+    """Rows of a stored frame as Ambient sends them: no derived columns."""
+    return df.drop(columns=[c for c in DERIVED if c in df.columns])
+
+
+class TestMergeLeavesTheStoredArchive:
+    """`archive_merge.merge` writes into its own copy, never `stored`."""
+
+    def test_changing_the_merged_archive_leaves_the_stored_one(self):
+        stored = load_real_slice()
+        before = stored.copy()
+
+        archive, _ = archive_merge.merge(stored, fetched(stored.head(10)))
+        archive["tempf"] = 0.0
+        archive.loc[0, "battrain"] = "x"
+
+        pd.testing.assert_frame_equal(stored, before)
+
+
+# ---------- the save guard ----------
+
+
+def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
+    """
+    `(case, stored, new)` for the save guard tests.
+
+    On the real slice, newest first with the archive's own dtypes, and the
+    stored side oldest first as `storj.load_archive` returns it.
+    """
+    real = load_real_slice()
+    stored = real.iloc[::-1].reset_index(drop=True)
+    raw = fetched(real)
+
+    blanked = raw.copy()
+    blanked.loc[blanked.index[::7], "tempf"] = float("nan")
+    blanked.loc[blanked.index[::11], "battrain"] = None
+    blanked.loc[blanked.index[:5], "date"] = None
+
+    stored_holes = stored.copy()
+    stored_holes.loc[stored_holes.index[::5], ["tempf", "battrain"]] = None
+    refilled = fetched(stored_holes)
+    refilled.loc[refilled.index[1::5], "tempf"] = float("nan")
+
+    without = raw.drop(columns=["dewPoint", "battrain"])
+    with_extra = raw.copy()
+    with_extra["pm25_in"] = 7.0
+
+    invalid = raw.copy()
+    invalid.loc[invalid.index[:4], "dateutc"] = 12345  # below the 2020 floor
+    as_text = raw.astype({"dateutc": "str"})
+    as_time = raw.assign(dateutc=pd.to_datetime(raw["dateutc"], unit="ms", utc=True))
+    newer = raw.iloc[:1].assign(dateutc=raw["dateutc"].iloc[0] + STEP)
+    swapped = pd.concat([newer, raw.iloc[1:]], ignore_index=True)
+    reindexed = raw.set_axis(range(1000, 1000 + len(raw)))
+
+    derived = stored.assign(hour=16, direction_bin="N", value_bin="0-1")
+    derived_blank = real.assign(hour=float("nan"))
+
+    stored_repeats = pd.concat([stored, stored.iloc[:10]])
+    stored_repeats.loc[stored_repeats.index[:2], "dateutc"] = 12345
+
+    # The archive holds its text as category (#285): the first save over a
+    # stored archive of plain strings, and a category value blanked.
+    held = raw.astype({"battrain": "category"})
+    stored_held = stored.astype({"battrain": "category"})
+    held_blanked = held.copy()
+    held_blanked.loc[held_blanked.index[::13], "battrain"] = None
+
+    window = (int(real["dateutc"].iloc[300]), int(real["dateutc"].iloc[250]))
+    repaired, _ = archive_merge.replace(stored, *window, raw.iloc[260:280])
+    merged, _ = archive_merge.merge(stored.iloc[30:], raw.head(40))
+
+    return [
+        ("a clean save of the merge", stored.iloc[30:], merged),
+        ("the same archive", stored, real),
+        ("the same archive, raw", stored, raw),
+        ("a dropped reading", stored, raw.iloc[1:]),
+        ("dropped readings inside", stored, raw.drop(raw.index[100:140])),
+        ("a swapped reading", stored, swapped),
+        ("a blanked value", stored, blanked),
+        ("a value missing on both sides", stored_holes, refilled),
+        ("an explicit repair", stored, repaired),
+        ("a column only the stored side holds", stored, without),
+        ("a column only the new side holds", stored, with_extra),
+        ("a stored derived column the new frame lacks", derived, raw),
+        ("a stored derived value blank in the new frame", derived, derived_blank),
+        ("new oldest first", stored, raw.iloc[::-1]),
+        ("new with a non-default index", stored, reindexed),
+        ("new rows normalize rejects", stored, invalid),
+        ("new dateutc as text", stored, as_text),
+        ("new dateutc as a tz-aware time", stored, as_time),
+        ("stored rows normalize repairs", stored_repeats, raw),
+        ("an empty new archive", stored, pd.DataFrame()),
+        ("a new archive without dateutc", stored, raw.drop(columns=["dateutc"])),
+        ("an empty new archive with columns", stored, raw.iloc[0:0]),
+        ("nothing stored", pd.DataFrame(), raw),
+        ("category text over plain text", stored, held),
+        ("plain text over category text", stored_held, raw),
+        ("a blanked category value", stored_held, held_blanked),
+    ]
+
+
+# What the pre-#284 save guard found on each case, recorded from it before it
+# was deleted; the overlap guard matched it on every case and on the full
+# real archive (#284).
+EXPECTED_LOSS = {
+    "a clean save of the merge": (0, 0, ()),
+    "the same archive": (0, 0, ()),
+    "the same archive, raw": (0, 0, ()),
+    "a dropped reading": (1, 0, ()),
+    "dropped readings inside": (40, 0, ()),
+    "a swapped reading": (1, 0, ()),
+    "a blanked value": (0, 128, ("tempf", "battrain", "date")),
+    "a value missing on both sides": (0, 104, ("tempf",)),
+    "an explicit repair": (30, 0, ()),
+    "a column only the stored side holds": (0, 1040, ("battrain", "dewPoint")),
+    "a column only the new side holds": (0, 0, ()),
+    "a stored derived column the new frame lacks": (0, 0, ()),
+    "a stored derived value blank in the new frame": (0, 0, ()),
+    "new oldest first": (0, 0, ()),
+    "new with a non-default index": (0, 0, ()),
+    "new rows normalize rejects": (4, 0, ()),
+    "new dateutc as text": (0, 0, ()),
+    "new dateutc as a tz-aware time": (0, 0, ()),
+    "stored rows normalize repairs": (0, 0, ()),
+    "an empty new archive": (520, 0, ()),
+    "a new archive without dateutc": (520, 0, ()),
+    "an empty new archive with columns": (520, 0, ()),
+    "nothing stored": (0, 0, ()),
+    # Added with #285, after the old guard was deleted: by hand, every 13th
+    # of the 520 readings blanked.
+    "category text over plain text": (0, 0, ()),
+    "plain text over category text": (0, 0, ()),
+    "a blanked category value": (0, 40, ("battrain",)),
+}
+
+
+class TestSaveGuard:
+    """`archive_merge.loss`: dropped readings and blanked raw values only."""
+
+    @pytest.mark.parametrize(
+        "case,stored,new",
+        [pytest.param(c, s, n, id=c) for c, s, n in loss_cases()],
+    )
+    def test_finds_what_the_save_would_lose(self, case, stored, new):
+        stored_before, new_before = stored.copy(), new.copy()
+
+        lost = archive_merge.loss(stored, new)
+
+        dropped, blanked, columns = EXPECTED_LOSS[case]
+        assert lost == archive_merge.Loss(dropped, blanked, columns)
+        pd.testing.assert_frame_equal(stored, stored_before)
+        pd.testing.assert_frame_equal(new, new_before)
+
+    def test_every_case_has_an_expected_loss(self):
+        assert [case for case, _, _ in loss_cases()] == list(EXPECTED_LOSS)
+
+    def test_a_reading_new_repeats_is_compared_once(self):
+        real = load_real_slice()
+        stored = real.iloc[::-1].reset_index(drop=True)
+        raw = fetched(real)
+        tempf = raw.columns.get_loc("tempf")
+        first_blank = pd.concat([raw.iloc[:1], raw], ignore_index=True)
+        first_blank.iloc[0, tempf] = float("nan")
+        second_blank = pd.concat([raw.iloc[:1], raw], ignore_index=True)
+        second_blank.iloc[1, tempf] = float("nan")
+
+        losses = [archive_merge.loss(stored, n) for n in (first_blank, second_blank)]
+
+        assert all(lost.dropped == 0 for lost in losses)
+        assert sorted(lost.blanked for lost in losses) == [0, 1]

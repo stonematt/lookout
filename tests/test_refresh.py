@@ -32,6 +32,7 @@ from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
 from lookout.snapshot import status as run_status
 from lookout.snapshot.status import CodeVersion
+from lookout.snapshot.station_index import STATION_INDEX_KEY
 from tests.snapshot_helpers import FIXED_CODE
 from lookout.storage import storj
 from lookout.storage.station_inventory import INVENTORY_KEY
@@ -44,6 +45,7 @@ from tests.fixtures.archive import (
     STATION_TZ,
     RainSpell,
     build_archive,
+    text_as_category,
 )
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj, seed_inventory
@@ -94,8 +96,9 @@ def stored_json(station: CatchupStation, key: str) -> Dict:
 
 def snapshot_keys(station: CatchupStation) -> List[str]:
     """
-    The snapshot documents' keys: under `snapshot/`, not curve files and not
-    the run's status document (#268), which every run writes.
+    The snapshot documents' keys: under `snapshot/`, not curve files, not
+    the run's status document (#268), which every run writes, and not the
+    station index (#272), which every run that publishes writes.
     """
     return [
         key
@@ -103,6 +106,7 @@ def snapshot_keys(station: CatchupStation) -> List[str]:
         if key.startswith("snapshot/")
         and not key.startswith(CURVE_PREFIX)
         and not key.endswith(".status.json")
+        and key != STATION_INDEX_KEY
     ]
 
 
@@ -184,10 +188,28 @@ class TestRefreshRun:
         stored = station.stored()
         assert len(stored) == len(station.archive) + RECORDED_ROWS
         assert stored["dateutc"].is_unique
-        assert list(stored.columns) == list(station.archive.columns)
-        assert stored.dtypes.astype(str).to_dict() == (
-            station.archive.dtypes.astype(str).to_dict()
+        # The save strips the columns Lookout derived (#191); the rest stay.
+        archive = station.archive.drop(columns=["hour", "direction_bin", "value_bin"])
+        assert list(stored.columns) == list(archive.columns)
+        # The text column is stored dictionary-encoded (#285); `passkey` and
+        # `loc` hold nothing on the slice, so they stay as they are.
+        assert stored.dtypes.astype(str).to_dict() == text_as_category(
+            archive.dtypes, ["battrain"]
         )
+
+    def test_the_archive_step_hands_on_its_text_as_category(self, seed):
+        # #285: the archive as saved, which every later step reads, holds
+        # its text as category, though Ambient's fetch sends plain text.
+        station = seed()
+        (run,) = refresh.load_stations(BUCKET)
+        fetched, _ = refresh.fetch_delta(run.device, BUCKET, pages=20)
+        assert fetched["battrain"].dtype == object
+
+        archive = refresh.update_archive(run.device, BUCKET, fetched)
+
+        assert archive["battrain"].dtype == "category"
+        assert len(archive) == len(station.archive) + RECORDED_ROWS
+        assert archive["battrain"].isna().sum() == 0
 
     def test_the_snapshot_is_built_from_the_caught_up_archive(self, seed):
         station = seed()

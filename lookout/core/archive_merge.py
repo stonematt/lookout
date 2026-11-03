@@ -17,6 +17,12 @@ The same comparison guards every archive save (`storj.save_archive`):
 dropped and values blanked, whoever built it. No routine write may lose
 either (GLOSSARY: **archive**); only an explicit repair may.
 
+The archive holds only what Ambient sends (#191). `DERIVED_COLUMNS` names
+the columns Lookout once derived and saved; every archive save strips them
+(`strip_derived`), and `loss` does not count them, so leaving them out is
+never a blank. Any column not on the list is raw and kept, so a sensor
+Ambient adds later is never dropped.
+
 Pure frame logic: no storage access, no Streamlit. A deliberate correction
 is a replace, never a merge.
 
@@ -24,6 +30,9 @@ Functions:
 - merge: Merge Ambient's readings into the stored archive; returns `Merged`.
 - loss: What saving a new archive over the stored one would lose; `Loss`.
 - replace: Swap the stored readings in a window for corrected ones; `Replaced`.
+- strip_derived: The archive without its `DERIVED_COLUMNS`.
+- strings_as_category: The archive with its text columns as categories.
+- newest_first: The archive in stored order, newest `dateutc` first.
 
 Classes:
 - MergeReport: What one merge changed; `describe()` is its log line.
@@ -42,11 +51,29 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NamedTuple, Tuple
+from typing import List, NamedTuple, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
+# The type rule `pd.concat` uses, so a merged column keeps the type a
+# whole-frame concat gives it. A private pandas API: `pandas<3` is pinned in
+# requirements.txt, and the merge tests in tests/test_archive_merge.py
+# (`test_a_column_takes_the_type_a_concat_gives_it`) catch a pandas upgrade
+# that changes the rule.
+from pandas.api.extensions import ExtensionArray, ExtensionDtype
+from pandas.core.dtypes.cast import ensure_dtype_can_hold_na, find_common_type
+
 from lookout.utils.dateutc import normalize
+
+Dtype = Union[np.dtype, ExtensionDtype]
+
+# Columns Lookout derived that old UI code saved into the archive, never
+# Ambient's (#191): the hour of a reading and the wind rose's direction and
+# speed bins. The archive's first data, Ambient's 2022 history (a3b1246),
+# has none of them; it does carry `passkey`, `time` and `loc`, which no
+# Lookout code ever set, so those are Ambient's and stay.
+DERIVED_COLUMNS = ("hour", "direction_bin", "value_bin")
 
 
 @dataclass(frozen=True)
@@ -105,58 +132,241 @@ def merge(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
     """
     Merge Ambient's readings into the stored archive, Ambient winning.
 
-    Both frames go through `dateutc.normalize` first. A reading only Ambient
-    has is added. For a reading both have, value by value: Ambient's non-NaN
-    value wins; Ambient's NaN, or a column Ambient's frame lacks, keeps the
-    stored value. No valid stored reading is dropped; only rows `normalize`
-    rejects (no valid `dateutc`, a repeated one) are left out, as
-    `storj.load_archive` already does.
+    Both frames go through `dateutc.normalize` first; a stored archive as
+    `storj.load_archive` returns it is already normal and is not copied. A
+    reading only Ambient has is added. For a reading both have, value by
+    value: Ambient's non-NaN value wins; Ambient's NaN, or a column
+    Ambient's frame lacks, keeps the stored value. No valid stored reading
+    is dropped; only rows `normalize` rejects (no valid `dateutc`, a
+    repeated one) are left out, as `storj.load_archive` already does.
+
+    Only the shared readings and the added ones are worked on: the stored
+    archive is taken once into stored order with room for the added
+    readings, and Ambient's values and the added readings are written into
+    that copy. `stored` is never changed. Each column takes the type a
+    concat of the stored, shared and added readings would give it, so the
+    archive, its column order and its dtypes are what a whole-frame merge
+    gives.
 
     :param stored: The stored archive (or the frame standing in for it).
     :param ambient: Readings fetched from Ambient, raw.
     :return: `Merged(archive, report)`. The archive's columns are the stored
-        columns in their order, then the Ambient-only ones.
+        columns in their order, then the Ambient-only ones. It may be the
+        input frame itself when that is already in stored order.
     """
     stored = normalize(stored)
     ambient = normalize(ambient)
     if ambient.empty:
-        return Merged(_newest_first(stored), MergeReport())
+        return Merged(newest_first(stored), MergeReport())
     if stored.empty:
-        return Merged(_newest_first(ambient), MergeReport(added=len(ambient)))
+        return Merged(newest_first(ambient), MergeReport(added=len(ambient)))
 
-    stored_at = stored.set_index("dateutc")
-    ambient_at = ambient.set_index("dateutc")
-    shared = stored_at.index.intersection(ambient_at.index)
-    common = [c for c in stored_at.columns if c in ambient_at.columns]
-    ambient_only = tuple(c for c in ambient_at.columns if c not in stored_at.columns)
+    # Both are ascending and unique on `dateutc`, so a sorted search gives
+    # each fetched reading's place in the stored archive; it is shared when
+    # the stored reading there has the same `dateutc` (a place past the end
+    # is never shared).
+    stored_ms = stored["dateutc"].to_numpy()
+    ambient_ms = ambient["dateutc"].to_numpy()
+    place = np.searchsorted(stored_ms, ambient_ms)
+    is_shared = place < len(stored_ms)
+    is_shared[is_shared] = stored_ms[place[is_shared]] == ambient_ms[is_shared]
+    shared = place[is_shared]
+    ambient_shared = ambient[is_shared].reset_index(drop=True)
+    added = ambient[~is_shared].reset_index(drop=True)
 
-    both = stored_at.loc[shared].copy()
+    common = [c for c in stored.columns if c in ambient.columns]
+    ambient_only = tuple(c for c in ambient.columns if c not in stored.columns)
+    both = stored.iloc[shared].reset_index(drop=True)
     filled = updated = 0
     for col in common:
-        old, new = both[col], ambient_at.loc[shared, col]
+        if col == "dateutc":
+            continue
+        old, new = both[col], ambient_shared[col]
         sent = new.notna()
         had = old.notna()
         filled += int((sent & ~had).sum())
         updated += int((sent & had & _differs(old, new)).sum())
         both[col] = new.where(sent, old)
     for col in ambient_only:
-        both[col] = ambient_at.loc[shared, col]
+        both[col] = ambient_shared[col]
 
-    pieces = [
-        p
-        for p in (stored_at.drop(index=shared), both, ambient_at.drop(index=shared))
-        if not p.empty
-    ]
-    columns = list(stored.columns) + list(ambient_only)
-    merged = pd.concat(pieces, sort=False).reset_index().reindex(columns=columns)
+    kept = np.ones(len(stored), dtype=bool)
+    kept[shared] = False
+    merged = _Pieces(stored, np.flatnonzero(kept), shared, both, added).build(
+        ambient_only
+    )
     report = MergeReport(
-        added=len(ambient_at) - len(shared),
+        added=len(added),
         filled=filled,
         updated=updated,
-        stored_only=tuple(c for c in stored_at.columns if c not in ambient_at.columns),
+        stored_only=tuple(c for c in stored.columns if c not in ambient.columns),
         ambient_only=ambient_only,
     )
-    return Merged(_newest_first(merged), report)
+    return Merged(merged, report)
+
+
+class _Pieces(NamedTuple):
+    """
+    The three pieces a merged archive is built from.
+
+    The stored readings Ambient did not send stay in `stored`, at `kept`;
+    the shared readings (`both`, at `shared` in `stored`) and the added
+    ones are small frames of their own. In that order, end to end, they are
+    the merged archive's readings before the sort into stored order.
+
+    :param stored: The stored archive, normalized; read, never changed.
+    :param kept: Positions in `stored` of the readings Ambient did not send.
+    :param shared: Positions in `stored` of the shared readings.
+    :param both: The shared readings, Ambient's values written in.
+    :param added: The readings only Ambient has.
+    """
+
+    stored: pd.DataFrame
+    kept: np.ndarray
+    shared: np.ndarray
+    both: pd.DataFrame
+    added: pd.DataFrame
+
+    def build(self, ambient_only: Tuple[str, ...]) -> pd.DataFrame:
+        """
+        The merged archive, newest first, from one copy of the stored one.
+
+        The stored archive is taken once into stored order, an added
+        reading holding a stand-in row; then each column's shared and added
+        values are written into that copy. A column whose merged type is not
+        its stored type, or that only Ambient has, is built whole instead.
+
+        :param ambient_only: Ambient's columns `stored` lacks, in order.
+        :return: The archive; stored columns, then `ambient_only`.
+        """
+        stored_ms = self.stored["dateutc"].to_numpy()
+        keys = np.concatenate(
+            [
+                stored_ms[self.kept],
+                stored_ms[self.shared],
+                self.added["dateutc"].to_numpy(),
+            ]
+        )
+        order = np.argsort(keys, kind="stable")[::-1]
+        # The archive position of each reading of the pieces, end to end.
+        position = np.empty_like(order)
+        position[order] = np.arange(len(order))
+        from_ambient = len(self.kept)
+        written_at = position[from_ambient:]
+        source = np.concatenate(
+            [self.kept, self.shared, np.zeros(len(self.added), dtype=np.intp)]
+        )
+        merged = self.stored.take(source[order])
+        merged.index = pd.RangeIndex(len(merged))
+        for i, col in enumerate(self.stored.columns):
+            dtype = self.merged_dtype(col)
+            if dtype == self.stored[col].dtype:
+                merged.iloc[written_at, i] = self.values(col, dtype, whole=False)
+            else:
+                merged[col] = self.values(col, dtype, whole=True).take(order)
+        for col in ambient_only:
+            dtype = self.merged_dtype(col)
+            merged[col] = self.values(col, dtype, whole=True).take(order)
+        return merged
+
+    def merged_dtype(self, col: str) -> Dtype:
+        """
+        The column's type in the merged archive.
+
+        The rule `pd.concat` follows for a column across the non-empty
+        pieces: one type when every piece has it; else the common type,
+        widened to hold NA when a piece lacks the column (an int column
+        becomes float).
+
+        :param col: A column of `stored`, of Ambient's frame, or both.
+        :return: The merged column's dtype.
+        """
+        sides = [
+            (len(self.kept), self.stored.get(col)),
+            (len(self.both), self.both.get(col)),
+            (len(self.added), self.added.get(col)),
+        ]
+        present = [part for size, part in sides if size]
+        held = [part.dtype for part in present if part is not None]
+        dtype = find_common_type(held)
+        if len(held) < len(present):
+            dtype = ensure_dtype_can_hold_na(dtype)
+        if dtype == object:
+            # Category text meeting more text stays category (#285).
+            return _text_category([p for p in present if p is not None]) or dtype
+        return dtype
+
+    def values(self, col: str, dtype: Dtype, *, whole: bool) -> ExtensionArray:
+        """
+        A column's values piece after piece, in its merged type.
+
+        :param col: A column of `stored`, of Ambient's frame, or both.
+        :param dtype: The column's merged type.
+        :param whole: True for the kept, shared and added values; False for
+            the shared and added ones only, the values Ambient's fetch puts
+            in place.
+        :return: The values; NA where a piece lacks the column.
+        """
+        stored = self.stored.get(col)
+        pieces = [
+            (len(self.both), self.both.get(col)),
+            (len(self.added), self.added.get(col)),
+        ]
+        if whole:
+            kept = None if stored is None else stored.iloc[self.kept]
+            pieces.insert(0, (len(self.kept), kept))
+        return pd.concat(
+            [_cast_piece(part, size, dtype) for size, part in pieces],
+            ignore_index=True,
+        ).array
+
+
+def _text_category(parts: List[pd.Series]) -> Optional[pd.CategoricalDtype]:
+    """
+    The category a text column keeps across the merge's pieces (#285).
+
+    Where the concat rule makes a column object, a column the archive holds
+    as category (`strings_as_category`) would come out as plain strings, a
+    full copy of them in every later step. When at least one piece holds it
+    as an unordered category of text and every other piece holds category
+    text or object text (`_holds_strings`), the column stays category: the
+    first category piece's categories, then each new text value, sorted.
+    Values are unchanged; only how the frame holds them differs.
+
+    :param parts: The pieces' columns, each present.
+    :return: The merged category, or None when the concat rule stands.
+    """
+    held = [p.dtype for p in parts if isinstance(p.dtype, pd.CategoricalDtype)]
+    if not held or any(
+        dtype.ordered or dtype.categories.inferred_type != "string" for dtype in held
+    ):
+        return None
+    text = set()
+    for part in parts:
+        if isinstance(part.dtype, pd.CategoricalDtype):
+            text.update(part.dtype.categories)
+        elif _holds_strings(part):
+            text.update(part.dropna())
+        elif part.notna().any():
+            return None
+    categories = held[0].categories
+    new = sorted(text.difference(categories))
+    return pd.CategoricalDtype(categories.append(pd.Index(new, dtype=object)))
+
+
+def _cast_piece(part: Optional[pd.Series], size: int, dtype: Dtype) -> pd.Series:
+    """
+    One piece's column in the merged type.
+
+    :param part: The column, or None when the piece lacks it.
+    :param size: The piece's length in readings.
+    :param dtype: The merged type.
+    :return: `part` cast to `dtype` (itself when it already is), or `size`
+        NAs of `dtype` when `part` is None.
+    """
+    if part is None:
+        return pd.Series(index=pd.RangeIndex(size), dtype=dtype)
+    return part.astype(dtype, copy=False)
 
 
 @dataclass(frozen=True)
@@ -202,7 +412,13 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
     or invalid row is not a reading `new` could drop. Readings are matched
     on `dateutc`. A changed value is not a loss (that is an update); only a
     stored value with nothing in its place is. A value missing on both
-    sides is not lost.
+    sides is not lost. `DERIVED_COLUMNS` are not compared: the save strips
+    them, so a stored derived value is never a loss.
+
+    Only `dateutc` keys and one column at a time are worked on, never a copy
+    of either frame: `new`'s readings are the rows `normalize` would keep
+    (`_rows_kept`), a stored reading absent from them is dropped, and each
+    stored column is compared on the readings both hold.
 
     :param stored: The stored archive, as read.
     :param new: The archive about to be saved, any order.
@@ -211,20 +427,56 @@ def loss(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
     stored = normalize(stored)
     if stored.empty:
         return Loss()
-    new = normalize(new)
-    stored_at = stored.set_index("dateutc")
-    new_at = new.set_index("dateutc") if not new.empty else pd.DataFrame()
-    kept = stored_at.index.intersection(new_at.index)
-    old = stored_at.loc[kept]
-    # A column `new` lacks reindexes to NaN: every stored value in it is lost.
-    now = new_at.reindex(index=kept, columns=old.columns)
-    per_column = (old.notna() & now.isna()).sum()
-    lost = per_column[per_column > 0]
+    stored_ms = stored["dateutc"].to_numpy()
+    new_ms, new_rows = _rows_kept(new)
+    # Both key arrays are ascending and unique, so a sorted search finds each
+    # stored reading's place among the new ones; it is kept when the new
+    # reading there has the same `dateutc` (a place past the end never is).
+    place = np.searchsorted(new_ms, stored_ms)
+    is_kept = place < len(new_ms)
+    is_kept[is_kept] = new_ms[place[is_kept]] == stored_ms[is_kept]
+    kept = np.flatnonzero(is_kept)
+    at_new = new_rows[place[kept]]
+
+    blanked = {}
+    for col in stored.columns:
+        if col == "dateutc" or col in DERIVED_COLUMNS:
+            continue
+        had = stored[col].notna().to_numpy()[kept]
+        if col in new.columns:
+            # A column `new` lacks blanks every stored value in it.
+            had &= new[col].isna().to_numpy()[at_new]
+        count = int(had.sum())
+        if count:
+            blanked[col] = count
     return Loss(
-        dropped=len(stored_at) - len(kept),
-        blanked=int(lost.sum()),
-        blanked_columns=tuple(lost.index),
+        dropped=len(stored) - len(kept),
+        blanked=sum(blanked.values()),
+        blanked_columns=tuple(blanked),
     )
+
+
+def _rows_kept(new: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    The readings of `new` that `normalize(new)` keeps, without copying `new`.
+
+    `normalize` runs on `new`'s `dateutc` beside each row's position, so the
+    same rows survive (invalid and repeated ones are left out, the same
+    repeat kept) and come back in its ascending order.
+
+    :param new: An archive frame, any order and index.
+    :return: `(dateutc, rows)`: the kept readings' int64 ms keys, ascending
+        and unique, and their positions in `new`.
+    """
+    keys = pd.DataFrame()
+    if "dateutc" in new.columns:
+        keys = pd.DataFrame(
+            {"dateutc": new["dateutc"].array, "row": np.arange(len(new))}
+        )
+    kept = normalize(keys)
+    if kept.empty:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.intp)
+    return kept["dateutc"].to_numpy(), kept["row"].to_numpy()
 
 
 @dataclass(frozen=True)
@@ -279,7 +531,8 @@ def replace(
     :param end_ms: The window's end, epoch ms, exclusive.
     :param replacement: The corrected readings.
     :return: `Replaced(archive, report)`. The archive's columns are the
-        stored columns in their order, then the replacement-only ones.
+        stored columns in their order, then the replacement-only ones. It
+        may be the input frame itself when that is already in stored order.
     """
     stored = normalize(stored)
     if "dateutc" not in stored:
@@ -297,12 +550,77 @@ def replace(
     ]
     pieces = [p for p in (stored[~inside], new) if not p.empty]
     if not pieces:
-        return Replaced(
-            _newest_first(stored), ReplaceReport(replaced=int(inside.sum()))
-        )
+        return Replaced(newest_first(stored), ReplaceReport(replaced=int(inside.sum())))
     merged = pd.concat(pieces, sort=False).reindex(columns=columns)
     report = ReplaceReport(replaced=int(inside.sum()), written=len(new))
-    return Replaced(_newest_first(merged), report)
+    return Replaced(newest_first(merged), report)
+
+
+def strings_as_category(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The archive with its string columns held as `category` (#285).
+
+    A column qualifies by a rule, not a list: its dtype is object, every
+    value it holds is a `str` or missing, with at least one `str`, and it
+    repeats its values (fewer distinct ones than half its readings, else a
+    category costs more than the strings it replaces). On today's archive
+    that is `passkey`, `loc` and `battrain`. Such a column
+    round-trips exactly: each value reads back as the same `str`, each
+    missing one as missing, through the frame and through a parquet
+    written dictionary-encoded. Any other column (numbers, times, text
+    mixed with other types, a column of nothing) is left as it is, so no
+    float column changes type.
+
+    A shallow copy when anything changes, so the other columns are shared
+    with `df`, and `df` keeps its types.
+
+    :param df: An archive frame.
+    :return: `df` itself when no column qualifies, else a frame with each
+        qualifying column as an unordered `category` of its values.
+    """
+    strings = [
+        col
+        for col in df.columns
+        if _holds_strings(df[col]) and df[col].nunique() < df[col].count() / 2
+    ]
+    if not strings:
+        return df
+    held = df.copy(deep=False)
+    for col in strings:
+        held[col] = df[col].astype("category")
+    return held
+
+
+def _holds_strings(column: pd.Series) -> bool:
+    """
+    Whether a column is object text: every value a `str` or missing.
+
+    :param column: An archive column.
+    :return: True for an object column with at least one `str` and no value
+        of another type.
+    """
+    return column.dtype == object and (
+        pd.api.types.infer_dtype(column, skipna=True) == "string"
+    )
+
+
+def strip_derived(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    The archive without the columns Lookout derives (`DERIVED_COLUMNS`).
+
+    A shallow copy, so stripping costs no copy of the archive's values: the
+    frame returned shares them with `df`, and `df` keeps its columns.
+
+    :param df: An archive frame.
+    :return: `df` itself when it holds none of them, else a frame without them.
+    """
+    derived = [col for col in DERIVED_COLUMNS if col in df.columns]
+    if not derived:
+        return df
+    stripped = df.copy(deep=False)
+    for col in derived:
+        del stripped[col]
+    return stripped
 
 
 def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
@@ -314,21 +632,38 @@ def _differs(old: pd.Series, new: pd.Series) -> pd.Series:
     :return: A boolean Series; True also where the values cannot be
         compared (e.g. a tz-naive and a tz-aware time), which differ.
     """
+    if isinstance(old.dtype, pd.CategoricalDtype) or isinstance(
+        new.dtype, pd.CategoricalDtype
+    ):
+        # Two categories with different categories refuse to compare; their
+        # values compare as text (#285). Only the shared readings are copied.
+        old, new = old.astype(object), new.astype(object)
     try:
         return old.ne(new)
     except TypeError:
         return pd.Series(True, index=old.index)
 
 
-def _newest_first(df: pd.DataFrame) -> pd.DataFrame:
+def newest_first(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Sort readings newest `dateutc` first, the stored order.
+    The archive in stored order, newest `dateutc` first, index reset.
 
-    :param df: Readings with a `dateutc` column, or an empty frame.
-    :return: `df` sorted (stable) with its index reset; an empty `df` as is.
+    A stable sort, so readings with the same `dateutc` keep their order. An
+    archive already in that order is not sorted again: only its index is
+    reset, on a shallow copy.
+
+    :param df: The archive, any row order; a frame without `dateutc` as is.
+    :return: `df` itself when nothing changes, else the frame in stored order.
     """
-    if df.empty:
+    if "dateutc" not in df.columns:
         return df
-    return df.sort_values("dateutc", ascending=False, kind="stable").reset_index(
-        drop=True
-    )
+    if not df["dateutc"].is_monotonic_decreasing:
+        return df.sort_values(
+            "dateutc", ascending=False, kind="stable", ignore_index=True
+        )
+    idx = df.index
+    if isinstance(idx, pd.RangeIndex) and idx.start == 0 and idx.step == 1:
+        return df
+    renumbered = df.copy(deep=False)
+    renumbered.index = pd.RangeIndex(len(df))
+    return renumbered

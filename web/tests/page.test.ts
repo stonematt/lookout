@@ -5,11 +5,20 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ReadError } from "../src/load.js";
 import type { Page, PageReads } from "../src/page.js";
 import { CYCLE_MS, startPage as start } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
-import { parseDashboard } from "../src/snapshot.js";
-import { golden } from "./golden.js";
+import { SCHEMA_VERSION, parseCurrent, parseDashboard } from "../src/snapshot.js";
+import type { StationIndex } from "../src/stations.js";
+import {
+  FIXTURE_MAC,
+  SALMON_MAC,
+  golden,
+  goldenCurveText,
+  oneStation,
+  twoStations,
+} from "./golden.js";
 
 const LOADING = "Loading the dashboard";
 const FAILED = "The dashboard could not be loaded.";
@@ -200,5 +209,295 @@ describe("the refresh cycle", () => {
 
     expect(panel("overview").textContent).not.toContain(FAILED);
     expect(masthead.textContent).not.toContain(FAILED);
+  });
+});
+
+const SALMON_QUERY = "?station=00%3A11%3A22%3A33%3A44%3A66";
+
+/** The page's `?station=`, as a read function would be asked it. */
+const asked = () => new URLSearchParams(location.search).get("station") ?? FIXTURE_MAC;
+
+/**
+ * Salmon Run's snapshot. A WS-2902 lacks soil moisture, PM2.5 and the WH31E
+ * sensors; the snapshot reads none of them (the refresh test
+ * `test_a_station_without_soil_pm25_or_wh31e_builds_its_snapshot` builds
+ * one without them), so its shape is the fixture station's.
+ */
+function salmon(): DashboardSnapshot {
+  const doc = snapshot(1);
+  doc.station = { mac: SALMON_MAC, name: "Salmon Run", tz: "America/Los_Angeles" };
+  return doc;
+}
+
+/** A `/current` for the station asked, observed `observedAtMs`. */
+function liveFor(mac: string, observedAtMs: number): CurrentReading {
+  return parseCurrent({
+    schema_version: SCHEMA_VERSION,
+    kind: "current",
+    station: { mac, name: mac === SALMON_MAC ? "Salmon Run" : "Fixture Station" },
+    observed_at_ms: observedAtMs,
+    built_at_ms: null,
+    last_data: { dateutc: observedAtMs },
+    context: null,
+  });
+}
+
+/** Read functions that serve whichever station the page's URL asks for. */
+function byStation(index: StationIndex = twoStations()) {
+  return {
+    stations: vi.fn(() => Promise.resolve(index)),
+    dashboard: vi.fn(() => Promise.resolve(asked() === SALMON_MAC ? salmon() : snapshot())),
+    current: quietCurrent,
+  };
+}
+
+const picker = () => masthead.querySelector<HTMLSelectElement>("select.station-select");
+
+function choose(mac: string): void {
+  picker()!.value = mac;
+  picker()!.dispatchEvent(new Event("change"));
+}
+
+describe("the station selector", () => {
+  it("lists the station index in order, the default station selected", async () => {
+    await startPage(masthead, sections, byStation()).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect([...picker()!.options].map((o) => o.textContent)).toEqual([
+      "Fixture Station",
+      "Salmon Run",
+    ]);
+    expect(picker()!.value).toBe(FIXTURE_MAC);
+    expect(masthead.querySelector(".masthead-archive")?.textContent).toBe(
+      "Archive from May 4, 2022",
+    );
+  });
+
+  it("is not drawn for a one-station index; the details strip still is", async () => {
+    await startPage(masthead, sections, byStation(oneStation())).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(picker()).toBeNull();
+    expect(masthead.querySelector("h1")?.textContent).toBe("Fixture Station");
+    expect(masthead.querySelector(".masthead-reading .masthead-when")?.textContent).toBe(
+      "Reading Jan 8, 4:25 pm",
+    );
+    expect(masthead.querySelector(".masthead-archive")?.textContent).toBe(
+      "Archive from May 4, 2022",
+    );
+  });
+
+  it("writes ?station= to the URL and redraws every tab for the chosen station", async () => {
+    history.replaceState(null, "", "/?event=1#rain");
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+    const before = new Map(
+      ["overview", "rain", "events", "solar"].map((id) => [id, panel(id).firstElementChild]),
+    );
+
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The other station's event is not carried over; the open tab is.
+    expect(location.search).toBe(SALMON_QUERY);
+    expect(location.hash).toBe("#rain");
+    expect(reads.dashboard).toHaveBeenCalledTimes(2);
+    expect(document.title).toBe("Salmon Run · Lookout");
+    expect(picker()!.value).toBe(SALMON_MAC);
+    expect(masthead.querySelector<HTMLElement>(".masthead-archive")!.hidden).toBe(true);
+    for (const id of ["overview", "rain", "events", "solar"]) {
+      open(id);
+      expect(panel(id).firstElementChild).not.toBe(before.get(id));
+      expect(panel(id).textContent).not.toContain(LOADING);
+    }
+  });
+
+  it("moves the live reading to the chosen station, dropping the last one's", async () => {
+    const observed = snapshot().observed_at_ms!;
+    vi.setSystemTime(observed + 3 * 60_000);
+    // Fixture Station's /current answers only after Salmon Run was chosen.
+    let late: (reading: CurrentReading) => void = () => undefined;
+    const reads = {
+      ...byStation(),
+      current: vi.fn(() =>
+        asked() === SALMON_MAC
+          ? Promise.resolve(liveFor(SALMON_MAC, observed - 60 * 60_000))
+          : new Promise<CurrentReading>((answer) => (late = answer)),
+      ),
+    };
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+    late(liveFor(FIXTURE_MAC, observed + 2 * 60_000));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(reads.current).toHaveBeenCalledTimes(2);
+    // Salmon Run's snapshot (Jan 8, 4:25 pm) is its newest; the fixture
+    // station's fresher live reading is not shown for it.
+    expect(masthead.querySelector(".masthead-reading .masthead-age")?.textContent).toBe("3 m ago");
+    expect(masthead.textContent).not.toContain("1 m ago");
+  });
+
+  it("opens on the station a ?station= link names", async () => {
+    history.replaceState(null, "", `/${SALMON_QUERY}`);
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(picker()!.value).toBe(SALMON_MAC);
+    expect(document.title).toBe("Salmon Run · Lookout");
+  });
+
+  it("follows the back button to the station it returns to", async () => {
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+
+    history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(picker()!.value).toBe(FIXTURE_MAC);
+    expect(document.title).toBe("Fixture Station · Lookout");
+    expect(reads.dashboard).toHaveBeenCalledTimes(3);
+  });
+
+  it("says a station listed with no snapshot yet has none, not the last station's page", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const reads = {
+      ...byStation(),
+      dashboard: vi.fn(() =>
+        asked() === SALMON_MAC
+          ? Promise.reject(new ReadError("/dashboard", 404))
+          : Promise.resolve(snapshot()),
+      ),
+    };
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const missing = "Salmon Run has no dashboard right now.";
+    expect(panel("overview").textContent).toContain(`${missing} Try again shortly`);
+    expect(masthead.querySelector(".masthead-reading .masthead-when")?.textContent).toBe(
+      `${missing} Try again`,
+    );
+    expect(masthead.querySelector(".masthead-retry")).not.toBeNull();
+    open("solar");
+    expect(panel("solar").textContent).toContain(missing);
+  });
+
+  it("draws every tab for a station that lacks soil, PM2.5 and WH31E sensors", async () => {
+    // No panel reads those sensors: the snapshot carries none of their
+    // fields, so a WS-2902's snapshot has every field a panel draws. A field
+    // added for one must be decided in the snapshot for a station without it.
+    const fields = JSON.stringify(golden("raining", "dashboard"));
+    expect(fields).not.toMatch(/"(soil\w*|pm25\w*|aqi\w*|temp[1-8]f|humidity[1-8]|batt\w*)"/);
+    history.replaceState(null, "", `/${SALMON_QUERY}`);
+    const errors = vi.spyOn(console, "error");
+    await startPage(masthead, sections, byStation()).booted;
+
+    for (const id of ["overview", "rain", "events", "solar"]) {
+      open(id);
+      expect(panel(id).textContent).not.toContain(LOADING);
+      expect(panel(id).textContent).not.toContain(FAILED);
+      expect(panel(id).querySelector("h2")).not.toBeNull();
+    }
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  it("reads a chosen station's event curve again, not the last station's", async () => {
+    // Two stations near each other can catch one storm on the same 5-minute
+    // reading: the same start_ms is a different event at each.
+    const start = 1767758400000;
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", (url: string) => {
+      urls.push(url);
+      return Promise.resolve(new Response(goldenCurveText("raining", start)));
+    });
+    history.replaceState(null, "", `/?event=${start}`);
+    await startPage(masthead, sections, byStation()).booted;
+    open("events");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(urls).toContain(`/event?start=${start}`);
+
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+    const events = panel("events");
+    events
+      .querySelector<HTMLElement>(`.ev-open[data-start='${start}']`)!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // (Pages left by earlier tests also hear the tab's hash change; only
+    // reads for the chosen station count here.)
+    expect(urls.filter((url) => url.includes("station="))).toEqual([
+      `/event?start=${start}&station=00%3A11%3A22%3A33%3A44%3A66`,
+    ]);
+  });
+
+  it("names a listed station with no snapshot even when /dashboard answers first", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    history.replaceState(null, "", `/${SALMON_QUERY}`);
+    let answer: (index: StationIndex) => void = () => undefined;
+    const reads = {
+      stations: () => new Promise<StationIndex>((resolve) => (answer = resolve)),
+      dashboard: () => Promise.reject(new ReadError("/dashboard", 404)),
+      current: quietCurrent,
+    };
+    const page = startPage(masthead, sections, reads);
+    await vi.advanceTimersByTimeAsync(0);
+    answer(twoStations());
+    await page.booted;
+
+    expect(panel("overview").textContent).toContain("Salmon Run has no dashboard right now.");
+  });
+
+  it("drops the last station's /dashboard when it answers after a choice", async () => {
+    let late: (snapshot: DashboardSnapshot) => void = () => undefined;
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+    // The fixture station's next read hangs until Salmon Run is shown.
+    reads.dashboard.mockImplementationOnce(
+      () => new Promise<DashboardSnapshot>((resolve) => (late = resolve)),
+    );
+    await vi.advanceTimersByTimeAsync(CYCLE_MS);
+
+    choose(SALMON_MAC);
+    await vi.advanceTimersByTimeAsync(0);
+    late(snapshot(999));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(document.title).toBe("Salmon Run · Lookout");
+  });
+
+  it("stays on its station when Back only changes the tab", async () => {
+    const reads = byStation();
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    history.replaceState(null, "", "/#rain");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(reads.dashboard).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the default station's page when the index cannot be read", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const reads = { ...byStation(), stations: () => Promise.reject(new Error("502")) };
+    await startPage(masthead, sections, reads).booted;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(picker()).toBeNull();
+    expect(masthead.querySelector("h1")?.textContent).toBe("Fixture Station");
+    expect(panel("overview").textContent).not.toContain(FAILED);
   });
 });

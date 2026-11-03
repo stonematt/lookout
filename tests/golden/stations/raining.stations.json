@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "station_index",
+  "built_at_ms": 1767918420000,
+  "stations": [
+    {
+      "mac": "00:11:22:33:44:55",
+      "name": "Fixture Station",
+      "tz": "America/Los_Angeles",
+      "newest_reading_ms": 1767918300000,
+      "archive_start_ms": 1651683600000
+    },
+    {
+      "mac": "00:11:22:33:44:66",
+      "name": "Salmon Run",
+      "tz": "America/Los_Angeles",
+      "newest_reading_ms": null,
+      "archive_start_ms": null
+    }
+  ]
+}
