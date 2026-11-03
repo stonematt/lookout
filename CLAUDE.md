@@ -23,7 +23,7 @@ CI runs both gates on PRs into `dev`, `goal/**` and `main`. `npm run format` fix
 - `lookout/api/`, `lookout/utils/`, `lookout/config.py`, `lookout/secrets_loader.py`
 - `web/src/` the site; `web/api/` thin Vercel functions; `web/server/` their logic, free of Vercel and env
 
-Storj keys, all per station MAC: the archive `<MAC>.parquet` (stored newest first; `load_archive` returns it oldest first), `<MAC>.rain_events_catalog.parquet`, `<MAC>.energy_catalog.parquet`, `<MAC>.rain_corrections.json`, `snapshot/<MAC>.dashboard.json`, `snapshot/<MAC>.context.json`, event curves `snapshot/<MAC>.events/<start_ms>.json`, and backups under `backups/` and `.backups/<MAC>/<date>/`.
+Storj keys, all per station MAC: the archive `<MAC>.parquet` (stored newest first; `load_archive` returns it oldest first), `<MAC>.event_catalog.parquet`, `<MAC>.energy_catalog.parquet`, `<MAC>.rain_corrections.json`, `snapshot/<MAC>.dashboard.json`, `snapshot/<MAC>.context.json`, `snapshot/<MAC>.status.json`, event curves `snapshot/<MAC>.events/<start_ms>.json`, and backups under `backups/` and `.backups/<MAC>/<date>/`.
 
 ## Rules that bite
 

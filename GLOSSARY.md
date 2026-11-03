@@ -120,6 +120,16 @@ and the active rain event (`CONTEXT_FIELDS`). Published as
 context it is read against.
 _Avoid_: context file, mini snapshot.
 
+### status document
+
+The JSON the refresh run writes at `snapshot/<MAC>.status.json` at the end of
+every run that takes the archive-writer lock, success or failure. It names the
+code version, the checkout SHA, the outcome (`ok` or `failed`) and, on
+failure, the exception class; the site serves it at `/status`. A run skipped
+for a held lock writes none. It is not part of the snapshot, so
+`SCHEMA_VERSION` does not cover it (`lookout/snapshot/status.py`).
+_Avoid_: heartbeat (that is the Healthchecks ping), run log.
+
 ### gap status
 
 The verdict on one month or window of the archive before any value is
