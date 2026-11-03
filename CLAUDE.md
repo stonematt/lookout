@@ -50,6 +50,7 @@ Python: type hints on every parameter and return; a module docstring stating pur
 - **Live services** (Storj, `itri`, Vercel, Healthchecks, Ambient) and every live CLI command: `docs/agents/operations.md` first.
 - **Issues**: GitHub `stonematt/lookout` via `gh`; read an issue's brief before working it: a ticket's body, or a triaged issue's Agent Brief comment. `docs/agents/issue-tracker.md`, labels in `docs/agents/triage-labels.md`.
 - **Swarm runs**: `.claude/swarm-profile.md` owns the gates, landing policy and per-run repo facts.
+- **Autonomy grant**: while program ledger #294 is open, `docs/agents/autonomy.md` says what its sessions may merge, release and change on itri and Vercel without asking.
 - **Initiatives and lessons**: `docs/product-lead/`. Release reviews: `docs/panel/`.
 - **UI work**: `DESIGN.md` and `PRODUCT.md`.
 - **Energy catalog design**: `ENERGY_CATALOG.md`.
