@@ -528,32 +528,33 @@ def main(
     except ArchiveLockHeld as e:
         logger.warning(f"{e}; this refresh run is skipped, no heartbeat sent")
         return 0
-    heartbeat = Heartbeat.from_secrets()
-    heartbeat.start()
-    status = 1
-    try:
+    with lock:
+        heartbeat = Heartbeat.from_secrets()
+        heartbeat.start()
+        status = 1
         try:
-            snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
-            status = 0
-        except CurveStepFailed as e:
-            # Published, so the station heartbeat still goes out; the
-            # status stays 1 and the failure is logged below.
-            snapshot = e.snapshot
-            logger.error(
-                f"Event curve files not written: {e.__cause__}", exc_info=e.__cause__
+            try:
+                snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
+                status = 0
+            except CurveStepFailed as e:
+                # Published, so the station heartbeat still goes out; the
+                # status stays 1 and the failure is logged below.
+                snapshot = e.snapshot
+                logger.error(
+                    f"Event curve files not written: {e.__cause__}",
+                    exc_info=e.__cause__,
+                )
+            heartbeat.station(
+                snapshot.station.name,
+                snapshot.station.mac,
+                snapshot.observed_at_ms,
+                snapshot.built_at_ms,
             )
-        heartbeat.station(
-            snapshot.station.name,
-            snapshot.station.mac,
-            snapshot.observed_at_ms,
-            snapshot.built_at_ms,
-        )
-    except Exception as e:
-        logger.exception(f"Refresh failed: {e}")
-    finally:
-        heartbeat.finish(status)
-        lock.release()
-    return status
+        except Exception as e:
+            logger.exception(f"Refresh failed: {e}")
+        finally:
+            heartbeat.finish(status)
+        return status
 
 
 if __name__ == "__main__":

@@ -9,10 +9,10 @@ through `get_secret`. Add new fixtures below; keep this one autouse.
 
 `fake_s3` serves the Storj gateway from moto, with the `lookout` bucket made;
 `frozen_today` fixes the date `storj.backup_data` stamps its folders with.
-`ambient_replay` answers the Ambient client from recorded responses.
-`archive_lock_file` (autouse) moves the archive-writer lock under `tmp_path`,
-so no test takes the host's real lock. The
+`ambient_replay` answers the Ambient client from recorded responses. The
 archive builders and loaders they pair with live in `tests/fixtures/`.
+`archive_lock_file` (autouse) moves the archive-writer lock under `tmp_path`,
+so no test takes the host's real lock.
 """
 
 import sys

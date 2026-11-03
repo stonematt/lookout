@@ -15,6 +15,7 @@ station the same way, then run the refresh command instead of `.run()`.
 """
 
 import datetime as dt
+import runpy
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Callable, Dict, List, Optional
@@ -683,8 +684,6 @@ class TestArchiveWriterLock:
         :param args: Arguments after the program name.
         :return: The exit status.
         """
-        import runpy
-
         monkeypatch.setattr("sys.argv", ["catchup.py", "--bucket", BUCKET, *args])
         with pytest.raises(SystemExit) as exited:
             runpy.run_module("lookout.cli.catchup", run_name="__main__")

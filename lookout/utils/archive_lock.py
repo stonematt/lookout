@@ -62,6 +62,11 @@ class ArchiveLock:
         self._fd = None
 
     def __enter__(self) -> Path:
+        """
+        Enter a `with` holding the lock.
+
+        :return: The lock file.
+        """
         return self.path
 
     def __exit__(
@@ -70,6 +75,13 @@ class ArchiveLock:
         exc: Optional[BaseException],
         tb: Optional[TracebackType],
     ) -> None:
+        """
+        Release the lock, however the `with` ended.
+
+        :param exc_type: The exception type, if one was raised.
+        :param exc: The exception, if one was raised.
+        :param tb: Its traceback.
+        """
         self.release()
 
 
