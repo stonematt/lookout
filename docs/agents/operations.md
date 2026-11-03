@@ -44,7 +44,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - Project `lookout`, email alerts to the owner.
 - Cron check slug `lookout-refresh` (period 5 min, grace 10 min). Station check slug `station-<slugified Ambient station name>`, auto-created on first ping; set it to period 5 min, grace 30 min afterwards.
 - Ping URL shape: `https://hc-ping.com/<HC_PING_KEY>/<slug>`.
-- Agents cannot read Healthchecks. To check that the next refresh run succeeded, confirm the snapshot's `built_at_ms` advanced past the event (for a release, the `main` merge). Matt checks the `lookout-refresh` check itself. Refresh provenance (#268) replaces this proxy.
+- Agents cannot read Healthchecks. To check the refresh run from outside, read its status document, which every run writes at its end (#268): `curl -s https://lookout.stonecover.com/status | jq '{outcome, sha, version, ended_at_ms, built_at_ms, error}'`. After a release, the check is: `sha` equals the release head on `main` (`git rev-parse origin/main`), `outcome` is `ok`, and `ended_at_ms` is after the merge. A failed run shows as `outcome: "failed"` with `error` naming the exception class; the log on itri has the rest. `sha` is null when git cannot answer in the checkout the cron runs. The response is CDN-cached for up to a minute. Matt checks the `lookout-refresh` check itself.
 
 ## Ambient Weather
 
@@ -55,7 +55,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 Each of these reads live secrets and Storj (and most call Ambient). Run them from the repo root with `PYTHONPATH=.`, on the VPS or a checkout with real secrets, never from a test worktree. Only one archive writer runs on a host at a time, and the code enforces it: each writing command below takes the archive-writer lock (`~/.local/state/lookout/archive-writer.lock`, moved by `LOOKOUT_LOCK_FILE`) before any work (#244). A writer started while the lock is held exits 1 naming the lock file; a refresh run that finds it held logs one line and exits 0 with no Healthchecks ping. Read-only commands, and writers without their save flag, take no lock.
 
-- **Refresh run**, the VPS cron's job: catchup, catalogs, snapshot publish. `python lookout/cli/refresh.py [--bucket lookout] [--pages N]`. Pings Healthchecks `lookout-refresh` (start, then the exit status) and the station check.
+- **Refresh run**, the VPS cron's job: catchup, catalogs, snapshot publish. `python lookout/cli/refresh.py [--bucket lookout] [--pages N]`. Pings Healthchecks `lookout-refresh` (start, then the exit status) and the station check, then writes its status document `snapshot/<MAC>.status.json` (served at `/status`); a run skipped for a held lock writes none.
 - **Diagnostics**, plain text, exit 1 when refused or failed. Read-only: `python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]`, `coverage [--days 14]`, `status`, `last-record`.
 - **Diagnostics writes**, each backs up before it saves:
   - `python -m lookout.cli.diagnostics fill-gap (--index N | --start T --end T) --dry-run` says what it would fetch and writes nothing; drop `--dry-run` to fill and save. Exits 1 when Ambient has no data for the gap.

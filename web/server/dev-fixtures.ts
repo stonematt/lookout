@@ -1,7 +1,8 @@
 /**
- * The lane server's read functions: `/dashboard` and `/current` served by
- * the real handlers from the golden snapshot documents in
- * `tests/golden/snapshots/`, with no secrets and no network.
+ * The lane server's read functions: `/dashboard`, `/current`, `/event` and
+ * `/status` served by the real handlers from the golden documents in
+ * `tests/golden/snapshots/` (and, for `/status`, `tests/golden/status/`),
+ * with no secrets and no network.
  *
  * - `?fixture=dry|raining` (or `LOOKOUT_FIXTURE`) picks the golden; `dry` by
  *   default.
@@ -28,18 +29,22 @@ import { DAY_MS, addDays } from "../src/format.js";
 import type { Env } from "./env.js";
 import { handleEvent } from "./event.js";
 import type { ReadSources } from "./handlers.js";
-import { errorResponse, handleCurrent, handleDashboard } from "./handlers.js";
+import { errorResponse, handleCurrent, handleDashboard, handleStatus } from "./handlers.js";
 import type { SnapshotKind } from "./storj.js";
 
 /** Where the goldens live, relative to this file. */
 const GOLDEN_DIR = resolve(import.meta.dirname, "../../tests/golden/snapshots");
+
+/** Where the golden status documents live (`tests/test_status.py`). */
+const STATUS_DIR = resolve(import.meta.dirname, "../../tests/golden/status");
 
 const SCENARIOS = ["dry", "raining"] as const;
 type Scenario = (typeof SCENARIOS)[number];
 
 /** One golden document, parsed. */
 function goldenDoc(scenario: Scenario, kind: SnapshotKind): Record<string, unknown> {
-  const text = readFileSync(`${GOLDEN_DIR}/${scenario}.${kind}.json`, "utf8");
+  const dir = kind === "status" ? STATUS_DIR : GOLDEN_DIR;
+  const text = readFileSync(`${dir}/${scenario}.${kind}.json`, "utf8");
   return JSON.parse(text) as Record<string, unknown>;
 }
 
@@ -137,7 +142,8 @@ function fixtureSources(scenario: Scenario, ageMinutes: number | null, nowMs: nu
 const DEV_PARAMS = ["fixture", "age"] as const;
 
 /**
- * Answer a lane-server request for `/dashboard`, `/current` or `/event`.
+ * Answer a lane-server request for `/dashboard`, `/current`, `/event` or
+ * `/status`.
  *
  * @param url - The request path and query, e.g. `/dashboard?fixture=raining`.
  * @param env - The environment (`LOOKOUT_FIXTURE`, `LOOKOUT_AGE_MIN`).
@@ -150,6 +156,7 @@ export async function devResponse(url: string, env: Env, nowMs: number): Promise
     "/dashboard": handleDashboard,
     "/current": handleCurrent,
     "/event": handleEvent,
+    "/status": handleStatus,
   }[parsed.pathname];
   if (!handler) return null;
 
@@ -181,7 +188,7 @@ export async function devResponse(url: string, env: Env, nowMs: number): Promise
 }
 
 /**
- * A Vite plugin serving `/dashboard`, `/current` and `/event` from the
+ * A Vite plugin serving `/dashboard`, `/current`, `/event` and `/status` from the
  * goldens on the dev server, and on `vite preview` over the built page.
  *
  * @returns The plugin.

@@ -72,6 +72,19 @@ describe("the lane server's read functions", () => {
     expect(body.context).toEqual(golden("raining", "context"));
   });
 
+  it("serves /status from the status golden, shifted with the snapshot", async () => {
+    const recorded = golden("raining", "status") as Record<string, number>;
+    const dashboard = golden("raining", "dashboard") as { observed_at_ms: number };
+    const response = await devResponse("/status?fixture=raining&age=3", {}, NOW);
+    expect(response!.status).toBe(200);
+    const body = (await response!.json()) as Record<string, unknown>;
+    const delta = NOW - 3 * MIN - dashboard.observed_at_ms;
+    expect(body.kind).toBe("status");
+    expect(body.outcome).toBe("ok");
+    expect(body.built_at_ms).toBe(recorded.built_at_ms! + delta);
+    expect(body.ended_at_ms).toBe(recorded.ended_at_ms! + delta);
+  });
+
   it("refuses an unknown golden", async () => {
     const response = await devResponse("/dashboard?fixture=nope", {}, NOW);
     expect(response!.status).toBe(400);
