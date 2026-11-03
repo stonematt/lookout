@@ -20,7 +20,11 @@ How a measurement runs:
 - Ambient is faked at `lookout.api.ambient_client`'s `requests`: `/devices`
   answers one station whose `lastData` is the newest reading, and the
   history endpoint pages over the newest readings, as Ambient does. No
-  request waits out the rate limit.
+  request waits out the rate limit. The fetch's now
+  (`awn_controller._utc_now`) is pinned to the run's build time, a minute
+  after the newest reading, so however old the archive, catchup reaches now
+  in the pages a cron run takes (one, for a few new readings) rather than
+  seeking across the gap to the wall clock.
 - The archive is split in one short-lived child process and the steps run
   in another, so the parent never holds the archive: Linux carries a
   process's RSS high-water mark across the `exec` that starts a child, and
@@ -113,6 +117,8 @@ class HarnessReport:
     :param fake_writes: The keys the run wrote, every one in the moto bucket.
     :param connections_attempted: Internet socket connects tried (and
         refused); 0 means nothing tried to leave the process.
+    :param history_requests: Requests to Ambient's history endpoint; a
+        cron run that finds a few new readings makes 1.
     """
 
     steps: List[StepMemory]
@@ -122,6 +128,7 @@ class HarnessReport:
     tracemalloc: bool
     fake_writes: List[str] = field(default_factory=list)
     connections_attempted: int = 0
+    history_requests: int = 0
 
 
 # ---------- the parent: prepare, then measure in a child ----------
@@ -249,7 +256,7 @@ def _run_steps(config: Dict[str, Any]) -> HarnessReport:
         client = _seed_bucket(config)
         before = _object_tags(client)
         history = pd.read_parquet(workdir / HISTORY_FILE, engine="pyarrow")
-        device = _fake_ambient(history, config["tz"])
+        device, history_requests = _fake_ambient(history, config["tz"])
         newest_ms = int(history["dateutc"].max())
         del history
         gc.collect()
@@ -265,6 +272,7 @@ def _run_steps(config: Dict[str, Any]) -> HarnessReport:
         tracemalloc=config["trace"],
         fake_writes=sorted(k for k, tag in after.items() if before.get(k) != tag),
         connections_attempted=len(attempts),
+        history_requests=len(history_requests),
     )
 
 
@@ -353,13 +361,16 @@ def _object_tags(client: Any) -> Dict[str, str]:
     return tags
 
 
-def _fake_ambient(history: pd.DataFrame, tz: str) -> Dict:
+def _fake_ambient(
+    history: pd.DataFrame, tz: str
+) -> Tuple[Dict, List[Dict[str, Any]]]:
     """
     Answer the Ambient client from `history`, with no rate-limit waits.
 
     :param history: The newest readings, any order.
     :param tz: The station's zone, sent as `lastData.tz`.
-    :return: The `/devices` entry the fake serves.
+    :return: The `/devices` entry the fake serves, and the list each history
+        request's parameters are appended to.
     """
     from lookout.api import ambient_client, awn_controller
 
@@ -369,6 +380,7 @@ def _fake_ambient(history: pd.DataFrame, tz: str) -> Dict:
         "lastData": {**_ambient_records(newest_first.head(1))[0], "tz": tz},
         "info": {"name": "Memory harness"},
     }
+    history_requests: List[Dict[str, Any]] = []
 
     def get(url: str, params: Optional[Dict[str, Any]] = None) -> SimpleNamespace:
         """Ambient's answer to one request.
@@ -378,6 +390,7 @@ def _fake_ambient(history: pd.DataFrame, tz: str) -> Dict:
         if url.endswith("/devices"):
             body: List[Dict] = [device]
         else:
+            history_requests.append(params)
             rows = newest_first
             if params.get("endDate") is not None:
                 rows = rows[rows["dateutc"] < int(params["endDate"])]
@@ -388,7 +401,7 @@ def _fake_ambient(history: pd.DataFrame, tz: str) -> Dict:
     ambient_client.requests = SimpleNamespace(get=get)
     ambient_client.time = no_wait
     awn_controller.time = no_wait
-    return device
+    return device, history_requests
 
 
 def _without_sleep() -> SimpleNamespace:
@@ -433,19 +446,22 @@ def _measured_run(
 
     Each step is called through its public function in
     `lookout.cli.refresh`; the build time is a minute after the newest
-    reading, as a cron run builds it.
+    reading, as a cron run builds it, and the fetch's now is pinned to it.
 
     :param device: The `/devices` entry the fake Ambient serves.
     :param newest_ms: The newest reading's `dateutc`.
     :param config: What `measure` prepared.
     :return: Each step's figures, in run order.
     """
+    from lookout.api import awn_controller
     from lookout.cli import refresh
     from lookout.snapshot import Station
 
     bucket = HARNESS_BUCKET
     pages = config["pages"] or refresh.DEFAULT_PAGES
     now = datetime.fromtimestamp(newest_ms / 1000 + 60, tz=timezone.utc)
+    # This process is the harness's alone: the pin needs no undoing.
+    awn_controller._utc_now = lambda: now
     steps: List[StepMemory] = []
 
     def step(name: str, fn: Callable[[], Any]) -> Any:
@@ -519,7 +535,8 @@ def format_report(report: HarnessReport) -> str:
         )
     lines.append(
         f"Writes, all to the fake bucket: {len(report.fake_writes)}; "
-        f"network connects refused: {report.connections_attempted}"
+        f"network connects refused: {report.connections_attempted}; "
+        f"Ambient history requests: {report.history_requests}"
     )
     return "\n".join(lines)
 
