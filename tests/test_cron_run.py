@@ -28,7 +28,11 @@ GIT_ENV: Dict[str, str] = {
 
 
 def _git(cwd: Path, *args: str) -> None:
-    """Run git in cwd, failing the test on error."""
+    """Run git in cwd, failing the test on error.
+
+    :param cwd: directory to run git in
+    :param args: git arguments
+    """
     subprocess.run(
         ["git", *args],
         cwd=cwd,
@@ -38,8 +42,13 @@ def _git(cwd: Path, *args: str) -> None:
     )
 
 
-def _run(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    """Run the wrapper from the repo with no jitter."""
+def _run(repo: Path, *args: str) -> "subprocess.CompletedProcess[str]":
+    """Run the wrapper from the repo with no jitter.
+
+    :param repo: working clone to run in
+    :param args: wrapper arguments after --sleep 0
+    :return: the finished process
+    """
     return subprocess.run(
         ["bash", str(CRON_RUN), "--sleep", "0", *args],
         cwd=repo,
@@ -51,7 +60,11 @@ def _run(repo: Path, *args: str) -> subprocess.CompletedProcess:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """A clone tracking a local bare origin, with a stub venv and stub script."""
+    """A clone tracking a local bare origin, with a stub venv and stub script.
+
+    :param tmp_path: pytest temp dir
+    :return: the working clone
+    """
     bare = tmp_path / "origin.git"
     work = tmp_path / "work"
     _git(tmp_path, "init", "--bare", "-b", "main", str(bare))
@@ -82,13 +95,22 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _status_lines(repo: Path) -> List[str]:
-    """Lines written to the stub script's status file."""
+    """Lines written to the stub script's status file.
+
+    :param repo: working clone
+    :return: status lines, empty when no file exists
+    """
     path = repo / STATUS_REL
     return path.read_text().splitlines() if path.exists() else []
 
 
 def _with_exit(monkeypatch: pytest.MonkeyPatch, repo: Path, code: int) -> None:
-    """Point the stub script at its marker file and exit code."""
+    """Point the stub script at its marker file and exit code.
+
+    :param monkeypatch: pytest monkeypatch
+    :param repo: working clone
+    :param code: exit code the stub script returns
+    """
     monkeypatch.setenv("MARKER", str(repo / MARKER_REL))
     monkeypatch.setenv("STUB_EXIT", str(code))
 
@@ -96,6 +118,7 @@ def _with_exit(monkeypatch: pytest.MonkeyPatch, repo: Path, code: int) -> None:
 def test_failing_script_exits_with_its_status_and_logs_fail(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A failing script gives the same exit status and only a FAIL line."""
     _with_exit(monkeypatch, repo, 3)
     result = _run(repo, SCRIPT_REL)
     lines = _status_lines(repo)
@@ -107,6 +130,7 @@ def test_failing_script_exits_with_its_status_and_logs_fail(
 def test_passing_script_exits_zero_and_logs_one_success(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A passing script gives exit 0 and one SUCCESS line."""
     _with_exit(monkeypatch, repo, 0)
     result = _run(repo, SCRIPT_REL)
     lines = _status_lines(repo)
@@ -117,6 +141,7 @@ def test_passing_script_exits_zero_and_logs_one_success(
 def test_failed_pull_stops_the_run_before_the_script(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A failed pull exits non-zero, logs the pull and never runs the script."""
     _with_exit(monkeypatch, repo, 0)
     shutil.rmtree(tmp_path / "origin.git")
     result = _run(repo, SCRIPT_REL)
