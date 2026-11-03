@@ -230,7 +230,10 @@ def load_archive_for_device(
 
 
 def get_device_history_to_date(
-    device, end_date=None, limit=288, strict: bool = False
+    device: dict,
+    end_date: Optional[int] = None,
+    limit: int = 288,
+    strict: bool = False,
 ) -> pd.DataFrame:
     """
     Fetches historical data for a device up to a specified date.
@@ -240,7 +243,8 @@ def get_device_history_to_date(
     :param limit: Max records to retrieve, defaults to 288.
     :param strict: Raise on a failed request instead of returning empty.
     :return: DataFrame of device history data.
-    :raises AmbientRequestError: If `strict` and the request failed.
+    :raises AmbientRequestError: If `strict` and the request failed or its
+        body could not be read.
     """
     mac = device.get("macAddress")
     if not isinstance(mac, str):
@@ -278,6 +282,8 @@ def get_device_history_to_date(
         raise
     except Exception as e:
         logger.error(f"Fetch error: {e}")
+        if strict:
+            raise AmbientRequestError(f"history page for {mac} failed: {e}") from e
         return pd.DataFrame()
 
 
@@ -419,10 +425,6 @@ def _cross_long_gap(
     )
 
 
-class HistoryWalkStuck(RuntimeError):
-    """A page back through Ambient's history reached no older reading."""
-
-
 def fetch_full_history(device: dict, limit: int = 288) -> pd.DataFrame:
     """
     Every reading Ambient holds for a device: the station's first archive.
@@ -430,18 +432,18 @@ def fetch_full_history(device: dict, limit: int = 288) -> pd.DataFrame:
     Pages back from now, each page ending at the previous page's oldest
     reading, until Ambient returns no older readings. A gap in the history
     costs nothing: a page holds the `limit` readings before its end, however
-    far back they lie. Each page goes through the Ambient client, which
-    waits a second before every request (the throttle), and is strict: a
-    failed request raises rather than reading as the end of the history,
-    so a transient error never cuts the first archive short.
+    far back they lie. Only readings strictly older than the page's end are
+    kept, so the walk ends whether Ambient's `endDate` is exclusive or
+    inclusive. Each page goes through the Ambient client, which waits a
+    second before every request (the throttle), and is strict: a failed
+    request raises rather than reading as the end of the history, so a
+    transient error never cuts the first archive short.
 
     :param device: The station's `/devices` entry.
     :param limit: Records per page (Ambient's maximum is 288).
     :return: The readings, raw (as pages come back), oldest page last;
         empty when Ambient holds none.
     :raises AmbientRequestError: If a page request failed.
-    :raises HistoryWalkStuck: If a page holds no reading older than the
-        page before it, which would otherwise loop forever.
     """
     pages = []
     end_ms: Optional[int] = None
@@ -449,15 +451,12 @@ def fetch_full_history(device: dict, limit: int = 288) -> pd.DataFrame:
         page = get_device_history_to_date(
             device, end_date=end_ms, limit=limit, strict=True
         )
+        if end_ms is not None and not page.empty:
+            page = page[page["dateutc"] < end_ms]
         if page.empty:
             break
-        oldest = int(page["dateutc"].min())
-        if end_ms is not None and oldest >= end_ms:
-            raise HistoryWalkStuck(
-                f"Ambient's page before {end_ms} reached no older reading"
-            )
         pages.append(page)
-        end_ms = oldest
+        end_ms = int(page["dateutc"].min())
     logger.info(f"Full history: {len(pages)} page(s)")
     if not pages:
         return pd.DataFrame()

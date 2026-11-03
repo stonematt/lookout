@@ -80,7 +80,8 @@ def get_devices() -> List[Dict]:
 
 
 class AmbientRequestError(RuntimeError):
-    """A strict history request failed: an HTTP error, or retries ran out."""
+    """A strict history request failed: an HTTP error, retries ran out, or
+    the body could not be read as history."""
 
 
 class StationNotFoundError(RuntimeError):
@@ -154,7 +155,8 @@ def get_device_history(
     :param strict: Raise on a failed request instead of returning empty.
     :return: A DataFrame of weather data; empty when Ambient has none, or
         (unless `strict`) on failure.
-    :raises AmbientRequestError: If `strict` and the request failed.
+    :raises AmbientRequestError: If `strict` and the request failed or its
+        body could not be read.
     """
     try:
         # human = format_ts_utc(end_date) if end_date else "latest"
@@ -177,6 +179,8 @@ def get_device_history(
         raise
     except Exception as e:
         logger.exception(f"Error during device history fetch: {e}")
+        if strict:
+            raise AmbientRequestError(f"history for {mac} unreadable: {e}") from e
         return pd.DataFrame()
 
 

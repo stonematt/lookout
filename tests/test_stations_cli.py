@@ -313,6 +313,48 @@ class TestAddBuilds:
         assert len(stored) == len(history)
         assert stored["dateutc"].min() == history["dateutc"].min()
 
+    def test_an_inclusive_end_date_still_ends_the_walk(
+        self, account, capsys, monkeypatch
+    ):
+        """Were Ambient's `endDate` inclusive, each page would repeat its end."""
+        acct = account()
+        replay = acct.replay
+
+        def inclusive(url: str, params: Optional[Dict] = None, **kw: object) -> object:
+            params = dict(params or {})
+            if url.endswith(NEW_MAC) and params.get("endDate") is not None:
+                params["endDate"] = int(params["endDate"]) + 1
+            return replay(url, params, **kw)
+
+        monkeypatch.setattr(ambient_client, "requests", SimpleNamespace(get=inclusive))
+
+        status, _ = run(["add", NEW_MAC], capsys)
+
+        assert status == 0
+        stored = storj.load_archive(BUCKET, NEW_MAC)
+        assert stored["dateutc"].tolist() == sorted(acct.history["dateutc"].tolist())
+
+    def test_an_unreadable_history_page_fails_the_add(
+        self, account, capsys, monkeypatch
+    ):
+        acct = account()
+        acct.store_inventory([FAKE_MAC])
+        replay = acct.replay
+
+        def garbled(url: str, params: Optional[Dict] = None, **kw: object) -> object:
+            if url.endswith(NEW_MAC) and (params or {}).get("endDate") is not None:
+                return FakeResponse([{"no": "dateutc"}])
+            return replay(url, params, **kw)
+
+        monkeypatch.setattr(ambient_client, "requests", SimpleNamespace(get=garbled))
+
+        status, out = run(["add", NEW_MAC], capsys)
+
+        assert status == 1
+        assert "add failed" in out
+        assert NEW_ARCHIVE_KEY not in acct.keys()
+        assert acct.inventory() == [FAKE_MAC]
+
     def test_ambient_paging_waits_a_second_before_every_request(
         self, account, capsys, monkeypatch
     ):
@@ -538,5 +580,6 @@ class TestInventoryReader:
         with pytest.raises(storj.StorageReadError):
             station_inventory.read_inventory(BUCKET)
 
-    def test_the_inventory_key_is_outside_the_snapshot_prefix(self):
-        assert not INVENTORY_KEY.startswith("snapshot/")
+    def test_the_inventory_lives_at_its_documented_key(self):
+        # Outside `snapshot/`, which holds what the site reads.
+        assert INVENTORY_KEY == "station_inventory.json"
