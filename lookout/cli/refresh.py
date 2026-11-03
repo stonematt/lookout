@@ -41,6 +41,9 @@ The steps, each its own function, run in this order by `run`:
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
+First it takes the archive-writer lock (#244, `lookout.utils.archive_lock`);
+when another archive writer holds it, the run logs one line and exits 0 with
+no heartbeat, so only the holder's pings reach the `lookout-refresh` check.
 """
 
 import argparse
@@ -65,6 +68,7 @@ from lookout.snapshot.curves import publish_event_curves
 from lookout.snapshot.publish import publish_snapshot
 from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
+from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
@@ -508,37 +512,49 @@ def main(
     once. The station heartbeat goes out after a published run. A heartbeat
     that cannot be sent never changes the exit status.
 
+    The archive-writer lock is taken before anything else and released when
+    the run ends, however it ends. When another archive writer holds it,
+    the run is skipped: one log line, no heartbeat, exit 0.
+
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :param clock: Returns the build time; injected so tests can fix it.
-    :return: The exit status: 0 when the run finished clean, else 1 (a
-        curve step failure after publish included).
+    :return: The exit status: 0 when the run finished clean or was skipped
+        for a held lock, else 1 (a curve step failure after publish
+        included).
     """
     args = parse_args(argv)
-    heartbeat = Heartbeat.from_secrets()
-    heartbeat.start()
-    status = 1
     try:
+        lock = hold_archive_lock()
+    except ArchiveLockHeld as e:
+        logger.warning(f"{e}; this refresh run is skipped, no heartbeat sent")
+        return 0
+    with lock:
+        heartbeat = Heartbeat.from_secrets()
+        heartbeat.start()
+        status = 1
         try:
-            snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
-            status = 0
-        except CurveStepFailed as e:
-            # Published, so the station heartbeat still goes out; the
-            # status stays 1 and the failure is logged below.
-            snapshot = e.snapshot
-            logger.error(
-                f"Event curve files not written: {e.__cause__}", exc_info=e.__cause__
+            try:
+                snapshot = run(bucket=args.bucket, pages=args.pages, clock=clock)
+                status = 0
+            except CurveStepFailed as e:
+                # Published, so the station heartbeat still goes out; the
+                # status stays 1 and the failure is logged below.
+                snapshot = e.snapshot
+                logger.error(
+                    f"Event curve files not written: {e.__cause__}",
+                    exc_info=e.__cause__,
+                )
+            heartbeat.station(
+                snapshot.station.name,
+                snapshot.station.mac,
+                snapshot.observed_at_ms,
+                snapshot.built_at_ms,
             )
-        heartbeat.station(
-            snapshot.station.name,
-            snapshot.station.mac,
-            snapshot.observed_at_ms,
-            snapshot.built_at_ms,
-        )
-    except Exception as e:
-        logger.exception(f"Refresh failed: {e}")
-    finally:
-        heartbeat.finish(status)
-    return status
+        except Exception as e:
+            logger.exception(f"Refresh failed: {e}")
+        finally:
+            heartbeat.finish(status)
+        return status
 
 
 if __name__ == "__main__":

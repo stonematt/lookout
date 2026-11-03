@@ -23,6 +23,7 @@ from lookout.core import rain_corrections
 from lookout.core.archive_merge import MergeReport
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
+from lookout.utils.archive_lock import hold_archive_lock
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -533,3 +534,63 @@ def test_importing_the_diagnostics_cli_loads_no_streamlit():
     )
 
     assert out.stdout.strip() == "[]"
+
+
+# ---------- the archive-writer lock (#244) ----------
+
+
+WRITERS = [
+    ["fill-gap", "--index", "1"],
+    ["energy-catalog", "--save"],
+    ["rain-catalog", "--save"],
+]
+READERS = [
+    ["gaps"],
+    ["coverage"],
+    ["status"],
+    ["last-record"],
+    ["fill-gap", "--index", "1", "--dry-run"],
+    ["energy-catalog"],
+    ["energy-catalog", "--save", "--dry-run"],
+    ["rain-catalog"],
+]
+
+
+class TestArchiveWriterLock:
+    @pytest.mark.parametrize("argv", WRITERS, ids=lambda a: " ".join(a))
+    def test_a_held_lock_refuses_a_writer_naming_the_lock_file(
+        self, seed, capsys, archive_lock_file, argv
+    ):
+        station = seed(history=scenario_archive())
+        keys = station.keys()
+
+        with hold_archive_lock():
+            status, out = run(argv, capsys)
+
+        assert status == 1
+        assert str(archive_lock_file) in out
+        assert station.replay.calls == []
+        assert station.keys() == keys
+
+    @pytest.mark.parametrize("argv", READERS, ids=lambda a: " ".join(a))
+    def test_a_read_or_unsaved_command_runs_while_the_lock_is_held(
+        self, seed, capsys, argv
+    ):
+        station = seed()
+        keys = station.keys()
+
+        with hold_archive_lock():
+            status, out = run(argv, capsys)
+
+        assert "holds the lock" not in out
+        assert station.replay.calls != []
+        assert station.keys() == keys
+
+    def test_a_writer_leaves_the_lock_free_when_it_ends(self, seed, capsys):
+        seed()
+
+        status, _ = run(["rain-catalog", "--save"], capsys)
+
+        assert status == 0
+        with hold_archive_lock():
+            pass

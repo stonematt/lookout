@@ -11,9 +11,12 @@ through `get_secret`. Add new fixtures below; keep this one autouse.
 `frozen_today` fixes the date `storj.backup_data` stamps its folders with.
 `ambient_replay` answers the Ambient client from recorded responses. The
 archive builders and loaders they pair with live in `tests/fixtures/`.
+`archive_lock_file` (autouse) moves the archive-writer lock under `tmp_path`,
+so no test takes the host's real lock.
 """
 
 import sys
+from pathlib import Path
 from typing import Iterator, List, Optional
 from types import SimpleNamespace
 
@@ -47,6 +50,22 @@ def stub_secrets(monkeypatch, tmp_path_factory):
     for name in secrets_loader.SECRET_NAMES:
         monkeypatch.setenv(name, FAKE_SECRETS[name])
     return dict(FAKE_SECRETS)
+
+
+@pytest.fixture(autouse=True)
+def archive_lock_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """
+    Point the archive-writer lock at a temp path, so no test takes the host's.
+
+    The directory is left uncreated; taking the lock creates it.
+
+    :return: The lock file's path, under this test's `tmp_path`.
+    """
+    from lookout.utils import archive_lock
+
+    path = tmp_path / "lock-state" / "archive-writer.lock"
+    monkeypatch.setenv(archive_lock.LOCK_FILE_ENV, str(path))
+    return path
 
 
 @pytest.fixture

@@ -15,6 +15,7 @@ station the same way, then run the refresh command instead of `.run()`.
 """
 
 import datetime as dt
+import runpy
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Callable, Dict, List, Optional
@@ -26,6 +27,7 @@ from pandas.testing import assert_frame_equal
 from lookout.api import awn_controller as awn
 from lookout.core import archive_merge, rain_corrections
 from lookout.storage import storj
+from lookout.utils.archive_lock import hold_archive_lock
 from tests.fixtures.ambient import (
     AmbientReplay,
     devices_body,
@@ -669,3 +671,61 @@ class TestLongOutage:
             station.run(pages=12)
 
         assert stored_bytes(station) == before
+
+
+# ---------- the archive-writer lock (#244) ----------
+
+
+class TestArchiveWriterLock:
+    def run_command(self, monkeypatch, *args: str) -> int:
+        """
+        Run the catchup command as the shell does.
+
+        :param args: Arguments after the program name.
+        :return: The exit status.
+        """
+        monkeypatch.setattr("sys.argv", ["catchup.py", "--bucket", BUCKET, *args])
+        with pytest.raises(SystemExit) as exited:
+            runpy.run_module("lookout.cli.catchup", run_name="__main__")
+        return exited.value.code
+
+    def test_a_held_lock_exits_1_naming_the_lock_file_and_saves_nothing(
+        self, catchup_station, archive_lock_file, monkeypatch, caplog
+    ):
+        station = catchup_station()
+        keys, before = station.keys(), stored_bytes(station)
+
+        with hold_archive_lock():
+            assert self.run_command(monkeypatch) == 1
+
+        assert str(archive_lock_file) in caplog.text
+        assert station.replay.calls == []
+        assert station.keys() == keys
+        assert stored_bytes(station) == before
+
+    def test_a_held_lock_refuses_a_repair_too(self, catchup_station, monkeypatch):
+        station = catchup_station()
+        keys = station.keys()
+
+        with hold_archive_lock():
+            assert self.run_command(monkeypatch, "--repair-archive") == 1
+
+        assert station.keys() == keys
+
+    def test_a_dry_run_runs_while_the_lock_is_held(self, catchup_station):
+        station = catchup_station()
+        keys = station.keys()
+
+        with hold_archive_lock():
+            station.run(dry_run=True)
+
+        assert [path for path, _ in station.replay.calls][0] == "/devices"
+        assert station.keys() == keys
+
+    def test_a_finished_run_leaves_the_lock_free(self, catchup_station):
+        station = catchup_station()
+
+        station.run()
+
+        with hold_archive_lock():
+            pass

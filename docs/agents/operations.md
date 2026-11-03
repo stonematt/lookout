@@ -18,6 +18,13 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 - The system `python3` is 3.10 with no `tomllib`; run Python through the venv or `uv run --no-project --python 3.12`.
 - In-place edits of the remote secrets file get denied. Prepare the file locally (mode 600, validated with `tomllib`) and hand Matt an `scp -p -o RemoteCommand=none` command. Top-level keys go above the first `[table]`.
 - Crontab: the refresh run every 5 minutes under `flock`, and the daily 06:00 catchup through `~/bin/run_catchup.sh` (paused for #95). The `tickle_streamlit` keep-alive was removed by #86; its checkout sits at `~/src/stone/tickle_streamlit.retired-20261102`. Logs in `~/log/cron/`. A pause comments a line out as `# paused for lookout#<N> (<date>)`, with the full crontab saved to `~/crontab.bak-pre-<N>`. Read the live state with `ssh -T -o RemoteCommand=none itri 'crontab -l'` before stating it.
+- Target refresh crontab line (#244), with no `flock` and no sleep, since the run takes the repo's archive-writer lock itself:
+
+  ```
+  */5 * * * * cd /home/mstone/src/stone/lookout && lookout/bin/cron_run.sh lookout/cli/refresh.py >> /home/mstone/log/cron/refresh.log 2>&1
+  ```
+
+  It replaces the current `/usr/bin/flock -n /home/mstone/log/cron/refresh.lock lookout/bin/cron_run.sh --sleep 30 lookout/cli/refresh.py` line. Swap order: #179's ops session installs it only after the repo lock is deployed to itri (the checkout's HEAD includes #244), never before. Until the swap both locks run, which is harmless.
 
 ## Vercel
 
@@ -46,7 +53,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
 
 ## Lookout commands against live services
 
-Each of these reads live secrets and Storj (and most call Ambient). Run them from the repo root with `PYTHONPATH=.`, on the VPS or a checkout with real secrets, never from a test worktree. Only one writer at a time: never run a writing command while a catchup or refresh cron run could save the archive.
+Each of these reads live secrets and Storj (and most call Ambient). Run them from the repo root with `PYTHONPATH=.`, on the VPS or a checkout with real secrets, never from a test worktree. Only one archive writer runs on a host at a time, and the code enforces it: each writing command below takes the archive-writer lock (`~/.local/state/lookout/archive-writer.lock`, moved by `LOOKOUT_LOCK_FILE`) before any work (#244). A writer started while the lock is held exits 1 naming the lock file; a refresh run that finds it held logs one line and exits 0 with no Healthchecks ping. Read-only commands, and writers without their save flag, take no lock.
 
 - **Refresh run**, the VPS cron's job: catchup, catalogs, snapshot publish. `python lookout/cli/refresh.py [--bucket lookout] [--pages N]`. Pings Healthchecks `lookout-refresh` (start, then the exit status) and the station check.
 - **Diagnostics**, plain text, exit 1 when refused or failed. Read-only: `python -m lookout.cli.diagnostics gaps [--threshold 30] [--days 84 | --since D --until D]`, `coverage [--days 14]`, `status`, `last-record`.
