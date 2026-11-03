@@ -24,6 +24,7 @@ from lookout.core import archive_merge
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
+from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__, log_file="catchup.log")
 
@@ -129,24 +130,29 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
     sj.backup_archive(bucket=bucket_name, mac=mac)
 
     archive_df = _load_archive(device, bucket_name)
+    log_peak_rss("archive_load", logger)
 
     fetched = awn.fetch_since_last_archive(device, archive_df, sleep=True, pages=pages)
+    log_peak_rss("ambient_fetch", logger)
     # Ambient wins for each value it sends; the routine re-fetch of the last
     # readings shows up as updated values, never as a failure.
     new_archive_df, report = archive_merge.merge(archive_df, fetched)
     logger.info(f"Archive merge: {report.describe()}")
     _log_archive_range(new_archive_df, "Updated archive")
     logger.info(f"Total records after update: {len(new_archive_df)}")
+    log_peak_rss("archive_merge", logger)
 
     if not report.changed:
         # Nothing to write: skip the 13 MB rewrite, and its window for a
         # partial write, every 5 minutes (#242). The backup above still ran.
         logger.info("Archive save skipped: the merge changed nothing.")
+        log_peak_rss("archive_save", logger)
         return new_archive_df
 
     # Save updated archive to S3, newest first whatever came back (#133)
     sj.save_archive(new_archive_df, bucket_name, mac, stored=archive_df)
     logger.info("Updated archive saved.")
+    log_peak_rss("archive_save", logger)
     return new_archive_df
 
 

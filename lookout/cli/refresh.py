@@ -41,8 +41,8 @@ The steps, each its own function, run in this order by `run`:
 
 Each step runs through `_step`, which logs "Peak memory after <step>: N MB"
 (#280): the process's peak RSS so far, which only rises, so the step where it
-jumps set the peak. The archive load, fetch, merge and save are one line,
-for `update_archive`.
+jumps set the peak. `update_archive` logs its own four (archive_load,
+ambient_fetch, archive_merge, archive_save; see `catchup.update_archive`).
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 0 or 1, and sends the Healthchecks heartbeats (#74) around `run`.
@@ -75,7 +75,7 @@ from lookout.utils.healthchecks import Heartbeat
 from lookout.storage.storj import backup_and_save_catalog
 from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
 from lookout.utils.log_util import app_logger
-from lookout.utils.memory_utils import peak_rss_mb
+from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__, log_file="refresh.log")
 
@@ -466,7 +466,7 @@ def _step(name: str, fn: Callable[..., T], *args: object) -> T:
     :return: What the step returned.
     """
     result = fn(*args)
-    logger.info(f"Peak memory after {name}: {peak_rss_mb():.0f} MB")
+    log_peak_rss(name, logger)
     return result
 
 
@@ -489,7 +489,8 @@ def run(
     """
     device = _step("load_station", load_station)
     station = Station.from_device(device)
-    archive = _step("update_archive", update_archive, device, bucket, pages)
+    # Logs its own peak lines, one per part (#280), so it skips `_step`'s.
+    archive = update_archive(device, bucket, pages)
     archive, live = _step(
         "correct_rain", correct_rain, station, bucket, archive, device.get("lastData")
     )

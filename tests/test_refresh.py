@@ -119,7 +119,7 @@ class TestRefreshRun:
     def test_each_step_logs_one_peak_memory_line_in_run_order(self, seed, caplog):
         station = seed()
 
-        with caplog.at_level("INFO", logger="lookout.cli.refresh"):
+        with caplog.at_level("INFO"):
             run_refresh(station)
 
         steps = [
@@ -132,7 +132,10 @@ class TestRefreshRun:
         ]
         assert steps == [
             "load_station",
-            "update_archive",
+            "archive_load",
+            "ambient_fetch",
+            "archive_merge",
+            "archive_save",
             "correct_rain",
             "load_catalogs",
             "update_catalogs",
