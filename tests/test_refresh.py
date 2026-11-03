@@ -8,8 +8,10 @@ Later links add to this module: catalog updates and the Event Catalog
 auto-save (#73), the Healthchecks heartbeats (#74).
 """
 
+import copy
 import importlib.abc
 import json
+import logging
 import os
 import re
 import subprocess
@@ -17,6 +19,7 @@ import sys
 from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable, Dict, List, Optional
 
 import pandas as pd
@@ -31,7 +34,9 @@ from lookout.snapshot import status as run_status
 from lookout.snapshot.status import CodeVersion
 from tests.snapshot_helpers import FIXED_CODE
 from lookout.storage import storj
+from lookout.storage.station_inventory import INVENTORY_KEY
 from lookout.utils.archive_lock import LOCK_FILE_ENV, hold_archive_lock
+from lookout.utils.log_util import LOG_FORMAT
 from tests.fixtures.ambient import load_devices, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -41,7 +46,7 @@ from tests.fixtures.archive import (
     build_archive,
 )
 from tests.fixtures.real import AMBIENT_END, load_real_slice
-from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj
+from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj, seed_inventory
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     RECORDED_ROWS,
@@ -63,10 +68,16 @@ def run_refresh(station: CatchupStation) -> Snapshot:
     """
     One refresh run, as the cron does it, at the station's frozen now.
 
+    The inventory lists only the fixture station, so the run is that
+    station's; its failure is raised here as the run caught it.
+
     :param station: The seeded station.
     :return: The published snapshot.
     """
-    return refresh.run(bucket=BUCKET, pages=20, clock=lambda: station.now)
+    (run,) = refresh.run(bucket=BUCKET, pages=20, clock=lambda: station.now)
+    if run.error is not None:
+        raise run.error
+    return run.snapshot
 
 
 def stored_json(station: CatchupStation, key: str) -> Dict:
@@ -152,9 +163,9 @@ class TestRefreshRun:
             if m
         ]
         assert steps == [
-            "load_station",
-            "archive_load",
+            "load_stations",
             "ambient_fetch",
+            "archive_load",
             "archive_merge",
             "archive_save",
             "correct_rain",
@@ -252,7 +263,7 @@ class TestMain:
 
     def test_a_failed_run_exits_one_and_publishes_nothing(self, seed, monkeypatch):
         station = seed()
-        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+        seed_inventory("AA:BB:CC:DD:EE:FF")  # a station not on the account
 
         assert refresh.main(["--bucket", BUCKET]) == 1
         assert snapshot_keys(station) == []
@@ -337,7 +348,7 @@ class TestHeartbeats:
         self, seed, fake_healthchecks, monkeypatch
     ):
         station = seed()
-        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+        seed_inventory("AA:BB:CC:DD:EE:FF")  # a station not on the account
 
         assert self.run_main(station) == 1
         assert fake_healthchecks.pings == ["lookout-refresh/start", "lookout-refresh/1"]
@@ -1630,7 +1641,7 @@ class TestArchiveWriterLock:
 
     def test_a_failed_run_leaves_the_lock_free(self, seed, monkeypatch):
         station = seed()
-        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+        seed_inventory("AA:BB:CC:DD:EE:FF")  # a station not on the account
 
         assert self.run_main(station) == 1
 
@@ -1704,14 +1715,14 @@ class TestStatusDocument:
         station = seed()
         started_on, pulled = "a" * 40, "b" * 40
         head = {"sha": started_on}
-        real_load_station = refresh.load_station
+        real_load_stations = refresh.load_stations
 
-        def load_station_then_pull():
-            device = real_load_station()
+        def load_stations_then_pull(bucket):
+            runs = real_load_stations(bucket)
             head["sha"] = pulled
-            return device
+            return runs
 
-        monkeypatch.setattr(refresh, "load_station", load_station_then_pull)
+        monkeypatch.setattr(refresh, "load_stations", load_stations_then_pull)
 
         def code() -> CodeVersion:
             return CodeVersion(version="2026.11.1", sha=head["sha"])
@@ -1728,7 +1739,7 @@ class TestStatusDocument:
         self, seed, monkeypatch, fake_healthchecks
     ):
         station = seed()
-        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+        seed_inventory("AA:BB:CC:DD:EE:FF")  # a station not on the account
 
         assert self.run_main(station) == 1
 
@@ -1797,7 +1808,7 @@ class TestStatusDocument:
         self, seed, monkeypatch, fake_healthchecks, caplog
     ):
         station = seed()
-        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+        seed_inventory("AA:BB:CC:DD:EE:FF")  # a station not on the account
 
         def refuse():
             raise OSError("status write refused")
@@ -1807,7 +1818,7 @@ class TestStatusDocument:
         assert self.run_main(station) == 1
 
         assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
-        assert "Refresh failed: Station AA:BB:CC:DD:EE:FF" in caplog.text
+        assert "Station AA:BB:CC:DD:EE:FF failed" in caplog.text
         assert "Status document not written" in caplog.text
 
     def test_an_interrupted_run_writes_a_failed_status(self, seed, monkeypatch):
@@ -1816,7 +1827,7 @@ class TestStatusDocument:
         def interrupt(*args, **kwargs):
             raise KeyboardInterrupt
 
-        monkeypatch.setattr(refresh, "load_station", interrupt)
+        monkeypatch.setattr(refresh, "load_stations", interrupt)
 
         with pytest.raises(KeyboardInterrupt):
             self.run_main(station)
@@ -1838,3 +1849,300 @@ class TestStatusDocument:
         run_refresh(station)
 
         assert STATUS_KEY not in station.keys()
+
+
+# ---------- every station in the inventory (#271) ----------
+
+SECOND_MAC = "00:11:22:33:44:66"
+SECOND_NAME = "Salmon Run"
+SECOND_ARCHIVE_KEY = f"{SECOND_MAC}.parquet"
+FIRST_TAG = f"[Fixture Station {FAKE_MAC}] "
+SECOND_TAG = f"[{SECOND_NAME} {SECOND_MAC}] "
+STORM_REPORT_TO = "2026-01-10T00:00:00Z"
+# Lookout Post's sensors a WS-2902 (Salmon Run) lacks: soil moisture, PM2.5
+# and the WH31E.
+WS2902_MISSING = (
+    "soilhum1",
+    "battsm1",
+    "battsm2",
+    "battsm3",
+    "pm25",
+    "pm25_24h",
+    "aqi_pm25",
+    "aqi_pm25_24h",
+    "batt_25",
+    "temp1f",
+    "humidity1",
+    "batt1",
+    "feelsLike1",
+    "dewPoint1",
+)
+
+
+def second_device(first: Dict, drop: tuple = ()) -> Dict:
+    """
+    The second station's `/devices` entry: the first's, renamed and re-keyed.
+
+    :param first: The fixture station's entry.
+    :param drop: `lastData` fields the second station does not report.
+    :return: A new entry under `SECOND_MAC`, named `SECOND_NAME`.
+    """
+    device = copy.deepcopy(first)
+    device["macAddress"] = SECOND_MAC
+    device["info"] = {"name": SECOND_NAME}
+    device["lastData"] = {k: v for k, v in device["lastData"].items() if k not in drop}
+    return device
+
+
+def without(records: List[Dict], fields: tuple) -> List[Dict]:
+    """History records with some fields left out, as a station lacking them."""
+    return [{k: v for k, v in r.items() if k not in fields} for r in records]
+
+
+def dashboard_key(mac: str) -> str:
+    """A station's dashboard document."""
+    return f"snapshot/{mac}.dashboard.json"
+
+
+def status_key(mac: str) -> str:
+    """A station's status document."""
+    return f"snapshot/{mac}.status.json"
+
+
+class TestEveryStation:
+    """
+    One run refreshes every station in the station inventory, in its order:
+    the fixture station and a second one, Salmon Run, on the same account.
+    """
+
+    @pytest.fixture
+    def two_stations(self, seed) -> Callable[..., CatchupStation]:
+        """
+        Both stations in the storm week, the account listing Salmon Run
+        first; neither has an Event Catalog stored, so each run detects and
+        seeds one and writes the completed events' curve files.
+
+        :return: `make(inventory=(FAKE_MAC, SECOND_MAC), second_archive=True)`.
+        """
+
+        def make(
+            inventory: tuple = (FAKE_MAC, SECOND_MAC), second_archive: bool = True
+        ) -> CatchupStation:
+            full = build_archive(
+                SCENARIO.start, STORM_REPORT_TO, rain=SCENARIO.rain, gaps=SCENARIO.gaps
+            )
+            archive = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
+            (first,) = reporting(full)
+            station = seed(
+                archive=archive,
+                history=to_ambient_records(full),
+                devices=[second_device(first), first],
+                now=STORM_REPORT_TO,
+            )
+            records = station.replay.history
+            station.replay.histories = {
+                FAKE_MAC: records,
+                SECOND_MAC: copy.deepcopy(records),
+            }
+            if second_archive:
+                storj.save_df_to_s3(archive, BUCKET, SECOND_ARCHIVE_KEY)
+            seed_inventory(*inventory)
+            return station
+
+        return make
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    @pytest.mark.parametrize(
+        "inventory", [(FAKE_MAC, SECOND_MAC), (SECOND_MAC, FAKE_MAC)]
+    )
+    def test_stations_run_in_inventory_order_and_each_publishes(
+        self, two_stations, inventory, caplog
+    ):
+        station = two_stations(inventory=inventory)
+
+        with caplog.at_level("INFO"):
+            assert self.run_main(station) == 0
+
+        published = [
+            mac
+            for r in caplog.records
+            for mac in (FAKE_MAC, SECOND_MAC)
+            if r.getMessage() == f"Published s3://{BUCKET}/{dashboard_key(mac)}"
+        ]
+        assert published == list(inventory)
+        for mac, name in ((FAKE_MAC, "Fixture Station"), (SECOND_MAC, SECOND_NAME)):
+            dashboard = stored_json(station, dashboard_key(mac))
+            assert dashboard["station"]["mac"] == mac
+            assert dashboard["station"]["name"] == name
+            assert f"snapshot/{mac}.context.json" in station.keys()
+            curves_written = [
+                k for k in station.keys() if k.startswith(f"snapshot/{mac}.events/")
+            ]
+            assert curves_written, mac
+
+    def test_all_ambient_calls_come_first_and_within_the_throttle(
+        self, two_stations, monkeypatch
+    ):
+        from lookout.api import ambient_client
+
+        station = two_stations()
+        replay = station.replay
+        timeline: List[str] = []
+
+        def get(url, params=None, **kwargs):
+            timeline.append("get")
+            return replay(url, params, **kwargs)
+
+        monkeypatch.setattr(ambient_client, "requests", SimpleNamespace(get=get))
+        monkeypatch.setattr(
+            ambient_client,
+            "time",
+            SimpleNamespace(sleep=lambda _s: timeline.append("sleep")),
+        )
+        real_backup = storj.backup_archive
+
+        def backup(**kwargs):
+            timeline.append(f"backup {kwargs['mac']}")
+            return real_backup(**kwargs)
+
+        monkeypatch.setattr(storj, "backup_archive", backup)
+
+        assert self.run_main(station) == 0
+
+        # One device list, then each station's history, then the stations.
+        paths = [path for path, _ in replay.calls]
+        assert paths[0] == "/devices" and paths.count("/devices") == 1
+        assert {p for p in paths[1:]} == {
+            f"/devices/{FAKE_MAC}",
+            f"/devices/{SECOND_MAC}",
+        }
+        first_backup = timeline.index(f"backup {FAKE_MAC}")
+        assert "get" not in timeline[first_backup:]
+        later = timeline[first_backup:]
+        assert later.count(f"backup {SECOND_MAC}") == 1
+        # Every request waited out Ambient's rate limit first.
+        for i, entry in enumerate(timeline):
+            if entry == "get":
+                assert timeline[i - 1] == "sleep"
+
+    def test_a_failed_station_still_publishes_the_others_and_exits_1(
+        self, two_stations, monkeypatch, fake_healthchecks, caplog
+    ):
+        station = two_stations()
+        # The fixture station's Event Catalog read fails, in the station phase.
+        flaky_storj(monkeypatch, station.s3, read=EVENT_CATALOG_KEY)
+
+        assert self.run_main(station) == 1
+
+        assert dashboard_key(SECOND_MAC) in station.keys()
+        assert dashboard_key(FAKE_MAC) not in station.keys()
+        failed = [
+            r for r in caplog.records if f"Station {FAKE_MAC} failed" in r.getMessage()
+        ]
+        assert failed and failed[0].station == FIRST_TAG
+        assert fake_healthchecks.pings == [
+            "lookout-refresh/start",
+            "station-salmon-run",
+            "lookout-refresh/1",
+        ]
+        first = stored_json(station, status_key(FAKE_MAC))
+        second = stored_json(station, status_key(SECOND_MAC))
+        assert (first["outcome"], first["error"]) == ("failed", "StorageReadError")
+        assert first["built_at_ms"] is None
+        assert (second["outcome"], second["error"]) == ("ok", None)
+        assert (
+            second["built_at_ms"]
+            == stored_json(station, dashboard_key(SECOND_MAC))["built_at_ms"]
+        )
+
+    def test_a_station_with_no_archive_fails_and_is_never_rebuilt(
+        self, two_stations, caplog
+    ):
+        station = two_stations(second_archive=False)
+
+        assert self.run_main(station) == 1
+
+        assert dashboard_key(FAKE_MAC) in station.keys()
+        assert not [k for k in station.keys() if SECOND_MAC in k and "status" not in k]
+        assert f"/devices/{SECOND_MAC}" not in [p for p, _ in station.replay.calls]
+        status = stored_json(station, status_key(SECOND_MAC))
+        assert (status["outcome"], status["error"]) == ("failed", "StorageReadError")
+        assert f"s3://{BUCKET}/{SECOND_ARCHIVE_KEY} is missing" in caplog.text
+
+    def test_a_missing_inventory_aborts_the_run(
+        self, two_stations, fake_healthchecks, caplog
+    ):
+        station = two_stations()
+        station.s3.delete_object(Bucket=BUCKET, Key=INVENTORY_KEY)
+        keys = station.keys()
+
+        assert self.run_main(station) == 1
+
+        assert station.replay.calls == []
+        assert station.keys() == keys
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+        assert "Refresh failed" in caplog.text
+        assert "station_inventory.json is missing" in caplog.text
+
+    def test_each_station_s_log_lines_carry_its_name_and_mac(
+        self, two_stations, caplog
+    ):
+        station = two_stations()
+        caplog.clear()  # only the run's own lines
+
+        with caplog.at_level("INFO"):
+            assert self.run_main(station) == 0
+
+        formatter = logging.Formatter(LOG_FORMAT)
+        lines = [formatter.format(r) for r in caplog.records if hasattr(r, "station")]
+        second_reads = [line for line in lines if f"/{SECOND_ARCHIVE_KEY}" in line]
+        assert second_reads and all(SECOND_TAG in line for line in second_reads)
+        fetches = [line for line in lines if f"Fetching history: {SECOND_MAC}" in line]
+        assert fetches and all(SECOND_TAG in line for line in fetches)
+        peaks = [line for line in lines if "Peak memory after publish:" in line]
+        assert [FIRST_TAG in peaks[0], SECOND_TAG in peaks[1]] == [True, True]
+        # Nothing tagged as Salmon Run is about the fixture station's objects.
+        assert not [
+            line for line in lines if SECOND_TAG in line and f"{FAKE_MAC}." in line
+        ]
+
+    def test_the_run_ends_with_one_line_per_station(self, two_stations, caplog):
+        station = two_stations(second_archive=False)
+
+        with caplog.at_level("INFO"):
+            self.run_main(station)
+
+        last_two = [r.getMessage() for r in caplog.records[-2:]]
+        assert re.fullmatch(
+            rf"{FAKE_MAC} Fixture Station: published, newest reading \d+ min old",
+            last_two[0],
+        )
+        assert re.fullmatch(
+            rf"{SECOND_MAC} {SECOND_NAME}: failed \(StorageReadError\), "
+            r"newest reading \d+ min old",
+            last_two[1],
+        )
+
+    def test_a_station_without_soil_pm25_or_wh31e_builds_its_snapshot(self, seed):
+        # The fixture station is the real slice, which has all three sensors;
+        # Salmon Run, a WS-2902, has none of them in its archive or readings.
+        station = seed()
+        (first,) = load_devices()
+        real = load_real_slice()
+        lacking = real.drop(columns=[c for c in WS2902_MISSING if c in real.columns])
+        storj.save_df_to_s3(lacking, BUCKET, SECOND_ARCHIVE_KEY)
+        station.replay.devices = [first, second_device(first, drop=WS2902_MISSING)]
+        station.replay.histories[SECOND_MAC] = without(
+            station.replay.history, WS2902_MISSING
+        )
+        seed_inventory(FAKE_MAC, SECOND_MAC)
+
+        assert self.run_main(station) == 0
+
+        dashboard = stored_json(station, dashboard_key(SECOND_MAC))
+        assert dashboard["station"]["mac"] == SECOND_MAC
+        assert dashboard["observed_at_ms"] == ms("2025-11-19T07:55:00Z")
+        stored = station.stored(SECOND_ARCHIVE_KEY)
+        assert not set(WS2902_MISSING) & set(stored.columns)

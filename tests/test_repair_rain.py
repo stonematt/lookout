@@ -29,6 +29,8 @@ from tests.fixtures.archive import (
     build_archive,
 )
 from tests.fixtures.storage import BUCKET, FROZEN_DAY, flaky_storj
+from tests.test_diagnostics_cli import with_second_station
+from tests.test_refresh import SECOND_MAC
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
     CatchupStation,
@@ -472,3 +474,71 @@ def test_a_write_leaves_the_lock_free_when_it_ends(seed, truth, capsys):
     assert status == 0
     with hold_archive_lock():
         pass
+
+
+# ---------- --station ----------
+
+
+def window_of(df: pd.DataFrame) -> pd.DataFrame:
+    """The rows inside the test window, indexed on `dateutc`."""
+    return by_time(df)[in_window(df.sort_values("dateutc")).to_numpy()]
+
+
+def seed_second(station: CatchupStation, truth: pd.DataFrame) -> str:
+    """
+    Add Salmon Run: on the account, in the inventory, damaged like the first,
+    with its own raw reference.
+
+    :return: The key of its archive.
+    """
+    with_second_station(station)
+    key = f"{SECOND_MAC}.parquet"
+    storj.save_df_to_s3(damaged(truth), BUCKET, key)
+    storj.save_df_to_s3(truth, BUCKET, repair_rain.REFERENCE_KEY.format(mac=SECOND_MAC))
+    return key
+
+
+def test_without_station_the_default_station_is_repaired(seed, truth, capsys):
+    station = seed(truth)
+    second_key = seed_second(station, truth)
+    second_before = storj.get_df_from_s3(BUCKET, second_key, file_type="parquet")
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 0
+    assert FAKE_MAC in out
+    assert_counters_equal(window_of(station.stored()), by_time(truth))
+    pd.testing.assert_frame_equal(
+        storj.get_df_from_s3(BUCKET, second_key, file_type="parquet"), second_before
+    )
+
+
+def test_station_repairs_the_named_station_only(seed, truth, capsys):
+    station = seed(truth)
+    second_key = seed_second(station, truth)
+    first_before = station.stored()
+
+    status, out = run(["--write", "--station", SECOND_MAC.lower()], capsys)
+
+    assert status == 0
+    assert f".backups/{SECOND_MAC}/" in out
+    repaired = storj.get_df_from_s3(BUCKET, second_key, file_type="parquet")
+    assert_counters_equal(window_of(repaired), by_time(truth))
+    pd.testing.assert_frame_equal(station.stored(), first_before)
+
+
+@pytest.mark.parametrize("flags", [[], ["--write"]])
+def test_a_station_outside_the_inventory_is_refused_before_ambient(
+    seed, truth, capsys, flags
+):
+    station = seed(truth)
+    seed_second(station, truth)
+    keys = station.keys()
+    station.replay.calls.clear()
+
+    status, out = run([*flags, "--station", "00:00:00:00:00:99"], capsys)
+
+    assert status == 1
+    assert "Refused: Station 00:00:00:00:00:99 is not in the station" in out
+    assert station.replay.calls == []
+    assert station.keys() == keys

@@ -3,8 +3,11 @@ Functional Energy Catalog Management
 
 Ultra-simplified pure functions for managing energy period catalogs.
 Reuses existing storage patterns from storj.py - no reinvention needed.
-The station is the pinned one (`lookout.config.get_station_mac`).
+The station is always named by the caller (`mac_address`); there is no
+pinned station (#271).
 """
+
+from typing import Optional
 
 import pandas as pd
 
@@ -25,13 +28,23 @@ CATALOG_TYPE = "energy"
 
 def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
     """
-    Calculate energy periods - MAC from context, not parameters.
+    Calculate energy periods from an archive.
 
     With `auto_save`, the save goes through `backup_and_save_catalog`, which
     backs up the stored catalog first and saves nothing when that fails.
+
+    :param archive_df: The archive.
+    :param kwargs: `bucket` (default `DEFAULT_BUCKET`), `auto_save` (default
+        True) and `mac_address`, the station to save under (needed with
+        `auto_save`).
+    :return: The periods; empty when none could be calculated.
+    :raises ValueError: If `auto_save` is on and no `mac_address` is given.
     """
     bucket = kwargs.get("bucket", DEFAULT_BUCKET)
     auto_save = kwargs.get("auto_save", True)
+    mac_address = kwargs.get("mac_address")
+    if auto_save and not mac_address:
+        raise ValueError("auto_save needs the station's mac_address")
 
     logger.info("Starting energy period calculation and cataloging...")
 
@@ -50,7 +63,7 @@ def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataF
     # Save catalog if requested
     if auto_save:
         try:
-            backup_and_save_catalog(periods_df, CATALOG_TYPE, bucket)
+            backup_and_save_catalog(periods_df, CATALOG_TYPE, bucket, mac_address)
             logger.info(f"Successfully cataloged {len(periods_df)} energy periods")
         except Exception as e:
             logger.error(f"Failed to save energy catalog: {e}")
@@ -63,22 +76,37 @@ def detect_and_calculate_periods(archive_df: pd.DataFrame, **kwargs) -> pd.DataF
     return periods_df
 
 
-def load_energy_catalog(bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
-    """Load energy catalog from storage."""
-    df = load_catalog(CATALOG_TYPE, bucket)
+def load_energy_catalog(mac_address: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
+    """
+    Load one station's energy catalog from storage.
+
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: The catalog; empty when none is stored.
+    """
+    df = load_catalog(CATALOG_TYPE, mac_address, bucket)
     if not df.empty:
         logger.info(f"Loaded energy catalog: {len(df)} periods")
     return df
 
 
-def save_energy_catalog(df: pd.DataFrame, bucket: str = DEFAULT_BUCKET) -> bool:
-    """Save energy catalog to storage with backup."""
+def save_energy_catalog(
+    df: pd.DataFrame, mac_address: str, bucket: str = DEFAULT_BUCKET
+) -> bool:
+    """
+    Save one station's energy catalog, backing up the stored one first.
+
+    :param df: The catalog.
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: True when saved; False when empty or the backup or save failed.
+    """
     if df.empty:
         logger.warning("Attempting to save empty energy catalog")
         return False
 
     try:
-        backup_and_save_catalog(df, CATALOG_TYPE, bucket)
+        backup_and_save_catalog(df, CATALOG_TYPE, bucket, mac_address)
         logger.info(f"Saved energy catalog: {len(df)} periods")
         return True
     except Exception as e:
@@ -90,6 +118,7 @@ def update_energy_catalog(
     archive_df: pd.DataFrame,
     existing_catalog: pd.DataFrame = None,
     bucket: str = DEFAULT_BUCKET,
+    mac_address: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Update energy catalog with new data from archive.
@@ -100,10 +129,15 @@ def update_energy_catalog(
     :param archive_df: Complete weather archive DataFrame
     :param existing_catalog: Existing catalog DataFrame (will load if None)
     :param bucket: S3 bucket name
+    :param mac_address: The station, to load its catalog when
+        `existing_catalog` is None.
     :return: Updated catalog DataFrame
+    :raises ValueError: If the catalog must be loaded and no station is given.
     """
     if existing_catalog is None:
-        existing_catalog = load_energy_catalog(bucket)
+        if not mac_address:
+            raise ValueError("Loading the stored catalog needs the station's MAC")
+        existing_catalog = load_energy_catalog(mac_address, bucket)
 
     if existing_catalog.empty:
         logger.info("No existing energy catalog, performing full calculation")

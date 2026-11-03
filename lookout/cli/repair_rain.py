@@ -22,7 +22,7 @@ A dry run is the default. `--write` takes the archive-writer lock first
 (#244) and exits 1, doing nothing, when another archive writer holds it.
 
 Usage:
-    python -m lookout.cli.repair_rain [--bucket lookout] [--write]
+    python -m lookout.cli.repair_rain [--bucket lookout] [--station MAC] [--write]
         [--window FIRST LAST ...] [--tolerance 0.001]
 """
 
@@ -36,9 +36,10 @@ import numpy as np
 import pandas as pd
 
 import lookout.api.awn_controller as awn
-from lookout.cli.diagnostics import emit, load_station
+from lookout.cli.diagnostics import add_station_arg, emit, load_station
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import archive_merge
+from lookout.storage.station_inventory import StationNotInInventory
 from lookout.storage.storj import backup_and_save_history, read_df_from_s3
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import DEFAULT_TZ, INTERVAL_MS, from_local_date
@@ -544,6 +545,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--bucket", default=DEFAULT_BUCKET, help="S3 bucket name")
+    add_station_arg(parser)
     parser.add_argument(
         "--window",
         nargs=2,
@@ -578,7 +580,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :return: 0 when the repair checks out (and, with --write, was saved);
         1 when a day refilled short, a check failed, or the raw reference is
-        missing, or (with --write) another archive writer holds the lock.
+        missing, `--station` is not in the station inventory, or (with
+        --write) another archive writer holds the lock.
     :raises StorageReadError: If the archive or the raw reference read
         failed; nothing is written then.
     """
@@ -591,7 +594,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         emit(f"{e}; nothing done.")
         return 1
     with lock:
-        device, archive = load_station(args.bucket)
+        try:
+            device, archive = load_station(args.bucket, args.station)
+        except StationNotInInventory as e:
+            emit(f"Refused: {e}; nothing done.")
+            return 1
         mac = device["macAddress"]
         reference_key = REFERENCE_KEY.format(mac=mac)
         # A failed read raises (ADR-0004): the repair never compares against a

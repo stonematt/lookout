@@ -12,7 +12,7 @@ from lookout.storage.storj import (
     save_df_to_s3,
     backup_data,
 )
-from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE, get_station_mac
+from lookout.config import DEFAULT_BUCKET, DEFAULT_FILE_TYPE
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -23,9 +23,17 @@ def get_catalog_path(mac_address: str, catalog_type: str) -> str:
     return f"{mac_address}.{catalog_type}_catalog.{DEFAULT_FILE_TYPE}"
 
 
-def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFrame:
-    """Load catalog from storage."""
-    mac_address = get_station_mac()
+def load_catalog(
+    catalog_type: str, mac_address: str, bucket: str = DEFAULT_BUCKET
+) -> pd.DataFrame:
+    """
+    Load one station's catalog from storage.
+
+    :param catalog_type: The catalog's name, e.g. "energy".
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: The catalog; empty when none is stored or the read failed.
+    """
     catalog_path = get_catalog_path(mac_address, catalog_type)
 
     try:
@@ -38,18 +46,21 @@ def load_catalog(catalog_type: str, bucket: str = DEFAULT_BUCKET) -> pd.DataFram
 
 
 def save_catalog(
-    df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
+    df: pd.DataFrame,
+    catalog_type: str,
+    mac_address: str,
+    bucket: str = DEFAULT_BUCKET,
 ) -> bool:
     """
-    Save catalog to storage with metadata.
+    Save one station's catalog to storage with metadata.
 
     :param df: The catalog to save.
     :param catalog_type: The catalog's name, e.g. "energy".
+    :param mac_address: The station.
     :param bucket: The bucket.
     :return: True when saved; False when the catalog is empty or the save
         failed (logged at ERROR).
     """
-    mac_address = get_station_mac()
 
     try:
         if df.empty:
@@ -75,10 +86,20 @@ def save_catalog(
 
 
 def backup_catalog(
-    df: pd.DataFrame, catalog_type: str, bucket: str = DEFAULT_BUCKET
+    df: pd.DataFrame,
+    catalog_type: str,
+    mac_address: str,
+    bucket: str = DEFAULT_BUCKET,
 ) -> Optional[str]:
-    """Create backup using existing backup infrastructure."""
-    mac_address = get_station_mac()
+    """
+    Back up one station's stored catalog to a dated folder.
+
+    :param df: Unused; kept for the callers' shape.
+    :param catalog_type: The catalog's name, e.g. "energy".
+    :param mac_address: The station.
+    :param bucket: The bucket.
+    :return: A marker naming the backup prefix, or None when it failed.
+    """
     backup_prefix = f"{mac_address}.{catalog_type}_catalog"
 
     # Use existing backup_data with daily deduplication logic

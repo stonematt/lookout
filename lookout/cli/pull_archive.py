@@ -13,12 +13,14 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
+from lookout.storage.station_inventory import resolve_station
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -28,15 +30,21 @@ DATA_DIR = Path(__file__).parent.parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 
-def get_device_info(mac_address: str = None) -> tuple:
+def get_device_info(
+    bucket_name: str, mac_address: Optional[str] = None
+) -> Tuple[str, str, Dict]:
     """
     Get the station's (mac, name, device) from the Ambient API.
 
-    :param mac_address: A station to pull instead of the pinned STATION_MAC.
+    :param bucket_name: The bucket holding the station inventory.
+    :param mac_address: A station to pull instead of the default station.
     :return: The station's MAC, name and device dict.
+    :raises StationNotInInventory: If a MAC is given that the station
+        inventory does not list.
+    :raises StorageReadError: If the station inventory cannot be read.
     :raises StationNotFoundError: If the account does not list that station.
     """
-    device = get_station_device(mac_address)
+    device = get_station_device(resolve_station(bucket_name, mac_address))
 
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")
@@ -49,7 +57,7 @@ def pull_archive_to_local(bucket_name: str, mac_address: str = None) -> str:
 
     Returns path to local parquet file.
     """
-    mac, name, device = get_device_info(mac_address)
+    mac, name, device = get_device_info(bucket_name, mac_address)
     logger.info(f"Pulling archive for: {name} ({mac})")
 
     # Load archive from S3
@@ -83,7 +91,9 @@ def main():
     )
     parser.add_argument("--bucket", type=str, default="lookout", help="S3 bucket name")
     parser.add_argument(
-        "--device-mac", type=str, help="Device MAC address (default: STATION_MAC)"
+        "--device-mac",
+        type=str,
+        help="Device MAC address (default: the default station)",
     )
     args = parser.parse_args()
 

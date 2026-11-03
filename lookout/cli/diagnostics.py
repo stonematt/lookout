@@ -1,5 +1,5 @@
 """
-diagnostics.py: Archive diagnostics for the pinned station, as plain text.
+diagnostics.py: Archive diagnostics for one station, as plain text.
 
 The Streamlit Diagnostics tab's maintenance work, for an agent's terminal. It
 reads secrets only through `lookout.secrets_loader` (env vars, then
@@ -30,7 +30,10 @@ Commands:
                     object as it is (a corrupt catalog is kept), then writes;
                     it refuses to write when the backup fails.
 
-Every command takes --bucket. Day windows end at the archive's newest record,
+Every command takes --bucket and --station <MAC>, the station to work on; it
+defaults to the default station (the first in the station inventory). A MAC
+the inventory does not list is refused, exit 1, before Ambient is called or
+anything is written. Day windows end at the archive's newest record,
 not the wall clock, so a stalled station still shows its last good days.
 Exit status: 0 done, 1 refused or failed.
 
@@ -58,6 +61,7 @@ from lookout.storage.storj import (
     backup_and_save_history,
     load_archive,
 )
+from lookout.storage.station_inventory import StationNotInInventory, resolve_station
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
@@ -117,20 +121,38 @@ def human_duration(minutes: float) -> str:
     return f"{minutes / 1440:.1f} days"
 
 
-def load_station(bucket: str) -> Tuple[Dict, pd.DataFrame]:
+def add_station_arg(parser: argparse.ArgumentParser) -> None:
     """
-    The pinned station and its archive, normalized (ascending `dateutc`).
+    Add `--station`, shared by every maintenance command.
+
+    :param parser: The parser to add it to.
+    """
+    parser.add_argument(
+        "--station",
+        metavar="MAC",
+        help="Station to work on; must be in the station inventory "
+        "(default: the default station)",
+    )
+
+
+def load_station(
+    bucket: str, station: Optional[str] = None
+) -> Tuple[Dict, pd.DataFrame]:
+    """
+    A station and its archive, normalized (ascending `dateutc`).
 
     Read strictly (#160): `fill-gap` and the rain repair save over the
     archive, and hand it to the save as `stored`, which guards against it.
 
     :param bucket: The bucket.
+    :param station: The station's MAC; the default station when None.
     :return: The station's `/devices` entry and its archive.
-    :raises StationNotFoundError: If `STATION_MAC` is not on the account.
-    :raises StorageReadError: If the archive is missing, unreadable, or has
-        no valid rows.
+    :raises StationNotInInventory: If `station` is not in the inventory.
+    :raises StationNotFoundError: If the station is not on the account.
+    :raises StorageReadError: If the station inventory or the archive is
+        missing or unreadable, or the archive has no valid rows.
     """
-    device = get_station_device()
+    device = get_station_device(resolve_station(bucket, station))
     # Straight from Storj: the dev-mode local cache would write a file here.
     return device, load_archive(bucket, device["macAddress"])
 
@@ -240,7 +262,7 @@ def cmd_gaps(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device, archive = load_station(args.bucket)
+    device, archive = load_station(args.bucket, args.station)
     gaps = gaps_in(archive, args)
     emit(f"Station {device['macAddress']}, {len(archive)} archive rows")
     emit(f"Gaps over {args.threshold} minutes: {len(gaps)}")
@@ -286,7 +308,7 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device, archive = load_station(args.bucket)
+    device, archive = load_station(args.bucket, args.station)
     picked = resolve_gap(archive, args)
     if picked is None:
         return 1
@@ -337,7 +359,7 @@ def cmd_coverage(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device, archive = load_station(args.bucket)
+    device, archive = load_station(args.bucket, args.station)
     if archive.empty:
         emit("The archive is empty.")
         return 1
@@ -369,7 +391,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device, archive = load_station(args.bucket)
+    device, archive = load_station(args.bucket, args.station)
     live_ms = (device.get("lastData") or {}).get("dateutc")
     emit(f"Station {device['macAddress']}")
     if archive.empty:
@@ -396,7 +418,7 @@ def cmd_last_record(args: argparse.Namespace) -> int:
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device = get_station_device()
+    device = get_station_device(resolve_station(args.bucket, args.station))
     last = device.get("lastData") or {}
     if not last:
         emit("The device reports no live reading.")
@@ -426,7 +448,7 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     if args.dry_run and not args.save:
         emit("Refused: --dry-run only applies with --save.")
         return 1
-    device, archive = load_station(args.bucket)
+    device, archive = load_station(args.bucket, args.station)
     if archive.empty:
         emit("The archive is empty.")
         return 1
@@ -455,7 +477,9 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     if args.dry_run:
         emit("Dry run: would back up the stored catalog and save the regenerated one.")
         return 0
-    if not energy_catalog_func.save_energy_catalog(periods, args.bucket):
+    if not energy_catalog_func.save_energy_catalog(
+        periods, device["macAddress"], args.bucket
+    ):
         emit("Save failed (the backup or the write); the stored catalog is unchanged.")
         return 1
     emit("Stored catalog backed up and replaced.")
@@ -474,7 +498,7 @@ def cmd_rain_catalog(args: argparse.Namespace) -> int:
     :return: The exit status; 1 when nothing was detected or the backup or
         write failed.
     """
-    device, archive = load_station(args.bucket)
+    device, archive = load_station(args.bucket, args.station)
     store = RainEventCatalog(device["macAddress"], bucket=args.bucket)
     stored: Optional[pd.DataFrame] = None
     try:
@@ -548,6 +572,7 @@ def build_parser() -> argparse.ArgumentParser:
     ) -> argparse.ArgumentParser:
         sub = commands.add_parser(name, help=help_)
         sub.add_argument("--bucket", default=DEFAULT_BUCKET, help="S3 bucket name")
+        add_station_arg(sub)
         sub.set_defaults(handler=handler)
         return sub
 
@@ -591,6 +616,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             return args.handler(args)
     except ArchiveLockHeld as e:
         emit(f"{e}; {args.command} did nothing.")
+        return 1
+    except StationNotInInventory as e:
+        emit(f"Refused: {e}")
         return 1
     except StationNotFoundError as e:
         emit(f"Station not found: {e}")

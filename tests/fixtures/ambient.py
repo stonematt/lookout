@@ -9,7 +9,8 @@ archive in the three hours after the real slice ends (see
 `AmbientReplay` stands in for `requests.get` inside
 `lookout.api.ambient_client`. `/devices` returns the devices body;
 `/devices/{mac}` returns history records with `dateutc < endDate` (when
-given), newest first, at most `limit` of them. An unknown MAC returns `[]`.
+given), newest first, at most `limit` of them: the first device's from
+`history`, any other's from `histories[mac]`. An unknown MAC returns `[]`.
 Every call is kept in `calls` as `(path, params)`.
 
 `to_ambient_records(df)` and `devices_body(last_data)` turn archive rows (real
@@ -142,6 +143,8 @@ class AmbientReplay:
         self.devices = load_devices() if devices is None else devices
         records = load_history() if history is None else history
         self.history = sorted(records, key=lambda r: r["dateutc"], reverse=True)
+        # Other devices' history, by MAC, served as given (newest first).
+        self.histories: Dict[str, List[Dict]] = {}
         self.calls: List[Tuple[str, Dict]] = []
 
     def __call__(
@@ -160,9 +163,12 @@ class AmbientReplay:
         if path == "/devices":
             return FakeResponse(self.devices)
         mac = path.removeprefix("/devices/")
-        if not self.devices or mac != self.devices[0]["macAddress"]:
+        if mac in self.histories:
+            records = self.histories[mac]
+        elif self.devices and mac == self.devices[0]["macAddress"]:
+            records = self.history
+        else:
             return FakeResponse([])
-        records = self.history
         if params.get("endDate") is not None:
             end = int(params["endDate"])
             records = [r for r in records if r["dateutc"] < end]

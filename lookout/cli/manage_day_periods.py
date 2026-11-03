@@ -28,10 +28,13 @@ Examples:
 import argparse
 import sys
 from datetime import datetime
+from typing import Tuple
+
 import pandas as pd
 
 # Lookout imports
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
+from lookout.config import DEFAULT_BUCKET
 from lookout.core.day_periods import (
     generate_day_periods_catalog,
     save_day_periods_catalog,
@@ -40,7 +43,8 @@ from lookout.core.day_periods import (
     get_catalog_path,
     load_day_periods_catalog,
 )
-from lookout.storage.storj import BackupError
+from lookout.storage.station_inventory import resolve_station
+from lookout.storage.storj import BackupError, StorageReadError
 from lookout.utils.log_util import app_logger
 
 # Location configuration (Salem, OR)
@@ -49,11 +53,18 @@ LOCATION = {"latitude": 44.9429, "longitude": -123.0351}
 logger = app_logger(__name__)
 
 
-def get_station():
-    """Get the pinned station (STATION_MAC) from the Ambient API, or exit 1."""
+def get_station(bucket: str = DEFAULT_BUCKET) -> Tuple[str, dict]:
+    """
+    Get the default station from the Ambient API, or exit 1.
+
+    :param bucket: The bucket holding the station inventory.
+    :return: (mac, device).
+    :raises SystemExit: With code 1 when the inventory cannot be read or the
+        station is not on the account.
+    """
     try:
-        device = get_station_device()
-    except StationNotFoundError as e:
+        device = get_station_device(resolve_station(bucket))
+    except (StationNotFoundError, StorageReadError) as e:
         logger.error(f"❌ {e}")
         sys.exit(1)
 
@@ -152,7 +163,7 @@ Examples:
     if args.list:
         logger.info("📋 Listing existing day periods catalogs...")
 
-        # Get the pinned station to check for catalogs
+        # Get the default station to check for catalogs
         try:
             mac_address, device = get_station()
             device_name = device.get("info", {}).get("name", "Unknown")
@@ -176,7 +187,7 @@ Examples:
     if args.delete:
         logger.info("🗑️  Delete operation requested")
 
-        # Get the pinned station (STATION_MAC)
+        # Get the default station (the station inventory's first)
         mac_address, device = get_station()
 
         # Delete catalog (not implemented: it reports that nothing was deleted)
@@ -190,7 +201,7 @@ Examples:
     if args.dry_run:
         logger.info("🔍 Dry run mode - showing what would be generated...")
 
-        # Get the pinned station (STATION_MAC)
+        # Get the default station (the station inventory's first)
         mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
@@ -251,7 +262,7 @@ Examples:
     if args.generate:
         logger.info("🌅 Generating day periods catalog...")
 
-        # Get the pinned station (STATION_MAC)
+        # Get the default station (the station inventory's first)
         mac_address, device = get_station()
 
         # Use LOCATION coordinates (Salem, OR)
