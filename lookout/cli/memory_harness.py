@@ -361,9 +361,7 @@ def _object_tags(client: Any) -> Dict[str, str]:
     return tags
 
 
-def _fake_ambient(
-    history: pd.DataFrame, tz: str
-) -> Tuple[Dict, List[Dict[str, Any]]]:
+def _fake_ambient(history: pd.DataFrame, tz: str) -> Tuple[Dict, List[Dict[str, Any]]]:
     """
     Answer the Ambient client from `history`, with no rate-limit waits.
 
