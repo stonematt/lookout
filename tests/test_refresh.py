@@ -27,6 +27,7 @@ from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog, is_event_ongoing
 from lookout.snapshot import Snapshot, curves
 from lookout.storage import storj
+from lookout.utils.archive_lock import hold_archive_lock
 from tests.fixtures.ambient import load_devices, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -1545,3 +1546,43 @@ class TestNoopArchiveSave:
 
         assert ARCHIVE_KEY in writes
         assert len(station.stored()) == len(station.archive) + RECORDED_ROWS
+
+
+# ---------- the archive-writer lock (#244) ----------
+
+
+class TestArchiveWriterLock:
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    def test_a_held_lock_skips_the_run_with_no_pings_and_exits_0(
+        self, seed, fake_healthchecks, caplog
+    ):
+        station = seed()
+        keys = station.keys()
+
+        with hold_archive_lock():
+            assert self.run_main(station) == 0
+
+        assert fake_healthchecks.pings == []
+        skips = [r for r in caplog.records if "holds the lock" in r.getMessage()]
+        assert len(skips) == 1
+        assert station.replay.calls == []
+        assert station.keys() == keys
+
+    def test_a_finished_run_leaves_the_lock_free(self, seed):
+        station = seed()
+
+        assert self.run_main(station) == 0
+
+        with hold_archive_lock():
+            pass
+
+    def test_a_failed_run_leaves_the_lock_free(self, seed, monkeypatch):
+        station = seed()
+        monkeypatch.setenv("STATION_MAC", "AA:BB:CC:DD:EE:FF")  # not on the account
+
+        assert self.run_main(station) == 1
+
+        with hold_archive_lock():
+            pass

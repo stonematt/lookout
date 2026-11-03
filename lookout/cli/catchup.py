@@ -4,7 +4,8 @@ catchup.py: Synchronize new Ambient Weather data with archived records in S3.
 This module pulls data since the last known timestamp in the archive and updates
 S3 storage with any newly retrieved data. Supports a dry-run mode for simulation
 and offline testing. Also supports archive repair (schema normalization) with
---repair-archive and optional --dry-run.
+--repair-archive and optional --dry-run. A run that writes takes the
+archive-writer lock first (#244); `--dry-run` alone takes none.
 
 Usage:
     python catchup.py --bucket lookout [--dry-run] [--pages 20] [--repair-archive]
@@ -20,6 +21,7 @@ import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
 from lookout.core import archive_merge
+from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
@@ -179,52 +181,58 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
     :param dry_run: If True, simulate actions without modifying data.
     :param pages: Maximum number of pages to retrieve during update.
     :param repair_archive: If True, validate/fix archive only (optionally dry-run).
+    :raises ArchiveLockHeld: If a run that writes (any but `--dry-run`)
+        finds another archive writer holding the lock (#244); raised before
+        anything is read or written.
     :raises StationNotFoundError: If the pinned station (STATION_MAC) is not on
         the Ambient account; raised before anything is read or written.
     """
-    device = get_station_device()
-    mac = device.get("macAddress")
-    name = device.get("info", {}).get("name", "Unnamed Device")
-    logger.info(f"Selected device: {name} ({mac})")
+    with writer_lock(saves=not dry_run):
+        device = get_station_device()
+        mac = device.get("macAddress")
+        name = device.get("info", {}).get("name", "Unnamed Device")
+        logger.info(f"Selected device: {name} ({mac})")
 
-    if dry_run and not repair_archive:
+        if dry_run and not repair_archive:
+            logger.info(
+                "Running in dry-run mode (no write). "
+                "Fetching latest page only for visibility."
+            )
+            df = awn.get_device_history_to_date(device)
+            # Normalize for consistent printing
+            df = normalize(df)
+            _log_archive_range(df, "Dry-run latest page")
+            df.info()
+            return
+
+        if not repair_archive:
+            update_archive(device, bucket_name, pages)
+            return
+
+        # Back up before repairing (skipped in dry-run)
+        sj.backup_archive(bucket=bucket_name, mac=mac, dry_run=dry_run)
+        archive_df = _load_archive(device, bucket_name)
+
+        fixed, m = _repair_archive_df(archive_df)
         logger.info(
-            "Running in dry-run mode (no write). Fetching latest page only for visibility."
+            "Archive repair: %s -> %s rows (dropped=%s), dtype %s -> %s, "
+            "range %s .. %s",
+            m.get("before_len"),
+            m.get("after_len"),
+            m.get("dropped"),
+            m.get("before_dtype"),
+            m.get("after_dtype"),
+            m.get("min"),
+            m.get("max"),
         )
-        df = awn.get_device_history_to_date(device)
-        # Normalize for consistent printing
-        df = normalize(df)
-        _log_archive_range(df, "Dry-run latest page")
-        df.info()
-        return
+        if dry_run:
+            logger.info("Dry-run: NOT saving repaired archive.")
+            return
 
-    if not repair_archive:
-        update_archive(device, bucket_name, pages)
-        return
-
-    # Back up before repairing (skipped in dry-run)
-    sj.backup_archive(bucket=bucket_name, mac=mac, dry_run=dry_run)
-    archive_df = _load_archive(device, bucket_name)
-
-    fixed, m = _repair_archive_df(archive_df)
-    logger.info(
-        "Archive repair: %s -> %s rows (dropped=%s), dtype %s -> %s, range %s .. %s",
-        m.get("before_len"),
-        m.get("after_len"),
-        m.get("dropped"),
-        m.get("before_dtype"),
-        m.get("after_dtype"),
-        m.get("min"),
-        m.get("max"),
-    )
-    if dry_run:
-        logger.info("Dry-run: NOT saving repaired archive.")
-        return
-
-    # Persist the repaired archive, newest first (#133), and exit. An
-    # explicit repair: the one catchup save that may drop or blank (#190).
-    sj.save_archive(fixed, bucket_name, mac, stored=archive_df, repair=True)
-    logger.info("Repaired archive saved.")
+        # Persist the repaired archive, newest first (#133), and exit. An
+        # explicit repair: the one catchup save that may drop or blank (#190).
+        sj.save_archive(fixed, bucket_name, mac, stored=archive_df, repair=True)
+        logger.info("Repaired archive saved.")
 
 
 if __name__ == "__main__":
@@ -245,6 +253,9 @@ if __name__ == "__main__":
 
     try:
         main(args.bucket, args.dry_run, args.pages, args.repair_archive)
+    except ArchiveLockHeld as e:
+        logger.error(f"{e}; catchup did nothing.")
+        sys.exit(1)
     except Exception as e:
         logger.exception(f"❌ Unhandled exception in catchup: {e}")
         sys.exit(1)

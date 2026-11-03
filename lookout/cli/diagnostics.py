@@ -33,6 +33,11 @@ Commands:
 Every command takes --bucket. Day windows end at the archive's newest record,
 not the wall clock, so a stalled station still shows its last good days.
 Exit status: 0 done, 1 refused or failed.
+
+A command that saves (fill-gap without --dry-run, energy-catalog --save
+without --dry-run, rain-catalog --save) is an archive writer: it takes the
+archive-writer lock (#244) before any work, and exits 1 naming the lock file
+when another writer holds it. Every other command runs regardless.
 """
 
 import argparse
@@ -53,6 +58,7 @@ from lookout.storage.storj import (
     backup_and_save_history,
     load_archive,
 )
+from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import DEFAULT_TZ
 from lookout.utils.log_util import app_logger
 
@@ -512,6 +518,22 @@ def cmd_rain_catalog(args: argparse.Namespace) -> int:
 # ---------- the shell ----------
 
 
+def saves(args: argparse.Namespace) -> bool:
+    """
+    Whether this command line saves the archive or a catalog.
+
+    :param args: Parsed arguments.
+    :return: True for an archive writer run with its save flag.
+    """
+    if args.command == "fill-gap":
+        return not args.dry_run
+    if args.command == "energy-catalog":
+        return args.save and not args.dry_run
+    if args.command == "rain-catalog":
+        return args.save
+    return False
+
+
 def build_parser() -> argparse.ArgumentParser:
     """
     The command line.
@@ -558,14 +580,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     """
-    The shell entry point.
+    The shell entry point; a command that saves holds the archive-writer lock.
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
-    :return: The exit status.
+    :return: The exit status; 1 when another archive writer holds the lock.
     """
     args = build_parser().parse_args(argv)
     try:
-        return args.handler(args)
+        with writer_lock(saves(args)):
+            return args.handler(args)
+    except ArchiveLockHeld as e:
+        emit(f"{e}; {args.command} did nothing.")
+        return 1
     except StationNotFoundError as e:
         emit(f"Station not found: {e}")
         return 1

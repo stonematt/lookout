@@ -18,7 +18,8 @@ For each window the repair:
    precision Ambient serves now, and checks the restored rows equal the
    backup exactly.
 
-A dry run is the default.
+A dry run is the default. `--write` takes the archive-writer lock first
+(#244) and exits 1, doing nothing, when another archive writer holds it.
 
 Usage:
     python -m lookout.cli.repair_rain [--bucket lookout] [--write]
@@ -39,6 +40,7 @@ from lookout.cli.diagnostics import emit, load_station
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import archive_merge
 from lookout.storage.storj import backup_and_save_history, read_df_from_s3
+from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import DEFAULT_TZ, INTERVAL_MS, from_local_date
 
 # Station-local days, first and last inclusive: from each carryover day the
@@ -576,52 +578,60 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :return: 0 when the repair checks out (and, with --write, was saved);
         1 when a day refilled short, a check failed, or the raw reference is
-        missing.
+        missing, or (with --write) another archive writer holds the lock.
     :raises StorageReadError: If the archive or the raw reference read
         failed; nothing is written then.
     """
     args = parse_args(argv)
-    device, archive = load_station(args.bucket)
-    mac = device["macAddress"]
-    reference_key = REFERENCE_KEY.format(mac=mac)
-    # A failed read raises (ADR-0004): the repair never compares against a
-    # reference it could not read.
-    reference = read_df_from_s3(args.bucket, reference_key, file_type="parquet")
-    if reference is None:
-        emit(f"Problem: the raw reference {reference_key} is missing or empty")
-        emit("Nothing written: fix the problems above first.")
+    # --write makes this an archive writer: it takes the lock before any
+    # work (#244). A dry run takes none.
+    try:
+        lock = writer_lock(args.write)
+    except ArchiveLockHeld as e:
+        emit(f"{e}; nothing done.")
         return 1
+    with lock:
+        device, archive = load_station(args.bucket)
+        mac = device["macAddress"]
+        reference_key = REFERENCE_KEY.format(mac=mac)
+        # A failed read raises (ADR-0004): the repair never compares against a
+        # reference it could not read.
+        reference = read_df_from_s3(args.bucket, reference_key, file_type="parquet")
+        if reference is None:
+            emit(f"Problem: the raw reference {reference_key} is missing or empty")
+            emit("Nothing written: fix the problems above first.")
+            return 1
 
-    problems: List[str] = []
-    if reference.empty:
-        problems.append(f"the raw reference {reference_key} is missing or empty")
+        problems: List[str] = []
+        if reference.empty:
+            problems.append(f"the raw reference {reference_key} is missing or empty")
 
-    repaired = archive
-    for first, last in args.window:
-        repaired, repair = repair_window(device, repaired, reference, first, last)
-        problems += report_window(
-            repair, repaired, reference, reference_key, args.tolerance
+        repaired = archive
+        for first, last in args.window:
+            repaired, repair = repair_window(device, repaired, reference, first, last)
+            problems += report_window(
+                repair, repaired, reference, reference_key, args.tolerance
+            )
+
+        for problem in problems:
+            emit(f"Problem: {problem}")
+        if not args.write:
+            emit("Dry run: nothing written. Rerun with --write to back up and save.")
+            return 1 if problems else 0
+        if problems:
+            emit("Nothing written: fix the problems above first.")
+            return 1
+
+        # An explicit repair: the save may drop or blank what it corrects (#190).
+        backup_and_save_history(
+            df=repaired,
+            device=device,
+            bucket=args.bucket,
+            stored=archive,
+            repair=True,
         )
-
-    for problem in problems:
-        emit(f"Problem: {problem}")
-    if not args.write:
-        emit("Dry run: nothing written. Rerun with --write to back up and save.")
-        return 1 if problems else 0
-    if problems:
-        emit("Nothing written: fix the problems above first.")
-        return 1
-
-    # An explicit repair: the save may drop or blank what it corrects (#190).
-    backup_and_save_history(
-        df=repaired,
-        device=device,
-        bucket=args.bucket,
-        stored=archive,
-        repair=True,
-    )
-    emit(f"Live archive backed up to .backups/{mac}/; repaired archive saved.")
-    return 0
+        emit(f"Live archive backed up to .backups/{mac}/; repaired archive saved.")
+        return 0
 
 
 if __name__ == "__main__":

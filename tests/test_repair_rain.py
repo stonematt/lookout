@@ -19,6 +19,7 @@ import pytest
 from lookout.api import awn_controller as awn
 from lookout.cli import repair_rain
 from lookout.storage import storj
+from lookout.utils.archive_lock import hold_archive_lock
 from lookout.utils.dateutc import from_local_date
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
@@ -433,3 +434,41 @@ class TestVerifyRestored:
         reference = pd.DataFrame({"dateutc": [1], "dailyrainin": [np.nan]})
 
         assert repair_rain.verify_restored(reference, reference, [1]) == (1, 0)
+
+
+# ---------- the archive-writer lock (#244) ----------
+
+
+def test_a_held_lock_refuses_write_naming_the_lock_file(
+    seed, truth, capsys, archive_lock_file
+):
+    station = seed(truth)
+    keys = station.keys()
+
+    with hold_archive_lock():
+        status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert str(archive_lock_file) in out
+    assert station.replay.calls == []
+    assert station.keys() == keys
+
+
+def test_a_dry_run_runs_while_the_lock_is_held(seed, truth, capsys):
+    seed(truth)
+
+    with hold_archive_lock():
+        status, out = run([], capsys)
+
+    assert status == 0
+    assert "Dry run" in out
+
+
+def test_a_write_leaves_the_lock_free_when_it_ends(seed, truth, capsys):
+    seed(truth)
+
+    status, _ = run(["--write"], capsys)
+
+    assert status == 0
+    with hold_archive_lock():
+        pass
