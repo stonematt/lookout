@@ -1,20 +1,21 @@
 """
-archive_merge_oracle.py: the archive merge as it was before #283, for tests.
+archive_merge_oracle.py: the archive merge and save guard before #283/#284.
 
-A private test oracle (spec #234, user story 30): the equivalence tests in
-`tests/test_archive_merge.py` run it and `lookout.core.archive_merge.merge`
-on the same frames and assert equal archives and equal counts. It is the
-merge's previous implementation, copied unchanged apart from names, so
-equivalence is tested against the real previous behaviour, not a rewrite.
-The save guard lever (#284) deletes it with the other oracles.
+Private test oracles (spec #234, user story 30): the equivalence tests in
+`tests/test_archive_merge.py` run them and `lookout.core.archive_merge`'s
+`merge` and `loss` on the same frames and assert equal archives, counts and
+losses. Each is the previous implementation, copied unchanged apart from
+names, so equivalence is tested against the real previous behaviour, not a
+rewrite. The save guard lever (#284) deletes them with the other oracles.
 
 Functions:
 - merge_before_overlap: The pre-#283 `archive_merge.merge`.
+- loss_before_overlap: The pre-#284 `archive_merge.loss`.
 """
 
 import pandas as pd
 
-from lookout.core.archive_merge import Merged, MergeReport
+from lookout.core.archive_merge import Loss, Merged, MergeReport, strip_derived
 from lookout.utils.dateutc import normalize
 
 
@@ -66,6 +67,33 @@ def merge_before_overlap(stored: pd.DataFrame, ambient: pd.DataFrame) -> Merged:
         ambient_only=ambient_only,
     )
     return Merged(_newest_first(merged), report)
+
+
+def loss_before_overlap(stored: pd.DataFrame, new: pd.DataFrame) -> Loss:
+    """
+    What saving `new` over the stored archive would lose, as before #284.
+
+    :param stored: The stored archive, as read.
+    :param new: The archive about to be saved, any order.
+    :return: The `Loss`; falsy when nothing stored would be lost.
+    """
+    stored = strip_derived(normalize(stored))
+    if stored.empty:
+        return Loss()
+    new = strip_derived(normalize(new))
+    stored_at = stored.set_index("dateutc")
+    new_at = new.set_index("dateutc") if not new.empty else pd.DataFrame()
+    kept = stored_at.index.intersection(new_at.index)
+    old = stored_at.loc[kept]
+    # A column `new` lacks reindexes to NaN: every stored value in it is lost.
+    now = new_at.reindex(index=kept, columns=old.columns)
+    per_column = (old.notna() & now.isna()).sum()
+    lost = per_column[per_column > 0]
+    return Loss(
+        dropped=len(stored_at) - len(kept),
+        blanked=int(lost.sum()),
+        blanked_columns=tuple(lost.index),
+    )
 
 
 def _differs(old: pd.Series, new: pd.Series) -> pd.Series:

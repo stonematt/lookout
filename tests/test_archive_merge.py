@@ -20,7 +20,7 @@ import pytest
 
 from lookout.api import awn_controller as awn
 from lookout.core import archive_merge, rain_corrections
-from tests.archive_merge_oracle import merge_before_overlap
+from tests.archive_merge_oracle import loss_before_overlap, merge_before_overlap
 from tests.fixtures.ambient import AmbientReplay, devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -949,3 +949,119 @@ class TestMergeMatchesTheOracle:
         archive.loc[0, "battrain"] = "x"
 
         pd.testing.assert_frame_equal(stored, before)
+
+
+# ---------- the save guard against the pre-#284 oracle ----------
+
+
+def loss_cases() -> List[Tuple[str, pd.DataFrame, pd.DataFrame]]:
+    """
+    `(case, stored, new)` for the save guard's equivalence tests.
+
+    On the real slice, newest first with the archive's own dtypes, and the
+    stored side oldest first as `storj.load_archive` returns it.
+    """
+    real = load_real_slice()
+    stored = real.iloc[::-1].reset_index(drop=True)
+    raw = fetched(real)
+
+    blanked = raw.copy()
+    blanked.loc[blanked.index[::7], "tempf"] = float("nan")
+    blanked.loc[blanked.index[::11], "battrain"] = None
+    blanked.loc[blanked.index[:5], "date"] = None
+
+    stored_holes = stored.copy()
+    stored_holes.loc[stored_holes.index[::5], ["tempf", "battrain"]] = None
+    refilled = raw.copy()
+    refilled.loc[refilled.index[::5], "tempf"] = float("nan")
+
+    without = raw.drop(columns=["dewPoint", "battrain"])
+    with_extra = raw.copy()
+    with_extra["pm25_in"] = 7.0
+
+    repeated = pd.concat([raw.iloc[:3], raw])
+    repeated.loc[repeated.index[1], "tempf"] = float("nan")
+    last_blank = pd.concat([raw, raw.iloc[:3]])
+    last_blank.loc[last_blank.index[-1], "tempf"] = float("nan")
+    invalid = raw.copy()
+    invalid.loc[invalid.index[:4], "dateutc"] = 12345  # below the 2020 floor
+    as_text = raw.astype({"dateutc": "str"})
+    newer = raw.iloc[:1].assign(dateutc=raw["dateutc"].iloc[0] + STEP)
+    swapped = pd.concat([newer, raw.iloc[1:]], ignore_index=True)
+    reindexed = raw.set_axis(range(1000, 1000 + len(raw)))
+
+    derived = stored.assign(hour=16, direction_bin="N", value_bin="0-1")
+    derived_blank = real.assign(hour=float("nan"))
+
+    stored_repeats = pd.concat([stored, stored.iloc[:10]])
+    stored_repeats.loc[stored_repeats.index[:2], "dateutc"] = 12345
+
+    window = (int(real["dateutc"].iloc[300]), int(real["dateutc"].iloc[250]))
+    repaired, _ = archive_merge.replace(stored, *window, raw.iloc[260:280])
+    merged, _ = archive_merge.merge(stored.iloc[30:], raw.head(40))
+
+    return [
+        ("a clean save of the merge", stored.iloc[30:], merged),
+        ("the same archive", stored, real),
+        ("the same archive, raw", stored, raw),
+        ("a dropped reading", stored, raw.iloc[1:]),
+        ("dropped readings inside", stored, raw.drop(raw.index[100:140])),
+        ("a swapped reading", stored, swapped),
+        ("a blanked value", stored, blanked),
+        ("a value missing on both sides", stored_holes, refilled),
+        ("an explicit repair", stored, repaired),
+        ("a column only the stored side holds", stored, without),
+        ("a column only the new side holds", stored, with_extra),
+        ("a stored derived column the new frame lacks", derived, raw),
+        ("a stored derived value blank in the new frame", derived, derived_blank),
+        ("new oldest first", stored, raw.iloc[::-1]),
+        ("new with a non-default index", stored, reindexed),
+        ("new repeats a reading, the last kept", stored, repeated),
+        ("new repeats a reading, the last blank", stored, last_blank),
+        ("new rows normalize rejects", stored, invalid),
+        ("new dateutc as text", stored, as_text),
+        ("stored rows normalize repairs", stored_repeats, raw),
+        ("an empty new archive", stored, pd.DataFrame()),
+        ("a new archive without dateutc", stored, raw.drop(columns=["dateutc"])),
+        ("an empty new archive with columns", stored, raw.iloc[0:0]),
+        ("nothing stored", pd.DataFrame(), raw),
+    ]
+
+
+class TestLossMatchesTheOracle:
+    """The overlap save guard finds the pre-#284 guard's loss, exactly."""
+
+    @pytest.mark.parametrize(
+        "stored,new",
+        [pytest.param(s, n, id=case) for case, s, n in loss_cases()],
+    )
+    def test_same_loss_as_the_oracle(self, stored, new):
+        stored_before, new_before = stored.copy(), new.copy()
+        expected = loss_before_overlap(stored.copy(), new.copy())
+
+        actual = archive_merge.loss(stored, new)
+
+        assert actual == expected
+        pd.testing.assert_frame_equal(stored, stored_before)
+        pd.testing.assert_frame_equal(new, new_before)
+
+    def test_the_cases_cover_refusals_and_clean_saves(self):
+        """The fixtures exercise drops, blanks and clean saves, not only one."""
+        losses = {case: loss_before_overlap(s, n) for case, s, n in loss_cases()}
+
+        assert not losses["a clean save of the merge"]
+        assert not losses["a stored derived column the new frame lacks"]
+        assert not losses["a stored derived value blank in the new frame"]
+        assert losses["a dropped reading"].dropped == 1
+        assert losses["a swapped reading"].dropped == 1
+        assert losses["a blanked value"].blanked_columns == (
+            "tempf",
+            "battrain",
+            "date",
+        )
+        assert losses["new repeats a reading, the last blank"].blanked == 1
+        assert losses["an explicit repair"].dropped == 30
+        assert losses["a column only the stored side holds"].blanked_columns == (
+            "battrain",
+            "dewPoint",
+        )
