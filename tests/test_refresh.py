@@ -187,9 +187,11 @@ class TestRefreshRun:
         stored = station.stored()
         assert len(stored) == len(station.archive) + RECORDED_ROWS
         assert stored["dateutc"].is_unique
-        assert list(stored.columns) == list(station.archive.columns)
+        # The save strips the columns Lookout derived (#191); the rest stay.
+        archive = station.archive.drop(columns=["hour", "direction_bin", "value_bin"])
+        assert list(stored.columns) == list(archive.columns)
         assert stored.dtypes.astype(str).to_dict() == (
-            station.archive.dtypes.astype(str).to_dict()
+            archive.dtypes.astype(str).to_dict()
         )
 
     def test_the_snapshot_is_built_from_the_caught_up_archive(self, seed):
