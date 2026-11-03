@@ -20,6 +20,7 @@ import pandas as pd
 import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
+from lookout.storage.station_inventory import resolve_station
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -38,11 +39,12 @@ def get_device_info(
     :param bucket_name: The bucket holding the station inventory.
     :param mac_address: A station to pull instead of the default station.
     :return: The station's MAC, name and device dict.
-    :raises StorageReadError: If no MAC is given and the station inventory
-        cannot be read.
+    :raises StationNotInInventory: If a MAC is given that the station
+        inventory does not list.
+    :raises StorageReadError: If the station inventory cannot be read.
     :raises StationNotFoundError: If the account does not list that station.
     """
-    device = get_station_device(bucket_name, mac_address)
+    device = get_station_device(resolve_station(bucket_name, mac_address))
 
     mac = device.get("macAddress")
     name = device.get("info", {}).get("name", "Unnamed Device")

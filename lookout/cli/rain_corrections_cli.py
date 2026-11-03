@@ -26,6 +26,7 @@ import lookout.api.ambient_client as ambient_client
 import lookout.core.rain_corrections as lo_rc
 import lookout.storage.storj as lo_storj
 from lookout.config import DEFAULT_BUCKET
+from lookout.storage.station_inventory import resolve_station
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -41,7 +42,7 @@ def get_station(bucket: str = DEFAULT_BUCKET) -> Tuple[dict, str, str]:
         found (the inventory unreadable, or the station not on the account).
     """
     try:
-        device = ambient_client.get_station_device(bucket)
+        device = ambient_client.get_station_device(resolve_station(bucket))
     except (ambient_client.StationNotFoundError, lo_storj.StorageReadError) as e:
         logger.error(str(e))
         print(f"❌ {e}")

@@ -73,7 +73,7 @@ with each station's name and zone.
 
 The first station in the station inventory, shown when no station is
 chosen: Lookout Post. A job that works on one station and is not told which
-works on the default station (`station_inventory.default_station`); there
+works on the default station (`station_inventory.resolve_station`); there
 is no pinned MAC.
 
 ### station selector
