@@ -256,6 +256,8 @@ tests/
 - **Arrange-Act-Assert**: Structure tests clearly
 - **Mock external dependencies**: Isolate code under test
 - **Test edge cases**: Include error conditions and boundary values
+- **Test through the public entry points**: assert on what `build_snapshot`, the CLIs or the storage module return or write, not on internals. Fakes for Storj and Ambient (`tests/fixtures/`) are the boundary; don't patch Lookout's own functions.
+  - *Sanctioned exception:* `tests/test_snapshot_rain_agreement.py::test_the_days_are_counted_once_per_build` patches `ArchiveCoverage.__init__` and `extract_daily_rainfall` to count calls. Spec #174's "counted once per build" leaves no trace in the snapshot output. A new exception needs the same reason, named here.
 
 ### Test Coverage
 - **Aim for 80%+ coverage** on critical paths
