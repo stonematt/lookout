@@ -19,7 +19,7 @@ CI runs both gates on PRs into `dev`, `goal/**` and `main`. `npm run format` fix
 - `lookout/storage/storj.py` - every Storj read and write; the archive load and save
 - `lookout/core/` - archive merge, rain and energy catalogs, rain and solar analysis
 - `lookout/snapshot/` - `build_snapshot` (pure), the snapshot dataclass and JSON contract, the publish
-- `lookout/cli/` - `refresh.py` (the cron's run), `catchup.py`, `diagnostics.py`, `repair_rain.py`, `stations.py` (`stations scan`, `stations add <MAC>`)
+- `lookout/cli/` - `refresh.py` (the cron's run), `catchup.py`, `diagnostics.py` and `repair_rain.py` (both take `--station <MAC>`, the default station without it; a MAC not in the inventory exits 1), `stations.py` (`stations scan`, `stations add <MAC>`)
 - `lookout/api/`, `lookout/utils/`, `lookout/config.py`, `lookout/secrets_loader.py`
 - `web/src/` the site; `web/api/` thin Vercel functions; `web/server/` their logic, free of Vercel and env
 
