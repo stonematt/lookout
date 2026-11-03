@@ -46,7 +46,50 @@ INTERVAL_MS: int = 5 * 60 * 1000
 """The station's reading interval: one archived reading per 5-minute slot."""
 
 
+def _is_valid_archive(df: pd.DataFrame, min_ms: int) -> bool:
+    """
+    Whether ``df`` is already what `_normalize_full` would return.
+
+    True when `dateutc` is int64, strictly ascending (sorted and unique),
+    at or above both zero and ``min_ms``, and the index is the default
+    ``RangeIndex(0, n)``. Reads the column without copying it.
+
+    :param df: Non-empty DataFrame with a `dateutc` column.
+    :param min_ms: Floor (epoch ms).
+    :return: True when normalizing would change nothing.
+    """
+    col = df["dateutc"]
+    if col.dtype != "int64":
+        return False
+    idx = df.index
+    if not (isinstance(idx, pd.RangeIndex) and idx.start == 0 and idx.step == 1):
+        return False
+    if not (col.is_monotonic_increasing and col.is_unique):
+        return False
+    return int(col.iloc[0]) > 0 and int(col.iloc[0]) >= min_ms
+
+
 def normalize(df: pd.DataFrame, *, min_ms: int = POST_2020_MS) -> pd.DataFrame:
+    """
+    Validate and cast a DataFrame's `dateutc` column to canonical form.
+
+    An already-valid archive (int64 `dateutc`, strictly ascending, at or
+    above the floor, default index) is returned as is: the same object,
+    no copy. Any other input gets the full work of `_normalize_full`.
+    Callers must treat the result as read-only when it may be the input.
+
+    :param df: DataFrame containing a `dateutc` column.
+    :param min_ms: Floor (epoch ms) below which rows are dropped.
+    :return: DataFrame, dateutc as int64 ms, ascending, deduped.
+    """
+    if df is None or df.empty or "dateutc" not in df.columns:
+        return pd.DataFrame()
+    if _is_valid_archive(df, min_ms):
+        return df
+    return _normalize_full(df, min_ms=min_ms)
+
+
+def _normalize_full(df: pd.DataFrame, *, min_ms: int = POST_2020_MS) -> pd.DataFrame:
     """
     Validate and cast a DataFrame's `dateutc` column to canonical form.
 

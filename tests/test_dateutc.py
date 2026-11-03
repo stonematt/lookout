@@ -14,6 +14,7 @@ from lookout.utils.dateutc import (
     day_span,
     from_local_date,
     from_local_date_ts,
+    _normalize_full,
     local_time,
     normalize,
     to_local,
@@ -250,3 +251,58 @@ def test_normalize_drops_april_2026_corruption_shapes():
     out = normalize(df)
 
     assert list(out["dateutc"]) == [valid_a, valid_b]
+
+
+# ---------- normalize fast path ----------
+
+
+def _frame(values, dtype="int64"):
+    return pd.DataFrame(
+        {"dateutc": pd.Series(values, dtype=dtype), "tempf": range(len(values))}
+    )
+
+
+def test_normalize_valid_archive_is_returned_without_a_copy():
+    base = POST_2020_MS
+    df = _frame([base, base + 300000, base + 600000])
+    assert normalize(df) is df
+
+
+@pytest.mark.parametrize(
+    "values,dtype",
+    [
+        ([POST_2020_MS, POST_2020_MS + 1, POST_2020_MS + 2], "int64"),
+        ([POST_2020_MS + 2, POST_2020_MS, POST_2020_MS + 1], "int64"),
+        ([POST_2020_MS, POST_2020_MS, POST_2020_MS + 1], "int64"),
+        ([POST_2020_MS + 1, POST_2020_MS + 1, POST_2020_MS], "int64"),
+        ([str(POST_2020_MS + 5), str(POST_2020_MS)], "object"),
+        ([POST_2020_MS - 1, POST_2020_MS, POST_2020_MS + 1], "int64"),
+        ([5, 10, POST_2020_MS], "int64"),
+        ([POST_2020_MS, POST_2020_MS + 1.5], "float64"),
+        ([POST_2020_MS + 1, float("nan"), POST_2020_MS], "float64"),
+    ],
+)
+def test_normalize_matches_full_oracle(values, dtype):
+    df = _frame(values, dtype)
+    pd.testing.assert_frame_equal(normalize(df.copy()), _normalize_full(df.copy()))
+
+
+def test_normalize_matches_oracle_on_non_default_index():
+    df = _frame([POST_2020_MS, POST_2020_MS + 1])
+    df.index = [7, 9]
+    out = normalize(df)
+    pd.testing.assert_frame_equal(out, _normalize_full(df.copy()))
+    assert list(out.index) == [0, 1]
+
+
+def test_normalize_matches_oracle_on_datetime_input():
+    df = pd.DataFrame(
+        {"dateutc": pd.to_datetime([POST_2020_MS, POST_2020_MS + 1], unit="ms")}
+    )
+    pd.testing.assert_frame_equal(normalize(df.copy()), _normalize_full(df.copy()))
+
+
+def test_normalize_fast_path_respects_min_ms():
+    df = _frame([100, 200, 300])
+    assert normalize(df, min_ms=0) is df
+    assert normalize(df).empty
