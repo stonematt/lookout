@@ -12,16 +12,27 @@
  * Until the first snapshot arrives a tab says it is loading; when it cannot
  * be read, a tab says so in the header's words. A later read that fails
  * keeps the page already drawn.
+ *
+ * The station index (`/stations`, read on the same cycle) feeds the header's
+ * station selector (#273). Choosing a station writes `?station=<MAC>` to the
+ * URL (a new history entry, so Back returns to the last station), and the
+ * page starts over for it: every tab and the header's reading wait for the
+ * new station's reads, and a read still under way for the last station is
+ * dropped when it answers, so the page never mixes two stations. Every read
+ * function takes the station from the page's URL.
  */
 import { mountEvents } from "./events/tab.js";
 import { setStationZone } from "./format.js";
 import { mountHeader } from "./header.js";
+import { ReadError } from "./load.js";
 import { renderOverview } from "./overview/index.js";
 import { renderRain } from "./rain/index.js";
 import type { CurrentReading, DashboardSnapshot } from "./snapshot.js";
 import { renderSolar } from "./solar/index.js";
+import type { StationIndex } from "./stations.js";
+import { findStation } from "./stations.js";
 import type { TabId } from "./tabs.js";
-import { mountTabs } from "./tabs.js";
+import { TABS, mountTabs } from "./tabs.js";
 
 /** How often both read functions are read again. */
 export const CYCLE_MS = 5 * 60_000;
@@ -29,10 +40,15 @@ export const CYCLE_MS = 5 * 60_000;
 /** How often the data age ticks. */
 const TICK_MS = 15_000;
 
-/** The two read functions, as the page calls them. */
+/**
+ * The read functions, as the page calls them. Each reads the station the
+ * page's URL names at the time of the call.
+ */
 export interface PageReads {
   dashboard: () => Promise<DashboardSnapshot>;
   current: () => Promise<CurrentReading>;
+  /** The station index; without it the page shows one station, no selector. */
+  stations?: () => Promise<StationIndex>;
 }
 
 /** A started page. */
@@ -59,6 +75,19 @@ const STATE_TEXT = {
 } as const;
 
 /**
+ * What the page says for a station the index lists whose snapshot is not
+ * written yet (`/dashboard` answers 404): a station added minutes ago.
+ */
+function missingText(name: string | null): string {
+  return `${name ?? "This station"} has no dashboard yet. It appears after its first refresh run, within 5 minutes.`;
+}
+
+/** The station the page's URL names, or null for the default station. */
+function askedStation(): string | null {
+  return new URLSearchParams(location.search).get("station");
+}
+
+/**
  * Start the page: mount the header and tabs, read both functions, and keep
  * reading them on the refresh cycle.
  *
@@ -70,8 +99,15 @@ const STATE_TEXT = {
 export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: PageReads): Page {
   const header = mountHeader(masthead);
   let dashboard: DashboardSnapshot | null = null;
-  let state: keyof typeof STATE_TEXT = "loading";
+  let stateText: string = STATE_TEXT.loading;
   const rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
+  let index: StationIndex | null = null;
+  /** The station shown, as the URL names it (null: the default station). */
+  let showing = askedStation();
+  /** Counts station choices: a read begun for an earlier one is dropped. */
+  let generation = 0;
+  /** The read of every function under way, if any. */
+  let running: Promise<void> | null = null;
 
   /** Draw a tab's panel from the snapshot, once per snapshot. */
   function renderTab(id: TabId, panel: HTMLElement): void {
@@ -79,7 +115,7 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
       const note = document.createElement("p");
       note.className = "standfirst panel-state";
       note.setAttribute("role", "status");
-      note.textContent = STATE_TEXT[state];
+      note.textContent = stateText;
       panel.replaceChildren(note);
       return;
     }
@@ -89,6 +125,45 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
   }
 
   const tabs = mountTabs(sections, renderTab);
+
+  /** The index's entry for the station shown, when the index is known. */
+  function shownEntry() {
+    if (!index) return undefined;
+    return showing === null ? index.stations[0] : findStation(index, showing);
+  }
+
+  /** Show the station index in the header, for the station shown. */
+  function showIndex(): void {
+    if (!index) return;
+    const entry = shownEntry();
+    // Before its snapshot names the zone, the index names the same one.
+    if (entry && !dashboard) setStationZone(entry.tz);
+    header.showStations(index, showing, choose);
+  }
+
+  /** A visitor chose a station: put it in the URL and start over for it. */
+  function choose(mac: string): void {
+    const url = new URL(location.href);
+    url.searchParams.set("station", mac);
+    // An event is one station's: the chosen station's list opens on its newest.
+    url.searchParams.delete("event");
+    history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    startOver();
+  }
+
+  /** Drop the station shown and read the one the URL now names. */
+  function startOver(): void {
+    showing = askedStation();
+    generation += 1;
+    running = null;
+    dashboard = null;
+    stateText = STATE_TEXT.loading;
+    document.title = "Lookout";
+    header.reset();
+    showIndex();
+    for (const { id } of TABS) renderTab(id, tabs.panel(id));
+    void refresh();
+  }
 
   function show(snapshot: DashboardSnapshot): void {
     // Every station-local label is in the zone this snapshot names (ADR-0005).
@@ -101,27 +176,44 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
   }
 
   async function readDashboard(): Promise<void> {
+    const asked = generation;
     try {
       const snapshot = await reads.dashboard();
+      if (asked !== generation) return;
       if (dashboard && snapshot.built_at_ms === dashboard.built_at_ms) return;
       show(snapshot);
     } catch (error) {
+      if (asked !== generation) return;
       if (dashboard) {
         // The page already drawn stays; its figures age on their own clock.
         console.warn("Lookout: /dashboard could not be read again", error);
         return;
       }
       console.error("Lookout: /dashboard could not be read", error);
-      state = "failed";
-      header.fail(() => void refresh());
+      const missing = error instanceof ReadError && error.status === 404 && shownEntry();
+      stateText = missing ? missingText(missing.name) : STATE_TEXT.failed;
+      header.fail(() => void refresh(), missing ? stateText : undefined);
       renderTab(tabs.current(), tabs.panel(tabs.current()));
       if (tabs.current() !== "overview") renderTab("overview", tabs.panel("overview"));
     }
   }
 
-  async function readCurrent(): Promise<void> {
+  async function readStations(): Promise<void> {
+    if (!reads.stations) return;
     try {
-      header.showCurrent(await reads.current());
+      index = await reads.stations();
+      showIndex();
+    } catch (error) {
+      // Without the index the page still shows the station its URL names.
+      console.warn("Lookout: /stations could not be read", error);
+    }
+  }
+
+  async function readCurrent(): Promise<void> {
+    const asked = generation;
+    try {
+      const current = await reads.current();
+      if (asked === generation) header.showCurrent(current);
     } catch (error) {
       // The snapshot's own observation time stays on screen and keeps ageing,
       // stale on its own clock.
@@ -129,17 +221,19 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
     }
   }
 
-  let running: Promise<void> | null = null;
-
   /** Read both functions, unless a read of both is already under way. */
   function refresh(): Promise<void> {
-    running ??= (async () => {
+    if (running) return running;
+    const stations = readStations();
+    const mine: Promise<void> = (async () => {
       await readDashboard();
       void readCurrent();
+      await stations;
     })().finally(() => {
-      running = null;
+      if (running === mine) running = null;
     });
-    return running;
+    running = mine;
+    return mine;
   }
 
   const booted = refresh();
@@ -152,6 +246,14 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
       if (document.visibilityState !== "visible") return;
       header.tick();
       void refresh();
+    },
+    { signal: listening.signal },
+  );
+  window.addEventListener(
+    "popstate",
+    () => {
+      // Back or Forward to another station; a tab's own hash is not one.
+      if (askedStation() !== showing) startOver();
     },
     { signal: listening.signal },
   );

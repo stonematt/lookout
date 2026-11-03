@@ -1,9 +1,14 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { figuresLag, figuresTime, mountHeader } from "../src/header.js";
 import type { CurrentReading } from "../src/snapshot.js";
 import { SCHEMA_VERSION, parseCurrent, parseDashboard } from "../src/snapshot.js";
+import type { StationIndex } from "../src/stations.js";
+import { parseStationIndex } from "../src/stations.js";
 import { golden } from "./golden.js";
 
 const MIN = 60_000;
@@ -240,5 +245,121 @@ describe("the figures' own age", () => {
   it("dates the figures by the snapshot's observation, else its build", () => {
     expect(figuresTime(raining)).toBe(RAINING_OBSERVED);
     expect(figuresTime({ ...raining, observed_at_ms: null })).toBe(raining.built_at_ms);
+  });
+});
+
+/** The golden station index: Fixture Station, then Salmon Run (no snapshot yet). */
+function twoStations(): StationIndex {
+  const path = resolve(import.meta.dirname, "../../tests/golden/stations/raining.stations.json");
+  return parseStationIndex(JSON.parse(readFileSync(path, "utf8")));
+}
+
+/** The live inventory today: one station. */
+function oneStation(): StationIndex {
+  const index = twoStations();
+  return { ...index, stations: index.stations.slice(0, 1) };
+}
+
+const FIXTURE_MAC = "00:11:22:33:44:55";
+const SALMON_MAC = "00:11:22:33:44:66";
+const select = () => host.querySelector<HTMLSelectElement>("select.station-select");
+
+describe("the station selector", () => {
+  it("lists the station index by name, in order, the default station selected", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), null, () => undefined);
+
+    const options = [...select()!.options];
+    expect(options.map((o) => o.textContent)).toEqual(["Fixture Station", "Salmon Run"]);
+    expect(options.map((o) => o.value)).toEqual([FIXTURE_MAC, SALMON_MAC]);
+    expect(select()!.value).toBe(FIXTURE_MAC);
+    expect(select()!.getAttribute("aria-label")).toBe("Station");
+    // The selector is the page's heading: the name is said once.
+    expect(host.querySelector("h1 select")).toBe(select());
+  });
+
+  it("selects the station the page was opened on, in any case", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), SALMON_MAC.toLowerCase(), () => undefined);
+    expect(select()!.value).toBe(SALMON_MAC);
+  });
+
+  it("selects nothing for a station the index does not list", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), "AA:BB:CC:DD:EE:FF", () => undefined);
+    expect(select()!.selectedIndex).toBe(-1);
+  });
+
+  it("calls back with the MAC a visitor chooses", () => {
+    const header = mountHeader(host, () => clock);
+    const chosen = vi.fn();
+    header.showStations(twoStations(), null, chosen);
+
+    select()!.value = SALMON_MAC;
+    select()!.dispatchEvent(new Event("change"));
+    expect(chosen).toHaveBeenCalledWith(SALMON_MAC);
+  });
+
+  it("is not drawn for a one-station index, which leaves the name as it was", () => {
+    const header = mountHeader(host, () => clock);
+    header.showSnapshot(raining);
+    header.showStations(oneStation(), null, () => undefined);
+    expect(select()).toBeNull();
+    expect(text("h1")).toBe("Fixture Station");
+  });
+
+  it("keeps an open choice when the same index is shown again", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), null, () => undefined);
+    const drawn = select();
+    header.showStations(twoStations(), null, () => undefined);
+    expect(select()).toBe(drawn);
+  });
+});
+
+describe("the details strip", () => {
+  it("shows the name, the newest reading and the archive start, in the station's zone", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), null, () => undefined);
+    header.showSnapshot(raining);
+
+    expect(select()!.selectedOptions[0]!.textContent).toBe("Fixture Station");
+    expect(text(".masthead-reading .masthead-when")).toBe("Reading Jan 8, 4:25 pm");
+    // archive_start_ms 1651683600000 is May 4, 2022, 10:00 am Pacific.
+    expect(text(".masthead-archive")).toBe("Archive from May 4, 2022");
+    expect(host.querySelector(".masthead-archive time")?.getAttribute("datetime")).toBe(
+      "2022-05-04",
+    );
+  });
+
+  it("shows for a one-station index too", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(oneStation(), null, () => undefined);
+    header.showSnapshot(raining);
+    expect(text("h1")).toBe("Fixture Station");
+    expect(text(".masthead-archive")).toBe("Archive from May 4, 2022");
+  });
+
+  it("says when a station's archive start is not known yet", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), SALMON_MAC, () => undefined);
+    expect(text(".masthead-archive")).toBe("Archive start not known yet");
+  });
+
+  it("starts over for a newly chosen station, keeping nothing of the last one's reading", () => {
+    const header = mountHeader(host, () => clock);
+    header.showStations(twoStations(), null, () => undefined);
+    header.showSnapshot(raining);
+    header.showCurrent(live(RAINING_OBSERVED + 2 * MIN));
+
+    header.reset();
+    header.showStations(twoStations(), SALMON_MAC, () => undefined);
+    expect(text(".masthead-reading")).toBe("Loading the newest reading");
+    expect(figuresShown()).toBe(false);
+
+    // The new station's older reading is shown, not the last station's newer one.
+    const salmon = { mac: SALMON_MAC, name: "Salmon Run" };
+    header.showCurrent(live(RAINING_OBSERVED - 60 * MIN, salmon));
+    expect(text(".masthead-reading .masthead-age")).toBe("Stale: 1 h 3 m old");
   });
 });

@@ -17,10 +17,18 @@
  *   minutes newer. When the two agree there is one line, as before.
  *
  * Each line turns to the stale style past 15 minutes on its own clock.
+ *
+ * With the station index (#273) the header is also the station's details
+ * strip: its name, the reading line above (the newest reading time) and its
+ * archive start. With two or more stations the name is the station
+ * selector, a dropdown of the index in order; with one there is nothing to
+ * choose and the name stays a heading.
  */
-import { STALE_AFTER_MS, dataAge, formatStamp } from "./format.js";
+import { STALE_AFTER_MS, dataAge, dayText, formatStamp, localDay } from "./format.js";
 import type { CurrentReading, DashboardSnapshot, StationId } from "./snapshot.js";
 import { newestObservation } from "./snapshot.js";
+import type { StationIndex } from "./stations.js";
+import { findStation } from "./stations.js";
 
 /** A mounted header. */
 export interface Header {
@@ -31,10 +39,22 @@ export interface Header {
    * ignored, and after `fail` it waits for the snapshot.
    */
   showCurrent(current: CurrentReading): void;
-  /** Say the snapshot could not be loaded, with a button that calls `retry`. */
-  fail(retry: () => void): void;
+  /**
+   * Say the snapshot could not be loaded, or `message` when given, with a
+   * button that calls `retry`.
+   */
+  fail(retry: () => void, message?: string): void;
   /** Re-compute both ages against the clock. */
   tick(): void;
+  /**
+   * Show the station index: the selector (two or more stations), with
+   * `chosen` selected (the default station when null), and the chosen
+   * station's archive start. `onChoose` is called with the MAC a visitor
+   * picks.
+   */
+  showStations(index: StationIndex, chosen: string | null, onChoose: (mac: string) => void): void;
+  /** Forget the shown station's reading and figures: another was chosen. */
+  reset(): void;
 }
 
 const FALLBACK_NAME = "Lookout";
@@ -104,7 +124,7 @@ function stamp(line: AgeLine, label: string, ms: number): void {
 export function mountHeader(host: HTMLElement, now: () => number = Date.now): Header {
   host.innerHTML = `
     <header class="masthead">
-      <h1 class="masthead-station"></h1>
+      <h1 class="masthead-station"><span class="masthead-name"></span></h1>
       <div class="masthead-ages">
         <p class="masthead-line masthead-reading" data-stale="false">
           <span class="masthead-dot" aria-hidden="true"></span>
@@ -117,9 +137,15 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
           <span class="masthead-age"></span>
         </p>
       </div>
+      <p class="masthead-archive" hidden></p>
     </header>`;
-  const name = host.querySelector<HTMLElement>(".masthead-station")!;
+  const heading = host.querySelector<HTMLElement>(".masthead-station")!;
+  const name = host.querySelector<HTMLElement>(".masthead-name")!;
   name.textContent = FALLBACK_NAME;
+  const archive = host.querySelector<HTMLElement>(".masthead-archive")!;
+  let picker: HTMLSelectElement | null = null;
+  let listed = "";
+  let choose: (mac: string) => void = () => undefined;
   const reading = ageLine(host.querySelector<HTMLElement>(".masthead-reading")!);
   const figures = ageLine(host.querySelector<HTMLElement>(".masthead-figures")!);
 
@@ -162,7 +188,70 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     render();
   }
 
+  /** The selector for an index of two or more stations, drawn once per list. */
+  function showPicker(index: StationIndex): HTMLSelectElement | null {
+    const list = JSON.stringify(index.stations.map((s) => [s.mac, s.name]));
+    if (list === listed) return picker;
+    listed = list;
+    if (index.stations.length < 2) {
+      picker = null;
+      heading.classList.remove("masthead-picks");
+      heading.replaceChildren(name);
+      return null;
+    }
+    picker = document.createElement("select");
+    picker.className = "station-select";
+    picker.setAttribute("aria-label", "Station");
+    for (const entry of index.stations) {
+      const option = document.createElement("option");
+      option.value = entry.mac;
+      option.textContent = entry.name ?? entry.mac;
+      picker.append(option);
+    }
+    picker.addEventListener("change", () => choose(picker!.value));
+    heading.classList.add("masthead-picks");
+    heading.replaceChildren(picker);
+    return picker;
+  }
+
+  /** The chosen station's archive start, as a station-local day. */
+  function showArchive(startMs: number | null): void {
+    archive.hidden = false;
+    if (startMs === null) {
+      archive.textContent = "Archive start not known yet";
+      return;
+    }
+    const time = document.createElement("time");
+    const day = localDay(startMs);
+    time.dateTime = day;
+    time.textContent = dayText(day, true);
+    archive.replaceChildren("Archive from ", time);
+  }
+
   return {
+    showStations(index, chosen, onChoose) {
+      choose = onChoose;
+      const entry = chosen === null ? index.stations[0] : findStation(index, chosen);
+      const shownPicker = showPicker(index);
+      if (shownPicker) {
+        if (entry) shownPicker.value = entry.mac;
+        else shownPicker.selectedIndex = -1;
+      }
+      if (entry) showArchive(entry.archive_start_ms);
+      else archive.hidden = true;
+    },
+    reset() {
+      station = null;
+      observedAtMs = null;
+      figuresAtMs = null;
+      shown = false;
+      failed = false;
+      name.textContent = FALLBACK_NAME;
+      reading.when.replaceChildren("Loading the newest reading");
+      reading.age.textContent = "";
+      reading.root.dataset.stale = "false";
+      figures.root.hidden = true;
+    },
     showSnapshot(snapshot) {
       failed = false;
       figuresAtMs = figuresTime(snapshot);
@@ -174,7 +263,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       if (failed) observedAtMs = newestObservation(observedAtMs, current.observed_at_ms);
       else take(current.station, current.observed_at_ms);
     },
-    fail(retry) {
+    fail(retry, message = "The dashboard could not be loaded.") {
       shown = false;
       failed = true;
       const button = document.createElement("button");
@@ -182,7 +271,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       button.className = "masthead-retry";
       button.textContent = "Try again";
       button.addEventListener("click", retry);
-      reading.when.replaceChildren("The dashboard could not be loaded.", " ", button);
+      reading.when.replaceChildren(message, " ", button);
       reading.age.textContent = "";
       reading.root.dataset.stale = "true";
       figures.root.hidden = true;

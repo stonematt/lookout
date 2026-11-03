@@ -166,6 +166,55 @@ a {
   cursor: pointer;
 }
 
+/*
+ * the station selector: with two or more stations the name is a native
+ * dropdown, set as the heading it replaces. 1rem or more, so iOS does not
+ * zoom on focus; the chevron is drawn in CSS (the CSP allows no data: image).
+ */
+.masthead-picks {
+  position: relative;
+  max-width: 100%;
+}
+
+.station-select {
+  appearance: none;
+  max-width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 40px 0 var(--s-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  letter-spacing: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.masthead-picks::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--ink-2);
+  border-bottom: 2px solid var(--ink-2);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
+/* the details strip's last part: where the station's archive begins */
+.masthead-archive {
+  font-size: var(--step--1);
+  color: var(--ink-2);
+}
+
+.masthead-archive[hidden] {
+  display: none;
+}
+
 /* a tab with no snapshot to draw: loading, or could not be loaded */
 .panel-state {
   padding-block: var(--s-4);
