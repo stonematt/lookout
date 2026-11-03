@@ -19,17 +19,17 @@ CI runs both gates on PRs into `dev`, `goal/**` and `main`. `npm run format` fix
 - `lookout/storage/storj.py` - every Storj read and write; the archive load and save
 - `lookout/core/` - archive merge, rain and energy catalogs, rain and solar analysis
 - `lookout/snapshot/` - `build_snapshot` (pure), the snapshot dataclass and JSON contract, the publish
-- `lookout/cli/` - `refresh.py` (the cron's run), `catchup.py`, `diagnostics.py`, `repair_rain.py`
+- `lookout/cli/` - `refresh.py` (the cron's run), `catchup.py`, `diagnostics.py`, `repair_rain.py`, `stations.py` (`stations scan`, `stations add <MAC>`)
 - `lookout/api/`, `lookout/utils/`, `lookout/config.py`, `lookout/secrets_loader.py`
 - `web/src/` the site; `web/api/` thin Vercel functions; `web/server/` their logic, free of Vercel and env
 
-Storj keys, all per station MAC: the archive `<MAC>.parquet` (stored newest first; `load_archive` returns it oldest first), `<MAC>.event_catalog.parquet`, `<MAC>.energy_catalog.parquet`, `<MAC>.rain_corrections.json`, `snapshot/<MAC>.dashboard.json`, `snapshot/<MAC>.context.json`, `snapshot/<MAC>.status.json`, event curves `snapshot/<MAC>.events/<start_ms>.json`, and backups under `backups/` and `.backups/<MAC>/<date>/`.
+Storj keys: the station inventory `station_inventory.json` (one per bucket, backed up to `backups/station_inventory_<stamp>.json`; read it with `lookout.storage.station_inventory`), and per station MAC the archive `<MAC>.parquet` (stored newest first; `load_archive` returns it oldest first), `<MAC>.event_catalog.parquet`, `<MAC>.energy_catalog.parquet`, `<MAC>.rain_corrections.json`, `snapshot/<MAC>.dashboard.json`, `snapshot/<MAC>.context.json`, `snapshot/<MAC>.status.json`, event curves `snapshot/<MAC>.events/<start_ms>.json`, and backups under `backups/` and `.backups/<MAC>/<date>/`.
 
 ## Rules that bite
 
 Each of these cost a fix run to learn. The ADR or test named holds the full reason.
 
-- **Live writes.** Catchup, refresh, `fill-gap`, `repair_rain --write` and the catalog `--save` commands write the live archive. Run them only on `itri` or a checkout holding real secrets. One archive writer at a time is enforced by the archive-writer lock (`lookout/utils/archive_lock.py`, #244): each writer takes it at its entry point, a second writer exits 1 naming the lock file, and a refresh run that finds it held skips. A new writer takes it too. Worktrees and tests stay on fixtures and moto; `tests/conftest.py` points `LOOKOUT_LOCK_FILE` under `tmp_path`.
+- **Live writes.** Catchup, refresh, `fill-gap`, `repair_rain --write`, `stations add` and the catalog `--save` commands write the live archive. Run them only on `itri` or a checkout holding real secrets. One archive writer at a time is enforced by the archive-writer lock (`lookout/utils/archive_lock.py`, #244): each writer takes it at its entry point, a second writer exits 1 naming the lock file, and a refresh run that finds it held skips. A new writer takes it too. Worktrees and tests stay on fixtures and moto; `tests/conftest.py` points `LOOKOUT_LOCK_FILE` under `tmp_path`.
 - **Storage reads.** A read ends found, missing or failed (ADR-0004). Read through `read_object`, `read_df_from_s3` or `read_json_from_s3`. A failed read raises `StorageReadError` and aborts the run; only a found-nothing read means missing.
 - **Archive saves.** Load with `load_archive` and save with `save_archive(df, bucket, mac, stored=..., repair=False)`, merging through `lookout/core/archive_merge.py`. A save that would drop or blank a stored reading raises `ArchiveLossError`. Catchup, gap fill and rain repair all take this path; a new writer takes it too.
 - **Raw archive.** Rain carryover corrections apply on read (`apply_corrections` after loading) and are never written back (#95).
