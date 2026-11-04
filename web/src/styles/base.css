@@ -196,7 +196,8 @@ a {
 
 /*
  * the station selector: with two or more stations the name is a native
- * dropdown, set as the heading it replaces. 1rem or more, so iOS does not
+ * dropdown, set as the 600-weight name it replaces with a chevron after it, so
+ * the header looks the same with one station or many. 1rem or more, so iOS does not
  * zoom on focus; the chevron is drawn in CSS (the CSP allows no data: image).
  */
 .masthead-picks {
@@ -209,8 +210,8 @@ a {
   max-width: 100%;
   min-height: 44px;
   margin: 0;
-  padding: 0 40px 0 var(--s-3);
-  border: 1px solid var(--rule-strong);
+  padding: 0 32px 0 0;
+  border: 0;
   border-radius: var(--r-pill);
   background: transparent;
   color: var(--ink);
@@ -225,7 +226,7 @@ a {
   content: "";
   position: absolute;
   top: 50%;
-  right: 16px;
+  right: 12px;
   width: 8px;
   height: 8px;
   border-right: 2px solid var(--ink-2);
