@@ -150,7 +150,7 @@ a {
 
 /* the name, or the selector, takes the width the live line leaves */
 :root:not([data-layout="two"], [data-layout="four"]) .masthead-station {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -158,8 +158,9 @@ a {
 }
 
 :root:not([data-layout="two"], [data-layout="four"]) .masthead-ages {
-  flex: 0 1 auto;
-  min-width: 0;
+  /* the live line never truncates: it wraps within two thirds of the row */
+  flex: 0 0 auto;
+  max-width: 66%;
   align-items: flex-end;
 }
 
@@ -202,8 +203,10 @@ a {
 :root:not([data-layout="two"], [data-layout="four"]) .page > .tabs .tab {
   min-width: 0;
   min-height: 48px;
-  padding: 0 var(--s-1);
+  padding: 0 2px;
   border-radius: var(--r-tab-phone);
+  /* one line at 390px for every label, "Rain Events" included */
+  font-size: var(--type-annotation);
   line-height: 1.2;
 }
 
