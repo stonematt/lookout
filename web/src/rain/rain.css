@@ -135,16 +135,11 @@
   fill: var(--now);
 }
 
-/* daily bars: today's keeps its data colour; the now rule and its label
-   mark it (the Hue Is Never Alone Rule) */
+/* daily bars: today's keeps its data colour; the now dot above it and its
+   label mark it (the Hue Is Never Alone Rule) */
 .rain-svg .rain-bar,
 .rain-svg .rain-bar-now {
   fill: var(--rain-bar);
-}
-
-.rain-svg .rain-now-rule {
-  stroke: var(--now);
-  stroke-width: 2.5;
 }
 
 /* water-year curves: earlier years thin slate, the current one bold rain */

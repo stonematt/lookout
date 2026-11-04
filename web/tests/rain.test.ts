@@ -286,8 +286,69 @@ describe("the Rain tab", () => {
     expect(bars.length).toBe(4); // Jan 4 dry; Jan 5, 7, 8 and today wet
     expect(chart.querySelectorAll("rect.rain-bar-now").length).toBe(1);
     const labels = [...chart.querySelectorAll("text")].map((t) => t.textContent);
-    expect(labels).toContain("today 0.30 in");
     expect(labels).toContain("record begins Jan 4");
+  });
+
+  /** Today's bar, its now dot and its label, in the daily bars. */
+  function todayMark(snapshot: DashboardSnapshot) {
+    renderRain(panel, snapshot);
+    const chart = section("daily").querySelector(".rain-chart")!;
+    const label = chart.querySelector("text.rain-now-label");
+    return {
+      chart,
+      bar: chart.querySelector("rect.rain-bar-now"),
+      dots: chart.querySelectorAll("circle.rain-now-dot"),
+      label,
+    };
+  }
+
+  it("marks today with an r4 now dot 4px above its bar and the label today", () => {
+    const { chart, bar, dots, label } = todayMark(raining);
+    const top = Number(bar!.getAttribute("y"));
+
+    expect(dots.length).toBe(1);
+    expect(dots[0]!.getAttribute("r")).toBe("4");
+    // The dot's lowest edge stands 4px above the bar's top (Now Stands Off).
+    expect(Number(dots[0]!.getAttribute("cy")) + 4).toBe(top - 4);
+    const x = Number(bar!.getAttribute("x")) + Number(bar!.getAttribute("width")) / 2;
+    expect(Number(dots[0]!.getAttribute("cx"))).toBeCloseTo(x, 1);
+    expect(label?.textContent).toBe("today");
+    // Above the dot, clear of it.
+    expect(Number(label!.getAttribute("y"))).toBeLessThan(Number(dots[0]!.getAttribute("cy")) - 4);
+    // No rule through today's bar.
+    expect(chart.querySelector("line.rain-now-rule")).toBeNull();
+  });
+
+  it("marks a dry today on the baseline, with no bar", () => {
+    const snapshot = structuredClone(raining);
+    const recent = snapshot.rain_tab.recent;
+    recent.rain_in[recent.rain_in.length - 1] = 0;
+    const { chart, bar, dots, label } = todayMark(snapshot);
+    // Every bar stands on the baseline.
+    const other = chart.querySelector("rect.rain-bar")!;
+    const bottom = Number(other.getAttribute("y")) + Number(other.getAttribute("height"));
+
+    expect(bar).toBeNull();
+    expect(dots.length).toBe(1);
+    expect(Number(dots[0]!.getAttribute("cy")) + 4).toBe(bottom - 4);
+    expect(label?.textContent).toBe("today");
+  });
+
+  it("lifts the today label above any taller bar beside it", () => {
+    const snapshot = structuredClone(raining);
+    const recent = snapshot.rain_tab.recent;
+    const n = recent.rain_in.length;
+    recent.rain_in[n - 2] = 1.2; // yesterday far above today
+    const { chart, label } = todayMark(snapshot);
+    const yesterday = [...chart.querySelectorAll("rect.rain-bar")].at(-2)!;
+
+    expect(Number(label!.getAttribute("y"))).toBeLessThan(Number(yesterday.getAttribute("y")));
+  });
+
+  it("says the day marked today is the live total", () => {
+    renderRain(panel, raining);
+    const standfirst = text(section("daily").querySelector("[data-part=standfirst]"));
+    expect(standfirst).toContain("the day marked today is the live total");
   });
 
   it("reads each day out from the keyboard", () => {

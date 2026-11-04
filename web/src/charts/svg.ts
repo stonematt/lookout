@@ -307,6 +307,9 @@ export interface AboveDot {
   x: number;
   y: number;
   anchor: "start" | "middle" | "end";
+  /** The label's left and right edges, for a chart that keeps it clear of other marks. */
+  from: number;
+  to: number;
 }
 
 /**
@@ -332,9 +335,15 @@ export function aboveDot(
   // The annotation is 13px bold, a little wider than a 12.5px label.
   const half = (text.length * LABEL_CHAR_PX * 1.15) / 2;
   const y = Math.max(minY, cy - 12);
-  if (cx + half > right) return { x: Math.min(cx + 6, right), y, anchor: "end" };
-  if (cx - half < left) return { x: Math.max(cx - 6, left), y, anchor: "start" };
-  return { x: cx, y, anchor: "middle" };
+  if (cx + half > right) {
+    const x = Math.min(cx + 6, right);
+    return { x, y, anchor: "end", from: x - 2 * half, to: x };
+  }
+  if (cx - half < left) {
+    const x = Math.max(cx - 6, left);
+    return { x, y, anchor: "start", from: x, to: x + 2 * half };
+  }
+  return { x: cx, y, anchor: "middle", from: cx - half, to: cx + half };
 }
 
 /** How a y axis names its unit. */

@@ -438,10 +438,27 @@ describe("the Rain tab's daily bars in 30 and 90 days", () => {
     const t = tile(host, "daily");
 
     expect(hatched(t)).toBe(1);
-    expect(today(t)).toBe("today 0.30 in");
+    expect(today(t)).toBe("today");
     press(t, 90);
     expect(hatched(t)).toBe(2);
-    expect(today(t)).toBe("today 0.30 in");
+    expect(today(t)).toBe("today");
+  });
+
+  it("keeps today's label off the record-begins label in 90 days", () => {
+    layOut(PHONE);
+    const host = panel();
+    renderRain(host, dashboard("raining"));
+    const t = tile(host, "daily");
+    press(t, 90);
+    const y = (sel: string) => Number(t.querySelector(sel)?.getAttribute("y"));
+    const record = [...t.querySelectorAll(".rain-chart text.rain-label")].find((l) =>
+      l.textContent?.startsWith("record begins"),
+    )!;
+
+    // A pill apart: the record begins a few days before today.
+    expect(
+      Number(record.getAttribute("y")) - y(".rain-chart text.rain-now-label"),
+    ).toBeGreaterThanOrEqual(20);
   });
 
   it("ticks a month of days by date, today's at the right", () => {
