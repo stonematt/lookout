@@ -455,10 +455,10 @@ describe("the Rain tab's daily bars in 30 and 90 days", () => {
       l.textContent?.startsWith("record begins"),
     )!;
 
-    // A line apart: the record begins a few days before today.
+    // A pill apart: the record begins a few days before today.
     expect(
       Number(record.getAttribute("y")) - y(".rain-chart text.rain-now-label"),
-    ).toBeGreaterThanOrEqual(16);
+    ).toBeGreaterThanOrEqual(20);
   });
 
   it("ticks a month of days by date, today's at the right", () => {

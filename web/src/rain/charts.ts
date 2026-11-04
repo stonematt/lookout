@@ -26,10 +26,13 @@ import {
   type AboveDot,
   type Readout,
   canvas,
+  NOTE_SIZE,
   chartLabel,
   aboveDot,
   dayTicks,
   hatchMissingDays,
+  pillLabel,
+  raisePills,
   runs,
   scrub,
   yAxis,
@@ -55,10 +58,10 @@ const MONTH_PLACES = WATER_MONTHS.map((_, i) => {
 /** The daily bars' now dot: its radius and its gap above today's bar (DESIGN.md "Daily bars"). */
 const NOW_R = 4;
 const NOW_GAP = 4;
-/** How far a label's baseline stands above a bar it passes over: its descender and halo. */
-const LABEL_CLEAR = 6;
-/** A label line's height, for stepping one label below another. */
-const LABEL_LINE = 16;
+/** How far a label's baseline stands above a bar it passes over: its pill below the baseline. */
+const LABEL_CLEAR = 10;
+/** A pill's height, for stepping one label below another. */
+const LABEL_LINE = 20;
 
 /** Where today's now dot and its "today" label go on the daily bars. */
 interface TodayMark extends AboveDot {
@@ -135,7 +138,7 @@ function hatchDays(
     // Step a line below today's label where the two would meet.
     if (mark && from < mark.to && to > mark.from && Math.abs(ly - mark.y) < LABEL_LINE)
       ly = mark.y + LABEL_LINE;
-    svg.append(chartLabel(lx, ly, words, "rain-label", anchor));
+    svg.append(pillLabel(lx, ly, words, "rain-label", anchor));
   }
 }
 
@@ -220,9 +223,10 @@ export function drawDailyBars(
   });
   if (mark) {
     svg.append(svgEl("circle", { cx: mark.cx, cy: mark.cy, r: NOW_R, class: "rain-now-dot" }));
-    svg.append(chartLabel(mark.x, mark.y, "today", "rain-now-label", mark.anchor));
+    svg.append(pillLabel(mark.x, mark.y, "today", "rain-now-label", mark.anchor, NOTE_SIZE));
   }
   dayTicks(svg, recent.first_day, count, x, step, bottom + 4, "rain");
+  raisePills(svg);
   host.replaceChildren(svg);
   scrub(
     host,
@@ -442,6 +446,7 @@ export function drawHourGrid(
     );
   });
   dayTicks(svg, recent.first_day, count, x, step, bottom + 4, "rain");
+  raisePills(svg);
   host.replaceChildren(svg);
   scrub(
     host,
