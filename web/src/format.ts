@@ -342,9 +342,20 @@ export function mph(value: number, options: { unit?: boolean } = {}): string {
   return options.unit === false ? text : `${text} mph`;
 }
 
-/** Relative humidity, whole percent, e.g. `81%`. */
+/** A whole percent, e.g. `81%` (relative humidity). */
 export function percent(value: number): string {
   return `${Math.round(value)}%`;
+}
+
+/**
+ * A reading in its format, or `n/a` when it is not known (never zero).
+ *
+ * @param value - The reading, or null.
+ * @param format - Its format, e.g. `mph`.
+ * @returns E.g. `4.3 mph`, or `n/a`.
+ */
+export function known(value: number | null, format: (v: number) => string): string {
+  return value === null ? "n/a" : format(value);
 }
 
 /** Pressure in inches of mercury, bare, e.g. `29.67`. */

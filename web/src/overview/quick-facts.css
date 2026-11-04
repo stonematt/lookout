@@ -24,5 +24,6 @@
   font-size: var(--type-standfirst);
   line-height: 1.55;
   color: var(--ink-2);
+  max-width: 62ch;
   text-wrap: pretty;
 }

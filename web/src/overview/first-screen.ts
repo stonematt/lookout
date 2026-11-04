@@ -12,17 +12,12 @@
  */
 import "./first-screen.css";
 
-import { degrees, formatDuration, formatStamp, inches, mph, percent } from "../format.js";
+import { degrees, formatDuration, formatStamp, inches, known, mph, percent } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import { sourceNote, tileFolds } from "../tiles.js";
 import { conditionSentence } from "./condition.js";
 import type { OverviewSection } from "./index.js";
 import { renderRibbon } from "./ribbon.js";
-
-/** A value in its unit, or "n/a" with none. */
-function shown(value: number | null, format: (v: number) => string): string {
-  return value === null ? "n/a" : format(value);
-}
 
 function part(tag: keyof HTMLElementTagNameMap, name: string, className: string): HTMLElement {
   const node = document.createElement(tag);
@@ -49,10 +44,10 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
   const list = part("dl", "right-now", "right-now");
   list.setAttribute("aria-label", "Right now");
   const items: [string, string][] = [
-    ["feels like", shown(c.feels_like_f, degrees)],
-    ["wind", shown(c.wind_speed_mph, mph)],
-    ["rain today", shown(c.rain_today_in, (v) => inches(v, { digits: 2 }))],
-    ["humidity", shown(c.humidity_pct, percent)],
+    ["feels like", known(c.feels_like_f, degrees)],
+    ["wind", known(c.wind_speed_mph, mph)],
+    ["rain today", known(c.rain_today_in, (v) => inches(v, { digits: 2 }))],
+    ["humidity", known(c.humidity_pct, percent)],
   ];
   for (const [label, value] of items) {
     const item = document.createElement("div");

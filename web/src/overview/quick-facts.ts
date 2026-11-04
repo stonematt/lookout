@@ -14,7 +14,7 @@
  */
 import "./quick-facts.css";
 
-import { compassPoint, degrees, inHg, mph, percent } from "../format.js";
+import { compassPoint, degrees, inHg, known, mph, percent } from "../format.js";
 import type { DashboardSnapshot, SnapshotConditions } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
 
@@ -49,11 +49,6 @@ export function renderFact(
   line.dataset.part = "fact-sentence";
   line.textContent = sentence;
   host.append(big, line);
-}
-
-/** A value in its format, or "n/a" with none (as the now tile shows it). */
-function shown(value: number | null, format: (v: number) => string): string {
-  return value === null ? "n/a" : format(value);
 }
 
 /**
@@ -129,7 +124,7 @@ export const pressureFact: OverviewSection = {
   fact: true,
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const c = snapshot.current;
-    renderFact(host, shown(c.barometer_inhg, inHg), pressureSentence(c));
+    renderFact(host, known(c.barometer_inhg, inHg), pressureSentence(c));
   },
 };
 
@@ -141,6 +136,6 @@ export const airFact: OverviewSection = {
   fact: true,
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const c = snapshot.current;
-    renderFact(host, shown(c.humidity_pct, percent), airSentence(c));
+    renderFact(host, known(c.humidity_pct, percent), airSentence(c));
   },
 };
