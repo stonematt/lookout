@@ -72,6 +72,15 @@ describe("the layout switch", () => {
     expect(layout.layout()).toBe("phone");
   });
 
+  it("tells its caller each new layout the viewport moves it to, not the first", () => {
+    const screen = viewport(390);
+    const seen: string[] = [];
+    mountLayout(document.documentElement, screen.match, (layout) => seen.push(layout));
+    for (const width of [500, 760, 1179, 1440, 759]) screen.resize(width);
+
+    expect(seen).toEqual(["two", "four", "phone"]);
+  });
+
   it("stops following the viewport once stopped", () => {
     const screen = viewport(1280);
     const layout = mountLayout(document.documentElement, screen.match);

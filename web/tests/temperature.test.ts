@@ -61,7 +61,8 @@ describe("the temperature context's place", () => {
       const panel = document.getElementById("panel")!;
       renderOverview(panel, snapshot);
       for (const id of TEMPERATURE_TILES) {
-        expect(panel.querySelector(`.tile[data-section=${id}]`)).not.toBeNull();
+        // A tile on the grids, a finding row on a phone.
+        expect(panel.querySelector(`[data-section=${id}]`)).not.toBeNull();
       }
     }
   });

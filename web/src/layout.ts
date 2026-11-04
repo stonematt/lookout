@@ -82,6 +82,8 @@ export interface LayoutSwitch {
  *
  * @param root - The element that carries the attribute.
  * @param match - `matchMedia`; without one (no window) the layout is phone.
+ * @param onChange - Called with the new layout each time the viewport moves
+ *   it to another one (not for the first layout set).
  * @returns The switch.
  */
 export function mountLayout(
@@ -89,6 +91,7 @@ export function mountLayout(
   match: MatchMedia | undefined = typeof window.matchMedia === "function"
     ? (query) => window.matchMedia(query)
     : undefined,
+  onChange?: (layout: Layout) => void,
 ): LayoutSwitch {
   if (!match) {
     setLayout("phone", root);
@@ -96,8 +99,15 @@ export function mountLayout(
   }
   const two = match(`(min-width: ${TWO_COLUMN_PX}px)`);
   const four = match(`(min-width: ${FOUR_COLUMN_PX}px)`);
-  const apply = () => setLayout(four.matches ? "four" : two.matches ? "two" : "phone", root);
+  const apply = () => {
+    const last = currentLayout(root);
+    const next: Layout = four.matches ? "four" : two.matches ? "two" : "phone";
+    setLayout(next, root);
+    if (next !== last && started) onChange?.(next);
+  };
+  let started = false;
   apply();
+  started = true;
   two.addEventListener("change", apply);
   four.addEventListener("change", apply);
   return {

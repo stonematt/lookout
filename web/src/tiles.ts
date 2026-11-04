@@ -13,7 +13,13 @@
  *   `.tile` hosts, each opening with its kicker. The grid's columns follow
  *   the page layout switch (`layout.ts`): one on a phone, two from 760px,
  *   four from 1180px; a tile spans its declared columns, at most two in the
- *   two-column grid.
+ *   two-column grid. On a phone (DESIGN.md "The Phone First-Screen Rule",
+ *   "The Finding Row") the fixed top and any section kept open render as
+ *   tiles; every other section is a finding row, a native `details` sharing
+ *   one group name per tab, grouped in one tile. Closed, a row is its kicker
+ *   over its finding with a chevron; open, the rest of the section. The page
+ *   keeps one row open at a time in script too, where a browser does not
+ *   honour `details name=`.
  * - `tileFinding`: the tile's finding, its `h2`, which a section's `render`
  *   appends first.
  * - `fold`: a closed native disclosure in Source type, a 32px target.
@@ -35,6 +41,7 @@
 import "./styles/tiles.css";
 
 import { STALE_AFTER_MS, formatDuration, formatStamp } from "./format.js";
+import { currentLayout } from "./layout.js";
 import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
 
 /** How many of the four-column grid's columns a tile spans. */
@@ -61,6 +68,12 @@ export interface TileSection {
    * "The Phone First-Screen Rule"): shown open, never a finding row.
    */
   phoneTop?: boolean;
+  /**
+   * Whether the section stays an open tile on a phone below the fixed top,
+   * never a finding row: a section that is itself an accordion (the Rain
+   * events list).
+   */
+  phoneOpen?: boolean;
   /**
    * The now tile: the one tile on `now-surface`. Its kicker is for screen
    * readers only, as the temperature beside its condition is its finding.
@@ -89,9 +102,13 @@ function kickerText(section: TileSection, snapshot: DashboardSnapshot): string {
   return typeof section.kicker === "function" ? section.kicker(snapshot) : section.kicker;
 }
 
-function renderKicker(section: TileSection, snapshot: DashboardSnapshot): HTMLElement {
+function renderKicker(
+  section: TileSection,
+  snapshot: DashboardSnapshot,
+  tag: "p" | "span" = "p",
+): HTMLElement {
   // The now tile's kicker is its heading for screen readers alone.
-  const node = document.createElement(section.now ? "h2" : "p");
+  const node = document.createElement(section.now ? "h2" : tag);
   node.className = section.now ? "tile-kicker ov-sr" : "tile-kicker";
   node.dataset.part = "kicker";
   if (section.leading) {
@@ -104,36 +121,133 @@ function renderKicker(section: TileSection, snapshot: DashboardSnapshot): HTMLEl
   return node;
 }
 
+/** How `renderTiles` sets out a tab. */
+export interface TileOptions {
+  /**
+   * On a phone, the heading over the tab's finding rows ("In context" on
+   * the Overview); none by default.
+   */
+  rowsHeading?: string;
+}
+
+/** The section's `data-` attributes, the same on a tile and a row. */
+function mark(host: HTMLElement, section: TileSection): void {
+  host.dataset.section = section.id;
+  host.dataset.span = String(section.span ?? 1);
+  if (section.phoneTop) host.dataset.phoneTop = "true";
+  if (section.now) host.dataset.surface = "now";
+}
+
+/**
+ * A section as a finding row: a closed `details` in the tab's group. Its
+ * summary holds the kicker, then (once the section has rendered) the
+ * finding and the chevron; `finishRow` moves them there.
+ */
+function startRow(section: TileSection, snapshot: DashboardSnapshot, group: string): HTMLElement {
+  const row = document.createElement("details");
+  row.className = "tile-row";
+  row.setAttribute("name", group);
+  row.dataset.row = "true";
+  mark(row, section);
+  const line = document.createElement("summary");
+  line.className = "tile-row-line";
+  line.append(renderKicker(section, snapshot, "span"));
+  row.append(line);
+  return row;
+}
+
+/** Finish a rendered row: the finding into its summary, the rest in a body. */
+function finishRow(row: HTMLElement): void {
+  const line = row.querySelector<HTMLElement>(":scope > summary")!;
+  const finding = row.querySelector<HTMLElement>(":scope > [data-part=finding]");
+  if (finding) line.append(finding);
+  const chevron = document.createElement("span");
+  chevron.className = "tile-row-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  line.append(chevron);
+  const body = document.createElement("div");
+  body.className = "tile-row-body";
+  body.append(...[...row.children].filter((child) => child !== line));
+  row.append(body);
+}
+
+/**
+ * Keep one finding row open in a grid: opening one closes the others, for
+ * browsers (and happy-dom) that do not honour `details name=`.
+ */
+function exclusiveRows(grid: HTMLElement): void {
+  grid.addEventListener(
+    "toggle",
+    (event) => {
+      const opened = event.target;
+      if (!(opened instanceof HTMLElement) || !opened.matches("details.tile-row[open]")) return;
+      for (const other of grid.querySelectorAll<HTMLDetailsElement>("details.tile-row[open]")) {
+        if (other !== opened) other.open = false;
+      }
+    },
+    // `toggle` does not bubble; the grid hears it on the way down.
+    true,
+  );
+}
+
 /**
  * Render a tab's sections into its panel as a grid of tiles, replacing what
  * was there. Each tile is attached before its section renders, so a chart
- * can measure its width when it draws.
+ * can measure its width when it draws. On a phone, each section that is not
+ * in the fixed top (nor kept open) renders as a closed finding row; a run of
+ * rows shares one tile, and every row in the panel one group name.
  *
  * @param panel - The tab's panel.
  * @param snapshot - The dashboard snapshot.
  * @param sections - The tab's registry, in order.
+ * @param options - The rows' heading, on a phone.
  * @returns The grid.
  */
 export function renderTiles(
   panel: HTMLElement,
   snapshot: DashboardSnapshot,
   sections: readonly TileSection[],
+  options: TileOptions = {},
 ): HTMLElement {
   const grid = document.createElement("div");
   grid.className = "tile-grid";
   panel.replaceChildren(grid);
+  const phone = currentLayout() === "phone";
+  const group = `${panel.id || "tab"}-rows`;
+  let rows: HTMLElement | null = null;
+  let headed = false;
   for (const section of sections) {
+    if (phone && !section.phoneTop && !section.phoneOpen) {
+      if (!rows) {
+        rows = document.createElement("section");
+        rows.className = "tile tile-rows";
+        rows.dataset.part = "rows";
+        if (options.rowsHeading && !headed) {
+          const heading = document.createElement("h2");
+          heading.className = "tile-kicker tile-rows-heading";
+          heading.textContent = options.rowsHeading;
+          rows.setAttribute("aria-label", options.rowsHeading);
+          rows.append(heading);
+          headed = true;
+        }
+        grid.append(rows);
+      }
+      const row = startRow(section, snapshot, group);
+      rows.append(row);
+      section.render(row, snapshot);
+      finishRow(row);
+      continue;
+    }
+    rows = null;
     const host = document.createElement("section");
     host.className = "tile";
-    host.dataset.section = section.id;
-    host.dataset.span = String(section.span ?? 1);
-    if (section.phoneTop) host.dataset.phoneTop = "true";
-    if (section.now) host.dataset.surface = "now";
+    mark(host, section);
     host.setAttribute("aria-label", section.label);
     host.append(renderKicker(section, snapshot));
     grid.append(host);
     section.render(host, snapshot);
   }
+  if (phone) exclusiveRows(grid);
   return grid;
 }
 

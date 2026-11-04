@@ -236,6 +236,8 @@ export function mountEvents(
       label: "The selected event and the list of events",
       kicker: "Rain events",
       span: 4,
+      // The event list is itself an accordion: open on a phone, not a row.
+      phoneOpen: true,
       render: (host) => {
         host.classList.add("ev-tile");
         host.insertAdjacentHTML(
