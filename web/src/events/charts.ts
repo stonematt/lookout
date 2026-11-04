@@ -282,7 +282,7 @@ export interface EventChartOptions {
 }
 
 /** Both charts' height, so the switch changes the chart in place. */
-export const CHART_HEIGHT = 240;
+const CHART_HEIGHT = 240;
 
 /**
  * Draw one of an event's charts into a host: Total, the accumulation against
@@ -453,7 +453,7 @@ const redraws = new WeakMap<HTMLElement, () => unknown>();
  * @param host - The chart's host.
  * @param redraw - Draws it again, at its width now, in the theme now.
  */
-export function watchRedraw(host: HTMLElement, redraw: () => unknown): void {
+function watchRedraw(host: HTMLElement, redraw: () => unknown): void {
   const known = redraws.has(host);
   redraws.set(host, redraw);
   if (known) return;

@@ -19,7 +19,7 @@ import "./almanac.css";
 
 import { WATER_MONTHS, dayText, inches } from "../format.js";
 import { make } from "../dom.js";
-import { hatchGap, isComparable } from "../gaps.js";
+import { hatchGap } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
 import type {
   Almanac,
@@ -42,7 +42,7 @@ import {
   tableValue,
   wettestMonth,
 } from "./almanac-text.js";
-import { notCompared, sourceNote, tileFinding, tileFolds } from "../tiles.js";
+import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
 /** Finding and standfirst, the tile's first two parts after its kicker. */
@@ -305,7 +305,7 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
     "daily rain counter, summed by month",
     "The station archive, each day's highest daily rain counter summed by month, with today's live total. " +
       "≈ marks a month scaled up over a few missing days.",
-    notCompared(hatched, "month", "months"),
+    gapReasons([[hatched, "month", "months"]]),
   );
 }
 
@@ -420,9 +420,10 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   host.append(frame);
 
   const live = snapshot.current.rain_today_in;
-  const hatched = almanac.rolling
+  const statuses = almanac.rolling
     .flatMap((window) => window.years.filter((y) => columns.includes(y.year)))
-    .filter((year) => !isComparable(year.status) && year.status.reason !== "in_progress").length;
+    .map((year) => year.status);
+  const hatched = hatchedCount(statuses);
   source(
     host,
     snapshot,
@@ -430,7 +431,7 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
     "The station archive, each day's highest daily rain counter, with today's live total" +
       (live === null ? "." : ` (${inches(live)}).`) +
       " ≈ marks a window scaled up over a few missing days.",
-    notCompared(hatched, "window", "windows"),
+    gapReasons([[hatched, "window", "windows"]]),
   );
 }
 

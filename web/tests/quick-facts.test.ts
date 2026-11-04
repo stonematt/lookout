@@ -19,28 +19,17 @@ import type { CurrentReading, DashboardSnapshot, SnapshotConditions } from "../s
 import { parseDashboard } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
 import { golden } from "./golden.js";
+import { viewport } from "./viewport.js";
 
 let page: Page | null = null;
 const realMatchMedia = window.matchMedia;
-
-/** Hold the page's layout switch at one viewport width. */
-function viewport(width: number): void {
-  window.matchMedia = ((query: string) => {
-    const min = Number(/min-width:\s*(\d+)px/.exec(query)![1]);
-    return {
-      matches: width >= min,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    } as unknown as MediaQueryList;
-  }) as typeof window.matchMedia;
-}
 
 beforeEach(() => {
   history.replaceState(null, "", "/#overview");
   document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML =
     "<div class=page><div id=masthead></div><main id=sections></main></div>";
-  viewport(1440);
+  viewport(1440).install();
 });
 
 afterEach(() => {
@@ -295,7 +284,7 @@ describe("a missing value reads as not known, never as zero", () => {
 
 describe("the quick-fact tiles on a phone", () => {
   it("sit after the finding rows, open, a 2×2 that sun and moon completes", async () => {
-    viewport(390);
+    viewport(390).install();
     const panel = await boot(parsed("raining"));
     expect(document.documentElement.dataset.layout).toBe("phone");
     const children = [...panel.querySelectorAll<HTMLElement>(".tile-grid > *")];

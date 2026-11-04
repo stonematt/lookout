@@ -68,7 +68,7 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
  * @param snapshot - The dashboard snapshot.
  * @returns The sentence.
  */
-export function firstScreenSource(snapshot: DashboardSnapshot): string {
+function firstScreenSource(snapshot: DashboardSnapshot): string {
   const { archive_newest_ms: archived, observed_at_ms: observed } = snapshot;
   // Dated by the snapshot's own reading: a fresher `/current` in the header
   // lends these figures nothing.
@@ -98,7 +98,7 @@ export function firstScreenSource(snapshot: DashboardSnapshot): string {
  * @param snapshot - The dashboard snapshot.
  * @returns The chip's short reason, or null.
  */
-export function ribbonGaps(snapshot: DashboardSnapshot): string | null {
+function ribbonGaps(snapshot: DashboardSnapshot): string | null {
   const ribbon = snapshot.condition_ribbon;
   const archived = snapshot.archive_newest_ms;
   if (!ribbon || archived === null) return null;

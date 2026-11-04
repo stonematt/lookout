@@ -266,7 +266,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
  * @param snapshot - The dashboard snapshot.
  * @returns The sentence.
  */
-export function heroSource(snapshot: DashboardSnapshot): string {
+function heroSource(snapshot: DashboardSnapshot): string {
   const lead = snapshot.hero_lead;
   const lag =
     liveLagMs(snapshot) > LAG_HATCH_MS

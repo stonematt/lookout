@@ -12,7 +12,7 @@ import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { heroGaps } from "../src/overview/hero.js";
-import { archiveLagMs, lagCaveat, notCompared, sourceLine } from "../src/tiles.js";
+import { archiveLagMs, gapReasons, lagCaveat, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
 import { golden, twoStations } from "./golden.js";
 
@@ -333,9 +333,9 @@ describe("the source line's words", () => {
   });
 
   it("counts what a gap hides, and says nothing for none", () => {
-    expect(notCompared(1, "window", "windows")).toBe("1 window not compared");
-    expect(notCompared(3, "window", "windows")).toBe("3 windows not compared");
-    expect(notCompared(0, "window", "windows")).toBeNull();
+    expect(gapReasons([[1, "window", "windows"]])).toBe("1 window not compared");
+    expect(gapReasons([[3, "window", "windows"]])).toBe("3 windows not compared");
+    expect(gapReasons([[0, "window", "windows"]])).toBeNull();
   });
 });
 

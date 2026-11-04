@@ -35,6 +35,7 @@ import type {
 } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
+import { viewport } from "./viewport.js";
 
 const HOUR = 3_600_000;
 /** Jan 8, 2026, 2 pm Pacific. */
@@ -634,7 +635,6 @@ describe("an event chart's redraws", () => {
   /** A fake ResizeObserver and colour-scheme query the test can fire. */
   function fakes(): { resize: () => void; scheme: () => void } {
     const observers: (() => void)[] = [];
-    const schemes: (() => void)[] = [];
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -645,13 +645,11 @@ describe("an event chart's redraws", () => {
         disconnect() {}
       },
     );
-    vi.stubGlobal("matchMedia", () => ({
-      matches: true,
-      addEventListener: (_: string, fn: () => void) => schemes.push(fn),
-    }));
+    const view = viewport(390);
+    vi.stubGlobal("matchMedia", view.match);
     return {
       resize: () => observers.forEach((fn) => fn()),
-      scheme: () => schemes.forEach((fn) => fn()),
+      scheme: view.scheme,
     };
   }
 

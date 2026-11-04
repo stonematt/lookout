@@ -32,6 +32,8 @@
  * text), so a tab that renders tiles needs no other stylesheet for them.
  * - `archiveLagMs`, `lagCaveat`: the archive lag the chip names, from the
  *   snapshot's own two times, never the browser clock.
+ * - `hatchedCount`, `gapReasons`: how many statuses are hatched as not
+ *   compared, and the chip's short reason naming those counts.
  *
  * Every value here comes from the snapshot: the archive time, the reading
  * time and the gap statuses Python decided. A tile states findings in the
@@ -344,7 +346,7 @@ export interface SourceNoteSpec {
  * @param reason - The short reason.
  * @returns The chip.
  */
-export function hatchChip(reason: string): HTMLElement {
+function hatchChip(reason: string): HTMLElement {
   const chip = document.createElement("span");
   chip.className = "hatch-chip";
   chip.dataset.part = "caveat";
@@ -394,19 +396,6 @@ export function sourceNote(snapshot: DashboardSnapshot, spec: SourceNoteSpec): H
   method.dataset.part = "source";
   method.textContent = spec.method;
   return fold(line, [method], "source-note");
-}
-
-/**
- * A count of things a gap hides, as the chip's short reason.
- *
- * @param count - How many are not compared.
- * @param one - The singular noun ("window").
- * @param many - The plural noun ("windows").
- * @returns E.g. "5 windows not compared"; null for none.
- */
-export function notCompared(count: number, one: string, many: string): string | null {
-  if (count <= 0) return null;
-  return `${count} ${count === 1 ? one : many} not compared`;
 }
 
 /**
