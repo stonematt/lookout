@@ -122,13 +122,12 @@
   color: var(--ink-3);
 }
 
+/* inline flow, so the chevron and the words share the first line and the
+   chips wrap after them as whole pills */
 .fold-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-1) var(--s-2);
+  display: block;
   min-height: 32px;
-  padding: var(--s-1) 0;
+  padding: 6px 0;
   list-style: none;
   cursor: pointer;
 }
@@ -141,17 +140,18 @@
    pointing right when closed, down when open */
 .fold-line::before {
   content: "";
-  flex: none;
+  display: inline-block;
   width: 6px;
   height: 6px;
-  margin-right: 2px;
+  margin-right: var(--s-2);
+  vertical-align: 1px;
   border-right: 1.5px solid var(--ink-3);
   border-bottom: 1.5px solid var(--ink-3);
   transform: rotate(-45deg);
 }
 
 .fold[open] > .fold-line::before {
-  transform: translateY(-2px) rotate(45deg);
+  transform: translateY(-1px) rotate(45deg);
 }
 
 .fold-line:hover {
@@ -171,6 +171,8 @@
    on the surface colour, never on the stripes */
 .hatch-chip {
   display: inline-flex;
+  margin: 2px 0 2px var(--s-2);
+  vertical-align: middle;
   align-items: center;
   gap: var(--s-1);
   padding: 0 7px;
