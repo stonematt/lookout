@@ -301,8 +301,11 @@ th.alm-season {
 }
 
 /* ---------- the rolling-window table ---------- */
+/* the frame scrolls sideways inside the tile when the columns cannot fit,
+   Window sticky; at 12px type and tight padding it rarely has to */
 .alm-table-frame {
   margin-top: var(--s-3);
+  overflow-x: auto;
 }
 
 .alm-table {
@@ -314,15 +317,19 @@ th.alm-season {
 
 .alm-table th,
 .alm-table td {
-  padding: var(--s-2) var(--s-2);
+  padding: var(--s-2) var(--s-1);
   border-bottom: 1px solid var(--rule);
   text-align: right;
   white-space: nowrap;
 }
 
 .alm-table th:first-child {
+  position: sticky;
+  left: 0;
   padding-left: 0;
+  padding-right: var(--s-2);
   text-align: left;
+  background: var(--tile);
 }
 
 .alm-table thead th {
