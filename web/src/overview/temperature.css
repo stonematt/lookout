@@ -56,12 +56,16 @@
 }
 
 .tc-value,
-.tc-note,
-.tc-reason {
+.tc-note {
   paint-order: stroke;
   stroke: var(--surface);
   stroke-width: 4px;
   stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}
+
+/* a reason sits on its pill (`pillLabel`), never on the stripes */
+.tc-reason {
   font-variant-numeric: tabular-nums;
 }
 

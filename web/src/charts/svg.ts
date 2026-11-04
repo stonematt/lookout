@@ -1,6 +1,7 @@
 /**
  * The scaffolding every hand-drawn SVG chart shares (DESIGN.md, "Chart
- * grammar"): elements, a canvas with its own hatch, haloed labels, the y
+ * grammar"): elements, a canvas with its own hatch, haloed labels, labels
+ * on a pill of the surface (`pillLabel`, for a reason over a hatch), the y
  * axis, round ticks, scales, scrubbing for the live readout, and drawing at
  * the host's real width. The Overview's hero lead and temperature context,
  * the Rain tab and the Solar tab draw with it; each passes its own class
@@ -83,6 +84,103 @@ export function chartLabel(
   return svgEl("text", { x, y, class: cls, "text-anchor": anchor }, text);
 }
 
+/** How far a label's pill reaches past its glyphs (DESIGN.md Shapes: a 4px halo). */
+export const PILL_PAD = 4;
+
+/** A pill's corner: the cell corner, like the HTML reason's `.gap-label`. */
+const PILL_RADIUS = 3;
+
+/** How big a label is, for its pill before the text can be measured. */
+export interface PillSize {
+  /** Its font size in pixels: 12 for a label, 13 for a now annotation. */
+  font: number;
+  /** About how wide one of its characters is. */
+  charPx: number;
+}
+
+/** A 12px label (`--type-label`). */
+export const LABEL_SIZE: PillSize = { font: 12, charPx: LABEL_CHAR_PX };
+
+/** A 13px semibold now annotation (`--type-annotation`). */
+export const NOTE_SIZE: PillSize = { font: 13, charPx: LABEL_CHAR_PX * 1.15 };
+
+/**
+ * A label on a pill of the surface it sits on, so stripes or marks never
+ * show between its letters (DESIGN.md Shapes: "Text never sits on the
+ * stripes"). The SVG form of the HTML reason pill (`.gap-label`): every
+ * reason over a hatch, and every now label that can land on one, draws
+ * with it. The pill is sized from an estimate, then fitted to the text's
+ * real box once it is laid out.
+ *
+ * Append it after the marks it must sit over, a now rule included: the
+ * label is drawn on top, so no mark crosses its text.
+ *
+ * @param x - Its anchor.
+ * @param y - Its baseline.
+ * @param text - Its words.
+ * @param cls - The text's class, e.g. "rain-label".
+ * @param anchor - `text-anchor`.
+ * @param size - Its type size, for the estimate.
+ * @returns A `g.chart-pill` holding the pill rect, then the text.
+ */
+export function pillLabel(
+  x: number,
+  y: number,
+  text: string,
+  cls: string,
+  anchor = "start",
+  size: PillSize = LABEL_SIZE,
+): SVGGElement {
+  const width = text.length * size.charPx;
+  const left = anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
+  const pill = svgEl("rect", {
+    class: "chart-pill-ground",
+    x: left - PILL_PAD,
+    y: y - size.font * 0.78 - PILL_PAD,
+    width: width + PILL_PAD * 2,
+    height: size.font + PILL_PAD * 2,
+    rx: PILL_RADIUS,
+  });
+  const label = chartLabel(x, y, text, cls, anchor);
+  const group = svgEl("g", { class: "chart-pill", "data-part": "pill" });
+  group.append(pill, label);
+  fitPill(pill, label);
+  return group;
+}
+
+/**
+ * Move a chart's pills to the top of its drawing, so a mark drawn after
+ * them (a selected day's outline) never crosses their text. Call it once
+ * the chart is drawn, before it goes on the page.
+ *
+ * @param svg - The chart.
+ */
+export function raisePills(svg: SVGSVGElement): void {
+  svg.append(...svg.querySelectorAll(":scope > .chart-pill"));
+}
+
+/** Fit a pill to its text's real box once the text is on the page. */
+function fitPill(pill: SVGRectElement, label: SVGTextElement): void {
+  const fit = () => {
+    if (!label.isConnected) return;
+    let box: DOMRect;
+    try {
+      box = label.getBBox();
+    } catch {
+      return;
+    }
+    if (!box.width) return;
+    pill.setAttribute("x", String(box.x - PILL_PAD));
+    pill.setAttribute("y", String(box.y - PILL_PAD));
+    pill.setAttribute("width", String(box.width + PILL_PAD * 2));
+    pill.setAttribute("height", String(box.height + PILL_PAD * 2));
+  };
+  if (typeof requestAnimationFrame !== "function") return;
+  requestAnimationFrame(fit);
+  // Measured again once the web font is in, as it changes the width.
+  void document.fonts?.ready.then(() => requestAnimationFrame(fit));
+}
+
 /**
  * Whether a day column is hatched as not in the record: any reason but
  * before the archive, which the chart leaves blank. A tile's source chip
@@ -123,8 +221,9 @@ export function hatchMissingDays(
     const width = x(b) + step - x(a);
     svg.append(svgEl("rect", { x: x(a), y: top, width, height: bottom - top, fill: hatch, rx: 2 }));
     const words = reasonLabel(reasons[a] as GapReason);
-    if (width >= words.length * LABEL_CHAR_PX + 8) {
-      svg.append(chartLabel(x(a) + width / 2, top + 14, words, labelCls, "middle"));
+    // Room for the reason on its pill, with stripes showing either side.
+    if (width >= words.length * LABEL_CHAR_PX + 4 * PILL_PAD) {
+      svg.append(pillLabel(x(a) + width / 2, top + 18, words, labelCls, "middle"));
     }
   }
 }

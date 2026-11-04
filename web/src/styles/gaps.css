@@ -53,6 +53,13 @@
   white-space: nowrap;
 }
 
+/* An SVG chart's reason or now label on its pill (`pillLabel` in
+   charts/svg.ts): the `.gap-label` pill drawn in SVG, a solid ground of the
+   surface 4px past the glyphs, so no stripe or mark shows between letters. */
+.chart-pill-ground {
+  fill: var(--surface);
+}
+
 /* The hatch as an SVG pattern (`svgHatch`): stripes over their ground. */
 .gap-hatch-a {
   fill: var(--hatch);

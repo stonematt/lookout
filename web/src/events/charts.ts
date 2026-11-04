@@ -19,7 +19,7 @@
  * known".
  */
 import { stationFormat, dayText, hourText, inches } from "../format.js";
-import { FALLBACK_WIDTH, NARROW } from "../charts/svg.js";
+import { FALLBACK_WIDTH, NARROW, PILL_PAD } from "../charts/svg.js";
 import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
 
@@ -172,9 +172,16 @@ export function accumulationLine(
   return { x, y };
 }
 
-/** A CSS custom property's value on the root, e.g. `--rain-line`. */
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/**
+ * A CSS custom property's value, e.g. `--rain-line`.
+ *
+ * @param name - The property.
+ * @param from - Where to read it: the root by default; the chart's host for
+ *   `--surface`, which a tile sets for what sits in it.
+ * @returns Its value.
+ */
+function token(name: string, from: Element = document.documentElement): string {
+  return getComputedStyle(from).getPropertyValue(name).trim();
 }
 
 /** The parts both charts share. */
@@ -218,23 +225,36 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
 }
 
 /** A hatched column over each gap span, the height of the plot. */
-function hatches(spans: GapSpan[], top: number): Plotly.Data {
+function hatches(spans: GapSpan[], top: number, surface: string): Plotly.Data {
   return {
     type: "bar",
     x: spans.map((s) => stationWallClock((s.fromMs + s.toMs) / 2)),
     y: spans.map(() => top),
     width: spans.map((s) => s.toMs - s.fromMs),
     marker: {
-      color: token("--surface"),
+      color: surface,
       line: { width: 0 },
-      pattern: plotlyHatch(token("--hatch"), token("--surface")),
+      pattern: plotlyHatch(token("--hatch"), surface),
     },
     hoverinfo: "skip",
   };
 }
 
+/**
+ * A label's pill, as near the SVG charts' `pillLabel` as Plotly comes: a
+ * solid box of the tile's surface 4px past the text. Plotly cannot round
+ * its corners.
+ */
+function pill(surface: string): Partial<Plotly.Annotation> {
+  return { bgcolor: surface, borderpad: PILL_PAD, borderwidth: 0 };
+}
+
 /** The in-place label over a gap span, when it is wide enough to hold one. */
-function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation>[] {
+function gapLabels(
+  spans: GapSpan[],
+  widthMs: number,
+  surface: string,
+): Partial<Plotly.Annotation>[] {
   return spans
     .filter((s) => (s.toMs - s.fromMs) / widthMs > 0.12)
     .map((s) => ({
@@ -247,7 +267,7 @@ function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation
       text: s.liveTail ? "only the live <br>total is known" : "n/a: gap in record",
       showarrow: false,
       font: { size: 12, color: token("--ink-2") },
-      bgcolor: token("--surface"),
+      ...pill(surface),
     }));
 }
 
@@ -295,8 +315,10 @@ export async function drawEventChart(
   const nticks = width < NARROW ? 3 : 0;
   // Drawn again at its real width, and in a new colour scheme.
   watchRedraw(host, () => drawEventChart(host, curve, row, options));
+  // The tile's surface, for the hatch's ground and every label's pill.
+  const surface = token("--surface", host);
   if (options.chart === "rate") {
-    const [traces, layout] = rateChart(curve, spans, ticks, xRange);
+    const [traces, layout] = rateChart(curve, spans, ticks, xRange, surface);
     layout.yaxis = { ...layout.yaxis, nticks };
     await Plotly.react(host, traces, layout, config);
     return;
@@ -310,7 +332,7 @@ export async function drawEventChart(
   const dotColor = row.live ? token("--now") : rain;
 
   const tail = spans.find((s) => s.liveTail);
-  const accTraces: Plotly.Data[] = [hatches(spans, topIn)];
+  const accTraces: Plotly.Data[] = [hatches(spans, topIn, surface)];
   if (median !== null) {
     // The median event's total: a dashed level under the bold line.
     accTraces.push({
@@ -347,7 +369,7 @@ export async function drawEventChart(
     mode: "markers",
     x: [stationWallClock(endMs)],
     y: [lastIn],
-    marker: { color: dotColor, size: 11, line: { color: token("--surface"), width: 2 } },
+    marker: { color: dotColor, size: 11, line: { color: surface, width: 2 } },
     // The end dot sits on the plot's right edge: draw all of it.
     cliponaxis: false,
     hovertemplate: `${row.live ? "now: " : ""}%{y:.2f} in<extra></extra>`,
@@ -356,7 +378,7 @@ export async function drawEventChart(
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
   accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn], nticks };
   accLayout.annotations = [
-    ...gapLabels(spans, widthMs),
+    ...gapLabels(spans, widthMs, surface),
     {
       x: stationWallClock(endMs),
       y: lastIn,
@@ -366,7 +388,7 @@ export async function drawEventChart(
       text: `${row.live ? "now " : ""}${inches(lastIn, { digits: 2 })}`,
       showarrow: false,
       font: { size: 13, color: row.live ? token("--now") : token("--ink") },
-      bgcolor: token("--surface"),
+      ...pill(surface),
     },
   ];
   if (median !== null) {
@@ -379,7 +401,7 @@ export async function drawEventChart(
       text: `median ${inches(median, { digits: 2 })}`,
       showarrow: false,
       font: { size: 12, color: token("--ink-2") },
-      bgcolor: token("--surface"),
+      ...pill(surface),
     });
   }
   await Plotly.react(host, accTraces, accLayout, config);
@@ -391,11 +413,12 @@ function rateChart(
   spans: GapSpan[],
   ticks: TimeTicks,
   xRange: [string, string],
+  surface: string,
 ): [Plotly.Data[], Partial<Plotly.Layout>] {
   const rates = curve.rate_in_hr.map((r) => r ?? null);
   const topRate = Math.max(0.05, ...rates.filter((v): v is number => v !== null)) * 1.15;
   const traces: Plotly.Data[] = [
-    hatches(spans, topRate),
+    hatches(spans, topRate, surface),
     {
       type: "bar",
       x: curve.t_ms.map((t) => stationWallClock(t - 150_000)),

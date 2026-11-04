@@ -17,7 +17,7 @@
 import "./temperature.css";
 
 import { degrees, inches } from "../format.js";
-import { LABEL_CHAR_PX, NARROW, aboveDot, niceTicks, scale } from "../charts/svg.js";
+import { LABEL_CHAR_PX, NARROW, aboveDot, niceTicks, pillLabel, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapLabel, gapSentence, gapValue, isComparable, svgHatch } from "../gaps.js";
 import type {
@@ -132,7 +132,7 @@ function axis(
   }
 }
 
-/** The hatch over a row whose window cannot be compared, with its reason. */
+/** The hatch over a row whose window cannot be compared, with its reason on a pill. */
 function hatchRow(
   g: SVGGElement,
   hatch: string,
@@ -153,12 +153,8 @@ function hatchRow(
       fill: hatch,
     }),
   );
-  const label = svgEl(
-    "text",
-    { class: "tc-reason", x: (x0 + x1) / 2, y: cy + 4, "text-anchor": "middle" },
-    gapLabel(status) ?? "",
-  );
-  g.append(label);
+  // On its pill, drawn after the now rule so the rule never crosses it.
+  g.append(pillLabel((x0 + x1) / 2, cy + 4, gapLabel(status) ?? "", "tc-reason", "middle"));
 }
 
 /** Pick `ticks` that fit `[lo, hi]` and widen the range to hold them. */
@@ -341,7 +337,10 @@ function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   const days = [...ctx.ten_days].reverse();
   const narrow = width < 520;
   const rowH = narrow ? 30 : 32;
-  const left = narrow ? 72 : 84;
+  // The day column fits the longest name ("Wed, Nov 30" in 13px), so a
+  // hatched row starts clear of it, past the name's halo.
+  const longest = Math.max(0, ...days.map((d) => DAY_LABEL.format(dayDate(d.day)).length));
+  const left = Math.max(narrow ? 72 : 84, Math.ceil(longest * LABEL_CHAR_PX * 1.1) + 12);
   const f = { l: left, r: 12, t: 8, b: 26 };
   const iw = width - f.l - f.r;
   const ih = rowH * days.length;
