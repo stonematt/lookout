@@ -181,7 +181,7 @@ def test_the_daylight_change_is_today_against_yesterday():
 
 def test_the_moon_on_a_known_new_moon():
     # New moon 8 April 2024, 18:21 UTC (the total solar eclipse).
-    moon = moon_on(date(2024, 4, 8))
+    moon = moon_on(date(2024, 4, 8), "UTC")
 
     assert moon.phase == "new"
     assert moon.illumination_pct <= 2
@@ -190,7 +190,7 @@ def test_the_moon_on_a_known_new_moon():
 
 def test_the_moon_on_a_known_full_moon():
     # Full moon 23 April 2024, 23:49 UTC.
-    moon = moon_on(date(2024, 4, 23))
+    moon = moon_on(date(2024, 4, 23), "UTC")
 
     assert moon.phase == "full"
     assert moon.illumination_pct >= 98
@@ -199,15 +199,15 @@ def test_the_moon_on_a_known_full_moon():
 
 def test_the_moon_at_its_quarters():
     # First quarter 15 April 2024 19:13 UTC; last quarter 1 May 2024 11:27 UTC.
-    first = moon_on(date(2024, 4, 15))
-    last = moon_on(date(2024, 5, 1))
+    first = moon_on(date(2024, 4, 15), "UTC")
+    last = moon_on(date(2024, 5, 1), "UTC")
 
     assert first.phase == "first quarter"
     assert 40 <= first.illumination_pct <= 60
     assert first.days_to_full == 8
     # The day after a principal phase takes the in-between name.
-    assert moon_on(date(2024, 4, 16)).phase == "waxing gibbous"
-    assert moon_on(date(2024, 4, 24)).phase == "waning gibbous"
+    assert moon_on(date(2024, 4, 16), "UTC").phase == "waxing gibbous"
+    assert moon_on(date(2024, 4, 24), "UTC").phase == "waning gibbous"
     assert last.phase == "last quarter"
     assert 40 <= last.illumination_pct <= 60
 

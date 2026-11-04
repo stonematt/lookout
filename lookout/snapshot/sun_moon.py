@@ -105,7 +105,7 @@ def _illumination_pct(elongation: float) -> int:
     return round(100 * (1 - math.cos(math.radians(elongation))) / 2)
 
 
-def _ahead(start: float, target: float) -> float:
+def _forward_deg(start: float, target: float) -> float:
     """Degrees the Moon moves from elongation `start` to reach `target`."""
     return (target - start) % 360.0
 
@@ -120,7 +120,7 @@ def _next_full(after: datetime) -> datetime:
     :return: The full moon, to within the formula's two hours.
     """
     when = after + timedelta(
-        days=_ahead(elongation_deg(after), 180.0) / 360.0 * SYNODIC_DAYS
+        days=_forward_deg(elongation_deg(after), 180.0) / 360.0 * SYNODIC_DAYS
     )
     for _ in range(2):
         miss = (180.0 - elongation_deg(when) + 180.0) % 360.0 - 180.0
@@ -128,7 +128,7 @@ def _next_full(after: datetime) -> datetime:
     return when
 
 
-def moon_on(day: date, tz: str = "UTC") -> Moon:
+def moon_on(day: date, tz: str) -> Moon:
     """
     The moon on one local day.
 
@@ -145,11 +145,11 @@ def moon_on(day: date, tz: str = "UTC") -> Moon:
     end = datetime.combine(day + timedelta(days=1), time(0), zone)
     noon = datetime.combine(day, time(12), zone)
     e_start, e_end, e_noon = (elongation_deg(t) for t in (start, end, noon))
-    span = _ahead(e_start, e_end)
+    span = _forward_deg(e_start, e_end)
 
     phase: Optional[MoonPhase] = None
     for target, name in _PRINCIPAL:
-        if _ahead(e_start, target) < span:
+        if _forward_deg(e_start, target) < span:
             phase = name
     if phase is None:
         quadrant = int(e_noon // 90)
@@ -168,23 +168,39 @@ def moon_on(day: date, tz: str = "UTC") -> Moon:
     )
 
 
-def _sun_times(
-    location: StationLocation, day: date, tz: str
-) -> Tuple[datetime, datetime]:
+@dataclass(frozen=True)
+class _SunDay:
+    """
+    Sunrise and sunset on one local day.
+
+    :param rise: Sunrise, timezone-aware.
+    :param set: Sunset, timezone-aware.
+    """
+
+    rise: datetime
+    set: datetime
+
+    @property
+    def daylight_s(self) -> float:
+        """Sunrise to sunset, in seconds."""
+        return (self.set - self.rise).total_seconds()
+
+
+def _sun_day(location: StationLocation, day: date, tz: str) -> _SunDay:
     """
     Sunrise and sunset on one local day.
 
     :param location: The station's coordinates.
     :param day: The station-local day.
     :param tz: The station's zone.
-    :return: Sunrise and sunset, timezone-aware.
+    :return: The day's sun.
     :raises ValueError: When the sun does not rise or set that day.
     """
     observer = Observer(latitude=location.lat, longitude=location.lon)
     zone = ZoneInfo(tz)
-    return (
-        sunrise(observer, date=day, tzinfo=zone),
-        sunset(observer, date=day, tzinfo=zone),
+    return _SunDay(
+        rise=sunrise(observer, date=day, tzinfo=zone),
+        set=sunset(observer, date=day, tzinfo=zone),
     )
 
 
@@ -207,21 +223,17 @@ def sun_moon(station: Station, clock: StationClock) -> Optional[SunMoon]:
         return None
     today = clock.today
     try:
-        rise, set_ = _sun_times(station.location, today, clock.tz)
-        y_rise, y_set = _sun_times(
-            station.location, today - timedelta(days=1), clock.tz
-        )
+        sun = _sun_day(station.location, today, clock.tz)
+        yesterday = _sun_day(station.location, today - timedelta(days=1), clock.tz)
     except ValueError as e:
         logger.info(f"No sunrise or sunset on {today}: {e}")
         return None
-    daylight_s = (set_ - rise).total_seconds()
-    yesterday_s = (y_set - y_rise).total_seconds()
     moon = moon_on(today, clock.tz)
     return SunMoon(
-        sunrise_ms=_ms(rise),
-        sunset_ms=_ms(set_),
-        daylight_minutes=round(daylight_s / 60),
-        daylight_change_minutes=round((daylight_s - yesterday_s) / 60),
+        sunrise_ms=_ms(sun.rise),
+        sunset_ms=_ms(sun.set),
+        daylight_minutes=round(sun.daylight_s / 60),
+        daylight_change_minutes=round((sun.daylight_s - yesterday.daylight_s) / 60),
         moon_phase=moon.phase,
         moon_illumination_pct=moon.illumination_pct,
         days_to_full_moon=moon.days_to_full,
