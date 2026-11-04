@@ -24,6 +24,11 @@
   margin-top: 0;
 }
 
+/* two to a row, a value and its unit wrap rather than run into the next */
+:root[data-layout="four"] .solar-split > .solar-stats dd {
+  white-space: normal;
+}
+
 .solar-split-chart {
   min-width: 0;
 }
@@ -144,6 +149,8 @@
 /* ---------- the heatmap control ---------- */
 .solar-seg {
   display: inline-flex;
+  /* in the tile's column, as wide as its segments */
+  align-self: flex-start;
   max-width: 100%;
   margin-top: var(--s-3);
   overflow-x: auto;
