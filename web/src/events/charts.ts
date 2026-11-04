@@ -1,14 +1,15 @@
 /**
  * One rain event's two charts, drawn with Plotly (loaded on first use, so
- * the page's first screen never waits for it):
+ * the page's first screen never waits for it), one at a time in the open
+ * event row, as its Total / Rate switch picks (`drawEventChart`):
  *
- * - Accumulation: the event rain so far as a bold stepped line (a running
- *   total is a line, never a filled area), ending in a dot with its total.
- *   The live event's dot is the `now` mark; a completed event's is
- *   in the rain hue.
+ * - Total: the event rain so far as a bold stepped line (a running total is
+ *   a line, never a filled area) against the median event's total, dashed,
+ *   ending in a dot with its total. The live event's dot is the `now` mark;
+ *   a completed event's is in the rain hue.
  * - Rate: the rain rate between readings as zero-based columns.
  *
- * Both share one time axis of plain times ("6 pm", "noon"), the date said
+ * Both are one height, and share one time axis of plain times ("6 pm", "noon"), the date said
  * on the first tick and again where the day turns.
  *
  * DESIGN.md's chart grammar: no line, column or value across a gap. Each
@@ -250,43 +251,79 @@ function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation
     }));
 }
 
+/** Which of an event's two charts the Total / Rate switch shows. */
+export type EventChart = "total" | "rate";
+
+/** What a chart is drawn against: the switch's pick and the median event. */
+export interface EventChartOptions {
+  chart: EventChart;
+  /** The catalog's median event total, drawn dashed on Total; null for none. */
+  medianIn: number | null;
+}
+
+/** Both charts' height, so the switch changes the chart in place. */
+export const CHART_HEIGHT = 240;
+
 /**
- * Draw an event's accumulation and rate charts into two hosts.
+ * Draw one of an event's charts into a host: Total, the accumulation against
+ * the median event, or Rate, the rate between readings.
  *
- * @param hosts - The accumulation and rate chart elements.
+ * @param host - The chart element.
  * @param curve - The event's curve.
  * @param row - The event, for its total and whether it is live.
- * @returns When both are drawn.
+ * @param options - Which chart, and the median event's total.
+ * @returns When it is drawn.
  */
-export async function drawEventCharts(
-  hosts: { accumulation: HTMLElement; rate: HTMLElement },
+export async function drawEventChart(
+  host: HTMLElement,
   curve: EventCurve,
   row: RainEventRow,
+  options: EventChartOptions,
 ): Promise<void> {
   const Plotly = await loadPlotly();
   const spans = gapSpans(curve, row.live);
-  const line = accumulationLine(curve, spans);
   const lastIn = curve.event_in[curve.event_in.length - 1] ?? row.total_in;
   const endMs = curve.t_ms[curve.t_ms.length - 1] ?? row.end_ms;
+  const config: Partial<Plotly.Config> = { displayModeBar: false, responsive: true };
+  // One time range, from the reading before the first; the plot is the host
+  // less the side margins.
+  const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
+  const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
+  const ticks = timeTicks(fromMs, toMs, (host.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r);
+  if (options.chart === "rate") {
+    await Plotly.react(host, ...rateChart(curve, spans, ticks, xRange), config);
+    return;
+  }
+  const line = accumulationLine(curve, spans);
   const widthMs = Math.max(1, endMs - curve.t_ms[0]!);
-  const topIn = Math.max(lastIn, ...line.y.filter((v): v is number => v !== null)) * 1.12 || 0.1;
+  const median = options.medianIn;
+  const topIn =
+    Math.max(lastIn, median ?? 0, ...line.y.filter((v): v is number => v !== null)) * 1.12 || 0.1;
   const rain = token("--rain-line");
   const dotColor = row.live ? token("--now") : rain;
-  const config: Partial<Plotly.Config> = { displayModeBar: false, responsive: true };
 
   const tail = spans.find((s) => s.liveTail);
-  const accTraces: Plotly.Data[] = [
-    hatches(spans, topIn),
-    {
+  const accTraces: Plotly.Data[] = [hatches(spans, topIn)];
+  if (median !== null) {
+    // The median event's total: a dashed level under the bold line.
+    accTraces.push({
       type: "scatter",
       mode: "lines",
-      x: line.x,
-      y: line.y,
-      line: { color: rain, width: 3.5, shape: "hv" },
-      connectgaps: false,
-      hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in<extra></extra>",
-    },
-  ];
+      x: xRange,
+      y: [median, median],
+      line: { color: token("--ink-2"), width: 1.5, dash: "dash" },
+      hoverinfo: "skip",
+    });
+  }
+  accTraces.push({
+    type: "scatter",
+    mode: "lines",
+    x: line.x,
+    y: line.y,
+    line: { color: rain, width: 3.5, shape: "hv" },
+    connectgaps: false,
+    hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in<extra></extra>",
+  });
   if (tail) {
     const before = curve.event_in[curve.t_ms.indexOf(tail.fromMs)] ?? null;
     accTraces.push({
@@ -308,16 +345,7 @@ export async function drawEventCharts(
     cliponaxis: false,
     hovertemplate: `${row.live ? "now: " : ""}%{y:.2f} in<extra></extra>`,
   });
-  // Both charts share one time range, from the reading before the first,
-  // and one set of ticks. The plot is the host less the side margins.
-  const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
-  const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
-  const ticks = timeTicks(
-    fromMs,
-    toMs,
-    (hosts.rate.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r,
-  );
-  const accLayout = baseLayout(240, " in", ticks);
+  const accLayout = baseLayout(CHART_HEIGHT, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
   accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
   accLayout.annotations = [
@@ -334,11 +362,32 @@ export async function drawEventCharts(
       bgcolor: token("--surface"),
     },
   ];
-  await Plotly.react(hosts.accumulation, accTraces, accLayout, config);
+  if (median !== null) {
+    accLayout.annotations.push({
+      x: xRange[0],
+      xanchor: "left",
+      y: median,
+      yanchor: "bottom",
+      yshift: 2,
+      text: `median ${inches(median, { digits: 2 })}`,
+      showarrow: false,
+      font: { size: 12, color: token("--ink-2") },
+      bgcolor: token("--surface"),
+    });
+  }
+  await Plotly.react(host, accTraces, accLayout, config);
+}
 
+/** The rate chart's traces and layout: zero-based columns between readings. */
+function rateChart(
+  curve: EventCurve,
+  spans: GapSpan[],
+  ticks: TimeTicks,
+  xRange: [string, string],
+): [Plotly.Data[], Partial<Plotly.Layout>] {
   const rates = curve.rate_in_hr.map((r) => r ?? null);
   const topRate = Math.max(0.05, ...rates.filter((v): v is number => v !== null)) * 1.15;
-  const rateTraces: Plotly.Data[] = [
+  const traces: Plotly.Data[] = [
     hatches(spans, topRate),
     {
       type: "bar",
@@ -349,13 +398,12 @@ export async function drawEventCharts(
       hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in/hr<extra></extra>",
     },
   ];
-  const rateLayout = baseLayout(150, "", ticks);
-  rateLayout.yaxis = {
-    ...rateLayout.yaxis,
+  const layout = baseLayout(CHART_HEIGHT, "", ticks);
+  layout.yaxis = {
+    ...layout.yaxis,
     range: [0, topRate],
     title: { text: "in/hr", font: { size: 12, color: token("--ink-2") } },
   };
-  rateLayout.margin = { ...MARGIN, t: 4, b: 44 };
-  rateLayout.xaxis = { ...rateLayout.xaxis, range: xRange };
-  await Plotly.react(hosts.rate, rateTraces, rateLayout, config);
+  layout.xaxis = { ...layout.xaxis, range: xRange };
+  return [traces, layout];
 }
