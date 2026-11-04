@@ -174,9 +174,15 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const slotW = VIEW_W / n;
   const x = (i: number) => +(i * slotW).toFixed(2);
   const pct = (i: number) => (i / n) * 100;
-  // A run of slots as one full-height rect; 0.4 overlaps the next, no seam.
-  const runRect = (run: Run<unknown>) =>
-    svgEl("rect", { x: x(run.from), y: 0, width: x(run.to) - x(run.from) + 0.4, height: VIEW_H });
+  // A run of slots as one rect standing on the floor (full height by
+  // default); 0.4 overlaps the next, no seam.
+  const runRect = (run: Run<unknown>, height: number = VIEW_H) =>
+    svgEl("rect", {
+      x: x(run.from),
+      y: VIEW_H - height,
+      width: x(run.to) - x(run.from) + 0.4,
+      height,
+    });
   const now = snapshot.current.temperature_f ?? ribbon.temperature_f.at(-1) ?? null;
 
   const block = make("div", "ribbon");
@@ -208,14 +214,9 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const bars = svgEl("svg", { viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: "none" });
   for (const run of runs(ribbon.rain_in.map((r) => rainStep(r, ribbon.slot_minutes)))) {
     if (run.value === null) continue;
-    const height = rainBarHeight(run.value);
-    const rect = svgEl("rect", {
-      x: x(run.from),
-      y: VIEW_H - height,
-      width: x(run.to) - x(run.from) + 0.4,
-      height,
-    });
+    const rect = runRect(run, rainBarHeight(run.value));
     rect.dataset.rain = String(run.value);
+    // how many slots the bar covers, so a reader of the markup can count them
     rect.dataset.slots = String(run.to - run.from);
     bars.append(rect);
   }
@@ -240,9 +241,9 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
     hatch.classList.add("ribbon-hatch");
     place(hatch, run);
     band.append(hatch);
-    const under = make("div", "gap-hatch ribbon-rain-hatch");
-    place(under, run);
-    track.append(under);
+    const trackHatch = make("div", "gap-hatch ribbon-rain-hatch");
+    place(trackHatch, run);
+    track.append(trackHatch);
   }
 
   // The temperature trace, broken where there is no reading.
@@ -319,7 +320,12 @@ function ribbonKey(): HTMLElement {
   };
   const ramp = make("span", "ribbon-key-item");
   const steps = make("span", "ribbon-key-ramp");
-  RAIN_STEP_NAMES.forEach((_, i) => steps.append(make("i", `ribbon-key-rain-${i + 1}`)));
+  // each step as tall in the key as its bar in the track, by the same rule
+  for (const step of [1, 2, 3, 4] as const) {
+    const bar = make("i", `ribbon-key-rain-${step}`);
+    bar.style.height = `${(rainBarHeight(step) / VIEW_H) * 100}%`;
+    steps.append(bar);
+  }
   ramp.append("rain, light ", steps, " heavy");
   key.append(
     swatch("ribbon-key-night", "night"),

@@ -1,8 +1,8 @@
 /**
  * The 48-hour ribbon's marks (#336): night, day, the rain bars, the
- * temperature line and its halo, the outline and the now dot each draw in a
- * token DESIGN.md's Contrast table covers, so the token contrast test speaks
- * for every one of them.
+ * temperature line and its halo, the outline, the rain track's floor and the
+ * now dot each draw in a token DESIGN.md's Contrast table covers, so the
+ * token contrast test speaks for every one of them.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -39,6 +39,7 @@ describe("the ribbon's marks", () => {
     [".ribbon-line", "stroke"],
     [".ribbon-halo", "stroke"],
     [".ribbon-band::after", "border"],
+    [".ribbon-rain", "border-bottom"],
     [".ribbon-dot", "background"],
   ])("draw %s in a token the Contrast table covers", (selector, property) => {
     expect(covered).toContain(tokenOf(selector, property));

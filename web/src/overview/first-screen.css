@@ -273,7 +273,8 @@
   border: 1px solid var(--rule-strong);
 }
 
-/* the rain key: four bars of the one rain colour, rising light to heavy */
+/* the rain key: four bars of the one rain colour, rising light to heavy
+   (each bar's height is set from the track's own rule, `rainBarHeight`) */
 .ribbon-key-ramp {
   display: inline-flex;
   align-items: flex-end;
@@ -293,16 +294,4 @@
 }
 .ribbon-key-day {
   background: var(--ribbon-day);
-}
-.ribbon-key-ramp .ribbon-key-rain-1 {
-  height: 3px;
-}
-.ribbon-key-ramp .ribbon-key-rain-2 {
-  height: 6px;
-}
-.ribbon-key-ramp .ribbon-key-rain-3 {
-  height: 9px;
-}
-.ribbon-key-ramp .ribbon-key-rain-4 {
-  height: 12px;
 }
