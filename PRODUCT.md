@@ -8,11 +8,11 @@ web, with macOS and iOS widgets to follow
 
 ## Users
 
-The station operator: the owner of the "lookout post" station, who checks it several times a day, mostly on a phone. A few curious friends visit occasionally through a shared link. No other audiences.
+The station operator: the owner of the stations in the station inventory, "lookout post" first, who checks them several times a day, mostly on a phone. A few curious friends visit occasionally through a shared link. No other audiences.
 
 ## Product Purpose
 
-Lookout is the dashboard for one Ambient Weather station. It answers "what is it doing outside right now, and how normal is that?" Success is a glance that gives current conditions in the context of recent history, with deeper views for rain, rain events and solar energy.
+Lookout is the dashboard for the owner's Ambient Weather stations, one station at a time. With two or more stations, the header's station selector chooses which one the page shows. It answers "what is it doing outside right now, and how normal is that?" Success is a glance that gives current conditions in the context of recent history, with deeper views for rain, rain events and solar energy.
 
 ## Positioning
 
@@ -34,11 +34,11 @@ Lookout shows this station's own measured, hyperlocal record, which a generic we
 - **Tabs.** Overview, Rain, Rain Events and Solar carry over from the Streamlit app. The visualizations may change completely.
 - **Persistence.** The Event Catalog keeps its lazy persistence: it saves to Storj automatically when an ongoing event completes. A manual save stays available.
 - **Units.** Imperial: °F, mph, inches of rain, inHg, W/m², kWh/m², and the UV index.
-- **Timezone.** America/Los_Angeles. Station-local time is the analytical frame.
+- **Timezone.** Station-local time is the analytical frame. Each station's zone is read from Ambient on every build (ADR-0005), never hardcoded.
 
 ## Brand Commitments
 
-- **Name:** "Lookout". The station is "lookout post".
+- **Name:** "Lookout". The first station is "lookout post"; every station shows the name it carries in Ambient.
 - **Binding references:** the presentation of the Dark Sky weather app, and the data storytelling of the Financial Times, where a chart states its finding.
 - **Look:** quiet slate tiles, data colour only, one orange "now", Lexend, dark and light themes held to the same contrast rules. DESIGN.md holds the system.
 - **Not a weather app:** forecasts belong to a weather app. Lookout is what is happening now and how it compares with recent weeks and this time in earlier years.
