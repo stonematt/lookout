@@ -372,6 +372,41 @@ describe("the open row", () => {
     expect(drawnLast()[3].chart).toBe("total");
   });
 
+  it("keeps the rest of the open row as it is when the chart switches", async () => {
+    history.replaceState(null, "", "/?event=1600000000000#events");
+    mountEvents(panel, raining(), deps);
+    await flush();
+    const open = openRows()[0]!;
+    const words = open.querySelector(".ev-finding");
+    const fold = open.querySelector<HTMLDetailsElement>("details[data-part=source-note]")!;
+    fold.open = true;
+    const rate = open.querySelector<HTMLButtonElement>("[data-chart=rate]")!;
+
+    click("[data-chart=rate]");
+
+    expect(open.querySelector(".ev-finding")).toBe(words);
+    expect(open.querySelector("[data-chart=rate]")).toBe(rate);
+    expect(fold.isConnected && fold.open).toBe(true);
+    expect(open.textContent).toContain("The linked event is not in the catalog");
+  });
+
+  it("draws the curve against the median event of the water year shown", async () => {
+    const snapshot = raining();
+    snapshot.rain_events.seasons[0]!.stats = {
+      ...snapshot.rain_events.seasons[0]!.stats,
+      median_in: 0.42,
+    };
+    mountEvents(panel, snapshot, deps);
+    await flush();
+    expect(drawnLast()[3].medianIn).toBe(0.36);
+
+    pick(String(snapshot.rain_events.seasons[0]!.water_year));
+    await flush();
+
+    expect(drawnLast()[3].medianIn).toBe(0.42);
+    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.42 in");
+  });
+
   it("follows the default rule within a water year the open row is not in", async () => {
     const snapshot = raining();
     snapshot.rain_events.events[2]!.water_year = 2025;
@@ -385,6 +420,15 @@ describe("the open row", () => {
     expect(location.search).toBe("");
     pick("2026");
     expect(openStart()).toBe(EVENT_3); // the live one
+  });
+
+  it("keeps a row closed by hand closed when the water year changes", () => {
+    mountEvents(panel, raining(), deps);
+    click(row(EVENT_3));
+
+    pick(String(raining().rain_events.seasons[0]!.water_year));
+
+    expect(openRows()).toHaveLength(0);
   });
 
   it("says a water year with no events has none, and keeps the filter bar", () => {
@@ -608,6 +652,7 @@ describe("each water year's gap status", () => {
     mountEvents(panel, twoYears(status(missing)), deps);
 
     expect(option("2025").dataset.gap).toBe("not_archived");
+    expect(option("2025").textContent).toBe("2025, not archived");
     pick("2025");
     expect(panel.querySelector(".ev-season-gap")!.textContent).toContain(
       "Water year 2025 is not archived yet",

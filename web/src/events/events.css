@@ -154,6 +154,7 @@
 .ev-stats dd,
 .ev-facts dd {
   margin: 0;
+  white-space: nowrap;
   font-size: var(--type-stat);
   font-weight: 400;
   line-height: 1.25;
@@ -166,6 +167,17 @@
   }
 
   .ev-stats > div:nth-child(n + 3) {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+/* the narrowest phones: the open row's three facts take two columns */
+@media (max-width: 379px) {
+  .ev-facts {
+    --cols: 2;
+  }
+
+  .ev-facts > div:nth-child(n + 3) {
     border-top: 1px solid var(--rule);
   }
 }
@@ -301,11 +313,6 @@
 
 .ev-mode {
   align-self: flex-start;
-}
-
-.ev-mode button,
-:root:is([data-layout="two"], [data-layout="four"]) .ev-mode button {
-  min-height: 36px;
 }
 
 /* the chart area keeps the curve's height while it loads or fails */

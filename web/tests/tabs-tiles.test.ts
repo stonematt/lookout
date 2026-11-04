@@ -6,7 +6,7 @@
  * source with the Overview's chip rule, and shows each number the same as
  * the Overview does (story 53).
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
@@ -175,6 +175,36 @@ describe("the gap chip on these tabs", () => {
     expect(chips("rain").hours).toBeUndefined();
     expect(chips("solar").day).toBeUndefined();
     expect(chips("events").events).toBeUndefined();
+  });
+});
+
+describe("the event list through the page", () => {
+  const open = () => [...panel("events").querySelectorAll<HTMLElement>(".ev-row[data-open]")];
+
+  it("opens the live event's row with its curve on the raining golden", async () => {
+    // Plotly may not draw in happy-dom; the chart host is what counts here.
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const snapshot = parsed("raining");
+    await boot(snapshot, "events");
+    const live = snapshot.rain_events.events.find((e) => e.live)!;
+
+    expect(open().map((r) => Number(r.dataset.start))).toEqual([live.start_ms]);
+    expect(open()[0]!.querySelector(".ev-live")).not.toBeNull();
+    // The live curve is the snapshot's own: drawn at once, no read.
+    const chart = open()[0]!.querySelector<HTMLElement>(".ev-charts .ev-chart")!;
+    expect(chart.getAttribute("aria-label")).toContain("Rain so far in this event");
+    quiet.mockRestore();
+  });
+
+  it("opens the newest row, with the latest chip, on the dry golden", async () => {
+    const snapshot = parsed("dry");
+    await boot(snapshot, "events");
+    const newest = Math.max(...snapshot.rain_events.events.map((e) => e.start_ms));
+
+    expect(open().map((r) => Number(r.dataset.start))).toEqual([newest]);
+    expect(words(open()[0]!.querySelector(".ev-latest"))).toBe("latest");
+    // Its curve file is read when the row opens; here the read never answers.
+    expect(words(open()[0]!.querySelector(".ev-charts"))).toBe("Loading the curve…");
   });
 });
 

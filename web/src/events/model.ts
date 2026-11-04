@@ -121,11 +121,10 @@ export function latestStart(section: RainEvents): number | null {
  * A row's size bar: its total over the catalog's largest total, 0 to 1.
  *
  * @param row - The event.
- * @param section - The snapshot's `rain_events`.
+ * @param most - The catalog's largest event total.
  * @returns The share of the track it fills.
  */
-export function sizeShare(row: RainEventRow, section: RainEvents): number {
-  const most = Math.max(0, ...section.events.map((e) => e.total_in));
+export function sizeShare(row: RainEventRow, most: number): number {
   return most > 0 ? Math.min(1, Math.max(0, row.total_in / most)) : 0;
 }
 
@@ -153,8 +152,7 @@ export function emptyList(season: Season): string {
 export function listHeading(count: number, season: Season, sort: EventSort): string {
   const scope = season === "all" ? "" : ` in water year ${season}`;
   if (count === 0) return `No rain events${scope}`;
-  const order = { newest: "newest", wettest: "wettest", longest: "longest" }[sort];
-  return `${count} event${count === 1 ? "" : "s"}${scope}, ${order} first`;
+  return `${count} event${count === 1 ? "" : "s"}${scope}, ${sort} first`;
 }
 
 /**

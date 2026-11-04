@@ -110,7 +110,8 @@ function stat(value: string, label: string): string {
 
 /**
  * A water year's option in the select. A year the record does not cover
- * reads "<year>, partial", short so the select stays beside the sort on a
+ * reads "<year>, partial" ("not archived" for one the archive does not
+ * reach yet), short so the select stays beside the sort on a
  * phone, with its reason in the title; a ≈ one is the year alone (a ≈ is
  * never marked as a gap). The catalog tile's note says why once picked.
  */
@@ -120,7 +121,8 @@ function yearOption(season: EventSeason): string {
   const span = esc(waterYearSpan(season.water_year));
   if (isComparable(status)) return `<option value="${year}" title="${span}">${year}</option>`;
   const reason = gapLabel(status)!;
-  return `<option value="${year}" title="${esc(`${waterYearSpan(season.water_year)}: ${reason}`)}" data-gap="${esc(status.reason ?? "gap")}">${year}, partial</option>`;
+  const word = status.reason === "not_archived" ? "not archived" : "partial";
+  return `<option value="${year}" title="${esc(`${waterYearSpan(season.water_year)}: ${reason}`)}" data-gap="${esc(status.reason ?? "gap")}">${year}, ${word}</option>`;
 }
 
 /** The list's shape the visitor picked. */
@@ -342,8 +344,13 @@ export function mountEvents(
     }
   }
 
+  /** The catalog's largest event total, the size bars' full track. */
+  function largest(): number {
+    return Math.max(0, ...all.map((e) => e.total_in));
+  }
+
   /** A closed row's header: the button that opens and closes it. */
-  function rowHead(e: RainEventRow, open: boolean, now: number): string {
+  function rowHead(e: RainEventRow, open: boolean, now: number, most: number): string {
     const mark = e.live
       ? '<span class="ev-live">Live</span>'
       : e.start_ms === latest
@@ -352,7 +359,7 @@ export function mountEvents(
     const peak =
       e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : inchesPerHour(e.peak_rate_in_hr);
     const chip = `<span class="ev-chip${lowQuality(e) ? " low" : ""}">${esc(qualityLabel(e))}</span>`;
-    const share = (sizeShare(e, section) * 100).toFixed(1);
+    const share = (sizeShare(e, most) * 100).toFixed(1);
     return `<h3 class="ev-row-head"><button type="button" class="ev-open" data-start="${esc(e.start_ms)}" aria-expanded="${open}" aria-controls="ev-body-${esc(e.start_ms)}">
   <span class="ev-date">${when(startLabel(e.start_ms, now))}${mark}</span>
   <span class="ev-total">${e.total_in.toFixed(2)}<small> in</small></span>
@@ -365,6 +372,7 @@ export function mountEvents(
     const rows = visibleEvents(section, view.season, view.sort);
     const shown = rows.slice(0, view.limit);
     const now = deps.nowMs();
+    const most = largest();
     const list = $(".ev-list");
     if (!rows.length) {
       list.innerHTML = `<p class="ev-empty" role="status">${esc(emptyList(all.length ? view.season : "all"))}</p>`;
@@ -375,7 +383,7 @@ export function mountEvents(
       .map((e) => {
         const open = selected?.start_ms === e.start_ms;
         return `<article class="ev-row"${open ? " data-open" : ""}${e.live ? " data-live" : ""} data-start="${esc(e.start_ms)}">
-${rowHead(e, open, now)}
+${rowHead(e, open, now, most)}
 ${open ? `<div class="ev-body" id="ev-body-${esc(e.start_ms)}" role="region" aria-label="${esc(`The event of ${startLabel(e.start_ms, now)}`)}"></div>` : ""}
 </article>`;
       })
@@ -384,7 +392,6 @@ ${open ? `<div class="ev-body" id="ev-body-${esc(e.start_ms)}" role="region" ari
     // eslint-disable-next-line no-unsanitized/property
     list.innerHTML = body;
     const more = rows.length - view.limit;
-    const most = Math.max(...all.map((e) => e.total_in));
     // The button and the key are literals and numbers (#261).
     // eslint-disable-next-line no-unsanitized/property
     $(".ev-foot").innerHTML =
@@ -405,7 +412,6 @@ ${open ? `<div class="ev-body" id="ev-body-${esc(e.start_ms)}" role="region" ari
     const note = missing
       ? '<p class="ev-note">The linked event is not in the catalog; showing the newest one instead.</p>'
       : "";
-    missing = false;
     const switcher = row.has_curve
       ? `<div class="ev-seg ev-mode" role="group" aria-label="Chart">
   <button type="button" data-chart="total" aria-pressed="${view.chart === "total"}">Total</button>
@@ -451,19 +457,14 @@ ${switcher}
       );
     }
 
-    const open = section.open_curve;
-    if (open && open.start_ms === row.start_ms) {
-      show(charts, open, row, ticket);
+    const curve = curveOf(row);
+    if (curve) {
+      show(charts, curve, row, ticket);
       return;
     }
     if (row.live) {
       charts.innerHTML =
         '<p class="ev-note ev-wait">This event\'s readings are not in the snapshot yet.</p>';
-      return;
-    }
-    const known = kept.curves.get(row.start_ms);
-    if (known) {
-      show(charts, known, row, ticket);
       return;
     }
     charts.innerHTML = '<p class="ev-wait" role="status">Loading the curve…</p>';
@@ -486,12 +487,23 @@ ${switcher}
     );
   }
 
-  /** The open row's chart, Total or Rate as the switch says, from its curve. */
+  /** An event's curve already to hand: the snapshot's open curve, or one read. */
+  function curveOf(row: RainEventRow): EventCurve | null {
+    const open = section.open_curve;
+    if (open && open.start_ms === row.start_ms) return open;
+    return kept.curves.get(row.start_ms) ?? null;
+  }
+
+  /**
+   * The open row's chart, Total or Rate as the switch says, from its curve,
+   * against the median event of the water year shown (the catalog tile's).
+   */
   function show(charts: HTMLElement, curve: EventCurve, row: RainEventRow, ticket: number): void {
     if (ticket !== drawn) return;
+    const median = statsFor(section, view.season).median_in;
     const label =
       view.chart === "total"
-        ? `Rain so far in this event, rising to ${inches(row.total_in, { digits: 2 })}${section.all_time.median_in === null ? "" : `, against ${inches(section.all_time.median_in, { digits: 2 })} for the median event`}`
+        ? `Rain so far in this event, rising to ${inches(row.total_in, { digits: 2 })}${median === null ? "" : `, against ${inches(median, { digits: 2 })} for the median event`}`
         : row.peak_rate_in_hr === null
           ? "Rain rate between readings"
           : `Rain rate between readings, peaking at ${inchesPerHour(row.peak_rate_in_hr)}`;
@@ -502,8 +514,9 @@ ${switcher}
     chart.setAttribute("aria-label", label);
     charts.replaceChildren(chart);
     deps
-      .draw(chart, curve, row, { chart: view.chart, medianIn: section.all_time.median_in })
+      .draw(chart, curve, row, { chart: view.chart, medianIn: median })
       .catch((error: unknown) => {
+        if (ticket !== drawn) return;
         console.error("Lookout: event chart failed", error);
         charts.innerHTML = '<p class="ev-note ev-wait">The chart could not be drawn.</p>';
       });
@@ -538,6 +551,7 @@ ${switcher}
       selected = all.find((e) => e.start_ms === startMs) ?? null;
       if (!selected) return;
       kept.shut = false;
+      missing = false;
       writeUrl(startMs);
     }
     renderList();
@@ -564,7 +578,11 @@ ${switcher}
         for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-chart]")) {
           b.setAttribute("aria-pressed", String(b === chartButton));
         }
-        renderBody();
+        // Only the chart changes: the row, its switch and its fold stay. A
+        // curve still loading draws on the new pick when it arrives.
+        const charts = panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-charts");
+        const curve = selected && curveOf(selected);
+        if (charts && curve && selected) show(charts, curve, selected, drawn);
         return;
       }
       if (target.closest(".ev-retry")) {
@@ -595,11 +613,12 @@ ${switcher}
       if (!select) return;
       view.season = select.value === "all" ? "all" : Number(select.value);
       view.limit = PAGE;
-      // The open row follows the default rule within the water year picked.
-      if (!selected || (view.season !== "all" && selected.water_year !== view.season)) {
-        if (selected) writeUrl(null);
+      // The open row follows the default rule within the water year picked:
+      // the live event, or the newest. A row closed by hand stays closed.
+      if (!kept.shut) {
         selected = defaultOpen(section, view.season);
-        kept.shut = false;
+        missing = false;
+        writeUrl(null);
       }
       reach();
       renderHead();
