@@ -30,7 +30,15 @@ import {
   WET_DAY_IN,
   wattsPerM2,
 } from "../format.js";
-import { NARROW, aboveDot, niceTicks, scale, yTickSteps } from "../charts/svg.js";
+import {
+  NARROW,
+  NOTE_SIZE,
+  aboveDot,
+  niceTicks,
+  pillLabel,
+  scale,
+  yTickSteps,
+} from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
@@ -500,10 +508,12 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
       }),
     );
     g.append(
-      svgEl(
-        "text",
-        { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" },
+      pillLabel(
+        x(nowMs) - 8,
+        ih - 10,
         hourly ? "only the live reading is known" : "only the live total is known",
+        "hero-label",
+        "end",
       ),
     );
   }
@@ -529,14 +539,9 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   // On a phone the label sits above its dot.
   const place = narrow
     ? aboveDot(dot[0], dot[1], note, -f.l, iw + f.r, 12 - f.t)
-    : { x: right ? dot[0] - 8 : dot[0] + 8, y: dot[1] - 8, anchor: right ? "end" : "start" };
-  g.append(
-    svgEl(
-      "text",
-      { class: "hero-note", x: place.x, y: place.y, "text-anchor": place.anchor },
-      note,
-    ),
-  );
+    : { x: right ? dot[0] - 10 : dot[0] + 10, y: dot[1] - 10, anchor: right ? "end" : "start" };
+  // On its pill: over the live span it sits on the hatch.
+  g.append(pillLabel(place.x, place.y, note, "hero-note", place.anchor, NOTE_SIZE));
   return root;
 }
 

@@ -13,6 +13,7 @@
  */
 import {
   NARROW,
+  NOTE_SIZE,
   type Readout,
   aboveDot,
   canvas,
@@ -20,6 +21,8 @@ import {
   dayTicks,
   hatchMissingDays,
   monthTicks,
+  pillLabel,
+  raisePills,
   runs,
   scrub,
   yAxis,
@@ -246,8 +249,9 @@ export function drawTrace(
     // On a phone the label sits above its dot.
     const at = narrow
       ? aboveDot(x(n - 1), y(now), text, left, width, 12)
-      : { x: x(n - 1) - 8, y: Math.max(top + 4, y(now) - 10), anchor: "end" as const };
-    svg.append(chartLabel(at.x, at.y, text, "solar-now-label", at.anchor));
+      : { x: x(n - 1) - 10, y: Math.max(top + 4, y(now) - 12), anchor: "end" as const };
+    // On its pill: past the archive it sits on the hatch.
+    svg.append(pillLabel(at.x, at.y, text, "solar-now-label", at.anchor, NOTE_SIZE));
   }
 
   host.replaceChildren(svg);
@@ -374,6 +378,7 @@ export function drawDailyBars(
     );
   }
   dayTicks(svg, first, count, x, step, bottom + 4, "solar");
+  raisePills(svg);
   host.replaceChildren(svg);
   let under: string | null = null;
   scrub(
@@ -834,6 +839,7 @@ export function drawDayGrid(
     );
   }
   monthTicks(svg, recent.first_day, count, x, bottom + 4, "solar");
+  raisePills(svg);
   host.replaceChildren(svg);
   let under: string | null = null;
   scrub(
