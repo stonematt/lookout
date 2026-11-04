@@ -12,12 +12,13 @@ Rules cited as R<n> are in [`docs/research/ft-data-storytelling.md`](../research
 
 - The title states the finding, not the measure: "October ran 40% wetter than normal", not "Monthly rainfall" (R9).
 - The chart form follows the relationship (R1): rain against normal is a deviation chart with the normal as its reference (R2); water-year cumulative rain is a line over time, not an area (R3, R4); daily solar and Rain Event totals are zero-based columns (R7).
-- Normal is drawn first, then the thing that differs (R13): normals and prior years in grey, the current period in the one claret colour (R12; DESIGN.md).
+- Normal is drawn first, then the thing that differs (R13): normals and prior years in grey, the current period in the data colour for its measure, with the one orange `now` mark on the current value only (R12; DESIGN.md, Colors and Chart grammar).
 - Series are labelled on the chart, not in a legend (R11), and the notable event is annotated where it happened (R10).
 - Nothing on the chart the finding doesn't need (R14); fewer charts, each carrying part of the story (R15).
-- Each chart works as its own layout at phone width, readable without hover or tap (R16–R18).
-- Every section runs finding headline, standfirst, chart, source line (DESIGN.md — not an FT-sourced rule).
-- Hatched gaps read as missing, never as zero or as a low value (DESIGN.md; the FT has no traceable rule here).
+- Each chart works as its own layout at phone width, drawn at its real pixel width, never a shrunken desktop chart, and readable without hover or tap (R16–R18; DESIGN.md, Chart grammar).
+- Every tile runs kicker, finding, standfirst, chart, then a folded source note (DESIGN.md, Overview and Source note — not an FT-sourced rule).
+- Hatched gaps read as missing, never as zero or as a low value; the hatch carries a short reason in place, and the source note's hatched chip explains it without replacing it (DESIGN.md, Source note; the FT has no traceable rule here).
+- Chart text is 12px or larger, and every line, bar, band, hatch and outline a reader needs meets 3:1 in both themes (DESIGN.md, The Twelve Pixel Floor and The Three-to-One Graphics Rule).
 - Any non-linear axis says why it is there (R8).
 
 ## What I let pass
