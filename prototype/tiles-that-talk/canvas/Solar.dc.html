@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout: Solar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#11161c}
+a{color:#8fc0ee}a:hover{color:#b9d8f5}
+.dk{font-family:Lexend,system-ui,sans-serif;color:#eef2f5;letter-spacing:.01em}
+.dk p,.dk h1,.dk h2{margin:0}
+.g{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.g{grid-template-columns:repeat(2,minmax(0,1fr))}.s2,.s3,.s4{grid-column:span 2}}
+@media (min-width:1180px){.g{grid-template-columns:repeat(4,minmax(0,1fr))}.s3{grid-column:span 3}.s4{grid-column:span 4}}
+.tile{background:#1a2129;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.lab{font-size:13px;font-weight:500;color:#aab5c0}
+.fd{font-size:19px;line-height:1.4;font-weight:500;max-width:44ch}
+.sf{font-size:14px;line-height:1.55;color:#aab5c0;max-width:62ch}
+.tn{font-variant-numeric:tabular-nums}
+.ax{font-family:Lexend,sans-serif;font-size:11px;fill:#8e9aa6}
+.lb{font-family:Lexend,sans-serif;font-size:12px;fill:#c3ccd5}
+.an{font-family:Lexend,sans-serif;font-size:12.5px;font-weight:600;fill:#f2a65e;paint-order:stroke;stroke:#1a2129;stroke-width:4px}
+.src{margin-top:auto;border-top:1px solid #2a333d;padding-top:4px}
+.src summary{cursor:pointer;min-height:32px;display:flex;align-items:center;font-size:12.5px;color:#aab5c0}
+.src p{font-size:12.5px;line-height:1.55;color:#aab5c0;padding-bottom:4px}
+.seg{display:inline-flex;border:1px solid #6b7886;border-radius:999px;overflow:hidden}
+.seg button{min-height:40px;padding:0 16px;border:0;background:transparent;color:#c3ccd5;font:inherit;font-size:14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#eef2f5;color:#11161c;font-weight:500}
+.st{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px 16px}
+.st div{display:flex;flex-direction:column-reverse;gap:2px;border-top:1px solid #2a333d;padding-top:8px}
+.st dt{font-size:12.5px;color:#aab5c0}
+.st dd{margin:0;font-size:22px;font-weight:400;font-variant-numeric:tabular-nums}
+.btn{min-height:44px;padding:0 18px;border:1px solid #6b7886;border-radius:999px;background:transparent;color:#eef2f5;font:inherit;font-size:14px;cursor:pointer}
+.al{display:grid;grid-template-columns:44px repeat(12,minmax(30px,1fr));gap:3px;min-width:520px;font-size:11.5px}
+.al span{height:38px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.al .h{height:22px;color:#aab5c0}
+.al .y{justify-content:flex-start;color:#c3ccd5;font-weight:500}
+.al .a0{background:#7d6b40;color:#ffffff}.al .a1{background:#a88b45;color:#11161c}.al .a2{background:#c99d45;color:#11161c}.al .a3{background:#e3b75a;color:#11161c}.al .a4{background:#f7d98f;color:#11161c}
+.hx{background:repeating-linear-gradient(135deg,#64717e 0 4px,#1a2129 4px 8px);color:#ffffff}
+.pre{border:1px dashed #6b7886}
+</style>
+</helmet>
+<div class="dk" style="min-height:100vh;box-sizing:border-box;background:#11161c">
+<div style="max-width:1360px;margin:0 auto;padding:0 24px 64px">
+
+  <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;min-height:72px">
+    <div style="display:flex;align-items:center;gap:14px"><span style="font-size:20px;font-weight:600">Lookout Post</span><span class="tn" style="display:flex;align-items:center;gap:8px;font-size:14px;color:#aab5c0"><span style="width:8px;height:8px;border-radius:50%;background:#8fc0ee"></span>47° · dry since 5:10 am · 3 m ago</span></div>
+    <nav aria-label="Sections" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Desktop.dc.html" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;color:#c3ccd5;font-size:14px;text-decoration:none">Overview</a>
+      <a href="Rain.dc.html" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;color:#c3ccd5;font-size:14px;text-decoration:none">Rain</a>
+      <a href="Events.dc.html" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;color:#c3ccd5;font-size:14px;text-decoration:none">Rain events</a>
+      <a href="Solar.dc.html" aria-current="page" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;background:#eef2f5;color:#11161c;font-size:14px;font-weight:500;text-decoration:none">Solar</a>
+    </nav>
+  </header>
+
+  <div class="g">
+
+    <!-- now: 24 h trace -->
+    <section class="tile s4">
+      <p class="lab">Sunlight now</p>
+      <h1 class="fd" style="font-size:24px;line-height:1.3">62 W/m² now, about half the usual for 7:40 am under this morning's cloud</h1>
+      <p class="sf">The bold line is solar radiation over the last 24 hours. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:20px 32px;align-items:flex-start">
+        <dl class="st" style="flex:1 1 260px;max-width:320px;grid-template-columns:repeat(2,minmax(0,1fr))">
+          <div><dt>now</dt><dd style="color:#f2a65e">62 W/m²</dd></div>
+          <div><dt>usual now</dt><dd>120 W/m²</dd></div>
+          <div><dt>last 24 h</dt><dd>1.21 kWh/m²</dd></div>
+          <div><dt>UV index</dt><dd>0</dd></div>
+        </dl>
+        <svg role="img" aria-label="Solar radiation over the last 24 hours against the usual range" viewBox="0 0 900 230" style="flex:999 1 520px;min-width:0;width:100%;height:auto">
+          <line x1="44" x2="900" y1="196" y2="196" stroke="#3a4653"></line><line x1="44" x2="900" y1="136" y2="136" stroke="#2a333d"></line><line x1="44" x2="900" y1="76" y2="76" stroke="#2a333d"></line><line x1="44" x2="900" y1="16" y2="16" stroke="#2a333d"></line>
+          <text class="ax" x="0" y="200">0</text><text class="ax" x="0" y="140">200</text><text class="ax" x="0" y="80">400</text><text class="ax" x="0" y="20">600 W/m²</text>
+          <path d="M50 190 C110 170 170 70 270 54 C370 70 430 170 500 194 L500 196 C430 186 370 112 270 104 C170 112 110 186 50 192 Z" fill="#7d6b40"></path>
+          <path d="M50 191 C110 180 170 96 270 80 C370 96 430 180 500 195" fill="none" stroke="#11161c" stroke-width="1.5" stroke-dasharray="5 4"></path>
+          <text class="lb" x="282" y="48">usual</text>
+          <polyline points="50,186 90,166 130,140 170,118 210,104 240,124 260,96 290,92 320,112 350,128 380,140 420,168 460,186 500,196 840,196 870,190 888,178" fill="none" stroke="#f6cf74" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <circle cx="888" cy="178" r="5.5" fill="#f2a65e" stroke="#1a2129" stroke-width="2"></circle><text class="an" x="880" y="162" text-anchor="end">now 62 W/m²</text>
+          <text class="lb" x="292" y="86">peak 316 at 12:10 pm</text>
+          <text class="ax" x="44" y="218">8 am</text><text class="ax" x="248" y="218">noon</text><text class="ax" x="450" y="218">4 pm</text><text class="ax" x="650" y="218">midnight</text><text class="ax" x="860" y="218">7 am</text>
+        </svg>
+      </div>
+      <details class="src"><summary>Source · five-minute solar readings, archived 7:30 am</summary><p>The live reading is at the end. The 24-hour energy is the sum of the energy catalog's 15-minute periods; 1 kWh/m² is about an hour of full midday sun.</p></details>
+    </section>
+
+    <!-- daily energy, 90 days -->
+    <section class="tile s4">
+      <p class="lab">Sun each day</p>
+      <h2 class="fd">Yesterday brought 1.2 kWh/m², a quarter under the usual early-November day</h2>
+      <p class="sf">Energy over each window ending today, then each day of the last 90. Select a day to see its 15 minutes below.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:20px 32px;align-items:flex-start">
+        <dl class="st" style="flex:1 1 240px;min-width:0;max-width:420px;grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">
+          <div><dt>Today, so far</dt><dd style="color:#f2a65e">0.03</dd></div>
+          <div><dt>Yesterday</dt><dd>1.2</dd></div>
+          <div><dt>7 days</dt><dd>9.1</dd></div>
+          <div><dt>30 days</dt><dd>52</dd></div>
+          <div><dt>90 days</dt><dd>290</dd></div>
+          <div><dt>365 days</dt><dd>≈1,420</dd></div>
+        </dl>
+        <svg role="img" aria-label="Solar energy each day over the last 90 days" viewBox="0 0 860 230" style="flex:999 1 480px;min-width:0;width:100%;height:auto">
+          <defs><pattern id="hs" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="8" height="8" fill="#1a2129"></rect><rect width="3" height="8" fill="#64717e"></rect></pattern></defs>
+          <line x1="40" x2="860" y1="200" y2="200" stroke="#3a4653"></line><line x1="40" x2="860" y1="134" y2="134" stroke="#2a333d"></line><line x1="40" x2="860" y1="68" y2="68" stroke="#2a333d"></line>
+          <text class="ax" x="0" y="204">0</text><text class="ax" x="0" y="138">3</text><text class="ax" x="0" y="72">6 kWh</text>
+          <rect x="346" y="40" width="16" height="160" fill="url(#hs)"></rect><text class="lb" x="368" y="52">not in the record</text>
+          <path fill="#c39538" d="M40 200 v-150h7v150h2 v-148h7v148h2 v-152h7v152h2 v-140h7v140h2 v-146h7v146h2 v-150h7v150h2 v-120h7v120h2 v-144h7v144h2 v-148h7v148h2 v-146h7v146h2 v-142h7v142h2 v-138h7v138h2 v-96h7v96h2 v-140h7v140h2 v-144h7v144h2 v-142h7v142h2 v-138h7v138h2 v-136h7v136h2 v-130h7v130h2 v-134h7v134h2 v-128h7v128h2 v-80h7v80h2 v-132h7v132h2 v-130h7v130h2 v-126h7v126h2 v-128h7v128h2 v-124h7v124h2 v-120h7v120h2 v-118h7v118h2 v-122h7v122h2 v-116h7v116h2 v-110h7v110h2 v-60h7v60h2 v-112h7v112h2 h18 v-108h7v108h2 v-104h7v104h2 v-100h7v100h2 v-96h7v96h2 v-98h7v98h2 v-40h7v40h2 v-92h7v92h2 v-96h7v96h2 v-90h7v90h2 v-88h7v88h2 v-84h7v84h2 v-86h7v86h2 v-30h7v30h2 v-80h7v80h2 v-82h7v82h2 v-78h7v78h2 v-74h7v74h2 v-70h7v70h2 v-72h7v72h2 v-66h7v66h2 v-68h7v68h2 v-64h7v64h2 v-30h7v30h2 v-60h7v60h2 v-62h7v62h2 v-58h7v58h2 v-56h7v56h2 v-20h7v20h2 v-54h7v54h2 v-52h7v52h2 v-50h7v50h2 v-48h7v48h2 v-18h7v18h2 v-22h7v22h2 v-46h7v46h2 v-44h7v44h2 v-42h7v42h2 v-24h7v24h2 v-40h7v40h2 v-38h7v38h2 v-14h7v14h2 v-12h7v12h2 v-36h7v36h2 v-34h7v34h2 v-32h7v32h2 v-30h7v30h2 v-28h7v28h2 v-16h7v16h2 v-26h7v26h2 v-24h7v24h2 v-28h7v28h2 v-22h7v22h2 v-26h7v26h2"></path>
+          <rect x="828" y="168" width="15" height="36" rx="3" fill="none" stroke="#eef2f5" stroke-width="2"></rect>
+          <rect x="841" y="195" width="7" height="5" fill="#f2a65e"></rect>
+          <text class="an" x="856" y="160" text-anchor="end">Nov 2, 1.2</text>
+          <text class="ax" x="40" y="222">Aug</text><text class="ax" x="274" y="222">Sep</text><text class="ax" x="544" y="222">Oct</text><text class="ax" x="823" y="222">Nov</text>
+        </svg>
+      </div>
+      <details class="src"><summary>Source · energy catalog, daily sums, kWh/m²</summary><p>A day is the sum of its 15-minute periods, today the energy so far. Sep 9 and 10 are missing from the record and hatched, never read as dark days. ≈ marks the 365-day window, scaled up over 8 missing days.</p></details>
+    </section>
+
+    <!-- day detail -->
+    <section class="tile s2">
+      <p class="lab">One day, by the quarter hour</p>
+      <h2 class="fd">Nov 2: 1.2 kWh/m², brightest from noon to 12:15 pm</h2>
+      <p class="sf">Each bar is 15 minutes of the selected day, 4 am to 10 pm. The marked bar is its brightest.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <button type="button" class="btn" aria-label="Previous day">← Nov 1</button>
+        <span class="tn" style="font-size:15px;font-weight:500;padding:0 8px">Mon, Nov 2</span>
+        <button type="button" class="btn" aria-label="Next day">Today →</button>
+      </div>
+      <svg role="img" aria-label="Solar energy each 15 minutes on Nov 2" viewBox="0 0 640 170" style="width:100%;height:auto;margin-top:4px">
+        <line x1="40" x2="640" y1="140" y2="140" stroke="#3a4653"></line>
+        <g fill="#c39538">
+          <rect x="140" y="136" width="7" height="4"></rect><rect x="148" y="132" width="7" height="8"></rect><rect x="157" y="126" width="7" height="14"></rect><rect x="165" y="120" width="7" height="20"></rect><rect x="173" y="112" width="7" height="28"></rect><rect x="182" y="104" width="7" height="36"></rect><rect x="190" y="96" width="7" height="44"></rect><rect x="198" y="90" width="7" height="50"></rect><rect x="207" y="82" width="7" height="58"></rect><rect x="215" y="76" width="7" height="64"></rect>
+          <rect x="223" y="70" width="7" height="70"></rect><rect x="232" y="78" width="7" height="62"></rect><rect x="240" y="100" width="7" height="40"></rect><rect x="248" y="110" width="7" height="30"></rect><rect x="257" y="92" width="7" height="48"></rect><rect x="265" y="68" width="7" height="72"></rect><rect x="273" y="54" width="7" height="86"></rect><rect x="282" y="44" width="7" height="96"></rect><rect x="290" y="36" width="7" height="104"></rect><rect x="298" y="28" width="7" height="112"></rect>
+          <rect x="315" y="30" width="7" height="110"></rect><rect x="323" y="44" width="7" height="96"></rect><rect x="332" y="80" width="7" height="60"></rect><rect x="340" y="96" width="7" height="44"></rect><rect x="348" y="70" width="7" height="70"></rect><rect x="357" y="52" width="7" height="88"></rect><rect x="365" y="48" width="7" height="92"></rect><rect x="373" y="60" width="7" height="80"></rect><rect x="382" y="70" width="7" height="70"></rect>
+          <rect x="390" y="82" width="7" height="58"></rect><rect x="398" y="92" width="7" height="48"></rect><rect x="407" y="100" width="7" height="40"></rect><rect x="415" y="108" width="7" height="32"></rect><rect x="423" y="114" width="7" height="26"></rect><rect x="432" y="120" width="7" height="20"></rect><rect x="440" y="126" width="7" height="14"></rect><rect x="448" y="130" width="7" height="10"></rect><rect x="457" y="134" width="7" height="6"></rect><rect x="465" y="137" width="7" height="3"></rect>
+        </g>
+        <rect x="307" y="22" width="7" height="118" fill="#f0c36a"></rect>
+        <line x1="310.5" x2="310.5" y1="8" y2="20" stroke="#f2a65e" stroke-width="2"></line>
+        <text class="an" x="318" y="14">noon, 0.08 kWh/m²</text>
+        <text class="ax" x="40" y="160">4 am</text><text class="ax" x="190" y="160">8 am</text><text class="ax" x="300" y="160">noon</text><text class="ax" x="440" y="160">4 pm</text><text class="ax" x="590" y="160">8 pm</text>
+      </svg>
+      <details class="src"><summary>Source · energy catalog, 15-minute periods</summary><p>Each bar is one catalog period. A period missing from the record is hatched.</p></details>
+    </section>
+
+    <!-- monthly almanac -->
+    <section class="tile s2">
+      <p class="lab">Solar almanac</p>
+      <h2 class="fd">October 2026 gave 58 kWh/m², the dimmest October on record</h2>
+      <p class="sf">One row per year, one column per month; the deeper the gold, the more energy. The month under way is not compared yet.</p>
+      <div class="seg" role="group" aria-label="Scale" style="align-self:flex-start"><button aria-pressed="true">Months</button><button aria-pressed="false">Days</button><button aria-pressed="false">15 minutes</button></div>
+      <div style="overflow-x:auto;margin-top:4px">
+        <div class="al">
+          <span class="h"></span><span class="h">J</span><span class="h">F</span><span class="h">M</span><span class="h">A</span><span class="h">M</span><span class="h">J</span><span class="h">J</span><span class="h">A</span><span class="h">S</span><span class="h">O</span><span class="h">N</span><span class="h">D</span>
+          <span class="y">2026</span><span class="a0">28</span><span class="a1">44</span><span class="a2">80</span><span class="a2">126</span><span class="a3">170</span><span class="a4">196</span><span class="a4">212</span><span class="a4">180</span><span class="a2">124</span><span class="a1" style="outline:2px solid #eef2f5;outline-offset:-2px;font-weight:600">58</span><span class="hx" style="outline:2px solid #f2a65e;outline-offset:-2px;color:#eef2f5">2.3</span><span class="pre"></span>
+          <span class="y">2025</span><span class="a0">31</span><span class="hx">n/a</span><span class="a2">88</span><span class="a3">134</span><span class="a3">178</span><span class="a4">205</span><span class="a4">218</span><span class="a4">190</span><span class="a3">132</span><span class="a1">72</span><span class="a0">36</span><span class="a0">24</span>
+          <span class="y">2024</span><span class="a0">29</span><span class="a1">46</span><span class="a2">84</span><span class="a2">128</span><span class="a3">174</span><span class="a4">201</span><span class="a4">210</span><span class="a4">186</span><span class="a2">128</span><span class="a1">68</span><span class="a0">34</span><span class="a0">26</span>
+          <span class="y">2023</span><span class="pre"></span><span class="a1" style="font-size:11px">≈40</span><span class="a2">82</span><span class="a3">130</span><span class="a3">172</span><span class="a4">198</span><span class="a4">215</span><span class="a4">188</span><span class="a3">130</span><span class="a1">75</span><span class="a0">35</span><span class="a0">23</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:#aab5c0">
+        <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;gap:2px"><i style="width:14px;height:10px;border-radius:2px;background:#7d6b40"></i><i style="width:14px;height:10px;border-radius:2px;background:#a88b45"></i><i style="width:14px;height:10px;border-radius:2px;background:#c99d45"></i><i style="width:14px;height:10px;border-radius:2px;background:#e3b75a"></i><i style="width:14px;height:10px;border-radius:2px;background:#f7d98f"></i></span>under 40 to over 180 kWh/m²</span>
+        <span style="display:flex;align-items:center;gap:6px"><i class="hx" style="width:14px;height:10px;border-radius:2px"></i>not compared</span>
+        <span style="display:flex;align-items:center;gap:6px"><i class="pre" style="width:14px;height:10px;border-radius:2px"></i>before the archive or not yet</span>
+      </div>
+      <details class="src"><summary>Source · energy catalog, daily sums by month</summary><p>≈ marks a month scaled up over a few missing days; a hatched month has too many. February 2025 is missing 11 days.</p></details>
+    </section>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

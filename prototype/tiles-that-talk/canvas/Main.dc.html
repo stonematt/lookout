@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout: Morning Paper</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2c5c8f}a:hover{color:#1d4069}
+.mp{font-family:"Atkinson Hyperlegible Next",system-ui,sans-serif;letter-spacing:.01em;word-spacing:.06em;color:#16191c}
+.mp h2{margin:0;font-size:21px;line-height:1.3;font-weight:700;max-width:30ch}
+.mp p{margin:0}
+.kick{font-size:14px;font-weight:600;color:#c0561b}
+.sf{font-size:15px;line-height:1.6;color:#454b52;margin-top:6px}
+.tn{font-variant-numeric:tabular-nums}
+.ax{font-family:"Atkinson Hyperlegible Next",sans-serif;font-size:12px;fill:#5d646c}
+.lb{font-family:"Atkinson Hyperlegible Next",sans-serif;font-size:13px;fill:#454b52}
+.an{font-family:"Atkinson Hyperlegible Next",sans-serif;font-size:13px;font-weight:700;fill:#b14f17;paint-order:stroke;stroke:#fbfbfa;stroke-width:4px}
+.src summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:14px;color:#454b52}
+</style>
+</helmet>
+<div class="mp" style="width:390px;min-height:2620px;box-sizing:border-box;background:#fbfbfa;padding:0 22px 48px;display:flex;flex-direction:column;gap:44px">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;min-height:52px;border-bottom:1px solid #e2e4e6;font-size:14px;color:#454b52">
+    <span style="font-weight:700;color:#16191c">Lookout Post</span>
+    <span class="tn" style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#2c5c8f"></span>Tue 7:40 am</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;margin-top:-12px">
+    <p class="kick">This morning</p>
+    <h1 style="margin:0;font-size:31px;line-height:1.2;font-weight:700;letter-spacing:-.005em">A wet night: 0.42 in of rain, a third more than a usual storm here.</h1>
+    <p style="font-size:17px;line-height:1.6;color:#30353a">It stopped at 5:10 am. Now it is 47° and cloudy, 4° under a usual November morning, and almost still.</p>
+    <div style="display:flex;align-items:flex-end;gap:20px;margin-top:10px;padding-top:16px;border-top:1px solid #e2e4e6">
+      <div class="tn" style="font-size:72px;line-height:.9;font-weight:600;letter-spacing:-.03em">47°</div>
+      <dl class="tn" style="margin:0;display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:15px">
+        <dt style="color:#5d646c">feels like</dt><dd style="margin:0;font-weight:600">45°</dd>
+        <dt style="color:#5d646c">wind</dt><dd style="margin:0;font-weight:600">3 mph SSE</dd>
+        <dt style="color:#5d646c">humidity</dt><dd style="margin:0;font-weight:600">81%</dd>
+      </dl>
+    </div>
+  </div>
+
+  <section>
+    <h2>Most of it fell before 2 am, then it eased off</h2>
+    <p class="sf">The bold line is rain since 9 pm. The shaded band is the middle half of this station's storms.</p>
+    <svg role="img" aria-label="Rain since 9 pm against the usual storm" viewBox="0 0 346 176" style="width:100%;height:auto;margin-top:14px">
+      <line x1="30" x2="346" y1="140" y2="140" stroke="#d5d8db"></line>
+      <line x1="30" x2="346" y1="88" y2="88" stroke="#eceef0"></line>
+      <line x1="30" x2="346" y1="36" y2="36" stroke="#eceef0"></line>
+      <text class="ax" x="0" y="144">0</text><text class="ax" x="0" y="92">0.25</text><text class="ax" x="0" y="40">0.50</text>
+      <rect x="30" y="65" width="316" height="37" fill="#dfe8f1"></rect>
+      <line x1="30" x2="346" y1="76" y2="76" stroke="#7d9cbd" stroke-width="1.5" stroke-dasharray="4 3"></line>
+      <text class="lb" x="36" y="60">usual storm 0.31 in</text>
+      <polyline points="34,140 60,128 90,96 120,74 150,64 190,58 230,54 268,53 330,53" fill="none" stroke="#2c5c8f" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      <circle cx="330" cy="53" r="5" fill="#c0561b" stroke="#fbfbfa" stroke-width="2"></circle>
+      <text class="an" x="330" y="40" text-anchor="end">now 0.42 in</text>
+      <text class="ax" x="30" y="164">9 pm</text><text class="ax" x="128" y="164">midnight</text><text class="ax" x="226" y="164">3 am</text><text class="ax" x="300" y="164">7 am</text>
+    </svg>
+  </section>
+
+  <section>
+    <h2>Yesterday peaked at 52° at 1 pm; the night bottomed out at 45°</h2>
+    <p class="sf">Each hour of the last 24, as measured. Shaded hours were dark.</p>
+    <svg role="img" aria-label="Temperature over the last 24 hours" viewBox="0 0 346 150" style="width:100%;height:auto;margin-top:14px">
+      <rect x="150" y="10" width="170" height="104" fill="#eff0f2"></rect>
+      <line x1="30" x2="346" y1="114" y2="114" stroke="#d5d8db"></line>
+      <text class="ax" x="0" y="118">44°</text><text class="ax" x="0" y="66">48°</text><text class="ax" x="0" y="18">52°</text>
+      <polyline points="34,88 47,75 60,62 73,49 86,36 99,24 112,36 125,49 138,62 151,75 164,75 177,88 190,88 203,101 216,101 229,101 242,114 255,114 268,114 281,114 294,101 307,101 320,88 333,88" fill="none" stroke="#16191c" stroke-width="2.5" stroke-linejoin="round"></polyline>
+      <circle cx="99" cy="24" r="4" fill="#16191c"></circle><text class="lb" x="106" y="22">52° at 1 pm</text>
+      <text class="lb" x="214" y="132">45° before dawn</text>
+      <circle cx="333" cy="88" r="5" fill="#c0561b" stroke="#fbfbfa" stroke-width="2"></circle>
+      <text class="an" x="342" y="78" text-anchor="end">47°</text>
+      <text class="ax" x="30" y="146">8 am</text><text class="ax" x="120" y="146">2 pm</text><text class="ax" x="210" y="146">8 pm</text><text class="ax" x="290" y="146">2 am</text>
+    </svg>
+  </section>
+
+  <section>
+    <h2>Six of the last ten days stayed under the usual high of 56°</h2>
+    <p class="sf">Each bar runs from the day's low to its high. The pale band behind it is the usual range for that date.</p>
+    <div class="tn" style="margin-top:16px;display:grid;grid-template-columns:76px 30px 1fr 30px;gap:12px 8px;align-items:center;font-size:15px">
+      <span style="font-weight:700;color:#b14f17">Today</span><span style="color:#5d646c">45°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="67" y="2" width="13" height="8" rx="4" fill="#2c5c8f"></rect></svg><span>47°</span>
+      <span>Mon</span><span style="color:#5d646c">44°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="60" y="2" width="53" height="8" rx="4" fill="#5b84ad"></rect></svg><span>52°</span>
+      <span>Sun</span><span style="color:#5d646c">46°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="73" y="2" width="60" height="8" rx="4" fill="#5b84ad"></rect></svg><span>55°</span>
+      <span>Sat</span><span style="color:#5d646c">43°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="53" y="2" width="100" height="8" rx="4" fill="#d58a52"></rect></svg><span>58°</span>
+      <span>Fri</span><span style="color:#5d646c">40°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="33" y="2" width="107" height="8" rx="4" fill="#8f9ba7"></rect></svg><span>56°</span>
+      <span>Thu</span><span style="color:#5d646c">42°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="47" y="2" width="73" height="8" rx="4" fill="#5b84ad"></rect></svg><span>53°</span>
+      <span>Wed</span><span style="color:#5d646c">45°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="67" y="2" width="40" height="8" rx="4" fill="#5b84ad"></rect></svg><span>51°</span>
+      <span>Tue</span><span style="color:#5d646c">47°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="80" y="2" width="47" height="8" rx="4" fill="#5b84ad"></rect></svg><span>54°</span>
+      <span>Mon</span><span style="color:#5d646c">44°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="60" y="2" width="113" height="8" rx="4" fill="#d58a52"></rect></svg><span>61°</span>
+      <span>Sun</span><span style="color:#5d646c">41°</span>
+      <svg aria-hidden="true" viewBox="0 0 200 12" style="width:100%;height:12px"><rect x="40" y="0" width="100" height="12" rx="6" fill="#e3e6e9"></rect><rect x="40" y="2" width="120" height="8" rx="4" fill="#d58a52"></rect></svg><span>59°</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>6.1 in since Oct 1, 0.8 in ahead of a usual year by now</h2>
+    <p class="sf">The water year so far against this date in 2025 and 2024.</p>
+    <div class="tn" style="margin-top:18px;display:flex;flex-direction:column;gap:14px;font-size:15px">
+      <div><div style="display:flex;justify-content:space-between"><span style="font-weight:700">2026</span><span style="font-weight:700">6.1 in</span></div><div style="height:12px;border-radius:6px;background:#e9ebed;margin-top:6px"><div style="width:76%;height:12px;border-radius:6px;background:#2c5c8f"></div></div></div>
+      <div><div style="display:flex;justify-content:space-between;color:#454b52"><span>2025</span><span>5.6 in</span></div><div style="height:12px;border-radius:6px;background:#e9ebed;margin-top:6px"><div style="width:70%;height:12px;border-radius:6px;background:#9fb6cf"></div></div></div>
+      <div><div style="display:flex;justify-content:space-between;color:#454b52"><span>2024</span><span>4.9 in</span></div><div style="height:12px;border-radius:6px;background:#e9ebed;margin-top:6px"><div style="width:61%;height:12px;border-radius:6px;background:#9fb6cf"></div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Daylight is 10 h 6 m, and shrinking by 2 minutes a day</h2>
+    <div style="margin-top:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px">
+      <div style="border-top:1px solid #e2e4e6;padding-top:12px">
+        <svg aria-hidden="true" viewBox="0 0 150 64" style="width:100%;height:auto"><line x1="0" x2="150" y1="56" y2="56" stroke="#d5d8db"></line><path d="M10 56 Q75 -10 140 56" fill="none" stroke="#d9a23c" stroke-width="2.5"></path><circle cx="30" cy="34" r="6" fill="#d9a23c"></circle></svg>
+        <p class="tn" style="font-size:15px;margin-top:8px"><strong>6:55 am</strong> sunrise<br><strong>5:01 pm</strong> sunset</p>
+      </div>
+      <div style="border-top:1px solid #e2e4e6;padding-top:12px">
+        <svg aria-hidden="true" viewBox="0 0 150 64" style="width:100%;height:auto"><circle cx="40" cy="32" r="26" fill="#e9ebed"></circle><path d="M40 6 A26 26 0 0 1 40 58 A16 26 0 0 0 40 6Z" fill="#454b52"></path></svg>
+        <p class="tn" style="font-size:15px;margin-top:8px"><strong>34% lit</strong>, waning<br>Full moon in <strong>22 days</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The air is damp and settling</h2>
+    <p class="sf">Pressure has risen 0.06 inHg since 3 am, as it usually does after rain clears.</p>
+    <dl class="tn" style="margin:14px 0 0;display:grid;grid-template-columns:1fr auto;font-size:16px">
+      <dt style="padding:10px 0;border-bottom:1px solid #e2e4e6;color:#454b52">Pressure</dt><dd style="margin:0;padding:10px 0;border-bottom:1px solid #e2e4e6;font-weight:600">30.04 inHg, rising</dd>
+      <dt style="padding:10px 0;border-bottom:1px solid #e2e4e6;color:#454b52">Dew point</dt><dd style="margin:0;padding:10px 0;border-bottom:1px solid #e2e4e6;font-weight:600">41°</dd>
+      <dt style="padding:10px 0;border-bottom:1px solid #e2e4e6;color:#454b52">Strongest gust</dt><dd style="margin:0;padding:10px 0;border-bottom:1px solid #e2e4e6;font-weight:600">9 mph at 2:30 am</dd>
+      <dt style="padding:10px 0;border-bottom:1px solid #e2e4e6;color:#454b52">Sunlight</dt><dd style="margin:0;padding:10px 0;border-bottom:1px solid #e2e4e6;font-weight:600">62 W/m², UV 0</dd>
+    </dl>
+  </section>
+
+  <details class="src">
+    <summary>How we know: the station's own readings, every 5 minutes</summary>
+    <p style="font-size:14px;line-height:1.6;color:#454b52">Lookout Post, archived through 7:30 am, with the live reading as now. Usual means the middle half of this station's record since Feb 2023. No forecasts: everything here was measured.</p>
+  </details>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2620}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

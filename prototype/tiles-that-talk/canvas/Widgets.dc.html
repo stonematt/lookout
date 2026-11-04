@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout: macOS widgets</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+.wd{font-family:Lexend,system-ui,sans-serif;color:#eef2f5;letter-spacing:.01em}
+.wd p{margin:0}
+.w{background:#1a2129;border-radius:22px;box-sizing:border-box;padding:16px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.mut{color:#aab5c0}
+.tn{font-variant-numeric:tabular-nums}
+.ax{font-family:Lexend,sans-serif;font-size:10px;fill:#aab5c0}
+.an{font-family:Lexend,sans-serif;font-size:11px;font-weight:600;fill:#f2a65e}
+</style>
+</helmet>
+<div class="wd" style="width:960px;height:520px;box-sizing:border-box;background:#5b6672;padding:48px;display:flex;gap:28px;align-items:flex-start">
+
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <div class="w" style="width:170px;height:170px">
+      <p class="mut" style="font-size:12px;font-weight:500">Lookout Post</p>
+      <p class="tn" style="font-size:52px;font-weight:300;line-height:1;letter-spacing:-.03em">47°</p>
+      <p style="font-size:13px;line-height:1.35">Dry since 5:10 am.<br><span style="color:#8fc0ee">0.42 in</span> overnight</p>
+      <svg aria-hidden="true" viewBox="0 0 138 14" style="width:100%;height:14px;margin-top:auto"><rect width="138" height="14" rx="4" fill="#1c242d"></rect><rect x="20" width="60" height="14" fill="#7fb0e0"></rect><rect x="38" width="18" height="14" fill="#cfe3f6"></rect><rect x="118" width="20" height="14" rx="0" fill="#8a9aab"></rect><circle cx="134" cy="7" r="3.5" fill="#f2a65e"></circle></svg>
+    </div>
+    <div class="w" style="width:170px;height:170px;background:#3b4a5a">
+      <p style="font-size:12px;font-weight:500;color:#dfe6ec">Against usual</p>
+      <p class="tn" style="font-size:44px;font-weight:300;line-height:1;color:#f2a65e">−4°</p>
+      <p style="font-size:13px;line-height:1.35;color:#eef2f5">Colder than 7 in 10 mornings near Nov 3.</p>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <div class="w" style="width:364px;height:170px;gap:8px">
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span class="mut" style="font-weight:500">Lookout Post</span><span class="mut tn">7:40 am</span></div>
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <p class="tn" style="font-size:52px;font-weight:300;line-height:.95;letter-spacing:-.03em">47°</p>
+        <p style="font-size:14px;line-height:1.4">0.42 in overnight, a third more than a usual storm. Dry since 5:10 am.</p>
+      </div>
+      <svg role="img" aria-label="Last 24 hours: night, day, rain and temperature" viewBox="0 0 332 40" style="width:100%;height:auto;margin-top:auto">
+        <rect width="332" height="20" rx="5" fill="#1c242d"></rect><rect x="0" width="70" height="20" fill="#8a9aab"></rect><rect x="312" width="20" height="20" fill="#8a9aab"></rect>
+        <g fill="#a9d0f5"><rect x="200" y="23" width="16" height="3" rx="1"></rect><rect x="216" y="21" width="24" height="5" rx="1"></rect><rect x="240" y="23" width="26" height="3" rx="1"></rect></g>
+        <polyline points="0,8 30,6 60,9 100,12 140,13 180,14 220,15 260,16 300,15 328,14" fill="none" stroke="#11161c" stroke-width="4"></polyline>
+        <polyline points="0,8 30,6 60,9 100,12 140,13 180,14 220,15 260,16 300,15 328,14" fill="none" stroke="#ffffff" stroke-width="1.5"></polyline><circle cx="328" cy="17" r="3.5" fill="#f2a65e"></circle>
+        <text class="ax" x="0" y="38">8 am</text><text class="ax" x="120" y="38">8 pm</text><text class="ax" x="216" y="38">1 am</text><text class="an" x="332" y="38" text-anchor="end">now</text>
+      </svg>
+    </div>
+    <div class="w" style="width:364px;height:170px;gap:8px">
+      <p class="mut" style="font-size:12px;font-weight:500">Rain since Oct 1</p>
+      <div style="display:flex;align-items:baseline;gap:10px"><p class="tn" style="font-size:36px;font-weight:300;color:#8fc0ee">6.1 in</p><p style="font-size:14px">the wettest start on record</p></div>
+      <div class="tn" style="display:flex;flex-direction:column;gap:6px;font-size:12px;margin-top:auto">
+        <div style="display:grid;grid-template-columns:36px 1fr 40px;gap:8px;align-items:center"><span>2026</span><span style="height:8px;border-radius:4px;background:#2a333d"><span style="display:block;width:100%;height:8px;border-radius:4px;background:#8fc0ee"></span></span><span>6.1</span></div>
+        <div style="display:grid;grid-template-columns:36px 1fr 40px;gap:8px;align-items:center" class="mut"><span>2025</span><span style="height:8px;border-radius:4px;background:#2a333d"><span style="display:block;width:92%;height:8px;border-radius:4px;background:#8e9aa6"></span></span><span>5.6</span></div>
+        <div style="display:grid;grid-template-columns:36px 1fr 40px;gap:8px;align-items:center" class="mut"><span>2024</span><span style="height:8px;border-radius:4px;background:#2a333d"><span style="display:block;width:80%;height:8px;border-radius:4px;background:#8e9aa6"></span></span><span>4.9</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="w" style="width:364px;height:382px;gap:10px">
+    <div style="display:flex;justify-content:space-between;font-size:12px"><span class="mut" style="font-weight:500">Lookout Post</span><span class="mut tn">7:40 am</span></div>
+    <div style="display:flex;gap:14px;align-items:flex-start">
+      <p class="tn" style="font-size:60px;font-weight:300;line-height:.95;letter-spacing:-.03em">47°</p>
+      <p style="font-size:15px;line-height:1.4">Cloudy and still. 0.42 in fell overnight, a third more than a usual storm.</p>
+    </div>
+    <dl class="tn" style="margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #2a333d;border-bottom:1px solid #2a333d;padding:8px 0">
+      <div style="display:flex;flex-direction:column-reverse"><dt class="mut" style="font-size:11px">feels like</dt><dd style="margin:0;font-size:16px;font-weight:500">45°</dd></div>
+      <div style="display:flex;flex-direction:column-reverse"><dt class="mut" style="font-size:11px">wind</dt><dd style="margin:0;font-size:16px;font-weight:500">3 mph</dd></div>
+      <div style="display:flex;flex-direction:column-reverse"><dt class="mut" style="font-size:11px">humidity</dt><dd style="margin:0;font-size:16px;font-weight:500">81%</dd></div>
+    </dl>
+    <p style="font-size:13px;line-height:1.4">At the cool edge of the last month's middle half</p>
+    <svg role="img" aria-label="Temperature ranges for yesterday, 7 days and 30 days with now marked" viewBox="0 0 332 96" style="width:100%;height:auto">
+      <text class="ax" x="0" y="20" style="fill:#c3ccd5">Yesterday</text><line x1="134" x2="190" y1="16" y2="16" stroke="#8e9aa6" stroke-width="1.5"></line><rect x="148" y="11" width="28" height="10" rx="3" fill="#7f9fbf"></rect>
+      <text class="ax" x="0" y="46" style="fill:#c3ccd5">7 days</text><line x1="106" x2="232" y1="42" y2="42" stroke="#8e9aa6" stroke-width="1.5"></line><rect x="141" y="37" width="56" height="10" rx="3" fill="#7f9fbf"></rect>
+      <text class="ax" x="0" y="72" style="fill:#c3ccd5">30 days</text><line x1="92" x2="323" y1="68" y2="68" stroke="#8e9aa6" stroke-width="1.5"></line><rect x="155" y="63" width="91" height="10" rx="3" fill="#7f9fbf"></rect>
+      <line x1="155" x2="155" y1="4" y2="80" stroke="#f2a65e" stroke-width="2"></line><text class="an" x="155" y="94" text-anchor="middle">now 47°</text>
+    </svg>
+    <p class="mut" style="font-size:12px;line-height:1.4;margin-top:auto">Measured here. Archived 7:30 am.</p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":520}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!-- @dsCard group="Story" height=420 subtitle="Kicker, finding, standfirst, chart, source note" -->
+<div class="lk">
+  <div class="lk-kicker"><i></i>Rain event</div>
+  <h2 class="lk-headline">Raining now: 0.30 in so far, against 0.42 in for a usual event</h2>
+  <p class="lk-standfirst">The bold line is this event's rain so far; the shaded band is the usual event.</p>
+  <svg class="lk-chart" viewBox="0 0 358 170" role="img" aria-label="Rain so far in this event against the usual event">
+    <defs><pattern id="h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect class="gap-b" width="8" height="8"/><rect class="gap-a" width="4" height="8"/></pattern></defs>
+    <line class="grid" x1="28" x2="358" y1="140" y2="140"/><line class="grid" x1="28" x2="358" y1="90" y2="90"/><line class="grid" x1="28" x2="358" y1="40" y2="40"/>
+    <text x="0" y="144">0.00</text><text x="0" y="94">0.20</text><text x="0" y="44">0.40</text>
+    <rect class="band" x="40" y="28" width="250" height="18"/>
+    <line class="median" x1="40" x2="290" y1="36" y2="36"/>
+    <text class="lab" x="44" y="22">usual event 0.42 in</text>
+    <rect x="290" y="16" width="56" height="124" fill="url(#h)"/>
+    <polyline class="now-line" points="62,134 290,80"/>
+    <line x1="290" y1="80" x2="340" y2="66" style="stroke:var(--rain-3);stroke-width:2;stroke-dasharray:2 4"/>
+    <circle class="now-dot" cx="340" cy="66" r="5"/>
+    <text class="ann" x="336" y="54" text-anchor="end">now 0.30 in</text>
+    <text x="40" y="160">started 8 pm</text>
+  </svg>
+  <details class="lk-source">
+    <summary><span>Source · archived 10:30 pm</span><span class="lk-flag">30 m not archived</span></summary>
+    <p>Events from the Event Catalog; rain from the station's event counter, in 15-minute slots, with the live total as now. The hatched span is not archived yet; only the live reading is known there.</p>
+  </details>
+</div>

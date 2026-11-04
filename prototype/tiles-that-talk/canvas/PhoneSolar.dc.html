@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout phone: Solar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#11161c}
+a{color:#a9d0f5}a:hover{color:#d6e9fb}
+.ph{font-family:Lexend,system-ui,sans-serif;color:#eef2f5;letter-spacing:.01em}
+.ph p,.ph h1,.ph h2{margin:0}
+.tn{font-variant-numeric:tabular-nums}
+.tile{background:#1a2129;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.lab{font-size:13px;font-weight:500;color:#aab5c0}
+.sf{font-size:14px;line-height:1.55;color:#aab5c0}
+.ax{font-family:Lexend,sans-serif;font-size:12px;fill:#aab5c0}
+.lb{font-family:Lexend,sans-serif;font-size:12px;fill:#c3ccd5}
+.an{font-family:Lexend,sans-serif;font-size:13px;font-weight:600;fill:#f2a65e;paint-order:stroke;stroke:#1a2129;stroke-width:4px}
+.mini summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:13px;color:#aab5c0}
+.mini p{font-size:13px;line-height:1.55;color:#aab5c0;padding-bottom:4px}
+.acc{border-top:1px solid #2a333d}
+.acc summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr 24px;gap:4px 12px;align-items:center;padding:14px 0;min-height:56px}
+.acc summary::-webkit-details-marker{display:none}
+.acc summary .k{grid-column:1;font-size:12.5px;font-weight:500;color:#aab5c0}
+.acc summary .f{grid-column:1;font-size:16px;line-height:1.4;font-weight:500}
+.acc summary .c{grid-column:2;grid-row:1 / span 2;width:24px;height:24px;border-radius:50%;border:1px solid #6b7886;display:flex;align-items:center;justify-content:center}
+.acc[open] summary .c svg{transform:rotate(180deg)}
+.acc .body{display:flex;flex-direction:column;gap:10px;padding-bottom:16px}
+.st{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.st div{display:flex;flex-direction:column-reverse;gap:2px;border-top:1px solid #2a333d;padding-top:8px}
+.st dt{font-size:12.5px;color:#aab5c0}
+.st dd{margin:0;font-size:20px;font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;border:1px solid #6b7886;border-radius:999px;overflow:hidden;align-self:flex-start}
+.seg button{min-height:40px;padding:0 14px;border:0;background:transparent;color:#c3ccd5;font:inherit;font-size:14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#eef2f5;color:#11161c;font-weight:500}
+.btn{min-height:44px;padding:0 14px;border:1px solid #6b7886;border-radius:999px;background:transparent;color:#eef2f5;font:inherit;font-size:14px;cursor:pointer}
+.al{display:grid;grid-template-columns:34px repeat(12,minmax(0,1fr));gap:2px;font-size:12px}
+.al span{height:30px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.al .h{height:20px;color:#aab5c0}
+.al .y{justify-content:flex-start;color:#c3ccd5;font-weight:500}
+.al .a0{background:#7d6b40;color:#ffffff}.al .a1{background:#a88b45;color:#11161c}.al .a2{background:#c99d45;color:#11161c}.al .a3{background:#e3b75a;color:#11161c}.al .a4{background:#f7d98f;color:#11161c}
+.hx{background:repeating-linear-gradient(135deg,#64717e 0 4px,#1a2129 4px 8px);color:#ffffff}
+.pre{border:1px dashed #6b7886}
+.tabs{position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:8px 12px 20px;background:#11161c;border-top:1px solid #2a333d}
+.tabs a{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:14px;font-size:13.5px;color:#c3ccd5;text-decoration:none}
+.tabs a[aria-current="page"]{background:#eef2f5;color:#11161c;font-weight:600}
+</style>
+</helmet>
+<div class="ph" style="width:390px;min-height:1700px;box-sizing:border-box;background:#11161c;display:flex;flex-direction:column">
+<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:14px;flex:1">
+
+  <header style="display:flex;justify-content:space-between;align-items:center;min-height:52px">
+    <span style="font-size:17px;font-weight:600">Solar</span>
+    <span class="tn" style="font-size:13px;color:#aab5c0">47° · 7:40 am</span>
+  </header>
+
+  <section class="tile">
+    <p class="lab">Sunlight now</p>
+    <h1 style="font-size:20px;line-height:1.35;font-weight:500">62 W/m² now, about half the usual for 7:40 am under cloud</h1>
+    <dl class="st">
+      <div><dt>now</dt><dd style="color:#f2a65e">62 W/m²</dd></div>
+      <div><dt>usual now</dt><dd>120 W/m²</dd></div>
+      <div><dt>last 24 h</dt><dd>1.21 kWh/m²</dd></div>
+      <div><dt>UV index</dt><dd>0</dd></div>
+    </dl>
+    <p class="sf">The bold line is the last 24 hours. The band is the middle half of the 30 days before; the dashes, their median.</p>
+    <svg role="img" aria-label="Solar radiation over the last 24 hours against the usual range" viewBox="0 0 326 172" style="width:100%;height:auto">
+      <line x1="36" x2="326" y1="150" y2="150" stroke="#6b7886"></line><line x1="36" x2="326" y1="106.7" y2="106.7" stroke="#2a333d"></line><line x1="36" x2="326" y1="63.3" y2="63.3" stroke="#2a333d"></line><line x1="36" x2="326" y1="20" y2="20" stroke="#2a333d"></line>
+      <text class="ax" x="0" y="154">0</text><text class="ax" x="0" y="111">200</text><text class="ax" x="0" y="67">400</text><text class="ax" x="0" y="24">600</text>
+      <path d="M38 145.7 C58.4 131.2 78.7 59 112.6 47.5 C146.5 59 166.9 131.2 190.6 148.6 L190.6 150 C166.9 142.8 146.5 89.4 112.6 83.6 C78.7 89.4 58.4 142.8 38 147.1 Z" fill="#7d6b40"></path>
+      <path d="M38 146.4 C58.4 138.4 78.7 77.8 112.6 66.2 C146.5 77.8 166.9 138.4 190.6 149.3" fill="none" stroke="#11161c" stroke-width="1.5" stroke-dasharray="5 4"></path>
+      <polyline points="38,142.8 51.6,128.3 65.2,109.6 78.7,93.7 92.3,83.6 102.4,98 109.2,77.8 119.4,74.9 129.6,89.4 139.7,100.9 149.9,109.6 163.5,129.8 177,142.8 190.6,150 305.8,150 316,145.7 322.1,137" fill="none" stroke="#f6cf74" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      <circle cx="322.1" cy="137" r="5" fill="#f2a65e" stroke="#1a2129" stroke-width="2"></circle>
+      <text class="an" x="316" y="124" text-anchor="end">now 62 W/m²</text>
+      <text class="lb" x="126" y="36">peak 316 at 12:10 pm</text>
+      <text class="ax" x="36" y="168">8 am</text><text class="ax" x="105" y="168" text-anchor="middle">noon</text><text class="ax" x="174" y="168" text-anchor="middle">4 pm</text><text class="ax" x="242" y="168" text-anchor="middle">12 am</text><text class="ax" x="326" y="168" text-anchor="end">7 am</text>
+    </svg>
+    <details class="mini"><summary>Source · five-minute readings, 7:30 am</summary><p>1 kWh/m² is about an hour of full midday sun.</p></details>
+  </section>
+
+  <section class="tile" style="padding-top:4px;padding-bottom:4px;gap:0">
+    <details class="acc" name="solar" open style="border-top:0">
+      <summary><span class="k">Sun each day</span><span class="f">Yesterday brought 1.2 kWh/m², a quarter under usual</span><span class="c" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#eef2f5" stroke-width="1.5"></path></svg></span></summary>
+      <div class="body">
+        <dl class="st">
+          <div><dt>Yesterday</dt><dd>1.2</dd></div>
+          <div><dt>7 days</dt><dd>9.1</dd></div>
+          <div><dt>30 days</dt><dd>52</dd></div>
+          <div><dt>365 days</dt><dd>≈1,420</dd></div>
+        </dl>
+        <div class="seg" role="group" aria-label="Days shown"><button aria-pressed="true">30 days</button><button aria-pressed="false">90 days</button></div>
+        <svg role="img" aria-label="Solar energy each day over the last 30 days" viewBox="0 48 326 118" style="width:100%;height:auto">
+          <line x1="36" x2="326" y1="140" y2="140" stroke="#6b7886"></line><line x1="36" x2="326" y1="100" y2="100" stroke="#2a333d"></line><line x1="36" x2="326" y1="60" y2="60" stroke="#2a333d"></line>
+          <text class="ax" x="0" y="144">0</text><text class="ax" x="0" y="104">1.5</text><text class="ax" x="0" y="64">3 kWh</text>
+          <path fill="#c99d45" d="M40 140 v-75h7v75h2.5 v-70h7v70h2.5 v-68h7v68h2.5 v-24h7v24h2.5 v-65h7v65h2.5 v-63h7v63h2.5 v-61h7v61h2.5 v-58h7v58h2.5 v-22h7v22h2.5 v-27h7v27h2.5 v-56h7v56h2.5 v-53h7v53h2.5 v-51h7v51h2.5 v-29h7v29h2.5 v-48h7v48h2.5 v-46h7v46h2.5 v-17h7v17h2.5 v-15h7v15h2.5 v-44h7v44h2.5 v-41h7v41h2.5 v-39h7v39h2.5 v-36h7v36h2.5 v-34h7v34h2.5 v-19h7v19h2.5 v-31h7v31h2.5 v-29h7v29h2.5 v-34h7v34h2.5 v-27h7v27h2.5 v-31h7v31h2.5"></path>
+          <rect x="304" y="105" width="11" height="37" rx="3" fill="none" stroke="#eef2f5" stroke-width="2"></rect>
+          <rect x="315.5" y="136" width="7" height="4" fill="#f2a65e"></rect>
+          <text class="an" x="300" y="98" text-anchor="end">Nov 2, 1.2</text>
+          <text class="ax" x="40" y="160">Oct 5</text><text class="ax" x="173" y="160" text-anchor="middle">Oct 19</text><text class="ax" x="326" y="160" text-anchor="end">Nov 3</text>
+        </svg>
+        <details class="mini"><summary>Source · energy catalog, daily sums</summary><p>A day missing from the record is hatched, never read as a dark day.</p></details>
+      </div>
+    </details>
+
+    <details class="acc" name="solar">
+      <summary><span class="k">One day, by the quarter hour</span><span class="f">Nov 2: brightest from noon to 12:15 pm</span><span class="c" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#eef2f5" stroke-width="1.5"></path></svg></span></summary>
+      <div class="body">
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <button type="button" class="btn" aria-label="Previous day">← Nov 1</button>
+          <span class="tn" style="font-size:15px;font-weight:500">Mon, Nov 2</span>
+          <button type="button" class="btn" aria-label="Next day">Today →</button>
+        </div>
+        <svg role="img" aria-label="Solar energy each 15 minutes on Nov 2" viewBox="0 0 326 140" style="width:100%;height:auto">
+          <line x1="36" x2="326" y1="120" y2="120" stroke="#6b7886"></line>
+          <path fill="#c99d45" d="M40 120 v-3h6v3h1 v-6h6v6h1 v-11h6v11h1 v-16h6v16h1 v-22h6v22h1 v-29h6v29h1 v-35h6v35h1 v-40h6v40h1 v-46h6v46h1 v-51h6v51h1 v-56h6v56h1 v-50h6v50h1 v-32h6v32h1 v-24h6v24h1 v-38h6v38h1 v-58h6v58h1 v-69h6v69h1 v-77h6v77h1 v-83h6v83h1 v-90h6v90h1 v-94h6v94h1 v-88h6v88h1 v-77h6v77h1 v-48h6v48h1 v-35h6v35h1 v-56h6v56h1 v-70h6v70h1 v-74h6v74h1 v-64h6v64h1 v-56h6v56h1 v-46h6v46h1 v-38h6v38h1 v-32h6v32h1 v-26h6v26h1 v-21h6v21h1 v-16h6v16h1 v-11h6v11h1 v-8h6v8h1 v-5h6v5h1 v-2h6v2h1"></path>
+          <rect x="180" y="26" width="6" height="94" fill="#f7d98f"></rect>
+          <line x1="183" x2="183" y1="8" y2="22" stroke="#f2a65e" stroke-width="2"></line>
+          <text class="an" x="190" y="18">noon, 0.08 kWh/m²</text>
+          <text class="ax" x="40" y="136">7 am</text><text class="ax" x="183" y="136" text-anchor="middle">noon</text><text class="ax" x="326" y="136" text-anchor="end">5 pm</text>
+        </svg>
+      </div>
+    </details>
+
+    <details class="acc" name="solar">
+      <summary><span class="k">Solar almanac</span><span class="f">October 2026 gave 58 kWh/m², the dimmest October on record</span><span class="c" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#eef2f5" stroke-width="1.5"></path></svg></span></summary>
+      <div class="body">
+        <div class="seg" role="group" aria-label="Scale"><button aria-pressed="true">Months</button><button aria-pressed="false">Days</button><button aria-pressed="false">15 min</button></div>
+        <div class="al">
+          <span class="h"></span><span class="h">J</span><span class="h">F</span><span class="h">M</span><span class="h">A</span><span class="h">M</span><span class="h">J</span><span class="h">J</span><span class="h">A</span><span class="h">S</span><span class="h">O</span><span class="h">N</span><span class="h">D</span>
+          <span class="y">2026</span><span class="a0">28</span><span class="a1">44</span><span class="a2">80</span><span class="a2">126</span><span class="a3">170</span><span class="a4">196</span><span class="a4">212</span><span class="a4">180</span><span class="a2">124</span><span class="a1" style="outline:2px solid #eef2f5;outline-offset:-2px;font-weight:600">58</span><span class="hx" style="outline:2px solid #f2a65e;outline-offset:-2px">2.3</span><span class="pre"></span>
+          <span class="y">2025</span><span class="a0">31</span><span class="hx">n/a</span><span class="a2">88</span><span class="a3">134</span><span class="a3">178</span><span class="a4">205</span><span class="a4">218</span><span class="a4">190</span><span class="a3">132</span><span class="a1">72</span><span class="a0">36</span><span class="a0">24</span>
+          <span class="y">2024</span><span class="a0">29</span><span class="a1">46</span><span class="a2">84</span><span class="a2">128</span><span class="a3">174</span><span class="a4">201</span><span class="a4">210</span><span class="a4">186</span><span class="a2">128</span><span class="a1">68</span><span class="a0">34</span><span class="a0">26</span>
+          <span class="y">2023</span><span class="pre"></span><span class="a1">≈40</span><span class="a2">82</span><span class="a3">130</span><span class="a3">172</span><span class="a4">198</span><span class="a4">215</span><span class="a4">188</span><span class="a3">130</span><span class="a1">75</span><span class="a0">35</span><span class="a0">23</span>
+        </div>
+        <p class="sf">kWh/m² a month. Hatched: too many days missing. Dashed: before the archive or not yet.</p>
+      </div>
+    </details>
+  </section>
+</div>
+  <nav class="tabs" aria-label="Sections">
+    <a href="PhoneOverview.dc.html">Overview</a>
+    <a href="PhoneRain.dc.html">Rain</a>
+    <a href="PhoneEvents.dc.html">Events</a>
+    <a href="PhoneSolar.dc.html" aria-current="page">Solar</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

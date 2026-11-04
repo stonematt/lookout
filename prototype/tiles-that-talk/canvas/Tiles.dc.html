@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout: Tiles That Talk</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#1f5c99}a:hover{color:#143f6b}
+.tl{font-family:Lexend,system-ui,sans-serif;color:#15191d;letter-spacing:.01em}
+.tl p{margin:0}
+.tile{background:#ffffff;border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
+.lab{font-size:13px;font-weight:500;color:#4c545c}
+.val{font-size:34px;font-weight:400;line-height:1.05;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.say{font-size:15px;line-height:1.45;color:#2b3137}
+.tn{font-variant-numeric:tabular-nums}
+.ax{font-family:Lexend,sans-serif;font-size:11.5px;fill:#4c545c}
+</style>
+</helmet>
+<div class="tl" style="width:390px;min-height:2620px;box-sizing:border-box;background:#e9ecef;padding:0 14px 40px;display:flex;flex-direction:column;gap:12px">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;min-height:52px;padding:0 6px;font-size:14px;color:#4c545c"><span style="font-weight:600;color:#15191d">Lookout Post</span><span class="tn">Updated 7:40 am</span></div>
+
+  <div class="tile" style="padding:24px 22px;gap:14px;background:#15191d;color:#f1f3f5">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="tn" style="font-size:88px;font-weight:300;line-height:.9;letter-spacing:-.04em">47°</span><span style="font-size:15px;color:#c3cad1;text-align:left;max-width:12ch;line-height:1.4">Cloudy<br>H 52° · L 45°</span></div>
+    <p style="font-size:21px;line-height:1.4;font-weight:400">The rain is done. 0.42 in fell overnight, a third more than a usual storm, and it stopped at 5:10 am.</p>
+  </div>
+
+  <div class="tile">
+    <p class="lab">The last 12 hours</p>
+    <div class="tn" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;font-size:13px;gap:4px">
+      <span style="color:#4c545c">8p</span><span style="color:#4c545c">10p</span><span style="color:#4c545c">12a</span><span style="color:#4c545c">2a</span><span style="color:#4c545c">4a</span><span style="color:#4c545c">6a</span><span style="font-weight:600">Now</span>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="28" width="8" height="2" rx="1" fill="#c7ced5"></rect></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="18" width="8" height="12" rx="2" fill="#5d8fc4"></rect></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="4" width="8" height="26" rx="2" fill="#1f5c99"></rect></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="12" width="8" height="18" rx="2" fill="#5d8fc4"></rect></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="24" width="8" height="6" rx="2" fill="#5d8fc4"></rect></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="28" width="8" height="2" rx="1" fill="#c7ced5"></rect></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 30" style="width:20px;height:30px;justify-self:center"><rect x="6" y="28" width="8" height="2" rx="1" fill="#c7ced5"></rect></svg>
+      <span>49°</span><span>48°</span><span>46°</span><span>45°</span><span>45°</span><span>46°</span><span style="font-weight:600">47°</span>
+    </div>
+    <p class="say" style="margin-top:4px">Bars are rain each 2 hours, measured. Heaviest around midnight.</p>
+  </div>
+
+  <div class="tile">
+    <p class="lab">Ten days, against usual</p>
+    <p class="say" style="font-weight:500">Six of the last ten days stayed under the usual high of 56°.</p>
+    <div class="tn" style="display:grid;grid-template-columns:52px 28px 1fr 28px;gap:10px 6px;align-items:center;font-size:14px;margin-top:4px">
+      <span style="font-weight:600">Today</span><span style="color:#4c545c">45°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="67" y="0" width="13" height="8" rx="4" fill="#1f5c99"></rect></svg><span>47°</span>
+      <span>Mon</span><span style="color:#4c545c">44°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="60" y="0" width="53" height="8" rx="4" fill="#5d8fc4"></rect></svg><span>52°</span>
+      <span>Sun</span><span style="color:#4c545c">46°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="73" y="0" width="60" height="8" rx="4" fill="#5d8fc4"></rect></svg><span>55°</span>
+      <span>Sat</span><span style="color:#4c545c">43°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="53" y="0" width="100" height="8" rx="4" fill="#d0782f"></rect></svg><span>58°</span>
+      <span>Fri</span><span style="color:#4c545c">40°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="33" y="0" width="107" height="8" rx="4" fill="#8e98a2"></rect></svg><span>56°</span>
+      <span>Thu</span><span style="color:#4c545c">42°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="47" y="0" width="73" height="8" rx="4" fill="#5d8fc4"></rect></svg><span>53°</span>
+      <span>Wed</span><span style="color:#4c545c">45°</span><svg aria-hidden="true" viewBox="0 0 200 8" style="width:100%;height:8px"><rect x="40" y="0" width="100" height="8" rx="4" fill="#e3e7eb"></rect><rect x="67" y="0" width="40" height="8" rx="4" fill="#5d8fc4"></rect></svg><span>51°</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+    <div class="tile"><p class="lab">Rain this season</p><p class="val" style="color:#1f5c99">6.1 in</p><p class="say">0.8 in ahead of a usual year since Oct 1.</p></div>
+    <div class="tile"><p class="lab">Against usual</p><p class="val" style="color:#b35a1c">−4°</p><p class="say">Cooler than a usual 7 am in early November.</p></div>
+    <div class="tile"><p class="lab">Wind</p>
+      <svg aria-hidden="true" viewBox="0 0 120 64" style="width:100%;height:64px"><circle cx="32" cy="32" r="28" fill="none" stroke="#dfe3e7" stroke-width="2"></circle><path d="M32 32 L40 56" stroke="#15191d" stroke-width="3" stroke-linecap="round"></path><circle cx="32" cy="32" r="3.5" fill="#15191d"></circle><text class="ax" x="70" y="30">3 mph</text><text class="ax" x="70" y="46">SSE</text></svg>
+      <p class="say">Nearly still. The night's top gust was 9 mph.</p></div>
+    <div class="tile"><p class="lab">Feels like</p><p class="val">45°</p><p class="say">A little colder than the air, from the damp.</p></div>
+    <div class="tile"><p class="lab">Humidity</p><p class="val">81%</p><p class="say">Damp. The dew point is 41°.</p></div>
+    <div class="tile"><p class="lab">Pressure</p>
+      <svg aria-hidden="true" viewBox="0 0 120 40" style="width:100%;height:40px"><polyline points="0,30 20,33 40,35 60,32 80,24 100,16 116,12" fill="none" stroke="#15191d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline><circle cx="116" cy="12" r="4" fill="#b35a1c"></circle></svg>
+      <p class="val" style="font-size:26px">30.04</p><p class="say">Rising since 3 am, as the rain cleared.</p></div>
+    <div class="tile"><p class="lab">Sun</p>
+      <svg aria-hidden="true" viewBox="0 0 120 52" style="width:100%;height:52px"><line x1="0" x2="120" y1="46" y2="46" stroke="#dfe3e7" stroke-width="2"></line><path d="M8 46 Q60 -14 112 46" fill="none" stroke="#dfe3e7" stroke-width="2"></path><circle cx="24" cy="28" r="6" fill="#d39a2f"></circle></svg>
+      <p class="say tn"><strong style="font-weight:600">6:55 am</strong> to <strong style="font-weight:600">5:01 pm</strong>. 2 minutes shorter than yesterday.</p></div>
+    <div class="tile"><p class="lab">Moon</p>
+      <svg aria-hidden="true" viewBox="0 0 52 52" style="width:52px;height:52px"><circle cx="26" cy="26" r="24" fill="#e3e7eb"></circle><path d="M26 2 A24 24 0 0 1 26 50 A13 24 0 0 0 26 2Z" fill="#4c545c"></path></svg>
+      <p class="say">Waning crescent, 34% lit. Full in 22 days.</p></div>
+  </div>
+
+  <div class="tile" style="flex-direction:row;align-items:center;justify-content:space-between">
+    <p class="say" style="color:#4c545c">Light 62 W/m², UV 0. Too gray for the panels to do much yet.</p>
+  </div>
+
+  <p style="padding:8px 6px 0;font-size:13px;line-height:1.6;color:#4c545c">Measured at Lookout Post every 5 minutes. Archived through 7:30 am. No forecasts.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2620}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout phone: Rain events</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#11161c}
+a{color:#a9d0f5}a:hover{color:#d6e9fb}
+.ph{font-family:Lexend,system-ui,sans-serif;color:#eef2f5;letter-spacing:.01em}
+.ph p,.ph h1,.ph h2{margin:0}
+.tn{font-variant-numeric:tabular-nums}
+.tile{background:#1a2129;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.lab{font-size:13px;font-weight:500;color:#aab5c0;display:flex;align-items:center;gap:8px}
+.sf{font-size:14px;line-height:1.55;color:#aab5c0}
+.ax{font-family:Lexend,sans-serif;font-size:12px;fill:#aab5c0}
+.lb{font-family:Lexend,sans-serif;font-size:12px;fill:#c3ccd5}
+.an{font-family:Lexend,sans-serif;font-size:13px;font-weight:600;fill:#f2a65e;paint-order:stroke;stroke:#1a2129;stroke-width:4px}
+.mini summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:13px;color:#aab5c0}
+.mini p{font-size:13px;line-height:1.55;color:#aab5c0;padding-bottom:4px}
+.facts{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:#aab5c0}
+.facts b{font-weight:500;color:#eef2f5}
+.bar{position:sticky;top:0;z-index:2;background:#11161c;padding:8px 0;display:flex;gap:8px;align-items:center;border-bottom:1px solid #2a333d}
+.sel{min-height:44px;padding:0 30px 0 12px;border:1px solid #6b7886;border-radius:999px;background:#1a2129;color:#eef2f5;font:inherit;font-size:14px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,#eef2f5 50%),linear-gradient(135deg,#eef2f5 50%,transparent 50%);background-position:calc(100% - 19px) 19px,calc(100% - 14px) 19px;background-size:5px 5px;background-repeat:no-repeat}
+.seg{display:inline-flex;border:1px solid #6b7886;border-radius:999px;overflow:hidden}
+.seg button{min-height:44px;padding:0 10px;border:0;background:transparent;color:#c3ccd5;font:inherit;font-size:13.5px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#eef2f5;color:#11161c;font-weight:500}
+.seg.sm button{min-height:36px;padding:0 12px;font-size:13px}
+.ev{background:#1a2129;border-radius:16px}
+.ev+.ev{margin-top:8px}
+.ev summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:3px 12px;align-items:center;padding:12px 14px;min-height:64px}
+.ev summary::-webkit-details-marker{display:none}
+.ev .d{font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px}
+.ev .m{grid-column:1;font-size:13px;color:#aab5c0}
+.ev .t{grid-column:2;grid-row:1 / span 2;text-align:right;font-size:20px;font-variant-numeric:tabular-nums;line-height:1.1}
+.ev .t small{display:block;font-size:12px;color:#aab5c0}
+.ev .sz{grid-column:1 / span 2;height:4px;border-radius:2px;background:#2a333d;margin-top:6px}
+.ev .sz i{display:block;height:4px;border-radius:2px;background:#7fb0e0}
+.ev[open]{outline:1px solid #6b7886}
+.ev[open] summary{border-bottom:1px solid #2a333d}
+.ev .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.chip{display:inline-block;padding:0 7px;border:1px solid #6b7886;border-radius:999px;font-size:12px;color:#c3ccd5;margin-left:6px}
+.tabs{position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:8px 12px 20px;background:#11161c;border-top:1px solid #2a333d}
+.tabs a{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:14px;font-size:13.5px;color:#c3ccd5;text-decoration:none}
+.tabs a[aria-current="page"]{background:#eef2f5;color:#11161c;font-weight:600}
+</style>
+</helmet>
+<div class="ph" style="width:390px;min-height:1800px;box-sizing:border-box;background:#11161c;display:flex;flex-direction:column">
+<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:12px;flex:1">
+
+  <header style="display:flex;justify-content:space-between;align-items:center;min-height:52px">
+    <span style="font-size:17px;font-weight:600">Rain events</span>
+    <span class="tn" style="font-size:13px;color:#aab5c0">47° · dry since 5:10 am</span>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:8px">
+    <h1 style="font-size:20px;line-height:1.35;font-weight:500">The wettest of 61 events since Feb 2023 brought 2.84 in, against 0.31 in for the median</h1>
+    <p class="facts tn"><span><b>61</b> events</span><span><b>88.4 in</b> in events</span><span><b>0.31 in</b> median</span><span><b>9 h 40 m</b> mean length</span></p>
+  </section>
+
+  <div class="bar" role="group" aria-label="Filter and sort events">
+    <label style="display:flex;align-items:center"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Water year</span>
+      <select class="sel"><option>All years</option><option>2027</option><option>2026</option><option>2025</option><option>2024</option><option>2023, partial</option></select>
+    </label>
+    <div class="seg" role="group" aria-label="Sort"><button aria-pressed="true">Newest</button><button aria-pressed="false">Wettest</button><button aria-pressed="false">Longest</button></div>
+  </div>
+
+  <div>
+    <details class="ev" name="ev" open>
+      <summary>
+        <span class="d">Nov 2, 9:00 pm <span class="chip" style="border-color:#f2a65e;color:#f2a65e;margin:0">latest</span></span>
+        <span class="t">0.42<small>in</small></span>
+        <span class="m">8 h 10 m · peak 0.24 in/hr</span>
+        <span class="sz" aria-hidden="true"><i style="width:15%"></i></span>
+      </summary>
+      <div class="body">
+        <p style="font-size:16px;line-height:1.45;font-weight:500">A third more than the median event, most of it before 2 am</p>
+        <div class="seg sm" role="group" aria-label="Chart" style="align-self:flex-start"><button aria-pressed="true">Total</button><button aria-pressed="false">Rate</button></div>
+        <svg role="img" aria-label="This event's rain as it built up, against the median event" viewBox="0 0 298 156" style="width:100%;height:auto">
+          <line x1="34" x2="298" y1="128" y2="128" stroke="#6b7886"></line><line x1="34" x2="298" y1="74" y2="74" stroke="#2a333d"></line><line x1="34" x2="298" y1="20" y2="20" stroke="#2a333d"></line>
+          <text class="ax" x="0" y="132">0</text><text class="ax" x="0" y="78">0.25</text><text class="ax" x="0" y="24">0.50</text>
+          <line x1="34" x2="298" y1="61" y2="61" stroke="#aab5c0" stroke-width="1.5" stroke-dasharray="5 4"></line><text class="lb" x="40" y="55">median 0.31 in</text>
+          <polyline points="36,128 66,120 98,96 130,75 162,63 196,56 232,52 268,42 286,38" fill="none" stroke="#d6e9fb" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <circle cx="286" cy="38" r="5.5" fill="#f2a65e" stroke="#1a2129" stroke-width="2"></circle><text class="an" x="280" y="26" text-anchor="end">0.42 in</text>
+          <text class="ax" x="36" y="148">9 pm</text><text class="ax" x="108" y="148">midnight</text><text class="ax" x="298" y="148" text-anchor="end">5 am</text>
+        </svg>
+        <p class="facts tn"><span>Quality <b>excellent</b>, 100% of readings</span></p>
+        <details class="mini"><summary>Source · archive, 5-minute readings</summary><p>Station time. Peak is the highest rate between 5-minute readings.</p></details>
+      </div>
+    </details>
+
+    <details class="ev" name="ev">
+      <summary><span class="d">Oct 28, 4:20 pm</span><span class="t">0.86<small>in</small></span><span class="m">14 h 5 m · peak 0.31<span class="chip">excellent</span></span><span class="sz" aria-hidden="true"><i style="width:30%"></i></span></summary>
+      <div class="body"><p class="sf">Its curve and finding open here.</p></div>
+    </details>
+    <details class="ev" name="ev">
+      <summary><span class="d">Oct 20, 11:40 pm</span><span class="t">1.94<small>in</small></span><span class="m">1 d 6 h · peak 0.52<span class="chip">good</span></span><span class="sz" aria-hidden="true"><i style="width:68%"></i></span></summary>
+      <div class="body"><p class="sf">Its curve and finding open here.</p></div>
+    </details>
+    <details class="ev" name="ev">
+      <summary><span class="d">Oct 13, 6:15 am</span><span class="t">1.12<small>in</small></span><span class="m">19 h 30 m · peak 0.38<span class="chip">excellent</span></span><span class="sz" aria-hidden="true"><i style="width:39%"></i></span></summary>
+      <div class="body"><p class="sf">Its curve and finding open here.</p></div>
+    </details>
+    <details class="ev" name="ev">
+      <summary><span class="d">Oct 4, 2:50 am</span><span class="t">0.29<small>in</small></span><span class="m">6 h 45 m · peak 0.18<span class="chip" style="border-style:dashed;color:#aab5c0">poor</span></span><span class="sz" aria-hidden="true"><i style="width:10%"></i></span></summary>
+      <div class="body"><p class="sf">Its curve and finding open here.</p></div>
+    </details>
+    <details class="ev" name="ev">
+      <summary><span class="d">Sep 22, 7:10 pm</span><span class="t">0.11<small>in</small></span><span class="m">3 h 20 m · peak 0.09<span class="chip">excellent</span></span><span class="sz" aria-hidden="true"><i style="width:4%"></i></span></summary>
+      <div class="body"><p class="sf">Its curve and finding open here.</p></div>
+    </details>
+    <details class="ev" name="ev">
+      <summary><span class="d">Sep 3, 1:30 pm</span><span class="t">0.21<small>in</small></span><span class="m">1 h 15 m · peak 0.44<span class="chip">good</span></span><span class="sz" aria-hidden="true"><i style="width:7%"></i></span></summary>
+      <div class="body"><p class="sf">Its curve and finding open here.</p></div>
+    </details>
+  </div>
+
+  <button type="button" style="align-self:flex-start;min-height:44px;padding:0 18px;border:1px solid #6b7886;border-radius:999px;background:transparent;color:#eef2f5;font:inherit;font-size:14px;cursor:pointer">Show 54 more</button>
+  <p style="font-size:12.5px;line-height:1.55;color:#aab5c0">Each bar under a row is that event's total against the wettest on record, 2.84 in. From the Event Catalog.</p>
+</div>
+  <nav class="tabs" aria-label="Sections">
+    <a href="PhoneOverview.dc.html">Overview</a>
+    <a href="PhoneRain.dc.html">Rain</a>
+    <a href="PhoneEvents.dc.html" aria-current="page">Events</a>
+    <a href="PhoneSolar.dc.html">Solar</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

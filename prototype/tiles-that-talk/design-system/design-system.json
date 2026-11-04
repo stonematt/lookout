@@ -1,0 +1,25 @@
+{
+ "v": 3,
+ "layout": "files",
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-03T07:20:00Z"
+ },
+ "title": "Lookout",
+ "namespace": "Lookout",
+ "libraries": [],
+ "sections": {},
+ "groups": [],
+ "assetGroups": {},
+ "blobs": {},
+ "docs": {
+  "readme": "project/README.md",
+  "sections": []
+ },
+ "lastChange": {
+  "by": "Matt Stone",
+  "at": "2026-11-03T07:20:00Z",
+  "via": "Claude Code \u00b7 stonematt/lookout",
+  "note": "First system from tokens.css, DESIGN.md and PRODUCT.md, plus the phone-edition direction"
+ }
+}

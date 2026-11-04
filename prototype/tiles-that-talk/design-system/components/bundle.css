@@ -1,0 +1,447 @@
+/* Lookout component styles for the previews. Mirrors web/src/styles/base.css
+   and the section stylesheets; the lk- classes marked "proposed" are the
+   phone-edition patterns in the Direction section, not yet in the site. */
+:root {
+  --sans: var(--font-sans);
+  --gap-hatch: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+}
+html,
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  line-height: 1.55;
+  letter-spacing: 0.012em;
+  word-spacing: 0.08em;
+}
+.lk {
+  padding: var(--s-4);
+  max-width: 520px;
+}
+.lk *,
+.lk *::before,
+.lk *::after {
+  box-sizing: border-box;
+}
+.lk h2,
+.lk h3,
+.lk p,
+.lk dl,
+.lk dd {
+  margin: 0;
+}
+.lk :focus-visible {
+  outline: 3px solid var(--rain-3);
+  outline-offset: 2px;
+}
+.lk-tnum {
+  font-variant-numeric: tabular-nums;
+}
+.lk-hatch {
+  background: var(--gap-hatch);
+}
+
+/* now hero */
+.lk-now {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-4);
+  align-items: start;
+}
+.lk-now-temp {
+  font-size: clamp(2.75rem, 12vw, 3.5rem);
+  font-weight: 650;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.lk-now-temp sup {
+  font-size: 0.4em;
+  vertical-align: 1.1em;
+  margin-left: 2px;
+}
+.lk-now-says {
+  font-size: 1rem;
+  line-height: 1.55;
+  max-width: 60ch;
+}
+
+/* stat strip */
+.lk-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: var(--s-2) 0;
+  max-width: 520px;
+}
+.lk-strip div {
+  display: flex;
+  flex-direction: column-reverse;
+}
+.lk-strip dt {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+.lk-strip dd {
+  font-size: 1.1875rem;
+  font-weight: 650;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+/* section grammar */
+.lk-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: var(--s-1);
+}
+.lk-kicker i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--note);
+}
+.lk-title {
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.005em;
+  max-width: 36ch;
+  text-wrap: balance;
+}
+.lk-headline {
+  font-size: 1.3125rem;
+  font-weight: 600;
+  line-height: 1.28;
+  max-width: 30ch;
+  text-wrap: balance;
+}
+.lk-standfirst {
+  margin-top: var(--s-1);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+.lk-chart {
+  margin: var(--s-3) 0;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.lk-chart text {
+  font-family: var(--sans);
+  font-size: 12px;
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.lk-chart .lab {
+  fill: var(--ink-2);
+  font-size: 12.5px;
+}
+.lk-chart .ann {
+  fill: var(--note);
+  font-size: 13px;
+  font-weight: 650;
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 4px;
+}
+.lk-chart .grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.lk-chart .band {
+  fill: var(--rain-0);
+}
+.lk-chart .median {
+  stroke: var(--rain-2);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  fill: none;
+}
+.lk-chart .now-line {
+  stroke: var(--rain-3);
+  stroke-width: 3.5;
+  fill: none;
+  stroke-linecap: round;
+}
+.lk-chart .now-dot {
+  fill: var(--note);
+  stroke: var(--ground);
+  stroke-width: 2;
+}
+.lk-chart .gap-a {
+  fill: var(--gap-a);
+}
+.lk-chart .gap-b {
+  fill: var(--gap-b);
+}
+
+/* proposed: SourceNote, the collapsed source line */
+.lk-source {
+  border-top: 1px solid var(--rule);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+.lk-source summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 32px;
+  cursor: pointer;
+}
+.lk-source summary::-webkit-details-marker {
+  display: none;
+}
+.lk-source summary::after {
+  content: "";
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--ink-3);
+  border-bottom: 1.5px solid var(--ink-3);
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.lk-source[open] summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+.lk-source b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.lk-source p {
+  padding-bottom: var(--s-2);
+}
+.lk-source .lk-flag {
+  padding: 0 var(--s-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  background: var(--gap-hatch);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* proposed: GapFold, invalid rows folded into one */
+.lk-rows {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 6px var(--s-3);
+  align-items: center;
+  font-size: 0.875rem;
+}
+.lk-rows .name {
+  font-weight: 600;
+  line-height: 1.2;
+}
+.lk-rows .name small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+.lk-bar {
+  position: relative;
+  height: 22px;
+}
+.lk-bar .whisk {
+  position: absolute;
+  top: 10px;
+  height: 1.5px;
+  background: var(--ink-3);
+}
+.lk-bar .iqr {
+  position: absolute;
+  top: 5px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--temp-cool);
+}
+.lk-bar .now {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2.25px;
+  background: var(--note);
+}
+.lk-fold {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--gap-hatch);
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+.lk-fold span:last-child {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* proposed: NowBar, the sticky compact reading */
+.lk-nowbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  background: var(--ground);
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+.lk-nowbar strong {
+  font-size: 1.1875rem;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.lk-nowbar .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rain-3);
+}
+.lk-nowbar .age {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* tabs */
+.lk-tabs {
+  display: flex;
+  gap: var(--s-1);
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+}
+.lk-tab {
+  flex: none;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 transparent;
+}
+.lk-tab[aria-selected="true"] {
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow: inset 0 -3px 0 var(--rain-3);
+}
+
+/* segmented control */
+.lk-seg {
+  display: inline-flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.lk-seg button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.lk-seg button:first-child {
+  border-left: 0;
+}
+.lk-seg button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 650;
+}
+
+/* chips and buttons */
+.lk-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.lk-chip[data-low] {
+  border-style: dashed;
+  color: var(--ink-2);
+}
+.lk-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* disclosure (Why this leads) */
+.lk-why summary {
+  min-height: 32px;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.lk-why ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--s-2) 0 0;
+  font-size: 0.875rem;
+  display: grid;
+  gap: var(--s-2);
+}
+.lk-why li {
+  display: flex;
+  gap: var(--s-2);
+  align-items: baseline;
+  color: var(--ink-2);
+}
+.lk-why li::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--rain-3);
+  transform: translateY(-1px);
+}
+.lk-why li[data-met]::before {
+  background: var(--rain-3);
+}
+.lk-why li[data-lead] {
+  color: var(--ink);
+  font-weight: 600;
+}
+.lk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: center;
+}
+.lk-cap {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  margin-bottom: var(--s-2);
+}

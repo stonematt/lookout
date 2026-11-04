@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout phone: Rain</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#11161c}
+a{color:#a9d0f5}a:hover{color:#d6e9fb}
+.ph{font-family:Lexend,system-ui,sans-serif;color:#eef2f5;letter-spacing:.01em}
+.ph p,.ph h1,.ph h2{margin:0}
+.tn{font-variant-numeric:tabular-nums}
+.tile{background:#1a2129;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.lab{font-size:13px;font-weight:500;color:#aab5c0}
+.sf{font-size:14px;line-height:1.55;color:#aab5c0}
+.ax{font-family:Lexend,sans-serif;font-size:12px;fill:#aab5c0}
+.lb{font-family:Lexend,sans-serif;font-size:12px;fill:#c3ccd5}
+.an{font-family:Lexend,sans-serif;font-size:13px;font-weight:600;fill:#f2a65e;paint-order:stroke;stroke:#1a2129;stroke-width:4px}
+.mini summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:13px;color:#aab5c0}
+.mini p{font-size:13px;line-height:1.55;color:#aab5c0;padding-bottom:4px}
+.acc{border-top:1px solid #2a333d}
+.acc summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr 24px;gap:4px 12px;align-items:center;padding:14px 0;min-height:56px}
+.acc summary::-webkit-details-marker{display:none}
+.acc summary .k{grid-column:1;font-size:12.5px;font-weight:500;color:#aab5c0}
+.acc summary .f{grid-column:1;font-size:16px;line-height:1.4;font-weight:500}
+.acc summary .c{grid-column:2;grid-row:1 / span 2;width:24px;height:24px;border-radius:50%;border:1px solid #6b7886;display:flex;align-items:center;justify-content:center}
+.acc[open] summary .c svg{transform:rotate(180deg)}
+.acc .body{display:flex;flex-direction:column;gap:10px;padding-bottom:16px}
+.st{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.st div{display:flex;flex-direction:column-reverse;gap:2px;border-top:1px solid #2a333d;padding-top:8px}
+.st dt{font-size:12.5px;color:#aab5c0}
+.st dd{margin:0;font-size:20px;font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;border:1px solid #6b7886;border-radius:999px;overflow:hidden;align-self:flex-start}
+.seg button{min-height:40px;padding:0 16px;border:0;background:transparent;color:#c3ccd5;font:inherit;font-size:14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#eef2f5;color:#11161c;font-weight:500}
+.tabs{position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:8px 12px 20px;background:#11161c;border-top:1px solid #2a333d}
+.tabs a{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:14px;font-size:13.5px;color:#c3ccd5;text-decoration:none}
+.tabs a[aria-current="page"]{background:#eef2f5;color:#11161c;font-weight:600}
+</style>
+</helmet>
+<div class="ph" style="width:390px;min-height:1700px;box-sizing:border-box;background:#11161c;display:flex;flex-direction:column">
+<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:14px;flex:1">
+
+  <header style="display:flex;justify-content:space-between;align-items:center;min-height:52px">
+    <span style="font-size:17px;font-weight:600">Rain</span>
+    <span class="tn" style="font-size:13px;color:#aab5c0">47° · dry since 5:10 am</span>
+  </header>
+
+  <section class="tile">
+    <p class="lab">Rain, by window</p>
+    <h1 style="font-size:20px;line-height:1.35;font-weight:500">0.24 in today, and 3.9 in over the last 30 days</h1>
+    <dl class="st">
+      <div><dt>Today</dt><dd style="color:#f2a65e">0.24 in</dd></div>
+      <div><dt>7 days</dt><dd>1.10 in</dd></div>
+      <div><dt>30 days</dt><dd>3.90 in</dd></div>
+      <div><dt>Water year</dt><dd>6.10 in</dd></div>
+    </dl>
+    <div class="seg" role="group" aria-label="Days shown"><button aria-pressed="true">30 days</button><button aria-pressed="false">90 days</button></div>
+    <svg role="img" aria-label="Rain each day over the last 30 days" viewBox="0 0 326 196" style="width:100%;height:auto">
+      <line x1="36" x2="326" y1="170" y2="170" stroke="#6b7886"></line><line x1="36" x2="326" y1="120" y2="120" stroke="#2a333d"></line><line x1="36" x2="326" y1="70" y2="70" stroke="#2a333d"></line><line x1="36" x2="326" y1="20" y2="20" stroke="#2a333d"></line>
+      <text class="ax" x="0" y="174">0</text><text class="ax" x="0" y="124">0.5</text><text class="ax" x="0" y="74">1.0</text><text class="ax" x="0" y="24">1.5 in</text>
+      <g fill="#7fb0e0">
+        <rect x="49.5" y="162" width="7" height="8" rx="1"></rect><rect x="97" y="162" width="7" height="8" rx="1"></rect><rect x="106.5" y="150" width="7" height="20" rx="1"></rect><rect x="116" y="123" width="7" height="47" rx="1"></rect>
+        <rect x="182.5" y="145" width="7" height="25" rx="1"></rect><rect x="192" y="38" width="7" height="132" rx="1"></rect><rect x="201.5" y="130" width="7" height="40" rx="1"></rect>
+        <rect x="258.5" y="162" width="7" height="8" rx="1"></rect><rect x="268" y="125" width="7" height="45" rx="1"></rect><rect x="277.5" y="155" width="7" height="15" rx="1"></rect><rect x="306" y="152" width="7" height="18" rx="1"></rect>
+      </g>
+      <rect x="315.5" y="146" width="7" height="24" rx="1" fill="#f2a65e"></rect>
+      <text class="an" x="322" y="114" text-anchor="end">today 0.24</text>
+      <text class="lb" x="204" y="34">Oct 21, 1.32 in</text>
+      <text class="ax" x="36" y="190">Oct 5</text><text class="ax" x="169" y="190">Oct 19</text><text class="ax" x="326" y="190" text-anchor="end">Nov 3</text>
+    </svg>
+    <details class="mini"><summary>Source · daily rain counter, 7:30 am</summary><p>Each day's highest daily rain counter, with today's live total. A day missing from the record is hatched, never read as dry.</p></details>
+  </section>
+
+  <section class="tile" style="padding-top:4px;padding-bottom:4px;gap:0">
+    <details class="acc" name="rain" open style="border-top:0">
+      <summary><span class="k">The water year</span><span class="f">6.1 in since Oct 1, the wettest start of the four on record</span><span class="c" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#eef2f5" stroke-width="1.5"></path></svg></span></summary>
+      <div class="body">
+        <p class="sf">Rain since Oct 1, one line per water year. The bold line is this year.</p>
+        <svg role="img" aria-label="Rain since Oct 1, one line per water year" viewBox="0 0 326 214" style="width:100%;height:auto">
+          <line x1="36" x2="326" y1="190" y2="190" stroke="#6b7886"></line><line x1="36" x2="326" y1="136.6" y2="136.6" stroke="#2a333d"></line><line x1="36" x2="326" y1="83.2" y2="83.2" stroke="#2a333d"></line><line x1="36" x2="326" y1="29.8" y2="29.8" stroke="#2a333d"></line>
+          <text class="ax" x="0" y="194">0</text><text class="ax" x="0" y="140">2</text><text class="ax" x="0" y="87">4</text><text class="ax" x="0" y="34">6 in</text>
+          <polyline points="36,190 87.5,179.3 139,163.3 190.6,134 248.5,88.5 325.8,67.2" fill="none" stroke="#7d8a98" stroke-width="1.5"></polyline>
+          <polyline points="36,190 87.5,174 139,150 190.6,109.9 248.5,59.2 325.8,40.5" fill="none" stroke="#7d8a98" stroke-width="1.5"></polyline>
+          <polyline points="36,190 87.5,182 139,141.9 190.6,96.6 248.5,40.5 325.8,13.8" fill="none" stroke="#93a0ad" stroke-width="1.5"></polyline>
+          <text class="lb" x="292" y="30">2026</text><text class="lb" x="292" y="56">2025</text><text class="lb" x="292" y="84">2024</text>
+          <polyline points="36,190 100.4,152.6 164.8,109.9 229.2,43.2 248.5,27.1" fill="none" stroke="#d6e9fb" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <circle cx="248.5" cy="27.1" r="5.5" fill="#f2a65e" stroke="#1a2129" stroke-width="2"></circle><text class="an" x="240" y="16" text-anchor="end">2027 so far 6.1 in</text>
+          <text class="ax" x="36" y="208">Oct 1</text><text class="ax" x="126" y="208">Oct 15</text><text class="ax" x="236" y="208">Nov 1</text>
+        </svg>
+        <details class="mini"><summary>Source · daily totals</summary><p>Feb 29 is folded into Feb 28 so years line up by date.</p></details>
+      </div>
+    </details>
+
+    <details class="acc" name="rain">
+      <summary><span class="k">Dry spells</span><span class="f">Dry for 2 h 30 m. The usual dry spell lasts 2 d 4 h.</span><span class="c" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#eef2f5" stroke-width="1.5"></path></svg></span></summary>
+      <div class="body">
+        <dl class="st">
+          <div><dt>Since it last rained</dt><dd style="color:#f2a65e">2 h 30 m</dd></div>
+          <div><dt>Usual dry spell</dt><dd>2 d 4 h</dd></div>
+          <div><dt>Longest on record</dt><dd>47 d</dd></div>
+          <div><dt>Rain days, water year</dt><dd>19 of 34</dd></div>
+        </dl>
+      </div>
+    </details>
+
+    <details class="acc" name="rain">
+      <summary><span class="k">Rain by the hour</span><span class="f">October's rain came mostly overnight</span><span class="c" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#eef2f5" stroke-width="1.5"></path></svg></span></summary>
+      <div class="body">
+        <p class="sf">Each column is a day of the last 30 and each row an hour, midnight at the top.</p>
+        <svg role="img" aria-label="Rain each hour of each day over the last 30 days" viewBox="0 0 326 176" style="width:100%;height:auto">
+          <rect x="40" y="10" width="286" height="144" fill="#151b21"></rect>
+          <g fill="#4f7299"><rect x="49.5" y="28" width="8.5" height="5"></rect><rect x="97" y="142" width="8.5" height="5"></rect><rect x="106.5" y="136" width="8.5" height="5"></rect><rect x="106.5" y="148" width="8.5" height="5"></rect><rect x="116" y="28" width="8.5" height="5"></rect><rect x="116" y="40" width="8.5" height="5"></rect><rect x="182.5" y="136" width="8.5" height="5"></rect><rect x="192" y="64" width="8.5" height="5"></rect><rect x="192" y="94" width="8.5" height="5"></rect><rect x="201.5" y="22" width="8.5" height="5"></rect><rect x="258.5" y="112" width="8.5" height="5"></rect><rect x="268" y="40" width="8.5" height="5"></rect><rect x="277.5" y="16" width="8.5" height="5"></rect><rect x="306" y="136" width="8.5" height="5"></rect><rect x="315.5" y="28" width="8.5" height="5"></rect><rect x="315.5" y="34" width="8.5" height="5"></rect></g>
+          <g fill="#7aa3cc"><rect x="106.5" y="130" width="8.5" height="5"></rect><rect x="116" y="22" width="8.5" height="5"></rect><rect x="182.5" y="142" width="8.5" height="5"></rect><rect x="182.5" y="148" width="8.5" height="5"></rect><rect x="192" y="34" width="8.5" height="5"></rect><rect x="192" y="46" width="8.5" height="5"></rect><rect x="201.5" y="16" width="8.5" height="5"></rect><rect x="268" y="28" width="8.5" height="5"></rect><rect x="268" y="34" width="8.5" height="5"></rect><rect x="306" y="142" width="8.5" height="5"></rect><rect x="306" y="148" width="8.5" height="5"></rect><rect x="315.5" y="10" width="8.5" height="5"></rect><rect x="315.5" y="22" width="8.5" height="5"></rect></g>
+          <g fill="#a9cdee"><rect x="116" y="10" width="8.5" height="5"></rect><rect x="116" y="16" width="8.5" height="5"></rect><rect x="192" y="22" width="8.5" height="5"></rect><rect x="192" y="28" width="8.5" height="5"></rect><rect x="268" y="22" width="8.5" height="5"></rect><rect x="315.5" y="16" width="8.5" height="5"></rect></g>
+          <g fill="#eef6ff"><rect x="192" y="10" width="8.5" height="5"></rect><rect x="192" y="16" width="8.5" height="5"></rect></g>
+          <rect x="315.5" y="52" width="8.5" height="5" fill="none" stroke="#f2a65e" stroke-width="1.5"></rect>
+          <text class="ax" x="0" y="16">12 am</text><text class="ax" x="0" y="52">6 am</text><text class="ax" x="0" y="88">noon</text><text class="ax" x="0" y="124">6 pm</text>
+          <text class="ax" x="40" y="170">Oct 5</text><text class="ax" x="169" y="170">Oct 19</text><text class="ax" x="326" y="170" text-anchor="end">Nov 3</text>
+        </svg>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;font-size:12.5px;color:#c3ccd5">
+          <span style="display:flex;align-items:center;gap:6px"><i style="width:14px;height:10px;border-radius:2px;background:#4f7299"></i>light, to 0.05 in</span>
+          <span style="display:flex;align-items:center;gap:6px"><i style="width:14px;height:10px;border-radius:2px;background:#7aa3cc"></i>moderate, to 0.10</span>
+          <span style="display:flex;align-items:center;gap:6px"><i style="width:14px;height:10px;border-radius:2px;background:#a9cdee"></i>steady, to 0.30</span>
+          <span style="display:flex;align-items:center;gap:6px"><i style="width:14px;height:10px;border-radius:2px;background:#eef6ff"></i>heavy, over 0.30</span>
+        </div>
+      </div>
+    </details>
+  </section>
+</div>
+  <nav class="tabs" aria-label="Sections">
+    <a href="PhoneOverview.dc.html">Overview</a>
+    <a href="PhoneRain.dc.html" aria-current="page">Rain</a>
+    <a href="PhoneEvents.dc.html">Events</a>
+    <a href="PhoneSolar.dc.html">Solar</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

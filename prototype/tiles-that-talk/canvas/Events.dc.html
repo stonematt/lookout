@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lookout: Rain events</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#11161c}
+a{color:#8fc0ee}a:hover{color:#b9d8f5}
+.dk{font-family:Lexend,system-ui,sans-serif;color:#eef2f5;letter-spacing:.01em}
+.dk p,.dk h1,.dk h2{margin:0}
+.g{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.g{grid-template-columns:repeat(2,minmax(0,1fr))}.s2,.s3,.s4{grid-column:span 2}}
+@media (min-width:1180px){.g{grid-template-columns:repeat(4,minmax(0,1fr))}.s3{grid-column:span 3}.s4{grid-column:span 4}}
+.tile{background:#1a2129;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.lab{font-size:13px;font-weight:500;color:#aab5c0}
+.fd{font-size:19px;line-height:1.4;font-weight:500;max-width:44ch}
+.sf{font-size:14px;line-height:1.55;color:#aab5c0;max-width:62ch}
+.tn{font-variant-numeric:tabular-nums}
+.ax{font-family:Lexend,sans-serif;font-size:11px;fill:#8e9aa6}
+.lb{font-family:Lexend,sans-serif;font-size:12px;fill:#c3ccd5}
+.an{font-family:Lexend,sans-serif;font-size:12.5px;font-weight:600;fill:#f2a65e;paint-order:stroke;stroke:#1a2129;stroke-width:4px}
+.src{margin-top:auto;border-top:1px solid #2a333d;padding-top:4px}
+.src summary{cursor:pointer;min-height:32px;display:flex;align-items:center;font-size:12.5px;color:#aab5c0}
+.src p{font-size:12.5px;line-height:1.55;color:#aab5c0;padding-bottom:4px}
+.seg{display:inline-flex;border:1px solid #6b7886;border-radius:999px;overflow:hidden}
+.seg button{min-height:40px;padding:0 16px;border:0;background:transparent;color:#c3ccd5;font:inherit;font-size:14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#eef2f5;color:#11161c;font-weight:500}
+.st{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px 16px}
+.st div{display:flex;flex-direction:column-reverse;gap:2px;border-top:1px solid #2a333d;padding-top:8px}
+.st dt{font-size:12.5px;color:#aab5c0}
+.st dd{margin:0;font-size:22px;font-weight:400;font-variant-numeric:tabular-nums}
+.tb{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.tb th{font-size:12px;font-weight:500;color:#aab5c0;text-align:right;padding:8px 6px;border-bottom:1px solid #3a4653}
+.tb th:first-child,.tb td:first-child{text-align:left}
+.tb td{text-align:right;padding:11px 6px;border-bottom:1px solid #2a333d}
+.chip{display:inline-block;padding:1px 8px;border:1px solid #6b7886;border-radius:999px;font-size:11.5px;color:#c3ccd5}
+</style>
+</helmet>
+<div class="dk" style="min-height:100vh;box-sizing:border-box;background:#11161c">
+<div style="max-width:1360px;margin:0 auto;padding:0 24px 64px">
+
+  <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;min-height:72px">
+    <div style="display:flex;align-items:center;gap:14px"><span style="font-size:20px;font-weight:600">Lookout Post</span><span class="tn" style="display:flex;align-items:center;gap:8px;font-size:14px;color:#aab5c0"><span style="width:8px;height:8px;border-radius:50%;background:#8fc0ee"></span>47° · dry since 5:10 am · 3 m ago</span></div>
+    <nav aria-label="Sections" style="display:flex;gap:4px;flex-wrap:wrap">
+      <a href="Desktop.dc.html" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;color:#c3ccd5;font-size:14px;text-decoration:none">Overview</a>
+      <a href="Rain.dc.html" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;color:#c3ccd5;font-size:14px;text-decoration:none">Rain</a>
+      <a href="Events.dc.html" aria-current="page" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;background:#eef2f5;color:#11161c;font-size:14px;font-weight:500;text-decoration:none">Rain events</a>
+      <a href="Solar.dc.html" style="min-height:40px;display:flex;align-items:center;padding:0 16px;border-radius:999px;color:#c3ccd5;font-size:14px;text-decoration:none">Solar</a>
+    </nav>
+  </header>
+
+  <div class="g">
+
+    <!-- catalog finding + filters + stats -->
+    <section class="tile s4">
+      <p class="lab">The Event Catalog</p>
+      <h1 class="fd" style="font-size:24px;line-height:1.3;max-width:52ch">The wettest of 61 events since Feb 2023 brought 2.84 in, against 0.31 in for the median event</h1>
+      <p class="sf">Each storm the station recorded. Open one to see how its rain built up and how hard it fell.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin-top:4px">
+        <div class="seg" role="group" aria-label="Water year"><button aria-pressed="true">All</button><button aria-pressed="false">2027</button><button aria-pressed="false">2026</button><button aria-pressed="false">2025</button><button aria-pressed="false">2024</button><button aria-pressed="false" style="background:repeating-linear-gradient(135deg,#64717e 0 3px,#1a2129 3px 8px);color:#ffffff">2023</button></div>
+        <div class="seg" role="group" aria-label="Sort"><button aria-pressed="true">Newest</button><button aria-pressed="false">Wettest</button></div>
+      </div>
+      <dl class="st" style="margin-top:8px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+        <div><dt>events</dt><dd>61</dd></div>
+        <div><dt>rain in events</dt><dd>88.4 in</dd></div>
+        <div><dt>median event</dt><dd>0.31 in</dd></div>
+        <div><dt>mean length</dt><dd>9 h 40 m</dd></div>
+      </dl>
+      <p class="sf">Water year 2023 starts before the archive began, so the list can miss its events.</p>
+    </section>
+
+    <!-- selected event -->
+    <section class="tile s2">
+      <p class="lab" style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#f2a65e"></span>Latest · water year 2027</p>
+      <h2 class="fd">0.42 in over 8 h 10 m, a third more than the median event</h2>
+      <p class="sf">Began Nov 2, 9:00 pm; ended Nov 3, 5:10 am. Quality: excellent, 100% of readings.</p>
+      <dl class="st" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div><dt>total</dt><dd>0.42 in</dd></div>
+        <div><dt>length</dt><dd>8 h 10 m</dd></div>
+        <div><dt>peak rate</dt><dd>0.24 in/hr</dd></div>
+      </dl>
+      <p class="lb" style="font-size:13px;color:#c3ccd5;margin-top:6px">Rain so far</p>
+      <svg role="img" aria-label="This event's rain as it built up" viewBox="0 0 640 170" style="width:100%;height:auto">
+        <line x1="36" x2="640" y1="140" y2="140" stroke="#3a4653"></line><line x1="36" x2="640" y1="80" y2="80" stroke="#2a333d"></line><line x1="36" x2="640" y1="20" y2="20" stroke="#2a333d"></line>
+        <text class="ax" x="0" y="144">0</text><text class="ax" x="0" y="84">0.25</text><text class="ax" x="0" y="24">0.50</text>
+        <line x1="36" x2="640" y1="66" y2="66" stroke="#7f9fbf" stroke-width="1.5" stroke-dasharray="5 4"></line><text class="lb" x="44" y="60">median event 0.31 in</text>
+        <polyline points="40,140 110,130 180,102 250,76 320,62 400,54 480,50 560,40 600,39" fill="none" stroke="#8fc0ee" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <circle cx="600" cy="39" r="5.5" fill="#f2a65e" stroke="#1a2129" stroke-width="2"></circle><text class="an" x="594" y="28" text-anchor="end">0.42 in</text>
+        <text class="ax" x="40" y="162">9 pm</text><text class="ax" x="180" y="162">midnight</text><text class="ax" x="400" y="162">3 am</text><text class="ax" x="580" y="162">5 am</text>
+      </svg>
+      <p class="lb" style="font-size:13px;color:#c3ccd5;margin-top:6px">Rate between readings</p>
+      <svg role="img" aria-label="Rain rate between 5-minute readings" viewBox="0 0 640 120" style="width:100%;height:auto">
+        <line x1="36" x2="640" y1="96" y2="96" stroke="#3a4653"></line><line x1="36" x2="640" y1="36" y2="36" stroke="#2a333d"></line>
+        <text class="ax" x="0" y="100">0</text><text class="ax" x="0" y="40">0.2</text>
+        <path d="M40 96 V90 H70 V84 H100 V78 H130 V70 H160 V52 H180 V24 H200 V44 H230 V58 H260 V66 H290 V72 H330 V80 H370 V84 H420 V88 H480 V82 H520 V86 H560 V92 H600 V96" fill="#2f4a66" stroke="#7fb0e0" stroke-width="1.5"></path>
+        <text class="an" x="186" y="16" text-anchor="middle">peak 0.24 in/hr, 12:45 am</text>
+        <text class="ax" x="40" y="114">9 pm</text><text class="ax" x="180" y="114">midnight</text><text class="ax" x="400" y="114">3 am</text><text class="ax" x="580" y="114">5 am</text>
+      </svg>
+      <details class="src"><summary>Source · station archive, 5-minute readings</summary><p>Station time. While an event is live, the newest reading and the total come from the live station; the rest from the archive.</p></details>
+    </section>
+
+    <!-- table -->
+    <section class="tile s2">
+      <p class="lab">Rain events, newest first</p>
+      <h2 class="fd">Five events since Oct 1, two of them over an inch</h2>
+      <div style="overflow-x:auto">
+        <table class="tb">
+          <thead><tr><th scope="col">Start</th><th scope="col">Length</th><th scope="col">Peak</th><th scope="col">Total (in)</th><th scope="col">Quality</th></tr></thead>
+          <tbody>
+            <tr style="background:#24303d"><td><a href="#" style="color:#eef2f5;font-weight:500">Nov 2, 9:00 pm</a></td><td>8 h 10 m</td><td>0.24</td><td style="font-weight:600">0.42</td><td><span class="chip">excellent</span></td></tr>
+            <tr><td><a href="#">Oct 28, 4:20 pm</a></td><td>14 h 5 m</td><td>0.31</td><td style="font-weight:600">0.86</td><td><span class="chip">excellent</span></td></tr>
+            <tr><td><a href="#">Oct 20, 11:40 pm</a></td><td>1 d 6 h</td><td>0.52</td><td style="font-weight:600">1.94</td><td><span class="chip">good</span></td></tr>
+            <tr><td><a href="#">Oct 13, 6:15 am</a></td><td>19 h 30 m</td><td>0.38</td><td style="font-weight:600">1.12</td><td><span class="chip">excellent</span></td></tr>
+            <tr><td><a href="#">Oct 4, 2:50 am</a></td><td>6 h 45 m</td><td>0.18</td><td style="font-weight:600">0.29</td><td><span class="chip" style="border-style:dashed;color:#aab5c0">poor</span></td></tr>
+            <tr><td><a href="#">Sep 22, 7:10 pm</a></td><td>3 h 20 m</td><td>0.09</td><td style="font-weight:600">0.11</td><td><span class="chip">excellent</span></td></tr>
+            <tr><td><a href="#">Sep 3, 1:30 pm</a></td><td>1 h 15 m</td><td>0.44</td><td style="font-weight:600">0.21</td><td><span class="chip">good</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button type="button" style="align-self:flex-start;min-height:44px;padding:0 18px;border:1px solid #6b7886;border-radius:999px;background:transparent;color:#eef2f5;font:inherit;font-size:14px;cursor:pointer;margin-top:4px">Show 54 more</button>
+      <details class="src"><summary>Source · Event Catalog, 61 events</summary><p>Peak is the highest rate between 5-minute readings, in in/hr. A dashed quality chip marks a poor event or one with no archive data.</p></details>
+    </section>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
