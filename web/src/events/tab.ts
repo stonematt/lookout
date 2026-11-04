@@ -168,7 +168,8 @@ function keptView(last: View | undefined, section: DashboardSnapshot["rain_event
 
 /**
  * How far below the top of the viewport the filter bar pins: under every
- * header part held at the top (a sticky or fixed element with a `top`).
+ * header part held at the top (a sticky or fixed element in the top half of
+ * the viewport; a bar fixed at the bottom, the phone's tabs, is not one).
  */
 function stickyTop(): number {
   let bottom = 0;
@@ -179,8 +180,9 @@ function stickyTop(): number {
     const style = getComputedStyle(el);
     if (style.position !== "sticky" && style.position !== "fixed") continue;
     const top = parseFloat(style.top);
-    if (Number.isNaN(top)) continue;
-    bottom = Math.max(bottom, top + el.getBoundingClientRect().height);
+    const box = el.getBoundingClientRect();
+    if (Number.isNaN(top) || box.top > window.innerHeight / 2) continue;
+    bottom = Math.max(bottom, top + box.height);
   }
   return Math.round(bottom);
 }
