@@ -110,6 +110,9 @@ function askedStation(): string | null {
  */
 export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: PageReads): Page {
   // Every page layout rule keys off the attribute this sets (`layout.ts`).
+  let dashboard: DashboardSnapshot | null = null;
+  let rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
+  let wasPhone: boolean;
   const layout = mountLayout(undefined, undefined, (next) => {
     // A phone draws rows, the grids tiles: redraw only across that line.
     const phone = next === "phone";
@@ -120,11 +123,9 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
     renderTab("overview", tabs.panel("overview"));
     renderTab(tabs.current(), tabs.panel(tabs.current()));
   });
-  let wasPhone = layout.layout() === "phone";
+  wasPhone = layout.layout() === "phone";
   const header = mountHeader(masthead);
-  let dashboard: DashboardSnapshot | null = null;
   let stateText: string = STATE_TEXT.loading;
-  let rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
   let index: StationIndex | null = null;
   /** The station shown, as the URL names it (null: the default station). */
   let showing = askedStation();

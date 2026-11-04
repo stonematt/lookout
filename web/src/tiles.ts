@@ -141,9 +141,9 @@ function mark(host: HTMLElement, section: TileSection): void {
 /**
  * A section as a finding row: a closed `details` in the tab's group. Its
  * summary holds the kicker, then (once the section has rendered) the
- * finding and the chevron; `closeRow` moves them there.
+ * finding and the chevron; `finishRow` moves them there.
  */
-function openRow(section: TileSection, snapshot: DashboardSnapshot, group: string): HTMLElement {
+function startRow(section: TileSection, snapshot: DashboardSnapshot, group: string): HTMLElement {
   const row = document.createElement("details");
   row.className = "tile-row";
   row.setAttribute("name", group);
@@ -157,7 +157,7 @@ function openRow(section: TileSection, snapshot: DashboardSnapshot, group: strin
 }
 
 /** Finish a rendered row: the finding into its summary, the rest in a body. */
-function closeRow(row: HTMLElement): void {
+function finishRow(row: HTMLElement): void {
   const line = row.querySelector<HTMLElement>(":scope > summary")!;
   const finding = row.querySelector<HTMLElement>(":scope > [data-part=finding]");
   if (finding) line.append(finding);
@@ -232,10 +232,10 @@ export function renderTiles(
         }
         grid.append(rows);
       }
-      const row = openRow(section, snapshot, group);
+      const row = startRow(section, snapshot, group);
       rows.append(row);
       section.render(row, snapshot);
-      closeRow(row);
+      finishRow(row);
       continue;
     }
     rows = null;
