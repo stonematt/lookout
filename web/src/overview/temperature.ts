@@ -337,12 +337,14 @@ function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   // Newest first: today leads a phone's scroll.
   const days = [...ctx.ten_days].reverse();
   const narrow = width < NARROW;
-  const rowH = narrow ? 30 : 32;
+  // On a phone each day's label sits above its bar, so the bar gets the
+  // whole width, as in the periods chart; from 520px it is a column.
+  const rowH = narrow ? 46 : 32;
   // The day column fits the longest name ("Wed, Nov 30" in 13px), so a
   // hatched row starts clear of it, past the name's halo.
   const longest = Math.max(0, ...days.map((d) => DAY_LABEL.format(dayDate(d.day)).length));
-  const left = Math.max(narrow ? 72 : 84, Math.ceil(longest * LABEL_CHAR_PX * 1.1) + 12);
-  const f = { l: left, r: 12, t: 8, b: 26 };
+  const left = narrow ? 0 : Math.max(84, Math.ceil(longest * LABEL_CHAR_PX * 1.1) + 12);
+  const f = { l: left, r: narrow ? 0 : 12, t: 8, b: 26 };
   const iw = width - f.l - f.r;
   const ih = rowH * days.length;
 
@@ -365,12 +367,17 @@ function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   axis(g, ticks, x, ih, (v) => degrees(v, 0));
 
   days.forEach((d, i) => {
-    const cy = i * rowH + rowH / 2;
+    // The bar's centre: mid-row beside its label, under it on a phone.
+    const cy = narrow ? i * rowH + 32 : i * rowH + rowH / 2;
     const today = i === 0;
     labels.append(
       svgEl(
         "text",
-        { class: `tc-row${today ? " tc-row-today" : ""}`, x: 2, y: cy + 4 },
+        {
+          class: `tc-row${today ? " tc-row-today" : ""}`,
+          x: narrow ? 0 : 2,
+          y: narrow ? i * rowH + 14 : cy + 4,
+        },
         DAY_LABEL.format(dayDate(d.day)),
       ),
     );

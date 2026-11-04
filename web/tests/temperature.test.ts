@@ -163,6 +163,32 @@ describe("the ten-day list", () => {
     expect(all("[data-part=days-chart] .tc-usual")).toHaveLength(10);
   });
 
+  it("puts a day's label above a full-width bar on a phone", () => {
+    const labelX = () => all("[data-part=days-chart] .tc-row").map((el) => el.getAttribute("x"));
+    expect(labelX().every((x) => x === "2")).toBe(true);
+
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 390,
+    });
+    try {
+      show(withYear());
+      expect(labelX().every((x) => x === "0")).toBe(true);
+      const bar = host.querySelector("[data-part=days-chart] .tc-day")!;
+      const label = host.querySelector("[data-part=days-chart] .tc-row")!;
+      const barTop = Number(bar.getAttribute("y"));
+      expect(Number(label.getAttribute("y"))).toBeLessThan(barTop);
+      // the plot starts at the left edge: no label column
+      expect(host.querySelector("[data-part=days-chart] g")?.getAttribute("transform")).toBe(
+        "translate(0,8)",
+      );
+    } finally {
+      if (width) Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+    }
+  });
+
   it("hatches a day the archive cannot count and says so in words", () => {
     const ctx = structuredClone(year);
     const day = ctx.ten_days[5]!;

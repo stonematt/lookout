@@ -7,7 +7,6 @@
  */
 .tc-chart {
   margin-top: var(--s-4);
-  max-width: 760px;
   min-height: 24px;
 }
 
