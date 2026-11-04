@@ -17,7 +17,7 @@
 - No text under 12px, and text and meaningful graphics stay readable in both themes: 4.5:1 for text, 3:1 for graphics (DESIGN.md, The Twelve Pixel Floor and The Three-to-One Graphics Rule).
 - The live header shows how fresh the data is; a stale snapshot is obvious, not silent.
 - Tabs keep their jobs: Overview, Rain, Rain Events, Solar. Nothing a glance needs hides behind a tap.
-- Works on a phone from 320px to 390px wide with no sideways scroll, and loads fast on cellular (DESIGN.md, Layout; the site is checked at 320 and 390px).
+- Works on a phone from 320px to 390px wide with no sideways scroll, and loads fast on cellular (DESIGN.md, Layout: a phone is under 760px; the site is checked at 320 and 390px by `web/scripts/scroll-check.mjs`).
 
 ## What I let pass
 
