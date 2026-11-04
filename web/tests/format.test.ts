@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compassPoint,
   daysBetween,
   waterYearSpan,
   MONTHS,
@@ -143,6 +144,23 @@ describe("units", () => {
     expect(kwhPerM2(2.414)).toBe("2.41 kWh/m²");
     expect(kwhPerM2(61.23)).toBe("61.2 kWh/m²");
     expect(kwhPerM2(123.4, { unit: false })).toBe("123");
+  });
+});
+
+describe("compassPoint", () => {
+  it.each([
+    [0, "N"],
+    [11.2, "N"],
+    [11.3, "NNE"],
+    [90, "E"],
+    [124, "SE"],
+    [180, "S"],
+    [270, "W"],
+    [348.7, "NNW"],
+    [348.8, "N"],
+    [360, "N"],
+  ])("%s° reads %s", (deg, point) => {
+    expect(compassPoint(deg)).toBe(point);
   });
 });
 

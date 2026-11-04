@@ -284,6 +284,17 @@
   padding-bottom: var(--s-4);
 }
 
+/* ---------- phone: quick facts ---------- */
+/* DESIGN.md "Quick-fact tiles": on a phone the quick-fact tiles sit two to
+   a row (a 2×2 with sun and moon); every other tile keeps the full width */
+:root:not([data-layout="two"], [data-layout="four"]) .tile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-fact]) {
+  grid-column: 1 / -1;
+}
+
 /* ---------- shared by every tab's tiles ---------- */
 /* the method paragraph inside a source note: method, gaps and archive lag */
 .ov-source {

@@ -75,6 +75,12 @@ export interface TileSection {
    */
   phoneOpen?: boolean;
   /**
+   * A quick-fact tile (DESIGN.md "Quick-fact tiles"): a kicker, one value
+   * and one sentence. On a phone it stays an open tile, never a finding
+   * row, and takes half the grid's width, two to a row.
+   */
+  fact?: boolean;
+  /**
    * The now tile: the one tile on `now-surface`. Its kicker is for screen
    * readers only, as the temperature beside its condition is its finding.
    */
@@ -136,6 +142,7 @@ function mark(host: HTMLElement, section: TileSection): void {
   host.dataset.span = String(section.span ?? 1);
   if (section.phoneTop) host.dataset.phoneTop = "true";
   if (section.now) host.dataset.surface = "now";
+  if (section.fact) host.dataset.fact = "true";
 }
 
 /**
@@ -217,7 +224,7 @@ export function renderTiles(
   let rows: HTMLElement | null = null;
   let headed = false;
   for (const section of sections) {
-    if (phone && !section.phoneTop && !section.phoneOpen) {
+    if (phone && !section.phoneTop && !section.phoneOpen && !section.fact) {
       if (!rows) {
         rows = document.createElement("section");
         rows.className = "tile tile-rows";

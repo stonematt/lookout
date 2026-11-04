@@ -330,9 +330,68 @@ export function inchesPerHour(value: number): string {
   return `${value.toFixed(2)} in/hr`;
 }
 
-/** Wind speed, e.g. `4.3 mph`. */
-export function mph(value: number): string {
-  return `${value.toFixed(1)} mph`;
+/**
+ * Wind speed, e.g. `4.3 mph`.
+ *
+ * @param value - Miles per hour.
+ * @param options - `unit: false` for the bare number.
+ * @returns The speed.
+ */
+export function mph(value: number, options: { unit?: boolean } = {}): string {
+  const text = value.toFixed(1);
+  return options.unit === false ? text : `${text} mph`;
+}
+
+/** A whole percent, e.g. `81%` (relative humidity). */
+export function percent(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+/**
+ * A reading in its format, or `n/a` when it is not known (never zero).
+ *
+ * @param value - The reading, or null.
+ * @param format - Its format, e.g. `mph`.
+ * @returns E.g. `4.3 mph`, or `n/a`.
+ */
+export function known(value: number | null, format: (v: number) => string): string {
+  return value === null ? "n/a" : format(value);
+}
+
+/** Pressure in inches of mercury, bare, e.g. `29.67`. */
+export function inHg(value: number): string {
+  return value.toFixed(2);
+}
+
+/** The 16 compass points, clockwise from north. */
+const COMPASS = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+] as const;
+
+/**
+ * A wind direction as the nearest of the 16 compass points, e.g. `SE`.
+ *
+ * @param deg - Degrees clockwise from north, where the wind blows from.
+ * @returns The compass point.
+ */
+export function compassPoint(deg: number): string {
+  const index = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
+  return COMPASS[index]!;
 }
 
 /** Solar radiation, e.g. `412 W/m²`. */
