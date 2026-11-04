@@ -19,6 +19,19 @@
   font-weight: 400;
 }
 
+/* Narrower than a 360px phone, the sun and moon times ("2:50 pm to 12:13 am")
+   outrun a half-width tile and scroll the page sideways: they drop one type
+   step, to Stat, with their word units at Body. */
+@media (max-width: 359px) {
+  .tile[data-section="sun-moon"] .qf-value {
+    font-size: var(--type-stat);
+  }
+
+  .tile[data-section="sun-moon"] .qf-unit {
+    font-size: var(--type-body);
+  }
+}
+
 .qf-sentence {
   margin: var(--s-2) 0 0;
   font-size: var(--type-standfirst);
