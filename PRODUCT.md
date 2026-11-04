@@ -4,7 +4,7 @@
 
 ## Platform
 
-web
+web, with macOS and iOS widgets to follow
 
 ## Users
 
@@ -20,9 +20,10 @@ Lookout shows this station's own measured, hyperlocal record, which a generic we
 
 ## Operating Context
 
-- The owner checks it on a phone, between other things, in short glances.
+- The owner checks it on a phone, between other things, in short glances. The phone page is short: a fixed top, then findings that open on tap.
+- On a desktop it is a full-screen page to read at leisure: the same findings as a grid of tiles.
 - The dashboard is public and read-only, with no login.
-- A home-screen widget (iOS) is a later goal, fed by a public current-conditions feed.
+- Widgets are a later goal: macOS (small, medium, large) and an iOS home-screen widget, fed by a public current-conditions feed. They carry the same findings in short form.
 
 ## Capabilities and Constraints
 
@@ -39,12 +40,15 @@ Lookout shows this station's own measured, hyperlocal record, which a generic we
 
 - **Name:** "Lookout". The station is "lookout post".
 - **Binding references:** the presentation of the Dark Sky weather app, and the data storytelling of the Financial Times, where a chart states its finding.
+- **Look:** quiet slate tiles, data colour only, one orange "now", Lexend, dark and light themes held to the same contrast rules. DESIGN.md holds the system.
+- **Not a weather app:** forecasts belong to a weather app. Lookout is what is happening now and how it compares with recent weeks and this time in earlier years.
 
 ## Evidence on Hand
 
 - `prototype/dashboard/data.json` on the `prototype/dashboard-look` branch: a real snapshot of the archive, from 2023-02 to 2026-10, plus one live reading.
 - The archive is on Storj, about 374k rows at 5-minute resolution.
 - There is no forecast data, and none may be fabricated.
+- The Lookout Prototypes canvas (Nov 2026): four phone directions (A, B and D kept; C, a timeline, was dropped), the chosen desktop tiles and macOS widgets (row E), and the phone pattern (row F). Its numbers are made-up samples. https://claude.ai/artifact/3L81ndVLwwTKZP1jE4Ecmp
 
 ## Product Principles
 
@@ -52,3 +56,4 @@ Lookout shows this station's own measured, hyperlocal record, which a generic we
 2. **Promote what is happening.** When it rains, the rain event leads.
 3. **Every chart states its finding.** Headlines say what the data shows, not what the chart is.
 4. **Honest about the record.** Gaps and invalid comparisons are visible, never smoothed over.
+5. **Method one tap away.** Sources, method and archive lag fold under each finding. They surface unopened only when they change how a chart reads.
