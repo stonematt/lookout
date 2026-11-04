@@ -19,7 +19,8 @@ export interface DaysSwitch {
   el: HTMLElement;
   /**
    * How many days a chart drawn at `width` shows, hiding the switch at
-   * desktop chart width. Call it from the chart's draw.
+   * desktop chart width or when there are no more than 30 days. Call it
+   * from the chart's draw.
    */
   days(width: number): number;
   /** The days chosen on a phone, 30 until the switch is pressed. */
@@ -61,7 +62,8 @@ export function daysSwitch(label: string, onChange: () => void, all = 90): DaysS
   return {
     el,
     days(width: number): number {
-      const phone = width < NARROW;
+      // A record of a month or less has nothing to switch between.
+      const phone = width < NARROW && all > PHONE_DAYS;
       el.hidden = !phone;
       return phone ? chosen : all;
     },

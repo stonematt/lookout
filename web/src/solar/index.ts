@@ -212,7 +212,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Moun
   // Under 520px of chart width, the last 30 days and the switch to 90.
   mount.redraws.push(
     drawDays(chart, {
-      all: BAR_DAYS,
+      all: Math.min(BAR_DAYS, tab.days.energy_kwh_m2.length),
       name: (days) => `Solar energy each day over the last ${days} days`,
       standfirst: lede,
       lede: standfirst,

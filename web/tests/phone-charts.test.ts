@@ -482,6 +482,16 @@ describe("the Solar tab's daily bars", () => {
     expect(firstShown(chart)).toBe("Dec 10");
   });
 
+  it("has no switch for a record of a month or less", () => {
+    layOut(PHONE);
+    history.replaceState(null, "", "/#solar");
+    const host = panel();
+    // The raining golden's solar record is 5 days long.
+    renderSolar(host, dashboard("raining"));
+
+    expect(tile(host, "daily").querySelector<HTMLElement>(".days-seg")!.hidden).toBe(true);
+  });
+
   it("shows 90 days with no switch on desktop", () => {
     layOut(DESKTOP);
     history.replaceState(null, "", "/#solar");
