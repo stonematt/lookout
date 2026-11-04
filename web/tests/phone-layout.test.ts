@@ -29,13 +29,13 @@ let page: Page | null = null;
 const realMatchMedia = window.matchMedia;
 
 /** The stand-in viewport the page's layout switch reads. */
-let screen: Viewport = viewport(390);
+let view: Viewport;
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML =
     "<div class=page><div id=masthead></div><main id=sections></main></div>";
-  screen = viewport(390).install();
+  view = viewport(390).install();
 });
 
 afterEach(() => {
@@ -218,7 +218,7 @@ describe("the phone's compact header", () => {
 
     document.body.innerHTML =
       "<div class=page><div id=masthead></div><main id=sections></main></div>";
-    screen = viewport(1440).install();
+    view = viewport(1440).install();
     await boot(stale);
     expect(mark()).toEqual(phone);
   });
@@ -226,7 +226,7 @@ describe("the phone's compact header", () => {
 
 describe("from 760px", () => {
   it.each([760, 1180])("at %ipx every section is a tile, as before", async (at) => {
-    screen = viewport(at).install();
+    view = viewport(at).install();
     await boot(parsed("raining"), "rain");
     expect(panel("rain").querySelector("details.tile-row, .tile-rows")).toBeNull();
     expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
@@ -235,13 +235,13 @@ describe("from 760px", () => {
   it("redraws the open tab as tiles when the viewport crosses 760px, and as rows again under it", async () => {
     await boot(parsed("raining"), "rain");
     expect(shape("rain")).toEqual(PHONE.rain);
-    screen.resize(1280);
+    view.resize(1280);
     expect(document.documentElement.dataset.layout).toBe("four");
     expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
     expect(shape("overview")).toContain("temperature-periods");
-    screen.resize(900);
+    view.resize(900);
     expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
-    screen.resize(390);
+    view.resize(390);
     expect(shape("rain")).toEqual(PHONE.rain);
   });
 });

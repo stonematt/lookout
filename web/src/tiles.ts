@@ -32,6 +32,8 @@
  * text), so a tab that renders tiles needs no other stylesheet for them.
  * - `archiveLagMs`, `lagCaveat`: the archive lag the chip names, from the
  *   snapshot's own two times, never the browser clock.
+ * - `hatchedCount`, `gapReasons`: how many statuses are hatched as not
+ *   compared, and the chip's short reason naming those counts.
  *
  * Every value here comes from the snapshot: the archive time, the reading
  * time and the gap statuses Python decided. A tile states findings in the

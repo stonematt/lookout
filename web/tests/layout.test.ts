@@ -33,11 +33,11 @@ describe("the layout switch", () => {
   });
 
   it("sets the root's attribute from the viewport, and again as it crosses each threshold", () => {
-    const screen = viewport(390);
-    const layout = mountLayout(document.documentElement, screen.match);
+    const view = viewport(390);
+    const layout = mountLayout(document.documentElement, view.match);
     const seen = [document.documentElement.dataset.layout];
     for (const width of [760, 1179, 1180, 1440, 759]) {
-      screen.resize(width);
+      view.resize(width);
       seen.push(document.documentElement.dataset.layout);
     }
 
@@ -46,19 +46,19 @@ describe("the layout switch", () => {
   });
 
   it("tells its caller each new layout the viewport moves it to, not the first", () => {
-    const screen = viewport(390);
+    const view = viewport(390);
     const seen: string[] = [];
-    mountLayout(document.documentElement, screen.match, (layout) => seen.push(layout));
-    for (const width of [500, 760, 1179, 1440, 759]) screen.resize(width);
+    mountLayout(document.documentElement, view.match, (layout) => seen.push(layout));
+    for (const width of [500, 760, 1179, 1440, 759]) view.resize(width);
 
     expect(seen).toEqual(["two", "four", "phone"]);
   });
 
   it("stops following the viewport once stopped", () => {
-    const screen = viewport(1280);
-    const layout = mountLayout(document.documentElement, screen.match);
+    const view = viewport(1280);
+    const layout = mountLayout(document.documentElement, view.match);
     layout.stop();
-    screen.resize(390);
+    view.resize(390);
 
     expect(currentLayout()).toBe("four");
   });

@@ -645,11 +645,11 @@ describe("an event chart's redraws", () => {
         disconnect() {}
       },
     );
-    const screen = viewport(390);
-    vi.stubGlobal("matchMedia", screen.match);
+    const view = viewport(390);
+    vi.stubGlobal("matchMedia", view.match);
     return {
       resize: () => observers.forEach((fn) => fn()),
-      scheme: () => screen.scheme(),
+      scheme: view.scheme,
     };
   }
 
