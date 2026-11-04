@@ -16,8 +16,6 @@
  * attached to the page and holding its kicker, so a chart can measure its
  * width when it draws.
  */
-import "./overview.css";
-
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
 import { renderTiles } from "../tiles.js";

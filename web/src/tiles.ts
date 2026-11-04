@@ -18,9 +18,12 @@
  *   appends first.
  * - `fold`: a closed native disclosure in Source type, a 32px target.
  * - `sourceNote`: the folded source: closed, "Source · <what>, archived
- *   <time>", with a hatched chip (one per reason) when the archive lags the live reading by
- *   more than 15 minutes or a gap hides part of the chart; open, the full
- *   method paragraph.
+ *   <time>", with a hatched chip (one per reason) when the archive lags the
+ *   live reading by more than 15 minutes or a gap hides part of the chart;
+ *   open, the full method paragraph (`.ov-source`).
+ *
+ * `tiles.css` also carries `.ov-source` and `.ov-sr` (screen-reader-only
+ * text), so a tab that renders tiles needs no other stylesheet for them.
  * - `archiveLagMs`, `lagCaveat`: the archive lag the chip names, from the
  *   snapshot's own two times, never the browser clock.
  *
@@ -48,7 +51,10 @@ export interface TileSection {
    * read from the snapshot (the leading tile names what leads).
    */
   kicker: string | ((snapshot: DashboardSnapshot) => string);
-  /** Columns spanned in the four-column grid (two-column: at most 2). Default 1. */
+  /**
+   * Columns spanned in the four-column grid. Default 1. In the two-column
+   * grid any span of 2 or more takes both columns; on a phone, one.
+   */
   span?: TileSpan;
   /**
    * Whether the section belongs to its tab's fixed top on a phone (DESIGN.md
@@ -79,11 +85,11 @@ export interface TileSection {
  * @param snapshot - The dashboard snapshot.
  * @returns The kicker text.
  */
-export function kickerText(section: TileSection, snapshot: DashboardSnapshot): string {
+function kickerText(section: TileSection, snapshot: DashboardSnapshot): string {
   return typeof section.kicker === "function" ? section.kicker(snapshot) : section.kicker;
 }
 
-function kicker(section: TileSection, snapshot: DashboardSnapshot): HTMLElement {
+function renderKicker(section: TileSection, snapshot: DashboardSnapshot): HTMLElement {
   // The now tile's kicker is its heading for screen readers alone.
   const node = document.createElement(section.now ? "h2" : "p");
   node.className = section.now ? "tile-kicker ov-sr" : "tile-kicker";
@@ -124,7 +130,7 @@ export function renderTiles(
     if (section.phoneTop) host.dataset.phoneTop = "true";
     if (section.now) host.dataset.surface = "now";
     host.setAttribute("aria-label", section.label);
-    host.append(kicker(section, snapshot));
+    host.append(renderKicker(section, snapshot));
     grid.append(host);
     section.render(host, snapshot);
   }

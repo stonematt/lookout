@@ -10,7 +10,9 @@
  * attribute in step as the viewport crosses them. It is the tested seam:
  * happy-dom evaluates no media queries, so a test sets the layout through
  * `setLayout`, or hands `mountLayout` its own `matchMedia`, and asserts the
- * attribute, never the CSS. A chart does not follow this switch: it picks
+ * attribute, never the CSS. The type steps' 760px switch in `tokens.css` is
+ * a media query (type, not layout) and must stay at `TWO_COLUMN_PX`. A chart
+ * does not follow this switch: it picks
  * its phone layout from its own width (DESIGN.md "The Chart Width Rule").
  *
  * Stylesheets select a layout as `:root[data-layout="four"]`, and both grid

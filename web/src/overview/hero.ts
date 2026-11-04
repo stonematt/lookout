@@ -672,15 +672,18 @@ const SOURCES: Record<LeadKind, string> = {
 
 /**
  * The chip's short reason when a gap hides part of the lead's chart: the
- * calm lead's usual dry spell, when its 365 days cannot be compared.
+ * calm lead's usual dry spell, when its 365 days cannot be compared, or any
+ * other lead's usual band, when it has no comparison set to draw.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The reason, or null.
  */
 export function heroGaps(snapshot: DashboardSnapshot): string | null {
   const lead = snapshot.hero_lead;
-  if (lead.kind !== "calm" || rule(lead, "calm").reference !== null) return null;
-  return "usual dry spell not compared";
+  if (lead.kind === "calm") {
+    return rule(lead, "calm").reference === null ? "usual dry spell not compared" : null;
+  }
+  return lead.usual_median === null ? "usual range not compared" : null;
 }
 
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {

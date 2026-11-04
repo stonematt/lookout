@@ -11,6 +11,7 @@ import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
+import { heroGaps } from "../src/overview/hero.js";
 import { archiveLagMs, lagCaveat, notCompared, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
 import { golden, twoStations } from "./golden.js";
@@ -182,6 +183,17 @@ describe.each(["dry", "raining"] as const)("the %s golden's Overview", (scenario
     const nows = [...text.matchAll(/now (\d+\.\d)°|(\d+\.\d)° now/g)].map((m) => m[1] ?? m[2]);
     expect(nows.length).toBeGreaterThan(1);
     expect(new Set(nows)).toEqual(new Set([t]));
+    // The Right-now stats are the live reading's.
+    const stat = (label: string) =>
+      words(
+        [...panel.querySelectorAll("[data-part=right-now] > div")]
+          .find((d) => words(d.querySelector("dt")) === label)
+          ?.querySelector("dd"),
+      );
+    const c = snapshot.current;
+    expect(stat("humidity")).toBe(`${Math.round(c.humidity_pct!)}%`);
+    expect(stat("wind")).toBe(`${c.wind_speed_mph!.toFixed(1)} mph`);
+    expect(stat("feels like")).toBe(`${c.feels_like_f!.toFixed(1)}°`);
     // Rain today: the stat, and every "<x> in so far today".
     const today = snapshot.current.rain_today_in;
     const strip = words(
@@ -267,6 +279,33 @@ describe("the hatched chip on a tile's closed source line", () => {
     const panel = await boot(snapshot);
 
     expect(chips(panel)).toEqual({ "temperature-periods": ["1 window not compared"] });
+  });
+});
+
+describe("the chip's conditions at their edges", () => {
+  it("names the lag only past 15 minutes", () => {
+    const snapshot = parsed("raining");
+    const at = (lagMs: number) =>
+      lagCaveat({ ...snapshot, archive_newest_ms: snapshot.observed_at_ms! - lagMs });
+
+    expect(at(15 * 60_000)).toBeNull();
+    expect(at(15 * 60_000 + 60_000)).toBe("archive 16 m behind");
+    expect(lagCaveat({ ...snapshot, archive_newest_ms: null })).toBeNull();
+  });
+
+  it("names a lead whose usual band has no comparison set", async () => {
+    const raining = level(parsed("raining"));
+    expect(heroGaps(raining)).toBeNull();
+    const bare = structuredClone(raining);
+    bare.hero_lead = { ...bare.hero_lead, usual_low: null, usual_median: null, usual_high: null };
+    expect(heroGaps(bare)).toBe("usual range not compared");
+
+    const panel = await boot(bare);
+    expect(chips(panel)["hero-lead"]).toEqual(["usual range not compared"]);
+  });
+
+  it("names the calm lead's usual dry spell when it is not compared", () => {
+    expect(heroGaps(parsed("dry"))).toBe("usual dry spell not compared");
   });
 });
 
