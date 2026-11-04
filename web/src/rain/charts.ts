@@ -51,7 +51,75 @@ const MONTH_PLACES = WATER_MONTHS.map((_, i) => {
   return daysBetween(REFERENCE_START, `${year}-${String(month).padStart(2, "0")}-01`);
 });
 
-/** Hatch the days not in the record; mark where the record begins. */
+/** Where today's now dot and its "today" label go on the daily bars. */
+interface TodayMark {
+  /** The dot's centre. */
+  cx: number;
+  cy: number;
+  /** The label's anchor point and text-anchor. */
+  x: number;
+  y: number;
+  anchor: "start" | "middle" | "end";
+  /** The label's left and right edges. */
+  from: number;
+  to: number;
+}
+
+/**
+ * Place today's mark: an r4 now dot 4px above today's bar, or above the
+ * baseline when today is dry, so it never touches the fill (the Now Stands
+ * Off Rule), and "today" above the dot, lifted clear of any taller bar under
+ * it. None when today is not in the record (its day is hatched).
+ *
+ * @param recent - The days drawn.
+ * @param x - A day's left edge.
+ * @param y - A rain amount's height.
+ * @param step - A day's width.
+ * @param left - The plot's left edge.
+ * @param right - The plot's right edge.
+ * @param bottom - The baseline.
+ * @returns The mark's place, or null.
+ */
+function todayMark(
+  recent: RecentRain,
+  x: (i: number) => number,
+  y: (v: number) => number,
+  step: number,
+  left: number,
+  right: number,
+  bottom: number,
+): TodayMark | null {
+  const count = recent.rain_in.length;
+  const today = recent.rain_in[count - 1];
+  if (today === null || today === undefined) return null;
+  const cx = x(count - 1) + step / 2;
+  const cy = (today > 0 ? y(today) : bottom) - 4 - 4;
+  const at = aboveDot(cx, cy, "today", left, right, 12);
+  // aboveDot's width for its 13px bold annotation.
+  const wide = "today".length * LABEL_CHAR_PX * 1.15;
+  const from = at.anchor === "end" ? at.x - wide : at.anchor === "start" ? at.x : at.x - wide / 2;
+  const to = from + wide;
+  let tallest = bottom;
+  for (let i = Math.max(0, Math.floor((from - left) / step)); i < count && x(i) <= to; i++) {
+    const value = recent.rain_in[i];
+    if (value !== null && value !== undefined && value > 0) tallest = Math.min(tallest, y(value));
+  }
+  // 6px clears the descender of "y" and the label's halo.
+  return {
+    cx,
+    cy,
+    x: at.x,
+    y: Math.max(12, Math.min(at.y, tallest - 6)),
+    anchor: at.anchor,
+    from,
+    to,
+  };
+}
+
+/**
+ * Hatch the days not in the record; mark where the record begins, stepping
+ * that label down a line where it would meet today's label.
+ */
 function hatchDays(
   svg: SVGSVGElement,
   recent: RecentRain,
@@ -60,6 +128,7 @@ function hatchDays(
   step: number,
   top: number,
   bottom: number,
+  mark: TodayMark | null,
 ): void {
   hatchMissingDays(svg, recent.reason, hatch, x, step, top, bottom, "rain-label");
   const before = runs(recent.reason.length, (i) => recent.reason[i] === "before_archive");
@@ -69,9 +138,13 @@ function hatchDays(
     svg.append(svgEl("line", { x1: at, x2: at, y1: top, y2: bottom, class: "rain-edge" }));
     const words = `record begins ${dayText(addDays(recent.first_day, b + 1))}`;
     const anchor = at > 140 ? "end" : "start";
-    svg.append(
-      chartLabel(anchor === "end" ? at - 4 : at + 4, top + 14, words, "rain-label", anchor),
-    );
+    const lx = anchor === "end" ? at - 4 : at + 4;
+    const wide = words.length * LABEL_CHAR_PX;
+    const [from, to] = anchor === "end" ? [lx - wide, lx] : [lx, lx + wide];
+    let ly = top + 14;
+    // A line is 16px; step below today's label where the two would meet.
+    if (mark && from < mark.to && to > mark.from && Math.abs(ly - mark.y) < 16) ly = mark.y + 16;
+    svg.append(chartLabel(lx, ly, words, "rain-label", anchor));
   }
 }
 
@@ -122,7 +195,8 @@ export function drawDailyBars(
 ): void {
   const count = recent.rain_in.length;
   const height = 168;
-  const [left, right, top, bottom] = [40, width - 6, 22, height - 22];
+  // Room above the top tick for today's dot and its label.
+  const [left, right, top, bottom] = [40, width - 6, 32, height - 22];
   const values = recent.rain_in.filter((v): v is number => v !== null);
   const ticks = zeroTicks(Math.max(0.1, ...values), yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
@@ -138,7 +212,8 @@ export function drawDailyBars(
     "rain-svg",
   );
   yAxis(svg, ticks, y, left, right, "rain", { text: " in", place: "tick" });
-  hatchDays(svg, recent, hatch, x, step, top, bottom);
+  const mark = todayMark(recent, x, y, step, left, right, bottom);
+  hatchDays(svg, recent, hatch, x, step, top, bottom, mark);
   recent.rain_in.forEach((value, i) => {
     if (value === null || value <= 0) return;
     const isToday = i === count - 1;
@@ -152,11 +227,9 @@ export function drawDailyBars(
       }),
     );
   });
-  const today = recent.rain_in[count - 1];
-  if (today !== null && today !== undefined) {
-    const at = x(count - 1) + step / 2;
-    svg.append(svgEl("line", { x1: at, x2: at, y1: top - 4, y2: bottom, class: "rain-now-rule" }));
-    svg.append(chartLabel(at, top - 8, `today ${inches(today)}`, "rain-now-label", "end"));
+  if (mark) {
+    svg.append(svgEl("circle", { cx: mark.cx, cy: mark.cy, r: 4, class: "rain-now-dot" }));
+    svg.append(chartLabel(mark.x, mark.y, "today", "rain-now-label", mark.anchor));
   }
   dayTicks(svg, recent.first_day, count, x, step, bottom + 4, "rain");
   host.replaceChildren(svg);
@@ -367,7 +440,7 @@ export function drawHourGrid(
       );
     });
   });
-  hatchDays(svg, recent, hatch, x, step, top, bottom);
+  hatchDays(svg, recent, hatch, x, step, top, bottom, null);
   HOUR_TICKS.forEach((h) => {
     svg.append(
       svgEl(

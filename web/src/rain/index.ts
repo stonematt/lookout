@@ -119,7 +119,7 @@ function stat(list: HTMLElement, label: string, value: string | null, note?: str
 function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab = snapshot.rain_tab;
   const lede = (days: number) =>
-    `Rain over each window ending today, then each day of the last ${days}; the line marked today is the live total.`;
+    `Rain over each window ending today, then each day of the last ${days}; the day marked today is the live total.`;
   heading(host, dailyHeadline(snapshot), lede(90));
   // On the four-column grid the strip stands beside the bars (tiles.css).
   const split = make("div", "tile-split");

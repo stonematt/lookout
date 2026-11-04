@@ -142,11 +142,6 @@
   fill: var(--rain-bar);
 }
 
-.rain-svg .rain-now-rule {
-  stroke: var(--now);
-  stroke-width: 2.5;
-}
-
 /* water-year curves: earlier years thin slate, the current one bold rain */
 .rain-svg .rain-year {
   fill: none;
