@@ -188,18 +188,18 @@ describe("hatching", () => {
 });
 
 describe("the hatch in a chart", () => {
-  it("gives an SVG its own 135° hatch pattern, 4px stripes on an 8px repeat", () => {
+  it("gives an SVG its own 135° hatch pattern, 2px stripes on a 12px repeat", () => {
     const root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const fill = svgHatch(root);
     const pattern = root.querySelector("defs > pattern")!;
 
     expect(fill).toBe(`url(#${pattern.id})`);
     expect(pattern.getAttribute("patternTransform")).toBe("rotate(45)");
-    expect(pattern.getAttribute("width")).toBe("8");
+    expect(pattern.getAttribute("width")).toBe("12");
     const [ground, stripe] = [...pattern.querySelectorAll("rect")];
     expect(ground!.getAttribute("class")).toBe("gap-hatch-b");
     expect(stripe!.getAttribute("class")).toBe("gap-hatch-a");
-    expect(stripe!.getAttribute("width")).toBe("4");
+    expect(stripe!.getAttribute("width")).toBe("2");
   });
 
   it("names each pattern apart, so two charts on a page never share one", () => {
@@ -219,8 +219,8 @@ describe("the hatch in a chart", () => {
       shape: "\\",
       fgcolor: "#aaa",
       bgcolor: "#fff",
-      size: 8,
-      solidity: 0.45,
+      size: 12,
+      solidity: 0.17,
     });
   });
 });
