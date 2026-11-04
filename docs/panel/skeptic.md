@@ -48,3 +48,10 @@ Verdict: ship
 - [x] the SEASON rolling row is labelled with the calendar year — fixed in the snapshot (`water_year`)
 - [ ] note: confirm the web renders `water_year` for the SEASON row — `lookout/snapshot/almanac.py:~135`
 - [ ] note: rain corrections log at INFO for each correction on every read — `lookout/core/rain_corrections.py:~150`
+
+### 2026-11-04 — goal PR #358 at `0abc3f2`, lane server, pre-UAT
+Verdict: ship
+- every number on all four tabs matches the snapshot on both fixtures; gaps render `n/a`, never 0
+- [ ] fix: usual event 0.42 in (excludes the live event, `lookout/snapshot/lead.py:171`) against catalog median 0.36 in (includes it, `events.py:127`); pre-existing (#375)
+- [ ] fix: ten-day temperature ramp stops 28/56/84°F decided in the web — `web/src/overview/temperature.ts:301` (#374)
+- [x] the web renders `water_year` for the SEASON row — `web/src/overview/almanac.ts:175,347`; hours with no readings show a key, not 0.0

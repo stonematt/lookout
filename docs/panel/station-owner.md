@@ -49,3 +49,10 @@ Verdict: ship
 - [x] note: the screenshots came back about 1158 px wide, not 390 px — Matt checked on his iPhone 2026-11-01: looks good
 - [ ] note: the event chart showed "Loading the event's readings…" — part of #239
 - [ ] note: `#rain-events` hash and favicon 404 — not rechecked
+
+### 2026-11-04 — goal PR #358 at `0abc3f2`, lane server, pre-UAT
+Verdict: ship
+- [ ] fix: station name truncates in the phone header select ("Fixtur…" at 320, "Fixture …" when stale at 390) — header
+- [ ] note: Source and "Why this leads" rows are 33px tall, under 44px; at 320x568 the leading tile is below the fold — tiles
+- [ ] note: favicon still 404; `#rain-events` hash fallback not rechecked
+- checked: no sideways scroll 320–1280, no text under 12px or 4.5:1 in either theme, tab bar 48px and keyboard-usable, one finding row open at a time, stale chip obvious
