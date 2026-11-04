@@ -94,3 +94,18 @@ export function oneStation(): StationIndex {
   const index = twoStations();
   return { ...index, stations: index.stations.slice(0, 1) };
 }
+
+/**
+ * One golden document as the schema 2 refresh run wrote it: the v3 golden
+ * with `schema_version` 2 and the v3 `sun_moon` block removed. Built here,
+ * never by editing a golden file (#351).
+ *
+ * @param scenario - "dry" or "raining".
+ * @param kind - "dashboard" or "context".
+ * @returns The parsed JSON, untyped.
+ */
+export function goldenV2(scenario: Scenario, kind: "dashboard" | "context"): unknown {
+  const doc = golden(scenario, kind) as Record<string, unknown>;
+  delete doc.sun_moon;
+  return { ...doc, schema_version: 2 };
+}

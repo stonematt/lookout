@@ -27,6 +27,15 @@ export const SCHEMA_VERSION = 3;
  */
 export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3];
 
+/**
+ * The versions a dashboard or context document may carry. The site reads the
+ * version before `SCHEMA_VERSION` too, so it can ship before the refresh run
+ * writes the new version (#351). A v2 dashboard has no `sun_moon`, read as
+ * null. Narrowing this back to `SCHEMA_VERSION` waits until no v2 document is
+ * live.
+ */
+export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [2, 3];
+
 /** Which station a document is about. */
 export interface StationId {
   /** Its MAC address, the key of every file it has on Storj. */
@@ -752,10 +761,10 @@ function checkHead(doc: unknown, kind: string): Record<string, unknown> {
   if (!isRecord(doc)) {
     throw new SnapshotContractError(`${kind}: not a JSON object`);
   }
-  if (doc.schema_version !== SCHEMA_VERSION) {
+  if (!SNAPSHOT_SCHEMA_VERSIONS.includes(doc.schema_version as number)) {
     throw new SnapshotContractError(
       `${kind}: schema_version ${String(doc.schema_version)}, ` +
-        `this site reads ${SCHEMA_VERSION}`,
+        `this site reads ${SNAPSHOT_SCHEMA_VERSIONS.join(" or ")}`,
     );
   }
   if (doc.kind !== kind) {
@@ -821,9 +830,11 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
   checkSolarTab(head.solar_tab);
-  checkSunMoon(head.sun_moon);
+  // v2 predates the sun and moon block: its absence there means unknown.
+  const sun_moon = head.schema_version === 2 && !("sun_moon" in head) ? null : head.sun_moon;
+  checkSunMoon(sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
-  return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
+  return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
 function checkStaleCatalogs(list: unknown): StaleCatalog[] {
