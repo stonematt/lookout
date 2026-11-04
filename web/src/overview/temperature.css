@@ -41,6 +41,15 @@
   fill: var(--ink);
 }
 
+/* on a phone a row's label sits above its bar, where the now rule crosses it */
+.tc-row,
+.tc-sub {
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
 .tc-row-today {
   fill: var(--now);
 }

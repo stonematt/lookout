@@ -165,19 +165,31 @@
   border-radius: var(--r-cell);
 }
 
-.ribbon-tick-late {
-  display: none;
-}
-
 /* a tick the now label would run into (`clearNowLabel`) */
 .ribbon-tick.ribbon-tick-hidden {
   visibility: hidden;
 }
 
-@media (min-width: 600px) {
-  .ribbon-tick-late {
-    display: block;
-  }
+/* under 520px of band (the Chart Width Rule, `fitRibbon`) the ticks name
+   only the days */
+.ribbon[data-narrow="true"] .ribbon-tick:not(.ribbon-tick-day) {
+  display: none;
+}
+
+/* on a phone the band, the rain track and the ticks run edge to edge in
+   the tile, out through its padding */
+:root[data-layout="phone"] .tile .ribbon-band,
+:root[data-layout="phone"] .tile .ribbon-rain,
+:root[data-layout="phone"] .tile .ribbon-ticks {
+  margin-inline: calc(-1 * var(--tile-pad-phone));
+}
+
+:root[data-layout="phone"] .tile .ribbon-band {
+  border-radius: 0;
+}
+
+:root[data-layout="phone"] .tile .ribbon-now {
+  right: var(--s-2);
 }
 
 .ribbon-trace polyline {

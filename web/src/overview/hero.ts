@@ -30,7 +30,7 @@ import {
   WET_DAY_IN,
   wattsPerM2,
 } from "../format.js";
-import { niceTicks, scale } from "../charts/svg.js";
+import { NARROW, aboveDot, niceTicks, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
@@ -367,7 +367,7 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   const nowMs = lead.now_ms;
   const t0 = trace.start_ms;
   const t1 = hourly ? t0 + trace.values.length * slotMs : nowMs;
-  const narrow = width < 520;
+  const narrow = width < NARROW;
   const f: Frame = { w: width, h: narrow ? 220 : 260, l: 40, r: 12, t: 24, b: 28 };
   const iw = f.w - f.l - f.r;
   const ih = f.h - f.t - f.b;
@@ -399,7 +399,10 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   const pad = (hi - lo || 1) * 0.12;
   if (lead.unit === "f") lo -= pad;
   hi += pad;
-  const ticks = niceTicks(lo, hi);
+  // Three ticks on a phone: two steps, and a third tick above when the
+  // span holds only one.
+  const ticks = niceTicks(lo, hi, narrow ? 2 : 5);
+  if (narrow && ticks.length === 2) ticks.push(+(2 * ticks[1]! - ticks[0]!).toPrecision(6));
   lo = Math.min(lo, ticks[0] ?? lo);
   hi = Math.max(hi, ticks.at(-1) ?? hi);
 
@@ -521,17 +524,17 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
     );
   }
   g.append(svgEl("circle", { class: "hero-dot", cx: dot[0], cy: dot[1], r: 5 }));
+  const note = nowLabel(lead);
   const right = dot[0] + 8 + 110 > iw + f.r;
+  // On a phone the label sits above its dot.
+  const place = narrow
+    ? aboveDot(dot[0], dot[1], note, -f.l, iw + f.r, 12 - f.t)
+    : { x: right ? dot[0] - 8 : dot[0] + 8, y: dot[1] - 8, anchor: right ? "end" : "start" };
   g.append(
     svgEl(
       "text",
-      {
-        class: "hero-note",
-        x: right ? dot[0] - 8 : dot[0] + 8,
-        y: dot[1] - 8,
-        "text-anchor": right ? "end" : "start",
-      },
-      nowLabel(lead),
+      { class: "hero-note", x: place.x, y: place.y, "text-anchor": place.anchor },
+      note,
     ),
   );
   return root;

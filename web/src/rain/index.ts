@@ -15,6 +15,7 @@ import "./rain.css";
 import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
+import { daysSwitch } from "../charts/days-switch.js";
 import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import type { TileSection } from "../tiles.js";
@@ -27,7 +28,7 @@ import {
   tileFinding,
   tileFolds,
 } from "../tiles.js";
-import { drawDailyBars, drawHourGrid, drawYearCurves } from "./charts.js";
+import { drawDailyBars, drawHourGrid, drawYearCurves, lastDays } from "./charts.js";
 import {
   WINDOW_NAMES,
   calmRule,
@@ -115,14 +116,40 @@ function stat(list: HTMLElement, label: string, value: string | null, note?: str
   return dd;
 }
 
+/**
+ * Draw a chart of the recent days at its width, through its 30 / 90
+ * switch: the last 30 at phone chart width until the switch shows 90.
+ *
+ * @param host - The tile; its standfirst follows the days shown.
+ * @param chart - The chart's figure; the switch mounts above it.
+ * @param name - The chart's name, given the days it shows.
+ * @param standfirst - The tile's standfirst, given the days it shows.
+ * @param draw - Draws the chart's days at a width.
+ */
+function recentChart(
+  host: HTMLElement,
+  chart: HTMLElement,
+  name: (days: number) => string,
+  standfirst: (days: number) => string,
+  draw: (days: number, width: number) => void,
+): void {
+  const lede = host.querySelector<HTMLElement>("[data-part=standfirst]");
+  const span = daysSwitch("Days shown", () => redraw());
+  chart.before(span.el);
+  const redraw = drawSized(chart, (width) => {
+    const days = span.days(width);
+    chart.setAttribute("aria-label", `${name(days)}. Use the arrow keys to read each mark.`);
+    if (lede) lede.textContent = standfirst(days);
+    draw(days, width);
+  });
+}
+
 /** The daily tile: window totals, then 90 days of bars. */
 function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab = snapshot.rain_tab;
-  heading(
-    host,
-    dailyHeadline(snapshot),
-    "Rain over each window ending today, then each day of the last 90; the line marked today is the live total.",
-  );
+  const lede = (days: number) =>
+    `Rain over each window ending today, then each day of the last ${days}; the line marked today is the live total.`;
+  heading(host, dailyHeadline(snapshot), lede(90));
   // On the four-column grid the strip stands beside the bars (tiles.css).
   const split = make("div", "tile-split");
   const strip = make("dl", "rain-stats rain-windows");
@@ -136,8 +163,13 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const bars = make("div", "tile-split-chart");
   split.append(bars);
   const { chart, readout } = figure(bars, "Rain each day over the last 90 days");
-  drawSized(chart, (width) =>
-    drawDailyBars(chart, tab.recent, width, (t) => (readout.textContent = t)),
+  recentChart(
+    host,
+    chart,
+    (days) => `Rain each day over the last ${days} days`,
+    lede,
+    (days, width) =>
+      drawDailyBars(chart, lastDays(tab.recent, days), width, (t) => (readout.textContent = t)),
   );
   const todayStatus = rainStatus(snapshot, "today");
   const live = snapshot.current.rain_today_in;
@@ -260,14 +292,17 @@ function renderYears(host: HTMLElement, snapshot: DashboardSnapshot): void {
 /** The heatmap tile: rain by the hour over the last 90 days. */
 function renderHours(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab = snapshot.rain_tab;
-  heading(
-    host,
-    hoursHeadline(snapshot),
-    "Each column is a day of the last 90 and each row an hour, midnight at the top; the key shows the rain each shade stands for.",
-  );
+  const lede = (days: number) =>
+    `Each column is a day of the last ${days} and each row an hour, midnight at the top; the key shows the rain each shade stands for.`;
+  heading(host, hoursHeadline(snapshot), lede(90));
   const { chart, readout } = figure(host, "Rain by the hour over the last 90 days");
-  drawSized(chart, (width) =>
-    drawHourGrid(chart, tab.recent, width, (t) => (readout.textContent = t)),
+  recentChart(
+    host,
+    chart,
+    (days) => `Rain by the hour over the last ${days} days`,
+    lede,
+    (days, width) =>
+      drawHourGrid(chart, lastDays(tab.recent, days), width, (t) => (readout.textContent = t)),
   );
   const key = make("ul", "rain-key");
   key.setAttribute("aria-label", "Key");

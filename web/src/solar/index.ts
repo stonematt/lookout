@@ -17,6 +17,7 @@
 import "./solar.css";
 
 import { addDays, dayText, daysBetween, kwhPerM2 } from "../format.js";
+import { daysSwitch } from "../charts/days-switch.js";
 import { FALLBACK_WIDTH, drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
@@ -187,11 +188,9 @@ function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab
 /** The daily tile: window totals, then 90 days of bars. */
 function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Mount): void {
   const { tab, state, pick } = mount;
-  heading(
-    host,
-    dailyHeadline(snapshot),
-    "Energy over each window ending today, then each day of the last 90. Select a day to see its 15 minutes below.",
-  );
+  const standfirst = (days: number) =>
+    `Energy over each window ending today, then each day of the last ${days}. Select a day to see its 15 minutes below.`;
+  const { lede } = heading(host, dailyHeadline(snapshot), standfirst(BAR_DAYS));
   const strip = make("dl", "solar-stats");
   for (const window of tab.windows) {
     const item = document.createElement("div");
@@ -207,14 +206,21 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Moun
   const split = make("div", "tile-split");
   const bars = make("div", "tile-split-chart");
   const { chart, readout } = figure("Solar energy each day over the last 90 days");
-  bars.append(chart, readout);
+  // Under 520px of chart width, the last 30 days and the switch to 90.
+  const span = daysSwitch("Days shown", () => redraw(), BAR_DAYS);
+  bars.append(span.el, chart, readout);
   split.append(strip, bars);
   host.append(split);
-  mount.redraws.push(
-    sized(chart, (w) =>
-      drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick),
-    ),
-  );
+  const redraw = sized(chart, (w) => {
+    const days = span.days(w);
+    chart.setAttribute(
+      "aria-label",
+      `Solar energy each day over the last ${days} days. Use the arrow keys to read each mark.`,
+    );
+    lede.textContent = standfirst(days);
+    drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick, days);
+  });
+  mount.redraws.push(redraw);
   const windows = hatchedCount(tab.windows.map((w) => w.status));
   host.append(
     source(

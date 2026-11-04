@@ -16,6 +16,7 @@
 import { HOUR_MS, stationFormat, degrees, formatHours, hourText, localHour } from "../format.js";
 import { make, svgEl } from "../dom.js";
 import { hatchSpan } from "../gaps.js";
+import { NARROW } from "../charts/svg.js";
 import type { ConditionRibbon, DashboardSnapshot } from "../snapshot.js";
 
 const VIEW_W = 1000;
@@ -28,13 +29,8 @@ const RAIN_STEP_NAMES = ["light", "moderate", "steady", "heavy"] as const;
 /** A rain bar's height in the track's viewBox: a quarter more per step. */
 const rainBarHeight = (step: 1 | 2 | 3 | 4) => (step / RAIN_STEP_NAMES.length) * VIEW_H;
 
-/**
- * Ticks are dropped this close to either edge. Past `TICK_LATE_PCT` a tick
- * would run into the "now" label on a phone, so it is marked late and shown
- * only on wider screens.
- */
+/** Ticks are dropped this close to either edge. */
 const TICK_MIN_PCT = 4;
-const TICK_LATE_PCT = 74;
 const TICK_MAX_PCT = 90;
 
 /**
@@ -84,8 +80,8 @@ export interface RibbonTick {
   pct: number;
   /** "6 am", "noon", "6 pm", or the weekday at midnight. */
   label: string;
-  /** Close to the "now" label: shown only where the band is wide. */
-  late: boolean;
+  /** A midnight, named by its weekday: the only ticks a phone-width ribbon shows. */
+  day: boolean;
 }
 
 /** The weekday formatter in the station's zone. */
@@ -110,9 +106,20 @@ export function ribbonTicks(ribbon: ConditionRibbon): RibbonTick[] {
     const pct = ((t - ribbon.start_ms) / span) * 100;
     if (pct < TICK_MIN_PCT || pct > TICK_MAX_PCT) continue;
     const label = hour === 0 ? weekdayOf().format(t) : hourText(hour);
-    ticks.push({ pct, label, late: pct > TICK_LATE_PCT });
+    ticks.push({ pct, label, day: hour === 0 });
   }
   return ticks;
+}
+
+/**
+ * Give the ribbon its layout for its width (DESIGN.md, "The Chart Width
+ * Rule"): under 520px its ticks name only the days; wider, every six hours.
+ *
+ * @param block - The ribbon block.
+ * @param width - The band's width in px.
+ */
+export function fitRibbon(block: HTMLElement, width: number): void {
+  block.dataset.narrow = String(width > 0 && width < NARROW);
 }
 
 /** The room a tick label keeps from the now label. */
@@ -289,20 +296,20 @@ export function renderRibbon(snapshot: DashboardSnapshot): HTMLElement | null {
   const ticks = make("div", "ribbon-ticks");
   ticks.setAttribute("aria-hidden", "true");
   for (const tick of ribbonTicks(ribbon)) {
-    const node = make(
-      "span",
-      tick.late ? "ribbon-tick ribbon-tick-late" : "ribbon-tick",
-      tick.label,
-    );
+    const node = make("span", tick.day ? "ribbon-tick ribbon-tick-day" : "ribbon-tick", tick.label);
     node.style.left = `${tick.pct}%`;
     ticks.append(node);
   }
   if (now !== null) ticks.append(make("span", "ribbon-now", `now ${degrees(now)}`));
   block.append(ticks);
-  // Where a tick falls depends on the time of day and the band's width, so
-  // only the laid-out row can say which run into the now label.
-  if (now !== null && typeof ResizeObserver !== "undefined") {
-    new ResizeObserver(() => clearNowLabel(ticks)).observe(ticks);
+  // Which ticks show depends on the band's width, and where a tick falls on
+  // the time of day, so only the laid-out row can say which run into the
+  // now label.
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => {
+      fitRibbon(block, ticks.clientWidth);
+      if (now !== null) clearNowLabel(ticks);
+    }).observe(ticks);
     // The labels change width once the web font arrives; the row does not.
     void document.fonts?.ready.then(() => clearNowLabel(ticks));
   }
