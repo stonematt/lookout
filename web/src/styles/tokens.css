@@ -49,11 +49,11 @@
   --sun-bar: #a87a24;
   --sun-band: #f5e9c8;
   --sun-band-edge: #a1802f;
-  --sun-0: #a8873d;
-  --sun-1: #8e6f2c;
-  --sun-2: #75591f;
-  --sun-3: #5c4515;
-  --sun-4: #42310d;
+  --sun-0: #6e5a2e;
+  --sun-1: #8a6f2e;
+  --sun-2: #b8942c;
+  --sun-3: #e3b83a;
+  --sun-4: #f5cd4f;
   /* the 48-hour ribbon */
   --ribbon-night: #2c3640;
   --ribbon-day: #8797a8;
@@ -66,11 +66,11 @@
   --on-rain-2: var(--on-ramp-pale);
   --on-rain-3: var(--on-ramp-pale);
   --on-rain-4: var(--on-ramp-pale);
-  --on-sun-0: var(--on-ramp-deep);
+  --on-sun-0: var(--on-ramp-pale);
   --on-sun-1: var(--on-ramp-pale);
-  --on-sun-2: var(--on-ramp-pale);
-  --on-sun-3: var(--on-ramp-pale);
-  --on-sun-4: var(--on-ramp-pale);
+  --on-sun-2: var(--on-ramp-deep);
+  --on-sun-3: var(--on-ramp-deep);
+  --on-sun-4: var(--on-ramp-deep);
 
   color-scheme: light;
 }

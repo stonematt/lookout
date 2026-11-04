@@ -223,3 +223,13 @@ describe("the type", () => {
     }
   });
 });
+
+describe("the sun ramp", () => {
+  it.each(THEMES)("brightens with the sun, step by step, in %s", (theme) => {
+    const t = tokens[theme];
+    const lum = (step: number) => ratio(t[`sun-${step}`]!, "#000000");
+    for (let step = 1; step < 5; step += 1) {
+      expect(lum(step), `sun-${step} brighter than sun-${step - 1}`).toBeGreaterThan(lum(step - 1));
+    }
+  });
+});
