@@ -1,5 +1,5 @@
 /*
- * The Overview's first screen, phone first: temperature and condition
+ * The now tile, phone first: temperature and condition
  * sentence, the Right-now strip, the 48-hour condition ribbon. The
  * temperature is Display type, the sentence Condition, the strip Stat; the
  * ribbon draws in the ribbon tokens, outlined by `ribbon-edge` (which equals
@@ -42,16 +42,20 @@
 }
 
 /* ---------- the Right-now strip ---------- */
+/* four stats: two columns on a phone, four on both grids */
 .right-now {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 var(--s-3);
-  max-width: 520px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2) var(--s-3);
   margin: var(--s-4) 0 0;
   padding: var(--s-2) 0;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
   font-variant-numeric: tabular-nums;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .right-now {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .right-now div {

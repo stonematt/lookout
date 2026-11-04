@@ -86,10 +86,47 @@ a {
 }
 
 /* ---------- the page column ---------- */
+/* phone: the header, the sticky tab bar, then the panels. On both grids
+   (the layout switch, `layout.ts`) a container up to 1360px with a 24px
+   gutter, and the tabs as pills on the right of the header's row */
 .page {
-  max-width: 1240px;
+  max-width: calc(1360px + 2 * var(--gutter));
   margin: 0 auto;
   padding: 0 var(--gutter) 96px;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) {
+  --gutter: 24px;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--s-5);
+  align-items: start;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page > #masthead {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page > .tabs {
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  padding: var(--s-3) 0 var(--s-2);
+  border-bottom: 0;
+  background: none;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page > #sections {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  padding-top: var(--s-3);
 }
 
 /* ---------- the header ---------- */
@@ -305,10 +342,4 @@ a {
 
 .panel:focus-visible {
   outline-offset: 4px;
-}
-
-@media (min-width: 1024px) {
-  .tabs {
-    margin-bottom: var(--s-6);
-  }
 }

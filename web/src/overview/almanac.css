@@ -9,19 +9,6 @@
  * headers over `rule-strong`, `rule` row dividers, numbers right-aligned.
  */
 
-.alm-headline {
-  margin: 0;
-  font-size: var(--type-finding);
-  font-weight: 500;
-  line-height: 1.4;
-  max-width: 44ch;
-  text-wrap: balance;
-}
-
-.alm-headline + .standfirst {
-  margin-top: var(--s-1);
-}
-
 /* ---------- the grid ---------- */
 .alm-figure {
   margin: var(--s-3) 0 0;

@@ -1,18 +1,20 @@
 /**
- * The Overview's first screen (DESIGN.md, "The Phone First-Screen Rule"):
- * under the header's station name and reading time, the current
- * temperature with its condition sentence beside it, the Right-now strip
- * (feels like, wind, rain today), then the 48-hour condition ribbon.
+ * The now tile (DESIGN.md "Now tile", "The Phone First-Screen Rule"): the
+ * current temperature with its condition sentence beside it (together, the
+ * tile's finding), the Right-now strip (feels like, wind, rain today,
+ * humidity), then the 48-hour condition ribbon, and the folded source. It is
+ * the one tile on `now-surface`, and in the phone's fixed top.
  *
  * Every value is the snapshot's live-stitched `current`, the one value every
- * view reads, and the source line dates it by the snapshot's own reading, so
+ * view reads, and the source note dates it by the snapshot's own reading, so
  * it never borrows the freshness of a newer `/current`. The archive lag goes
- * in the source line under the ribbon, never in the sentence.
+ * in the source note under the ribbon, never in the sentence.
  */
 import "./first-screen.css";
 
 import { degrees, formatDuration, formatStamp, inches, mph } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
+import { sourceNote, tileFolds } from "../tiles.js";
 import { conditionSentence } from "./condition.js";
 import type { OverviewSection } from "./index.js";
 import { renderRibbon } from "./ribbon.js";
@@ -50,6 +52,7 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
     ["feels like", shown(c.feels_like_f, degrees)],
     ["wind", shown(c.wind_speed_mph, mph)],
     ["rain today", shown(c.rain_today_in, (v) => inches(v, { digits: 2 }))],
+    ["humidity", shown(c.humidity_pct, (v) => `${Math.round(v)}%`)],
   ];
   for (const [label, value] of items) {
     const item = document.createElement("div");
@@ -92,30 +95,54 @@ export function firstScreenSource(snapshot: DashboardSnapshot): string {
   );
 }
 
-function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
-  const heading = document.createElement("h2");
-  heading.className = "ov-sr";
-  heading.textContent = "Right now";
+/**
+ * How many of the ribbon's archived slots have no rain value: a gap in the
+ * record hides that part of the rain track. The unarchived tail is the
+ * archive lag's, which the chip names on its own.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The chip's short reason, or null.
+ */
+export function ribbonGaps(snapshot: DashboardSnapshot): string | null {
+  const ribbon = snapshot.condition_ribbon;
+  const archived = snapshot.archive_newest_ms;
+  if (!ribbon || archived === null) return null;
+  const slotMs = ribbon.slot_minutes * 60_000;
+  const gaps = ribbon.rain_in.filter(
+    (rain, i) => rain === null && ribbon.start_ms + i * slotMs <= archived,
+  ).length;
+  return gaps ? `${formatDuration(gaps * slotMs)} of the ribbon missing` : null;
+}
 
-  const line = document.createElement("div");
-  line.className = "now-line";
+function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  // The temperature beside its condition sentence is the tile's finding.
+  const line = part("div", "finding", "now-line");
   const sentence = part("p", "condition", "now-condition");
   sentence.textContent = conditionSentence(snapshot.current);
   line.append(temperature(snapshot), sentence);
 
-  host.append(heading, line, rightNow(snapshot));
+  host.append(line, rightNow(snapshot));
   const ribbon = renderRibbon(snapshot);
   if (ribbon) host.append(ribbon);
 
-  const source = document.createElement("p");
-  source.className = "ov-source";
-  source.textContent = firstScreenSource(snapshot);
-  host.append(source);
+  host.append(
+    tileFolds(
+      sourceNote(snapshot, {
+        what: "the station's reading",
+        method: firstScreenSource(snapshot),
+        gaps: ribbonGaps(snapshot),
+      }),
+    ),
+  );
 }
 
-/** The first screen, as an Overview section. */
+/** The now tile, as an Overview section. */
 export const firstScreen: OverviewSection = {
   id: "first-screen",
   label: "Right now",
+  kicker: "Right now",
+  span: 2,
+  phoneTop: true,
+  now: true,
   render,
 };

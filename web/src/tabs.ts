@@ -40,17 +40,29 @@ function isTabId(id: string): id is TabId {
   return TABS.some((tab) => tab.id === id);
 }
 
+/** Where `mountTabs` puts the tab bar. */
+export interface TabsOptions {
+  /**
+   * Put the bar just before `host`, as its sibling, rather than inside it:
+   * the page sets it beside the header on both grids (DESIGN.md "Header and
+   * tabs"), while the panels stay in `host`.
+   */
+  barBeforeHost?: boolean;
+}
+
 /**
  * Render the tab bar and its four empty panels into `host`.
  *
  * @param host - The element to render into; its content is replaced.
  * @param onSelect - Called with the tab and its panel each time one opens,
  *   so a tab can render its content the first time it is shown.
+ * @param options - Where the bar goes; inside `host`, before the panels, by default.
  * @returns The tabs' controls.
  */
 export function mountTabs(
   host: HTMLElement,
   onSelect?: (id: TabId, panel: HTMLElement) => void,
+  options: TabsOptions = {},
 ): Tabs {
   const bar = document.createElement("nav");
   bar.className = "tabs";
@@ -86,7 +98,15 @@ export function mountTabs(
     panelHost.append(panel);
     panels.set(id, panel);
   }
-  host.replaceChildren(bar, panelHost);
+  if (options.barBeforeHost && host.parentElement) {
+    // Mounted again on the same host: the new bar replaces the last one.
+    const last = host.previousElementSibling;
+    if (last?.classList.contains("tabs")) last.replaceWith(bar);
+    else host.before(bar);
+    host.replaceChildren(panelHost);
+  } else {
+    host.replaceChildren(bar, panelHost);
+  }
 
   let open: TabId = "overview";
 

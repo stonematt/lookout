@@ -5,24 +5,6 @@
  * Marks use the temperature tokens over the usual band (`temp-band`, edged in
  * light mode); the one `now` mark is the now rule and its label.
  */
-[data-section="temperature-context"] {
-  display: grid;
-  gap: var(--s-7);
-}
-
-.tc-headline {
-  margin: 0;
-  font-size: var(--type-finding);
-  font-weight: 500;
-  line-height: 1.4;
-  max-width: 44ch;
-  text-wrap: balance;
-}
-
-.tc-headline + .standfirst {
-  margin-top: var(--s-1);
-}
-
 .tc-chart {
   margin-top: var(--s-4);
   max-width: 760px;

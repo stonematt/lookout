@@ -5,19 +5,6 @@
  * passes by its fill in dark; the one `now` mark is the dot and its label.
  */
 
-.hero-headline {
-  margin: 0;
-  font-size: var(--type-finding-lead);
-  font-weight: 500;
-  line-height: 1.33;
-  max-width: 52ch;
-  text-wrap: balance;
-}
-
-.hero-headline + .standfirst {
-  margin-top: var(--s-1);
-}
-
 /* ---------- the hero facts: a stat strip ---------- */
 .hero-facts {
   display: grid;
@@ -150,26 +137,12 @@
   stroke-width: 2;
 }
 
-/* ---------- Why this leads ---------- */
+/* ---------- Why this leads: the rules, inside its fold ---------- */
 .hero-why {
-  margin-top: var(--s-4);
-  font-size: var(--type-source);
-  color: var(--ink-3);
-}
-
-.hero-why summary {
-  display: flex;
-  align-items: center;
-  width: max-content;
-  min-height: 32px;
-  cursor: pointer;
-}
-
-.hero-why ol {
   display: grid;
   gap: var(--s-2);
   max-width: 62ch;
-  margin: var(--s-2) 0 0;
+  margin: var(--s-1) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -198,32 +171,4 @@
 .hero-why li[data-lead] {
   color: var(--ink);
   font-weight: 600;
-}
-
-/*
- * From 1024px the first screen and the hero lead sit side by side, 5/7
- * (DESIGN.md "Layout"); every other Overview section spans both columns.
- */
-@media (min-width: 1024px) {
-  .panel:not([hidden]):has(> [data-section="hero-lead"]) {
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    column-gap: 56px;
-    align-items: start;
-  }
-
-  .panel:has(> [data-section="hero-lead"]) > .ov-section {
-    grid-column: 1 / -1;
-  }
-
-  .panel:has(> [data-section="hero-lead"]) > [data-section="first-screen"] {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .panel:has(> [data-section="hero-lead"]) > [data-section="hero-lead"] {
-    grid-column: 2;
-    grid-row: 1;
-    margin-top: 0;
-  }
 }

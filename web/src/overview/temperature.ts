@@ -1,5 +1,5 @@
 /**
- * The Overview's temperature context (#81), three blocks in the spec's order:
+ * The Overview's temperature context (#81), three tiles:
  *
  * 1. temperature across periods: one range bar per window (today, yesterday,
  *    7, 30, 90, 365 days), a whisker from the lowest to the highest reading,
@@ -11,7 +11,8 @@
  * Every number is the snapshot's (`lookout/snapshot/temperature.py`): this
  * module words and draws, it does not compute a comparison. A window or day
  * the gap status marks invalid is hatched with its reason and has no value
- * under it; a prorated one shows `≈` (`gapValue`).
+ * under it; a prorated one shows `≈` (`gapValue`), and the tile's source note
+ * carries a hatched chip counting what is not compared.
  */
 import "./temperature.css";
 
@@ -26,6 +27,7 @@ import type {
   TemperatureDay,
   TemperaturePeriod,
 } from "../snapshot.js";
+import { notCompared, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
@@ -528,28 +530,12 @@ function stripChart(strip: NormalStrip, width: number): SVGSVGElement | null {
   return el;
 }
 
-// ---------- the section ----------
+// ---------- the tiles ----------
 
-function block(kind: string, headline: string, standfirst: string): HTMLElement {
-  const el = document.createElement("div");
-  el.className = "tc-block";
-  el.dataset.block = kind;
-  const h = document.createElement("h2");
-  h.className = "tc-headline";
-  h.dataset.part = "headline";
-  h.textContent = headline;
+function standfirst(text: string): HTMLElement {
   const p = document.createElement("p");
   p.className = "standfirst";
   p.dataset.part = "standfirst";
-  p.textContent = standfirst;
-  el.append(h, p);
-  return el;
-}
-
-function source(text: string): HTMLElement {
-  const p = document.createElement("p");
-  p.className = "ov-source";
-  p.dataset.part = "source";
   p.textContent = text;
   return p;
 }
@@ -572,6 +558,11 @@ function chartHost(part: string): HTMLElement {
   return el;
 }
 
+/** How many statuses a gap hides: invalid, but not merely still running. */
+function hidden(statuses: readonly GapStatus[]): number {
+  return statuses.filter((s) => !isComparable(s) && s.reason !== "in_progress").length;
+}
+
 /** The headline of the ten-day list, naming the compared years newest first. */
 export function daysHeadline(snapshot: DashboardSnapshot): string {
   const years = yearsText(snapshot.temperature_context.ten_day_years);
@@ -580,46 +571,67 @@ export function daysHeadline(snapshot: DashboardSnapshot): string {
     : "The last ten days, with no earlier year to set them against";
 }
 
-function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
+function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const ctx = snapshot.temperature_context;
-
-  // 1. across periods
-  const periods = block(
-    "periods",
-    periodFinding(snapshot),
-    "Each row runs from the lowest to the highest reading in the window; the bar covers the middle half of its readings.",
-  );
-  const periodChart = chartHost("periods-chart");
-  periods.append(
-    periodChart,
+  host.dataset.block = "periods";
+  const chart = chartHost("periods-chart");
+  host.append(
+    tileFinding(periodFinding(snapshot)),
+    standfirst(
+      "Each row runs from the lowest to the highest reading in the window; the bar covers the middle half of its readings.",
+    ),
+    chart,
     spoken(ctx.periods.map(periodSentence)),
-    source(
-      "Five-minute readings, station time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
+    tileFolds(
+      sourceNote(snapshot, {
+        what: "five-minute readings, station time",
+        method:
+          "Five-minute readings, station time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
+        gaps: notCompared(hidden(ctx.periods.map((p) => p.status)), "window", "windows"),
+      }),
     ),
   );
+  mountChart(chart, (w) => periodsChart(snapshot, w));
+}
 
-  // 2. ten days
-  const days = block(
-    "ten-days",
-    daysHeadline(snapshot),
-    "Newest first. Each bar runs from the day's low to its high; the pale band behind it is the usual low to high for that date.",
-  );
-  const dayChart = chartHost("days-chart");
-  days.append(
-    dayChart,
+function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  const ctx = snapshot.temperature_context;
+  host.dataset.block = "ten-days";
+  const chart = chartHost("days-chart");
+  host.append(
+    tileFinding(daysHeadline(snapshot)),
+    standfirst(
+      "Newest first. Each bar runs from the day's low to its high; the pale band behind it is the usual low to high for that date.",
+    ),
+    chart,
     spoken([...ctx.ten_days].reverse().map(daySentence)),
-    source(
-      "Usual is the median daily low and median daily high over the days within a week either side of the date, in each earlier year whose record there is complete. Today is the day so far.",
+    tileFolds(
+      sourceNote(snapshot, {
+        what: "daily low and high",
+        method:
+          "Usual is the median daily low and median daily high over the days within a week either side of the date, in each earlier year whose record there is complete. Today is the day so far.",
+        gaps: notCompared(hidden(ctx.ten_days.map((d) => d.status)), "day", "days"),
+      }),
     ),
   );
+  mountChart(chart, (w) => daysChart(snapshot, w));
+}
 
-  // 3. strips
-  const strips = block(
-    "strips",
-    ctx.strips[0]?.missing === null && ctx.strips[0]
-      ? stripHeadline(ctx.strips[0])
-      : "Now against normal",
-    "Each dot is a past day within a week of this date; the rule is now.",
+function stripHeadline(strip: NormalStrip): string {
+  const years = yearsText(strip.years);
+  return `Now against normal for this date in ${years}`;
+}
+
+function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  const ctx = snapshot.temperature_context;
+  host.dataset.block = "strips";
+  host.append(
+    tileFinding(
+      ctx.strips[0]?.missing === null && ctx.strips[0]
+        ? stripHeadline(ctx.strips[0])
+        : "Now against normal",
+    ),
+    standfirst("Each dot is a past day within a week of this date; the rule is now."),
   );
   const stripHosts: [NormalStrip, HTMLElement][] = [];
   // Strips with no comparison share one sentence; say it once.
@@ -642,28 +654,43 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
       figure.append(chart);
       stripHosts.push([strip, chart]);
     }
-    strips.append(figure);
+    host.append(figure);
   }
-  strips.append(
-    source(
-      "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
+  const uncompared = ctx.strips.filter((strip) => strip.missing === "no_comparison").length;
+  host.append(
+    tileFolds(
+      sourceNote(snapshot, {
+        what: "past days at this hour",
+        method:
+          "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
+        gaps: notCompared(uncompared, "strip", "strips"),
+      }),
     ),
   );
-
-  host.append(periods, days, strips);
-  mountChart(periodChart, (w) => periodsChart(snapshot, w));
-  mountChart(dayChart, (w) => daysChart(snapshot, w));
   for (const [strip, chart] of stripHosts) mountChart(chart, (w) => stripChart(strip, w));
 }
 
-function stripHeadline(strip: NormalStrip): string {
-  const years = yearsText(strip.years);
-  return `Now against normal for this date in ${years}`;
-}
-
-/** Temperature across periods, the ten-day list and the strips. */
-export const temperatureContext: OverviewSection = {
-  id: "temperature-context",
+/** Temperature across periods: one range bar per window, the now rule across them. */
+export const temperaturePeriods: OverviewSection = {
+  id: "temperature-periods",
   label: "Temperature in context",
-  render,
+  kicker: "Temperature, in context",
+  span: 2,
+  render: renderPeriods,
+};
+
+/** "Now against normal": today's temperature and rain among past days of this date. */
+export const againstNormal: OverviewSection = {
+  id: "against-normal",
+  label: "Now against this date",
+  kicker: "Now against this date",
+  render: renderStrips,
+};
+
+/** The ten-day high-low list. */
+export const tenDays: OverviewSection = {
+  id: "ten-days",
+  label: "The last ten days",
+  kicker: "The last ten days",
+  render: renderTenDays,
 };

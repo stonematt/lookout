@@ -1,12 +1,9 @@
 /*
- * What every Overview section shares: the section rhythm (48px between
- * major sections), the source line, and screen-reader-only text.
+ * What every Overview tile shares beyond the tile itself (`tiles.css`): the
+ * source paragraph inside a folded source note, and screen-reader-only text.
  */
-.ov-section + .ov-section {
-  margin-top: var(--s-7);
-}
 
-/* the source line under a chart: method, gaps and archive lag */
+/* the source paragraph: method, gaps and archive lag */
 .ov-source {
   margin-top: var(--s-3);
   font-size: var(--type-source);
