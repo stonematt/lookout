@@ -131,7 +131,7 @@ describe("the selected event", () => {
 
     expect(deps.fetchCurve).not.toHaveBeenCalled();
     expect(deps.draw.mock.calls[0]![1]).toBe(snapshot.rain_events.open_curve);
-    expect(panel.querySelector(".ev-detail .ev-live")).toBeNull();
+    expect(panel.querySelector("[data-section=events] [data-part=kicker] .ev-live")).toBeNull();
     expect(rows()[0]!.classList.contains("pin")).toBe(false);
   });
 
@@ -143,7 +143,7 @@ describe("the selected event", () => {
     expect(deps.fetchCurve).not.toHaveBeenCalled();
     expect(deps.draw).toHaveBeenCalledOnce();
     expect(deps.draw.mock.calls[0]![1]).toBe(snapshot.rain_events.open_curve);
-    expect(panel.querySelector(".ev-detail .ev-live")).not.toBeNull();
+    expect(panel.querySelector("[data-section=events] [data-part=kicker] .ev-live")).not.toBeNull();
   });
 
   it("answers a click once after a newer snapshot is mounted over it", async () => {
