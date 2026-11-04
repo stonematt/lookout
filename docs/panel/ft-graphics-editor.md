@@ -45,3 +45,10 @@ Verdict: fix
 - [ ] the "2024 ≈ 48.6 in" end label touches the right edge at 390px, and the x-axis has no Sep tick — Rain, water-year chart
 - [ ] "Rate between readings" ticks repeat "00:00 / 12:00"; use plain times with one date label — Rain Events
 - [ ] note: the Rain Events headline is a count, not a finding
+
+### 2026-11-04 — goal PR #358 at `0abc3f2`, lane server, pre-UAT
+Verdict: ship
+- [ ] fix: "90 days" titles over 30-day phone charts (#369); measure-only titles on the hour heatmap, "Sun each day", "Now against normal" and the Rain almanac (R9)
+- [ ] fix: ten-day bar shade has no decided value; snapshot supplies it or the bars draw flat (#374)
+- [ ] note: Solar 24-hour chart has no x labels unless a slot lands on :00 (`web/src/solar/charts.ts:229`); recheck on real data
+- [x] cumulative rain fill, event-table Quality clip, count headline — fixed; water-year end label and Rate ticks not checkable on the fixtures
