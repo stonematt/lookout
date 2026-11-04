@@ -117,6 +117,7 @@ const PHONE = {
     "wind",
     "pressure",
     "air",
+    "sun-moon", // #341
   ],
   rain: ["daily", "rows: years dry hours"],
   solar: ["now", "rows: daily day heatmaps"],

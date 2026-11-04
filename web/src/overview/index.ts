@@ -24,7 +24,7 @@ import { renderTiles } from "../tiles.js";
 import { almanacGrid, rollingRain } from "./almanac.js";
 import { firstScreen } from "./first-screen.js";
 import { heroLead } from "./hero.js";
-import { airFact, pressureFact, windFact } from "./quick-facts.js";
+import { airFact, pressureFact, sunMoonFact, windFact } from "./quick-facts.js";
 import { againstNormal, temperaturePeriods, tenDays } from "./temperature.js";
 
 /** One tile of the Overview. */
@@ -42,6 +42,7 @@ export const SECTIONS: readonly OverviewSection[] = [
   windFact, // #340 the quick facts: one-column tiles, the phone's 2×2
   pressureFact, // #340
   airFact, // #340
+  sunMoonFact, // #341
 ];
 
 /**

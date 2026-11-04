@@ -8,21 +8,37 @@
  * never zero. The pressure sentence repeats the snapshot's 3-hour trend word
  * (`barometer_trend`, decided in Python); the site never recomputes it.
  *
- * Offers `windFact`, `pressureFact` and `airFact` (`OverviewSection`s with
- * `fact: true`, which keeps them open tiles on a phone, two to a row), and
- * `renderFact`, the value-and-sentence body any quick-fact tile renders.
+ * The sun and moon tile (#341) draws the snapshot's SunMoon block, every
+ * value decided in Python, its times in the station's zone. A station with
+ * no coordinates has no block: the tile keeps its kicker, shows no value and
+ * says the station reports no location.
+ *
+ * Offers `windFact`, `pressureFact`, `airFact` and `sunMoonFact`
+ * (`OverviewSection`s with `fact: true`, which keeps them open tiles on a
+ * phone, two to a row), and `renderFact`, the value-and-sentence body any
+ * quick-fact tile renders.
  */
 import "./quick-facts.css";
 
-import { compassPoint, degrees, inHg, known, mph, percent } from "../format.js";
-import type { DashboardSnapshot, SnapshotConditions } from "../snapshot.js";
+import {
+  compassPoint,
+  degrees,
+  formatHours,
+  formatTime,
+  inHg,
+  known,
+  mph,
+  percent,
+} from "../format.js";
+import type { DashboardSnapshot, SnapshotConditions, SunMoon } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
 
 /**
  * A quick-fact tile's body: its one large value, then its one sentence.
  *
  * @param host - The tile, holding its kicker.
- * @param value - The value ("n/a" when not known).
+ * @param value - The value ("n/a" when not known), or null for a tile that
+ *   has no value to show: the sentence then sits under the kicker alone.
  * @param sentence - The sentence under it.
  * @param unit - A word unit after the value ("mph"), set smaller and kept
  *   on the value's line, so a half-width phone tile never breaks the number
@@ -30,10 +46,18 @@ import type { OverviewSection } from "./index.js";
  */
 export function renderFact(
   host: HTMLElement,
-  value: string,
+  value: string | null,
   sentence: string,
   unit?: string,
 ): void {
+  const line = document.createElement("p");
+  line.className = "qf-sentence";
+  line.dataset.part = "fact-sentence";
+  line.textContent = sentence;
+  if (value === null) {
+    host.append(line);
+    return;
+  }
   const big = document.createElement("p");
   big.className = "qf-value";
   big.dataset.part = "fact";
@@ -44,10 +68,6 @@ export function renderFact(
     small.textContent = unit;
     big.append("\u00a0", small);
   }
-  const line = document.createElement("p");
-  line.className = "qf-sentence";
-  line.dataset.part = "fact-sentence";
-  line.textContent = sentence;
   host.append(big, line);
 }
 
@@ -102,6 +122,46 @@ function airSentence(c: SnapshotConditions): string {
   return `Humidity; dew point ${dew}.`;
 }
 
+/**
+ * A time of day that never breaks across lines, e.g. "7:15 am".
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns The station-local time, joined by a no-break space.
+ */
+function wholeTime(ms: number): string {
+  return formatTime(ms).replace(" ", "\u00a0");
+}
+
+/**
+ * The daylight clause: its length, then its change from yesterday.
+ *
+ * @param block - The snapshot's sun and moon.
+ * @returns E.g. "9 h 23 m of daylight, 2 m less than yesterday".
+ */
+function daylightClause(block: SunMoon): string {
+  const length = formatHours(block.daylight_minutes * 60_000);
+  const change = block.daylight_change_minutes;
+  if (change === 0) return `${length} of daylight, the same as yesterday`;
+  const by = formatHours(Math.abs(change) * 60_000);
+  return `${length} of daylight, ${by} ${change > 0 ? "more" : "less"} than yesterday`;
+}
+
+/**
+ * The moon clause: its phase, its lit share and the days to full.
+ *
+ * @param block - The snapshot's sun and moon.
+ * @returns E.g. "Waning gibbous moon, 68% lit, full in 24 days".
+ */
+function moonClause(block: SunMoon): string {
+  const phase = block.moon_phase;
+  const name = `${phase.charAt(0).toUpperCase()}${phase.slice(1)} moon`;
+  const lit = `${name}, ${percent(block.moon_illumination_pct)} lit`;
+  const days = block.days_to_full_moon;
+  if (phase === "full") return lit;
+  if (days === 0) return `${lit}, full today`;
+  return `${lit}, full in ${days} ${days === 1 ? "day" : "days"}`;
+}
+
 /** Wind: speed, compass direction and gust. */
 export const windFact: OverviewSection = {
   id: "wind",
@@ -137,5 +197,22 @@ export const airFact: OverviewSection = {
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const c = snapshot.current;
     renderFact(host, known(c.humidity_pct, percent), airSentence(c));
+  },
+};
+
+/** Sun and moon: sunrise to sunset, daylight and its change, the moon. */
+export const sunMoonFact: OverviewSection = {
+  id: "sun-moon",
+  label: "Sun and moon",
+  kicker: "Sun and moon",
+  fact: true,
+  render(host: HTMLElement, snapshot: DashboardSnapshot): void {
+    const block = snapshot.sun_moon;
+    if (block === null) {
+      renderFact(host, null, "Sun and moon times are not known: the station reports no location.");
+      return;
+    }
+    const times = `${wholeTime(block.sunrise_ms)} to ${wholeTime(block.sunset_ms)}`;
+    renderFact(host, times, `${daylightClause(block)}. ${moonClause(block)}.`);
   },
 };

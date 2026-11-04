@@ -85,6 +85,7 @@ describe.each(["dry", "raining"] as const)("the %s golden's Overview", (scenario
       "wind",
       "pressure",
       "air",
+      "sun-moon",
     ]);
     for (const tile of tiles) {
       const [first, second] = [...tile.children];
