@@ -318,7 +318,6 @@ contrast:
   - {fg: temp-iqr, bg: tile, min: 3, themes: [light, dark]}
   - {fg: sun-line, bg: tile, min: 3, themes: [light, dark]}
   - {fg: sun-line, bg: sun-band, min: 3, themes: [light, dark]}
-  - {fg: sun-line, bg: ground, min: 3, themes: [light, dark]}
   - {fg: sun-bar, bg: tile, min: 3, themes: [light, dark]}
   # Ramp step 0 on the tile, and on the rain-by-hour grid's ground background.
   - {fg: rain-0, bg: tile, min: 3, themes: [light, dark]}
@@ -369,7 +368,7 @@ Light values are the frontmatter base keys and each `-dark` key is the same role
 ### Data
 - **Rain** (`rain-line`, `rain-bar`, `rain-band`, `rain-0` to `rain-4`): the bold now-curve of a storm or season, daily bars, the usual band, and the five-step ramp for the almanac and the rain-by-hour grid. The ramp gets deeper with more rain; in dark mode deeper means lighter.
 - **Temperature** (`temp-cool`, `temp-mild`, `temp-warm`, `temp-iqr`, `temp-band`): the ten-day bars (cool when the high stayed under usual, warm when over, mild when level), the middle-half bar in the periods chart, and the usual band behind each day.
-- **Sun** (`sun-line`, `sun-bar`, `sun-band`, `sun-0` to `sun-4`): the solar trace, daily and quarter-hour bars, the usual band, and the solar almanac ramp. The ramp runs dim to bright with the sun in both themes: the brightest day is the brightest cell. In light the bright steps fall under 3:1 on the tile, so each light cell is edged with `sun-line` (5.37 on `tile`).
+- **Sun** (`sun-line`, `sun-bar`, `sun-band`, `sun-0` to `sun-4`): the solar trace, daily and quarter-hour bars, the usual band, and the solar almanac ramp. The ramp runs dim to bright with the sun in both themes: the brightest day is the brightest cell. Named exception: the owner accepted on 2026-11-04 that the light ramp's steps 2 to 4 (`sun-2` 2.87, `sun-3` 1.88, `sun-4` 1.53 on `tile`) sit under 3:1, because the grid reads as a spectrum in context; the cells carry no edge.
 - **Ribbon** (`ribbon-night`, `ribbon-day`, `ribbon-rain`, `ribbon-edge`): the 48-hour ribbon's night and day bands, its rain track, and its outline in light mode.
 - **Median** (`median`): the dashed median drawn over a usual band, in both themes.
 
@@ -531,7 +530,6 @@ The tightest pairs, measured Nov 2026:
 | `temp-band-edge` (the dark band's fill) on `tile` | dark | 3.07 | 3 |
 | `rain-0` on `ground` (the rain-by-hour grid) | light | 3.09 | 3 |
 | `sun-0` and `sun-band-edge` on `tile` | dark | 3.13 | 3 |
-| `sun-line`, the edge of a light almanac cell, on `ground` | light | 4.90 | 3 |
 | `temp-warm` on `temp-band` | dark | 3.16 | 3 |
 | Text in the `rain-1` cell | light | 4.62 | 4.5 |
 | `now` on `now-surface` | light | 4.69 | 4.5 |

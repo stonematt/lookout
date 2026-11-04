@@ -343,34 +343,6 @@
   background: var(--sun-4);
 }
 
-/* light: the bright steps are under 3:1 on the tile, so each cell carries an edge */
-.solar-svg .solar-step-1,
-.solar-svg .solar-step-2,
-.solar-svg .solar-step-3,
-.solar-svg .solar-step-4,
-.solar-svg .solar-step-5 {
-  stroke: var(--sun-line);
-  stroke-width: 1;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .solar-swatch {
-    border-color: transparent;
-  }
-
-  :root:not([data-theme="light"]) .solar-svg [class*="solar-step-"] {
-    stroke: none;
-  }
-}
-
-:root[data-theme="dark"] .solar-swatch {
-  border-color: transparent;
-}
-
-:root[data-theme="dark"] .solar-svg [class*="solar-step-"] {
-  stroke: none;
-}
-
 .solar-svg .solar-cell-text {
   font-size: var(--type-label);
   font-weight: 600;
@@ -415,7 +387,6 @@
 }
 
 .solar-swatch {
-  border: 1px solid var(--sun-line);
   width: 14px;
   height: 14px;
   border-radius: var(--r-cell);
