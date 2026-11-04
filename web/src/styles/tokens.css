@@ -252,6 +252,8 @@
   --r-tile-phone: 20px;
   --r-tile: 22px;
   --r-pill: 999px;
+  /* a phone's bottom tab bar target (DESIGN.md `tab-bar-phone`) */
+  --r-tab-phone: 14px;
 
   /* the page gutter: 16px on a phone, 24px on both grids (base.css sets
      it from the layout switch) */

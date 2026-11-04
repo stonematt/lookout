@@ -50,5 +50,6 @@ export function renderOverview(
   snapshot: DashboardSnapshot,
   sections: readonly OverviewSection[] = SECTIONS,
 ): void {
-  renderTiles(panel, snapshot, sections);
+  // On a phone the finding rows sit under "In context" (DESIGN.md).
+  renderTiles(panel, snapshot, sections, { rowsHeading: "In context" });
 }

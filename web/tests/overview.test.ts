@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { setLayout } from "../src/layout.js";
 import { conditionSentence } from "../src/overview/condition.js";
 import { renderOverview, SECTIONS } from "../src/overview/index.js";
 import { clearNowLabel, rainStep, ribbonClaim, ribbonTicks } from "../src/overview/ribbon.js";
@@ -14,6 +15,8 @@ const dry = parseDashboard(golden("dry", "dashboard"));
 let panel: HTMLElement;
 
 beforeEach(() => {
+  // No layout set: the phone rules apply, as on a page before its switch runs.
+  document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML = "<div id=panel></div>";
   panel = document.getElementById("panel")!;
 });
@@ -46,6 +49,8 @@ describe("the Overview", () => {
   });
 
   it("renders each section into its own tile, in order, after its kicker", () => {
+    // The grids draw every section as a tile; a phone draws rows (tiles.test).
+    setLayout("four");
     const seen: string[] = [];
     renderOverview(panel, dry, [
       {

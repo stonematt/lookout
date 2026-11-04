@@ -16,7 +16,10 @@
  * The page layout switch (`layout.ts`) runs from the start, setting the
  * root's `data-layout` (phone, two- or four-column) that every page layout
  * rule keys off; the tab bar sits just before the tabs' host, so on both
- * grids it shares the header's row.
+ * grids it shares the header's row, and on a phone it is the bottom tab bar
+ * (CSS places it). A phone draws each tab as a fixed top and finding rows,
+ * the grids as tiles (`tiles.ts`), so crossing 760px either way redraws
+ * the tabs drawn.
  *
  * The station index (`/stations`, read on the same cycle) feeds the header's
  * station selector (#273). Choosing a station writes `?station=<MAC>` to the
@@ -107,11 +110,21 @@ function askedStation(): string | null {
  */
 export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: PageReads): Page {
   // Every page layout rule keys off the attribute this sets (`layout.ts`).
-  const layout = mountLayout();
+  const layout = mountLayout(undefined, undefined, (next) => {
+    // A phone draws rows, the grids tiles: redraw only across that line.
+    const phone = next === "phone";
+    if (phone === wasPhone) return;
+    wasPhone = phone;
+    rendered = new WeakMap();
+    if (!dashboard) return;
+    renderTab("overview", tabs.panel("overview"));
+    renderTab(tabs.current(), tabs.panel(tabs.current()));
+  });
+  let wasPhone = layout.layout() === "phone";
   const header = mountHeader(masthead);
   let dashboard: DashboardSnapshot | null = null;
   let stateText: string = STATE_TEXT.loading;
-  const rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
+  let rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
   let index: StationIndex | null = null;
   /** The station shown, as the URL names it (null: the default station). */
   let showing = askedStation();

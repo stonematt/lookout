@@ -106,12 +106,18 @@ function ageLine(root: HTMLElement): AgeLine {
   };
 }
 
-/** Write "<label> <time>" into a line's `when`. */
+/**
+ * Write "<label> <time>" into a line's `when`. The label is its own span,
+ * so the phone's compact header can drop it from a lone reading line.
+ */
 function stamp(line: AgeLine, label: string, ms: number): void {
   const time = document.createElement("time");
   time.dateTime = new Date(ms).toISOString();
   time.textContent = formatStamp(ms);
-  line.when.replaceChildren(`${label} `, time);
+  const words = document.createElement("span");
+  words.className = "masthead-label";
+  words.textContent = label;
+  line.when.replaceChildren(words, " ", time);
 }
 
 /**
