@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ReadError } from "../src/load.js";
+import { ReadError, fetchDashboard } from "../src/load.js";
 import type { Page, PageReads } from "../src/page.js";
 import { CYCLE_MS, startPage as start } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
@@ -16,6 +16,7 @@ import {
   SALMON_MAC,
   golden,
   goldenCurveText,
+  goldenV2,
   oneStation,
   twoStations,
 } from "./golden.js";
@@ -499,5 +500,23 @@ describe("the station selector", () => {
     expect(picker()).toBeNull();
     expect(masthead.querySelector("h1")?.textContent).toBe("Fixture Station");
     expect(panel("overview").textContent).not.toContain(FAILED);
+  });
+});
+
+describe("a v2 snapshot (the refresh run before schema 3)", () => {
+  it("draws the Overview with no contract error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchImpl = (async () => Response.json(goldenV2("raining", "dashboard"))) as typeof fetch;
+
+    await startPage(masthead, sections, {
+      dashboard: () => fetchDashboard("", fetchImpl),
+      current: quietCurrent,
+    }).booted;
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(masthead.textContent).not.toContain(FAILED);
+    expect(panel("overview").textContent).not.toContain(FAILED);
+    expect(panel("overview").textContent).not.toContain(LOADING);
+    expect(panel("overview").querySelector(".ribbon-dot")).not.toBeNull();
   });
 });

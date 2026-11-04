@@ -14,13 +14,20 @@ import pandas as pd
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, Station, build_snapshot
+from lookout.snapshot.model import StationLocation
 from lookout.snapshot.status import CodeVersion
 from tests.fixtures.ambient import load_devices, to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, STATION_TZ, build_archive
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 
 REGENERATE = os.environ.get("LOOKOUT_REGEN_GOLDEN") == "1"
-STATION = Station(mac=FAKE_MAC, name="Fixture Station", tz=STATION_TZ)
+# The recorded device's coordinates, as `Station.from_device` reads them.
+STATION = Station(
+    mac=FAKE_MAC,
+    name="Fixture Station",
+    tz=STATION_TZ,
+    location=StationLocation(lat=45.0, lon=-123.0),
+)
 # The code a test run reports in its status document (#268): never git's.
 FIXED_CODE = CodeVersion(version="2026.11.1", sha="0123456789abcdef" * 2 + "01234567")
 

@@ -1,122 +1,196 @@
 ---
 name: Lookout
-description: A personal weather record for the lookout post station. It reads like Dark Sky and argues like the FT.
+description: A personal weather record for one station. It reads like Dark Sky and argues like the FT. Findings first, on quiet slate tiles, in both themes.
+status: "Target design, adopted Nov 2026. web/src/styles/tokens.css still carries the earlier Paper world until the restyle lands; this file is the source the restyle moves to."
 colors:
-  ground: "#f7f4ee"
-  surface: "#fcfbf8"
-  ink: "#26231f"
-  ink-2: "#4b463f"
-  ink-3: "#686259"
-  rule: "#e3ded3"
-  rule-strong: "#c2baab"
-  rain-0: "#dde5ee"
-  rain-1: "#a9bdd3"
-  rain-2: "#6a8aac"
-  rain-3: "#365f8b"
-  rain-4: "#1f405f"
-  temp-cold: "#4a6f94"
-  temp-cool: "#86a3bd"
-  temp-mild: "#b3aea4"
-  temp-warm: "#cf9654"
-  temp-hot: "#b0522b"
-  sun: "#d9a23c"
-  sun-soft: "#f1e2bd"
-  night: "#ece7dc"
-  note: "#94325a"
-  gap-a: "#e6e1d6"
-  gap-b: "#f7f4ee"
-  ground-dark: "#1b1a18"
-  surface-dark: "#242321"
-  ink-dark: "#ece8e0"
-  ink-2-dark: "#c3bdb2"
-  ink-3-dark: "#9d968b"
-  rule-dark: "#34322e"
-  rule-strong-dark: "#4f4c46"
-  rain-0-dark: "#263342"
-  rain-1-dark: "#3a5573"
-  rain-2-dark: "#5f87b2"
-  rain-3-dark: "#93b3d6"
-  rain-4-dark: "#d0e0f0"
-  temp-cold-dark: "#6f95bd"
-  temp-cool-dark: "#94b1cb"
-  temp-mild-dark: "#8f8a80"
-  temp-warm-dark: "#d8a463"
-  temp-hot-dark: "#e07a4d"
-  sun-dark: "#e2b04f"
-  sun-soft-dark: "#3a3220"
-  night-dark: "#151412"
-  note-dark: "#e59ab8"
-  gap-a-dark: "#2a2927"
-  gap-b-dark: "#1b1a18"
+  # Light values are the base keys; each -dark key is the same role in dark mode.
+  # Dark is the primary design; light is its twin, held to the same contrast rules.
+  ground: "#f3f5f7"
+  tile: "#ffffff"
+  now-surface: "#e2e9f0"
+  ink: "#11161c"
+  ink-2: "#353e48"
+  ink-3: "#4d5763"
+  ink-on-now: "#2c353f"
+  rule: "#e1e5e9"
+  rule-strong: "#7d8995"
+  hatch: "#7d8995"
+  now: "#a74b11"
+  median: "#11161c"
+  # The two inks for text in a ramp cell, the same in both themes.
+  on-ramp-pale: "#ffffff"
+  on-ramp-deep: "#11161c"
+  rain-line: "#1d4a7a"
+  rain-bar: "#3b6fa6"
+  rain-band: "#dce7f3"
+  rain-band-edge: "#6f8fb3"
+  rain-0: "#6a8fb7"
+  rain-1: "#52789f"
+  rain-2: "#3d6289"
+  rain-3: "#2a4b6f"
+  rain-4: "#1a3352"
+  temp-band: "#e8ecf0"
+  temp-band-edge: "#7d8995"
+  temp-cool: "#3f6890"
+  temp-mild: "#5e6e66"
+  temp-warm: "#b5602a"
+  temp-iqr: "#5a7da1"
+  sun-line: "#8a6413"
+  sun-bar: "#a87a24"
+  sun-band: "#f5e9c8"
+  sun-band-edge: "#a1802f"
+  sun-0: "#a8873d"
+  sun-1: "#8e6f2c"
+  sun-2: "#75591f"
+  sun-3: "#5c4515"
+  sun-4: "#42310d"
+  ribbon-night: "#2c3640"
+  ribbon-day: "#8797a8"
+  ribbon-rain: "#2f5f94"
+  ribbon-edge: "#5d6976"
+  ground-dark: "#11161c"
+  tile-dark: "#1a2129"
+  now-surface-dark: "#354251"
+  ink-dark: "#eef2f5"
+  ink-2-dark: "#c3ccd5"
+  ink-3-dark: "#aab5c0"
+  ink-on-now-dark: "#dfe6ec"
+  rule-dark: "#2a333d"
+  rule-strong-dark: "#6b7886"
+  hatch-dark: "#64717e"
+  now-dark: "#f2a65e"
+  median-dark: "#11161c"
+  on-ramp-pale-dark: "#ffffff"
+  on-ramp-deep-dark: "#11161c"
+  rain-line-dark: "#d6e9fb"
+  rain-bar-dark: "#7fb0e0"
+  rain-band-dark: "#55779c"
+  rain-band-edge-dark: "#55779c"
+  rain-0-dark: "#4f7299"
+  rain-1-dark: "#5f86b0"
+  rain-2-dark: "#7aa3cc"
+  rain-3-dark: "#9fc2e4"
+  rain-4-dark: "#cfe3f6"
+  temp-band-dark: "#606d7a"
+  temp-band-edge-dark: "#606d7a"
+  temp-cool-dark: "#b4cde6"
+  temp-mild-dark: "#d3dfd8"
+  temp-warm-dark: "#f5bd8a"
+  temp-iqr-dark: "#9fb9d3"
+  sun-line-dark: "#f6cf74"
+  sun-bar-dark: "#c99d45"
+  sun-band-dark: "#7d6b40"
+  sun-band-edge-dark: "#7d6b40"
+  sun-0-dark: "#7d6b40"
+  sun-1-dark: "#a88b45"
+  sun-2-dark: "#c99d45"
+  sun-3-dark: "#e3b75a"
+  sun-4-dark: "#f7d98f"
+  ribbon-night-dark: "#1c242d"
+  ribbon-day-dark: "#8a9aab"
+  ribbon-rain-dark: "#a9d0f5"
+  ribbon-edge-dark: "#8a9aab"
 typography:
+  # Base steps are the phone sizes; each -desktop step is the same role from 760px.
   display:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
-    fontSize: "clamp(2.75rem, 12vw, 3.5rem)"
-    fontWeight: 650
-    lineHeight: 0.9
-    letterSpacing: "-0.02em"
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "clamp(5.25rem, 22vw, 7.5rem)"
+    fontWeight: 300
+    lineHeight: 0.88
+    letterSpacing: "-0.05em"
     fontFeature: "\"tnum\" 1"
-  headline:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
-    fontSize: "1.3125rem"
-    fontWeight: 600
-    lineHeight: 1.28
-    letterSpacing: "0.005em"
-  title:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
-    fontSize: "1.1875rem"
-    fontWeight: 600
-    lineHeight: 1.3
-    letterSpacing: "0.005em"
-  subtitle:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
+  finding-lead:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 500
+    lineHeight: 1.33
+    letterSpacing: "0.01em"
+  finding-lead-desktop:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 500
+    lineHeight: 1.33
+    letterSpacing: "0.01em"
+  finding:
+    fontFamily: "Lexend, system-ui, sans-serif"
     fontSize: "1rem"
-    fontWeight: 600
-    lineHeight: 1.35
-    letterSpacing: "0.005em"
-  body:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: "0.01em"
+  finding-desktop:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "1.1875rem"
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: "0.01em"
+  condition:
+    fontFamily: "Lexend, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
-    lineHeight: 1.55
-    letterSpacing: "0.012em"
+    lineHeight: 1.45
+    letterSpacing: "0.01em"
+  condition-desktop:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 400
+    lineHeight: 1.45
+    letterSpacing: "0.01em"
+  fact:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "2rem"
+    fontWeight: 300
+    lineHeight: 1.1
+    fontFeature: "\"tnum\" 1"
+  fact-desktop:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "2.5rem"
+    fontWeight: 300
+    lineHeight: 1.1
+    fontFeature: "\"tnum\" 1"
   standfirst:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
+    fontFamily: "Lexend, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
-    lineHeight: 1.6
-    letterSpacing: "0.012em"
+    lineHeight: 1.55
+    letterSpacing: "0.01em"
+  kicker:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "0.8125rem"
+    fontWeight: 500
+    lineHeight: 1.3
+    letterSpacing: "0.01em"
+  stat:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 400
+    lineHeight: 1.25
+    fontFeature: "\"tnum\" 1"
+  stat-desktop:
+    fontFamily: "Lexend, system-ui, sans-serif"
+    fontSize: "1.375rem"
+    fontWeight: 400
+    lineHeight: 1.25
+    fontFeature: "\"tnum\" 1"
   source:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
+    fontFamily: "Lexend, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 400
     lineHeight: 1.55
-    letterSpacing: "0.012em"
-  stat:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
-    fontSize: "1.1875rem"
-    fontWeight: 650
-    lineHeight: 1.3
-    fontFeature: "\"tnum\" 1"
-  label:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
-    fontSize: "0.75rem"
-    fontWeight: 400
-    lineHeight: 1.3
-    letterSpacing: "0.012em"
   axis:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
+    fontFamily: "Lexend, system-ui, sans-serif"
     fontSize: "12px"
     fontWeight: 400
     fontFeature: "\"tnum\" 1"
   annotation:
-    fontFamily: "Atkinson Hyperlegible Next, Atkinson Hyperlegible, system-ui, sans-serif"
+    fontFamily: "Lexend, system-ui, sans-serif"
     fontSize: "13px"
-    fontWeight: 650
+    fontWeight: 600
 rounded:
-  xs: "2px"
-  sm: "4px"
-  md: "8px"
+  cell: "3px"
+  ribbon: "6px"
+  row: "16px"
+  tile-phone: "20px"
+  tile: "22px"
   pill: "999px"
 spacing:
   s-1: "4px"
@@ -128,217 +202,362 @@ spacing:
   s-7: "48px"
   s-8: "72px"
 components:
-  tab:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.body}"
-    rounded: "0"
-    padding: "0 14px"
-    height: "46px"
-  tab-selected:
+  tile:
+    backgroundColor: "{colors.tile}"
+    rounded: "{rounded.tile}"
+    padding: "22px"
+  tile-phone:
+    backgroundColor: "{colors.tile}"
+    rounded: "{rounded.tile-phone}"
+    padding: "16px"
+  now-tile:
+    backgroundColor: "{colors.now-surface}"
     textColor: "{colors.ink}"
-  segment:
-    backgroundColor: "{colors.surface}"
+  tab-pill:
     textColor: "{colors.ink-2}"
-    typography: "{typography.standfirst}"
-    rounded: "{rounded.md}"
-    padding: "0 14px"
+    rounded: "{rounded.pill}"
     height: "40px"
+    padding: "0 16px"
+  tab-pill-current:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.ground}"
+  tab-bar-phone:
+    backgroundColor: "{colors.ground}"
+    height: "48px"
+    rounded: "14px"
+  segment:
+    textColor: "{colors.ink-2}"
+    rounded: "{rounded.pill}"
+    height: "44px"
+    padding: "0 14px"
   segment-pressed:
     backgroundColor: "{colors.ink}"
     textColor: "{colors.ground}"
-  button-more:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "0 16px"
-    height: "44px"
+  finding-row:
+    height: "56px"
+  event-row:
+    backgroundColor: "{colors.tile}"
+    rounded: "{rounded.row}"
+    height: "64px"
   quality-chip:
-    textColor: "{colors.ink}"
-    typography: "{typography.label}"
+    textColor: "{colors.ink-2}"
     rounded: "{rounded.pill}"
-    padding: "2px 8px"
-  almanac-cell:
-    rounded: "{rounded.sm}"
-    typography: "{typography.label}"
-    height: "44px"
-  condition-ribbon:
-    backgroundColor: "{colors.night}"
-    rounded: "{rounded.sm}"
-    height: "52px"
+    padding: "0 7px"
+  hatched-chip:
+    textColor: "{colors.ink-2}"
+    rounded: "{rounded.pill}"
+    padding: "0 7px"
+    swatch: "12px"
+  station-select:
+    textColor: "{colors.ink}"
+    maxWidth: "28ch"
+  focus-ring:
+    outlineColor: "{colors.ink}"
+    outlineWidth: "2px"
+    outlineOffset: "2px"
+  size-bar:
+    backgroundColor: "{colors.rain-bar}"
+    trackColor: "{colors.rule}"
+    height: "4px"
+    rounded: "{rounded.pill}"
+# The Contrast table, machine-readable. The token contrast test reads this list.
+# Each entry: fg (a token, or a list meaning "the better of these"), bg (a token),
+# min (4.5 for text, 3 for graphics), and themes. A token resolves to its base key
+# in light and its -dark key in dark.
+contrast:
+  # Text, 4.5:1. Chrome text on every surface it sits on.
+  - {fg: ink, bg: ground, min: 4.5, themes: [light, dark]}
+  - {fg: ink, bg: tile, min: 4.5, themes: [light, dark]}
+  - {fg: ink, bg: now-surface, min: 4.5, themes: [light, dark]}
+  - {fg: ink-2, bg: ground, min: 4.5, themes: [light, dark]}
+  - {fg: ink-2, bg: tile, min: 4.5, themes: [light, dark]}
+  - {fg: ink-2, bg: now-surface, min: 4.5, themes: [light, dark]}
+  - {fg: ink-3, bg: ground, min: 4.5, themes: [light, dark]}
+  - {fg: ink-3, bg: tile, min: 4.5, themes: [light, dark]}
+  - {fg: ink-3, bg: now-surface, min: 4.5, themes: [light, dark]}
+  - {fg: ink-on-now, bg: now-surface, min: 4.5, themes: [light, dark]}
+  # A pressed control: ground text on an ink fill.
+  - {fg: ground, bg: ink, min: 4.5, themes: [light, dark]}
+  # Now orange. Its label is text, on each surface a now mark may sit on.
+  - {fg: now, bg: ground, min: 4.5, themes: [light, dark]}
+  - {fg: now, bg: tile, min: 4.5, themes: [light, dark]}
+  - {fg: now, bg: now-surface, min: 4.5, themes: [light, dark]}
+  # Text in ramp cells: the better of the two cell inks, per cell.
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: rain-0, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: rain-1, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: rain-2, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: rain-3, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: rain-4, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: sun-0, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: sun-1, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: sun-2, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: sun-3, min: 4.5, themes: [light, dark]}
+  - {fg: [on-ramp-pale, on-ramp-deep], bg: sun-4, min: 4.5, themes: [light, dark]}
+  # Graphics, 3:1. Lines and hatching a reader must see, on each surface.
+  - {fg: rule-strong, bg: ground, min: 3, themes: [light, dark]}
+  - {fg: rule-strong, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: hatch, bg: ground, min: 3, themes: [light, dark]}
+  - {fg: hatch, bg: tile, min: 3, themes: [light, dark]}
+  # On the now tile, hatching and strong lines draw in ink-3.
+  - {fg: ink-3, bg: now-surface, min: 3, themes: [light, dark]}
+  # The event size bar on its track.
+  - {fg: rain-bar, bg: rule, min: 3, themes: [light, dark]}
+  # Usual bands: by fill in dark, by edge in light (each -dark edge equals its fill).
+  - {fg: rain-band-edge, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: temp-band-edge, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: sun-band-edge, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: median, bg: rain-band, min: 3, themes: [light, dark]}
+  - {fg: median, bg: temp-band, min: 3, themes: [light, dark]}
+  - {fg: median, bg: sun-band, min: 3, themes: [light, dark]}
+  # Data marks, on the tile and across their band.
+  - {fg: rain-line, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: rain-line, bg: rain-band, min: 3, themes: [light, dark]}
+  - {fg: rain-bar, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: temp-cool, bg: temp-band, min: 3, themes: [light, dark]}
+  - {fg: temp-mild, bg: temp-band, min: 3, themes: [light, dark]}
+  - {fg: temp-warm, bg: temp-band, min: 3, themes: [light, dark]}
+  - {fg: temp-iqr, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: sun-line, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: sun-line, bg: sun-band, min: 3, themes: [light, dark]}
+  - {fg: sun-bar, bg: tile, min: 3, themes: [light, dark]}
+  # Ramp step 0 on the tile, and on the rain-by-hour grid's ground background.
+  - {fg: rain-0, bg: tile, min: 3, themes: [light, dark]}
+  - {fg: rain-0, bg: ground, min: 3, themes: [light, dark]}
+  - {fg: sun-0, bg: tile, min: 3, themes: [light, dark]}
+  # The 48-hour ribbon, on the now tile. Light passes by ribbon-edge; in dark
+  # ribbon-edge equals ribbon-day, so the day band passes by its fill.
+  - {fg: ribbon-night, bg: ribbon-day, min: 3, themes: [light, dark]}
+  - {fg: ribbon-edge, bg: now-surface, min: 3, themes: [light, dark]}
+  - {fg: ribbon-rain, bg: now-surface, min: 3, themes: [light, dark]}
 ---
 
 # Design System: Lookout
 
 ## Overview
 
-**Creative North Star: "The Annotated Almanac"**
+**Creative North Star: "Tiles That Talk"**
 
-Lookout is one station's own record, set out the way the Financial Times sets out a chart: a short finding in plain words, a one-line standfirst, the evidence, then where the numbers came from. The Dark Sky half supplies the presentation: a large current temperature, a 48-hour condition ribbon, and colour that comes from the weather rather than from the chrome. The headlines say what the data shows and then step back. The chart is the most contrasty thing in any section.
+Lookout is one station's own record. Every block of the page says one thing in plain words, with the number in it, then shows the evidence. The posture is the Financial Times data desk: a finding, a one-line standfirst on how to read the chart, the chart, and where the numbers came from. The presentation is Dark Sky: a large current temperature, a 48-hour ribbon, and colour that comes from the weather.
 
-The Paper world sits on a warm off-white ground by day and a warm off-black ground at night. The chrome is close to greyscale and warm: ink, two softer inks, two hairline rules. Colour is kept for data. Rain is a desaturated blue ramp from drizzle to downpour, temperature runs from cold blue to terracotta, solar is amber, and one claret marks the finding on a chart. One readable family, Atkinson Hyperlegible Next, sets every word and number. The system is built for dyslexic readers: text is left-aligned, nothing is italic, there are no long all-caps runs, line height is generous, and measures are short.
+The page is a grid of quiet slate tiles on a darker ground (or white tiles on a pale ground in light mode). A tile's first line is its finding. Provenance, method and "why this leads" fold into one-line disclosures at the foot of the tile, so the wall of method text the Streamlit port carried is gone from view but one tap away. On a phone the grid becomes a short fixed top and an accordion of findings, so the page ends.
 
-The record is honest about itself. Gaps are hatched, never smoothed over. A live value beats an archived one. Each fact is computed once and agrees everywhere it appears. The system has no dark-pattern urgency, no gauge walls and no tile grids of raw numbers.
+Colour is kept for data. Rain is blue, sun is gold, temperature runs cool blue to warm orange, and one orange marks "now". The chrome is near-greyscale slate. One readable family, Lexend, sets every word and number. The system is built for dyslexic readers: text is left-aligned, nothing is italic, there are no all-caps runs, line height is generous, measures are short, and no text is under 12px.
+
+The record is honest about itself. Gaps are hatched, never smoothed over. A live value beats an archived one. Each fact is computed once and agrees everywhere it appears. There are no forecasts: a weather app does that, and Lookout says so.
 
 **Key Characteristics:**
-- Every section runs finding headline, standfirst, chart, source line.
-- Warm neutral chrome; data colour carries all the hue.
-- One sans family for text and numerals; tabular digits only where numbers line up.
-- Hairline axes, direct labels, no chart boxes.
+- Every tile runs kicker, finding, standfirst, chart, then folded source.
+- Slate chrome; data colour carries all the hue; one orange "now".
+- One family, Lexend, for text and numerals; tabular digits where numbers line up.
+- Hairline axes, direct labels, charts drawn at their real width.
+- Every graphic that carries meaning meets 3:1; all text meets 4.5:1, in both themes.
 - Hatching is the one visual word for "not valid".
-- Light and dark follow the OS. An explicit override is honoured.
+- Dark is the primary design; light is its twin. The OS chooses; an explicit `?theme=` override is honoured for that page load.
 
 ## Colors
 
-The palette is warm paper and warm ink, with four restrained data hues and one claret annotation. Light values are the frontmatter keys. Each `-dark` key is the same role in dark mode.
+Light values are the frontmatter base keys and each `-dark` key is the same role in dark mode. Dark is the reference design; every light value was derived to pass the same checks (see Contrast).
 
-### Primary
-- **Ledger Blue** (`rain-3`): the strongest data hue and the main interactive accent. It draws the bold "now" curve on rain charts, the selected-tab underline, the focus ring (3px), the met-rule dot in "Why this leads", and links. In dark mode it lifts to `rain-3-dark` so it stays above 4.5:1 on the ground.
-- **Precipitation ramp** (`rain-0` to `rain-4`): drizzle to downpour. Ribbon rain intensity, almanac rain cells and the dry-spell strip use this ramp. `rain-0` is also the **usual band**, the soft fill behind every "now against normal" chart. `rain-2` draws the dashed median.
+### Chrome
+- **Ground** (`ground`): the page behind the tiles.
+- **Tile** (`tile`): every tile and event row. Depth comes from tile on ground, never from shadow.
+- **Now surface** (`now-surface`): the one tinted tile, the current reading. Text on it uses `ink` and `ink-on-now`. Hatching and strong lines on it draw in `ink-3`, because `hatch` and `rule-strong` fall under 3:1 there.
+- **Ink** (`ink`), **Soft Ink** (`ink-2`), **Faint Ink** (`ink-3`): headlines and values; standfirsts, labels and in-chart labels; kickers, axis ticks and source lines. All three meet 4.5:1 on `tile` and `ground`.
+- **Hairline** (`rule`): dividers and gridlines only. It is decorative and carries no meaning, so it sits under 3:1 on purpose.
+- **Hairline Strong** (`rule-strong`): every border or line a reader must see: control borders, chart baselines, dashed "not yet" outlines, chip borders, chevron rings. 3:1 or better.
 
-### Secondary
-- **Temperature ramp** (`temp-cold`, `temp-cool`, `temp-mild`, `temp-warm`, `temp-hot`): cold blue through stone to terracotta. It fills the ten-day low-to-high bars (each bar shows the slice of the ramp it covers), the almanac mean-temperature cells, and the warm or cold "now" line on the temperature lead. `temp-cool` is the IQR bar in the periods chart.
-- **Sun Amber** (`sun`, `sun-soft`): solar. `sun-soft` is daylight on the ribbon and the usual band on solar charts. The solar "now" mark is drawn in sun-ink, a mix of 62% `sun` with 38% `ink`, so the line keeps its contrast.
+### Data
+- **Rain** (`rain-line`, `rain-bar`, `rain-band`, `rain-0` to `rain-4`): the bold now-curve of a storm or season, daily bars, the usual band, and the five-step ramp for the almanac and the rain-by-hour grid. The ramp gets deeper with more rain; in dark mode deeper means lighter.
+- **Temperature** (`temp-cool`, `temp-mild`, `temp-warm`, `temp-iqr`, `temp-band`): the ten-day bars (cool when the high stayed under usual, warm when over, mild when level), the middle-half bar in the periods chart, and the usual band behind each day.
+- **Sun** (`sun-line`, `sun-bar`, `sun-band`, `sun-0` to `sun-4`): the solar trace, daily and quarter-hour bars, the usual band, and the solar almanac ramp.
+- **Ribbon** (`ribbon-night`, `ribbon-day`, `ribbon-rain`, `ribbon-edge`): the 48-hour ribbon's night and day bands, its rain track, and its outline in light mode.
+- **Median** (`median`): the dashed median drawn over a usual band, in both themes.
 
-### Tertiary
-- **Claret Note** (`note`; dark `note-dark`): the finding. It colours the now rule, the now dot and the "now 46.9°" label on charts and strips, the current-month outline in the almanac, and the live-event dot. Use it only for what the headline is about. Never use it for chrome, warnings or decoration.
-
-### Neutral
-- **Paper Ground** (`ground`): the page, an off-white. It also draws the 4px halo stroke behind chart labels so they read over marks.
-- **Card Paper** (`surface`): unpressed buttons, segmented controls and hover labels. There is no tinted panel layer.
-- **Warm Ink** (`ink`): headlines, values and the ribbon's temperature trace. It also fills the pressed segment.
-- **Soft Ink** (`ink-2`): standfirsts, source lines, `dt` labels, table headers and chart labels.
-- **Faint Ink** (`ink-3`): axis tick labels and range whiskers only. It is short and large enough to stay legible.
-- **Hairline** (`rule`): axes, gridlines, table row dividers and stat-strip borders.
-- **Hairline Strong** (`rule-strong`): control borders, table header rule and strip baselines.
-- **Night** (`night`): the night band on the condition ribbon.
-- **Gap Hatch** (`gap-a` over `gap-b`): the 135° hatch for invalid comparisons.
+### The finding
+- **Now Orange** (`now`): the now rule, the now dot and its label, the dot over today's bar, the current month's and current hour's outlines, the "latest" chip and the leading-tile dot. It marks the thing the headline is about and nothing else. Orange replaces the earlier claret.
 
 ### Named Rules
-**The Data Owns the Hue Rule.** Chrome is warm neutral. Every saturated colour on screen is a measurement, the usual band, or the claret finding.
+**The Data Owns the Hue Rule.** Chrome is slate neutral. Every saturated colour on screen is a measurement, a usual band, or the one orange "now".
 
-**The One Claret Rule.** `note` marks the "now" or the current item that the headline is about, and nothing else. A screen section has one claret subject.
+**The One Now Rule.** `now` marks the current value or the current item that the finding is about. A tile has one orange subject.
 
-**The AA Both Ways Rule.** All text meets WCAG AA (4.5:1, or 3:1 for 18px+ or bold 14px+) on the ground in light and dark. A selected control meets 4.5:1: the pressed segment is `ink` fill with `ground` text (about 14:1). Text on a ramp-coloured cell is chosen per cell, near-white or near-black, whichever has more contrast with the computed fill.
+**The AA Both Ways Rule.** All text meets 4.5:1 on whatever it sits on, in light and dark. Text inside a ramp cell is chosen per cell, `on-ramp-pale` or `on-ramp-deep`, whichever passes. A pressed control is an `ink` fill with `ground` text.
+
+**The Three-to-One Graphics Rule.** Any graphic a reader needs to understand the chart (a line, bar, band, dot, hatch, outline or control border) meets 3:1 against what it sits on (WCAG 1.4.11). A band meets it in one of two ways: by its fill (dark mode) or by a 3:1 edge around a pale fill (light mode, `*-band-edge`). A bold line also meets 3:1 against the band it crosses. Decorative hairlines are exempt and use `rule`.
+
+**The Hue Is Never Alone Rule.** Colours that must be told apart also differ in lightness, and the copy names marks by label or position. Rain intensity on the ribbon is bar height, not shade. Today's bar keeps its data colour and is told apart by the `now` dot over it and the label "today", never by an orange fill.
+
+**The Now Stands Off Rule.** A `now` mark never touches a data fill. It sits on `tile`, `now-surface` or `ground`, or behind a gap in the colour of the surface under it: the ribbon's now dot has a 2px `now-surface` ring, and an outline around a ramp cell sits outside the cell with a 1px gap. So `now` is only ever checked against the three surfaces, where it passes as text.
 
 ## Typography
 
-**Display Font:** Atkinson Hyperlegible Next (with Atkinson Hyperlegible, system-ui, sans-serif)
-**Body Font:** Atkinson Hyperlegible Next
-**Label/Mono Font:** Atkinson Hyperlegible Next, using `tnum` for tabular figures
+**Family:** Lexend, self-hosted (the CSP allows no third-party font origin), with `system-ui, sans-serif` behind it. Lexend replaces Atkinson Hyperlegible Next; it keeps the readability goal and gives the large light numerals their character.
 
-**Character:** One humanist, highly distinguishable family for everything. Letterforms are chosen so no two can be mistaken for each other. The tracking is slightly open (0.012em letter, 0.08em word) and the leading is generous (1.55). Hierarchy comes from weight and size only.
+**Character:** Hierarchy comes from size and weight only. Weights are 300 for the display temperature, 400 for reading text and stats, 500 for findings and kickers, and 600 for annotations, the station name and the current tab. Tracking is slightly open (0.01em).
 
 ### Hierarchy
-- **Display** (650, clamp(2.75rem, 12vw, 3.5rem), 0.9, -0.02em): the current temperature only, with a superscript °F at 0.4em.
-- **Headline** (600, 1.3125rem; 1.625rem at 1024px and up; 1.28; max 30ch): the hero lead's finding.
-- **Title** (600, 1.1875rem; 1.3125rem at 1024px and up; 1.3; max 36ch): section findings (`h2`).
-- **Subtitle** (600, 1rem, 1.35): sub-blocks and table captions.
-- **Body** (400, 1rem, 1.55, max 60ch): the condition summary beside the temperature, and narrative.
-- **Standfirst** (400, 0.875rem, 1.6, ink-2, max 62ch): the one line under a headline that says how to read the chart.
-- **Source** (400, 0.8125rem, 1.55, ink-2, max 62ch): the source line under each chart, which carries method, gaps and archive lag.
-- **Stat** (650, 1.1875rem, tabular): Right-now values and hero facts. The value sits above its `dt` label (0.8125–0.875rem, ink-2).
-- **Label** (400, 0.75rem): keys, almanac headers, ribbon ticks and chips. 12px is the floor for any text.
-- **Axis** (12px, ink-3, tabular): chart ticks. In-chart labels are 12.5px in ink-2. Annotations are 650 at 13px in `note`.
+The frontmatter carries each step: the base key is the phone size and the `-desktop` key is the size from 760px (`finding-lead-desktop`, `finding-desktop`, `condition-desktop`, `stat-desktop`, `fact-desktop`). A step with no `-desktop` key is the same on both.
 
-Type steps: 0.875, 1, 1.1875, 1.3125, 1.625 and 4rem. That is a gentle ramp so the chart, not the headline, is read first.
+- **Display** (300, 7.5rem desktop, 5.25rem phone, 0.88, -0.05em, tabular): the current temperature only.
+- **Finding, lead** (500, 1.5rem desktop, 1.25rem phone, 1.33, max 52ch): the leading tile's finding and each tab's top finding.
+- **Finding** (500, 1.1875rem desktop, 1rem phone, 1.4, max 44ch): a tile's finding, and the label of a closed finding row.
+- **Condition** (400, 1.25rem desktop, 1rem phone, 1.45): the condition sentence beside the temperature.
+- **Standfirst** (400, 0.875rem, 1.55, `ink-2`, max 62ch): one line on how to read the chart.
+- **Kicker** (500, 0.8125rem, `ink-3`): the tile's subject, sentence case, above the finding.
+- **Stat** (400, 1.375rem desktop, 1.25rem phone, tabular): values in a stat strip, over their label.
+- **Fact** (300, 2.5rem desktop, 2rem phone, 1.1, tabular): the one large value on a quick-fact tile.
+- **Source** (400, 0.8125rem, `ink-3`): the folded source line and its body.
+- **Axis** (400, 12px, `ink-3`, tabular) and **in-chart label** (12px, `ink-2`): chart text.
+- **Annotation** (600, 13px, `now`, with a 4px tile-coloured halo): the now label.
 
 ### Named Rules
-**The No Serif, No Italic Rule.** Every word is Atkinson Hyperlegible Next, upright and left-aligned. Emphasis is weight 600–650. Text never uses italics, centred paragraphs or all-caps runs longer than a short label.
+**The No Italic, No Caps Rule.** Every word is Lexend, upright and left-aligned. Emphasis is weight. No italics, no centred paragraphs, no all-caps runs.
 
-**The Tabular Where It Lines Up Rule.** Tabular digits (`tnum`) are used only in tables, stat strips, axes, almanac cells, the ribbon and the temperature. Headlines, standfirsts, source lines and body text use proportional digits.
+**The Twelve Pixel Floor.** No text renders under 12px, chart text included. A chart is drawn at its real pixel width (production already does), so a phone gets a phone layout of the chart, never a shrunken desktop one.
 
-**The Quiet Headline Rule.** A headline is short, 600 weight, and never larger than step 3. If it competes with the chart for contrast, the headline gives way.
+**The Chart Width Rule.** A chart picks its phone layout from its own width, not the viewport: under 520px of chart width it draws its phone layout. The page layout switches at 760px of viewport; a chart does not follow it, because a one-column desktop tile at 1180px is about 310px wide and needs the phone layout too.
+
+**The Tabular Where It Lines Up Rule.** Tabular digits in stats, tables, axes, ramp cells, the ribbon and the temperature; proportional digits in findings and prose.
 
 ## Layout
 
-There is one column on a phone. From 1024px up the page uses 5/7 or 7/5 two-column grids. The container is at most 1240px wide, with 16px side padding, rising to 32px at 1024px and up, and 96px bottom padding. Grid gaps are 48px vertical by 56px horizontal. Major sections are separated by 48px (`s-7`). Inside a section the rhythm is: headline, 4px, standfirst, 12px, chart, 12px, source line. Breakpoints are 480px (compact events table), 600px (stat values step up), 520px of chart width (narrow chart variants, almanac values hidden), and 1024px (two columns, larger headlines).
+**Desktop and tablet (760px and up):** a grid of tiles in a container at most 1360px wide with a 24px gutter. Four columns from 1180px, two from 760px. Tiles span one, two, three or four columns. Grid gap 16px. Tile padding 22px, corners 22px. The header is the station name, the live line and the section tabs as pills.
 
-The tabs (Overview, Rain, Rain Events, Solar) are sticky at the top, on the ground colour, with a hairline below.
+**Phone (under 760px):** one column, 16px gutter, tile padding 16px, corners 20px. The section tabs move to a bottom tab bar. Every tab has the same shape, the Phone First-Screen Rule below.
 
-**The Phone First-Screen Rule.** On a phone, the first screen holds, in order: the station name and live timestamp, the current temperature with the condition sentence beside it, the Right-now stat strip (feels like, wind, rain today), the 48-hour condition ribbon, and then the hero lead.
+**The Phone First-Screen Rule.** On a phone, each tab opens with a short fixed top, then an accordion of findings:
+- **Overview:** the station and live age, the now tile (temperature, condition sentence, the four Right-now stats, the 48-hour condition ribbon), then the leading tile, always open, with its chart, "Why this leads" and source folded. Then "In context": a list of finding rows, closed by default, one open at a time. Then the four quick-fact tiles (wind, pressure, air, sun and moon) as a 2×2.
+- **Rain, Solar:** the tab's top finding with its stats and its main chart, always open; the tab's other sections as finding rows.
+- **Rain events:** see Event list.
+The closed page is about two to two and a half phone screens.
 
-**The Adaptive Lead Rule.** The hero is chosen by rules, checked in order. Rain leads if an event is live or ended in the last 12 h. Temperature leads if it is at least 10° from the month median. Solar leads if it is at least 400 W/m². Otherwise the lead is calm (days since last rain against the usual dry spell). A "Why this leads" disclosure lists each rule with its live value and marks which were met.
+**The Finding Row.** A closed accordion row is its kicker over its finding sentence, with a chevron in a `rule-strong` ring, at least 56px tall. Closed, the rows read as a list of findings, like the FT's key points. Opening a row closes any other row in the same group (an exclusive accordion); the opened row shows its standfirst, chart and folded source.
+
+**The Adaptive Lead Rule.** The leading tile is chosen by rules, checked in order. Rain leads if an event is live or ended in the last 12 h. Temperature leads if it is at least 10° from the month median. Solar leads if it is at least 400 W/m². Otherwise the lead is calm (days since last rain against the usual dry spell). "Why this leads" lists each rule with its live value and marks which were met.
 
 ## Elevation & Depth
 
-The system is flat. No surface has a shadow, and depth comes from tone and hairlines. The ground and surface differ by a shade. Stat strips and tables are held by 1px rules, not by cards. The only layering is in charts: a soft usual band at the back, hatching over invalid spans, the bold now mark on top, and labels haloed in the ground colour. Two ring effects are state marks, not elevation: the almanac's selected cell gets a 2px `ink` ring, and the ribbon's now dot gets a 2px `ground` ring.
-
-### Named Rules
-**The Flat Paper Rule.** Nothing floats. If a group needs separating, use a hairline or whitespace, never a shadow or a tinted card.
+Flat. No shadows. Depth is tile on ground, and the one tinted now tile. Inside charts the layering is: usual band at the back, hatching over invalid spans, the bold now mark on top, labels haloed in the tile colour.
 
 ## Shapes
 
-Corners are small and functional. Swatches, solar bars and strip cells use 2px. Almanac cells, the condition ribbon, gap rows and invalid-window bars use 4px. Range bands and IQR bars use 3px. Segmented controls and buttons use 8px. The quality chip is a pill. Data dots are circles (r 2.6–5.5). Tabs are square, with a 3px inset underline. Strokes: axes are 1px hairlines, thin marks are 1.5px, and the bold now line is 3.5px with round caps and joins. Hatching is always 135° stripes, 3–4px on an 8px repeat, in `gap-a` over `gap-b`.
+Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. The ribbon 6px. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 3 to 4px on an 8px repeat. Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
 
 ## Components
 
-### Tabs
-- **Style:** ground background, 46px minimum height, 0 14px padding, 1rem in ink-2.
-- **Selected:** ink, weight 650, 3px `rain-3` inset underline. Hover moves the text to ink.
-- **Behaviour:** roving tabindex; arrow keys, Home and End move between tabs; the hash tracks the open tab.
+### Header and tabs
+- **Desktop:** station name (600), live dot and line ("Tue Nov 3, 7:40 am · 3 m ago", `ink-3`), and the tabs as pills on the right: 40px tall, `ink-2`; the current tab is an `ink` pill with `ground` text.
+- **Phone:** a 52px header (the station, and the live line), and a bottom tab bar, sticky, four equal 48px targets; the current tab is an `ink` fill with `ground` text. The bar is padded below by `env(safe-area-inset-bottom)`, so its targets clear the home indicator; the page sets `viewport-fit=cover`. The bottom bar names the tab, so the header always names the station.
+- **Station selector:** with two or more stations in the station index, the station name is the selector, in the same slot on desktop and phone. It is a native `select` styled as the 600-weight name with a chevron after it, so the header looks the same with one station or many. With one station the name is plain text and has no chevron. A long name stays on one line and ends in an ellipsis: at most 28ch on desktop; on a phone it takes the header width the live line leaves, and the live age never truncates. The open list shows every name in full, and an unnamed station shows the end of its MAC.
+- Staleness: past 15 minutes, the live dot goes hollow and the age sits in a hatched chip.
 
-### Segmented control
-- **Style:** 1px `rule-strong` border, 8px corners, `surface` buttons 40px high, 0.875rem in ink-2, hairline dividers between buttons.
-- **Pressed:** `ink` fill, `ground` text, weight 650 (meets 4.5:1 in light and dark).
+### Focus
+Every control shows `:focus-visible` as a 2px `ink` outline at a 2px offset, following the control's corners. `ink` passes on `ground`, `tile` and `now-surface`, so one ring serves every surface. Focus from a pointer shows no ring.
 
-### Buttons
-- **More / secondary:** `surface` fill, 1px `rule-strong` border, 8px corners, 44px minimum height, 0 16px padding, weight 600.
-- **Focus:** a 3px `rain-3` outline, 2px offset, on every focusable element.
+### Theme choice
+The OS colour scheme picks the theme. An explicit `?theme=light` or `?theme=dark` in the page address overrides it for that page load and stores nothing, so a shared link can fix the theme. There is no theme control on the page.
 
-### Chips
-- **Quality chip:** pill, 1px `rule-strong` border, 0.75rem at 600. A low-quality rating uses a dashed border and ink-2 text.
+### Now tile
+The temperature (Display), the condition sentence, a stat strip of feels like, wind, rain today and humidity between two hairlines, a one-line claim over the ribbon, and the ribbon. It is the only tile on `now-surface`.
+
+### Tile
+Kicker, finding, standfirst, chart or stats, then the folded source. On desktop a tile can carry two folded lines: "Why this leads" and "Source".
+
+### Source note
+A native `details`: one closed line, "Source · <what>, archived <time>", in Source type with a 32px target; open, the full method paragraph Python already writes. When the archive lags past 15 minutes or a gap hides part of the chart, the closed line carries a hatched chip with the short reason. The in-chart hatch and "n/a" labels stay; the note explains them, it never replaces them.
 
 ### Stat strip
-- **Style:** a definition list in three equal columns between top and bottom hairlines, 8px vertical padding. The value (Stat type, tabular) sits above its label (ink-2). Used for Right now (max 520px) and the hero facts.
+A definition list, value over label, between hairlines or `rule` tops. Two columns on a phone, up to four on desktop.
 
-### Disclosures
-- **Why this leads / Show the numbers:** native details elements, 0.875rem ink-2 summary with a 32px target. The rules list shows an 8px ring per rule, filled `rain-3` when met, with the leading rule in ink at 600.
+### Segmented control and select
+Segments are pills in a `rule-strong` border, 44px tall on a phone (40px on desktop); the pressed one is `ink` with `ground` text. Where a choice has more than three options or would not fit a phone row, it is a native `select` styled as a pill (the water-year filter).
 
-### Tables
-- **Style:** full width, collapsed borders, 0.875rem, tabular. Headers are 0.75rem at 600 in ink-2 over a `rule-strong` line, and rows are divided by `rule`. Numbers are right-aligned and the first column left-aligned. An invalid cell is hatched, centred, and reads "n/a" with the reason in a title and in screen-reader text. The current event row is tinted `rain-0`, and the pinned live event sits above a 2px rule.
+### Event list (Rain events)
+The list is the navigator. A pinned filter bar (water-year select, and sort: Newest, Wettest, Longest) stays at the top while the list scrolls. Each event is an exclusive accordion row on its own tile: date, length, peak and quality chip on the left, the total on the right, and a 4px size bar under it giving the total against the wettest event on record: a `rain-bar` pill on a full-width `rule` track, the wettest event filling the track. The live event, or else the newest, is open by default. An open row shows the event's finding, a Total / Rate switch, the curve against the median event, its quality and its folded source. Opening another row closes it, so the curve always sits under the event it belongs to. "Show N more" ends the list.
+
+- **Loading a curve:** the finding, stats and quality come from the snapshot and show at once. The chart area keeps the curve's height and reads "Loading the curve…" in Source type, `ink-3`.
+- **A curve that fails to load:** the chart area reads "Couldn't load this event's curve." with a Try again pill. The rest of the row stays.
+- **No events:** with a filter, one tile under the pinned filter bar reads "No rain events in <water year> yet." With none on record, the tile reads "No rain events on record yet." The filter bar stays.
+
+### Chips and buttons
+Quality chip: a pill in `rule-strong`, 12px; a poor rating is dashed with `ink-3` text. Hatched chip: a pill in `rule-strong` that starts with a 12px hatched swatch, then its reason in `ink-2` on the surface colour; the text never sits on stripes. The "latest" chip is outlined in `now`. Buttons are pills in `rule-strong`, 44px minimum.
+
+### Quick-fact tiles
+Wind, pressure, air (humidity and dew point) and sun and moon: a kicker, one large value in Fact type and one sentence. Desktop shows them as a row of four one-column tiles; a phone shows a 2×2. A station with no coordinates has no sun and moon times: its tile keeps its kicker, shows no value, and says the station reports no location.
+
+### macOS widgets
+Small (one value and one sentence), medium (the reading, a sentence and a 24-hour ribbon, or rain since Oct 1 against past years) and large (the reading, three stats and three range bars with the now rule). Widgets use the same tokens and the same contrast rules; their sentences are short forms Python writes.
 
 ### Chart grammar
-Every chart is drawn as SVG at its real pixel width. There are no chart boxes and no gridlines on x. Horizontal gridlines are hairlines in `rule`, and ticks are 12px ink-3 tabular. Labels sit directly on the marks, haloed in `ground`. A compact inline key appears only where a colour ramp or the hatch needs decoding (the almanac and the ribbon). The bold now line draws in once over 1.1s (cubic-bezier(.16,1,.3,1)), and the animation is skipped under reduced motion.
+Every chart is SVG drawn at its real pixel width, with no chart box and no vertical gridlines. Horizontal gridlines are `rule`; the baseline is `rule-strong`. Ticks are 12px `ink-3`. Labels sit on the marks with a tile-coloured halo. A key appears only where a ramp or the hatch needs decoding. The bold now line draws in once over 1.1s, skipped under reduced motion.
 
-- **Range bars with an IQR band and a now rule (periods):** one row per window (today, yesterday, 7, 30, 90, 365 days), each labelled with its name and dates. A 1.5px ink-3 whisker runs min to max, with r 2.6 end dots and the values at each end. A 12px `temp-cool` bar covers the 25th to 75th percentile. One vertical 2.25px `note` rule crosses all rows at the current value, with a dot and a "now 46.9°" label at the top.
-- **Strips of now against normal:** a 104px band with a baseline and ticks. Each past day within ±7 days of this date in earlier years is a jittered translucent dot (`temp-cool` for temperature, `rain-2` for rain on a square-root scale). Today is a 2.5px `note` rule labelled "today … so far". A claim line above names the percentage and the sample.
-- **Almanac grid:** years as rows, months as columns, 44px cells with 4px corners and 3px gaps. A valid month is filled from the rain ramp (square-root scale) or the temperature ramp, with its value in the cell when there is room; contrasting text is chosen per cell. A prorated month shows ≈ before its value. An invalid month is hatched with no value. A month before the archive began has a dashed outline. The current month is outlined in `note` and lightly hatched, because it is not yet comparable. Tap, hover or focus writes the month's full sentence to a live readout below the grid.
-- **Hatched gaps:** wherever a comparison is not valid (an archive gap, a low-coverage day, a window missing more than 10% of its days, the span after the archive ends), the mark is replaced by the 135° hatch. There is no line, bar or value under it. A short label in place says why ("n/a: gap in record", "not archived yet").
-- **Bold now over a soft usual range (hero, events, solar):** the usual range is a soft fill (`rain-0`; `sun-soft` for solar) covering the middle half of the comparison set, with a dashed 1.5px median line. The current event, day or trace is a 3.5px bold line in the data hue, ending in an r 5 dot ringed in `ground` with its value in the 650 annotation. Where the live value is ahead of the archive, the unarchived span is hatched, the known live total is joined by a dotted line, and an in-chart note says "only the live total is known". The ten-day list uses the same grammar in miniature: a `rule`-coloured usual band behind each day's low-to-high bar, painted from the temperature ramp.
-- **48-hour condition ribbon:** a 52px band with 4px corners. Each 15-minute slot is `night` or `sun-soft`, overprinted by the rain ramp in four steps. The temperature is traced over it in a 2px `ink` line on a 4.5px `ground` halo, with a `note` dot at the right edge and a "now" label. Unarchived spans are hatched. Ticks every 6 hours read "6 am", "noon" and weekday names. A one-line claim above gives the range and the rain hours.
+- **48-hour condition ribbon:** a 40 to 46px band of night and day, outlined in light mode (`ribbon-edge`). Rain is a separate track of bars under the band, its height giving intensity; it is never overprinted on the band. The temperature is a 2px `ink` line on a 5px `now-surface` halo, ending in a `now` dot with a 2px `now-surface` ring, labelled "now" on the now surface. Over the unarchived tail the band stops and the now surface is hatched in `ink-3`. On a phone the ribbon runs edge to edge in its tile and its ticks name the days.
+- **Range bars with a middle-half bar and a now rule (periods):** one row per window (today, yesterday, 7, 30, 90, 365 days). A 1.5px whisker min to max, a 12px `temp-iqr` bar over the middle half, one `now` rule across all rows with "now 47°" at the top. An invalid window is a hatched row with its reason. On a phone each row's label sits above its bar.
+- **Bold now over a usual band (lead, events, solar):** the usual band (`*-band`, edged in light mode) covers the middle half of the comparison set with a dashed `median`. The current event, day or trace is a 3.5px bold line in its data hue, ending in an r5.5 `now` dot with its value.
+- **Strips of now against this date:** each past day within a week of this date in earlier years is a dot; today is a 2.5px `now` rule labelled with its value; a claim above names the share.
+- **Ten-day bars:** each day's low-to-high bar over the usual-range band for that date, coloured cool, mild or warm against the usual high.
+- **Daily bars:** one bar per day in its data colour. Today's bar is marked by an r4 `now` dot 4px above its top (on the baseline when today is zero) and the label "today". The selected day is outlined in `ink`; missing days are hatched. On a phone the default is the last 30 days with a 30 / 90 switch; desktop shows 90.
+- **Rain-by-hour grid:** days as columns, hours as rows, filled from the rain ramp on a `ground` background; the current hour outlined in `now` outside the cell, with a 1px `ground` gap. On a phone, the last 30 days.
+- **Almanac grid:** years as rows, months as columns, cells filled from the rain or sun ramp, with the value in the cell. ≈ marks a prorated month; an invalid month is hatched with "n/a"; a month before the archive or still to come is a dashed `rule-strong` outline; the current month is hatched, because it is not yet comparable, and outlined in `now` outside the cell with a 1px `tile` gap.
+- **Water-year lines:** one line per water year, past years in `ink-3`-weight slate, this year bold in `rain-line` with a `now` dot.
 
 ### Named Rules (data and copy)
-**The One Number Rule.** Each fact is computed once, from one comparison set, and every view that shows it shows that number.
+**The Finding First Rule.** A finding states what the data shows, with the number in it. It does not describe what the chart is.
 
-**The Live Beats Archive Rule.** A live value always replaces the archived value for the same quantity. The archive lag goes in the source line, never in a headline.
+**The One Number Rule.** Each fact is computed once, from one comparison set, and every view that shows it shows that number, the widgets included.
 
-**The One Gap Status Rule.** Each month and each window has one gap status: valid, prorated (≈) or invalid. Every chart, table and headline follows it. A ≈ window is never called "full". Invalid comparisons are hatched and never computed.
+**The Live Beats Archive Rule.** A live value replaces the archived value for the same quantity. Archive lag goes in the source note (or its hatched chip), never in a finding.
 
-**The Name the Years Rule.** A headline that compares years names them, newest first: "against 3.5 in (2025) and 4.5 in (2024)".
+**The One Gap Status Rule.** Each month and window has one gap status: valid, prorated (≈) or invalid. Every chart, table and finding follows it. Invalid comparisons are hatched and never computed.
 
-**The One Format Rule.** Times are written `9:36 am`, and dates with times are written `Oct 27, 11:00 pm`. Durations are written `1 d 10 h`, `5 h 12 m` or `45 m`. Use the station's own time zone (the snapshot's `station.tz`, read from Ambient each build) and imperial units.
+**The Name the Years Rule.** A finding that compares years names them, newest first.
 
-**The Label Not Colour Rule.** Copy refers to marks by label or position ("the bold line", "the line marked now", "the shaded band", "the outlined month"), never by colour.
+**The One Format Rule.** Times `9:36 am`, dates with times `Oct 27, 11:00 pm`, durations `1 d 10 h`, `5 h 12 m`, `45 m`. Station time zone (`station.tz`), imperial units.
 
-**The Finding First Rule.** A headline states what the data shows, with the number in it. It does not describe what the chart is.
+**The Label Not Colour Rule.** Copy names marks by label or position ("the bold line", "the band", "the rule marked now"), never by colour.
+
+**The Python Decides Rule.** Findings, short forms, the lead, gap status and every comparison are decided in Python and carried in the snapshot. The site draws what the snapshot says.
+
+## Contrast
+
+The pair list is the `contrast:` list in the frontmatter, and it is the only copy: the token contrast test reads it, and a new mark adds its pairs there. Each entry names a foreground token (or a list, meaning the better of them, for text in ramp cells), the token it sits on, the minimum (4.5 for text, 3 for graphics) and the themes. Every mark is listed against each surface it sits on: `tile`, `ground`, `now-surface`, its band, or the ribbon. Both themes pass every entry.
+
+Two rules keep the list short. A `now` mark stands off data fills (the Now Stands Off Rule), so `now` is checked only on the three surfaces. On the now tile, hatching and strong lines draw in `ink-3`, so one entry covers both.
+
+The tightest pairs, measured Nov 2026:
+
+| Pair | Theme | Ratio | Needs |
+|---|---|---|---|
+| `temp-band-edge` (the dark band's fill) on `tile` | dark | 3.07 | 3 |
+| `rain-0` on `ground` (the rain-by-hour grid) | light | 3.09 | 3 |
+| `sun-0` and `sun-band-edge` on `tile` | dark | 3.13 | 3 |
+| `temp-warm` on `temp-band` | dark | 3.16 | 3 |
+| Text in the `rain-1` cell | light | 4.62 | 4.5 |
+| `now` on `now-surface` | light | 4.69 | 4.5 |
+| `ink-3` on `now-surface` | dark | 4.92 | 4.5 |
+| `now` on `now-surface` | dark | 5.07 | 4.5 |
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** build every section as finding headline, one-line standfirst (max 62ch), chart, then source line.
-- **Do** keep the chart the highest-contrast element in its section. The bold now line is 3.5px in the data hue, and the headline is a quiet 600 weight.
-- **Do** hatch every invalid comparison at 135° in `gap-a` over `gap-b`, with a short reason in place.
-- **Do** mark the current value in `note` claret, with a rule or dot and a "now" label.
-- **Do** set all text in Atkinson Hyperlegible Next, left-aligned, at a line height of at least 1.5, with no text under 12px.
-- **Do** use tabular digits in tables, stats, axes, almanac cells and the ribbon, and proportional digits everywhere else.
-- **Do** follow the OS colour scheme by default and honour an explicit light or dark choice.
-- **Do** give every chart an accessible name and every invalid cell a spoken reason.
+- **Do** start every tile with its finding, and fold method and provenance into one-line disclosures.
+- **Do** keep the phone page short: a fixed top, then findings as rows.
+- **Do** draw each chart at its real width, with 12px text.
+- **Do** check every new graphic against the Three-to-One Graphics Rule in both themes.
+- **Do** hatch every invalid comparison with a short reason in place.
+- **Do** mark the current value in `now` orange, with a rule or dot and a label.
+- **Do** follow the OS colour scheme and honour an explicit `?theme=` choice in the address.
 
 ### Don't:
-- **Don't** use a serif, italics, centred paragraphs or all-caps runs.
-- **Don't** use colour for chrome, or claret for anything but the finding.
-- **Don't** draw a line, bar or value across a gap, or call a ≈ window "full".
-- **Don't** put the archive lag in a headline, or show an archived value where a live one exists.
-- **Don't** refer to a mark by its colour in copy.
-- **Don't** add shadows, tinted cards, chart boxes or vertical gridlines.
-- **Don't** build gauge walls or tile grids of raw numbers. Lead with the finding.
+- **Don't** show a forecast, or a fabricated value.
+- **Don't** overprint rain on the ribbon's day and night bands.
+- **Don't** use colour for chrome, or orange for anything but the finding.
+- **Don't** shrink a desktop chart to fit a phone.
+- **Don't** put the archive lag in a finding.
+- **Don't** add shadows, gradients, italics or all-caps.
+- **Don't** build gauge walls or tile grids of raw numbers: every tile says something.
+
+## Sources
+
+- Prototypes: the Lookout Prototypes canvas, rows E (desktop, widgets) and F (phone). https://claude.ai/artifact/3L81ndVLwwTKZP1jE4Ecmp
+- The earlier Paper-world system this replaces is in git history (DESIGN.md before Nov 2026).

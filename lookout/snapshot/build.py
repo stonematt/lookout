@@ -34,6 +34,7 @@ from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
+from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
 
 
@@ -58,7 +59,8 @@ def build_snapshot(
     :param event_catalog: The Event Catalog, or None when there is none.
     :param energy_catalog: The energy catalog, or None: the Solar tab's
         source.
-    :param station: The station; its zone is the build's (ADR-0005).
+    :param station: The station; its zone is the build's (ADR-0005), and
+        its coordinates (when Ambient sent them) place the sun and moon.
     :param now: The build time, timezone-aware.
     :return: The snapshot.
     :raises ValueError: If `now` has no timezone.
@@ -102,4 +104,5 @@ def build_snapshot(
         solar_tab=solar_tab(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
         ),
+        sun_moon=sun_moon(station, clock),
     )

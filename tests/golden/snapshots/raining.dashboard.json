@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "kind": "dashboard",
   "station": {
     "mac": "00:11:22:33:44:55",
@@ -13580,6 +13580,15 @@
       "energy_kwh_m2": 5.901,
       "previous_kwh_m2": 6.111
     }
+  },
+  "sun_moon": {
+    "sunrise_ms": 1767887384115,
+    "sunset_ms": 1767919692350,
+    "daylight_minutes": 538,
+    "daylight_change_minutes": 1,
+    "moon_phase": "waning gibbous",
+    "moon_illumination_pct": 68,
+    "days_to_full_moon": 24
   },
   "stale_catalogs": []
 }

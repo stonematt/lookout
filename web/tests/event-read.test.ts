@@ -4,6 +4,9 @@
  * serves the golden curve files), and on the lane server. Plus the curve
  * contract and the chart helpers that read a curve. No network.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { devResponse } from "../server/dev-fixtures.js";
@@ -274,6 +277,25 @@ describe("the lane server's /event", () => {
 describe("the curve contract", () => {
   it("reads every golden curve file", () => {
     expect(parseEventCurve(goldenCurve("raining", EVENT_2)).start_ms).toBe(EVENT_2);
+  });
+
+  it("still reads a curve file written at schema version 2, never rewritten (#344)", () => {
+    // A curve file as the refresh run wrote it at version 2, frozen outside the
+    // regenerated goldens: the stored curves on Storj look like this forever.
+    const frozen = resolve(import.meta.dirname, "../../tests/golden/frozen");
+    const text = readFileSync(`${frozen}/curve-v2.raining.${EVENT_2}.json`, "utf8");
+    const doc: unknown = JSON.parse(text);
+    expect(doc).toHaveProperty("schema_version", 2);
+
+    const curve = parseEventCurve(doc);
+    expect(curve.start_ms).toBe(EVENT_2);
+    expect(curve.t_ms.length).toBeGreaterThan(0);
+  });
+
+  it("refuses a curve file of a version it does not know", () => {
+    const doc = { ...(goldenCurve("raining", EVENT_2) as object), schema_version: 1 };
+
+    expect(() => parseEventCurve(doc)).toThrow("schema_version 1");
   });
 
   it("refuses uneven arrays", () => {

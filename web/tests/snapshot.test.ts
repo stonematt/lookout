@@ -9,7 +9,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import { fetchCurrent } from "../src/load.js";
-import { golden } from "./golden.js";
+import { golden, goldenV2 } from "./golden.js";
 
 describe("the contract version", () => {
   it("is the version the Python builder writes (read from the goldens)", () => {
@@ -77,6 +77,41 @@ describe("parseDashboard", () => {
     const snap = parseDashboard(golden("dry", "dashboard"));
     expect(snap.active_rain_event).toBeNull();
     expect(snap.current.temperature_f).toBe(39.4);
+  });
+
+  it("reads the sun and moon (#344)", () => {
+    const sunMoon = parseDashboard(golden("dry", "dashboard")).sun_moon;
+    expect(sunMoon).not.toBeNull();
+    // 19 November 2025 in the station's zone; new moon that night, 22:47 PST.
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+    expect(day.format(sunMoon!.sunrise_ms)).toBe("2025-11-19");
+    expect(day.format(sunMoon!.sunset_ms)).toBe("2025-11-19");
+    expect(sunMoon!.daylight_change_minutes).toBeLessThan(0);
+    expect(sunMoon!.moon_phase).toBe("new");
+  });
+
+  it("reads a station with no coordinates as no sun and moon", () => {
+    const doc = { ...(golden("dry", "dashboard") as object), sun_moon: null };
+    expect(parseDashboard(doc).sun_moon).toBeNull();
+  });
+
+  it.each<[string, (block: Record<string, unknown>) => void]>([
+    ["an unknown moon phase", (b) => (b.moon_phase = "blue")],
+    ["illumination over 100", (b) => (b.moon_illumination_pct = 101)],
+    ["a sunset before sunrise", (b) => (b.sunset_ms = (b.sunrise_ms as number) - 1)],
+    ["a fractional day count", (b) => (b.days_to_full_moon = 1.5)],
+  ])("refuses sun and moon with %s", (_case, spoil) => {
+    const doc = structuredClone(golden("dry", "dashboard")) as {
+      sun_moon: Record<string, unknown>;
+    };
+    spoil(doc.sun_moon);
+    expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
+  });
+
+  it("refuses a dashboard missing sun_moon", () => {
+    const doc = { ...(golden("dry", "dashboard") as Record<string, unknown>) };
+    delete doc.sun_moon;
+    expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
   });
 
   it("refuses a context block", () => {
@@ -157,6 +192,17 @@ describe("parseCurrent", () => {
     expect(body.context).toBeNull();
   });
 
+  it("keeps a v2 context: the envelope is this site's, the context is the refresh run's", () => {
+    const body = parseCurrent(current(goldenV2("raining", "context")));
+    expect(body.context?.schema_version).toBe(2);
+  });
+
+  it("refuses a body at schema_version 2: this site's own server writes 3", () => {
+    expect(() => parseCurrent({ ...current(null), schema_version: 2 })).toThrow(
+      "current: schema_version 2, this site reads 3",
+    );
+  });
+
   it("still refuses a body of another schema version", () => {
     expect(() => parseCurrent({ ...current(null), schema_version: 99 })).toThrow(
       SnapshotContractError,
@@ -169,5 +215,47 @@ describe("newestObservation", () => {
     expect(newestObservation(5, 9)).toBe(9);
     expect(newestObservation(null, 9)).toBe(9);
     expect(newestObservation(null, undefined)).toBeNull();
+  });
+});
+
+describe("schema version 2 (the version before)", () => {
+  // The refresh run on production writes v2 until the v3 release; the site
+  // reads both so the two need not switch at the same moment (#351).
+  it("reads a v2 dashboard, its sun_moon null", () => {
+    for (const scenario of ["dry", "raining"] as const) {
+      const snap = parseDashboard(goldenV2(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(2);
+      expect(snap.sun_moon).toBeNull();
+    }
+  });
+
+  it("reads a v2 context", () => {
+    const block = parseContext(goldenV2("raining", "context"));
+    expect(block.schema_version).toBe(2);
+    expect(block.kind).toBe("context");
+  });
+
+  for (const kind of ["dashboard", "context"] as const) {
+    const parse = kind === "dashboard" ? parseDashboard : parseContext;
+    for (const version of [1, 4, undefined]) {
+      it(`refuses a ${kind} at schema_version ${String(version)}`, () => {
+        const doc = { ...(golden("dry", kind) as Record<string, unknown>) };
+        if (version === undefined) delete doc.schema_version;
+        else doc.schema_version = version;
+        expect(() => parse(doc)).toThrow(SnapshotContractError);
+      });
+    }
+
+    it(`names the versions it reads when it refuses a ${kind}`, () => {
+      const doc = { ...(golden("dry", kind) as object), schema_version: 4 };
+      expect(() => parse(doc)).toThrow(`${kind}: schema_version 4, this site reads 2 or 3`);
+    });
+  }
+
+  it("still refuses a v3 dashboard without sun_moon", () => {
+    const doc = { ...(golden("raining", "dashboard") as Record<string, unknown>) };
+    delete doc.sun_moon;
+    expect(doc.schema_version).toBe(3);
+    expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
   });
 });
