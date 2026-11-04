@@ -4,7 +4,7 @@
  *
  * - Accumulation: the event rain so far as a bold stepped line (a running
  *   total is a line, never a filled area), ending in a dot with its total.
- *   The live event's dot is the claret "now" mark; a completed event's is
+ *   The live event's dot is the `now` mark; a completed event's is
  *   in the rain hue.
  * - Rate: the rain rate between readings as zero-based columns.
  *

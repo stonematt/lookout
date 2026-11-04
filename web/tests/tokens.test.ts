@@ -17,7 +17,6 @@ import {
   failures,
   ratio,
   themeTokens,
-  tokensCss,
   type Theme,
 } from "./contrast.js";
 
@@ -68,7 +67,9 @@ describe("the tokens stylesheet", () => {
     ]) {
       expect(tokens.light[old], `--${old}`).toBeUndefined();
     }
-    expect(tokensCss()).not.toMatch(/claret|Atkinson/i);
+    for (const [path, text] of sources(".css", ".ts")) {
+      expect(text, path).not.toMatch(/claret/i);
+    }
   });
 });
 
@@ -167,6 +168,19 @@ describe("the site's stylesheets", () => {
         expect(declaredNames.has(m[1]!), `${path}: --${m[1]}`).toBe(true);
       }
     }
+  });
+
+  it("set text left-aligned, numbers right, and centre only a column head", () => {
+    const centred: string[] = [];
+    for (const [, text] of css) {
+      for (const m of uncommented(text).matchAll(
+        /([^{}]+)\{[^}]*text-align:\s*(center|justify)/g,
+      )) {
+        centred.push(m[1]!.trim());
+      }
+    }
+    // the almanac's month names sit over their column of cells
+    expect(centred).toEqual([".alm-month"]);
   });
 
   it("set no all-caps, no italic, and no text under 12px", () => {

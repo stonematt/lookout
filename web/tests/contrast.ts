@@ -111,7 +111,10 @@ export function contrastPairs(): ContrastPair[] {
   });
 }
 
-/** A stylesheet's rules, top level and inside at-rules, as [selector, body]. */
+/**
+ * A stylesheet's rules, top level and inside at-rules, as [selector, body].
+ * A plain brace count: enough for tokens.css, which has no braces in strings.
+ */
 function rules(css: string, context = ""): [string, string][] {
   const out: [string, string][] = [];
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -168,7 +171,8 @@ export function declared(selector: string, css = tokensCss()): Tokens {
 
 /**
  * The tokens as a browser would compute them in one theme: the light rules,
- * with the dark rule over them in dark, every `var()` resolved.
+ * with the dark rule over them in dark, every `var()` resolved. Dark reads
+ * the `?theme=dark` rule; tokens.test.ts holds the OS dark rule equal to it.
  *
  * @param theme - Which theme.
  * @param css - The stylesheet (default: tokens.css).

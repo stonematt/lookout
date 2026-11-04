@@ -6,7 +6,7 @@
  *
  * Shared grammar, as on the Rain tab: hairline gridlines on y only, 12px
  * tabular ticks, labels haloed in the ground, the 135° hatch for what is not
- * in the record, and one claret mark for the headline's subject. Every chart
+ * in the record, and one `now` mark for the headline's subject. Every chart
  * has a live readout below it (hover, tap, or focus and use the arrow keys),
  * so nothing relies on a title. The day charts are also pickers: a click,
  * or Enter on the focused chart, picks the day under the readout.

@@ -2,7 +2,8 @@
  * Page chrome: base type, the page column, the header and the tabs.
  * DESIGN.md rules this file keeps: one family, Lexend, upright and
  * left-aligned, no all-caps; a 12px text floor; tabular digits only where
- * numbers line up; flat (no shadows); slate chrome, so colour is left to the
+ * numbers line up; flat (no shadows: a `box-shadow` here and in the other
+ * stylesheets is only ever a ring or a halo); slate chrome, so colour is left to the
  * data; a 2px `ink` focus ring on everything focusable.
  */
 *,

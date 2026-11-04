@@ -5,7 +5,7 @@
  *
  * Shared grammar: hairline gridlines on y only, 12px tabular ticks, labels on
  * the marks haloed in the ground, the 135° hatch for a day not in the record
- * (with its reason in place where there is room), and one claret mark for
+ * (with its reason in place where there is room), and one `now` mark for
  * the subject of the headline. Every chart has a live readout below it:
  * hover, tap, or focus the chart and use the arrow keys, and the readout
  * says what the mark under it means, so nothing relies on a title (phones
