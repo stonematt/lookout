@@ -340,8 +340,9 @@ function panel(): HTMLElement {
   return document.getElementById("panel")!;
 }
 
+/** A section's tile, or on a phone its finding row. */
 const tile = (host: HTMLElement, id: string) =>
-  host.querySelector<HTMLElement>(`.tile[data-section=${id}]`)!;
+  host.querySelector<HTMLElement>(`[data-section=${id}]`)!;
 
 /** The days a chart of days names in its label: "Rain each day, Oct 5 to today". */
 const firstShown = (chart: Element) =>
