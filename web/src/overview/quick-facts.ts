@@ -24,11 +24,11 @@ import {
   compassPoint,
   degrees,
   formatHours,
-  formatTime,
   inHg,
   known,
   mph,
   percent,
+  timeParts,
 } from "../format.js";
 import type { DashboardSnapshot, SnapshotConditions, SunMoon } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
@@ -142,13 +142,13 @@ function airSentence(c: SnapshotConditions): string {
  */
 function sunTimes(block: SunMoon): DocumentFragment {
   const value = document.createDocumentFragment();
-  const time = (ms: number): void => {
-    const [clock, period] = formatTime(ms).split(" ");
-    value.append(clock!, "\u00a0", unitSpan(period!));
+  const appendTime = (ms: number): void => {
+    const { clock, period } = timeParts(ms);
+    value.append(clock, "\u00a0", unitSpan(period));
   };
-  time(block.sunrise_ms);
+  appendTime(block.sunrise_ms);
   value.append(" ", unitSpan("to"), "\u00a0");
-  time(block.sunset_ms);
+  appendTime(block.sunset_ms);
   return value;
 }
 
