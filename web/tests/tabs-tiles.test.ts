@@ -119,9 +119,13 @@ describe.each(["dry", "raining"] as const)("the %s golden's other tabs", (scenar
         expect(method.closest("details")).toBe(note);
         expect(words(method)!.length, tile.dataset.section).toBeGreaterThan(40);
       }
-      // No source paragraph is left open beside a tile's chart.
-      for (const p of panel(tab).querySelectorAll("p")) {
-        if (/^Source\b/.test(words(p)!)) expect(p.closest("details")).not.toBeNull();
+      // No source paragraph is left open beside a tile's chart: the old
+      // open source lines are gone, and every method paragraph is folded.
+      expect(panel(tab).querySelectorAll(".rain-source, .ev-source, .solar-title")).toHaveLength(0);
+      for (const p of panel(tab).querySelectorAll("p:not([data-part=kicker])")) {
+        if (/^(Source\b|The (station|energy catalog|Event Catalog|live station))/.test(words(p)!)) {
+          expect(p.closest("details"), words(p)).not.toBeNull();
+        }
       }
     },
   );
@@ -174,8 +178,38 @@ describe("the gap chip on these tabs", () => {
   });
 });
 
+describe("an empty Event Catalog", () => {
+  it("keeps the catalog tile and drops the event tile", async () => {
+    const snapshot = parsed("raining");
+    snapshot.rain_events = {
+      events: [],
+      all_time: { count: 0, total_in: 0, median_in: null, mean_duration_minutes: null },
+      seasons: [],
+      open_curve: null,
+    };
+    await boot(snapshot, "events");
+
+    expect(tiles("events").map((t) => t.dataset.section)).toEqual(["catalog"]);
+  });
+});
+
 describe("one number wherever it appears (story 53)", () => {
-  it("shows today's rain and the dry spell on the Rain tab as the Overview does", async () => {
+  it("shows the dry spell on the Rain tab as the Overview's calm rule does", async () => {
+    await boot(parsed("dry"), "rain", "overview");
+    const since = words(
+      [...panel("rain").querySelectorAll("[data-section=dry] dl > div")]
+        .find((d) => words(d.querySelector("dt")) === "Since it last rained")
+        ?.querySelector("dd"),
+    );
+    const why = words(
+      panel("overview").querySelector("[data-section=hero-lead] details[data-part=why]"),
+    );
+
+    expect(since).toBe("1 d 14 h");
+    expect(why).toContain(`calm: ${since} since it last rained`);
+  });
+
+  it("shows today's rain on the Rain tab as the Overview does", async () => {
     const snapshot = parsed("raining");
     await boot(snapshot, "rain", "overview");
     const today = snapshot.current.rain_today_in!.toFixed(2);

@@ -263,7 +263,8 @@ export function mountEvents(
   if (!all.length) {
     $(".ev-title").textContent = "No rain events in the catalog yet";
     $(".ev-controls").hidden = true;
-    $("[data-section=events]").hidden = true;
+    // Removed, not hidden: the tile's own display would override `hidden`.
+    $("[data-section=events]").remove();
     return;
   }
 

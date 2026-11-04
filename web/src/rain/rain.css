@@ -7,25 +7,6 @@
  * only where numbers line up.
  */
 
-/* the windows beside the daily bars on the four-column grid (the desktop
-   board); stacked, the strip above the bars, on the narrower grids */
-:root[data-layout="four"] .rain-split {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
-  gap: var(--s-6);
-  align-items: start;
-  margin-top: var(--s-3);
-}
-
-:root[data-layout="four"] .rain-split > .rain-windows {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 0;
-}
-
-.rain-split-chart {
-  min-width: 0;
-}
-
 /* ---------- stat strips: value above its label ---------- */
 .rain-stats {
   display: grid;

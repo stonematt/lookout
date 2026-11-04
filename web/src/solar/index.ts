@@ -19,13 +19,14 @@ import "./solar.css";
 import { addDays, dayText, daysBetween, kwhPerM2 } from "../format.js";
 import { FALLBACK_WIDTH, drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
-import { dayStatus, gapElement, gapSentence, hatchGap, isComparable } from "../gaps.js";
+import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { WINDOW_NAMES, listText } from "../rain/text.js";
 import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
 import {
   gapReasons,
+  hatchedCount,
   notCompared,
   renderTiles,
   sourceNote,
@@ -202,9 +203,9 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Moun
     strip.append(item);
     hatchGap(dd, window.status, { compact: true });
   }
-  // On the four-column grid the strip stands beside the bars (solar.css).
-  const split = make("div", "solar-split");
-  const bars = make("div", "solar-split-chart");
+  // On the four-column grid the strip stands beside the bars (tiles.css).
+  const split = make("div", "tile-split");
+  const bars = make("div", "tile-split-chart");
   const { chart, readout } = figure("Solar energy each day over the last 90 days");
   bars.append(chart, readout);
   split.append(strip, bars);
@@ -214,9 +215,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Moun
       drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick),
     ),
   );
-  const windows = tab.windows.filter(
-    (w) => !isComparable(w.status) && w.status.reason !== "in_progress",
-  ).length;
+  const windows = hatchedCount(tab.windows.map((w) => w.status));
   host.append(
     source(
       snapshot,

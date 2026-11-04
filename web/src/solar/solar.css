@@ -9,28 +9,10 @@
  * numbers line up.
  */
 
-/* the windows beside the daily bars on the four-column grid (the desktop
-   board); stacked, the strip above the bars, on the narrower grids */
-:root[data-layout="four"] .solar-split {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
-  gap: var(--s-6);
-  align-items: start;
-  margin-top: var(--s-3);
-}
-
-:root[data-layout="four"] .solar-split > .solar-stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 0;
-}
-
-/* two to a row, a value and its unit wrap rather than run into the next */
-:root[data-layout="four"] .solar-split > .solar-stats dd {
+/* two to a row beside the bars, a value and its unit wrap rather than run
+   into the next */
+:root[data-layout="four"] .tile-split > .solar-stats dd {
   white-space: normal;
-}
-
-.solar-split-chart {
-  min-width: 0;
 }
 
 /* the stale-catalog note above the tiles */

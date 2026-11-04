@@ -35,7 +35,7 @@
 import "./styles/tiles.css";
 
 import { STALE_AFTER_MS, formatDuration, formatStamp } from "./format.js";
-import type { DashboardSnapshot } from "./snapshot.js";
+import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
 
 /** How many of the four-column grid's columns a tile spans. */
 export type TileSpan = 1 | 2 | 3 | 4;
@@ -286,6 +286,17 @@ export function sourceNote(snapshot: DashboardSnapshot, spec: SourceNoteSpec): H
 export function notCompared(count: number, one: string, many: string): string | null {
   if (count <= 0) return null;
   return `${count} ${count === 1 ? one : many} not compared`;
+}
+
+/**
+ * How many of a set of gap statuses are hatched as not compared: invalid,
+ * and not merely under way (the current window or month, compared once over).
+ *
+ * @param statuses - The windows' or months' gap statuses.
+ * @returns The count.
+ */
+export function hatchedCount(statuses: readonly GapStatus[]): number {
+  return statuses.filter((s) => s.status === "invalid" && s.reason !== "in_progress").length;
 }
 
 /**

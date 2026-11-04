@@ -13,13 +13,14 @@
 import "./rain.css";
 
 import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
-import { gapElement, gapValue, hatchGap, isComparable } from "../gaps.js";
+import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import type { TileSection } from "../tiles.js";
 import {
   gapReasons,
+  hatchedCount,
   notCompared,
   renderTiles,
   sourceNote,
@@ -114,13 +115,6 @@ function stat(list: HTMLElement, label: string, value: string | null, note?: str
   return dd;
 }
 
-/** Windows whose value the strip hatches: invalid, and not merely under way. */
-function hatchedWindows(snapshot: DashboardSnapshot): number {
-  return snapshot.rain_tab.windows.filter(
-    (w) => !isComparable(w.status) && w.status.reason !== "in_progress",
-  ).length;
-}
-
 /** The daily tile: window totals, then 90 days of bars. */
 function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab = snapshot.rain_tab;
@@ -129,8 +123,8 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
     dailyHeadline(snapshot),
     "Rain over each window ending today, then each day of the last 90; the line marked today is the live total.",
   );
-  // On the four-column grid the strip stands beside the bars (rain.css).
-  const split = make("div", "rain-split");
+  // On the four-column grid the strip stands beside the bars (tiles.css).
+  const split = make("div", "tile-split");
   const strip = make("dl", "rain-stats rain-windows");
   for (const window of tab.windows) {
     const dd = stat(strip, WINDOW_NAMES[window.key] ?? window.key, windowValue(window));
@@ -139,7 +133,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
   split.append(strip);
   host.append(split);
-  const bars = make("div", "rain-split-chart");
+  const bars = make("div", "tile-split-chart");
   split.append(bars);
   const { chart, readout } = figure(bars, "Rain each day over the last 90 days");
   drawSized(chart, (width) =>
@@ -161,7 +155,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
       windowsNote(snapshot),
     ],
     gapReasons([
-      [hatchedWindows(snapshot), "window", "windows"],
+      [hatchedCount(tab.windows.map((w) => w.status)), "window", "windows"],
       [hatchedDays(tab), "day", "days"],
     ]),
   );
