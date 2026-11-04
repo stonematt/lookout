@@ -245,7 +245,9 @@ export function hatchChip(reason: string): HTMLElement {
  */
 export function sourceLine(snapshot: DashboardSnapshot, what: string): string {
   const archived = snapshot.archive_newest_ms;
-  const when = archived === null ? "nothing archived yet" : `archived ${formatStamp(archived)}`;
+  // A time never breaks between its digits and "am" or "pm".
+  const stamp = archived === null ? null : formatStamp(archived).replace(/ ([ap]m)$/, "\u00a0$1");
+  const when = stamp === null ? "nothing archived yet" : `archived ${stamp}`;
   return `Source · ${what}, ${when}`;
 }
 
