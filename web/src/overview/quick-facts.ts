@@ -37,8 +37,9 @@ import type { OverviewSection } from "./index.js";
  * A quick-fact tile's body: its one large value, then its one sentence.
  *
  * @param host - The tile, holding its kicker.
- * @param value - The value ("n/a" when not known), or null for a tile that
- *   has no value to show: the sentence then sits under the kicker alone.
+ * @param value - The value ("n/a" when not known), as text or as nodes
+ *   that already carry their units, or null for a tile that has no value to
+ *   show: the sentence then sits under the kicker alone.
  * @param sentence - The sentence under it.
  * @param unit - A word unit after the value ("mph"), set smaller and kept
  *   on the value's line, so a half-width phone tile never breaks the number
@@ -46,7 +47,7 @@ import type { OverviewSection } from "./index.js";
  */
 export function renderFact(
   host: HTMLElement,
-  value: string | null,
+  value: string | Node | null,
   sentence: string,
   unit?: string,
 ): void {
@@ -62,13 +63,21 @@ export function renderFact(
   big.className = "qf-value";
   big.dataset.part = "fact";
   big.append(value);
-  if (unit) {
-    const small = document.createElement("span");
-    small.className = "qf-unit";
-    small.textContent = unit;
-    big.append("\u00a0", small);
-  }
+  if (unit) big.append("\u00a0", unitSpan(unit));
   host.append(big, line);
+}
+
+/**
+ * A word set as a quick fact's unit: Stat type, on the value's line.
+ *
+ * @param text - The word, e.g. "mph" or "pm".
+ * @returns The span.
+ */
+function unitSpan(text: string): HTMLSpanElement {
+  const small = document.createElement("span");
+  small.className = "qf-unit";
+  small.textContent = text;
+  return small;
 }
 
 /**
@@ -123,13 +132,24 @@ function airSentence(c: SnapshotConditions): string {
 }
 
 /**
- * A time of day that never breaks across lines, e.g. "7:15 am".
+ * Sunrise to sunset as a quick fact's value: each time's am or pm, and the
+ * "to" between them, set as units. "to" holds to the sunset time, so a
+ * narrow tile breaks the value once, between the two times, and never
+ * inside one.
  *
- * @param ms - Epoch milliseconds UTC.
- * @returns The station-local time, joined by a no-break space.
+ * @param block - The snapshot's sun and moon.
+ * @returns The value's nodes, e.g. "7:15 am to 4:38 pm" in station time.
  */
-function wholeTime(ms: number): string {
-  return formatTime(ms).replace(" ", "\u00a0");
+function sunTimes(block: SunMoon): DocumentFragment {
+  const value = document.createDocumentFragment();
+  const time = (ms: number): void => {
+    const [clock, period] = formatTime(ms).split(" ");
+    value.append(clock!, "\u00a0", unitSpan(period!));
+  };
+  time(block.sunrise_ms);
+  value.append(" ", unitSpan("to"), "\u00a0");
+  time(block.sunset_ms);
+  return value;
 }
 
 /**
@@ -150,12 +170,11 @@ function daylightClause(block: SunMoon): string {
  * The moon clause: its phase, its lit share and the days to full.
  *
  * @param block - The snapshot's sun and moon.
- * @returns E.g. "Waning gibbous moon, 68% lit, full in 24 days".
+ * @returns E.g. "waning gibbous moon, 68% lit, full in 24 days".
  */
 function moonClause(block: SunMoon): string {
   const phase = block.moon_phase;
-  const name = `${phase.charAt(0).toUpperCase()}${phase.slice(1)} moon`;
-  const lit = `${name}, ${percent(block.moon_illumination_pct)} lit`;
+  const lit = `${phase} moon, ${percent(block.moon_illumination_pct)} lit`;
   const days = block.days_to_full_moon;
   if (phase === "full") return lit;
   if (days === 0) return `${lit}, full today`;
@@ -209,10 +228,9 @@ export const sunMoonFact: OverviewSection = {
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const block = snapshot.sun_moon;
     if (block === null) {
-      renderFact(host, null, "Sun and moon times are not known: the station reports no location.");
+      renderFact(host, null, "Not known: the station reports no location.");
       return;
     }
-    const times = `${wholeTime(block.sunrise_ms)} to ${wholeTime(block.sunset_ms)}`;
-    renderFact(host, times, `${daylightClause(block)}. ${moonClause(block)}.`);
+    renderFact(host, sunTimes(block), `${daylightClause(block)}; ${moonClause(block)}.`);
   },
 };

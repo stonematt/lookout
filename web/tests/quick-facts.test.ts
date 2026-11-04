@@ -154,7 +154,7 @@ describe("the sun and moon tile", () => {
     expect(fact(panel, "sun-moon")).toEqual([
       "Sun and moon",
       "7:15 am to 4:38 pm",
-      "9 h 23 m of daylight, 2 m less than yesterday. New moon, 0% lit, full in 15 days.",
+      "9 h 23 m of daylight, 2 m less than yesterday; new moon, 0% lit, full in 15 days.",
     ]);
   });
 
@@ -165,14 +165,20 @@ describe("the sun and moon tile", () => {
     expect(fact(panel, "sun-moon")).toEqual([
       "Sun and moon",
       "7:49 am to 4:48 pm",
-      "8 h 58 m of daylight, 1 m more than yesterday. Waning gibbous moon, 68% lit, full in 24 days.",
+      "8 h 58 m of daylight, 1 m more than yesterday; waning gibbous moon, 68% lit, full in 24 days.",
     ]);
   });
 
   it("keeps each time whole, so the value breaks only between the two", async () => {
     const panel = await boot(parsed("dry"));
     const value = panel.querySelector(".tile[data-section=sun-moon] [data-part=fact]")!;
-    expect(value.textContent).toBe("7:15\u00a0am to 4:38\u00a0pm");
+    expect(value.textContent).toBe("7:15\u00a0am to\u00a04:38\u00a0pm");
+    // am, pm and "to" are set as units, like the wind's mph.
+    expect([...value.querySelectorAll(".qf-unit")].map((u) => u.textContent)).toEqual([
+      "am",
+      "to",
+      "pm",
+    ]);
   });
 
   it("reads the times in the station's zone, not the browser's", async () => {
@@ -190,13 +196,13 @@ describe("the sun and moon tile", () => {
     const copy = structuredClone(parsed("dry"));
     copy.sun_moon!.daylight_change_minutes = change;
     const panel = await boot(copy);
-    expect(fact(panel, "sun-moon")[2]).toContain(`9 h 23 m of daylight, ${words}.`);
+    expect(fact(panel, "sun-moon")[2]).toContain(`9 h 23 m of daylight, ${words}; `);
   });
 
   it.each([
-    ["full", 100, 0, "Full moon, 100% lit."],
-    ["waxing gibbous", 97, 0, "Waxing gibbous moon, 97% lit, full today."],
-    ["first quarter", 50, 1, "First quarter moon, 50% lit, full in 1 day."],
+    ["full", 100, 0, "full moon, 100% lit."],
+    ["waxing gibbous", 97, 0, "waxing gibbous moon, 97% lit, full today."],
+    ["first quarter", 50, 1, "first quarter moon, 50% lit, full in 1 day."],
   ] as const)("a %s moon, %i%% lit, %i days to full", async (phase, lit, days, words) => {
     const copy = structuredClone(parsed("dry"));
     Object.assign(copy.sun_moon!, {
@@ -206,7 +212,7 @@ describe("the sun and moon tile", () => {
     });
     const panel = await boot(copy);
     expect(fact(panel, "sun-moon")[2]).toBe(
-      `9 h 23 m of daylight, 2 m less than yesterday. ${words}`,
+      `9 h 23 m of daylight, 2 m less than yesterday; ${words}`,
     );
   });
 
@@ -220,7 +226,7 @@ describe("the sun and moon tile", () => {
     expect(fact(panel, "sun-moon")).toEqual([
       "Sun and moon",
       undefined,
-      "Sun and moon times are not known: the station reports no location.",
+      "Not known: the station reports no location.",
     ]);
     expect(tile.textContent).not.toMatch(/\d/);
   });
