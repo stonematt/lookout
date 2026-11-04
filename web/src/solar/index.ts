@@ -424,7 +424,7 @@ function renderHeatmaps(host: HTMLElement, snapshot: DashboardSnapshot, mount: M
         ? `${monthText(best.key)} is the brightest month on record, at ${kwhPerM2(best.energy)}`
         : "Solar energy each month";
       standfirst.textContent =
-        "One row per year, one column per month; the deeper the shade, the more energy. The month under way is not compared yet.";
+        "One row per year, one column per month; the brighter the shade, the more sun. The month under way is not compared yet.";
       fillKey(Math.max(1, ...tab.months.map((m) => m.energy_kwh_m2 ?? 0)), "kWh/m²");
       // The grid hatches a month with no value, the one under way aside.
       const hatched = tab.months.filter(
