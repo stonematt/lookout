@@ -39,7 +39,7 @@ import { ReadError, fetchEventCurve } from "../load.js";
 import { escapeHtml as esc } from "../dom.js";
 import { gapElement, gapLabel, isComparable } from "../gaps.js";
 import { staleCatalogNote } from "../stale.js";
-import { notCompared, renderTiles, sourceNote, tileFolds } from "../tiles.js";
+import { gapReasons, renderTiles, sourceNote, tileFolds } from "../tiles.js";
 import type { DashboardSnapshot, EventCurve, EventSeason, RainEventRow } from "../snapshot.js";
 import type { EventChart, EventChartOptions } from "./charts.js";
 import type { EventSort, Season } from "./model.js";
@@ -256,7 +256,7 @@ export function mountEvents(
             sourceNote(snapshot, {
               what: `Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}`,
               method: `The Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}, each storm the station recorded. Peak is the highest rate between 5-minute readings. A dashed quality chip marks a poor event or one with no archive data.`,
-              gaps: notCompared(uncovered, "water year", "water years"),
+              gaps: gapReasons([[uncovered, "water year", "water years"]]),
             }),
           ),
         );

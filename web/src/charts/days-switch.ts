@@ -5,8 +5,7 @@
  * 520px the chart shows 90 and the switch is hidden. The switch slices the
  * days the snapshot sent; it is display state, never a decision.
  *
- * Offers `daysSwitch`, and `drawDays`, which draws a chart of days through
- * one.
+ * Offers `drawDays`, which draws a chart of days through one switch.
  */
 import "./days-switch.css";
 
@@ -14,7 +13,7 @@ import { NARROW, PHONE_DAYS, drawSized } from "./svg.js";
 import { make } from "../dom.js";
 
 /** A chart's 30 / 90 switch. */
-export interface DaysSwitch {
+interface DaysSwitch {
   /** The segmented control; mount it above its chart. */
   el: HTMLElement;
   /**
@@ -35,7 +34,7 @@ export interface DaysSwitch {
  * @param all - The days the snapshot sends.
  * @returns The switch.
  */
-export function daysSwitch(label: string, onChange: () => void, all = 90): DaysSwitch {
+function daysSwitch(label: string, onChange: () => void, all = 90): DaysSwitch {
   let chosen = Math.min(PHONE_DAYS, all);
   const el = make("div", "days-seg");
   el.setAttribute("role", "group");

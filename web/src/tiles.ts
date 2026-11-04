@@ -344,7 +344,7 @@ export interface SourceNoteSpec {
  * @param reason - The short reason.
  * @returns The chip.
  */
-export function hatchChip(reason: string): HTMLElement {
+function hatchChip(reason: string): HTMLElement {
   const chip = document.createElement("span");
   chip.className = "hatch-chip";
   chip.dataset.part = "caveat";
@@ -394,19 +394,6 @@ export function sourceNote(snapshot: DashboardSnapshot, spec: SourceNoteSpec): H
   method.dataset.part = "source";
   method.textContent = spec.method;
   return fold(line, [method], "source-note");
-}
-
-/**
- * A count of things a gap hides, as the chip's short reason.
- *
- * @param count - How many are not compared.
- * @param one - The singular noun ("window").
- * @param many - The plural noun ("windows").
- * @returns E.g. "5 windows not compared"; null for none.
- */
-export function notCompared(count: number, one: string, many: string): string | null {
-  if (count <= 0) return null;
-  return `${count} ${count === 1 ? one : many} not compared`;
 }
 
 /**

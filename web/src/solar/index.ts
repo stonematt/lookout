@@ -28,7 +28,6 @@ import type { TileSection } from "../tiles.js";
 import {
   gapReasons,
   hatchedCount,
-  notCompared,
   renderTiles,
   sourceNote,
   tileFinding,
@@ -317,7 +316,7 @@ function renderDay(host: HTMLElement, snapshot: DashboardSnapshot, mount: Mount)
       note(
         "energy catalog, daily sums",
         [`The energy catalog's daily sums. ${gapSentence(status)}`],
-        notCompared(1, "day", "days"),
+        gapReasons([[1, "day", "days"]]),
       );
       return;
     }
@@ -437,7 +436,7 @@ function renderHeatmaps(host: HTMLElement, snapshot: DashboardSnapshot, mount: M
       note(
         "energy catalog, daily sums by month",
         "The energy catalog's daily sums. ≈ marks a month scaled up over a few missing days; a hatched month has too many.",
-        notCompared(hatched, "month", "months"),
+        gapReasons([[hatched, "month", "months"]]),
       );
     } else if (view === "days") {
       const best = brightestDay(tab);
@@ -450,7 +449,7 @@ function renderHeatmaps(host: HTMLElement, snapshot: DashboardSnapshot, mount: M
       note(
         "energy catalog, daily sums",
         "The energy catalog's daily sums. The outlined day is the one selected.",
-        notCompared(hatchedDays(tab.days.reason), "day", "days"),
+        gapReasons([[hatchedDays(tab.days.reason), "day", "days"]]),
       );
     } else {
       const peak = recentPeak(tab);
@@ -465,7 +464,7 @@ function renderHeatmaps(host: HTMLElement, snapshot: DashboardSnapshot, mount: M
       note(
         "energy catalog, 15-minute periods",
         "The energy catalog's 15-minute periods. The outlined column is the day selected.",
-        notCompared(hatchedDays(reasons), "day", "days"),
+        gapReasons([[hatchedDays(reasons), "day", "days"]]),
       );
     }
     if (width) draw(width);

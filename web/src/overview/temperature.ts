@@ -27,7 +27,7 @@ import type {
   TemperatureDay,
   TemperaturePeriod,
 } from "../snapshot.js";
-import { notCompared, sourceNote, tileFinding, tileFolds } from "../tiles.js";
+import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
@@ -336,7 +336,7 @@ function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   if (ctx.ten_days.length === 0) return null;
   // Newest first: today leads a phone's scroll.
   const days = [...ctx.ten_days].reverse();
-  const narrow = width < 520;
+  const narrow = width < NARROW;
   const rowH = narrow ? 30 : 32;
   // The day column fits the longest name ("Wed, Nov 30" in 13px), so a
   // hatched row starts clear of it, past the name's halo.
@@ -567,11 +567,6 @@ function chartHost(part: string): HTMLElement {
   return el;
 }
 
-/** How many statuses a gap hides: invalid, but not merely still running. */
-function hidden(statuses: readonly GapStatus[]): number {
-  return statuses.filter((s) => !isComparable(s) && s.reason !== "in_progress").length;
-}
-
 /** The headline of the ten-day list, naming the compared years newest first. */
 export function daysHeadline(snapshot: DashboardSnapshot): string {
   const years = yearsText(snapshot.temperature_context.ten_day_years);
@@ -596,7 +591,7 @@ function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
         what: "five-minute readings, station time",
         method:
           "Five-minute readings, station time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
-        gaps: notCompared(hidden(ctx.periods.map((p) => p.status)), "window", "windows"),
+        gaps: gapReasons([[hatchedCount(ctx.periods.map((p) => p.status)), "window", "windows"]]),
       }),
     ),
   );
@@ -619,7 +614,7 @@ function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
         what: "daily low and high",
         method:
           "Usual is the median daily low and median daily high over the days within a week either side of the date, in each earlier year whose record there is complete. Today is the day so far.",
-        gaps: notCompared(hidden(ctx.ten_days.map((d) => d.status)), "day", "days"),
+        gaps: gapReasons([[hatchedCount(ctx.ten_days.map((d) => d.status)), "day", "days"]]),
       }),
     ),
   );
@@ -672,7 +667,7 @@ function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
         what: "past days at this hour",
         method:
           "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
-        gaps: notCompared(uncompared, "strip", "strips"),
+        gaps: gapReasons([[uncompared, "strip", "strips"]]),
       }),
     ),
   );

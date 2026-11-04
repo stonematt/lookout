@@ -22,7 +22,6 @@ import type { TileSection } from "../tiles.js";
 import {
   gapReasons,
   hatchedCount,
-  notCompared,
   renderTiles,
   sourceNote,
   tileFinding,
@@ -220,7 +219,7 @@ function renderDry(host: HTMLElement, snapshot: DashboardSnapshot): void {
       `A rain day has at least ${WET_DAY_IN} in. Spells with a day missing from the record are left out, so a missing day is never read as dry.`,
       "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
     ],
-    notCompared(strip.querySelectorAll("dd.gap-hatch").length, "figure", "figures"),
+    gapReasons([[strip.querySelectorAll("dd.gap-hatch").length, "figure", "figures"]]),
   );
 }
 
@@ -257,7 +256,7 @@ function renderYears(host: HTMLElement, snapshot: DashboardSnapshot): void {
         ? `Not compared by this date, so left out of the headline: ${yearsSkipped(tab).join(", ")}.`
         : null,
     ],
-    notCompared(left.length, "water year", "water years"),
+    gapReasons([[left.length, "water year", "water years"]]),
   );
 }
 
@@ -297,7 +296,7 @@ function renderHours(host: HTMLElement, snapshot: DashboardSnapshot): void {
     [
       "The station archive and the live reading. Each hour's rain is the rise in the station's daily counter within it; rain counted during a gap lands in the hour after it.",
     ],
-    notCompared(hatchedDays(tab), "day", "days"),
+    gapReasons([[hatchedDays(tab), "day", "days"]]),
   );
 }
 
