@@ -13,6 +13,12 @@
   color: var(--ink);
 }
 
+/* a word unit after the value, in Stat type, on the value's line */
+.qf-unit {
+  font-size: var(--type-stat);
+  font-weight: 400;
+}
+
 .qf-sentence {
   margin: var(--s-2) 0 0;
   font-size: var(--type-standfirst);

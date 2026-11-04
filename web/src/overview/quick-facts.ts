@@ -22,14 +22,28 @@ import type { OverviewSection } from "./index.js";
  * A quick-fact tile's body: its one large value, then its one sentence.
  *
  * @param host - The tile, holding its kicker.
- * @param value - The value, in its unit ("n/a" when not known).
+ * @param value - The value ("n/a" when not known).
  * @param sentence - The sentence under it.
+ * @param unit - A word unit after the value ("mph"), set smaller and kept
+ *   on the value's line, so a half-width phone tile never breaks the number
+ *   from its unit.
  */
-export function renderFact(host: HTMLElement, value: string, sentence: string): void {
+export function renderFact(
+  host: HTMLElement,
+  value: string,
+  sentence: string,
+  unit?: string,
+): void {
   const big = document.createElement("p");
   big.className = "qf-value";
   big.dataset.part = "fact";
-  big.textContent = value;
+  big.append(value);
+  if (unit) {
+    const small = document.createElement("span");
+    small.className = "qf-unit";
+    small.textContent = unit;
+    big.append("\u00a0", small);
+  }
   const line = document.createElement("p");
   line.className = "qf-sentence";
   line.dataset.part = "fact-sentence";
@@ -46,11 +60,11 @@ function shown(value: number | null, format: (v: number) => string): string {
  * The wind sentence: where it blows from and its gust.
  *
  * @param c - The current conditions.
- * @returns E.g. "From the SE, gusting to 2.5 mph."
+ * @returns E.g. "From the SE, gusts to 2.5 mph."
  */
 function windSentence(c: SnapshotConditions): string {
   const from = c.wind_dir_deg === null ? null : `From the ${compassPoint(c.wind_dir_deg)}`;
-  const gust = c.wind_gust_mph === null ? null : `gusting to ${mph(c.wind_gust_mph)}`;
+  const gust = c.wind_gust_mph === null ? null : `gusts to ${mph(c.wind_gust_mph)}`;
   let rest: string;
   if (from && gust) rest = `${from}, ${gust}.`;
   else if (from) rest = `${from}; gust not known.`;
@@ -81,18 +95,16 @@ function pressureSentence(c: SnapshotConditions): string {
  * The air sentence: what the value is, then the dew point.
  *
  * @param c - The current conditions.
- * @returns E.g. "Humidity, with the dew point at 39.1°."
+ * @returns E.g. "Humidity; dew point 39.1°."
  */
 function airSentence(c: SnapshotConditions): string {
-  const dew = c.dew_point_f === null ? null : degrees(c.dew_point_f);
+  const dew = c.dew_point_f === null ? "not known" : degrees(c.dew_point_f);
   if (c.humidity_pct === null) {
-    return dew === null
+    return c.dew_point_f === null
       ? "Humidity and dew point not known."
-      : `Humidity not known; the dew point is ${dew}.`;
+      : `Humidity not known; dew point ${dew}.`;
   }
-  return dew === null
-    ? "Humidity; the dew point is not known."
-    : `Humidity, with the dew point at ${dew}.`;
+  return `Humidity; dew point ${dew}.`;
 }
 
 /** Wind: speed, compass direction and gust. */
@@ -103,7 +115,9 @@ export const windFact: OverviewSection = {
   fact: true,
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const c = snapshot.current;
-    renderFact(host, shown(c.wind_speed_mph, mph), windSentence(c));
+    const speed = c.wind_speed_mph;
+    if (speed === null) renderFact(host, "n/a", windSentence(c));
+    else renderFact(host, mph(speed, { unit: false }), windSentence(c), "mph");
   },
 };
 

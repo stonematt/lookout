@@ -94,26 +94,26 @@ describe("the quick-fact tiles on the goldens", () => {
     // dry current: 1.8 mph from 124°, gust 2.5; 29.673 inHg, steady;
     // 99% humidity, dew point 39.14°.
     const panel = await boot(parsed("dry"));
-    expect(fact(panel, "wind")).toEqual(["Wind", "1.8 mph", "From the SE, gusting to 2.5 mph."]);
+    expect(fact(panel, "wind")).toEqual(["Wind", "1.8 mph", "From the SE, gusts to 2.5 mph."]);
     expect(fact(panel, "pressure")).toEqual([
       "Pressure",
       "29.67",
       "inHg, steady over the last 3 hours.",
     ]);
-    expect(fact(panel, "air")).toEqual(["Air", "99%", "Humidity, with the dew point at 39.1°."]);
+    expect(fact(panel, "air")).toEqual(["Air", "99%", "Humidity; dew point 39.1°."]);
   });
 
   it("raining: wind, pressure and air from the current conditions", async () => {
     // raining current: 3.0 mph from 180°, gust 6.0; 30.0 inHg, steady;
     // 66% humidity, dew point 54.3°.
     const panel = await boot(parsed("raining"));
-    expect(fact(panel, "wind")).toEqual(["Wind", "3.0 mph", "From the S, gusting to 6.0 mph."]);
+    expect(fact(panel, "wind")).toEqual(["Wind", "3.0 mph", "From the S, gusts to 6.0 mph."]);
     expect(fact(panel, "pressure")).toEqual([
       "Pressure",
       "30.00",
       "inHg, steady over the last 3 hours.",
     ]);
-    expect(fact(panel, "air")).toEqual(["Air", "66%", "Humidity, with the dew point at 54.3°."]);
+    expect(fact(panel, "air")).toEqual(["Air", "66%", "Humidity; dew point 54.3°."]);
   });
 
   it.each(["dry", "raining"] as const)(
@@ -155,7 +155,7 @@ describe("a missing value reads as not known, never as zero", () => {
     expect(fact(panel, "wind")).toEqual([
       "Wind",
       "n/a",
-      "Wind speed not known. From the SE, gusting to 2.5 mph.",
+      "Wind speed not known. From the SE, gusts to 2.5 mph.",
     ]);
   });
 
@@ -189,12 +189,12 @@ describe("a missing value reads as not known, never as zero", () => {
 
   it("the dew point alone", async () => {
     const panel = await boot(withCurrent("raining", { dew_point_f: null }));
-    expect(fact(panel, "air")).toEqual(["Air", "66%", "Humidity; the dew point is not known."]);
+    expect(fact(panel, "air")).toEqual(["Air", "66%", "Humidity; dew point not known."]);
   });
 
   it("a calm zero stays a zero", async () => {
     const panel = await boot(withCurrent("dry", { wind_speed_mph: 0, wind_gust_mph: 0 }));
-    expect(fact(panel, "wind")).toEqual(["Wind", "0.0 mph", "From the SE, gusting to 0.0 mph."]);
+    expect(fact(panel, "wind")).toEqual(["Wind", "0.0 mph", "From the SE, gusts to 0.0 mph."]);
   });
 });
 

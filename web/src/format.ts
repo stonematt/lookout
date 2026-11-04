@@ -330,9 +330,16 @@ export function inchesPerHour(value: number): string {
   return `${value.toFixed(2)} in/hr`;
 }
 
-/** Wind speed, e.g. `4.3 mph`. */
-export function mph(value: number): string {
-  return `${value.toFixed(1)} mph`;
+/**
+ * Wind speed, e.g. `4.3 mph`.
+ *
+ * @param value - Miles per hour.
+ * @param options - `unit: false` for the bare number.
+ * @returns The speed.
+ */
+export function mph(value: number, options: { unit?: boolean } = {}): string {
+  const text = value.toFixed(1);
+  return options.unit === false ? text : `${text} mph`;
 }
 
 /** Relative humidity, whole percent, e.g. `81%`. */
