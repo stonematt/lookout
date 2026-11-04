@@ -578,7 +578,8 @@ export function drawYearMonth(
               {
                 x: cx + cell / 2,
                 y: ry + rowH / 2 + 4,
-                class: level >= 4 ? "solar-cell-text solar-cell-text-strong" : "solar-cell-text",
+                class: "solar-cell-text",
+                "data-step": level,
                 "text-anchor": "middle",
               },
               text,
