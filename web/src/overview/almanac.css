@@ -4,7 +4,8 @@
  * ramp on a square-root scale with each cell's text in the cell ink that
  * passes there (`--on-rain-<step>`, tokens.css), ≈ for prorated, the hatch
  * for invalid, a dashed `rule-strong` outline before the archive, the current
- * month hatched and outlined in `now` outside the cell with a 1px gap, the
+ * month filled from the ramp by its total so far and outlined in `now`
+ * outside the cell with a 1px gap (hatched only with no total), the
  * selected cell ringed 2px in `ink`. Tables: tabular digits, 12px ink-2
  * headers over `rule-strong`, `rule` row dividers, numbers right-aligned.
  */
@@ -80,6 +81,17 @@ button.alm-cell {
   cursor: pointer;
 }
 
+/* once the columns are wider than a cell, the cells fill them (the gap stays
+   the 3px border-spacing) and hold their 44px height; below this they are
+   square and shrink with the column */
+@container (min-width: 680px) {
+  .alm-cell {
+    max-width: none;
+    height: var(--cell);
+    aspect-ratio: auto;
+  }
+}
+
 .alm-cell[data-step="0"] {
   background: var(--rain-0);
   color: var(--on-rain-0);
@@ -106,8 +118,9 @@ button.alm-cell {
   border: 1px dashed var(--rule-strong);
 }
 
-/* the current month: not yet comparable, so hatched, and outlined in `now`
-   outside the cell with a 1px gap; its rain so far on a halo */
+/* the current month: not yet comparable, so outlined in `now` outside the
+   cell with a 1px gap, and filled from the ramp by its rain so far like the
+   season cell; with no total so far it stays hatched, its text on a halo */
 .alm-cell[data-kind="current"],
 .alm-season[data-kind="current"] .alm-value {
   outline: 2px solid var(--now);
@@ -115,16 +128,19 @@ button.alm-cell {
 }
 
 .alm-cell[data-kind="current"] {
+  font-weight: 600;
+}
+
+.alm-cell[data-kind="current"]:not([data-step]) {
   background: repeating-linear-gradient(
     135deg,
     var(--hatch) 0 var(--hatch-stripe),
     var(--surface) var(--hatch-stripe) var(--hatch-repeat)
   );
   color: var(--ink);
-  font-weight: 600;
 }
 
-.alm-cell[data-kind="current"] .alm-value {
+.alm-cell[data-kind="current"]:not([data-step]) .alm-value {
   padding: 1px 3px;
   border-radius: var(--r-cell);
   background: var(--surface);
@@ -247,11 +263,7 @@ th.alm-season {
 .alm-key-swatch[data-kind="current"] {
   outline: 2px solid var(--now);
   outline-offset: 1px;
-  background: repeating-linear-gradient(
-    135deg,
-    var(--hatch) 0 var(--hatch-chip-stripe),
-    var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat)
-  );
+  background: var(--rain-2);
 }
 
 /* ---------- the readout ---------- */
@@ -297,8 +309,11 @@ th.alm-season {
 }
 
 /* ---------- the rolling-window table ---------- */
+/* the frame scrolls sideways inside the tile when the columns cannot fit,
+   Window sticky; at 12px type and tight padding it rarely has to */
 .alm-table-frame {
   margin-top: var(--s-3);
+  overflow-x: auto;
 }
 
 .alm-table {
@@ -310,15 +325,19 @@ th.alm-season {
 
 .alm-table th,
 .alm-table td {
-  padding: var(--s-2) var(--s-2);
+  padding: var(--s-2) var(--s-1);
   border-bottom: 1px solid var(--rule);
   text-align: right;
   white-space: nowrap;
 }
 
 .alm-table th:first-child {
+  position: sticky;
+  left: 0;
   padding-left: 0;
+  padding-right: var(--s-2);
   text-align: left;
+  background: var(--tile);
 }
 
 .alm-table thead th {

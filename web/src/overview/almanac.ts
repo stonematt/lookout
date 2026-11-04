@@ -7,8 +7,8 @@
  * corners and 3px gaps, filled from the rain ramp on a square-root scale
  * with the value in the cell when there is room. ≈ marks a prorated month,
  * the hatch an invalid one, a dashed outline a month before the archive
- * began, and the `note` outline over a light hatch the current month, which
- * is not yet comparable. Tap, hover, focus or the arrow keys write a month's
+ * began, and the `now` outline over its ramp fill the current month, which
+ * is not yet comparable (hatched only when it has no total so far). Tap, hover, focus or the arrow keys write a month's
  * full sentence to the live readout below the grid. Below 520px of chart
  * width the values and the season column go; the readout keeps both.
  *
@@ -120,8 +120,10 @@ function monthMark(month: AlmanacMonth | null, max: number): HTMLElement {
     mark.append(make("span", "alm-value", `${prefix}${cellText(month.rain_in!)}`));
     mark.title = sentence;
   } else if (kind === "current") {
-    if (month.to_date_in !== null)
+    if (month.to_date_in !== null) {
+      mark.dataset.step = String(rampStep(month.to_date_in, max));
       mark.append(make("span", "alm-value", cellText(month.to_date_in)));
+    }
     mark.title = sentence;
   } else if (kind === "before") {
     mark.title = sentence;
