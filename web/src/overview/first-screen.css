@@ -3,7 +3,8 @@
  * sentence, the Right-now strip, the 48-hour condition ribbon. The
  * temperature is Display type, the sentence Condition, the strip Stat; the
  * ribbon draws in the ribbon tokens, outlined by `ribbon-edge` (which equals
- * the day band in dark), with the one `now` dot and label.
+ * the day band in dark), with its rain track under the band in `ribbon-rain`
+ * and the one `now` dot and label.
  */
 
 /* ---------- the temperature and its sentence ---------- */
@@ -96,7 +97,7 @@
 
 .ribbon-band {
   position: relative;
-  height: 52px;
+  height: 44px;
   border-radius: var(--r-ribbon);
   overflow: hidden;
   background: var(--ribbon-night);
@@ -127,25 +128,38 @@
 .ribbon-band rect[data-light="day"] {
   fill: var(--ribbon-day);
 }
-.ribbon-band rect[data-rain="1"] {
-  fill: var(--rain-1);
-}
-.ribbon-band rect[data-rain="2"] {
-  fill: var(--rain-2);
-}
-.ribbon-band rect[data-rain="3"] {
-  fill: var(--rain-3);
-}
-.ribbon-band rect[data-rain="4"] {
-  fill: var(--rain-4);
+
+/* the rain track under the band: bars on the now surface, intensity by
+   height (a heavier step stands a quarter taller), never over the band */
+.ribbon-rain {
+  position: relative;
+  height: 16px;
+  margin-top: 3px;
 }
 
-.ribbon-hatch {
+.ribbon-rain svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ribbon-rain rect {
+  fill: var(--ribbon-rain);
+}
+
+.ribbon-hatch,
+.ribbon-rain-hatch {
   position: absolute;
   top: 0;
   bottom: 0;
   /* a half-hour lag is 2 of 192 slots: keep it visible on a phone */
   min-width: 6px;
+}
+
+.ribbon-rain-hatch {
+  border-radius: var(--r-cell);
 }
 
 .ribbon-tick-late {
@@ -256,14 +270,19 @@
   border: 1px solid var(--rule-strong);
 }
 
+/* the rain key: four bars of the one rain colour, rising light to heavy */
 .ribbon-key-ramp {
   display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 12px;
 }
 
 .ribbon-key-ramp i {
-  width: 9px;
+  width: 4px;
   border: 0;
   border-radius: 0;
+  background: var(--ribbon-rain);
 }
 
 .ribbon-key-night {
@@ -272,15 +291,15 @@
 .ribbon-key-day {
   background: var(--ribbon-day);
 }
-.ribbon-key-rain-1 {
-  background: var(--rain-1);
+.ribbon-key-ramp .ribbon-key-rain-1 {
+  height: 3px;
 }
-.ribbon-key-rain-2 {
-  background: var(--rain-2);
+.ribbon-key-ramp .ribbon-key-rain-2 {
+  height: 6px;
 }
-.ribbon-key-rain-3 {
-  background: var(--rain-3);
+.ribbon-key-ramp .ribbon-key-rain-3 {
+  height: 9px;
 }
-.ribbon-key-rain-4 {
-  background: var(--rain-4);
+.ribbon-key-ramp .ribbon-key-rain-4 {
+  height: 12px;
 }

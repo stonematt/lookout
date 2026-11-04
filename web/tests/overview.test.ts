@@ -167,7 +167,7 @@ describe("the 48-hour condition ribbon", () => {
   it("draws night, day and rain slots, in four rain steps", () => {
     renderOverview(panel, raining);
 
-    const rain = all(".ribbon-band rect[data-rain]").map((r) => r.dataset.rain);
+    const rain = all(".ribbon-rain rect[data-rain]").map((r) => r.dataset.rain);
     // Event 2 at 0.06 in/hr (step 2) and event 3 at 0.12 in/hr (step 3).
     expect(new Set(rain)).toEqual(new Set(["2", "3"]));
     expect(all(".ribbon-band rect[data-light=day]").length).toBeGreaterThan(0);
@@ -177,6 +177,54 @@ describe("the 48-hour condition ribbon", () => {
     expect(rainStep(0.075)).toBe(3); // 0.30 in/hr
     expect(rainStep(0.1)).toBe(4);
     expect(rainStep(0)).toBeNull();
+  });
+
+  it("draws rain as its own track of bars under the band, never over it", () => {
+    renderOverview(panel, raining);
+
+    expect(all(".ribbon-band [data-rain]")).toEqual([]);
+    const track = panel.querySelector(".ribbon-rain")!;
+    expect(track.previousElementSibling?.classList.contains("ribbon-band")).toBe(true);
+    expect(track.getAttribute("aria-hidden")).toBe("true");
+    // Each bar stands on the track's floor; a heavier step stands taller.
+    const heights = (step: string) =>
+      all(`.ribbon-rain rect[data-rain="${step}"]`).map((r) => {
+        const h = Number(r.getAttribute("height"));
+        expect(Number(r.getAttribute("y")) + h).toBe(100);
+        return h;
+      });
+    expect(Math.min(...heights("3"))).toBeGreaterThan(Math.max(...heights("2")));
+    // Rain is unknown past the archive: the track is hatched there as well.
+    const hatches = all(".ribbon-rain .ribbon-rain-hatch");
+    expect(hatches).toHaveLength(1);
+    expect(hatches[0]?.style.right).toBe("0px");
+  });
+
+  it("draws a bar for every wet slot and none for a dry one", () => {
+    renderOverview(panel, raining);
+    const wet = raining.condition_ribbon!.rain_in.filter((r) => r !== null && r > 0).length;
+    const covered = all(".ribbon-rain rect[data-rain]").reduce(
+      (sum, r) => sum + Number(r.dataset.slots),
+      0,
+    );
+    expect(covered).toBe(wet);
+
+    const ribbon = dry.condition_ribbon!;
+    renderOverview(panel, {
+      ...dry,
+      condition_ribbon: { ...ribbon, rain_in: ribbon.rain_in.map((r) => (r === null ? r : 0)) },
+    });
+    expect(panel.querySelector(".ribbon-rain")).not.toBeNull();
+    expect(all(".ribbon-rain rect")).toEqual([]);
+  });
+
+  it("keys rain by bar height", () => {
+    renderOverview(panel, raining);
+
+    const steps = all(".ribbon-key-ramp i").map((i) => i.className);
+    expect(steps).toEqual([1, 2, 3, 4].map((s) => `ribbon-key-rain-${s}`));
+    const items = all(".ribbon-key-item").map((i) => i.textContent?.replace(/\s+/g, " ").trim());
+    expect(items).toEqual(["night", "day", "rain, light heavy", "no archived reading"]);
   });
 
   it("traces the temperature and ends at the live value", () => {
@@ -311,6 +359,10 @@ describe("the 48-hour condition ribbon", () => {
     expect(panel.querySelector(".ribbon-band")?.getAttribute("role")).toBe("img");
     expect(panel.querySelector(".ribbon-band")?.getAttribute("aria-label")).toMatch(
       /^48-hour condition ribbon: 40° to 60°/,
+    );
+    expect(panel.querySelector(".ribbon-band")?.getAttribute("aria-label")).toBe(
+      `48-hour condition ribbon: ${ribbonClaim(raining.condition_ribbon!).replace(/^The last 48 hours, /, "")} ` +
+        "Day and night, rain intensity and the temperature trace, oldest on the left.",
     );
   });
 
