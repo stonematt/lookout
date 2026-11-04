@@ -10,40 +10,13 @@ import { resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { MatchMedia } from "../src/layout.js";
 import { currentLayout, layoutFor, mountLayout, setLayout } from "../src/layout.js";
 import { renderOverview } from "../src/overview/index.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
+import { viewport } from "./viewport.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
-
-/** A `matchMedia` over a viewport width a test moves. */
-function viewport(width: number): { match: MatchMedia; resize(to: number): void } {
-  const lists: { min: number; list: MediaQueryList; listeners: Set<() => void> }[] = [];
-  return {
-    match(query) {
-      const min = Number(/min-width:\s*(\d+)px/.exec(query)![1]);
-      const listeners = new Set<() => void>();
-      const list = {
-        get matches() {
-          return width >= min;
-        },
-        addEventListener: (_: string, fn: () => void) => listeners.add(fn),
-        removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
-      } as unknown as MediaQueryList;
-      lists.push({ min, list, listeners });
-      return list;
-    },
-    resize(to) {
-      const before = lists.map(({ list }) => list.matches);
-      width = to;
-      lists.forEach(({ list, listeners }, i) => {
-        if (list.matches !== before[i]) for (const fn of listeners) fn();
-      });
-    },
-  };
-}
 
 afterEach(() => document.documentElement.removeAttribute("data-layout"));
 

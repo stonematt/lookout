@@ -22,46 +22,20 @@ import { parseDashboard } from "../src/snapshot.js";
 import type { StationIndex } from "../src/stations.js";
 import type { Scenario } from "./golden.js";
 import { golden, twoStations } from "./golden.js";
+import type { Viewport } from "./viewport.js";
+import { viewport } from "./viewport.js";
 
 let page: Page | null = null;
 const realMatchMedia = window.matchMedia;
 
-/** Lists the stand-in `matchMedia` has handed out, to fire on a resize. */
-let lists: { min: number; listeners: Set<() => void> }[] = [];
-let width = 390;
-
-/** Point the page's layout switch at a viewport `to` px wide. */
-function viewport(to: number): void {
-  width = to;
-  lists = [];
-  window.matchMedia = ((query: string) => {
-    const min = Number(/min-width:\s*(\d+)px/.exec(query)![1]);
-    const listeners = new Set<() => void>();
-    lists.push({ min, listeners });
-    return {
-      get matches() {
-        return width >= min;
-      },
-      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
-      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
-    } as unknown as MediaQueryList;
-  }) as typeof window.matchMedia;
-}
-
-/** Move the viewport, firing each threshold it crosses. */
-function resize(to: number): void {
-  const before = lists.map(({ min }) => width >= min);
-  width = to;
-  lists.forEach(({ min, listeners }, i) => {
-    if (width >= min !== before[i]) for (const fn of listeners) fn();
-  });
-}
+/** The stand-in viewport the page's layout switch reads. */
+let screen: Viewport = viewport(390);
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML =
     "<div class=page><div id=masthead></div><main id=sections></main></div>";
-  viewport(390);
+  screen = viewport(390).install();
 });
 
 afterEach(() => {
@@ -244,7 +218,7 @@ describe("the phone's compact header", () => {
 
     document.body.innerHTML =
       "<div class=page><div id=masthead></div><main id=sections></main></div>";
-    viewport(1440);
+    screen = viewport(1440).install();
     await boot(stale);
     expect(mark()).toEqual(phone);
   });
@@ -252,7 +226,7 @@ describe("the phone's compact header", () => {
 
 describe("from 760px", () => {
   it.each([760, 1180])("at %ipx every section is a tile, as before", async (at) => {
-    viewport(at);
+    screen = viewport(at).install();
     await boot(parsed("raining"), "rain");
     expect(panel("rain").querySelector("details.tile-row, .tile-rows")).toBeNull();
     expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
@@ -261,13 +235,13 @@ describe("from 760px", () => {
   it("redraws the open tab as tiles when the viewport crosses 760px, and as rows again under it", async () => {
     await boot(parsed("raining"), "rain");
     expect(shape("rain")).toEqual(PHONE.rain);
-    resize(1280);
+    screen.resize(1280);
     expect(document.documentElement.dataset.layout).toBe("four");
     expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
     expect(shape("overview")).toContain("temperature-periods");
-    resize(900);
+    screen.resize(900);
     expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
-    resize(390);
+    screen.resize(390);
     expect(shape("rain")).toEqual(PHONE.rain);
   });
 });
