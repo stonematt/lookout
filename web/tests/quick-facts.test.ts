@@ -5,7 +5,10 @@
  * sentence, read from the snapshot's current conditions. A missing value
  * reads as not known, never as zero; the pressure sentence follows the
  * snapshot's 3-hour trend word; wind and humidity agree with the now tile.
- * On a phone they sit after the finding rows, open, two to a row.
+ * On a phone they sit after the finding rows, open, two to a row. The sun
+ * and moon tile (#341) draws the snapshot's SunMoon block in station-local
+ * time; a station with no coordinates (`sun_moon` null) keeps the kicker,
+ * shows no value and says the station reports no location.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -126,14 +129,106 @@ describe("the quick-fact tiles on the goldens", () => {
     },
   );
 
-  it("sit after the Overview's other tiles, one column each, in a row the sun and moon tile completes", async () => {
+  it("sit after the Overview's other tiles, a row of four one-column tiles", async () => {
     const panel = await boot(parsed("dry"));
     const tiles = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")];
-    expect(tiles.slice(-3).map((t) => t.dataset.section)).toEqual(["wind", "pressure", "air"]);
-    for (const tile of tiles.slice(-3)) {
+    expect(tiles.slice(-4).map((t) => t.dataset.section)).toEqual([
+      "wind",
+      "pressure",
+      "air",
+      "sun-moon",
+    ]);
+    for (const tile of tiles.slice(-4)) {
       expect(tile.dataset.span).toBe("1");
       expect(tile.dataset.fact).toBe("true");
     }
+  });
+});
+
+describe("the sun and moon tile", () => {
+  it("dry: sunrise to sunset in station time, the daylight change and the moon", async () => {
+    // dry sun_moon, America/Los_Angeles: sunrise 7:15 am, sunset 4:38 pm,
+    // 563 minutes of daylight, 2 fewer than yesterday; new moon, 0% lit,
+    // full in 15 days.
+    const panel = await boot(parsed("dry"));
+    expect(fact(panel, "sun-moon")).toEqual([
+      "Sun and moon",
+      "7:15 am to 4:38 pm",
+      "9 h 23 m of daylight, 2 m less than yesterday; new moon, 0% lit, full in 15 days.",
+    ]);
+  });
+
+  it("raining: a lengthening day and a waning moon", async () => {
+    // raining sun_moon: 7:49 am to 4:48 pm, 538 minutes, 1 more than
+    // yesterday; waning gibbous, 68% lit, full in 24 days.
+    const panel = await boot(parsed("raining"));
+    expect(fact(panel, "sun-moon")).toEqual([
+      "Sun and moon",
+      "7:49 am to 4:48 pm",
+      "8 h 58 m of daylight, 1 m more than yesterday; waning gibbous moon, 68% lit, full in 24 days.",
+    ]);
+  });
+
+  it("keeps each time whole, so the value breaks only between the two", async () => {
+    const panel = await boot(parsed("dry"));
+    const value = panel.querySelector(".tile[data-section=sun-moon] [data-part=fact]")!;
+    expect(value.textContent).toBe("7:15\u00a0am to\u00a04:38\u00a0pm");
+    // am, pm and "to" are set as units, like the wind's mph.
+    expect([...value.querySelectorAll(".qf-unit")].map((u) => u.textContent)).toEqual([
+      "am",
+      "to",
+      "pm",
+    ]);
+  });
+
+  it("reads the times in the station's zone, not the browser's", async () => {
+    const copy = structuredClone(parsed("dry"));
+    copy.station.tz = "America/New_York";
+    const panel = await boot(copy);
+    expect(fact(panel, "sun-moon")[1]).toBe("10:15 am to 7:38 pm");
+  });
+
+  it.each([
+    [0, "the same as yesterday"],
+    [3, "3 m more than yesterday"],
+    [-1, "1 m less than yesterday"],
+  ])("a daylight change of %i reads %s", async (change, words) => {
+    const copy = structuredClone(parsed("dry"));
+    copy.sun_moon!.daylight_change_minutes = change;
+    const panel = await boot(copy);
+    expect(fact(panel, "sun-moon")[2]).toContain(`9 h 23 m of daylight, ${words}; `);
+  });
+
+  it.each([
+    ["full", 100, 0, "full moon, 100% lit."],
+    ["waxing gibbous", 97, 0, "waxing gibbous moon, 97% lit, full today."],
+    ["first quarter", 50, 1, "first quarter moon, 50% lit, full in 1 day."],
+  ] as const)("a %s moon, %i%% lit, %i days to full", async (phase, lit, days, words) => {
+    const copy = structuredClone(parsed("dry"));
+    Object.assign(copy.sun_moon!, {
+      moon_phase: phase,
+      moon_illumination_pct: lit,
+      days_to_full_moon: days,
+    });
+    const panel = await boot(copy);
+    expect(fact(panel, "sun-moon")[2]).toBe(
+      `9 h 23 m of daylight, 2 m less than yesterday; ${words}`,
+    );
+  });
+
+  it("with no coordinates keeps its kicker, shows no value and says the station reports no location", async () => {
+    // Both goldens carry the block; the no-location case is a copy with it null.
+    const copy = structuredClone(parsed("raining"));
+    copy.sun_moon = null;
+    const panel = await boot(copy);
+    const tile = panel.querySelector<HTMLElement>(".tile[data-section=sun-moon]")!;
+    expect(tile.dataset.fact).toBe("true");
+    expect(fact(panel, "sun-moon")).toEqual([
+      "Sun and moon",
+      undefined,
+      "Not known: the station reports no location.",
+    ]);
+    expect(tile.textContent).not.toMatch(/\d/);
   });
 });
 
@@ -199,7 +294,7 @@ describe("a missing value reads as not known, never as zero", () => {
 });
 
 describe("the quick-fact tiles on a phone", () => {
-  it("sit after the finding rows, open, with one cell left for sun and moon", async () => {
+  it("sit after the finding rows, open, a 2×2 that sun and moon completes", async () => {
     viewport(390);
     const panel = await boot(parsed("raining"));
     expect(document.documentElement.dataset.layout).toBe("phone");
@@ -207,13 +302,13 @@ describe("the quick-fact tiles on a phone", () => {
     const rows = children.findIndex((el) => el.classList.contains("tile-rows"));
     expect(rows).toBeGreaterThan(-1);
     const after = children.slice(rows + 1);
-    expect(after.map((el) => el.dataset.section)).toEqual(["wind", "pressure", "air"]);
+    expect(after.map((el) => el.dataset.section)).toEqual(["wind", "pressure", "air", "sun-moon"]);
     for (const tile of after) {
       expect(tile.tagName).toBe("SECTION");
       expect(tile.dataset.fact).toBe("true");
       expect(tile.querySelector("details.tile-row")).toBeNull();
     }
-    // Three facts in a grid of two leave the fourth cell for sun and moon.
-    expect(after.length % 2).toBe(1);
+    // Four facts fill a grid of two: no empty cell.
+    expect(after.length % 2).toBe(0);
   });
 });

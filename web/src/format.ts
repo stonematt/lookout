@@ -125,12 +125,27 @@ export function formatStamp(ms: number): string {
  * @returns The time in the station's time.
  */
 export function formatTime(ms: number): string {
+  const { clock, period } = timeParts(ms);
+  return `${clock} ${period}`;
+}
+
+/**
+ * A time of day in its two parts, for a view that sets them apart, e.g.
+ * `{ clock: "1:05", period: "pm" }`.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns The station-local clock reading and its `am` or `pm`.
+ */
+export function timeParts(ms: number): { clock: string; period: string } {
   const parts = Object.fromEntries(
     stamp()
       .formatToParts(ms)
       .map((part) => [part.type, part.value]),
   );
-  return `${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toLowerCase()}`;
+  return {
+    clock: `${parts.hour}:${parts.minute}`,
+    period: (parts.dayPeriod ?? "").toLowerCase(),
+  };
 }
 
 /** The month-name formatter in the station's zone. */
