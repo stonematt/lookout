@@ -185,6 +185,26 @@
   white-space: nowrap;
 }
 
+/* ---------- a stat strip beside its chart ---------- */
+/* on the four-column grid a tile's window strip stands beside its daily
+   bars (the Rain and Solar boards); stacked, strip above bars, below it */
+:root[data-layout="four"] .tile-split {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
+  gap: var(--s-6);
+  align-items: start;
+  margin-top: var(--s-3);
+}
+
+:root[data-layout="four"] .tile-split > dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.tile-split-chart {
+  min-width: 0;
+}
+
 /* ---------- shared by every tab's tiles ---------- */
 /* the method paragraph inside a source note: method, gaps and archive lag */
 .ov-source {

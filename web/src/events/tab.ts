@@ -3,6 +3,11 @@
  * opened with its accumulation and rate charts, and the selected event in
  * the URL (`?event=<start_ms>`), so a link opens the same event.
  *
+ * - The tab is two tiles (`web/src/tiles.ts`, spec #332): the catalog
+ *   (kicker, finding, standfirst, filters, stats, folded source), the
+ *   phone's fixed top; under it, one tile opening with the selected event's
+ *   kicker and finding, then its detail beside the list, then its folded
+ *   source.
  * - The list renders from the snapshot's `rain_events`; a water-year picker
  *   and a sort reshape it in the browser. A water year the record does not
  *   cover is hatched in the picker, and a note beside the summary says the
@@ -28,6 +33,7 @@ import { ReadError, fetchEventCurve } from "../load.js";
 import { escapeHtml as esc } from "../dom.js";
 import { gapElement, gapLabel, isComparable } from "../gaps.js";
 import { staleCatalogNote } from "../stale.js";
+import { notCompared, renderTiles, sourceNote, tileFolds } from "../tiles.js";
 import type { DashboardSnapshot, EventCurve, EventSeason, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
 import {
@@ -184,27 +190,68 @@ export function mountEvents(
   let missing = asked !== null && !all.some((e) => e.start_ms === asked);
   let drawn = 0;
 
-  panel.innerHTML = `
-<div class="ev">
-  <header class="ev-head">
-    <h2 class="ev-title"></h2>
-    <p class="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>
-    <p class="ev-note ev-stale" role="status" hidden></p>
-  </header>
-  <div class="ev-controls">
-    <div class="ev-seg" role="group" aria-label="Water year"></div>
-    <div class="ev-seg" role="group" aria-label="Order">
-      <button type="button" data-sort="newest">Newest</button>
-      <button type="button" data-sort="wettest">Wettest</button>
-    </div>
+  // Two tiles (spec #332, DESIGN.md "Layout"): the catalog, its finding,
+  // filters and stats, the phone's fixed top; under it, one tile holding the
+  // selected event and the list (#339 rebuilds the list as an accordion).
+  let eventNote: HTMLElement | null = null;
+  renderTiles(panel, snapshot, [
+    {
+      id: "catalog",
+      label: "The Event Catalog",
+      kicker: "The Event Catalog",
+      span: 4,
+      phoneTop: true,
+      render: (host) => {
+        host.classList.add("ev-tile");
+        host.insertAdjacentHTML(
+          "beforeend",
+          `
+<h2 class="tile-finding ev-title" data-part="finding"></h2>
+<p class="standfirst" data-part="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>
+<p class="ev-note ev-stale" role="status" hidden></p>
+<div class="ev-controls">
+  <div class="ev-seg" role="group" aria-label="Water year"></div>
+  <div class="ev-seg" role="group" aria-label="Order">
+    <button type="button" data-sort="newest">Newest</button>
+    <button type="button" data-sort="wettest">Wettest</button>
   </div>
-  <dl class="ev-stats"></dl>
-  <p class="ev-note ev-season-gap" role="note" hidden></p>
-  <div class="ev-grid">
-    <article class="ev-detail" aria-live="polite"></article>
-    <div class="ev-list"></div>
-  </div>
-</div>`;
+</div>
+<dl class="ev-stats"></dl>
+<p class="ev-note ev-season-gap" role="note" hidden></p>`,
+        );
+        const uncovered = section.seasons.filter((s) => !isComparable(s.status)).length;
+        host.append(
+          tileFolds(
+            sourceNote(snapshot, {
+              what: `Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}`,
+              method: `The Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}, each storm the station recorded. Peak is the highest rate between 5-minute readings. A dashed quality chip marks a poor event or one with no archive data.`,
+              gaps: notCompared(uncovered, "water year", "water years"),
+            }),
+          ),
+        );
+      },
+    },
+    {
+      id: "events",
+      label: "The selected event and the list of events",
+      kicker: "Rain events",
+      span: 4,
+      render: (host) => {
+        host.classList.add("ev-tile");
+        host.insertAdjacentHTML(
+          "beforeend",
+          `
+<h2 class="tile-finding ev-finding" data-part="finding" aria-live="polite"></h2>
+<div class="ev-grid">
+  <article class="ev-detail" aria-live="polite"></article>
+  <div class="ev-list"></div>
+</div>`,
+        );
+        eventNote = tileFolds();
+        host.append(eventNote);
+      },
+    },
+  ]);
   const $ = <T extends HTMLElement>(selector: string) => panel.querySelector<T>(selector)!;
   const seasons = $(".ev-seg[aria-label='Water year']");
   const stale = staleCatalogNote(snapshot, "events");
@@ -216,7 +263,8 @@ export function mountEvents(
   if (!all.length) {
     $(".ev-title").textContent = "No rain events in the catalog yet";
     $(".ev-controls").hidden = true;
-    $(".ev-grid").hidden = true;
+    // Removed, not hidden: the tile's own display would override `hidden`.
+    $("[data-section=events]").remove();
     return;
   }
 
@@ -313,8 +361,7 @@ export function mountEvents(
   <thead><tr><th scope="col">Start</th><th scope="col">Length</th><th scope="col">Total (in)</th><th scope="col" class="ev-peak">Peak (in/hr)</th><th scope="col" class="ev-quality">Quality</th></tr></thead>
   <tbody>${body}</tbody>
 </table>
-${more}
-<p class="ev-source">Source: Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}. Peak is the highest rate between 5-minute readings. A dashed quality chip marks a poor event or one with no archive data.</p>`;
+${more}`;
   }
 
   function renderDetail(): void {
@@ -336,33 +383,48 @@ ${more}
       ? '<p class="ev-note">The linked event is not in the catalog; showing the newest one instead.</p>'
       : "";
     missing = false;
+    // The tile opens with the event's kicker and finding, as text.
+    const kicker = $("[data-section=events] [data-part=kicker]");
+    kicker.classList.add("ev-kicker");
+    kicker.replaceChildren(`Water year ${row.water_year}`);
+    if (row.live) kicker.prepend(liveMark());
+    $(".ev-finding").textContent = eventFinding(row, all.length);
     // Snapshot text goes through esc; the note is a literal (#261).
     // eslint-disable-next-line no-unsanitized/property
     host.innerHTML = `
 ${note}
-<p class="ev-kicker">${row.live ? '<span class="ev-live">Live</span> ' : ""}Water year ${esc(row.water_year)}</p>
-<h3 class="ev-finding">${esc(eventFinding(row, all.length))}</h3>
 <p class="standfirst">${esc(span)} ${esc(quality)}</p>
 <dl class="ev-facts">
   ${stat(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
   ${stat(minutes(row.duration_minutes), "length")}
   ${stat(row.peak_rate_in_hr === null || !row.has_curve ? "n/a" : inchesPerHour(row.peak_rate_in_hr), "peak rate")}
 </dl>
-<div class="ev-charts"></div>
-<p class="ev-source"></p>`;
+<div class="ev-charts"></div>`;
     const charts = host.querySelector<HTMLElement>(".ev-charts")!;
-    const source = host.querySelector<HTMLElement>(".ev-source")!;
+    const source = (what: string, method: string, gaps: string | null = null) =>
+      eventNote?.replaceChildren(sourceNote(snapshot, { what, method, gaps }));
 
     if (!row.has_curve) {
       charts.innerHTML =
         '<p class="ev-gap gap-hatch" role="note">n/a: gap in record<span class="sr-only">. The archive has no readings for this event, so only its catalog totals are shown.</span></p>';
-      source.textContent =
-        "Source: Event Catalog. The archive holds no readings in this event's time range.";
+      source(
+        "Event Catalog",
+        "The Event Catalog. The archive holds no readings in this event's time range.",
+        "no archive readings",
+      );
       return;
     }
-    source.textContent = row.live
-      ? "Source: live station for the newest reading and the total; station archive for the rest. 5-minute readings, station time."
-      : "Source: station archive, 5-minute readings, station time. Rate is the rise in daily rain between readings.";
+    if (row.live) {
+      source(
+        "live station and archive, 5-minute readings",
+        "The live station for the newest reading and the total; the station archive for the rest. 5-minute readings, station time.",
+      );
+    } else {
+      source(
+        "station archive, 5-minute readings",
+        "The station archive, 5-minute readings, station time. Rate is the rise in daily rain between readings.",
+      );
+    }
 
     const show = (curve: EventCurve) => {
       if (ticket !== drawn) return;
@@ -419,6 +481,14 @@ ${note}
     });
   }
 
+  /** The live mark before the kicker's words. */
+  function liveMark(): HTMLElement {
+    const mark = document.createElement("span");
+    mark.className = "ev-live";
+    mark.textContent = "Live";
+    return mark;
+  }
+
   function open(startMs: number): void {
     const row = all.find((e) => e.start_ms === startMs);
     if (!row) return;
@@ -430,8 +500,9 @@ ${note}
     );
     renderList();
     renderDetail();
-    const detail = $(".ev-detail");
-    if (detail.getBoundingClientRect().top < 0) detail.scrollIntoView({ block: "start" });
+    // The event's tile opens with its finding: bring that into view.
+    const tile = $("[data-section=events]");
+    if (tile.getBoundingClientRect().top < 0) tile.scrollIntoView({ block: "start" });
   }
 
   panel.addEventListener(

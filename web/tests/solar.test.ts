@@ -142,7 +142,7 @@ describe("the 24-hour view", () => {
   it("names the live reading when the 24 hours cannot be totalled", () => {
     render(dry);
     expect(text(section("now").querySelector("h2"))).toBe("Solar radiation is 0 W/m² now");
-    expect(text(section("now").querySelector(".solar-source"))).toContain(
+    expect(text(section("now").querySelector("[data-part=source]"))).toContain(
       "The 24-hour energy is not totalled",
     );
   });

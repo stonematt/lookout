@@ -1,28 +1,23 @@
 /*
- * The Solar tab (`src/solar/`). DESIGN.md: each section runs finding (Finding
- * type, max 44ch), standfirst, chart, source line; 48px between sections;
- * flat, hairline rules; solar is gold: `sun-bar` bars, the usual band
+ * The Solar tab (`src/solar/`). Each section is a tile (`tiles.css` holds
+ * the tile, its kicker, finding and folded source). DESIGN.md: flat,
+ * hairline rules; solar is gold: `sun-bar` bars, the usual band
  * `sun-band` (edged in light mode) with a dashed `median`, the bold now line
  * `sun-line`, the sun ramp in the grid with each cell's text in the ink that
  * passes there (`--on-sun-<step>`); one `now` mark for the finding's subject;
  * the 135° hatch for what is not in the record; tabular digits only where
  * numbers line up.
  */
-.solar-section + .solar-section {
-  margin-top: var(--s-7);
+
+/* two to a row beside the bars, a value and its unit wrap rather than run
+   into the next */
+:root[data-layout="four"] .tile-split > .solar-stats dd {
+  white-space: normal;
 }
 
-.solar-title {
-  font-size: var(--type-finding);
-  font-weight: 500;
-  line-height: 1.4;
-  max-width: 44ch;
-  margin-bottom: var(--s-1);
-  text-wrap: balance;
-}
-
+/* the stale-catalog note above the tiles */
 .solar-source {
-  margin-top: var(--s-3);
+  margin: 0 0 var(--s-4);
   font-size: var(--type-source);
   line-height: 1.55;
   color: var(--ink-3);
@@ -136,6 +131,8 @@
 /* ---------- the heatmap control ---------- */
 .solar-seg {
   display: inline-flex;
+  /* in the tile's column, as wide as its segments */
+  align-self: flex-start;
   max-width: 100%;
   margin-top: var(--s-3);
   overflow-x: auto;

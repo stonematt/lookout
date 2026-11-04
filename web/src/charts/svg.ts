@@ -71,6 +71,18 @@ export function chartLabel(
 }
 
 /**
+ * Whether a day column is hatched as not in the record: any reason but
+ * before the archive, which the chart leaves blank. A tile's source chip
+ * counts the same days.
+ *
+ * @param reason - The day's reason, null for a day in the record.
+ * @returns True when the day is hatched.
+ */
+export function missingDay(reason: GapReason | null): boolean {
+  return reason !== null && reason !== "before_archive";
+}
+
+/**
  * Hatch the days not in the record over a row of day columns, with the
  * reason in place where it fits. A day before the archive is left to the
  * chart (it has no hatch: the record had not begun).
@@ -94,8 +106,7 @@ export function hatchMissingDays(
   bottom: number,
   labelCls: string,
 ): void {
-  const missing = (i: number) => reasons[i] !== null && reasons[i] !== "before_archive";
-  for (const [a, b] of runs(reasons.length, missing)) {
+  for (const [a, b] of runs(reasons.length, (i) => missingDay(reasons[i] ?? null))) {
     const width = x(b) + step - x(a);
     svg.append(svgEl("rect", { x: x(a), y: top, width, height: bottom - top, fill: hatch, rx: 2 }));
     const words = reasonLabel(reasons[a] as GapReason);

@@ -35,7 +35,7 @@
 import "./styles/tiles.css";
 
 import { STALE_AFTER_MS, formatDuration, formatStamp } from "./format.js";
-import type { DashboardSnapshot } from "./snapshot.js";
+import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
 
 /** How many of the four-column grid's columns a tile spans. */
 export type TileSpan = 1 | 2 | 3 | 4;
@@ -245,7 +245,9 @@ export function hatchChip(reason: string): HTMLElement {
  */
 export function sourceLine(snapshot: DashboardSnapshot, what: string): string {
   const archived = snapshot.archive_newest_ms;
-  const when = archived === null ? "nothing archived yet" : `archived ${formatStamp(archived)}`;
+  // A time never breaks between its digits and "am" or "pm".
+  const stamp = archived === null ? null : formatStamp(archived).replace(/ ([ap]m)$/, "\u00a0$1");
+  const when = stamp === null ? "nothing archived yet" : `archived ${stamp}`;
   return `Source · ${what}, ${when}`;
 }
 
@@ -284,6 +286,31 @@ export function sourceNote(snapshot: DashboardSnapshot, spec: SourceNoteSpec): H
 export function notCompared(count: number, one: string, many: string): string | null {
   if (count <= 0) return null;
   return `${count} ${count === 1 ? one : many} not compared`;
+}
+
+/**
+ * How many of a set of gap statuses are hatched as not compared: invalid,
+ * and not merely under way (the current window or month, compared once over).
+ *
+ * @param statuses - The windows' or months' gap statuses.
+ * @returns The count.
+ */
+export function hatchedCount(statuses: readonly GapStatus[]): number {
+  return statuses.filter((s) => s.status === "invalid" && s.reason !== "in_progress").length;
+}
+
+/**
+ * Counts of several kinds of thing a gap hides, as one chip's short reason.
+ *
+ * @param counts - Each kind's count, singular and plural noun, in order.
+ * @returns E.g. "5 windows, 2 days not compared", naming only the kinds
+ *   with a count; null when none has one.
+ */
+export function gapReasons(counts: readonly [number, string, string][]): string | null {
+  const parts = counts
+    .filter(([count]) => count > 0)
+    .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
+  return parts.length ? `${parts.join(", ")} not compared` : null;
 }
 
 /**

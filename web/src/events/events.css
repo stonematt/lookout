@@ -1,30 +1,21 @@
 /*
- * The Rain Events tab. DESIGN.md: finding, standfirst, chart, source line;
- * tables held by hairlines, tabular digits; the quality chip a `rule-strong`
- * pill, dashed with `ink-3` text when poor; the pinned live event above a
- * 2px rule and the current row on a `rule` tint; segments are pills, the
- * pressed one `ink` with `ground` text; `now` only for the live event.
+ * The Rain Events tab, as two tiles (`tiles.css` holds the tile, its kicker,
+ * finding and folded source): the catalog, then the selected event and the
+ * list. DESIGN.md: tables held by hairlines, tabular digits; the quality
+ * chip a `rule-strong` pill, dashed with `ink-3` text when poor; the pinned
+ * live event above a 2px rule and the current row on a `rule` tint;
+ * segments are pills, the pressed one `ink` with `ground` text; `now` only
+ * for the live event.
  */
-.ev {
-  display: grid;
-  /* one column the panel's width: a long water-year control scrolls in
-     place rather than widening the page */
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-5);
+/* a tile's parts after its standfirst; the tile is one column its grid
+   cell's width, so a long water-year control scrolls in place rather than
+   widening the page */
+.ev-tile > :is(.ev-stale, .ev-controls, .ev-stats, .ev-season-gap, .ev-grid) {
+  margin-top: var(--s-5);
 }
 
-.ev-head {
-  display: grid;
-  gap: var(--s-1);
-}
-
-.ev-title,
-.ev-finding {
-  font-size: var(--type-finding);
-  font-weight: 500;
-  line-height: 1.4;
-  max-width: 44ch;
-  text-wrap: balance;
+.ev-tile > .ev-stale {
+  margin-top: var(--s-2);
 }
 
 .sr-only {
@@ -195,20 +186,14 @@
 .ev-detail {
   display: grid;
   gap: var(--s-1);
+}
+
+.ev-tile[data-section="events"] {
   scroll-margin-top: 64px;
 }
 
 .ev-detail > .ev-facts {
   margin-top: var(--s-3);
-}
-
-.ev-kicker {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-size: var(--type-kicker);
-  font-weight: 500;
-  color: var(--ink-3);
 }
 
 .ev-charts {
@@ -274,15 +259,6 @@
 
 .ev-more {
   margin-top: var(--s-3);
-}
-
-.ev-source {
-  margin-top: var(--s-3);
-  font-size: var(--type-source);
-  line-height: 1.55;
-  color: var(--ink-3);
-  max-width: 62ch;
-  text-wrap: pretty;
 }
 
 /* ---------- the live mark: `now`, the one finding ---------- */

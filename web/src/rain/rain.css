@@ -1,32 +1,11 @@
 /*
- * The Rain tab (`src/rain/`). DESIGN.md: each section runs finding (Finding
- * type, max 44ch), standfirst, chart, source line; 48px between sections;
- * flat, hairline rules; data colour from the rain tokens (`rain-bar` bars,
- * `rain-line` for this year, the rain ramp in the grid); one `now` mark for
- * the finding's subject; the 135° hatch for what is not in the record;
- * tabular digits only where numbers line up.
+ * The Rain tab (`src/rain/`). Each section is a tile (`tiles.css` holds the
+ * tile, its kicker, finding and folded source). DESIGN.md: flat, hairline
+ * rules; data colour from the rain tokens (`rain-bar` bars, `rain-line` for
+ * this year, the rain ramp in the grid); one `now` mark for the finding's
+ * subject; the 135° hatch for what is not in the record; tabular digits
+ * only where numbers line up.
  */
-.rain-section + .rain-section {
-  margin-top: var(--s-7);
-}
-
-.rain-title {
-  font-size: var(--type-finding);
-  font-weight: 500;
-  line-height: 1.4;
-  max-width: 44ch;
-  margin-bottom: var(--s-1);
-  text-wrap: balance;
-}
-
-.rain-source {
-  margin-top: var(--s-3);
-  font-size: var(--type-source);
-  line-height: 1.55;
-  color: var(--ink-3);
-  max-width: 62ch;
-  text-wrap: pretty;
-}
 
 /* ---------- stat strips: value above its label ---------- */
 .rain-stats {
@@ -87,7 +66,7 @@
   padding-left: var(--s-1);
 }
 
-.rain-section > .gap-block {
+.rain-years-gap {
   margin-top: var(--s-3);
   min-height: 96px;
 }

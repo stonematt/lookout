@@ -3,18 +3,30 @@
  * and the accumulation heatmap, everything read from the snapshot's
  * `rain_tab` (built by `lookout/snapshot/rain_tab.py`).
  *
- * Each section runs finding headline, standfirst, chart, readout, source
- * line (DESIGN.md). Every window value follows its gap status: hatched with
- * the reason when invalid, ≈ when prorated. Today's rain is the live total,
- * the same number the Overview shows.
+ * Each section is a tile (`web/src/tiles.ts`, spec #332): kicker, finding,
+ * standfirst, chart or stats, then the folded source note, whose chip names
+ * the archive lag and what the chart hatches. `SECTIONS` is the registry, in
+ * the Overview's shape. Every window value follows its gap status: hatched
+ * with the reason when invalid, ≈ when prorated. Today's rain is the live
+ * total, the same number the Overview shows.
  */
 import "./rain.css";
 
 import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
-import { drawSized } from "../charts/svg.js";
+import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
+import type { TileSection } from "../tiles.js";
+import {
+  gapReasons,
+  hatchedCount,
+  notCompared,
+  renderTiles,
+  sourceNote,
+  tileFinding,
+  tileFolds,
+} from "../tiles.js";
 import { drawDailyBars, drawHourGrid, drawYearCurves } from "./charts.js";
 import {
   WINDOW_NAMES,
@@ -40,15 +52,17 @@ const KEY_STEPS: [string, string][] = [
   ["heavy", "over 0.30 in"],
 ];
 
-/** One section: headline, standfirst, and a body to fill. */
-function section(id: string, headline: string, standfirst: string): HTMLElement {
-  const host = make("section", "rain-section");
-  host.dataset.section = id;
-  const title = make("h2", "rain-title", headline);
-  title.id = `rain-${id}-title`;
-  host.setAttribute("aria-labelledby", title.id);
-  host.append(title, make("p", "standfirst", standfirst));
-  return host;
+/**
+ * The tile's finding and standfirst, its first parts after the kicker.
+ *
+ * @param host - The tile.
+ * @param finding - The finding.
+ * @param standfirst - How to read the chart.
+ */
+function heading(host: HTMLElement, finding: string, standfirst: string): void {
+  const lede = make("p", "standfirst", standfirst);
+  lede.dataset.part = "standfirst";
+  host.append(tileFinding(finding), lede);
 }
 
 /** A chart figure with its live readout; returns both. */
@@ -61,9 +75,31 @@ function figure(host: HTMLElement, name: string): { chart: HTMLElement; readout:
   return { chart, readout };
 }
 
-/** The source line. */
-function source(host: HTMLElement, sentences: (string | null)[]): void {
-  host.append(make("p", "rain-source", sentences.filter(Boolean).join(" ")));
+/**
+ * The folded source note at the tile's foot: the archive time on its
+ * closed line, the method inside, and a chip when the archive lags or a gap
+ * hides part of the chart.
+ *
+ * @param host - The tile.
+ * @param snapshot - The dashboard snapshot.
+ * @param what - What the numbers come from, short.
+ * @param sentences - The method paragraph's sentences; nulls are dropped.
+ * @param gaps - What the chart hatches, as the chip's reason; null for none.
+ */
+function source(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  what: string,
+  sentences: (string | null)[],
+  gaps: string | null,
+): void {
+  const method = sentences.filter(Boolean).join(" ");
+  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps })));
+}
+
+/** Days the bars and the hour grid hatch: the ones not in the record. */
+function hatchedDays(tab: RainTab): number {
+  return tab.recent.reason.filter(missingDay).length;
 }
 
 /** A stat strip item: value above its label. */
@@ -79,26 +115,29 @@ function stat(list: HTMLElement, label: string, value: string | null, note?: str
   return dd;
 }
 
-/** The daily section: window totals, then 90 days of bars. */
-function daily(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement {
+/** The daily tile: window totals, then 90 days of bars. */
+function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab = snapshot.rain_tab;
-  const host = section(
-    "daily",
+  heading(
+    host,
     dailyHeadline(snapshot),
     "Rain over each window ending today, then each day of the last 90; the line marked today is the live total.",
   );
+  // On the four-column grid the strip stands beside the bars (tiles.css).
+  const split = make("div", "tile-split");
   const strip = make("dl", "rain-stats rain-windows");
   for (const window of tab.windows) {
     const dd = stat(strip, WINDOW_NAMES[window.key] ?? window.key, windowValue(window));
-    // Compact in the strip: the source line says why each one is not shown.
+    // Compact in the strip: the source note says why each one is not shown.
     hatchGap(dd, window.status, { compact: true });
   }
-  host.append(strip);
-  const { chart, readout } = figure(host, "Rain each day over the last 90 days");
-  charts.push(() =>
-    drawSized(chart, (width) =>
-      drawDailyBars(chart, tab.recent, width, (t) => (readout.textContent = t)),
-    ),
+  split.append(strip);
+  host.append(split);
+  const bars = make("div", "tile-split-chart");
+  split.append(bars);
+  const { chart, readout } = figure(bars, "Rain each day over the last 90 days");
+  drawSized(chart, (width) =>
+    drawDailyBars(chart, tab.recent, width, (t) => (readout.textContent = t)),
   );
   const todayStatus = rainStatus(snapshot, "today");
   const live = snapshot.current.rain_today_in;
@@ -106,22 +145,27 @@ function daily(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
     todayStatus.status === "invalid" && live !== null
       ? `The live reading has ${inches(live)} today; only the live total is known until the archive catches up.`
       : null;
-  source(host, [
-    "Source: the station archive, each day's highest daily rain counter, with today's live total.",
-    snapshot.archive_newest_ms === null
-      ? null
-      : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`,
-    liveNote,
-    windowsNote(snapshot),
-  ]);
-  return host;
+  source(
+    host,
+    snapshot,
+    "daily rain counter",
+    [
+      "The station archive, each day's highest daily rain counter, with today's live total.",
+      liveNote,
+      windowsNote(snapshot),
+    ],
+    gapReasons([
+      [hatchedCount(tab.windows.map((w) => w.status)), "window", "windows"],
+      [hatchedDays(tab), "day", "days"],
+    ]),
+  );
 }
 
-/** The dry-spell section: the current spell against the record. */
-function dry(snapshot: DashboardSnapshot): HTMLElement {
+/** The dry-spell tile: the current spell against the record. */
+function renderDry(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const spells = snapshot.rain_tab.dry_spells;
-  const host = section(
-    "dry",
+  heading(
+    host,
     dryHeadline(snapshot),
     "How long it has been since it last rained, against the dry spells of the last 365 days, and the longest in the record.",
   );
@@ -163,61 +207,67 @@ function dry(snapshot: DashboardSnapshot): HTMLElement {
     if (!dd.textContent) dd.textContent = "not known";
   }
   host.append(strip);
-  source(host, [
-    "Source: the station archive's daily totals; the last rain is the station's own record.",
-    `A rain day has at least ${WET_DAY_IN} in. Spells with a day missing from the record are left out, so a missing day is never read as dry.`,
-    "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
-  ]);
-  return host;
+  source(
+    host,
+    snapshot,
+    "daily totals",
+    [
+      "The station archive's daily totals; the last rain is the station's own record.",
+      `A rain day has at least ${WET_DAY_IN} in. Spells with a day missing from the record are left out, so a missing day is never read as dry.`,
+      "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
+    ],
+    notCompared(strip.querySelectorAll("dd.gap-hatch").length, "figure", "figures"),
+  );
 }
 
-/** The year-over-year section: one curve per water year. */
-function years(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement {
+/** The year-over-year tile: one curve per water year. */
+function renderYears(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab: RainTab = snapshot.rain_tab;
-  const host = section(
-    "years",
+  heading(
+    host,
     yearsHeadline(tab),
     "Rain since Oct 1, one line per water year, named by the year it ends in. The bold line is this year.",
   );
   const current = tab.water_years[tab.water_years.length - 1];
   if (current && tab.water_years.every((c) => c.cumulative_in.every((v) => v === null))) {
     // No year can be compared: the hatch in place of an empty chart.
-    host.append(gapElement(current.status));
+    const block = gapElement(current.status);
+    block.classList.add("rain-years-gap");
+    host.append(block);
   } else {
     const { chart, readout } = figure(host, "Rain since Oct 1, one line per water year");
-    charts.push(() =>
-      drawSized(chart, (width) =>
-        drawYearCurves(chart, tab, width, (t) => (readout.textContent = t)),
-      ),
+    drawSized(chart, (width) =>
+      drawYearCurves(chart, tab, width, (t) => (readout.textContent = t)),
     );
   }
-  const left = tab.water_years
-    .filter((c) => c.cumulative_in.every((v) => v === null))
-    .map(yearLeftOut);
-  source(host, [
-    "Source: the station archive's daily totals, with today's live total.",
-    "Feb 29 is folded into Feb 28 so the years line up by date; ≈ marks a total scaled up over a few missing days.",
-    ...left,
-    yearsSkipped(tab).length
-      ? `Not compared by this date, so left out of the headline: ${yearsSkipped(tab).join(", ")}.`
-      : null,
-  ]);
-  return host;
+  const left = tab.water_years.filter((c) => c.cumulative_in.every((v) => v === null));
+  source(
+    host,
+    snapshot,
+    "daily totals with today's live total",
+    [
+      "The station archive's daily totals, with today's live total.",
+      "Feb 29 is folded into Feb 28 so the years line up by date; ≈ marks a total scaled up over a few missing days.",
+      ...left.map(yearLeftOut),
+      yearsSkipped(tab).length
+        ? `Not compared by this date, so left out of the headline: ${yearsSkipped(tab).join(", ")}.`
+        : null,
+    ],
+    notCompared(left.length, "water year", "water years"),
+  );
 }
 
-/** The heatmap section: rain by the hour over the last 90 days. */
-function hours(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement {
+/** The heatmap tile: rain by the hour over the last 90 days. */
+function renderHours(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const tab = snapshot.rain_tab;
-  const host = section(
-    "hours",
+  heading(
+    host,
     hoursHeadline(snapshot),
     "Each column is a day of the last 90 and each row an hour, midnight at the top; the key shows the rain each shade stands for.",
   );
   const { chart, readout } = figure(host, "Rain by the hour over the last 90 days");
-  charts.push(() =>
-    drawSized(chart, (width) =>
-      drawHourGrid(chart, tab.recent, width, (t) => (readout.textContent = t)),
-    ),
+  drawSized(chart, (width) =>
+    drawHourGrid(chart, tab.recent, width, (t) => (readout.textContent = t)),
   );
   const key = make("ul", "rain-key");
   key.setAttribute("aria-label", "Key");
@@ -233,31 +283,73 @@ function hours(snapshot: DashboardSnapshot, charts: (() => void)[]): HTMLElement
   gap.append(make("span", "rain-swatch gap-hatch"), document.createTextNode("not in the record"));
   key.append(gap);
   readout.before(key);
-  source(host, [
-    "Source: the station archive and the live reading. Each hour's rain is the rise in the station's daily counter within it; rain counted during a gap lands in the hour after it.",
-  ]);
-  return host;
+  source(
+    host,
+    snapshot,
+    "archive and live reading, hourly",
+    [
+      "The station archive and the live reading. Each hour's rain is the rise in the station's daily counter within it; rain counted during a gap lands in the hour after it.",
+    ],
+    notCompared(hatchedDays(tab), "day", "days"),
+  );
 }
 
+/** One tile of the Rain tab. */
+export type RainSection = TileSection;
+
 /**
- * Render the Rain tab into its panel, replacing what was there.
+ * The Rain tab's sections, in the desktop board's order: the windows and
+ * the daily bars across the grid (the phone's fixed top), then the water
+ * year beside the dry spells, then rain by the hour across the grid.
+ */
+export const SECTIONS: readonly RainSection[] = [
+  {
+    id: "daily",
+    label: "Rain over each window, and each day of the last 90",
+    kicker: "Rain, by window",
+    span: 4,
+    phoneTop: true,
+    render: renderDaily,
+  },
+  {
+    id: "years",
+    label: "Rain since Oct 1, each water year",
+    kicker: "The water year",
+    span: 2,
+    render: renderYears,
+  },
+  {
+    id: "dry",
+    label: "Dry spells",
+    kicker: "Dry spells",
+    span: 2,
+    render: renderDry,
+  },
+  {
+    id: "hours",
+    label: "Rain by the hour over the last 90 days",
+    kicker: "Rain by the hour",
+    span: 4,
+    render: renderHours,
+  },
+];
+
+/**
+ * Render the Rain tab into its panel as a grid of tiles, replacing what was
+ * there.
  *
  * @param panel - The Rain tab's panel.
  * @param snapshot - The dashboard snapshot.
+ * @param sections - The sections to render, in order.
  */
-export function renderRain(panel: HTMLElement, snapshot: DashboardSnapshot): void {
-  panel.replaceChildren();
+export function renderRain(
+  panel: HTMLElement,
+  snapshot: DashboardSnapshot,
+  sections: readonly RainSection[] = SECTIONS,
+): void {
   if (!snapshot.rain_tab) {
-    panel.append(make("p", "standfirst", "The rain record is not in this snapshot yet."));
+    panel.replaceChildren(make("p", "standfirst", "The rain record is not in this snapshot yet."));
     return;
   }
-  const charts: (() => void)[] = [];
-  panel.append(
-    daily(snapshot, charts),
-    dry(snapshot),
-    years(snapshot, charts),
-    hours(snapshot, charts),
-  );
-  // Charts measure their width, so they draw once their sections are placed.
-  for (const draw of charts) draw();
+  renderTiles(panel, snapshot, sections);
 }
