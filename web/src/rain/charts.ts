@@ -23,6 +23,7 @@ import {
 import {
   LABEL_CHAR_PX,
   NARROW,
+  type AboveDot,
   type Readout,
   canvas,
   chartLabel,
@@ -51,18 +52,19 @@ const MONTH_PLACES = WATER_MONTHS.map((_, i) => {
   return daysBetween(REFERENCE_START, `${year}-${String(month).padStart(2, "0")}-01`);
 });
 
+/** The daily bars' now dot: its radius and its gap above today's bar (DESIGN.md "Daily bars"). */
+const NOW_R = 4;
+const NOW_GAP = 4;
+/** How far a label's baseline stands above a bar it passes over: its descender and halo. */
+const LABEL_CLEAR = 6;
+/** A label line's height, for stepping one label below another. */
+const LABEL_LINE = 16;
+
 /** Where today's now dot and its "today" label go on the daily bars. */
-interface TodayMark {
+interface TodayMark extends AboveDot {
   /** The dot's centre. */
   cx: number;
   cy: number;
-  /** The label's anchor point and text-anchor. */
-  x: number;
-  y: number;
-  anchor: "start" | "middle" | "end";
-  /** The label's left and right edges. */
-  from: number;
-  to: number;
 }
 
 /**
@@ -93,27 +95,15 @@ function todayMark(
   const today = recent.rain_in[count - 1];
   if (today === null || today === undefined) return null;
   const cx = x(count - 1) + step / 2;
-  const cy = (today > 0 ? y(today) : bottom) - 4 - 4;
+  const cy = (today > 0 ? y(today) : bottom) - NOW_GAP - NOW_R;
   const at = aboveDot(cx, cy, "today", left, right, 12);
-  // aboveDot's width for its 13px bold annotation.
-  const wide = "today".length * LABEL_CHAR_PX * 1.15;
-  const from = at.anchor === "end" ? at.x - wide : at.anchor === "start" ? at.x : at.x - wide / 2;
-  const to = from + wide;
   let tallest = bottom;
-  for (let i = Math.max(0, Math.floor((from - left) / step)); i < count && x(i) <= to; i++) {
+  for (let i = Math.max(0, Math.floor((at.from - left) / step)); i < count && x(i) <= at.to; i++) {
     const value = recent.rain_in[i];
     if (value !== null && value !== undefined && value > 0) tallest = Math.min(tallest, y(value));
   }
-  // 6px clears the descender of "y" and the label's halo.
-  return {
-    cx,
-    cy,
-    x: at.x,
-    y: Math.max(12, Math.min(at.y, tallest - 6)),
-    anchor: at.anchor,
-    from,
-    to,
-  };
+  // The plot's top margin keeps the lifted label below aboveDot's minY.
+  return { ...at, cx, cy, y: Math.min(at.y, tallest - LABEL_CLEAR) };
 }
 
 /**
@@ -142,8 +132,9 @@ function hatchDays(
     const wide = words.length * LABEL_CHAR_PX;
     const [from, to] = anchor === "end" ? [lx - wide, lx] : [lx, lx + wide];
     let ly = top + 14;
-    // A line is 16px; step below today's label where the two would meet.
-    if (mark && from < mark.to && to > mark.from && Math.abs(ly - mark.y) < 16) ly = mark.y + 16;
+    // Step a line below today's label where the two would meet.
+    if (mark && from < mark.to && to > mark.from && Math.abs(ly - mark.y) < LABEL_LINE)
+      ly = mark.y + LABEL_LINE;
     svg.append(chartLabel(lx, ly, words, "rain-label", anchor));
   }
 }
@@ -228,7 +219,7 @@ export function drawDailyBars(
     );
   });
   if (mark) {
-    svg.append(svgEl("circle", { cx: mark.cx, cy: mark.cy, r: 4, class: "rain-now-dot" }));
+    svg.append(svgEl("circle", { cx: mark.cx, cy: mark.cy, r: NOW_R, class: "rain-now-dot" }));
     svg.append(chartLabel(mark.x, mark.y, "today", "rain-now-label", mark.anchor));
   }
   dayTicks(svg, recent.first_day, count, x, step, bottom + 4, "rain");
