@@ -128,14 +128,12 @@
   display: grid;
   grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
   margin: 0;
-  max-width: 640px;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
 }
 
 .ev-facts {
   --cols: 3;
-  max-width: 520px;
 }
 
 .ev-stats > div,
