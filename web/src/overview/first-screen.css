@@ -92,6 +92,7 @@
   line-height: 1.45;
   color: var(--ink-2);
   max-width: 62ch;
+  text-wrap: pretty;
   font-variant-numeric: normal;
 }
 
@@ -135,6 +136,8 @@
   position: relative;
   height: 16px;
   margin-top: 3px;
+  /* the track's floor, so a dry track still reads as a track */
+  border-bottom: 1px solid var(--rule);
 }
 
 .ribbon-rain svg {
