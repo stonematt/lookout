@@ -335,6 +335,47 @@ export function mph(value: number): string {
   return `${value.toFixed(1)} mph`;
 }
 
+/** Relative humidity, whole percent, e.g. `81%`. */
+export function percent(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+/** Pressure in inches of mercury, bare, e.g. `29.67`. */
+export function inHg(value: number): string {
+  return value.toFixed(2);
+}
+
+/** The 16 compass points, clockwise from north. */
+const COMPASS = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+] as const;
+
+/**
+ * A wind direction as the nearest of the 16 compass points, e.g. `SE`.
+ *
+ * @param deg - Degrees clockwise from north, where the wind blows from.
+ * @returns The compass point.
+ */
+export function compassPoint(deg: number): string {
+  const index = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
+  return COMPASS[index]!;
+}
+
 /** Solar radiation, e.g. `412 W/m²`. */
 export function wattsPerM2(value: number): string {
   return `${Math.round(value)} W/m²`;

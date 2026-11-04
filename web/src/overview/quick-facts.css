@@ -1,0 +1,22 @@
+/*
+ * The quick-fact tiles (DESIGN.md "Quick-fact tiles"): a kicker, one large
+ * value in Fact type (300, tabular) in `ink`, and one sentence in `ink-2`.
+ * The grid places them: a row of one-column tiles on desktop; on a phone,
+ * two to a row after the finding rows (`tiles.css`, "phone: quick facts").
+ */
+.qf-value {
+  margin: var(--s-1) 0 0;
+  font-size: var(--type-fact);
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.qf-sentence {
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-standfirst);
+  line-height: 1.55;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}

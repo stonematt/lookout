@@ -114,23 +114,49 @@ describe("the Overview's grid under each layout", () => {
     };
   }
 
-  it("is one column of tiles on a phone", () => {
+  it("is one column of tiles on a phone, the quick facts two to a row", () => {
     const { columns, spans } = grid("phone");
-    expect(columns).toBe("minmax(0, 1fr)");
-    expect(new Set(spans)).toEqual(new Set(["span 1"]));
+    expect(columns).toBe("repeat(2, minmax(0, 1fr))");
+    // now, lead and the finding rows full width; wind, pressure, air a 2×2
+    // whose fourth cell is sun and moon's.
+    expect(spans).toEqual(["1 / -1", "1 / -1", "1 / -1", "span 1", "span 1", "span 1"]);
   });
 
   it("is two columns of tiles at two-column, no tile wider than both", () => {
     const { columns, spans } = grid("two");
     expect(columns).toBe("repeat(2, minmax(0, 1fr))");
     // now, lead and periods full width; the two single tiles share a row;
-    // the almanac full width, the rolling windows half.
-    expect(spans).toEqual(["span 2", "span 2", "span 2", "span 1", "span 1", "span 2", "span 1"]);
+    // the almanac full width, the rolling windows half; the quick facts
+    // half each.
+    expect(spans).toEqual([
+      "span 2",
+      "span 2",
+      "span 2",
+      "span 1",
+      "span 1",
+      "span 2",
+      "span 1",
+      "span 1",
+      "span 1",
+      "span 1",
+    ]);
   });
 
   it("is four columns of tiles at four-column, each tile at its declared span", () => {
     const { columns, spans } = grid("four");
     expect(columns).toBe("repeat(4, minmax(0, 1fr))");
-    expect(spans).toEqual(["span 2", "span 2", "span 2", "span 1", "span 1", "span 3", "span 1"]);
+    // The quick facts take a row of one-column tiles, the fourth cell sun and moon's.
+    expect(spans).toEqual([
+      "span 2",
+      "span 2",
+      "span 2",
+      "span 1",
+      "span 1",
+      "span 3",
+      "span 1",
+      "span 1",
+      "span 1",
+      "span 1",
+    ]);
   });
 });

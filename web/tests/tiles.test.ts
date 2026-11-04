@@ -82,11 +82,16 @@ describe.each(["dry", "raining"] as const)("the %s golden's Overview", (scenario
       "ten-days",
       "almanac",
       "rolling-rain",
+      "wind",
+      "pressure",
+      "air",
     ]);
     for (const tile of tiles) {
       const [first, second] = [...tile.children];
+      // A quick-fact tile's kicker sits over its one value (DESIGN.md "Quick-fact tiles").
+      const next = tile.dataset.fact ? "fact" : "finding";
       expect(first!.getAttribute("data-part"), tile.dataset.section).toBe("kicker");
-      expect(second!.getAttribute("data-part"), tile.dataset.section).toBe("finding");
+      expect(second!.getAttribute("data-part"), tile.dataset.section).toBe(next);
       expect(words(first)).not.toBe("");
       expect(words(second)).not.toBe("");
     }
@@ -96,7 +101,11 @@ describe.each(["dry", "raining"] as const)("the %s golden's Overview", (scenario
     const snapshot = parsed(scenario);
     const panel = await boot(snapshot);
 
-    for (const tile of panel.querySelectorAll<HTMLElement>(".tile")) {
+    // A quick fact is the live reading, a value and a sentence: no source to fold.
+    for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
+      expect(tile.querySelector("details"), tile.dataset.section).toBeNull();
+    }
+    for (const tile of panel.querySelectorAll<HTMLElement>(".tile:not([data-fact])")) {
       const notes = tile.querySelectorAll<HTMLDetailsElement>("details[data-part=source-note]");
       expect(notes.length, tile.dataset.section).toBe(1);
       const note = notes[0]!;
@@ -232,8 +241,12 @@ describe("the hatched chip on a tile's closed source line", () => {
       expect(archiveLagMs(snapshot)).toBeGreaterThan(15 * 60_000);
       const panel = await boot(snapshot);
       const lag = lagCaveat(snapshot)!;
-      for (const tile of panel.querySelectorAll<HTMLElement>(".tile")) {
+      // A quick fact states the live reading alone, so the archive lag is not its to name.
+      for (const tile of panel.querySelectorAll<HTMLElement>(".tile:not([data-fact])")) {
         expect(chips(panel)[tile.dataset.section!], tile.dataset.section).toContain(lag);
+      }
+      for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
+        expect(chips(panel)[tile.dataset.section!], tile.dataset.section).toBeUndefined();
       }
       page!.stop();
     }

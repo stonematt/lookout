@@ -12,7 +12,7 @@
  */
 import "./first-screen.css";
 
-import { degrees, formatDuration, formatStamp, inches, mph } from "../format.js";
+import { degrees, formatDuration, formatStamp, inches, mph, percent } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import { sourceNote, tileFolds } from "../tiles.js";
 import { conditionSentence } from "./condition.js";
@@ -52,7 +52,7 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
     ["feels like", shown(c.feels_like_f, degrees)],
     ["wind", shown(c.wind_speed_mph, mph)],
     ["rain today", shown(c.rain_today_in, (v) => inches(v, { digits: 2 }))],
-    ["humidity", shown(c.humidity_pct, (v) => `${Math.round(v)}%`)],
+    ["humidity", shown(c.humidity_pct, percent)],
   ];
   for (const [label, value] of items) {
     const item = document.createElement("div");

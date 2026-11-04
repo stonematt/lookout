@@ -113,6 +113,10 @@ const PHONE = {
     "first-screen",
     "hero-lead",
     "rows: temperature-periods against-normal ten-days almanac rolling-rain",
+    // The quick facts (#340): open tiles after the rows, two to a row.
+    "wind",
+    "pressure",
+    "air",
   ],
   rain: ["daily", "rows: years dry hours"],
   solar: ["now", "rows: daily day heatmaps"],
