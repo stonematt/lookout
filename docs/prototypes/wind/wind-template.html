@@ -1,0 +1,371 @@
+<title>Lookout Wind Studies</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap">
+<style>
+/* Layout: Lookout tile grid on slate ground; one tile per design option, findings first. */
+:root{
+  --ground:#f3f5f7;--tile:#ffffff;--now-surface:#e2e9f0;
+  --ink:#11161c;--ink-2:#353e48;--ink-3:#4d5763;
+  --rule:#e1e5e9;--rule-strong:#7d8995;--hatch:#7d8995;--now:#a74b11;--median:#11161c;
+  /* proposed wind family: slate-teal, beside rain blue and sun ochre */
+  --wind-0:#9bbdb8;--wind-1:#5f8f8a;--wind-2:#33625e;--wind-3:#163633;
+  --wind-line:#1f4542;--wind-band:#dfeae8;--wind-band-edge:#7ea19d;
+  --sans:Lexend,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#11161c;--tile:#1a2129;--now-surface:#354251;
+  --ink:#eef2f5;--ink-2:#c3ccd5;--ink-3:#aab5c0;
+  --rule:#2a333d;--rule-strong:#6b7886;--hatch:#64717e;--now:#f2a65e;--median:#eef2f5;
+  --wind-0:#3f625e;--wind-1:#5f908a;--wind-2:#93c4bd;--wind-3:#d8f0ec;
+  --wind-line:#cdebe6;--wind-band:#34504d;--wind-band-edge:#4e7a75;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ground:#11161c;--tile:#1a2129;--now-surface:#354251;
+  --ink:#eef2f5;--ink-2:#c3ccd5;--ink-3:#aab5c0;
+  --rule:#2a333d;--rule-strong:#6b7886;--hatch:#64717e;--now:#f2a65e;--median:#eef2f5;
+  --wind-0:#3f625e;--wind-1:#5f908a;--wind-2:#93c4bd;--wind-3:#d8f0ec;
+  --wind-line:#cdebe6;--wind-band:#34504d;--wind-band-edge:#4e7a75;color-scheme:dark}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);letter-spacing:.01em;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+header{display:grid;gap:8px;padding:4px 2px 8px}
+h1{font-weight:500;font-size:1.5rem;margin:0;text-wrap:balance}
+.lede{font-size:.9375rem;line-height:1.55;color:var(--ink-2);max-width:68ch;margin:0}
+.grid{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:760px){.grid{grid-template-columns:1fr 1fr}.span2{grid-column:span 2}}
+.tile{background:var(--tile);border-radius:22px;padding:22px;display:grid;gap:12px;align-content:start;min-width:0}
+@media (max-width:759px){.tile{border-radius:20px;padding:16px}}
+.kicker{font-size:.8125rem;font-weight:500;color:var(--ink-3);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:400;border:1px solid var(--rule-strong);border-radius:99px;padding:1px 8px;color:var(--ink-2)}
+.finding{font-size:1.1875rem;font-weight:500;line-height:1.4;max-width:44ch;margin:0}
+@media (max-width:759px){.finding{font-size:1rem}}
+.stand{font-size:.875rem;line-height:1.55;color:var(--ink-2);max-width:62ch;margin:0}
+.fact{font-weight:300;font-size:2.5rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.fact small{font-size:1.25rem;font-weight:400;margin-left:6px}
+.chart{width:100%;min-width:0}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.notes{border-top:1px solid var(--rule);padding-top:10px;display:grid;gap:4px;font-size:.8125rem;line-height:1.5;color:var(--ink-3)}
+.notes b{font-weight:500;color:var(--ink-2)}
+.seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:99px;overflow:hidden}
+.seg button{font:inherit;font-size:.8125rem;background:transparent;color:var(--ink-2);border:0;padding:8px 14px;min-height:36px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--now-surface);color:var(--ink);font-weight:500}
+.seg button:focus-visible{outline:2px solid var(--now);outline-offset:-2px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+.key{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);align-items:center}
+.key i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.key .ln{width:16px;height:0;border-top:2px dashed var(--median);border-radius:0}
+.quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:760px){.quick{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.mini{background:var(--ground);border-radius:16px;padding:14px;display:grid;gap:6px;align-content:start}
+.mini .fact{font-size:2rem}
+.mini p{margin:0;font-size:.875rem;line-height:1.4;color:var(--ink-2)}
+text{font-family:var(--sans)}
+.ax{font-size:12px;fill:var(--ink-3);font-variant-numeric:tabular-nums}
+.lbl{font-size:12px;fill:var(--ink-2)}
+.halo{paint-order:stroke;stroke:var(--tile);stroke-width:4px;stroke-linejoin:round}
+.ann{font-size:13px;font-weight:600;fill:var(--now)}
+footer{font-size:.8125rem;color:var(--ink-3);line-height:1.5;max-width:80ch}
+@media (prefers-reduced-motion:no-preference){.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:dr 1.1s ease-out forwards}@keyframes dr{to{stroke-dashoffset:0}}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Wind, six ways</h1>
+  <p class="lede">Today the wind is one line in the Right-now strip and a quick-fact tile with nothing under its sentence. These are six options for what could go there, all drawn from the station's real archive. Recent means the last 7 days on record; seasonal means every winter since 2023.</p>
+</header>
+
+<div class="grid">
+
+<section class="tile" aria-labelledby="a-h">
+  <div class="kicker">A · Compass <span class="tag">quick-fact tile</span></div>
+  <div class="fact" id="a-fact"></div>
+  <p class="finding" id="a-h"></p>
+  <div class="chart" id="compass"></div>
+  <div class="notes"><span><b>Shows:</b> direction now, the last hour's directions as dots on the rim, and the usual winter direction as a band on the ring.</span><span><b>Good for:</b> the quick-fact tile. It fills the empty space and answers "from where" at a glance.</span><span><b>Watch:</b> the instant reading is often 0 mph while the 10-minute average is not. The compass uses the 10-minute fields.</span></div>
+</section>
+
+<section class="tile" aria-labelledby="b-h">
+  <div class="kicker">B · Wind rose, recent against seasonal <span class="tag">in-context tile</span></div>
+  <p class="finding" id="b-h"></p>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Measure"><button id="m-speed" aria-pressed="true">Speed</button><button id="m-gust" aria-pressed="false">Gusts</button></div>
+    <div class="seg" role="group" aria-label="Compare with" id="seasons"></div>
+  </div>
+  <div class="chart" id="rose"></div>
+  <div class="key" id="rose-key"></div>
+  <div class="notes"><span><b>Shows:</b> how often the wind came from each of 16 directions in the last 7 days, stacked by speed. The dashed outline is the chosen season across all years. Calm readings sit in the centre circle.</span><span><b>Good for:</b> the "usually from" claim, and the Gusts switch shows gusts come from the same quarter.</span><span><b>Watch:</b> calm is 21–33% of readings here. The rose leaves calm out of the petals so it does not shrink them.</span></div>
+</section>
+
+<section class="tile span2" aria-labelledby="c-h">
+  <div class="kicker">C · Speed against gusts, last 24 hours <span class="tag">in-context tile</span></div>
+  <p class="finding" id="c-h"></p>
+  <p class="stand">The bold line is the 15-minute average speed. Each tick rises to the strongest gust in those 15 minutes. The band is the middle half of winter gusts for each hour. Arrows along the top point downwind, one per hour.</p>
+  <div class="chart" id="strip"></div>
+  <div class="notes"><span><b>Good for:</b> showing that gusts here run about twice the average speed, and when the gusty spells came.</span><span><b>Watch:</b> with readings every 5 minutes, ticks for single readings crowd a phone. The chart groups them into 15 minutes.</span></div>
+</section>
+
+<section class="tile" aria-labelledby="d-h">
+  <div class="kicker">D · Today's top gust against winter days <span class="tag">range bar</span></div>
+  <p class="finding" id="d-h"></p>
+  <div class="chart" id="gustbar"></div>
+  <div class="notes"><span><b>Shows:</b> the top gust of each winter day. The whisker runs from the 10th to the 90th percentile, the bar is the middle half, and the rule marked now is today.</span><span><b>Good for:</b> a "breezy for the season" claim in the same shape as the temperature range bars.</span></div>
+</section>
+
+<section class="tile" aria-labelledby="e-h">
+  <div class="kicker">E · When it blows, by hour <span class="tag">seasonal pattern</span></div>
+  <p class="finding" id="e-h"></p>
+  <div class="controls"><div class="seg" role="group" aria-label="Hourly measure"><button id="h-speed" aria-pressed="true">Median speed</button><button id="h-gust" aria-pressed="false">Strong gusts (90th pct)</button></div></div>
+  <div class="chart" id="hourly"></div>
+  <div class="key"><span><i style="background:var(--wind-line)"></i>Last 7 days</span><span><i style="background:var(--wind-0)"></i>Summer</span><span><i class="ln"></i>Winter</span></div>
+  <div class="notes"><span><b>Good for:</b> summer, when nights go calm and a breeze builds after noon. In winter the line stays flat, so this is a seasonal finding, not one to show all year.</span></div>
+</section>
+
+<section class="tile span2" aria-labelledby="f-h">
+  <div class="kicker">F · Quick-fact tile, four sentences <span class="tag">copy only</span></div>
+  <p class="finding" id="f-h">The same tile with no chart, written four ways. Python would choose one sentence.</p>
+  <div class="quick" id="quick"></div>
+</section>
+
+</div>
+<footer id="src"></footer>
+</div>
+
+<script>
+const D = __DATA__;
+const TZ = 'America/Los_Angeles';
+const NS = 'http://www.w3.org/2000/svg';
+const DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const card = d => DIRS[Math.round(((d % 360) + 360) % 360 / 22.5) % 16];
+const fmt1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const pct = v => Math.round(v * 100) + '%';
+const timeFmt = new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric', minute: '2-digit'});
+const hourFmt = new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric'});
+const t12 = ms => timeFmt.format(ms).replace(' AM',' am').replace(' PM',' pm');
+const h12 = ms => hourFmt.format(ms).replace(' AM',' am').replace(' PM',' pm');
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, cls, extra = {}) { const t = el('text', {x, y, class: cls, ...extra}, parent); t.textContent = s; return t; }
+function svgIn(host, w, h) { host.replaceChildren(); return el('svg', {viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img'}, host); }
+const polar = (cx, cy, r, deg) => [cx + r * Math.sin(deg * Math.PI / 180), cy - r * Math.cos(deg * Math.PI / 180)];
+function sectorPath(cx, cy, r0, r1, a0, a1) {
+  const [x0, y0] = polar(cx, cy, r1, a0), [x1, y1] = polar(cx, cy, r1, a1);
+  const [x2, y2] = polar(cx, cy, r0, a1), [x3, y3] = polar(cx, cy, r0, a0);
+  return `M${x0},${y0}A${r1},${r1} 0 0 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 0 0 ${x3},${y3}Z`;
+}
+function circMean(pairs) { // [[deg, weight]]
+  let sx = 0, sy = 0;
+  for (const [d, w] of pairs) { sx += w * Math.sin(d * Math.PI / 180); sy += w * Math.cos(d * Math.PI / 180); }
+  if (Math.hypot(sx, sy) < 1e-9) return null;
+  return (Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360;
+}
+function widthOf(host) { return Math.max(260, Math.floor(host.getBoundingClientRect().width)); }
+
+const now = D.now;
+const nowMs = Date.parse(D.station_end);
+const rose = (r) => r.grid.map(row => row.reduce((a, b) => a + b, 0));
+const prevailing = (r) => { const t = rose(r); const i = t.indexOf(Math.max(...t)); return i; };
+const winterIdx = prevailing(D.seasons.winter.speed);
+const recentIdx = prevailing(D.recent.speed);
+
+/* ---------- A. Compass ---------- */
+function drawCompass() {
+  const host = document.getElementById('compass');
+  const W = Math.min(widthOf(host), 340), H = W, cx = W / 2, cy = H / 2, R = W / 2 - 26;
+  const s = svgIn(host, W, H);
+  // usual band: winter's top three sectors around the prevailing one
+  const wt = rose(D.seasons.winter.speed);
+  const a0 = (winterIdx - 1) * 22.5 - 11.25, a1 = (winterIdx + 1) * 22.5 + 11.25;
+  el('path', {d: sectorPath(cx, cy, R - 10, R + 4, a0, a1), fill: 'var(--wind-band)', stroke: 'var(--wind-band-edge)', 'stroke-width': 1}, s);
+  el('circle', {cx, cy, r: R, fill: 'none', stroke: 'var(--rule-strong)', 'stroke-width': 1.5}, s);
+  for (let i = 0; i < 72; i++) {
+    const d = i * 5, major = d % 90 === 0, mid = d % 45 === 0;
+    const [x0, y0] = polar(cx, cy, R, d), [x1, y1] = polar(cx, cy, R - (major ? 10 : mid ? 7 : 4), d);
+    el('line', {x1: x0, y1: y0, x2: x1, y2: y1, stroke: major ? 'var(--ink-2)' : 'var(--rule-strong)', 'stroke-width': major ? 1.5 : 1}, s);
+  }
+  ['N','E','S','W'].forEach((c, i) => { const [x, y] = polar(cx, cy, R + 15, i * 90); txt(s, x, y + 4, c, 'lbl', {'text-anchor': 'middle', 'font-weight': c === 'N' ? 600 : 400}); });
+  // last hour of directions as rim dots
+  const hour = D.day.filter(r => r[0] > nowMs - 3600e3 && r[1] > 0 && r[3] !== null);
+  hour.forEach(r => { const [x, y] = polar(cx, cy, R - 18, r[3]); el('circle', {cx: x, cy: y, r: 2.5 + Math.min(r[1], 6) * 0.5, fill: 'var(--wind-1)', 'fill-opacity': .55}, s); });
+  // pointer: from-direction at rim, arrow heading downwind through centre
+  const dir = now.dir_avg10m ?? now.dir;
+  const g = el('g', {transform: `rotate(${dir} ${cx} ${cy})`}, s);
+  const L = R - 26;
+  el('line', {x1: cx, y1: cy - L, x2: cx, y2: cy + L - 14, stroke: 'var(--wind-line)', 'stroke-width': 3, 'stroke-linecap': 'round'}, g);
+  el('path', {d: `M${cx},${cy + L} l-9,-16 l9,4 l9,-4 Z`, fill: 'var(--wind-line)'}, g);
+  el('circle', {cx, cy: cy - L, r: 5.5, fill: 'var(--now)', stroke: 'var(--tile)', 'stroke-width': 2}, g);
+  el('circle', {cx, cy, r: 30, fill: 'var(--tile)', stroke: 'var(--rule)', 'stroke-width': 1}, s);
+  txt(s, cx, cy + 2, fmt1(now.speed_avg10m ?? now.speed), 'lbl', {'text-anchor': 'middle', 'font-size': 18, 'font-weight': 400, fill: 'var(--ink)'});
+  txt(s, cx, cy + 17, 'mph', 'ax', {'text-anchor': 'middle'});
+  const [lx, ly] = polar(cx, cy, R - 30, dir + 28);
+  txt(s, lx, ly + 4, 'from ' + card(dir), 'ann halo', {'text-anchor': 'middle'});
+  document.getElementById('a-fact').innerHTML = `${fmt1(now.speed_avg10m ?? now.speed)}<small>mph</small>`;
+  document.getElementById('a-h').textContent = `From the ${card(dir)}, gusts to ${fmt1(now.gust)} mph. In winter it usually comes from the ${DIRS[winterIdx]}.`;
+}
+
+/* ---------- B. Rose ---------- */
+let measure = 'speed', season = 'winter';
+const BIN_LABEL = { speed: ['under 2 mph','2–5','5–10','10+'], gust: ['under 2 mph','2–5','5–10','10+'] };
+const BIN_FILL = ['var(--wind-0)','var(--wind-1)','var(--wind-2)','var(--wind-3)'];
+const segS = document.getElementById('seasons');
+['winter','spring','summer','autumn'].forEach(k => {
+  const b = document.createElement('button'); b.textContent = k[0].toUpperCase() + k.slice(1); b.dataset.k = k;
+  b.setAttribute('aria-pressed', k === season); b.onclick = () => { season = k; [...segS.children].forEach(c => c.setAttribute('aria-pressed', c.dataset.k === k)); drawRose(); };
+  segS.appendChild(b);
+});
+document.getElementById('m-speed').onclick = () => { measure = 'speed'; setPressed('m-speed','m-gust'); drawRose(); };
+document.getElementById('m-gust').onclick = () => { measure = 'gust'; setPressed('m-gust','m-speed'); drawRose(); };
+function setPressed(on, off) { document.getElementById(on).setAttribute('aria-pressed', true); document.getElementById(off).setAttribute('aria-pressed', false); }
+function drawRose() {
+  const host = document.getElementById('rose');
+  const W = Math.min(widthOf(host), 420), H = W, cx = W / 2, cy = H / 2, Rmax = W / 2 - 30;
+  const s = svgIn(host, W, H);
+  const rec = D.recent[measure], sea = D.seasons[season][measure];
+  const recT = rose(rec), seaT = rose(sea);
+  const top = Math.max(...recT, ...seaT);
+  const ringStep = top > 0.12 ? 0.05 : 0.04;
+  const maxV = Math.ceil(top / ringStep) * ringStep;
+  const r0 = 22 + 0 * rec.calm; // fixed calm hub
+  const scale = v => r0 + (Rmax - r0) * Math.sqrt(v / maxV); // area-true petals
+  for (let v = ringStep; v <= maxV + 1e-9; v += ringStep) {
+    el('circle', {cx, cy, r: scale(v), fill: 'none', stroke: 'var(--rule)', 'stroke-width': 1}, s);
+  }
+  for (let i = 0; i < 16; i++) {
+    const a0 = i * 22.5 - 9.5, a1 = i * 22.5 + 9.5;
+    let cum = 0;
+    rec.grid[i].forEach((v, k) => { if (v <= 0) return; const ra = scale(cum), rb = scale(cum + v); cum += v;
+      el('path', {d: sectorPath(cx, cy, ra, rb, a0, a1), fill: BIN_FILL[k], stroke: 'var(--tile)', 'stroke-width': .75}, s); });
+  }
+  // seasonal outline
+  const pts = []; for (let i = 0; i < 16; i++) { const a0 = i * 22.5 - 11.25, a1 = i * 22.5 + 11.25; const r = scale(seaT[i]); pts.push(polar(cx, cy, r, a0), polar(cx, cy, r, a1)); }
+  el('path', {d: 'M' + pts.map(p => p.join(',')).join('L') + 'Z', fill: 'none', stroke: 'var(--median)', 'stroke-width': 1.5, 'stroke-dasharray': '4 3'}, s);
+  for (let v = ringStep; v <= maxV + 1e-9; v += ringStep) { const [x, y] = polar(cx, cy, scale(v), 157.5); txt(s, x + 3, y, pct(v), 'ax halo'); }
+  el('circle', {cx, cy, r: r0 - 2, fill: 'var(--ground)', stroke: 'var(--rule-strong)', 'stroke-width': 1}, s);
+  txt(s, cx, cy - 1, pct(rec.calm), 'lbl', {'text-anchor': 'middle', 'font-weight': 500});
+  txt(s, cx, cy + 12, 'calm', 'ax', {'text-anchor': 'middle'});
+  ['N','E','S','W'].forEach((c, i) => { const [x, y] = polar(cx, cy, Rmax + 16, i * 90); txt(s, x, y + 4, c, 'lbl', {'text-anchor': 'middle', 'font-weight': c === 'N' ? 600 : 400}); });
+  const ri = recT.indexOf(Math.max(...recT)), si = seaT.indexOf(Math.max(...seaT));
+  const quarter = [ri - 1, ri, ri + 1].map(i => recT[(i + 16) % 16]).reduce((a, b) => a + b, 0);
+  const sname = season[0].toUpperCase() + season.slice(1);
+  document.getElementById('b-h').textContent = measure === 'speed'
+    ? `In the last 7 days the wind came from the ${DIRS[ri]} quarter ${pct(quarter)} of the time. ${sname}s here usually lean ${DIRS[si]}.`
+    : `Gusts follow the same quarter: ${pct(quarter)} of the last 7 days' gusts came from around the ${DIRS[ri]}. Gusts are almost never calm (${pct(rec.calm)}).`;
+  document.getElementById('rose-key').innerHTML = BIN_LABEL[measure].map((l, k) => `<span><i style="background:${BIN_FILL[k]}"></i>${l}</span>`).join('')
+    + `<span><i class="ln"></i>${sname}, ${D.seasons[season].years[0]}–${D.seasons[season].years.at(-1)}</span>`;
+}
+
+/* ---------- C. Strip ---------- */
+function drawStrip() {
+  const host = document.getElementById('strip');
+  const W = widthOf(host), phone = W < 520, H = phone ? 230 : 260;
+  const m = {l: 34, r: 14, t: 34, b: 26};
+  const s = svgIn(host, W, H);
+  const rows = D.day; const t0 = rows[0][0], t1 = rows.at(-1)[0];
+  const bucket = 15 * 60e3, groups = new Map();
+  rows.forEach(r => { const k = Math.floor(r[0] / bucket) * bucket; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+  const g = [...groups.entries()].map(([k, rs]) => ({t: k + bucket / 2, sp: rs.reduce((a, r) => a + r[1], 0) / rs.length, gu: Math.max(...rs.map(r => r[2]))}));
+  const yMax = Math.ceil(Math.max(...g.map(d => d.gu), 10) / 5) * 5;
+  const x = t => m.l + (W - m.l - m.r) * (t - t0) / (t1 - t0), y = v => H - m.b - (H - m.t - m.b) * v / yMax;
+  // usual band: winter gust median..p90 per local hour (step)
+  const hw = D.hourly.winter; const hourOf = ms => +new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric', hourCycle: 'h23'}).format(ms);
+  let up = '', dn = [];
+  for (let t = t0; t <= t1; t += 15 * 60e3) { const h = hourOf(t) % 24; up += (up ? 'L' : 'M') + x(t) + ',' + y(hw.gust_p90[h]); dn.unshift(x(t) + ',' + y(hw.gust_med[h])); }
+  el('path', {d: up + 'L' + dn.join('L') + 'Z', fill: 'var(--wind-band)', stroke: 'var(--wind-band-edge)', 'stroke-width': 1}, s);
+  for (let v = 5; v <= yMax; v += 5) { el('line', {x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--rule)'}, s); txt(s, m.l - 6, y(v) + 4, v, 'ax', {'text-anchor': 'end'}); }
+  el('line', {x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), stroke: 'var(--rule-strong)'}, s);
+  txt(s, m.l - 6, y(0) + 4, '0', 'ax', {'text-anchor': 'end'});
+  txt(s, 4, m.t - 18, 'mph', 'ax');
+  // gust ticks
+  g.forEach(d => el('line', {x1: x(d.t), x2: x(d.t), y1: y(d.sp), y2: y(d.gu), stroke: 'var(--wind-0)', 'stroke-width': phone ? 1.5 : 2, 'stroke-linecap': 'round'}, s));
+  // speed line
+  el('path', {d: 'M' + g.map(d => x(d.t) + ',' + y(d.sp)).join('L'), fill: 'none', stroke: 'var(--wind-line)', 'stroke-width': 2.5, 'stroke-linejoin': 'round'}, s);
+  // hourly arrows on top row
+  const step = phone ? 3 : 1;
+  for (let t = Math.ceil(t0 / 3600e3) * 3600e3; t < t1; t += 3600e3 * step) {
+    const hrs = rows.filter(r => r[0] >= t && r[0] < t + 3600e3 * step && r[3] !== null);
+    const md = circMean(hrs.map(r => [r[3], Math.max(r[1], 0.3)]));
+    if (md === null) continue;
+    const cxA = x(t + 1800e3 * step), cyA = 12;
+    const a = el('g', {transform: `rotate(${md + 180} ${cxA} ${cyA})`}, s);
+    el('path', {d: `M${cxA},${cyA - 7}L${cxA + 4.5},${cyA + 5}L${cxA},${cyA + 2.5}L${cxA - 4.5},${cyA + 5}Z`, fill: 'var(--ink-2)'}, a);
+  }
+  // time ticks
+  for (let t = Math.ceil(t0 / (3600e3 * 6)) * 3600e3 * 6; t <= t1; t += 3600e3 * 6) {
+    el('line', {x1: x(t), x2: x(t), y1: y(0), y2: y(0) + 4, stroke: 'var(--rule-strong)'}, s);
+    txt(s, x(t), H - 8, h12(t), 'ax', {'text-anchor': 'middle'});
+  }
+  // peak gust label and now dot
+  const pk = g.reduce((a, b) => b.gu > a.gu ? b : a);
+  el('circle', {cx: x(pk.t), cy: y(pk.gu), r: 3.5, fill: 'var(--wind-2)'}, s);
+  txt(s, x(pk.t) + 6, y(pk.gu) + 4, `gust ${fmt1(pk.gu)}, ${t12(pk.t)}`, 'lbl halo', {'text-anchor': x(pk.t) > W - 150 ? 'end' : 'start', dx: x(pk.t) > W - 150 ? -12 : 0});
+  const last = g.at(-1);
+  el('circle', {cx: x(last.t), cy: y(last.sp), r: 5.5, fill: 'var(--now)', stroke: 'var(--tile)', 'stroke-width': 2}, s);
+  txt(s, x(last.t) - 8, y(last.sp) - 10, 'now', 'ann halo', {'text-anchor': 'end'});
+  const mean = g.reduce((a, d) => a + d.sp, 0) / g.length;
+  document.getElementById('c-h').textContent = `The strongest gust in the last 24 hours was ${fmt1(pk.gu)} mph at ${t12(pk.t)}. The average speed held near ${fmt1(mean)} mph, and gusts here usually run about ${D.gust_ratio_median.toFixed(1)}× the average.`;
+}
+
+/* ---------- D. Gust range bar ---------- */
+function drawGustBar() {
+  const host = document.getElementById('gustbar');
+  const W = widthOf(host), H = 92, m = {l: 14, r: 18, t: 30, b: 26};
+  const s = svgIn(host, W, H);
+  const P = D.winter_daily_max_gust_pct, today = now.max_gust_today;
+  const hi = Math.ceil(Math.max(P[99], today) / 10) * 10;
+  const x = v => m.l + (W - m.l - m.r) * v / hi, cy = 50;
+  for (let v = 0; v <= hi; v += 10) { txt(s, x(v), H - 6, v, 'ax', {'text-anchor': 'middle'}); }
+  el('line', {x1: x(P[10]), x2: x(P[90]), y1: cy, y2: cy, stroke: 'var(--ink-3)', 'stroke-width': 1.5}, s);
+  el('rect', {x: x(P[25]), y: cy - 6, width: x(P[75]) - x(P[25]), height: 12, rx: 3, fill: 'var(--wind-1)'}, s);
+  el('line', {x1: x(P[50]), x2: x(P[50]), y1: cy - 9, y2: cy + 9, stroke: 'var(--tile)', 'stroke-width': 2}, s);
+  el('line', {x1: x(today), x2: x(today), y1: cy - 22, y2: cy + 14, stroke: 'var(--now)', 'stroke-width': 2.5}, s);
+  txt(s, x(today), cy - 26, `now ${fmt1(today)}`, 'ann halo', {'text-anchor': x(today) > W - 60 ? 'end' : 'middle'});
+  txt(s, x(P[50]), cy + 24, `usual ${fmt1(P[50])}`, 'lbl halo', {'text-anchor': 'middle'});
+  const word = today > P[75] ? 'gustier than most' : today < P[25] ? 'calmer than most' : 'about as gusty as most';
+  document.getElementById('d-h').textContent = `Today's top gust so far, ${fmt1(today)} mph, makes it ${word} winter days. The middle half of winter days top out between ${fmt1(P[25])} and ${fmt1(P[75])} mph.`;
+}
+
+/* ---------- E. Hourly ---------- */
+let hMeasure = 'speed_med';
+document.getElementById('h-speed').onclick = () => { hMeasure = 'speed_med'; setPressed('h-speed','h-gust'); drawHourly(); };
+document.getElementById('h-gust').onclick = () => { hMeasure = 'gust_p90'; setPressed('h-gust','h-speed'); drawHourly(); };
+function drawHourly() {
+  const host = document.getElementById('hourly');
+  const W = widthOf(host), H = 200, m = {l: 30, r: 12, t: 14, b: 26};
+  const s = svgIn(host, W, H);
+  const S = D.hourly, k = hMeasure;
+  const yMax = Math.ceil(Math.max(...S.recent[k], ...S.summer[k], ...S.winter[k]) + 0.5);
+  const yStep = yMax > 6 ? 2 : 1;
+  const x = h => m.l + (W - m.l - m.r) * h / 23, y = v => H - m.b - (H - m.t - m.b) * v / yMax;
+  for (let v = yStep; v <= yMax; v += yStep) { el('line', {x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--rule)'}, s); txt(s, m.l - 6, y(v) + 4, v, 'ax', {'text-anchor': 'end'}); }
+  el('line', {x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), stroke: 'var(--rule-strong)'}, s);
+  txt(s, m.l - 6, y(0) + 4, '0', 'ax', {'text-anchor': 'end'});
+  [0, 6, 12, 18, 23].forEach(h => txt(s, x(h), H - 8, h === 0 ? '12 am' : h === 12 ? 'noon' : h === 23 ? '11 pm' : (h % 12) + (h < 12 ? ' am' : ' pm'), 'ax', {'text-anchor': h === 0 ? 'start' : h === 23 ? 'end' : 'middle'}));
+  const line = (arr, stroke, w, dash) => el('path', {d: 'M' + arr.map((v, h) => x(h) + ',' + y(v)).join('L'), fill: 'none', stroke, 'stroke-width': w, 'stroke-dasharray': dash, 'stroke-linejoin': 'round'}, s);
+  line(S.summer[k], 'var(--wind-0)', 2);
+  line(S.winter[k], 'var(--median)', 1.5, '4 3');
+  line(S.recent[k], 'var(--wind-line)', 3);
+  const su = S.summer.speed_med; const lo = Math.min(...su.slice(0, 8)), pk = Math.max(...su), ph = su.indexOf(pk);
+  document.getElementById('e-h').textContent = `Summer nights here go ${lo === 0 ? 'calm' : 'still (median ' + fmt1(lo) + ' mph)'} and a breeze peaks near ${ph === 12 ? 'noon' : (ph % 12 || 12) + (ph < 12 ? ' am' : ' pm')} at ${fmt1(pk)} mph. Winter, like the last 7 days, stays near ${fmt1(S.winter.speed_med[12])} mph all day.`;
+}
+
+/* ---------- F. Quick-fact copy ---------- */
+function drawQuick() {
+  const dir = now.dir_avg10m ?? now.dir, sp = fmt1(now.speed_avg10m ?? now.speed);
+  const P = D.winter_daily_max_gust_pct;
+  const items = [
+    ['Wind', sp, `From the ${card(dir)}, gusts to ${fmt1(now.gust)} mph.`],
+    ['Wind', sp, `From the ${card(dir)}, against the usual ${DIRS[winterIdx]}.`],
+    ['Top gust today', fmt1(now.max_gust_today), now.max_gust_today > P[75] ? `Gustier than most winter days (usual ${fmt1(P[50])}).` : `About usual for winter (${fmt1(P[50])}).`],
+    ['Wind', sp, `Light, ${pct(D.recent.speed.calm)} of the last week was calm.`],
+  ];
+  document.getElementById('quick').innerHTML = items.map(([k, v, t]) => `<div class="mini"><div class="kicker">${k}</div><div class="fact">${v}<small>mph</small></div><p>${t}</p></div>`).join('');
+}
+
+function drawAll() { drawCompass(); drawRose(); drawStrip(); drawGustBar(); drawHourly(); drawQuick(); }
+drawAll();
+let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(drawAll, 120); }).observe(document.querySelector('.wrap'));
+document.getElementById('src').textContent = `Source: station 98-CD-AC-22-0D-E5, local archive copy from ${new Date(D.start).toLocaleDateString('en-US', {month: 'short', year: 'numeric', timeZone: TZ})} to Jan 5, 2026, ${t12(nowMs)} (station time). "Now" is the last archived reading, not live. Readings every 5 minutes; calm means 0 mph. Seasons are Dec–Feb, Mar–May, Jun–Aug, Sep–Nov across all years on record.`;
+</script>
