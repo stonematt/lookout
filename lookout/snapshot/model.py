@@ -30,8 +30,11 @@ Correcting a wrong value is not: a value that was wrongly a number and is
 now null as unknown (an hour with no readings, #147), an optional value
 now null in a case the reader already handles (`RainEvents.open_curve`
 while no event is live), or one once null now always sent
-(`EventSeason.status`, #156), keeps `SCHEMA_VERSION`. A bump also makes the site
-refuse every curve file already written, and those are never rewritten.
+(`EventSeason.status`, #156), keeps `SCHEMA_VERSION`. Curve files are never
+rewritten, so the site reads every version listed in its
+`CURVE_SCHEMA_VERSIONS` (`web/src/snapshot.ts`): a bump that leaves the curve
+shape alone adds the new version there; one that changes it makes the site
+refuse every curve file already written.
 
 Golden documents for the TypeScript tests live in `tests/golden/snapshots/`
 (see `tests/test_snapshot.py` for how to regenerate them).
@@ -42,7 +45,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # The dashboard fields the context block carries, in order.
 CONTEXT_FIELDS: Tuple[str, ...] = (
@@ -64,6 +67,41 @@ class StationZoneMissing(ValueError):
 
 
 @dataclass(frozen=True)
+class StationLocation:
+    """
+    Where a station stands, from its Ambient device (`info.coords.coords`).
+
+    :param lat: Latitude, decimal degrees north.
+    :param lon: Longitude, decimal degrees east.
+    """
+
+    lat: float
+    lon: float
+
+    @classmethod
+    def from_device(cls, device: Dict[str, Any]) -> Optional["StationLocation"]:
+        """
+        Read the coordinates of an Ambient `/devices` entry.
+
+        :param device: One entry; its `info.coords.coords` holds `lat`, `lon`.
+        :return: The location, or None when Ambient sent no usable
+            coordinates.
+        """
+        coords = ((device.get("info") or {}).get("coords") or {}).get("coords")
+        if not isinstance(coords, dict):
+            return None
+        lat, lon = coords.get("lat"), coords.get("lon")
+        if not all(
+            isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+            for v in (lat, lon)
+        ):
+            return None
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+        return cls(lat=float(lat), lon=float(lon))
+
+
+@dataclass(frozen=True)
 class Station:
     """
     The station a snapshot describes.
@@ -72,11 +110,26 @@ class Station:
     :param name: Its human-readable name in Ambient, or None when unnamed.
     :param tz: Its IANA time zone, from Ambient (ADR-0005): the zone every
         station-local day, hour and month of the build is in.
+    :param location: Its coordinates, from Ambient, read with the zone on
+        every build; None when Ambient sent none. The sun and moon block is
+        computed from it. It is not published: no document carries it.
     """
 
     mac: str
     name: Optional[str]
     tz: str
+    location: Optional[StationLocation] = None
+
+    def published(self) -> Dict[str, Any]:
+        """
+        The station as every document names it: MAC, name and zone.
+
+        The coordinates are left out: they place the sun and moon, and no
+        document publishes them.
+
+        :return: A JSON-ready dict.
+        """
+        return {"mac": self.mac, "name": self.name, "tz": self.tz}
 
     @classmethod
     def from_device(cls, device: Dict[str, Any]) -> "Station":
@@ -102,7 +155,12 @@ class Station:
             raise StationZoneMissing(
                 f"Ambient sent an unknown time zone for {mac}: {tz!r}"
             ) from e
-        return cls(mac=mac, name=(device.get("info") or {}).get("name"), tz=tz)
+        return cls(
+            mac=mac,
+            name=(device.get("info") or {}).get("name"),
+            tz=tz,
+            location=StationLocation.from_device(device),
+        )
 
 
 @dataclass(frozen=True)
@@ -614,7 +672,9 @@ class EventCurve:
         :param station: The station the event belongs to.
         :return: A JSON-ready dict, headed like the snapshot documents.
         """
-        return _document("event_curve", {"station": asdict(station), **asdict(self)})
+        return _document(
+            "event_curve", {"station": station.published(), **asdict(self)}
+        )
 
 
 @dataclass(frozen=True)
@@ -1036,6 +1096,45 @@ class SolarTab:
 CatalogName = Literal["events", "energy"]
 
 
+MoonPhase = Literal[
+    "new",
+    "waxing crescent",
+    "first quarter",
+    "waxing gibbous",
+    "full",
+    "waning gibbous",
+    "last quarter",
+    "waning crescent",
+]
+
+
+@dataclass(frozen=True)
+class SunMoon:
+    """
+    The sun and moon for the station-local day (`lookout.snapshot.sun_moon`).
+
+    Absent (None on the snapshot) when the station has no coordinates.
+
+    :param sunrise_ms: Today's sunrise, on the station-local day.
+    :param sunset_ms: Today's sunset, on the station-local day.
+    :param daylight_minutes: Sunrise to sunset, in whole minutes.
+    :param daylight_change_minutes: Today's daylight against yesterday's,
+        signed: positive while days lengthen, negative while they shorten.
+    :param moon_phase: The named phase of the moon today.
+    :param moon_illumination_pct: The lit share of the moon's disc, 0 to 100.
+    :param days_to_full_moon: Whole days to the next full moon; 0 on a full
+        moon day.
+    """
+
+    sunrise_ms: int
+    sunset_ms: int
+    daylight_minutes: int
+    daylight_change_minutes: int
+    moon_phase: MoonPhase
+    moon_illumination_pct: int
+    days_to_full_moon: int
+
+
 @dataclass(frozen=True)
 class StaleCatalog:
     """
@@ -1079,6 +1178,8 @@ class Snapshot:
     :param almanac: The Overview's almanac grid and rolling-window tables.
     :param solar_tab: The Solar tab's data, or None without an energy
         catalog.
+    :param sun_moon: The sun and moon today, or None when the station has
+        no coordinates.
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1098,6 +1199,7 @@ class Snapshot:
     temperature_context: TemperatureContext
     almanac: Almanac
     solar_tab: Optional[SolarTab]
+    sun_moon: Optional[SunMoon]
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:
@@ -1106,7 +1208,7 @@ class Snapshot:
 
         :return: A JSON-ready dict.
         """
-        return _document("dashboard", asdict(self))
+        return _document("dashboard", self._published())
 
     def context(self) -> Dict[str, Any]:
         """
@@ -1114,8 +1216,16 @@ class Snapshot:
 
         :return: A JSON-ready dict.
         """
-        fields = asdict(self)
+        fields = self._published()
         return _document("context", {name: fields[name] for name in CONTEXT_FIELDS})
+
+    def _published(self) -> Dict[str, Any]:
+        """
+        Every field as a dict, the station as published (no coordinates).
+
+        :return: The fields.
+        """
+        return {**asdict(self), "station": self.station.published()}
 
 
 def _document(kind: str, fields: Dict[str, Any]) -> Dict[str, Any]:

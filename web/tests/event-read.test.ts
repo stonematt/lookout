@@ -276,6 +276,18 @@ describe("the curve contract", () => {
     expect(parseEventCurve(goldenCurve("raining", EVENT_2)).start_ms).toBe(EVENT_2);
   });
 
+  it("still reads a curve file written at schema version 2, never rewritten (#344)", () => {
+    const doc = { ...(goldenCurve("raining", EVENT_2) as object), schema_version: 2 };
+
+    expect(parseEventCurve(doc).start_ms).toBe(EVENT_2);
+  });
+
+  it("refuses a curve file of a version it does not know", () => {
+    const doc = { ...(goldenCurve("raining", EVENT_2) as object), schema_version: 1 };
+
+    expect(() => parseEventCurve(doc)).toThrow("schema_version 1");
+  });
+
   it("refuses uneven arrays", () => {
     const doc = goldenCurve("raining", EVENT_2) as EventCurve;
     doc.rate_in_hr = doc.rate_in_hr.slice(1);
