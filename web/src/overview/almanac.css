@@ -81,6 +81,17 @@ button.alm-cell {
   cursor: pointer;
 }
 
+/* once the columns are wider than a cell, the cells fill them (the gap stays
+   the 3px border-spacing) and hold their 44px height; below this they are
+   square and shrink with the column */
+@container (min-width: 680px) {
+  .alm-cell {
+    max-width: none;
+    height: var(--cell);
+    aspect-ratio: auto;
+  }
+}
+
 .alm-cell[data-step="0"] {
   background: var(--rain-0);
   color: var(--on-rain-0);
