@@ -8,12 +8,16 @@
 
 ## What I care about here
 
-- "Now" reads on the first phone screen without a scroll: temperature, rain, and the top story.
+- "Now" reads on the first phone screen without a scroll: the now tile (temperature, condition sentence, the four Right-now stats, the 48-hour condition ribbon), then the leading tile open (DESIGN.md, The Phone First-Screen Rule).
+- The phone page is short: a fixed top, then findings as closed rows (kicker over finding, at least 56px tall), one open at a time, about two to two and a half screens when closed (DESIGN.md, The Finding Row; PRODUCT.md, Operating Context).
+- Tabs sit in a bottom bar on a phone: four equal 48px targets that clear the home indicator, the current tab filled; the header always names the station (DESIGN.md, Header and tabs).
 - The top story is what is actually happening, picked by the rules in DESIGN.md, and "Why this leads" says why.
-- The page follows DESIGN.md: warm neutral chrome, colour only for data, one claret finding, Atkinson Hyperlegible Next only.
+- The page follows DESIGN.md: quiet slate tiles, colour only for data, one orange "now", Lexend only, dark and light themes held to the same contrast rules (DESIGN.md, Overview and Colors; PRODUCT.md, Brand Commitments).
+- Method does not crowd the finding: provenance, method and "why this leads" fold into one-line disclosures at the foot of each tile; a hatched chip on the closed source line says when the archive lags or a gap hides part of the chart (DESIGN.md, Source note).
+- No text under 12px, and text and meaningful graphics stay readable in both themes: 4.5:1 for text, 3:1 for graphics (DESIGN.md, The Twelve Pixel Floor and The Three-to-One Graphics Rule).
 - The live header shows how fresh the data is; a stale snapshot is obvious, not silent.
 - Tabs keep their jobs: Overview, Rain, Rain Events, Solar. Nothing a glance needs hides behind a tap.
-- Works on a phone at 375px width and loads fast on cellular.
+- Works on a phone from 320px to 390px wide with no sideways scroll, and loads fast on cellular (DESIGN.md, Layout: a phone is under 760px; the site is checked at 320 and 390px by `web/scripts/scroll-check.mjs`).
 
 ## What I let pass
 
