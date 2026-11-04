@@ -22,6 +22,11 @@
   --rule: #e1e5e9;
   --rule-strong: #7d8995;
   --hatch: #7d8995;
+  /* the hatch weight: 2px stripes on a 12px repeat, 2px on a 6px repeat in a chip swatch */
+  --hatch-stripe: 2px;
+  --hatch-repeat: 12px;
+  --hatch-chip-stripe: 2px;
+  --hatch-chip-repeat: 6px;
   --now: #a74b11;
   --median: #11161c;
   /* the two inks for text in a ramp cell */
