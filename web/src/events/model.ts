@@ -18,7 +18,14 @@ export const EVENT_PARAM = "event";
 export type Season = number | "all";
 
 /** How the list is ordered. */
-export type EventSort = "newest" | "wettest";
+export type EventSort = "newest" | "wettest" | "longest";
+
+/** The sorts, in the control's order, with their words. */
+export const SORTS: readonly { sort: EventSort; label: string }[] = [
+  { sort: "newest", label: "Newest" },
+  { sort: "wettest", label: "Wettest" },
+  { sort: "longest", label: "Longest" },
+];
 
 /**
  * The selected event's start from a page query, or null.
@@ -53,7 +60,8 @@ export function withEvent(search: string, startMs: number | null): string {
  *
  * @param section - The snapshot's `rain_events`.
  * @param season - A water year, or "all".
- * @param sort - "newest" or "wettest".
+ * @param sort - "newest" by start, "wettest" by total (Python's rank) or
+ *   "longest" by the duration each row carries; ties go newest first.
  * @returns The rows to list.
  */
 export function visibleEvents(
@@ -61,12 +69,92 @@ export function visibleEvents(
   season: Season,
   sort: EventSort,
 ): RainEventRow[] {
-  const rows = section.events.filter((e) => season === "all" || e.water_year === season);
-  const order =
-    sort === "newest"
-      ? (a: RainEventRow, b: RainEventRow) => b.start_ms - a.start_ms
-      : (a: RainEventRow, b: RainEventRow) => a.rank - b.rank || b.start_ms - a.start_ms;
-  return rows.sort((a, b) => Number(b.live) - Number(a.live) || order(a, b));
+  const rows = inSeason(section, season);
+  const key: Record<EventSort, (a: RainEventRow, b: RainEventRow) => number> = {
+    newest: () => 0,
+    wettest: (a, b) => a.rank - b.rank,
+    longest: (a, b) => b.duration_minutes - a.duration_minutes,
+  };
+  const order = key[sort];
+  return rows.sort(
+    (a, b) => Number(b.live) - Number(a.live) || order(a, b) || b.start_ms - a.start_ms,
+  );
+}
+
+/** One water year's events, or all of them, in the snapshot's order. */
+function inSeason(section: RainEvents, season: Season): RainEventRow[] {
+  return section.events.filter((e) => season === "all" || e.water_year === season);
+}
+
+/**
+ * The event open by default in a water year or in all: the live one, or
+ * with none live, the newest by start.
+ *
+ * @param section - The snapshot's `rain_events`.
+ * @param season - A water year, or "all".
+ * @returns The event, or null when the filter leaves none.
+ */
+export function defaultOpen(section: RainEvents, season: Season): RainEventRow | null {
+  const rows = inSeason(section, season);
+  return (
+    rows.find((e) => e.live) ??
+    rows.reduce<RainEventRow | null>(
+      (a, e) => (a === null || e.start_ms > a.start_ms ? e : a),
+      null,
+    )
+  );
+}
+
+/**
+ * The catalog event that carries the "latest" chip: the newest by start,
+ * and only when no event is live (the live mark says it then).
+ *
+ * @param section - The snapshot's `rain_events`.
+ * @returns Its start, or null.
+ */
+export function latestStart(section: RainEvents): number | null {
+  if (section.events.some((e) => e.live)) return null;
+  return defaultOpen(section, "all")?.start_ms ?? null;
+}
+
+/**
+ * A row's size bar: its total over the catalog's largest total, 0 to 1.
+ *
+ * @param row - The event.
+ * @param section - The snapshot's `rain_events`.
+ * @returns The share of the track it fills.
+ */
+export function sizeShare(row: RainEventRow, section: RainEvents): number {
+  const most = Math.max(0, ...section.events.map((e) => e.total_in));
+  return most > 0 ? Math.min(1, Math.max(0, row.total_in / most)) : 0;
+}
+
+/**
+ * What the list's empty state says when a filter leaves no events.
+ *
+ * @param season - A water year, or "all".
+ * @returns The sentence (DESIGN.md "Event list").
+ */
+export function emptyList(season: Season): string {
+  return season === "all"
+    ? "No rain events on record yet."
+    : `No rain events in water year ${season} yet.`;
+}
+
+/**
+ * The list tile's finding: how many events it lists, for which water year,
+ * in which order.
+ *
+ * @param count - Events listed.
+ * @param season - A water year, or "all".
+ * @param sort - The order.
+ * @returns E.g. "3 events, newest first".
+ */
+export function listHeading(count: number, season: Season, sort: EventSort): string {
+  const scope = season === "all" ? "" : ` in water year ${season}`;
+  if (count === 0) return `No rain events${scope}`;
+  const order = { newest: "newest", wettest: "wettest", longest: "longest" }[sort];
+  return `${count} event${count === 1 ? "" : "s"}${scope}, ${order} first`;
 }
 
 /**
@@ -133,25 +221,6 @@ export function seasonNote(section: RainEvents, season: Season): string | null {
     return `${missingDays(found)} are missing from the record, so the list can miss events in them.`;
   }
   return `Water year ${season} ${notCompared(status.reason)}, so the list can miss its events and their total is not the year's rain.`;
-}
-
-/**
- * Which edges of a scrolling control have content hidden past them.
- *
- * @param scrollLeft - Its scroll position.
- * @param scrollWidth - Its content's width.
- * @param clientWidth - Its visible width.
- * @returns "none", "start", "end" or "both".
- */
-export function scrollEdges(
-  scrollLeft: number,
-  scrollWidth: number,
-  clientWidth: number,
-): "none" | "start" | "end" | "both" {
-  // A pixel of slack: a fractional scroll position never quite reaches the end.
-  const start = scrollLeft > 1;
-  const end = scrollLeft + clientWidth < scrollWidth - 1;
-  return start && end ? "both" : start ? "start" : end ? "end" : "none";
 }
 
 /** A duration given in minutes, in the One Format Rule's words. */

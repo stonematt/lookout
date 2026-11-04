@@ -1,16 +1,14 @@
 /*
  * The Rain Events tab, as two tiles (`tiles.css` holds the tile, its kicker,
- * finding and folded source): the catalog, then the selected event and the
- * list. DESIGN.md: tables held by hairlines, tabular digits; the quality
- * chip a `rule-strong` pill, dashed with `ink-3` text when poor; the pinned
- * live event above a 2px rule and the current row on a `rule` tint;
- * segments are pills, the pressed one `ink` with `ground` text; `now` only
- * for the live event.
+ * finding and folded source): the catalog, then the event list (DESIGN.md
+ * "Event list"). The list's filter bar pins under any sticky header while
+ * the list scrolls; each event is a row on its own tile, 16px corners,
+ * 64px tall closed, opening in place. The size bar is a `rain-bar` pill on a
+ * `rule` track; the quality chip a `rule-strong` pill, dashed with `ink-3`
+ * text when poor; the "latest" chip outlined in `now`; segments are pills,
+ * the pressed one `ink` with `ground` text; `now` only for the live event.
  */
-/* a tile's parts after its standfirst; the tile is one column its grid
-   cell's width, so a long water-year control scrolls in place rather than
-   widening the page */
-.ev-tile > :is(.ev-stale, .ev-controls, .ev-stats, .ev-season-gap, .ev-grid) {
+.ev-tile > :is(.ev-stale, .ev-stats, .ev-season-gap) {
   margin-top: var(--s-5);
 }
 
@@ -27,34 +25,91 @@
   white-space: nowrap;
 }
 
-/* ---------- controls ---------- */
-.ev-controls {
+/* ---------- the list tile ---------- */
+/* On a phone the rows are the tiles, on the ground; on both grids the list
+   is one tile under the catalog tile, and its rows sit on it. */
+.ev-list-tile {
+  --ev-bar-top: 0px;
+  gap: var(--s-2);
+}
+
+:root[data-layout="phone"] .ev-list-tile {
+  --surface: var(--ground);
+  padding: 0;
+  background: none;
+}
+
+/* ---------- the filter bar ---------- */
+.ev-bar {
+  position: sticky;
+  top: var(--ev-bar-top);
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-3) var(--s-4);
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-1);
+  padding: var(--s-2) 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+
+.ev-year {
+  display: flex;
+}
+
+/* the water-year filter: a native select styled as a pill */
+.ev-select {
+  appearance: none;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 28px 0 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+  background-color: var(--tile);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--type-standfirst);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
 .ev-seg {
   display: inline-flex;
+  flex: none;
   max-width: 100%;
-  overflow-x: auto;
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-pill);
-  scrollbar-width: none;
 }
 
 /* segments are pills in the control's border; the pressed one `ink` */
 .ev-seg button {
   flex: none;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 9px;
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
   color: var(--ink-2);
   font-size: var(--type-standfirst);
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) :is(.ev-seg button, .ev-select) {
+  min-height: 40px;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .ev-seg button {
+  padding: 0 14px;
 }
 
 .ev-seg button[aria-pressed="true"] {
@@ -65,60 +120,6 @@
 
 .ev-seg button:focus-visible {
   outline-offset: -3px;
-}
-
-/* The edge with water years scrolled past it fades out, so a control that
-   scrolls in place at phone width shows there is more of it. Not a shadow:
-   the years themselves thin out toward the edge (DESIGN.md, Flat). A mask
-   is alpha, not colour: opaque keeps a pixel, the floor leaves 15% of it. */
-.ev-seg {
-  --fade-edge: 48px;
-  --fade-keep: black;
-  --fade-floor: color-mix(in srgb, black 15%, transparent);
-}
-
-.ev-seg[data-more="end"] {
-  --fade: linear-gradient(
-    to right,
-    var(--fade-keep) calc(100% - var(--fade-edge)),
-    var(--fade-floor)
-  );
-}
-
-.ev-seg[data-more="start"] {
-  --fade: linear-gradient(
-    to left,
-    var(--fade-keep) calc(100% - var(--fade-edge)),
-    var(--fade-floor)
-  );
-}
-
-.ev-seg[data-more="both"] {
-  --fade: linear-gradient(
-    to right,
-    var(--fade-floor),
-    var(--fade-keep) var(--fade-edge),
-    var(--fade-keep) calc(100% - var(--fade-edge)),
-    var(--fade-floor)
-  );
-}
-
-.ev-seg[data-more="end"],
-.ev-seg[data-more="start"],
-.ev-seg[data-more="both"] {
-  -webkit-mask-image: var(--fade);
-  mask-image: var(--fade);
-}
-
-/* A water year the record does not cover: the gap hatch along its foot. */
-.ev-seg button[data-gap] {
-  position: relative;
-}
-
-.ev-seg-gap {
-  position: absolute;
-  inset: auto 0 0;
-  height: 4px;
 }
 
 /* ---------- stat strips ---------- */
@@ -169,54 +170,181 @@
   }
 }
 
-/* ---------- detail and list ---------- */
-.ev-grid {
+/* ---------- the rows ---------- */
+.ev-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.ev-row {
+  --surface: var(--tile);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-row);
+  background: var(--surface);
+  scroll-margin-top: calc(var(--ev-bar-top) + 72px);
+}
+
+:root[data-layout="phone"] .ev-row {
+  border-color: transparent;
+}
+
+.ev-row[data-open] {
+  border-color: var(--rule-strong);
+}
+
+.ev-row-head {
+  margin: 0;
+  font: inherit;
+}
+
+/* the closed row: start, length, peak and chip left, total right, the size
+   bar under both */
+.ev-open {
   display: grid;
-  gap: var(--s-7);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px var(--s-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--s-3) 14px;
+  border: 0;
+  border-radius: var(--r-row);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
-@media (min-width: 1024px) {
-  .ev-grid {
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    gap: var(--s-7) 56px;
-    align-items: start;
-  }
+.ev-row[data-open] .ev-open {
+  border-bottom: 1px solid var(--rule);
+  border-radius: var(--r-row) var(--r-row) 0 0;
 }
 
-.ev-detail {
-  display: grid;
-  gap: var(--s-1);
+.ev-open:focus-visible {
+  outline-offset: -3px;
 }
 
-.ev-tile[data-section="events"] {
-  scroll-margin-top: 64px;
+.ev-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--s-2);
+  font-size: var(--type-finding);
+  font-weight: 500;
+  line-height: 1.35;
 }
 
-.ev-detail > .ev-facts {
-  margin-top: var(--s-3);
+.ev-when {
+  white-space: nowrap;
 }
 
+.ev-total {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--type-stat);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-total small {
+  font-size: var(--type-label);
+  color: var(--ink-3);
+}
+
+.ev-meta {
+  grid-column: 1;
+  font-size: var(--type-source);
+  line-height: 1.5;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the size bar: a `rain-bar` pill on a full-width `rule` track */
+.ev-size {
+  grid-column: 1 / span 2;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: var(--r-pill);
+  background: var(--rule);
+}
+
+.ev-size > span {
+  display: block;
+  height: 4px;
+  min-width: 4px;
+  border-radius: var(--r-pill);
+  background: var(--rain-bar);
+}
+
+/* ---------- the open row ---------- */
+.ev-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3) 14px var(--s-2);
+}
+
+.ev-finding {
+  margin: 0;
+  font-size: var(--type-finding);
+  font-weight: 500;
+  line-height: 1.45;
+  max-width: 52ch;
+  text-wrap: pretty;
+}
+
+.ev-mode {
+  align-self: flex-start;
+}
+
+.ev-mode button,
+:root:is([data-layout="two"], [data-layout="four"]) .ev-mode button {
+  min-height: 36px;
+}
+
+/* the chart area keeps the curve's height while it loads or fails */
 .ev-charts {
   display: grid;
-  gap: var(--s-1);
-  margin-top: var(--s-3);
-}
-
-.ev-chart-label {
-  font-size: var(--type-label);
-  color: var(--ink-2);
-}
-
-.ev-chart-label + .ev-chart {
-  margin-bottom: var(--s-3);
-}
-
-.ev-acc {
   min-height: 240px;
 }
 
-.ev-rate {
-  min-height: 150px;
+.ev-chart {
+  min-height: 240px;
+}
+
+.ev-wait {
+  align-self: center;
+  margin: 0;
+  font-size: var(--type-source);
+  color: var(--ink-3);
+}
+
+.ev-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--ink-2);
+}
+
+.ev-failed p {
+  margin: 0;
+}
+
+.ev-quality {
+  margin: 0;
+  font-size: var(--type-source);
+  color: var(--ink-2);
+}
+
+.ev-body > .fold {
+  border-top: 1px solid var(--rule);
 }
 
 .ev-gap {
@@ -236,6 +364,10 @@
   max-width: 62ch;
 }
 
+.ev-body > .ev-note {
+  margin: 0;
+}
+
 /* The water year's gap, in place before the note that explains it. */
 .ev-season-gap .gap-block {
   display: inline-flex;
@@ -243,6 +375,30 @@
   /* Enough hatch round the haloed reason for the stripes to read. */
   padding: 3px var(--s-2);
   vertical-align: baseline;
+}
+
+/* the empty filter: one row-shaped tile under the bar */
+.ev-empty {
+  margin: 0;
+  padding: var(--s-4) 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-row);
+  background: var(--tile);
+  font-size: var(--type-standfirst);
+  color: var(--ink-2);
+}
+
+:root[data-layout="phone"] .ev-empty {
+  border-color: transparent;
+}
+
+/* ---------- the list's foot ---------- */
+.ev-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
 }
 
 .ev-retry,
@@ -257,11 +413,15 @@
   cursor: pointer;
 }
 
-.ev-more {
-  margin-top: var(--s-3);
+.ev-key {
+  margin: 0;
+  font-size: var(--type-source);
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 62ch;
 }
 
-/* ---------- the live mark: `now`, the one finding ---------- */
+/* ---------- the live mark and the latest chip ---------- */
 .ev-live {
   display: inline-flex;
   align-items: center;
@@ -279,127 +439,28 @@
   background: var(--now);
 }
 
-/* ---------- the table ---------- */
-.ev-list {
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.ev-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--type-standfirst);
-  font-variant-numeric: tabular-nums;
-}
-
-.ev-table th,
-.ev-table td {
-  padding: var(--s-2) var(--s-2);
-  text-align: right;
-  border-bottom: 1px solid var(--rule);
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.ev-table th:first-child,
-.ev-table td:first-child {
-  padding-left: 0;
-  text-align: left;
-}
-
-.ev-table th:last-child,
-.ev-table td:last-child {
-  padding-right: 0;
-}
-
-.ev-table thead th {
-  font-size: var(--type-label);
-  font-weight: 600;
-  color: var(--ink-2);
-  border-bottom-color: var(--rule-strong);
-}
-
-.ev-table tbody th {
-  font-weight: 400;
-  white-space: normal;
-}
-
-.ev-table tr.pin td,
-.ev-table tr.pin th {
-  border-bottom: 2px solid var(--rule-strong);
-}
-
-.ev-table tr[aria-current="true"] td,
-.ev-table tr[aria-current="true"] th {
-  background: var(--rule);
-}
-
-.ev-open {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: 32px;
-  color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: var(--rule-strong);
-}
-
-.ev-open {
-  flex-wrap: wrap;
-  column-gap: var(--s-2);
-  row-gap: 0;
-}
-
-.ev-when {
-  white-space: nowrap;
-}
-
-.ev-open:hover {
-  text-decoration-color: currentcolor;
-}
-
-tr[aria-current="true"] .ev-open {
-  color: var(--ink);
-  font-weight: 600;
-  text-decoration: none;
-}
-
+.ev-latest,
 .ev-chip {
   display: inline-block;
   padding: 0 7px;
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-pill);
   font-size: var(--type-label);
-  font-weight: 600;
-  font-variant-numeric: normal;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.ev-latest {
+  border-color: var(--now);
+  color: var(--now);
+}
+
+.ev-chip {
+  color: var(--ink-2);
 }
 
 .ev-chip.low {
   border-style: dashed;
   color: var(--ink-3);
-}
-
-/* a low quality folded into its row, shown only at phone width */
-.ev-chip-fold {
-  display: none;
-}
-
-/* the compact table: the peak and quality columns go; a low quality
-   folds into the event's row */
-@media (max-width: 479px) {
-  .ev-peak,
-  .ev-quality {
-    display: none;
-  }
-
-  .ev-chip-fold {
-    display: inline-block;
-    margin-top: 2px;
-  }
-
-  .ev-table th,
-  .ev-table td {
-    padding-left: var(--s-1);
-    padding-right: var(--s-1);
-  }
 }

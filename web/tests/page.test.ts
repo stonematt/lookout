@@ -169,15 +169,15 @@ describe("the refresh cycle", () => {
     const picked = first.rain_events.events[1]!.start_ms;
     tap(".ev-more");
     tap(`.ev-open[data-start='${picked}']`);
-    const shown = () => events.querySelectorAll(".ev-table tbody tr").length;
+    const shown = () => events.querySelectorAll(".ev-list .ev-row").length;
     expect(shown()).toBe(33);
-    const table = events.querySelector(".ev-table");
+    const list = events.querySelector(".ev-list .ev-row");
 
     await vi.advanceTimersByTimeAsync(CYCLE_MS);
 
-    expect(events.querySelector(".ev-table")).not.toBe(table); // redrawn
+    expect(events.querySelector(".ev-list .ev-row")).not.toBe(list); // redrawn
     expect(shown()).toBe(33);
-    const current = events.querySelector<HTMLElement>("tr[aria-current=true] .ev-open")!;
+    const current = events.querySelector<HTMLElement>(".ev-row[data-open] .ev-open")!;
     expect(Number(current.dataset.start)).toBe(picked);
   });
 

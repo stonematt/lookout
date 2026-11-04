@@ -12,7 +12,7 @@ const react = vi.fn(async () => {});
 vi.mock("plotly.js-dist-min", () => ({ default: { react } }));
 
 import { LABEL_CHAR_PX } from "../src/charts/svg.js";
-import { drawEventCharts, timeTicks } from "../src/events/charts.js";
+import { drawEventChart, timeTicks } from "../src/events/charts.js";
 import { listFinding } from "../src/events/model.js";
 import type { EventsDeps } from "../src/events/tab.js";
 import { mountEvents } from "../src/events/tab.js";
@@ -74,9 +74,9 @@ describe("the event charts", () => {
   async function draw(): Promise<
     { data: Record<string, unknown>[]; layout: Record<string, unknown> }[]
   > {
-    const accumulation = document.createElement("div");
-    const rate = document.createElement("div");
-    await drawEventCharts({ accumulation, rate }, curve(20), row());
+    const host = document.createElement("div");
+    await drawEventChart(host, curve(20), row(), { chart: "total", medianIn: 0.36 });
+    await drawEventChart(host, curve(20), row(), { chart: "rate", medianIn: 0.36 });
     return react.mock.calls.map((call) => {
       const [, data, layout] = call as unknown as [
         unknown,
@@ -100,6 +100,23 @@ describe("the event charts", () => {
     const dot = acc!.data.find((t) => t.mode === "markers")!;
 
     expect(dot.cliponaxis).toBe(false);
+  });
+
+  it("draws Total against the median event's total, dashed and labelled", async () => {
+    const [acc] = await draw();
+    const median = acc!.data.find(
+      (t) => (t.line as Record<string, unknown> | undefined)?.dash === "dash",
+    )!;
+    const notes = acc!.layout.annotations as Record<string, unknown>[];
+
+    expect(median.y).toEqual([0.36, 0.36]);
+    expect(notes.map((n) => n.text)).toContain("median 0.36 in");
+  });
+
+  it("draws Total and Rate at one height, so the switch keeps the row still", async () => {
+    const [acc, rate] = await draw();
+
+    expect(acc!.layout.height).toBe(rate!.layout.height);
   });
 
   it("gives both charts the same plain-time ticks", async () => {
@@ -209,24 +226,23 @@ describe("the water-year chart at phone width", () => {
   });
 });
 
-describe("the event table at phone width", () => {
-  it("folds a low quality into the event's row and marks the column to drop", () => {
+describe("the event list at phone width", () => {
+  it("carries every row's quality chip in its meta line, a poor one dashed", () => {
     history.replaceState(null, "", "/?fixture=raining#events");
     document.body.innerHTML = "<section id=panel></section>";
     const panel = document.getElementById("panel")!;
     const snapshot = parseDashboard(structuredClone(golden("raining", "dashboard")));
     snapshot.rain_events.events[2]!.quality = "poor";
     mountEvents(panel, snapshot, deps());
-    const rows = [...panel.querySelectorAll(".ev-table tbody tr")];
+    const rows = [...panel.querySelectorAll(".ev-list .ev-row")];
 
-    expect(panel.querySelector(".ev-table thead .ev-quality")!.textContent).toBe("Quality");
-    expect(rows.every((r) => r.querySelector("td.ev-quality .ev-chip"))).toBe(true);
-    const folded = [...panel.querySelectorAll(".ev-table tbody th .ev-chip-fold")];
-    expect(folded.map((chip) => chip.textContent)).toEqual(["poor"]);
+    expect(rows.every((r) => r.querySelector(".ev-meta .ev-chip"))).toBe(true);
+    const low = [...panel.querySelectorAll(".ev-meta .ev-chip.low")];
+    expect(low.map((chip) => chip.textContent)).toEqual(["poor"]);
   });
 });
 
-describe("the event table's start column", () => {
+describe("an event row's start", () => {
   it("can break an event's start between its date and its time", () => {
     history.replaceState(null, "", "/?fixture=raining#events");
     document.body.innerHTML = "<section id=panel></section>";
@@ -234,7 +250,7 @@ describe("the event table's start column", () => {
     const snapshot = parseDashboard(structuredClone(golden("raining", "dashboard")));
     // A year later, so every start carries its year: "Jan 4, 2026, 10:00 am".
     mountEvents(panel, snapshot, { ...deps(), nowMs: () => Date.UTC(2027, 5, 1) });
-    const start = panel.querySelector(".ev-table tbody tr:last-child .ev-open")!;
+    const start = panel.querySelector(".ev-list .ev-row:last-child .ev-open")!;
 
     const parts = [...start.querySelectorAll(".ev-when")].map((s) => s.textContent);
     expect(parts).toHaveLength(2);

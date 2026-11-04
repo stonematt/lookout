@@ -179,7 +179,7 @@ describe("the gap chip on these tabs", () => {
 });
 
 describe("an empty Event Catalog", () => {
-  it("keeps the catalog tile and drops the event tile", async () => {
+  it("keeps both tiles, the list saying there are no events under its filter bar", async () => {
     const snapshot = parsed("raining");
     snapshot.rain_events = {
       events: [],
@@ -189,7 +189,10 @@ describe("an empty Event Catalog", () => {
     };
     await boot(snapshot, "events");
 
-    expect(tiles("events").map((t) => t.dataset.section)).toEqual(["catalog"]);
+    expect(tiles("events").map((t) => t.dataset.section)).toEqual(["catalog", "events"]);
+    expect(words(panel("events").querySelector("[data-section=events] .ev-bar ~ .ev-list"))).toBe(
+      "No rain events on record yet.",
+    );
   });
 });
 
