@@ -18,7 +18,14 @@
  */
 
 /** The schema version this site reads. A breaking change bumps both sides. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
+
+/**
+ * The versions a curve file may carry. Its shape has not changed since 2,
+ * and stored curve files are never rewritten, so a version bump that leaves
+ * the curve alone adds to this list rather than replacing it.
+ */
+export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3];
 
 /** Which station a document is about. */
 export interface StationId {
@@ -589,6 +596,46 @@ export interface SolarTab {
   last_24h: SolarTrace | null;
 }
 
+/** The moon's named phase. */
+export type MoonPhase =
+  | "new"
+  | "waxing crescent"
+  | "first quarter"
+  | "waxing gibbous"
+  | "full"
+  | "waning gibbous"
+  | "last quarter"
+  | "waning crescent";
+
+/** Every named phase, from new moon round to new moon. */
+export const MOON_PHASES: readonly MoonPhase[] = [
+  "new",
+  "waxing crescent",
+  "first quarter",
+  "waxing gibbous",
+  "full",
+  "waning gibbous",
+  "last quarter",
+  "waning crescent",
+];
+
+/** The sun and moon on the station-local day (`lookout/snapshot/sun_moon.py`). */
+export interface SunMoon {
+  /** Today's sunrise, on the station-local day. */
+  sunrise_ms: number;
+  /** Today's sunset, on the station-local day. */
+  sunset_ms: number;
+  /** Sunrise to sunset, whole minutes. */
+  daylight_minutes: number;
+  /** Today's daylight against yesterday's: positive as days lengthen. */
+  daylight_change_minutes: number;
+  moon_phase: MoonPhase;
+  /** The lit share of the disc at local noon, 0 to 100. */
+  moon_illumination_pct: number;
+  /** Local days to the day of the next full moon; 0 on that day. */
+  days_to_full_moon: number;
+}
+
 /** A catalog the refresh run could not update (#118). */
 export type CatalogName = "events" | "energy";
 
@@ -636,6 +683,8 @@ export interface DashboardSnapshot extends SnapshotHead {
   almanac: Almanac;
   /** The Solar tab's data; null without an energy catalog. */
   solar_tab: SolarTab | null;
+  /** The sun and moon today; null when the station has no coordinates. */
+  sun_moon: SunMoon | null;
   /**
    * The catalogs this run could not update; empty on a normal run. Absent
    * from documents published before #118, which the parse reads as empty.
@@ -772,6 +821,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
   checkSolarTab(head.solar_tab);
+  checkSunMoon(head.sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
   return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
 }
@@ -805,6 +855,27 @@ export function staleCatalog(
   catalog: CatalogName,
 ): StaleCatalog | null {
   return snapshot.stale_catalogs.find((s) => s.catalog === catalog) ?? null;
+}
+
+function isCount(value: unknown, max = Infinity): boolean {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= max;
+}
+
+function checkSunMoon(block: unknown): void {
+  if (block === null) return;
+  if (
+    !isRecord(block) ||
+    !isTime(block.sunrise_ms) ||
+    !isTime(block.sunset_ms) ||
+    block.sunset_ms <= block.sunrise_ms ||
+    !isCount(block.daylight_minutes) ||
+    !Number.isInteger(block.daylight_change_minutes) ||
+    !MOON_PHASES.includes(block.moon_phase as MoonPhase) ||
+    !isCount(block.moon_illumination_pct, 100) ||
+    !isCount(block.days_to_full_moon)
+  ) {
+    throw new SnapshotContractError("dashboard: sun_moon malformed");
+  }
 }
 
 function checkSolarTab(tab: unknown): void {
@@ -904,10 +975,10 @@ export function parseEventCurve(doc: unknown): EventCurveDocument {
   if (!isRecord(doc) || doc.kind !== "event_curve") {
     throw new SnapshotContractError('expected kind "event_curve"');
   }
-  if (doc.schema_version !== SCHEMA_VERSION) {
+  if (!CURVE_SCHEMA_VERSIONS.includes(doc.schema_version as number)) {
     throw new SnapshotContractError(
       `event_curve: schema_version ${String(doc.schema_version)}, ` +
-        `this site reads ${SCHEMA_VERSION}`,
+        `this site reads ${CURVE_SCHEMA_VERSIONS.join(" or ")}`,
     );
   }
   if (!isTime(doc.start_ms) || !isTime(doc.end_ms)) {

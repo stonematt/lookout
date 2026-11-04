@@ -79,6 +79,41 @@ describe("parseDashboard", () => {
     expect(snap.current.temperature_f).toBe(39.4);
   });
 
+  it("reads the sun and moon (#344)", () => {
+    const sunMoon = parseDashboard(golden("dry", "dashboard")).sun_moon;
+    expect(sunMoon).not.toBeNull();
+    // 19 November 2025 in the station's zone; new moon that night, 22:47 PST.
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+    expect(day.format(sunMoon!.sunrise_ms)).toBe("2025-11-19");
+    expect(day.format(sunMoon!.sunset_ms)).toBe("2025-11-19");
+    expect(sunMoon!.daylight_change_minutes).toBeLessThan(0);
+    expect(sunMoon!.moon_phase).toBe("new");
+  });
+
+  it("reads a station with no coordinates as no sun and moon", () => {
+    const doc = { ...(golden("dry", "dashboard") as object), sun_moon: null };
+    expect(parseDashboard(doc).sun_moon).toBeNull();
+  });
+
+  it.each<[string, (block: Record<string, unknown>) => void]>([
+    ["an unknown moon phase", (b) => (b.moon_phase = "blue")],
+    ["illumination over 100", (b) => (b.moon_illumination_pct = 101)],
+    ["a sunset before sunrise", (b) => (b.sunset_ms = (b.sunrise_ms as number) - 1)],
+    ["a fractional day count", (b) => (b.days_to_full_moon = 1.5)],
+  ])("refuses sun and moon with %s", (_case, spoil) => {
+    const doc = structuredClone(golden("dry", "dashboard")) as {
+      sun_moon: Record<string, unknown>;
+    };
+    spoil(doc.sun_moon);
+    expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
+  });
+
+  it("refuses a dashboard missing sun_moon", () => {
+    const doc = { ...(golden("dry", "dashboard") as Record<string, unknown>) };
+    delete doc.sun_moon;
+    expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
+  });
+
   it("refuses a context block", () => {
     expect(() => parseDashboard(golden("dry", "context"))).toThrow(SnapshotContractError);
   });
