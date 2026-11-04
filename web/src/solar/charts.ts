@@ -23,7 +23,7 @@ import {
   runs,
   scrub,
   yAxis,
-  yTickCount,
+  yTickSteps,
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -130,7 +130,7 @@ export function drawTrace(
     ...values.filter((v): v is number => v !== null),
     ...high.filter((v): v is number => v !== null),
   );
-  const ticks = zeroTicks(top_value, yTickCount(width));
+  const ticks = zeroTicks(top_value, yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / (n - 1);
@@ -319,7 +319,7 @@ export function drawDailyBars(
   const [left, right, top, bottom] = [44, width - 6, 24, height - 22];
   const ticks = zeroTicks(
     Math.max(1, ...energy.filter((v): v is number => v !== null)),
-    yTickCount(width),
+    yTickSteps(width),
   );
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
@@ -409,7 +409,7 @@ export function drawDaySlots(
   const shown = slots.slice(FIRST_SLOT, LAST_SLOT + 1);
   const ticks = zeroTicks(
     Math.max(20, ...shown.filter((v): v is number => v !== null)),
-    yTickCount(width),
+    yTickSteps(width),
   );
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;

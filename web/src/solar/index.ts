@@ -17,7 +17,7 @@
 import "./solar.css";
 
 import { addDays, dayText, daysBetween, kwhPerM2 } from "../format.js";
-import { daysSwitch } from "../charts/days-switch.js";
+import { drawDays } from "../charts/days-switch.js";
 import { FALLBACK_WIDTH, drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
@@ -206,21 +206,20 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Moun
   const split = make("div", "tile-split");
   const bars = make("div", "tile-split-chart");
   const { chart, readout } = figure("Solar energy each day over the last 90 days");
-  // Under 520px of chart width, the last 30 days and the switch to 90.
-  const span = daysSwitch("Days shown", () => redraw(), BAR_DAYS);
-  bars.append(span.el, chart, readout);
+  bars.append(chart, readout);
   split.append(strip, bars);
   host.append(split);
-  const redraw = sized(chart, (w) => {
-    const days = span.days(w);
-    chart.setAttribute(
-      "aria-label",
-      `Solar energy each day over the last ${days} days. Use the arrow keys to read each mark.`,
-    );
-    lede.textContent = standfirst(days);
-    drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick, days);
-  });
-  mount.redraws.push(redraw);
+  // Under 520px of chart width, the last 30 days and the switch to 90.
+  mount.redraws.push(
+    drawDays(chart, {
+      all: BAR_DAYS,
+      name: (days) => `Solar energy each day over the last ${days} days`,
+      standfirst: lede,
+      lede: standfirst,
+      draw: (days, w) =>
+        drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick, days),
+    }),
+  );
   const windows = hatchedCount(tab.windows.map((w) => w.status));
   host.append(
     source(

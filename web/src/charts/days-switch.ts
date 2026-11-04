@@ -5,11 +5,12 @@
  * 520px the chart shows 90 and the switch is hidden. The switch slices the
  * days the snapshot sent; it is display state, never a decision.
  *
- * Offers `daysSwitch`.
+ * Offers `daysSwitch`, and `drawDays`, which draws a chart of days through
+ * one.
  */
 import "./days-switch.css";
 
-import { NARROW, PHONE_DAYS } from "./svg.js";
+import { NARROW, PHONE_DAYS, drawSized } from "./svg.js";
 import { make } from "../dom.js";
 
 /** A chart's 30 / 90 switch. */
@@ -66,4 +67,38 @@ export function daysSwitch(label: string, onChange: () => void, all = 90): DaysS
     },
     chosen: () => chosen,
   };
+}
+
+/** What `drawDays` draws, and the words that follow the days shown. */
+export interface DaysChart {
+  /** The days the snapshot sends. */
+  all: number;
+  /** The chart's accessible name, given the days it shows. */
+  name: (days: number) => string;
+  /** The tile's standfirst, which follows the days shown; null for none. */
+  standfirst: HTMLElement | null;
+  /** The standfirst's words, given the days shown. */
+  lede: (days: number) => string;
+  /** Draws the chart's last `days` at a width. */
+  draw: (days: number, width: number) => void;
+}
+
+/**
+ * Draw a chart of days at its width, through a 30 / 90 switch mounted just
+ * above it: the last 30 at phone chart width until the switch shows 90.
+ *
+ * @param chart - The chart's figure, already in its tile.
+ * @param spec - What to draw.
+ * @returns Draws it again (when the selected day changes).
+ */
+export function drawDays(chart: HTMLElement, spec: DaysChart): () => void {
+  const span = daysSwitch("Days shown", () => redraw(), spec.all);
+  chart.before(span.el);
+  const redraw = drawSized(chart, (width) => {
+    const days = span.days(width);
+    chart.setAttribute("aria-label", `${spec.name(days)}. Use the arrow keys to read each mark.`);
+    if (spec.standfirst) spec.standfirst.textContent = spec.lede(days);
+    spec.draw(days, width);
+  });
+  return redraw;
 }

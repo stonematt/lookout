@@ -30,7 +30,7 @@ import {
   WET_DAY_IN,
   wattsPerM2,
 } from "../format.js";
-import { NARROW, aboveDot, niceTicks, scale } from "../charts/svg.js";
+import { NARROW, aboveDot, niceTicks, scale, yTickSteps } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
@@ -401,7 +401,7 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   hi += pad;
   // Three ticks on a phone: two steps, and a third tick above when the
   // span holds only one.
-  const ticks = niceTicks(lo, hi, narrow ? 2 : 5);
+  const ticks = narrow ? niceTicks(lo, hi, yTickSteps(width)) : niceTicks(lo, hi);
   if (narrow && ticks.length === 2) ticks.push(+(2 * ticks[1]! - ticks[0]!).toPrecision(6));
   lo = Math.min(lo, ticks[0] ?? lo);
   hi = Math.max(hi, ticks.at(-1) ?? hi);

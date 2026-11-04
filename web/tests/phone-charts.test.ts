@@ -414,6 +414,21 @@ describe("the Rain tab's daily bars in 30 and 90 days", () => {
   const today = (t: HTMLElement) =>
     t.querySelector(".rain-chart .rain-now-label")?.textContent ?? null;
 
+  it("hatches the hour grid's missing days in the days shown", () => {
+    layOut(PHONE);
+    const host = panel();
+    renderRain(host, gapped());
+    const t = tile(host, "hours");
+    const columns = () =>
+      [...t.querySelectorAll(".rain-chart svg > rect:not(.rain-cell)")].filter((r) =>
+        r.getAttribute("fill")?.startsWith("url("),
+      ).length;
+
+    expect(columns()).toBe(1);
+    press(t, 90);
+    expect(columns()).toBe(2);
+  });
+
   it("hatches the days missing in the days shown and marks today in both", () => {
     layOut(PHONE);
     const host = panel();
@@ -648,6 +663,31 @@ describe("an event chart's redraws", () => {
     fire.resize();
     await vi.waitFor(() => expect(react.mock.calls.length).toBe(2));
     expect(yTicks()).toEqual([0, 3]);
+  });
+
+  it("draws every word at 12px or more", async () => {
+    fakes();
+    layOut(PHONE);
+    for (const chart of ["total", "rate"] as const) {
+      await drawEventChart(document.createElement("div"), curve(20), row(), {
+        chart,
+        medianIn: 0.36,
+      });
+    }
+    const sizes: number[] = [];
+    const walk = (value: unknown, key = ""): void => {
+      if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) walk(v, k);
+      } else if (key === "size" && typeof value === "number") sizes.push(value);
+    };
+    for (const call of react.mock.calls) {
+      const layout = (call as unknown[])[2] as Record<string, unknown>;
+      for (const part of ["font", "xaxis", "yaxis", "annotations", "hoverlabel"])
+        walk(layout[part]);
+    }
+
+    expect(sizes.length).toBeGreaterThan(4);
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(12);
   });
 
   it("redraws every chart in the page when the colour scheme changes", async () => {

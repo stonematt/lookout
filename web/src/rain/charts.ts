@@ -32,7 +32,7 @@ import {
   runs,
   scrub,
   yAxis,
-  yTickCount,
+  yTickSteps,
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -124,7 +124,7 @@ export function drawDailyBars(
   const height = 168;
   const [left, right, top, bottom] = [40, width - 6, 22, height - 22];
   const values = recent.rain_in.filter((v): v is number => v !== null);
-  const ticks = zeroTicks(Math.max(0.1, ...values), yTickCount(width));
+  const ticks = zeroTicks(Math.max(0.1, ...values), yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / count;
@@ -198,7 +198,7 @@ export function drawYearCurves(
   const margin = longest ? Math.ceil(longest * LABEL_CHAR_PX) + 10 : 12;
   const [left, right, top, bottom] = [40, width - margin, 18, height - 24];
   const values = shown.flatMap((c) => c.cumulative_in.filter((v): v is number => v !== null));
-  const ticks = zeroTicks(Math.max(1, ...values), yTickCount(width));
+  const ticks = zeroTicks(Math.max(1, ...values), yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / 364;

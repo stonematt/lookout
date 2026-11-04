@@ -24,8 +24,11 @@ export const LABEL_CHAR_PX = 6.8;
  */
 export const NARROW = 520;
 
-/** How many y ticks a chart of this width draws, about: three on a phone. */
-export const yTickCount = (width: number): number => (width < NARROW ? 2 : 4);
+/**
+ * How many steps a chart of this width divides its y axis into, about
+ * (`zeroTicks`' count): two on a phone, so three ticks.
+ */
+export const yTickSteps = (width: number): number => (width < NARROW ? 2 : 4);
 
 /** Days a chart of days shows by default at phone width (the 30 / 90 switch). */
 export const PHONE_DAYS = 30;
