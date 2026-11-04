@@ -17,6 +17,7 @@
 import "./solar.css";
 
 import { addDays, dayText, daysBetween, kwhPerM2 } from "../format.js";
+import { drawDays } from "../charts/days-switch.js";
 import { FALLBACK_WIDTH, drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
@@ -187,11 +188,9 @@ function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab
 /** The daily tile: window totals, then 90 days of bars. */
 function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Mount): void {
   const { tab, state, pick } = mount;
-  heading(
-    host,
-    dailyHeadline(snapshot),
-    "Energy over each window ending today, then each day of the last 90. Select a day to see its 15 minutes below.",
-  );
+  const standfirst = (days: number) =>
+    `Energy over each window ending today, then each day of the last ${days}. Select a day to see its 15 minutes below.`;
+  const { lede } = heading(host, dailyHeadline(snapshot), standfirst(BAR_DAYS));
   const strip = make("dl", "solar-stats");
   for (const window of tab.windows) {
     const item = document.createElement("div");
@@ -210,10 +209,16 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot, mount: Moun
   bars.append(chart, readout);
   split.append(strip, bars);
   host.append(split);
+  // Under 520px of chart width, the last 30 days and the switch to 90.
   mount.redraws.push(
-    sized(chart, (w) =>
-      drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick),
-    ),
+    drawDays(chart, {
+      all: Math.min(BAR_DAYS, tab.days.energy_kwh_m2.length),
+      name: (days) => `Solar energy each day over the last ${days} days`,
+      standfirst: lede,
+      lede: standfirst,
+      draw: (days, w) =>
+        drawDailyBars(chart, tab, state.day, w, (t) => (readout.textContent = t), pick, days),
+    }),
   );
   const windows = hatchedCount(tab.windows.map((w) => w.status));
   host.append(

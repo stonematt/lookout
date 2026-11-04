@@ -26,11 +26,13 @@ import {
   type Readout,
   canvas,
   chartLabel,
+  aboveDot,
+  dayTicks,
   hatchMissingDays,
-  monthTicks,
   runs,
   scrub,
   yAxis,
+  yTickSteps,
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -73,6 +75,27 @@ function hatchDays(
   }
 }
 
+/**
+ * The last `days` of the recent window, the same days as the snapshot
+ * sent with their reasons and hours (the 30 / 90 switch slices, it never
+ * decides).
+ *
+ * @param recent - The snapshot's recent days.
+ * @param days - How many to keep, from today back.
+ * @returns The window from its new first day.
+ */
+export function lastDays(recent: RecentRain, days: number): RecentRain {
+  const offset = Math.max(0, recent.rain_in.length - days);
+  if (offset === 0) return recent;
+  return {
+    ...recent,
+    first_day: addDays(recent.first_day, offset),
+    rain_in: recent.rain_in.slice(offset),
+    reason: recent.reason.slice(offset),
+    hourly_in: recent.hourly_in.slice(offset),
+  };
+}
+
 /** One day's sentence: its total, or why it is not counted. */
 function daySentence(recent: RecentRain, i: number, isToday: boolean): string {
   const day = addDays(recent.first_day, i);
@@ -101,7 +124,7 @@ export function drawDailyBars(
   const height = 168;
   const [left, right, top, bottom] = [40, width - 6, 22, height - 22];
   const values = recent.rain_in.filter((v): v is number => v !== null);
-  const ticks = zeroTicks(Math.max(0.1, ...values));
+  const ticks = zeroTicks(Math.max(0.1, ...values), yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / count;
@@ -135,7 +158,7 @@ export function drawDailyBars(
     svg.append(svgEl("line", { x1: at, x2: at, y1: top - 4, y2: bottom, class: "rain-now-rule" }));
     svg.append(chartLabel(at, top - 8, `today ${inches(today)}`, "rain-now-label", "end"));
   }
-  monthTicks(svg, recent.first_day, count, x, bottom + 4, "rain");
+  dayTicks(svg, recent.first_day, count, x, step, bottom + 4, "rain");
   host.replaceChildren(svg);
   scrub(
     host,
@@ -175,7 +198,7 @@ export function drawYearCurves(
   const margin = longest ? Math.ceil(longest * LABEL_CHAR_PX) + 10 : 12;
   const [left, right, top, bottom] = [40, width - margin, 18, height - 24];
   const values = shown.flatMap((c) => c.cumulative_in.filter((v): v is number => v !== null));
-  const ticks = zeroTicks(Math.max(1, ...values));
+  const ticks = zeroTicks(Math.max(1, ...values), yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / 364;
@@ -243,16 +266,22 @@ export function drawYearCurves(
       const cx = x(place);
       svg.append(svgEl("circle", { cx, cy: y(value), r: 5, class: "rain-now-dot" }));
       const text = `${current.water_year} now ${curveValue(current, place)}`;
-      const anchor = cx > (left + right) / 2 ? "end" : "start";
-      svg.append(
-        chartLabel(
-          cx + (anchor === "end" ? -8 : 8),
-          Math.max(top + 4, y(value) - 10),
-          text,
-          "rain-now-label",
-          anchor,
-        ),
-      );
+      if (narrow) {
+        // On a phone the label sits above its dot.
+        const at = aboveDot(cx, y(value), text, 0, width, 12);
+        svg.append(chartLabel(at.x, at.y, text, "rain-now-label", at.anchor));
+      } else {
+        const anchor = cx > (left + right) / 2 ? "end" : "start";
+        svg.append(
+          chartLabel(
+            cx + (anchor === "end" ? -8 : 8),
+            Math.max(top + 4, y(value) - 10),
+            text,
+            "rain-now-label",
+            anchor,
+          ),
+        );
+      }
     }
   }
 
@@ -348,7 +377,7 @@ export function drawHourGrid(
       ),
     );
   });
-  monthTicks(svg, recent.first_day, count, x, bottom + 4, "rain");
+  dayTicks(svg, recent.first_day, count, x, step, bottom + 4, "rain");
   host.replaceChildren(svg);
   scrub(
     host,

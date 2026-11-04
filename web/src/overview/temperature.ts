@@ -17,7 +17,7 @@
 import "./temperature.css";
 
 import { degrees, inches } from "../format.js";
-import { LABEL_CHAR_PX, niceTicks, scale } from "../charts/svg.js";
+import { LABEL_CHAR_PX, NARROW, aboveDot, niceTicks, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapLabel, gapSentence, gapValue, isComparable, svgHatch } from "../gaps.js";
 import type {
@@ -195,13 +195,17 @@ export function periodSentence(p: TemperaturePeriod): string {
 function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const ctx = snapshot.temperature_context;
   const now = ctx.now;
-  const narrow = width < 520;
-  const rowH = 46;
+  // On a phone each row's label sits above its bar, so the bar gets the
+  // whole width; from 520px of chart width the labels are a column.
+  const narrow = width < NARROW;
+  const rowH = narrow ? 50 : 46;
   // The label column fits the longest span ("Nov 1, 2025 to Oct 31"), so
   // a whisker at the plot's left edge never runs under it.
   const longest = Math.max(0, ...ctx.periods.map((p) => spanText(p.status).length));
-  const left = Math.max(narrow ? 82 : 118, Math.ceil(longest * LABEL_CHAR_PX) + 8);
-  const f = { l: left, r: 12, t: 34, b: 26 };
+  const left = narrow ? 0 : Math.max(118, Math.ceil(longest * LABEL_CHAR_PX) + 8);
+  const f = { l: left, r: narrow ? 0 : 12, t: 34, b: 26 };
+  // A row's bar: centred in the row beside its label, under it on a phone.
+  const barY = (i: number) => (narrow ? i * rowH + 36 : i * rowH + rowH / 2);
   const iw = width - f.l - f.r;
   const ih = rowH * ctx.periods.length;
   const height = f.t + ih + f.b;
@@ -231,27 +235,32 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
     // The note is 13px bold, a little wider than a 12.5px label.
     const note = `now ${degrees(now)}`;
     const right = nx + 8 + note.length * LABEL_CHAR_PX * 1.15 > iw + f.r;
-    g.append(
-      svgEl(
-        "text",
-        {
-          class: "tc-note",
-          x: right ? nx - 8 : nx + 8,
-          y: -14,
-          "text-anchor": right ? "end" : "start",
-        },
-        note,
-      ),
-    );
+    // On a phone the note sits above its dot.
+    const at = narrow
+      ? aboveDot(nx, -8, note, 0, iw, 12 - f.t)
+      : { x: right ? nx - 8 : nx + 8, y: -14, anchor: right ? "end" : "start" };
+    g.append(svgEl("text", { class: "tc-note", x: at.x, y: at.y, "text-anchor": at.anchor }, note));
   }
   ctx.periods.forEach((p, i) => {
-    const cy = i * rowH + rowH / 2;
-    labels.append(
-      svgEl("text", { class: "tc-row", x: 2, y: cy - 2 }, NAMES[p.status.key] ?? p.status.key),
-      svgEl("text", { class: "tc-sub", x: 2, y: cy + 13 }, spanText(p.status)),
-    );
+    const cy = barY(i);
+    const name = NAMES[p.status.key] ?? p.status.key;
+    if (narrow) {
+      // The name and its span on one line above the bar. The row name is
+      // 13px, a little wider than a 12.5px label.
+      const y = i * rowH + 18;
+      const after = Math.ceil(name.length * LABEL_CHAR_PX * 1.1) + 8;
+      labels.append(
+        svgEl("text", { class: "tc-row", x: 0, y }, name),
+        svgEl("text", { class: "tc-sub", x: after, y }, spanText(p.status)),
+      );
+    } else {
+      labels.append(
+        svgEl("text", { class: "tc-row", x: 2, y: cy - 2 }, name),
+        svgEl("text", { class: "tc-sub", x: 2, y: cy + 13 }, spanText(p.status)),
+      );
+    }
     if (p.low === null || p.high === null || p.q1 === null || p.q3 === null) {
-      hatchRow(g, hatch, p.status, 0, iw, cy, 15);
+      hatchRow(g, hatch, p.status, 0, iw, cy, narrow ? 10 : 15);
       return;
     }
     const lowText = gapValue(p.status, degrees(p.low, 0))!;

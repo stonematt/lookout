@@ -7,7 +7,7 @@
  * prefix, so its stylesheet keeps its own look.
  */
 import { svgEl } from "../dom.js";
-import { MONTHS, addDays } from "../format.js";
+import { MONTHS, addDays, dayText } from "../format.js";
 import { reasonLabel, svgHatch } from "../gaps.js";
 import type { GapReason } from "../snapshot.js";
 
@@ -17,8 +17,21 @@ export const FALLBACK_WIDTH = 640;
 /** About how wide one character of a 12.5px chart label is. */
 export const LABEL_CHAR_PX = 6.8;
 
-/** Below this chart width, ticks thin out and labels shorten. */
+/**
+ * Below this chart width a chart draws its phone layout (DESIGN.md, "The
+ * Chart Width Rule"): ticks thin out, labels shorten, the now label sits
+ * above its dot, and a chart of days shows its last 30.
+ */
 export const NARROW = 520;
+
+/**
+ * How many steps a chart of this width divides its y axis into, about
+ * (`zeroTicks`' count): two on a phone, so three ticks.
+ */
+export const yTickSteps = (width: number): number => (width < NARROW ? 2 : 4);
+
+/** Days a chart of days shows by default at phone width (the 30 / 90 switch). */
+export const PHONE_DAYS = 30;
 
 /** What a chart writes to its readout for one position. */
 export type Readout = (text: string) => void;
@@ -149,6 +162,82 @@ export function monthTicks(
   }
 }
 
+/**
+ * Date ticks under a short row of day columns (a month or so): today's
+ * date at the right, then every two weeks back, e.g. "Oct 5 · Oct 19 ·
+ * Nov 2". A longer row is ticked by month (`monthTicks`).
+ *
+ * @param svg - The chart.
+ * @param first - The first column's day, "YYYY-MM-DD".
+ * @param count - How many columns.
+ * @param x - Day index to its column's left edge.
+ * @param step - A column's width.
+ * @param y - The ticks' top.
+ * @param prefix - The chart family's class prefix, e.g. "rain".
+ */
+export function dayTicks(
+  svg: SVGSVGElement,
+  first: string,
+  count: number,
+  x: (i: number) => number,
+  step: number,
+  y: number,
+  prefix: string,
+): void {
+  if (count > 45) {
+    monthTicks(svg, first, count, x, y, prefix);
+    return;
+  }
+  for (let i = count - 1; i >= 0; i -= 14) {
+    const at = x(i) + step / 2;
+    const text = dayText(addDays(first, i));
+    // The newest ends at the plot's right edge; one too close to the left
+    // edge to centre starts there.
+    const anchor =
+      i === count - 1 ? "end" : at - (text.length * LABEL_CHAR_PX) / 2 < x(0) ? "start" : "middle";
+    const lx = anchor === "end" ? x(i) + step : anchor === "start" ? x(0) : at;
+    svg.append(svgEl("line", { x1: at, x2: at, y1: y - 4, y2: y, class: `${prefix}-axis` }));
+    svg.append(
+      svgEl("text", { x: lx, y: y + 13, class: `${prefix}-tick`, "text-anchor": anchor }, text),
+    );
+  }
+}
+
+/** Where a now label goes on a phone: centred over its dot, kept inside. */
+export interface AboveDot {
+  x: number;
+  y: number;
+  anchor: "start" | "middle" | "end";
+}
+
+/**
+ * The now label above its dot (the phone layout): centred over it, or
+ * ending (or starting) at it where centring would run off the plot.
+ *
+ * @param cx - The dot's centre.
+ * @param cy - The dot's centre.
+ * @param text - The label.
+ * @param left - The plot's left edge.
+ * @param right - The plot's right edge (the label may reach the chart's).
+ * @param minY - The highest baseline the chart has room for.
+ * @returns The label's anchor point and text-anchor.
+ */
+export function aboveDot(
+  cx: number,
+  cy: number,
+  text: string,
+  left: number,
+  right: number,
+  minY: number,
+): AboveDot {
+  // The annotation is 13px bold, a little wider than a 12.5px label.
+  const half = (text.length * LABEL_CHAR_PX * 1.15) / 2;
+  const y = Math.max(minY, cy - 12);
+  if (cx + half > right) return { x: Math.min(cx + 6, right), y, anchor: "end" };
+  if (cx - half < left) return { x: Math.max(cx - 6, left), y, anchor: "start" };
+  return { x: cx, y, anchor: "middle" };
+}
+
 /** How a y axis names its unit. */
 export interface AxisUnit {
   /** The unit, e.g. " in", "kWh/m²". */
@@ -226,17 +315,19 @@ export function zeroTicks(max: number, count = 4): number[] {
 }
 
 /**
- * Up to five round ticks over [lo, hi].
+ * Round ticks over [lo, hi]: up to five, or as few as a phone wants.
  *
  * @param lo - The low end.
  * @param hi - The high end.
+ * @param steps - At most how many steps the span holds; 2 gives three ticks.
  * @returns The ticks, ascending.
  */
-export function niceTicks(lo: number, hi: number): number[] {
+export function niceTicks(lo: number, hi: number, steps = 5): number[] {
   const span = hi - lo || 1;
   const raw = span / 4;
   const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= 5) ?? raw;
+  const step =
+    [1, 2, 2.5, 5, 10, 20, 25, 50].map((m) => m * mag).find((s) => span / s <= steps) ?? raw;
   const ticks: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step)
     ticks.push(Number(v.toPrecision(6)));
@@ -326,8 +417,9 @@ export function scrub(
  *
  * @param host - The chart's host.
  * @param draw - Draws at a width.
+ * @returns Draws again at the last width (a switch changed what is shown).
  */
-export function drawSized(host: HTMLElement, draw: (width: number) => void): void {
+export function drawSized(host: HTMLElement, draw: (width: number) => void): () => void {
   let drawn = 0;
   const redraw = () => {
     const width = Math.floor(host.clientWidth) || FALLBACK_WIDTH;
@@ -341,4 +433,5 @@ export function drawSized(host: HTMLElement, draw: (width: number) => void): voi
       if (host.clientWidth > 0) redraw();
     }).observe(host);
   }
+  return () => draw(drawn || FALLBACK_WIDTH);
 }

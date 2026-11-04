@@ -19,7 +19,7 @@
  * known".
  */
 import { stationFormat, dayText, hourText, inches } from "../format.js";
-import { FALLBACK_WIDTH } from "../charts/svg.js";
+import { FALLBACK_WIDTH, NARROW } from "../charts/svg.js";
 import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
 
@@ -289,9 +289,16 @@ export async function drawEventChart(
   // less the side margins.
   const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
   const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
-  const ticks = timeTicks(fromMs, toMs, (host.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r);
+  const width = host.clientWidth || FALLBACK_WIDTH;
+  const ticks = timeTicks(fromMs, toMs, width - MARGIN.l - MARGIN.r);
+  // Three y ticks on a phone (under 520px of chart, the Chart Width Rule).
+  const nticks = width < NARROW ? 3 : 0;
+  // Drawn again at its real width, and in a new colour scheme.
+  watchRedraw(host, () => drawEventChart(host, curve, row, options));
   if (options.chart === "rate") {
-    await Plotly.react(host, ...rateChart(curve, spans, ticks, xRange), config);
+    const [traces, layout] = rateChart(curve, spans, ticks, xRange);
+    layout.yaxis = { ...layout.yaxis, nticks };
+    await Plotly.react(host, traces, layout, config);
     return;
   }
   const line = accumulationLine(curve, spans);
@@ -347,7 +354,7 @@ export async function drawEventChart(
   });
   const accLayout = baseLayout(CHART_HEIGHT, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
-  accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
+  accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn], nticks };
   accLayout.annotations = [
     ...gapLabels(spans, widthMs),
     {
@@ -406,4 +413,41 @@ function rateChart(
   };
   layout.xaxis = { ...layout.xaxis, range: xRange };
   return [traces, layout];
+}
+
+/** Each watched chart's latest redraw, by its host. */
+const redraws = new WeakMap<HTMLElement, () => unknown>();
+
+/**
+ * Redraw a Plotly chart when it can next be drawn right: when its host
+ * takes a new width (a chart first drawn hidden, in a closed row or a tab
+ * not yet open, had no width, so it got the fallback's desktop ticks), and
+ * when the colour scheme changes (Plotly bakes the theme's colours in when
+ * it draws). A host watched again keeps only its latest redraw (the Total /
+ * Rate switch redraws the same host); one no longer in the page stops
+ * listening at the next change.
+ *
+ * @param host - The chart's host.
+ * @param redraw - Draws it again, at its width now, in the theme now.
+ */
+export function watchRedraw(host: HTMLElement, redraw: () => unknown): void {
+  const known = redraws.has(host);
+  redraws.set(host, redraw);
+  if (known) return;
+  if (typeof ResizeObserver === "function") {
+    let drawn = host.clientWidth;
+    new ResizeObserver(() => {
+      const width = host.clientWidth;
+      if (width === 0 || width === drawn) return;
+      drawn = width;
+      void redraws.get(host)?.();
+    }).observe(host);
+  }
+  if (typeof matchMedia !== "function") return;
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const onChange = () => {
+    if (host.isConnected) void redraws.get(host)?.();
+    else scheme.removeEventListener?.("change", onChange);
+  };
+  scheme.addEventListener?.("change", onChange);
 }

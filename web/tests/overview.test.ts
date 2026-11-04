@@ -274,14 +274,14 @@ describe("the 48-hour condition ribbon", () => {
     // Jan 6, 4:30 pm to Jan 8, 4:30 pm Pacific.
     // Thursday noon (91% across) sits under the "now" label.
     expect(ticks).toEqual(["Wed", "6 am", "noon", "6 pm", "Thu", "6 am"]);
-    // Thursday 6 am (78%) would run into it on a phone: marked late.
-    expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.late)).toEqual([
-      false,
-      false,
+    // The midnights name their days: a phone-width ribbon shows only them.
+    expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.day)).toEqual([
+      true,
       false,
       false,
       false,
       true,
+      false,
     ]);
   });
 
