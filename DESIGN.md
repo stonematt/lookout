@@ -441,7 +441,7 @@ Flat. No shadows. Depth is tile on ground, and the one tinted now tile. Inside c
 
 ## Shapes
 
-Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. The ribbon 6px. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 3 to 4px on an 8px repeat. Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
+Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. The ribbon 6px. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 2px on a 12px repeat (2px on a 6px repeat in a chip swatch, which is 12px square). Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
 
 ## Components
 

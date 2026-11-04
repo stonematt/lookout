@@ -58,13 +58,24 @@ a {
 }
 
 /*
- * the 135° hatch: the one visual word for "not valid". `hatch` stripes, 4px
- * on an 8px repeat, over the surface the hatch sits on; set per element so a
- * tile's `--surface` (or a now tile's `--hatch`) reaches it.
+ * the 135° hatch: the one visual word for "not valid". `hatch` stripes, 2px
+ * on a 12px repeat (2px on 6px in a chip swatch), over the surface the hatch
+ * sits on; set per element so a tile's `--surface` (or a now tile's `--hatch`) reaches it.
  */
-.gap-hatch,
+.gap-hatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 var(--hatch-stripe),
+    var(--surface) var(--hatch-stripe) var(--hatch-repeat)
+  );
+}
+
 .hatch-swatch {
-  background: repeating-linear-gradient(135deg, var(--hatch) 0 4px, var(--surface) 4px 8px);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 var(--hatch-chip-stripe),
+    var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat)
+  );
 }
 
 /* a hatched chip's swatch: the stripes beside the text, never under it */
@@ -285,7 +296,11 @@ a {
   width: 12px;
   height: 12px;
   border-radius: var(--r-cell);
-  background: repeating-linear-gradient(135deg, var(--hatch) 0 4px, var(--surface) 4px 8px);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 var(--hatch-chip-stripe),
+    var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat)
+  );
 }
 
 .masthead-line[hidden] {

@@ -39,9 +39,9 @@ const LABELS: Record<GapReason, string> = {
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
 const COMPACT_LABEL = "n/a";
 
-/** The hatch's repeat and its stripe (DESIGN.md: 4px on an 8px repeat). */
-const HATCH_REPEAT_PX = 8;
-const HATCH_STRIPE_PX = 4;
+/** The hatch's repeat and its stripe (DESIGN.md: 2px on a 12px repeat). */
+const HATCH_REPEAT_PX = 12;
+const HATCH_STRIPE_PX = 2;
 
 /**
  * A one-day gap status, so a day's reason reads like any window's.
@@ -299,5 +299,5 @@ export interface PlotlyHatch {
  * @returns The `marker.pattern`.
  */
 export function plotlyHatch(stripe: string, ground: string): PlotlyHatch {
-  return { shape: "\\", fgcolor: stripe, bgcolor: ground, size: HATCH_REPEAT_PX, solidity: 0.45 };
+  return { shape: "\\", fgcolor: stripe, bgcolor: ground, size: HATCH_REPEAT_PX, solidity: 0.17 };
 }

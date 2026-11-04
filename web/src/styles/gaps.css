@@ -1,7 +1,7 @@
 /*
  * The gap hatch with its reason in place (`src/gaps.ts`).
  * DESIGN.md: hatching is the one visual word for "not valid": 135° stripes,
- * 4px `hatch` stripes on an 8px repeat over the surface (`.gap-hatch` in
+ * 2px `hatch` stripes on a 12px repeat over the surface (`.gap-hatch` in
  * base.css), cell corners, no value under it, and a short reason, left-aligned,
  * on a halo of the surface it sits on.
  */
