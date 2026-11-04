@@ -4,7 +4,8 @@
  * ramp on a square-root scale with each cell's text in the cell ink that
  * passes there (`--on-rain-<step>`, tokens.css), ≈ for prorated, the hatch
  * for invalid, a dashed `rule-strong` outline before the archive, the current
- * month hatched and outlined in `now` outside the cell with a 1px gap, the
+ * month filled from the ramp by its total so far and outlined in `now`
+ * outside the cell with a 1px gap (hatched only with no total), the
  * selected cell ringed 2px in `ink`. Tables: tabular digits, 12px ink-2
  * headers over `rule-strong`, `rule` row dividers, numbers right-aligned.
  */
@@ -106,8 +107,9 @@ button.alm-cell {
   border: 1px dashed var(--rule-strong);
 }
 
-/* the current month: not yet comparable, so hatched, and outlined in `now`
-   outside the cell with a 1px gap; its rain so far on a halo */
+/* the current month: not yet comparable, so outlined in `now` outside the
+   cell with a 1px gap, and filled from the ramp by its rain so far like the
+   season cell; with no total so far it stays hatched, its text on a halo */
 .alm-cell[data-kind="current"],
 .alm-season[data-kind="current"] .alm-value {
   outline: 2px solid var(--now);
@@ -115,12 +117,15 @@ button.alm-cell {
 }
 
 .alm-cell[data-kind="current"] {
-  background: repeating-linear-gradient(135deg, var(--hatch) 0 4px, var(--surface) 4px 8px);
-  color: var(--ink);
   font-weight: 600;
 }
 
-.alm-cell[data-kind="current"] .alm-value {
+.alm-cell[data-kind="current"]:not([data-step]) {
+  background: repeating-linear-gradient(135deg, var(--hatch) 0 4px, var(--surface) 4px 8px);
+  color: var(--ink);
+}
+
+.alm-cell[data-kind="current"]:not([data-step]) .alm-value {
   padding: 1px 3px;
   border-radius: var(--r-cell);
   background: var(--surface);
@@ -239,7 +244,7 @@ th.alm-season {
 .alm-key-swatch[data-kind="current"] {
   outline: 2px solid var(--now);
   outline-offset: 1px;
-  background: repeating-linear-gradient(135deg, var(--hatch) 0 3px, var(--surface) 3px 6px);
+  background: var(--rain-2);
 }
 
 /* ---------- the readout ---------- */

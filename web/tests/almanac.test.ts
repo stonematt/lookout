@@ -180,12 +180,25 @@ describe("the almanac grid", () => {
   it("gives every month its gap status", () => {
     expect(cell("2025-10").dataset.kind).toBe("current");
     expect(text(cell("2025-10").querySelector(".alm-value"))).toBe("0.30");
+    // Filled from the ramp by its total so far: no hatch.
+    expect(cell("2025-10").dataset.step).toBeDefined();
+    expect(cell("2025-10").classList).not.toContain("gap-hatch");
     expect(cell("2024-08").dataset.kind).toBe("before");
     expect(cell("2024-08").querySelector(".alm-value")).toBeNull();
     expect(cell("2024-12").dataset.kind).toBe("valid");
     // Nov 2025 onward has not begun: an empty slot, not a button.
     const row = host.querySelector('tr[data-water-year="2026"]')!;
     expect(row.querySelectorAll("button.alm-cell")).toHaveLength(1);
+  });
+
+  it("keeps a current month with no total so far hatched, with no ramp step", () => {
+    const almanac = copy(october);
+    Object.assign(almanac.years[0]!.months[0]!, { to_date_in: null });
+    host.replaceChildren();
+    almanacGrid.render(host, withAlmanac(almanac));
+    expect(cell("2025-10").dataset.kind).toBe("current");
+    expect(cell("2025-10").dataset.step).toBeUndefined();
+    expect(cell("2025-10").querySelector(".alm-value")).toBeNull();
   });
 
   it("hatches an invalid month and marks a prorated one ≈", () => {
