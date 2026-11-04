@@ -154,7 +154,8 @@ function hatchRow(
     }),
   );
   // On its pill, drawn after the now rule so the rule never crosses it.
-  g.append(pillLabel((x0 + x1) / 2, cy + 4, gapLabel(status) ?? "", "tc-reason", "middle"));
+  const reason = gapLabel(status);
+  if (reason) g.append(pillLabel((x0 + x1) / 2, cy + 4, reason, "tc-reason", "middle"));
 }
 
 /** Pick `ticks` that fit `[lo, hi]` and widen the range to hold them. */
