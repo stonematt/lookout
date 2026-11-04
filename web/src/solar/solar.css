@@ -9,12 +9,6 @@
  * numbers line up.
  */
 
-/* two to a row beside the bars, a value and its unit wrap rather than run
-   into the next */
-:root[data-layout="four"] .tile-split > .solar-stats dd {
-  white-space: normal;
-}
-
 /* the stale-catalog note above the tiles */
 .solar-source {
   margin: 0 0 var(--s-4);
@@ -32,7 +26,9 @@
 /* ---------- the window strip: value above its label ---------- */
 .solar-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  /* a column holds "≈ 1188 kWh/m²" at the stat step (9.5rem); a wider value
+     (5 digits) wraps its unit to a second line rather than run into the next */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
   gap: var(--s-2) var(--s-3);
   margin: var(--s-3) 0 0;
   padding: var(--s-2) 0;
@@ -60,7 +56,8 @@
   font-size: var(--type-stat);
   font-weight: 400;
   line-height: 1.25;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .solar-stats dd.gap-hatch {
