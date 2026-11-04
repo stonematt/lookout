@@ -347,7 +347,7 @@ describe("on the Overview", () => {
 
     for (const id of ["almanac", "rolling-rain"]) {
       const section = panel.querySelector(`[data-section=${id}]`)!;
-      expect(text(section.querySelector("[data-part=headline]"))).toBeTruthy();
+      expect(text(section.querySelector("[data-part=finding]"))).toBeTruthy();
       expect(section.querySelector("table")).not.toBeNull();
     }
   });

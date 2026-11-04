@@ -56,7 +56,9 @@ describe("the hero lead's place", () => {
     const panel = document.getElementById("panel")!;
     renderOverview(panel, raining);
 
-    const sections = [...panel.children].map((el) => el.getAttribute("data-section"));
+    const sections = [...panel.querySelectorAll(".tile")].map((el) =>
+      el.getAttribute("data-section"),
+    );
     expect(sections.slice(0, 2)).toEqual(["first-screen", "hero-lead"]);
   });
 });
@@ -65,7 +67,7 @@ describe("the headline names the finding with its number", () => {
   it("rain, while the event is live", () => {
     heroLead.render(host, raining);
 
-    expect(text("[data-part=headline]")).toBe(
+    expect(text("[data-part=finding]")).toBe(
       "Raining now: 0.30 in so far, against 0.42 in for a usual event",
     );
     expect(host.dataset.lead).toBe("rain");

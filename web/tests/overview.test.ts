@@ -23,29 +23,52 @@ const text = (selector: string) =>
 const all = (selector: string) => [...panel.querySelectorAll<HTMLElement>(selector)];
 
 describe("the Overview", () => {
-  it("opens with the first screen, in the Phone First-Screen order", () => {
+  it("opens with the now tile, in the Phone First-Screen order", () => {
     renderOverview(panel, raining);
 
-    const first = panel.querySelector("[data-section=first-screen]")!;
-    expect(panel.firstElementChild).toBe(first);
+    const first = panel.querySelector(".tile-grid > .tile")!;
+    expect(first.getAttribute("data-section")).toBe("first-screen");
+    expect(first.getAttribute("data-surface")).toBe("now");
     const order = [...first.querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    expect(order).toEqual(["temperature", "condition", "right-now", "ribbon"]);
+    expect(order).toEqual([
+      "kicker",
+      "finding",
+      "temperature",
+      "condition",
+      "right-now",
+      "ribbon",
+      "source-note",
+      "caveat",
+      "source",
+    ]);
   });
 
-  it("renders each section into its own host, in order", () => {
+  it("renders each section into its own tile, in order, after its kicker", () => {
     const seen: string[] = [];
     renderOverview(panel, dry, [
-      { id: "a", label: "A", render: (host) => void seen.push(host.dataset.section!) },
-      { id: "b", label: "B", render: (host) => void seen.push(host.dataset.section!) },
+      {
+        id: "a",
+        label: "A",
+        kicker: "Kicker A",
+        render: (host) => void seen.push(`${host.dataset.section} ${host.textContent}`),
+      },
+      {
+        id: "b",
+        label: "B",
+        kicker: (s) => `Kicker for ${s.station.name}`,
+        span: 3,
+        render: (host) => void seen.push(`${host.dataset.section} ${host.textContent}`),
+      },
     ]);
 
-    expect(seen).toEqual(["a", "b"]);
-    expect(all(".ov-section").map((el) => el.getAttribute("aria-label"))).toEqual(["A", "B"]);
+    expect(seen).toEqual(["a Kicker A", `b Kicker for ${dry.station.name}`]);
+    expect(all(".tile").map((el) => el.getAttribute("aria-label"))).toEqual(["A", "B"]);
+    expect(all(".tile").map((el) => el.dataset.span)).toEqual(["1", "3"]);
   });
 
-  it("starts its section list with the first screen", () => {
+  it("starts its section list with the now tile", () => {
     expect(SECTIONS[0]?.id).toBe("first-screen");
   });
 });
@@ -115,7 +138,7 @@ describe("the current temperature and its condition sentence", () => {
 });
 
 describe("the Right-now strip", () => {
-  it("lists feels like, wind and rain today from the snapshot's reading", () => {
+  it("lists feels like, wind, rain today and humidity from the snapshot's reading", () => {
     renderOverview(panel, raining);
 
     const items = all("[data-part=right-now] > div").map((div) => [
@@ -126,6 +149,7 @@ describe("the Right-now strip", () => {
       ["feels like", "59.3°"],
       ["wind", "3.0 mph"],
       ["rain today", "0.30 in"],
+      ["humidity", "66%"],
     ]);
   });
 

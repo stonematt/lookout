@@ -64,7 +64,7 @@ const quietCurrent = () => new Promise<CurrentReading>(() => {});
 
 const panel = (id: string) => sections.querySelector<HTMLElement>(`#panel-${id}`)!;
 const open = (id: string) =>
-  sections.querySelector<HTMLButtonElement>(`[role=tab][data-tab=${id}]`)!.click();
+  document.querySelector<HTMLButtonElement>(`[role=tab][data-tab=${id}]`)!.click();
 
 function becomeVisible(): void {
   Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });

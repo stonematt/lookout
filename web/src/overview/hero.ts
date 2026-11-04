@@ -3,8 +3,9 @@
  * notable thing right now, chosen in Python (`lookout/snapshot/lead.py`),
  * and a "Why this leads" disclosure listing every rule with its live value.
  *
- * The section runs finding headline, standfirst, the hero facts, the chart,
- * the source line, then the disclosure. The chart follows "Bold now over a
+ * The leading tile runs its kicker (what leads, after the leading-tile
+ * dot), the finding, standfirst, the hero facts, the chart, then two folded
+ * lines: "Why this leads" and the source note. The chart follows "Bold now over a
  * soft usual range": the shaded band is the middle half of the comparison
  * set, the dashed line its median, the bold line now, ending in a dot with
  * its value. Where the live reading is ahead of the archive, that span is
@@ -33,6 +34,7 @@ import { niceTicks, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
+import { fold, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
 /** A live reading further ahead of the archive than this is hatched. */
@@ -633,12 +635,8 @@ function drawChart(host: HTMLElement, snapshot: DashboardSnapshot): void {
 
 function whyThisLeads(snapshot: DashboardSnapshot): HTMLElement {
   const lead = snapshot.hero_lead;
-  const details = document.createElement("details");
-  details.className = "hero-why";
-  details.dataset.part = "why";
-  const summary = document.createElement("summary");
-  summary.textContent = "Why this leads";
   const list = document.createElement("ol");
+  list.className = "hero-why";
   for (const r of lead.rules) {
     const item = document.createElement("li");
     item.dataset.rule = r.kind;
@@ -653,18 +651,44 @@ function whyThisLeads(snapshot: DashboardSnapshot): HTMLElement {
     item.append(ring, words);
     list.append(item);
   }
-  details.append(summary, list);
-  return details;
+  return fold("Why this leads", [list], "why");
+}
+
+/** What leads, as the leading tile's kicker. */
+const KICKERS: Record<LeadKind, string> = {
+  rain: "Leading: rain",
+  temperature: "Leading: temperature",
+  solar: "Leading: sun",
+  calm: "Leading: the dry spell",
+};
+
+/** What the lead's numbers come from, for the closed source line. */
+const SOURCES: Record<LeadKind, string> = {
+  rain: "Event Catalog",
+  temperature: "hourly means",
+  solar: "hourly means",
+  calm: "daily rain",
+};
+
+/**
+ * The chip's short reason when a gap hides part of the lead's chart: the
+ * calm lead's usual dry spell, when its 365 days cannot be compared, or any
+ * other lead's usual band, when it has no comparison set to draw.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The reason, or null.
+ */
+export function heroGaps(snapshot: DashboardSnapshot): string | null {
+  const lead = snapshot.hero_lead;
+  if (lead.kind === "calm") {
+    return rule(lead, "calm").reference === null ? "usual dry spell not compared" : null;
+  }
+  return lead.usual_median === null ? "usual range not compared" : null;
 }
 
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const lead = snapshot.hero_lead;
   host.dataset.lead = lead.kind;
-
-  const headline = document.createElement("h2");
-  headline.className = "hero-headline";
-  headline.dataset.part = "headline";
-  headline.textContent = leadHeadline(snapshot);
 
   const standfirst = document.createElement("p");
   standfirst.className = "standfirst";
@@ -688,12 +712,19 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   chart.className = "hero-chart";
   chart.dataset.part = "chart";
 
-  const source = document.createElement("p");
-  source.className = "ov-source";
-  source.dataset.part = "source";
-  source.textContent = heroSource(snapshot);
+  const source = sourceNote(snapshot, {
+    what: SOURCES[lead.kind],
+    method: heroSource(snapshot),
+    gaps: heroGaps(snapshot),
+  });
 
-  host.append(headline, standfirst, facts, chart, source, whyThisLeads(snapshot));
+  host.append(
+    tileFinding(leadHeadline(snapshot), { lead: true }),
+    standfirst,
+    facts,
+    chart,
+    tileFolds(whyThisLeads(snapshot), source),
+  );
   drawChart(chart, snapshot);
   if (typeof ResizeObserver !== "undefined") {
     let width = chart.clientWidth;
@@ -705,9 +736,13 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
 }
 
-/** The hero lead and "Why this leads", as an Overview section. */
+/** The leading tile and "Why this leads", as an Overview section. */
 export const heroLead: OverviewSection = {
   id: "hero-lead",
   label: "What leads right now",
+  kicker: (snapshot) => KICKERS[snapshot.hero_lead.kind],
+  span: 2,
+  phoneTop: true,
+  leading: true,
   render,
 };

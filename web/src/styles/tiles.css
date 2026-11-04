@@ -1,0 +1,210 @@
+/*
+ * The tile grid and the tile (DESIGN.md "Layout", "Tile", "Source note",
+ * "Chips and buttons"). Page layout keys off the layout switch's attribute,
+ * `:root[data-layout]` (`layout.ts`), never a media query: phone (one
+ * column, 16px padding, 20px corners), two (two columns from 760px) and
+ * four (four columns from 1180px), with 22px padding and corners on both
+ * grids. A tile sets only `--surface`, and every halo, hatch ground and ring
+ * inside follows it; the now tile also draws its hatch in `ink-3`.
+ */
+
+/* ---------- the grid ---------- */
+.tile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: stretch;
+}
+
+:root[data-layout="two"] .tile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:root[data-layout="four"] .tile-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* a tile spans its declared columns: all of them up to two in the
+   two-column grid, its own number in the four-column one */
+:root[data-layout="two"] .tile:not([data-span="1"]) {
+  grid-column: span 2;
+}
+
+:root[data-layout="four"] .tile[data-span="2"] {
+  grid-column: span 2;
+}
+
+:root[data-layout="four"] .tile[data-span="3"] {
+  grid-column: span 3;
+}
+
+:root[data-layout="four"] .tile[data-span="4"] {
+  grid-column: span 4;
+}
+
+/* ---------- the tile ---------- */
+.tile {
+  --surface: var(--tile);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--tile-pad-phone);
+  border-radius: var(--r-tile-phone);
+  background: var(--surface);
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .tile {
+  padding: var(--tile-pad);
+  border-radius: var(--r-tile);
+}
+
+/* the now tile: the one tile on `now-surface` */
+.tile[data-surface="now"] {
+  --surface: var(--now-surface);
+  --hatch: var(--ink-3);
+}
+
+.tile-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* the leading tile's dot: `now` on the tile, standing off any data */
+.tile-lead-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--now);
+}
+
+.tile-finding {
+  margin: 0;
+  font-size: var(--type-finding);
+  font-weight: 500;
+  line-height: 1.4;
+  max-width: 44ch;
+  text-wrap: pretty;
+}
+
+.tile-finding.tile-finding-lead {
+  font-size: var(--type-finding-lead);
+  line-height: 1.33;
+  max-width: 52ch;
+}
+
+.tile-finding + .standfirst {
+  margin-top: var(--s-2);
+}
+
+/* ---------- the folded lines ---------- */
+/* at the tile's foot, so tiles in a row line their source notes up */
+.tile-folds {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  padding-top: var(--s-4);
+}
+
+.tile-folds > .fold {
+  border-top: 1px solid var(--rule);
+}
+
+.fold {
+  font-size: var(--type-source);
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+/* inline flow, so the chevron and the words share the first line and the
+   chips wrap after them as whole pills */
+.fold-line {
+  display: block;
+  min-height: 32px;
+  padding: 6px 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.fold-line::-webkit-details-marker {
+  display: none;
+}
+
+/* the chevron before the closed line, so it never wraps away from it:
+   pointing right when closed, down when open */
+.fold-line::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--s-2);
+  vertical-align: 1px;
+  border-right: 1.5px solid var(--ink-3);
+  border-bottom: 1.5px solid var(--ink-3);
+  transform: rotate(-45deg);
+}
+
+.fold[open] > .fold-line::before {
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.fold-line:hover {
+  color: var(--ink-2);
+}
+
+.fold-body {
+  padding-bottom: var(--s-2);
+}
+
+.fold-body > .ov-source {
+  margin-top: 0;
+}
+
+/* ---------- the hatched chip ---------- */
+/* a pill in `rule-strong`: a 12px hatched swatch, then its reason in `ink-2`
+   on the surface colour, never on the stripes */
+.hatch-chip {
+  display: inline-flex;
+  margin: 2px 0 2px var(--s-2);
+  vertical-align: middle;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 7px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--type-label);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+/* ---------- shared by every tab's tiles ---------- */
+/* the method paragraph inside a source note: method, gaps and archive lag */
+.ov-source {
+  margin-top: var(--s-3);
+  font-size: var(--type-source);
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+
+/* screen-reader-only text: the now tile's kicker, a chart's spoken list */
+.ov-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

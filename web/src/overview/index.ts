@@ -1,43 +1,39 @@
 /**
- * The Overview tab, composed from sections in the spec's order (#66, "Front
- * end"): the first screen, the hero lead with "Why this leads", temperature
- * across periods, the 10-day high-low list, "now against normal" strips, the
- * almanac grid, and the rolling-window tables.
+ * The Overview tab: a grid of tiles (spec #332, DESIGN.md "Layout"). The now
+ * tile and the leading tile first, the phone's fixed top; then temperature
+ * across periods, now against this date, the last ten days, the rain almanac
+ * and the rolling-window rain table. The order and spans follow the
+ * desktop board: in the four-column grid the now and leading tiles share
+ * the first row, temperature in context takes half the second beside the
+ * two single tiles, and the almanac takes three columns beside the rolling
+ * windows.
  *
  * A section is a module under `web/src/overview/` exporting an
- * `OverviewSection`. To add one, import it here and add it to `SECTIONS` at
- * its place in that order: one import line and one list line. Each section
- * renders into its own `<section>` host, already attached to the page, so a
- * chart can measure its width when it draws.
+ * `OverviewSection` (a `TileSection`, `web/src/tiles.ts`): its id, label,
+ * kicker, span, whether it is in the phone's fixed top, and its render. To
+ * add one, import it here and add it to `SECTIONS` at its place: one import
+ * line and one list line. Each section renders into its own tile, already
+ * attached to the page and holding its kicker, so a chart can measure its
+ * width when it draws.
  */
-import "./overview.css";
-
 import type { DashboardSnapshot } from "../snapshot.js";
+import type { TileSection } from "../tiles.js";
+import { renderTiles } from "../tiles.js";
 import { almanacGrid, rollingRain } from "./almanac.js";
 import { firstScreen } from "./first-screen.js";
 import { heroLead } from "./hero.js";
-import { temperatureContext } from "./temperature.js";
+import { againstNormal, temperaturePeriods, tenDays } from "./temperature.js";
 
-/** One block of the Overview. */
-export interface OverviewSection {
-  /** A stable id: the host's `data-section`, for tests and styles. */
-  id: string;
-  /** The host's accessible name. */
-  label: string;
-  /**
-   * Fill the host from the snapshot.
-   *
-   * @param host - An empty `<section>`, attached to the panel.
-   * @param snapshot - The dashboard snapshot.
-   */
-  render(host: HTMLElement, snapshot: DashboardSnapshot): void;
-}
+/** One tile of the Overview. */
+export type OverviewSection = TileSection;
 
-/** The Overview's sections, in the spec's order. */
+/** The Overview's sections, in the board's order. */
 export const SECTIONS: readonly OverviewSection[] = [
-  firstScreen, // #78
-  heroLead, // #79 the hero lead and "Why this leads"
-  temperatureContext, // #81 temperature across periods, the 10-day list, "now against normal"
+  firstScreen, // #78 the now tile
+  heroLead, // #79 the leading tile and "Why this leads"
+  temperaturePeriods, // #81 temperature across periods
+  againstNormal, // #81 "now against normal" strips
+  tenDays, // #81 the 10-day high-low list
   almanacGrid, // #82 the almanac grid
   rollingRain, // #82 the rolling-window rain table
 ];
@@ -54,13 +50,5 @@ export function renderOverview(
   snapshot: DashboardSnapshot,
   sections: readonly OverviewSection[] = SECTIONS,
 ): void {
-  panel.replaceChildren();
-  for (const section of sections) {
-    const host = document.createElement("section");
-    host.className = "ov-section";
-    host.dataset.section = section.id;
-    host.setAttribute("aria-label", section.label);
-    panel.append(host);
-    section.render(host, snapshot);
-  }
+  renderTiles(panel, snapshot, sections);
 }

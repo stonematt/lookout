@@ -25,10 +25,17 @@ const withYear = (ctx: TemperatureContext = year): DashboardSnapshot => ({
 
 let host: HTMLElement;
 
+/** The three temperature tiles, rendered through the Overview, in its grid. */
+const TEMPERATURE_TILES = ["temperature-periods", "against-normal", "ten-days"];
+
 function show(snapshot: DashboardSnapshot): void {
-  document.body.innerHTML = "<section id=host></section>";
+  document.body.innerHTML = "<div id=host></div>";
   host = document.getElementById("host")!;
-  SECTIONS.find((s) => s.id === "temperature-context")!.render(host, snapshot);
+  renderOverview(
+    host,
+    snapshot,
+    SECTIONS.filter((s) => TEMPERATURE_TILES.includes(s.id)),
+  );
 }
 
 const text = (selector: string) =>
@@ -38,11 +45,13 @@ const all = (selector: string) => [...host.querySelectorAll(selector)];
 beforeEach(() => show(withYear()));
 
 describe("the temperature context's place", () => {
-  it("follows the hero lead", () => {
-    expect(SECTIONS.map((s) => s.id).slice(0, 3)).toEqual([
+  it("follows the hero lead, as three tiles in the board's order", () => {
+    expect(SECTIONS.map((s) => s.id).slice(0, 5)).toEqual([
       "first-screen",
       "hero-lead",
-      "temperature-context",
+      "temperature-periods",
+      "against-normal",
+      "ten-days",
     ]);
   });
 
@@ -51,7 +60,9 @@ describe("the temperature context's place", () => {
       document.body.innerHTML = "<div id=panel></div>";
       const panel = document.getElementById("panel")!;
       renderOverview(panel, snapshot);
-      expect(panel.querySelector("[data-section=temperature-context]")).not.toBeNull();
+      for (const id of TEMPERATURE_TILES) {
+        expect(panel.querySelector(`.tile[data-section=${id}]`)).not.toBeNull();
+      }
     }
   });
 
@@ -89,7 +100,7 @@ describe("temperature across periods", () => {
   });
 
   it("words the finding from the 30-day window", () => {
-    expect(text("[data-block=periods] [data-part=headline]")).toBe(
+    expect(text("[data-block=periods] [data-part=finding]")).toBe(
       "55.0° now is inside the middle half of readings over the last 30 days",
     );
   });
@@ -136,7 +147,7 @@ describe("temperature across periods", () => {
 
 describe("the ten-day list", () => {
   it("names the compared years, newest first", () => {
-    expect(text("[data-block=ten-days] [data-part=headline]")).toBe(
+    expect(text("[data-block=ten-days] [data-part=finding]")).toBe(
       "The last ten days, against the usual for their dates in 2025, 2024 and 2023",
     );
     expect(yearsText([2025, 2024])).toBe("2025 and 2024");
@@ -170,7 +181,7 @@ describe("the ten-day list", () => {
       Object.assign(d, { usual_low: null, usual_high: null, usual_years: [], usual_days: 0 });
     show(withYear(ctx));
 
-    expect(text("[data-block=ten-days] [data-part=headline]")).toBe(
+    expect(text("[data-block=ten-days] [data-part=finding]")).toBe(
       "The last ten days, with no earlier year to set them against",
     );
     expect(all("[data-part=days-chart] .tc-usual")).toHaveLength(0);
@@ -195,7 +206,7 @@ describe("now against normal", () => {
   });
 
   it("names the years in the heading, newest first", () => {
-    expect(text("[data-block=strips] [data-part=headline]")).toBe(
+    expect(text("[data-block=strips] [data-part=finding]")).toBe(
       "Now against normal for this date in 2025 and 2024",
     );
   });
