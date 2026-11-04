@@ -227,7 +227,7 @@ describe("an empty Event Catalog", () => {
 });
 
 describe("one number wherever it appears (story 53)", () => {
-  it("shows the dry spell on the Rain tab as the Overview's calm rule does", async () => {
+  it("keeps the Rain tab stat exact while the Overview calm rule speaks it", async () => {
     await boot(parsed("dry"), "rain", "overview");
     const since = words(
       [...panel("rain").querySelectorAll("[data-section=dry] dl > div")]
@@ -239,7 +239,7 @@ describe("one number wherever it appears (story 53)", () => {
     );
 
     expect(since).toBe("1 d 14 h");
-    expect(why).toContain(`calm: ${since} since it last rained`);
+    expect(why).toContain("calm: about 39 hours since it last rained");
   });
 
   it("shows today's rain on the Rain tab as the Overview does", async () => {

@@ -21,7 +21,9 @@ import {
   degrees,
   formatDayCount,
   formatDays,
+  formatDaysSpoken,
   formatDuration,
+  formatDurationSpoken,
   formatStamp,
   hourName,
   inches,
@@ -52,6 +54,7 @@ const LAG_HATCH_MS = 15 * 60_000;
 
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${degrees(Math.abs(v))}`;
 const sinceText = (hours: number) => formatDuration(hours * HOUR_MS);
+const sinceSpoken = (hours: number) => formatDurationSpoken(hours * HOUR_MS);
 
 function rule(lead: HeroLead, kind: LeadKind): LeadRule {
   return lead.rules.find((r) => r.kind === kind)!;
@@ -89,7 +92,7 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
       if (snapshot.active_rain_event)
         return `Raining now: ${inches(now ?? 0, { digits: 2 })} so far${usual}`;
       const since = rule(lead, "rain").value ?? 0;
-      return `Rain ended ${sinceText(since)} ago, after ${inches(now ?? 0, { digits: 2 })}${usual}`;
+      return `Rain ended ${sinceSpoken(since)} ago, after ${inches(now ?? 0, { digits: 2 })}${usual}`;
     }
     case "temperature": {
       const t = rule(lead, "temperature");
@@ -113,7 +116,7 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
         calm.reference === null
           ? ""
           : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
-      return `${formatDays(calm.value)} since it last rained${usual}`;
+      return `${formatDaysSpoken(calm.value)} since it last rained${usual}`;
     }
   }
 }
@@ -236,7 +239,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
         ? "raining now"
         : r.value === null
           ? "no rain event on record"
-          : `the last event ended ${sinceText(r.value)} ago`;
+          : `the last event ended ${sinceSpoken(r.value)} ago`;
       return `Rain event live or ended in the last ${r.threshold ?? 12} h: ${value}`;
     }
     case "temperature": {
@@ -255,7 +258,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
         r.reference === null
           ? "; the usual dry spell is not compared"
           : `, against a usual dry spell of ${formatDayCount(r.reference)}`;
-      return `Otherwise, calm: ${formatDays(r.value)} since it last rained${usual}`;
+      return `Otherwise, calm: ${formatDaysSpoken(r.value)} since it last rained${usual}`;
     }
   }
 }
