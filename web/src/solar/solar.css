@@ -1,28 +1,36 @@
 /*
- * The Solar tab (`src/solar/`). DESIGN.md: each section runs finding (Finding
- * type, max 44ch), standfirst, chart, source line; 48px between sections;
- * flat, hairline rules; solar is gold: `sun-bar` bars, the usual band
+ * The Solar tab (`src/solar/`). Each section is a tile (`tiles.css` holds
+ * the tile, its kicker, finding and folded source). DESIGN.md: flat,
+ * hairline rules; solar is gold: `sun-bar` bars, the usual band
  * `sun-band` (edged in light mode) with a dashed `median`, the bold now line
  * `sun-line`, the sun ramp in the grid with each cell's text in the ink that
  * passes there (`--on-sun-<step>`); one `now` mark for the finding's subject;
  * the 135° hatch for what is not in the record; tabular digits only where
  * numbers line up.
  */
-.solar-section + .solar-section {
-  margin-top: var(--s-7);
-}
 
-.solar-title {
-  font-size: var(--type-finding);
-  font-weight: 500;
-  line-height: 1.4;
-  max-width: 44ch;
-  margin-bottom: var(--s-1);
-  text-wrap: balance;
-}
-
-.solar-source {
+/* the windows beside the daily bars on the four-column grid (the desktop
+   board); stacked, the strip above the bars, on the narrower grids */
+:root[data-layout="four"] .solar-split {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
+  gap: var(--s-6);
+  align-items: start;
   margin-top: var(--s-3);
+}
+
+:root[data-layout="four"] .solar-split > .solar-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.solar-split-chart {
+  min-width: 0;
+}
+
+/* the stale-catalog note above the tiles */
+.solar-source {
+  margin: 0 0 var(--s-4);
   font-size: var(--type-source);
   line-height: 1.55;
   color: var(--ink-3);

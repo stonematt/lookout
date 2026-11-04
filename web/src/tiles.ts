@@ -287,6 +287,20 @@ export function notCompared(count: number, one: string, many: string): string | 
 }
 
 /**
+ * Counts of several kinds of thing a gap hides, as one chip's short reason.
+ *
+ * @param counts - Each kind's count, singular and plural noun, in order.
+ * @returns E.g. "5 windows, 2 days not compared", naming only the kinds
+ *   with a count; null when none has one.
+ */
+export function gapReasons(counts: readonly [number, string, string][]): string | null {
+  const parts = counts
+    .filter(([count]) => count > 0)
+    .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
+  return parts.length ? `${parts.join(", ")} not compared` : null;
+}
+
+/**
  * The folded lines at a tile's foot, in a group pushed to the tile's
  * bottom edge so tiles in a row line their source notes up.
  *

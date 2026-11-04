@@ -152,7 +152,7 @@ describe("the Rain tab's words", () => {
     expect(yearsHeadline(tab.rain_tab)).toBe(
       "Water year 2026 has 4.20 in of rain since Oct 1, against 8.00 in (2024) by this date",
     );
-    expect(text(section("years").querySelector(".rain-source"))).toContain(
+    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "Not compared by this date, so left out of the headline: 2025.",
     );
   });
@@ -207,16 +207,16 @@ describe("the Rain tab", () => {
     expect(windowsNote(week)).toContain("7 days");
   });
 
-  it("renders its four sections in order", () => {
+  it("renders its four sections as tiles, in the board's order", () => {
     renderRain(panel, raining);
 
-    const ids = [...panel.querySelectorAll(".rain-section")].map((s) =>
+    const ids = [...panel.querySelectorAll(".tile-grid > .tile")].map((s) =>
       s.getAttribute("data-section"),
     );
-    expect(ids).toEqual(["daily", "dry", "years", "hours"]);
-    for (const host of panel.querySelectorAll(".rain-section")) {
+    expect(ids).toEqual(["daily", "years", "dry", "hours"]);
+    for (const host of panel.querySelectorAll(".tile")) {
       expect(host.querySelector("h2")?.textContent).toBeTruthy();
-      expect(host.querySelector(".rain-source")?.textContent).toBeTruthy();
+      expect(host.querySelector("[data-part=source]")?.textContent).toBeTruthy();
     }
   });
 
@@ -269,7 +269,7 @@ describe("the Rain tab", () => {
 
     expect(text(today.querySelector(".gap-label"))).toBe("n/a");
     expect(today.querySelector(".gap-sr")?.textContent).toContain("does not reach this far yet");
-    expect(text(section("daily").querySelector(".rain-source"))).toContain(
+    expect(text(section("daily").querySelector("[data-part=source]"))).toContain(
       "The live reading has 0.00 in today; only the live total is known",
     );
   });
@@ -319,7 +319,7 @@ describe("the Rain tab", () => {
     expect(text(section("years").querySelector(".gap-block .gap-label"))).toBe(
       "n/a: before the archive",
     );
-    expect(text(section("years").querySelector(".rain-source"))).toContain(
+    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "Water year 2026 is left out",
     );
   });
