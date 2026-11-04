@@ -177,6 +177,34 @@ export function formatDuration(ms: number): string {
 }
 
 /**
+ * A duration the way a person says it, for a headline: minutes under an hour,
+ * whole hours under 3 days, the nearest half day under 7 days, whole days
+ * after. `about` leads a value that was rounded. Evidence keeps
+ * {@link formatDuration}.
+ *
+ * @param ms - The duration in milliseconds.
+ * @returns The duration in words, e.g. `about 26 hours`, `3.5 days`.
+ */
+export function formatDurationSpoken(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  if (minutes < 1) return "under 1 minute";
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  if (minutes < 60) return plural(minutes, "minute");
+  const spoken = (value: number, exact: boolean, unit: string) =>
+    `${exact ? "" : "about "}${plural(value, unit)}`;
+  if (minutes < 72 * 60) {
+    const hours = Math.round(minutes / 60);
+    return spoken(hours, minutes === hours * 60, "hour");
+  }
+  if (minutes < 7 * 24 * 60) {
+    const halves = Math.round(minutes / (12 * 60)) / 2;
+    return spoken(halves, minutes === halves * 24 * 60, "day");
+  }
+  const days = Math.round(minutes / (24 * 60));
+  return spoken(days, minutes === days * 24 * 60, "day");
+}
+
+/**
  * A duration in hours that never goes to days, e.g. `30 h`, `47 h 30 m`,
  * `45 m`: for a span bounded by a day or two.
  *
@@ -206,6 +234,11 @@ function hoursAndMinutes(minutes: number): string {
  */
 export function formatDays(days: number): string {
   return formatDuration(days * DAY_MS);
+}
+
+/** A duration given in days, spoken for a headline: see {@link formatDurationSpoken}. */
+export function formatDaysSpoken(days: number): string {
+  return formatDurationSpoken(days * DAY_MS);
 }
 
 /**

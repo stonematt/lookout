@@ -85,12 +85,12 @@ describe("the headline names the finding with its number", () => {
 
   it("calm, against the usual dry spell", () => {
     expect(leadHeadline(withLead("calm"))).toBe(
-      "2 d 12 h since it last rained, against a usual dry spell of 4 days",
+      "60 hours since it last rained, against a usual dry spell of 4 days",
     );
   });
 
   it("calm, without a usual dry spell when the year is not comparable", () => {
-    expect(leadHeadline(dry)).toBe("1 d 14 h since it last rained");
+    expect(leadHeadline(dry)).toBe("about 39 hours since it last rained");
   });
 });
 
@@ -125,7 +125,7 @@ describe("Why this leads", () => {
         met: "false",
         lead: false,
         text:
-          "Otherwise, calm: under 1 m since it last rained; the usual dry spell " +
+          "Otherwise, calm: under 1 minute since it last rained; the usual dry spell " +
           "is not compared, not met",
       },
     ]);
@@ -141,7 +141,7 @@ describe("Why this leads", () => {
     );
     const rain = rules().find((r) => r.rule === "rain")!;
     expect(rain.text).toBe(
-      "Rain event live or ended in the last 12 h: the last event ended 1 d 17 h ago, not met",
+      "Rain event live or ended in the last 12 h: the last event ended about 41 hours ago, not met",
     );
   });
 
@@ -153,7 +153,7 @@ describe("Why this leads", () => {
       met: "true",
       lead: true,
       text:
-        "Otherwise, calm: 2 d 12 h since it last rained, against a usual dry " +
+        "Otherwise, calm: 60 hours since it last rained, against a usual dry " +
         "spell of 4 days, met: this leads",
     });
     expect(rules().find((r) => r.rule === "rain")!.text).toBe(
