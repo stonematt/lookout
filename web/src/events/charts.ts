@@ -4,7 +4,7 @@
  *
  * - Accumulation: the event rain so far as a bold stepped line (a running
  *   total is a line, never a filled area), ending in a dot with its total.
- *   The live event's dot is the claret "now" mark; a completed event's is
+ *   The live event's dot is the `now` mark; a completed event's is
  *   in the rain hue.
  * - Rate: the rain rate between readings as zero-based columns.
  *
@@ -171,7 +171,7 @@ export function accumulationLine(
   return { x, y };
 }
 
-/** A CSS custom property's value on the root, e.g. `--rain-3`. */
+/** A CSS custom property's value on the root, e.g. `--rain-line`. */
 function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -189,7 +189,7 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
     bargap: 0,
     hovermode: "closest",
     hoverlabel: {
-      bgcolor: token("--surface"),
+      bgcolor: token("--tile"),
       bordercolor: token("--rule-strong"),
       font: { family: token("--sans"), color: token("--ink") },
     },
@@ -198,7 +198,7 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
       showgrid: false,
       zeroline: false,
       fixedrange: true,
-      linecolor: token("--rule"),
+      linecolor: token("--rule-strong"),
       tickfont: tick,
       tickmode: "array",
       tickvals: ticks.values,
@@ -224,9 +224,9 @@ function hatches(spans: GapSpan[], top: number): Plotly.Data {
     y: spans.map(() => top),
     width: spans.map((s) => s.toMs - s.fromMs),
     marker: {
-      color: token("--gap-b"),
+      color: token("--surface"),
       line: { width: 0 },
-      pattern: plotlyHatch(token("--gap-a"), token("--gap-b")),
+      pattern: plotlyHatch(token("--hatch"), token("--surface")),
     },
     hoverinfo: "skip",
   };
@@ -246,7 +246,7 @@ function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation
       text: s.liveTail ? "only the live <br>total is known" : "n/a: gap in record",
       showarrow: false,
       font: { size: 12, color: token("--ink-2") },
-      bgcolor: token("--ground"),
+      bgcolor: token("--surface"),
     }));
 }
 
@@ -270,8 +270,8 @@ export async function drawEventCharts(
   const endMs = curve.t_ms[curve.t_ms.length - 1] ?? row.end_ms;
   const widthMs = Math.max(1, endMs - curve.t_ms[0]!);
   const topIn = Math.max(lastIn, ...line.y.filter((v): v is number => v !== null)) * 1.12 || 0.1;
-  const rain = token("--rain-3");
-  const dotColor = row.live ? token("--note") : rain;
+  const rain = token("--rain-line");
+  const dotColor = row.live ? token("--now") : rain;
   const config: Partial<Plotly.Config> = { displayModeBar: false, responsive: true };
 
   const tail = spans.find((s) => s.liveTail);
@@ -303,7 +303,7 @@ export async function drawEventCharts(
     mode: "markers",
     x: [stationWallClock(endMs)],
     y: [lastIn],
-    marker: { color: dotColor, size: 11, line: { color: token("--ground"), width: 2 } },
+    marker: { color: dotColor, size: 11, line: { color: token("--surface"), width: 2 } },
     // The end dot sits on the plot's right edge: draw all of it.
     cliponaxis: false,
     hovertemplate: `${row.live ? "now: " : ""}%{y:.2f} in<extra></extra>`,
@@ -330,8 +330,8 @@ export async function drawEventCharts(
       yshift: 8,
       text: `${row.live ? "now " : ""}${inches(lastIn, { digits: 2 })}`,
       showarrow: false,
-      font: { size: 13, color: row.live ? token("--note") : token("--ink") },
-      bgcolor: token("--ground"),
+      font: { size: 13, color: row.live ? token("--now") : token("--ink") },
+      bgcolor: token("--surface"),
     },
   ];
   await Plotly.react(hosts.accumulation, accTraces, accLayout, config);
@@ -345,7 +345,7 @@ export async function drawEventCharts(
       x: curve.t_ms.map((t) => stationWallClock(t - 150_000)),
       y: rates,
       width: curve.t_ms.map(() => 300_000),
-      marker: { color: token("--rain-2"), line: { width: 0 } },
+      marker: { color: token("--rain-bar"), line: { width: 0 } },
       hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in/hr<extra></extra>",
     },
   ];

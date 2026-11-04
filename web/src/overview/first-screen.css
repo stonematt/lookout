@@ -1,6 +1,9 @@
 /*
  * The Overview's first screen, phone first: temperature and condition
- * sentence, the Right-now strip, the 48-hour condition ribbon.
+ * sentence, the Right-now strip, the 48-hour condition ribbon. The
+ * temperature is Display type, the sentence Condition, the strip Stat; the
+ * ribbon draws in the ribbon tokens, outlined by `ribbon-edge` (which equals
+ * the day band in dark), with the one `now` dot and label.
  */
 
 /* ---------- the temperature and its sentence ---------- */
@@ -13,16 +16,16 @@
 
 .now-temp {
   flex: none;
-  font-size: clamp(2.75rem, 12vw, 3.5rem);
-  font-weight: 650;
-  line-height: 0.9;
-  letter-spacing: -0.02em;
+  font-size: var(--type-display);
+  font-weight: 300;
+  line-height: 0.88;
+  letter-spacing: -0.05em;
   font-variant-numeric: tabular-nums;
 }
 
 .now-temp sup {
   font-size: 0.4em;
-  font-weight: 600;
+  font-weight: 300;
   vertical-align: top;
   position: relative;
   top: 0.15em;
@@ -33,7 +36,7 @@
 .now-condition {
   flex: 1 1 200px;
   max-width: 44ch;
-  font-size: var(--step-0);
+  font-size: var(--type-condition);
   line-height: 1.45;
   text-wrap: pretty;
 }
@@ -58,16 +61,16 @@
 
 .right-now dt {
   order: 2;
-  font-size: var(--source);
+  font-size: var(--type-source);
   color: var(--ink-2);
 }
 
 .right-now dd {
   order: 1;
   margin: 0;
-  font-size: var(--step-1);
-  font-weight: 650;
-  line-height: 1.3;
+  font-size: var(--type-stat);
+  font-weight: 400;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
@@ -80,7 +83,7 @@
 
 .ribbon-claim {
   margin-bottom: var(--s-2);
-  font-size: var(--step--1);
+  font-size: var(--type-standfirst);
   line-height: 1.45;
   color: var(--ink-2);
   max-width: 62ch;
@@ -90,9 +93,20 @@
 .ribbon-band {
   position: relative;
   height: 52px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-ribbon);
   overflow: hidden;
-  background: var(--night);
+  background: var(--ribbon-night);
+}
+
+/* the band's outline: 3:1 on the now surface in light; in dark it is the
+   day band's own colour, and the band passes by its fill */
+.ribbon-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--ribbon-edge);
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .ribbon-band svg {
@@ -104,10 +118,10 @@
 }
 
 .ribbon-band rect[data-light="night"] {
-  fill: var(--night);
+  fill: var(--ribbon-night);
 }
 .ribbon-band rect[data-light="day"] {
-  fill: var(--sun-soft);
+  fill: var(--ribbon-day);
 }
 .ribbon-band rect[data-rain="1"] {
   fill: var(--rain-1);
@@ -153,8 +167,8 @@
 }
 
 .ribbon-halo {
-  stroke: var(--ground);
-  stroke-width: 4.5;
+  stroke: var(--surface);
+  stroke-width: 5;
 }
 
 .ribbon-line {
@@ -174,8 +188,8 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--note);
-  box-shadow: 0 0 0 2px var(--ground);
+  background: var(--now);
+  box-shadow: 0 0 0 2px var(--surface);
   transform: translateY(-50%);
 }
 
@@ -183,7 +197,7 @@
   position: relative;
   height: 22px;
   margin-top: 3px;
-  font-size: var(--label);
+  font-size: var(--type-axis);
   line-height: 1.3;
   color: var(--ink-3);
 }
@@ -208,9 +222,9 @@
   position: absolute;
   top: 5px;
   right: 0;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--note);
+  font-size: var(--type-annotation);
+  font-weight: 600;
+  color: var(--now);
   white-space: nowrap;
 }
 
@@ -219,7 +233,7 @@
   flex-wrap: wrap;
   gap: 2px var(--s-3);
   margin-top: var(--s-1);
-  font-size: var(--label);
+  font-size: var(--type-label);
   color: var(--ink-2);
 }
 
@@ -234,8 +248,8 @@
   display: inline-block;
   width: 12px;
   height: 9px;
-  border-radius: var(--r-xs);
-  border: 1px solid var(--rule);
+  border-radius: var(--r-cell);
+  border: 1px solid var(--rule-strong);
 }
 
 .ribbon-key-ramp {
@@ -249,10 +263,10 @@
 }
 
 .ribbon-key-night {
-  background: var(--night);
+  background: var(--ribbon-night);
 }
 .ribbon-key-day {
-  background: var(--sun-soft);
+  background: var(--ribbon-day);
 }
 .ribbon-key-rain-1 {
   background: var(--rain-1);
@@ -265,10 +279,4 @@
 }
 .ribbon-key-rain-4 {
   background: var(--rain-4);
-}
-
-@media (min-width: 600px) {
-  .right-now dd {
-    font-size: var(--step-2);
-  }
 }

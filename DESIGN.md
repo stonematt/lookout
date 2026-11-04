@@ -1,7 +1,6 @@
 ---
 name: Lookout
 description: A personal weather record for one station. It reads like Dark Sky and argues like the FT. Findings first, on quiet slate tiles, in both themes.
-status: "Target design, adopted Nov 2026. web/src/styles/tokens.css still carries the earlier Paper world until the restyle lands; this file is the source the restyle moves to."
 colors:
   # Light values are the base keys; each -dark key is the same role in dark mode.
   # Dark is the primary design; light is its twin, held to the same contrast rules.

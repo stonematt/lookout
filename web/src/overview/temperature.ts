@@ -290,14 +290,12 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
 
 // ---------- 2. the ten-day high-low list ----------
 
-/** The temperature ramp's colour at `t`, blended between the tokens. */
+/** The temperature ramp's colour at `t`, blended cool to mild to warm. */
 export function rampColour(t: number): string {
   const stops: [number, string][] = [
-    [28, "--temp-cold"],
-    [42, "--temp-cool"],
+    [28, "--temp-cool"],
     [56, "--temp-mild"],
-    [70, "--temp-warm"],
-    [84, "--temp-hot"],
+    [84, "--temp-warm"],
   ];
   if (t <= stops[0]![0]) return `var(${stops[0]![1]})`;
   if (t >= stops.at(-1)![0]) return `var(${stops.at(-1)![1]})`;

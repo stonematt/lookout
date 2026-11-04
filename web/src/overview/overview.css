@@ -9,9 +9,9 @@
 /* the source line under a chart: method, gaps and archive lag */
 .ov-source {
   margin-top: var(--s-3);
-  font-size: var(--source);
+  font-size: var(--type-source);
   line-height: 1.55;
-  color: var(--ink-2);
+  color: var(--ink-3);
   max-width: 62ch;
   text-wrap: pretty;
 }
