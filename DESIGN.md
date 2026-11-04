@@ -512,7 +512,7 @@ Every chart is SVG drawn at its real pixel width, with no chart box and no verti
 
 **The Name the Years Rule.** A finding that compares years names them, newest first.
 
-**The One Format Rule.** Times `9:36 am`, dates with times `Oct 27, 11:00 pm`, durations `1 d 10 h`, `5 h 12 m`, `45 m`. Station time zone (`station.tz`), imperial units.
+**The One Format Rule.** Times `9:36 am`, dates with times `Oct 27, 11:00 pm`, durations `1 d 10 h`, `5 h 12 m`, `45 m`. Station time zone (`station.tz`), imperial units. That is the evidence form: stat rows, chart labels, the ribbon, event rows and source lines keep it exactly. A tile's finding (its headline) says a duration the way a person does, with the units spelled out: minutes under an hour (`45 minutes`), whole hours to under 3 days (`about 26 hours`), the nearest half day to under 7 days (`about 3.5 days`), whole days after (`about 12 days`). `about` marks a rounded value; an exact one has none. Headlines speak, evidence stays exact.
 
 **The Label Not Colour Rule.** Copy names marks by label or position ("the bold line", "the band", "the rule marked now"), never by colour.
 

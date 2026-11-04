@@ -117,10 +117,10 @@ describe("the Rain tab's words", () => {
       { value: 12.5, reference: 4 },
     );
     expect(dryHeadline(calm)).toBe(
-      "12 d 12 h since it last rained, against a usual dry spell of 4 days",
+      "about 13 days since it last rained, against a usual dry spell of 4 days",
     );
     // The 365 days are not archived, so there is no usual spell to compare.
-    expect(dryHeadline(dry)).toBe("1 d 14 h since it last rained");
+    expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -243,8 +243,8 @@ describe("the Rain tab", () => {
     renderOverview(overview, dry);
 
     expect(dry.hero_lead.kind).toBe("calm");
-    expect(text(overview)).toContain("1 d 14 h since it last rained");
-    expect(text(section("dry").querySelector("h2"))).toBe("1 d 14 h since it last rained");
+    expect(text(overview)).toContain("about 39 hours since it last rained");
+    expect(text(section("dry").querySelector("h2"))).toBe("about 39 hours since it last rained");
   });
 
   it("hatches each window that cannot be compared, with its reason", () => {

@@ -81,7 +81,6 @@
 
 /* ---------- the 48-hour condition ribbon ---------- */
 .ribbon {
-  max-width: 760px;
   margin-top: var(--s-5);
   font-variant-numeric: tabular-nums;
 }

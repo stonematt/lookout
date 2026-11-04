@@ -9,7 +9,7 @@
  * window's value is never shown, a prorated one carries ≈), and the One
  * Format Rule (station time, imperial units).
  */
-import { dayText, formatDayCount, formatDays, hourText, inches } from "../format.js";
+import { dayText, formatDayCount, formatDaysSpoken, hourText, inches } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
 import type {
   DashboardSnapshot,
@@ -147,7 +147,7 @@ export function dryHeadline(snapshot: DashboardSnapshot): string {
     calm.reference === null
       ? ""
       : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
-  return `${formatDays(calm.value)} since it last rained${usual}`;
+  return `${formatDaysSpoken(calm.value)} since it last rained${usual}`;
 }
 
 /** The current water year's curve: the newest one. */
