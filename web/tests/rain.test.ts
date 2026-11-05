@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { dayText, hourText, inches } from "../src/format.js";
 import { zeroTicks as niceTicks } from "../src/charts/svg.js";
+import { setLayout } from "../src/layout.js";
 import { renderOverview } from "../src/overview/index.js";
 import { renderRain } from "../src/rain/index.js";
 import {
@@ -27,6 +28,7 @@ const dry = parseDashboard(golden("dry", "dashboard"));
 let panel: HTMLElement;
 
 beforeEach(() => {
+  document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML = "<div id=panel></div>";
   panel = document.getElementById("panel")!;
 });
@@ -115,10 +117,10 @@ describe("the Rain tab's words", () => {
       { value: 12.5, reference: 4 },
     );
     expect(dryHeadline(calm)).toBe(
-      "12 d 12 h since it last rained, against a usual dry spell of 4 days",
+      "about 13 days since it last rained, against a usual dry spell of 4 days",
     );
     // The 365 days are not archived, so there is no usual spell to compare.
-    expect(dryHeadline(dry)).toBe("1 d 14 h since it last rained");
+    expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -152,7 +154,7 @@ describe("the Rain tab's words", () => {
     expect(yearsHeadline(tab.rain_tab)).toBe(
       "Water year 2026 has 4.20 in of rain since Oct 1, against 8.00 in (2024) by this date",
     );
-    expect(text(section("years").querySelector(".rain-source"))).toContain(
+    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "Not compared by this date, so left out of the headline: 2025.",
     );
   });
@@ -207,16 +209,18 @@ describe("the Rain tab", () => {
     expect(windowsNote(week)).toContain("7 days");
   });
 
-  it("renders its four sections in order", () => {
+  it("renders its four sections as tiles, in the board's order", () => {
+    // The grids: on a phone all but the fixed top are rows (tiles.test).
+    setLayout("four");
     renderRain(panel, raining);
 
-    const ids = [...panel.querySelectorAll(".rain-section")].map((s) =>
+    const ids = [...panel.querySelectorAll(".tile-grid > .tile")].map((s) =>
       s.getAttribute("data-section"),
     );
-    expect(ids).toEqual(["daily", "dry", "years", "hours"]);
-    for (const host of panel.querySelectorAll(".rain-section")) {
+    expect(ids).toEqual(["daily", "years", "dry", "hours"]);
+    for (const host of panel.querySelectorAll(".tile")) {
       expect(host.querySelector("h2")?.textContent).toBeTruthy();
-      expect(host.querySelector(".rain-source")?.textContent).toBeTruthy();
+      expect(host.querySelector("[data-part=source]")?.textContent).toBeTruthy();
     }
   });
 
@@ -239,8 +243,8 @@ describe("the Rain tab", () => {
     renderOverview(overview, dry);
 
     expect(dry.hero_lead.kind).toBe("calm");
-    expect(text(overview)).toContain("1 d 14 h since it last rained");
-    expect(text(section("dry").querySelector("h2"))).toBe("1 d 14 h since it last rained");
+    expect(text(overview)).toContain("about 39 hours since it last rained");
+    expect(text(section("dry").querySelector("h2"))).toBe("about 39 hours since it last rained");
   });
 
   it("hatches each window that cannot be compared, with its reason", () => {
@@ -269,7 +273,7 @@ describe("the Rain tab", () => {
 
     expect(text(today.querySelector(".gap-label"))).toBe("n/a");
     expect(today.querySelector(".gap-sr")?.textContent).toContain("does not reach this far yet");
-    expect(text(section("daily").querySelector(".rain-source"))).toContain(
+    expect(text(section("daily").querySelector("[data-part=source]"))).toContain(
       "The live reading has 0.00 in today; only the live total is known",
     );
   });
@@ -282,8 +286,69 @@ describe("the Rain tab", () => {
     expect(bars.length).toBe(4); // Jan 4 dry; Jan 5, 7, 8 and today wet
     expect(chart.querySelectorAll("rect.rain-bar-now").length).toBe(1);
     const labels = [...chart.querySelectorAll("text")].map((t) => t.textContent);
-    expect(labels).toContain("today 0.30 in");
     expect(labels).toContain("record begins Jan 4");
+  });
+
+  /** Today's bar, its now dot and its label, in the daily bars. */
+  function todayMark(snapshot: DashboardSnapshot) {
+    renderRain(panel, snapshot);
+    const chart = section("daily").querySelector(".rain-chart")!;
+    const label = chart.querySelector("text.rain-now-label");
+    return {
+      chart,
+      bar: chart.querySelector("rect.rain-bar-now"),
+      dots: chart.querySelectorAll("circle.rain-now-dot"),
+      label,
+    };
+  }
+
+  it("marks today with an r4 now dot 4px above its bar and the label today", () => {
+    const { chart, bar, dots, label } = todayMark(raining);
+    const top = Number(bar!.getAttribute("y"));
+
+    expect(dots.length).toBe(1);
+    expect(dots[0]!.getAttribute("r")).toBe("4");
+    // The dot's lowest edge stands 4px above the bar's top (Now Stands Off).
+    expect(Number(dots[0]!.getAttribute("cy")) + 4).toBe(top - 4);
+    const x = Number(bar!.getAttribute("x")) + Number(bar!.getAttribute("width")) / 2;
+    expect(Number(dots[0]!.getAttribute("cx"))).toBeCloseTo(x, 1);
+    expect(label?.textContent).toBe("today");
+    // Above the dot, clear of it.
+    expect(Number(label!.getAttribute("y"))).toBeLessThan(Number(dots[0]!.getAttribute("cy")) - 4);
+    // No rule through today's bar.
+    expect(chart.querySelector("line.rain-now-rule")).toBeNull();
+  });
+
+  it("marks a dry today on the baseline, with no bar", () => {
+    const snapshot = structuredClone(raining);
+    const recent = snapshot.rain_tab.recent;
+    recent.rain_in[recent.rain_in.length - 1] = 0;
+    const { chart, bar, dots, label } = todayMark(snapshot);
+    // Every bar stands on the baseline.
+    const other = chart.querySelector("rect.rain-bar")!;
+    const bottom = Number(other.getAttribute("y")) + Number(other.getAttribute("height"));
+
+    expect(bar).toBeNull();
+    expect(dots.length).toBe(1);
+    expect(Number(dots[0]!.getAttribute("cy")) + 4).toBe(bottom - 4);
+    expect(label?.textContent).toBe("today");
+  });
+
+  it("lifts the today label above any taller bar beside it", () => {
+    const snapshot = structuredClone(raining);
+    const recent = snapshot.rain_tab.recent;
+    const n = recent.rain_in.length;
+    recent.rain_in[n - 2] = 1.2; // yesterday far above today
+    const { chart, label } = todayMark(snapshot);
+    const yesterday = [...chart.querySelectorAll("rect.rain-bar")].at(-2)!;
+
+    expect(Number(label!.getAttribute("y"))).toBeLessThan(Number(yesterday.getAttribute("y")));
+  });
+
+  it("says the day marked today is the live total", () => {
+    renderRain(panel, raining);
+    const standfirst = text(section("daily").querySelector("[data-part=standfirst]"));
+    expect(standfirst).toContain("the day marked today is the live total");
   });
 
   it("reads each day out from the keyboard", () => {
@@ -319,7 +384,7 @@ describe("the Rain tab", () => {
     expect(text(section("years").querySelector(".gap-block .gap-label"))).toBe(
       "n/a: before the archive",
     );
-    expect(text(section("years").querySelector(".rain-source"))).toContain(
+    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "Water year 2026 is left out",
     );
   });

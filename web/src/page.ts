@@ -13,6 +13,14 @@
  * be read, a tab says so in the header's words. A later read that fails
  * keeps the page already drawn.
  *
+ * The page layout switch (`layout.ts`) runs from the start, setting the
+ * root's `data-layout` (phone, two- or four-column) that every page layout
+ * rule keys off; the tab bar sits just before the tabs' host, so on both
+ * grids it shares the header's row, and on a phone it is the bottom tab bar
+ * (CSS places it). A phone draws each tab as a fixed top and finding rows,
+ * the grids as tiles (`tiles.ts`), so crossing 760px either way redraws
+ * the tabs drawn.
+ *
  * The station index (`/stations`, read on the same cycle) feeds the header's
  * station selector (#273). Choosing a station writes `?station=<MAC>` to the
  * URL (a new history entry, so Back returns to the last station), and the
@@ -24,6 +32,7 @@
 import { mountEvents } from "./events/tab.js";
 import { setStationZone } from "./format.js";
 import { mountHeader } from "./header.js";
+import { mountLayout } from "./layout.js";
 import { ReadError } from "./load.js";
 import { renderOverview } from "./overview/index.js";
 import { renderRain } from "./rain/index.js";
@@ -100,10 +109,23 @@ function askedStation(): string | null {
  * @returns The started page.
  */
 export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: PageReads): Page {
-  const header = mountHeader(masthead);
+  // Every page layout rule keys off the attribute this sets (`layout.ts`).
   let dashboard: DashboardSnapshot | null = null;
+  let rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
+  let wasPhone: boolean;
+  const layout = mountLayout(undefined, undefined, (next) => {
+    // A phone draws rows, the grids tiles: redraw only across that line.
+    const phone = next === "phone";
+    if (phone === wasPhone) return;
+    wasPhone = phone;
+    rendered = new WeakMap();
+    if (!dashboard) return;
+    renderTab("overview", tabs.panel("overview"));
+    renderTab(tabs.current(), tabs.panel(tabs.current()));
+  });
+  wasPhone = layout.layout() === "phone";
+  const header = mountHeader(masthead);
   let stateText: string = STATE_TEXT.loading;
-  const rendered = new WeakMap<HTMLElement, DashboardSnapshot>();
   let index: StationIndex | null = null;
   /** The station shown, as the URL names it (null: the default station). */
   let showing = askedStation();
@@ -129,7 +151,7 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
     rendered.set(panel, dashboard);
   }
 
-  const tabs = mountTabs(sections, renderTab);
+  const tabs = mountTabs(sections, renderTab, { barBeforeHost: true });
 
   /** The index's entry for the station shown, when the index is known. */
   function shownEntry() {
@@ -271,6 +293,7 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
   return {
     booted,
     stop() {
+      layout.stop();
       clearInterval(ticking);
       clearInterval(cycling);
       listening.abort();

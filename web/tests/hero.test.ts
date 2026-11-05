@@ -56,7 +56,9 @@ describe("the hero lead's place", () => {
     const panel = document.getElementById("panel")!;
     renderOverview(panel, raining);
 
-    const sections = [...panel.children].map((el) => el.getAttribute("data-section"));
+    const sections = [...panel.querySelectorAll(".tile")].map((el) =>
+      el.getAttribute("data-section"),
+    );
     expect(sections.slice(0, 2)).toEqual(["first-screen", "hero-lead"]);
   });
 });
@@ -65,7 +67,7 @@ describe("the headline names the finding with its number", () => {
   it("rain, while the event is live", () => {
     heroLead.render(host, raining);
 
-    expect(text("[data-part=headline]")).toBe(
+    expect(text("[data-part=finding]")).toBe(
       "Raining now: 0.30 in so far, against 0.42 in for a usual event",
     );
     expect(host.dataset.lead).toBe("rain");
@@ -83,12 +85,12 @@ describe("the headline names the finding with its number", () => {
 
   it("calm, against the usual dry spell", () => {
     expect(leadHeadline(withLead("calm"))).toBe(
-      "2 d 12 h since it last rained, against a usual dry spell of 4 days",
+      "60 hours since it last rained, against a usual dry spell of 4 days",
     );
   });
 
   it("calm, without a usual dry spell when the year is not comparable", () => {
-    expect(leadHeadline(dry)).toBe("1 d 14 h since it last rained");
+    expect(leadHeadline(dry)).toBe("about 39 hours since it last rained");
   });
 });
 
@@ -123,7 +125,7 @@ describe("Why this leads", () => {
         met: "false",
         lead: false,
         text:
-          "Otherwise, calm: under 1 m since it last rained; the usual dry spell " +
+          "Otherwise, calm: under 1 minute since it last rained; the usual dry spell " +
           "is not compared, not met",
       },
     ]);
@@ -139,7 +141,7 @@ describe("Why this leads", () => {
     );
     const rain = rules().find((r) => r.rule === "rain")!;
     expect(rain.text).toBe(
-      "Rain event live or ended in the last 12 h: the last event ended 1 d 17 h ago, not met",
+      "Rain event live or ended in the last 12 h: the last event ended about 41 hours ago, not met",
     );
   });
 
@@ -151,7 +153,7 @@ describe("Why this leads", () => {
       met: "true",
       lead: true,
       text:
-        "Otherwise, calm: 2 d 12 h since it last rained, against a usual dry " +
+        "Otherwise, calm: 60 hours since it last rained, against a usual dry " +
         "spell of 4 days, met: this leads",
     });
     expect(rules().find((r) => r.rule === "rain")!.text).toBe(

@@ -6,21 +6,27 @@
  *
  * Shared grammar, as on the Rain tab: hairline gridlines on y only, 12px
  * tabular ticks, labels haloed in the ground, the 135° hatch for what is not
- * in the record, and one claret mark for the headline's subject. Every chart
+ * in the record, and one `now` mark for the headline's subject. Every chart
  * has a live readout below it (hover, tap, or focus and use the arrow keys),
  * so nothing relies on a title. The day charts are also pickers: a click,
  * or Enter on the focused chart, picks the day under the readout.
  */
 import {
   NARROW,
+  NOTE_SIZE,
   type Readout,
+  aboveDot,
   canvas,
   chartLabel,
+  dayTicks,
   hatchMissingDays,
   monthTicks,
+  pillLabel,
+  raisePills,
   runs,
   scrub,
   yAxis,
+  yTickSteps,
   zeroTicks,
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -127,7 +133,7 @@ export function drawTrace(
     ...values.filter((v): v is number => v !== null),
     ...high.filter((v): v is number => v !== null),
   );
-  const ticks = zeroTicks(top_value, 4);
+  const ticks = zeroTicks(top_value, yTickSteps(width));
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / (n - 1);
@@ -239,15 +245,13 @@ export function drawTrace(
   const now = values[n - 1];
   if (now !== null && now !== undefined) {
     svg.append(svgEl("circle", { cx: x(n - 1), cy: y(now), r: 5, class: "solar-now-dot" }));
-    svg.append(
-      chartLabel(
-        x(n - 1) - 8,
-        Math.max(top + 4, y(now) - 10),
-        `now ${wattsPerM2(now)}`,
-        "solar-now-label",
-        "end",
-      ),
-    );
+    const text = `now ${wattsPerM2(now)}`;
+    // On a phone the label sits above its dot.
+    const at = narrow
+      ? aboveDot(x(n - 1), y(now), text, left, width, 12)
+      : { x: x(n - 1) - 10, y: Math.max(top + 4, y(now) - 12), anchor: "end" as const };
+    // On its pill: past the archive it sits on the hatch.
+    svg.append(pillLabel(at.x, at.y, text, "solar-now-label", at.anchor, NOTE_SIZE));
   }
 
   host.replaceChildren(svg);
@@ -298,6 +302,7 @@ function daySentence(
  * @param width - The width to draw at.
  * @param readout - Where position sentences go.
  * @param pick - Receives a picked day.
+ * @param days - How many days to show, from today back (the 30 / 90 switch).
  */
 export function drawDailyBars(
   host: HTMLElement,
@@ -306,16 +311,20 @@ export function drawDailyBars(
   width: number,
   readout: Readout,
   pick: Pick,
+  days: number = BAR_DAYS,
 ): void {
   const all = tab.days.energy_kwh_m2;
-  const offset = Math.max(0, all.length - BAR_DAYS);
+  const offset = Math.max(0, all.length - Math.min(days, BAR_DAYS));
   const energy = all.slice(offset);
   const reasons = tab.days.reason.slice(offset);
   const first = addDays(tab.days.first_day, offset);
   const count = energy.length;
   const height = 168;
   const [left, right, top, bottom] = [44, width - 6, 24, height - 22];
-  const ticks = zeroTicks(Math.max(1, ...energy.filter((v): v is number => v !== null)));
+  const ticks = zeroTicks(
+    Math.max(1, ...energy.filter((v): v is number => v !== null)),
+    yTickSteps(width),
+  );
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / Math.max(1, count);
@@ -368,7 +377,8 @@ export function drawDailyBars(
       }),
     );
   }
-  monthTicks(svg, first, count, x, bottom + 4, "solar");
+  dayTicks(svg, first, count, x, step, bottom + 4, "solar");
+  raisePills(svg);
   host.replaceChildren(svg);
   let under: string | null = null;
   scrub(
@@ -402,7 +412,10 @@ export function drawDaySlots(
   const height = 180;
   const [left, right, top, bottom] = [44, width - 6, 24, height - 22];
   const shown = slots.slice(FIRST_SLOT, LAST_SLOT + 1);
-  const ticks = zeroTicks(Math.max(20, ...shown.filter((v): v is number => v !== null)));
+  const ticks = zeroTicks(
+    Math.max(20, ...shown.filter((v): v is number => v !== null)),
+    yTickSteps(width),
+  );
   const yMax = ticks[ticks.length - 1] ?? 1;
   const y = (v: number) => bottom - ((bottom - top) * v) / yMax;
   const step = (right - left) / count;
@@ -578,7 +591,8 @@ export function drawYearMonth(
               {
                 x: cx + cell / 2,
                 y: ry + rowH / 2 + 4,
-                class: level >= 4 ? "solar-cell-text solar-cell-text-strong" : "solar-cell-text",
+                class: "solar-cell-text",
+                "data-step": level,
                 "text-anchor": "middle",
               },
               text,
@@ -825,6 +839,7 @@ export function drawDayGrid(
     );
   }
   monthTicks(svg, recent.first_day, count, x, bottom + 4, "solar");
+  raisePills(svg);
   host.replaceChildren(svg);
   let under: string | null = null;
   scrub(

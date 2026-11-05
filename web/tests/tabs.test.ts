@@ -103,3 +103,29 @@ describe("the tabs", () => {
     }
   });
 });
+
+describe("the tab bar beside its host (barBeforeHost)", () => {
+  it("puts the bar just before the host and keeps the panels inside it", () => {
+    mountTabs(host, undefined, { barBeforeHost: true });
+
+    const bar = document.querySelector("nav.tabs")!;
+    expect(bar.nextElementSibling).toBe(host);
+    expect(host.querySelector("nav.tabs")).toBeNull();
+    expect(host.querySelectorAll("[role=tabpanel]")).toHaveLength(4);
+  });
+
+  it("replaces its own last bar when mounted again on the same host", () => {
+    mountTabs(host, undefined, { barBeforeHost: true });
+    mountTabs(host, undefined, { barBeforeHost: true });
+
+    expect(document.querySelectorAll("nav.tabs")).toHaveLength(1);
+    expect(host.querySelectorAll("[role=tabpanel]")).toHaveLength(4);
+  });
+
+  it("keeps the bar inside a host with no parent to sit beside", () => {
+    const loose = document.createElement("div");
+    mountTabs(loose, undefined, { barBeforeHost: true });
+
+    expect(loose.firstElementChild?.matches("nav.tabs")).toBe(true);
+  });
+});

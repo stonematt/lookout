@@ -125,12 +125,27 @@ export function formatStamp(ms: number): string {
  * @returns The time in the station's time.
  */
 export function formatTime(ms: number): string {
+  const { clock, period } = timeParts(ms);
+  return `${clock} ${period}`;
+}
+
+/**
+ * A time of day in its two parts, for a view that sets them apart, e.g.
+ * `{ clock: "1:05", period: "pm" }`.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns The station-local clock reading and its `am` or `pm`.
+ */
+export function timeParts(ms: number): { clock: string; period: string } {
   const parts = Object.fromEntries(
     stamp()
       .formatToParts(ms)
       .map((part) => [part.type, part.value]),
   );
-  return `${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toLowerCase()}`;
+  return {
+    clock: `${parts.hour}:${parts.minute}`,
+    period: (parts.dayPeriod ?? "").toLowerCase(),
+  };
 }
 
 /** The month-name formatter in the station's zone. */
@@ -159,6 +174,34 @@ export function formatDuration(ms: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return hoursAndMinutes(minutes);
   return `${Math.floor(hours / 24)} d ${hours % 24} h`;
+}
+
+/**
+ * A duration the way a person says it, for a headline: minutes under an hour,
+ * whole hours under 3 days, the nearest half day under 7 days, whole days
+ * after. `about` leads a value that was rounded. Evidence keeps
+ * {@link formatDuration}.
+ *
+ * @param ms - The duration in milliseconds.
+ * @returns The duration in words, e.g. `about 26 hours`, `3.5 days`.
+ */
+export function formatDurationSpoken(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  if (minutes < 1) return "under 1 minute";
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  if (minutes < 60) return plural(minutes, "minute");
+  const spoken = (value: number, exact: boolean, unit: string) =>
+    `${exact ? "" : "about "}${plural(value, unit)}`;
+  if (minutes < 72 * 60) {
+    const hours = Math.round(minutes / 60);
+    return spoken(hours, minutes === hours * 60, "hour");
+  }
+  if (minutes < 7 * 24 * 60) {
+    const halves = Math.round(minutes / (12 * 60)) / 2;
+    return spoken(halves, minutes === halves * 24 * 60, "day");
+  }
+  const days = Math.round(minutes / (24 * 60));
+  return spoken(days, minutes === days * 24 * 60, "day");
 }
 
 /**
@@ -191,6 +234,11 @@ function hoursAndMinutes(minutes: number): string {
  */
 export function formatDays(days: number): string {
   return formatDuration(days * DAY_MS);
+}
+
+/** A duration given in days, spoken for a headline: see {@link formatDurationSpoken}. */
+export function formatDaysSpoken(days: number): string {
+  return formatDurationSpoken(days * DAY_MS);
 }
 
 /**
@@ -330,9 +378,68 @@ export function inchesPerHour(value: number): string {
   return `${value.toFixed(2)} in/hr`;
 }
 
-/** Wind speed, e.g. `4.3 mph`. */
-export function mph(value: number): string {
-  return `${value.toFixed(1)} mph`;
+/**
+ * Wind speed, e.g. `4.3 mph`.
+ *
+ * @param value - Miles per hour.
+ * @param options - `unit: false` for the bare number.
+ * @returns The speed.
+ */
+export function mph(value: number, options: { unit?: boolean } = {}): string {
+  const text = value.toFixed(1);
+  return options.unit === false ? text : `${text} mph`;
+}
+
+/** A whole percent, e.g. `81%` (relative humidity). */
+export function percent(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+/**
+ * A reading in its format, or `n/a` when it is not known (never zero).
+ *
+ * @param value - The reading, or null.
+ * @param format - Its format, e.g. `mph`.
+ * @returns E.g. `4.3 mph`, or `n/a`.
+ */
+export function known(value: number | null, format: (v: number) => string): string {
+  return value === null ? "n/a" : format(value);
+}
+
+/** Pressure in inches of mercury, bare, e.g. `29.67`. */
+export function inHg(value: number): string {
+  return value.toFixed(2);
+}
+
+/** The 16 compass points, clockwise from north. */
+const COMPASS = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+] as const;
+
+/**
+ * A wind direction as the nearest of the 16 compass points, e.g. `SE`.
+ *
+ * @param deg - Degrees clockwise from north, where the wind blows from.
+ * @returns The compass point.
+ */
+export function compassPoint(deg: number): string {
+  const index = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
+  return COMPASS[index]!;
 }
 
 /** Solar radiation, e.g. `412 W/m²`. */

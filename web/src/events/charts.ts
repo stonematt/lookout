@@ -1,14 +1,15 @@
 /**
  * One rain event's two charts, drawn with Plotly (loaded on first use, so
- * the page's first screen never waits for it):
+ * the page's first screen never waits for it), one at a time in the open
+ * event row, as its Total / Rate switch picks (`drawEventChart`):
  *
- * - Accumulation: the event rain so far as a bold stepped line (a running
- *   total is a line, never a filled area), ending in a dot with its total.
- *   The live event's dot is the claret "now" mark; a completed event's is
- *   in the rain hue.
+ * - Total: the event rain so far as a bold stepped line (a running total is
+ *   a line, never a filled area) against the median event's total, dashed,
+ *   ending in a dot with its total. The live event's dot is the `now` mark;
+ *   a completed event's is in the rain hue.
  * - Rate: the rain rate between readings as zero-based columns.
  *
- * Both share one time axis of plain times ("6 pm", "noon"), the date said
+ * Both are one height, and share one time axis of plain times ("6 pm", "noon"), the date said
  * on the first tick and again where the day turns.
  *
  * DESIGN.md's chart grammar: no line, column or value across a gap. Each
@@ -18,7 +19,7 @@
  * known".
  */
 import { stationFormat, dayText, hourText, inches } from "../format.js";
-import { FALLBACK_WIDTH } from "../charts/svg.js";
+import { FALLBACK_WIDTH, NARROW, PILL_PAD } from "../charts/svg.js";
 import { plotlyHatch } from "../gaps.js";
 import type { EventCurve, RainEventRow } from "../snapshot.js";
 
@@ -171,9 +172,16 @@ export function accumulationLine(
   return { x, y };
 }
 
-/** A CSS custom property's value on the root, e.g. `--rain-3`. */
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/**
+ * A CSS custom property's value, e.g. `--rain-line`.
+ *
+ * @param name - The property.
+ * @param from - Where to read it: the root by default; the chart's host for
+ *   `--surface`, which a tile sets for what sits in it.
+ * @returns Its value.
+ */
+function token(name: string, from: Element = document.documentElement): string {
+  return getComputedStyle(from).getPropertyValue(name).trim();
 }
 
 /** The parts both charts share. */
@@ -189,7 +197,7 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
     bargap: 0,
     hovermode: "closest",
     hoverlabel: {
-      bgcolor: token("--surface"),
+      bgcolor: token("--tile"),
       bordercolor: token("--rule-strong"),
       font: { family: token("--sans"), color: token("--ink") },
     },
@@ -198,7 +206,7 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
       showgrid: false,
       zeroline: false,
       fixedrange: true,
-      linecolor: token("--rule"),
+      linecolor: token("--rule-strong"),
       tickfont: tick,
       tickmode: "array",
       tickvals: ticks.values,
@@ -217,23 +225,36 @@ function baseLayout(height: number, ySuffix: string, ticks: TimeTicks): Partial<
 }
 
 /** A hatched column over each gap span, the height of the plot. */
-function hatches(spans: GapSpan[], top: number): Plotly.Data {
+function hatches(spans: GapSpan[], top: number, surface: string): Plotly.Data {
   return {
     type: "bar",
     x: spans.map((s) => stationWallClock((s.fromMs + s.toMs) / 2)),
     y: spans.map(() => top),
     width: spans.map((s) => s.toMs - s.fromMs),
     marker: {
-      color: token("--gap-b"),
+      color: surface,
       line: { width: 0 },
-      pattern: plotlyHatch(token("--gap-a"), token("--gap-b")),
+      pattern: plotlyHatch(token("--hatch"), surface),
     },
     hoverinfo: "skip",
   };
 }
 
+/**
+ * A label's pill, as near the SVG charts' `pillLabel` as Plotly comes: a
+ * solid box of the tile's surface 4px past the text. Plotly cannot round
+ * its corners.
+ */
+function pill(surface: string): Partial<Plotly.Annotation> {
+  return { bgcolor: surface, borderpad: PILL_PAD, borderwidth: 0 };
+}
+
 /** The in-place label over a gap span, when it is wide enough to hold one. */
-function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation>[] {
+function gapLabels(
+  spans: GapSpan[],
+  widthMs: number,
+  surface: string,
+): Partial<Plotly.Annotation>[] {
   return spans
     .filter((s) => (s.toMs - s.fromMs) / widthMs > 0.12)
     .map((s) => ({
@@ -246,47 +267,92 @@ function gapLabels(spans: GapSpan[], widthMs: number): Partial<Plotly.Annotation
       text: s.liveTail ? "only the live <br>total is known" : "n/a: gap in record",
       showarrow: false,
       font: { size: 12, color: token("--ink-2") },
-      bgcolor: token("--ground"),
+      ...pill(surface),
     }));
 }
 
+/** Which of an event's two charts the Total / Rate switch shows. */
+export type EventChart = "total" | "rate";
+
+/** What a chart is drawn against: the switch's pick and the median event. */
+export interface EventChartOptions {
+  chart: EventChart;
+  /** The catalog's median event total, drawn dashed on Total; null for none. */
+  medianIn: number | null;
+}
+
+/** Both charts' height, so the switch changes the chart in place. */
+const CHART_HEIGHT = 240;
+
 /**
- * Draw an event's accumulation and rate charts into two hosts.
+ * Draw one of an event's charts into a host: Total, the accumulation against
+ * the median event, or Rate, the rate between readings.
  *
- * @param hosts - The accumulation and rate chart elements.
+ * @param host - The chart element.
  * @param curve - The event's curve.
  * @param row - The event, for its total and whether it is live.
- * @returns When both are drawn.
+ * @param options - Which chart, and the median event's total.
+ * @returns When it is drawn.
  */
-export async function drawEventCharts(
-  hosts: { accumulation: HTMLElement; rate: HTMLElement },
+export async function drawEventChart(
+  host: HTMLElement,
   curve: EventCurve,
   row: RainEventRow,
+  options: EventChartOptions,
 ): Promise<void> {
   const Plotly = await loadPlotly();
   const spans = gapSpans(curve, row.live);
-  const line = accumulationLine(curve, spans);
   const lastIn = curve.event_in[curve.event_in.length - 1] ?? row.total_in;
   const endMs = curve.t_ms[curve.t_ms.length - 1] ?? row.end_ms;
-  const widthMs = Math.max(1, endMs - curve.t_ms[0]!);
-  const topIn = Math.max(lastIn, ...line.y.filter((v): v is number => v !== null)) * 1.12 || 0.1;
-  const rain = token("--rain-3");
-  const dotColor = row.live ? token("--note") : rain;
   const config: Partial<Plotly.Config> = { displayModeBar: false, responsive: true };
+  // One time range, from the reading before the first; the plot is the host
+  // less the side margins.
+  const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
+  const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
+  const width = host.clientWidth || FALLBACK_WIDTH;
+  const ticks = timeTicks(fromMs, toMs, width - MARGIN.l - MARGIN.r);
+  // Three y ticks on a phone (under 520px of chart, the Chart Width Rule).
+  const nticks = width < NARROW ? 3 : 0;
+  // Drawn again at its real width, and in a new colour scheme.
+  watchRedraw(host, () => drawEventChart(host, curve, row, options));
+  // The tile's surface, for the hatch's ground and every label's pill.
+  const surface = token("--surface", host);
+  if (options.chart === "rate") {
+    const [traces, layout] = rateChart(curve, spans, ticks, xRange, surface);
+    layout.yaxis = { ...layout.yaxis, nticks };
+    await Plotly.react(host, traces, layout, config);
+    return;
+  }
+  const line = accumulationLine(curve, spans);
+  const widthMs = Math.max(1, endMs - curve.t_ms[0]!);
+  const median = options.medianIn;
+  const topIn =
+    Math.max(lastIn, median ?? 0, ...line.y.filter((v): v is number => v !== null)) * 1.12 || 0.1;
+  const rain = token("--rain-line");
+  const dotColor = row.live ? token("--now") : rain;
 
   const tail = spans.find((s) => s.liveTail);
-  const accTraces: Plotly.Data[] = [
-    hatches(spans, topIn),
-    {
+  const accTraces: Plotly.Data[] = [hatches(spans, topIn, surface)];
+  if (median !== null) {
+    // The median event's total: a dashed level under the bold line.
+    accTraces.push({
       type: "scatter",
       mode: "lines",
-      x: line.x,
-      y: line.y,
-      line: { color: rain, width: 3.5, shape: "hv" },
-      connectgaps: false,
-      hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in<extra></extra>",
-    },
-  ];
+      x: xRange,
+      y: [median, median],
+      line: { color: token("--ink-2"), width: 1.5, dash: "dash" },
+      hoverinfo: "skip",
+    });
+  }
+  accTraces.push({
+    type: "scatter",
+    mode: "lines",
+    x: line.x,
+    y: line.y,
+    line: { color: rain, width: 3.5, shape: "hv" },
+    connectgaps: false,
+    hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in<extra></extra>",
+  });
   if (tail) {
     const before = curve.event_in[curve.t_ms.indexOf(tail.fromMs)] ?? null;
     accTraces.push({
@@ -303,25 +369,16 @@ export async function drawEventCharts(
     mode: "markers",
     x: [stationWallClock(endMs)],
     y: [lastIn],
-    marker: { color: dotColor, size: 11, line: { color: token("--ground"), width: 2 } },
+    marker: { color: dotColor, size: 11, line: { color: surface, width: 2 } },
     // The end dot sits on the plot's right edge: draw all of it.
     cliponaxis: false,
     hovertemplate: `${row.live ? "now: " : ""}%{y:.2f} in<extra></extra>`,
   });
-  // Both charts share one time range, from the reading before the first,
-  // and one set of ticks. The plot is the host less the side margins.
-  const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
-  const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
-  const ticks = timeTicks(
-    fromMs,
-    toMs,
-    (hosts.rate.clientWidth || FALLBACK_WIDTH) - MARGIN.l - MARGIN.r,
-  );
-  const accLayout = baseLayout(240, " in", ticks);
+  const accLayout = baseLayout(CHART_HEIGHT, " in", ticks);
   accLayout.xaxis = { ...accLayout.xaxis, range: xRange };
-  accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn] };
+  accLayout.yaxis = { ...accLayout.yaxis, range: [0, topIn], nticks };
   accLayout.annotations = [
-    ...gapLabels(spans, widthMs),
+    ...gapLabels(spans, widthMs, surface),
     {
       x: stationWallClock(endMs),
       y: lastIn,
@@ -330,32 +387,90 @@ export async function drawEventCharts(
       yshift: 8,
       text: `${row.live ? "now " : ""}${inches(lastIn, { digits: 2 })}`,
       showarrow: false,
-      font: { size: 13, color: row.live ? token("--note") : token("--ink") },
-      bgcolor: token("--ground"),
+      font: { size: 13, color: row.live ? token("--now") : token("--ink") },
+      ...pill(surface),
     },
   ];
-  await Plotly.react(hosts.accumulation, accTraces, accLayout, config);
+  if (median !== null) {
+    accLayout.annotations.push({
+      x: xRange[0],
+      xanchor: "left",
+      y: median,
+      yanchor: "bottom",
+      yshift: 2,
+      text: `median ${inches(median, { digits: 2 })}`,
+      showarrow: false,
+      font: { size: 12, color: token("--ink-2") },
+      ...pill(surface),
+    });
+  }
+  await Plotly.react(host, accTraces, accLayout, config);
+}
 
+/** The rate chart's traces and layout: zero-based columns between readings. */
+function rateChart(
+  curve: EventCurve,
+  spans: GapSpan[],
+  ticks: TimeTicks,
+  xRange: [string, string],
+  surface: string,
+): [Plotly.Data[], Partial<Plotly.Layout>] {
   const rates = curve.rate_in_hr.map((r) => r ?? null);
   const topRate = Math.max(0.05, ...rates.filter((v): v is number => v !== null)) * 1.15;
-  const rateTraces: Plotly.Data[] = [
-    hatches(spans, topRate),
+  const traces: Plotly.Data[] = [
+    hatches(spans, topRate, surface),
     {
       type: "bar",
       x: curve.t_ms.map((t) => stationWallClock(t - 150_000)),
       y: rates,
       width: curve.t_ms.map(() => 300_000),
-      marker: { color: token("--rain-2"), line: { width: 0 } },
+      marker: { color: token("--rain-bar"), line: { width: 0 } },
       hovertemplate: "%{x|%b %-d, %-I:%M %p}: %{y:.2f} in/hr<extra></extra>",
     },
   ];
-  const rateLayout = baseLayout(150, "", ticks);
-  rateLayout.yaxis = {
-    ...rateLayout.yaxis,
+  const layout = baseLayout(CHART_HEIGHT, "", ticks);
+  layout.yaxis = {
+    ...layout.yaxis,
     range: [0, topRate],
     title: { text: "in/hr", font: { size: 12, color: token("--ink-2") } },
   };
-  rateLayout.margin = { ...MARGIN, t: 4, b: 44 };
-  rateLayout.xaxis = { ...rateLayout.xaxis, range: xRange };
-  await Plotly.react(hosts.rate, rateTraces, rateLayout, config);
+  layout.xaxis = { ...layout.xaxis, range: xRange };
+  return [traces, layout];
+}
+
+/** Each watched chart's latest redraw, by its host. */
+const redraws = new WeakMap<HTMLElement, () => unknown>();
+
+/**
+ * Redraw a Plotly chart when it can next be drawn right: when its host
+ * takes a new width (a chart first drawn hidden, in a closed row or a tab
+ * not yet open, had no width, so it got the fallback's desktop ticks), and
+ * when the colour scheme changes (Plotly bakes the theme's colours in when
+ * it draws). A host watched again keeps only its latest redraw (the Total /
+ * Rate switch redraws the same host); one no longer in the page stops
+ * listening at the next change.
+ *
+ * @param host - The chart's host.
+ * @param redraw - Draws it again, at its width now, in the theme now.
+ */
+function watchRedraw(host: HTMLElement, redraw: () => unknown): void {
+  const known = redraws.has(host);
+  redraws.set(host, redraw);
+  if (known) return;
+  if (typeof ResizeObserver === "function") {
+    let drawn = host.clientWidth;
+    new ResizeObserver(() => {
+      const width = host.clientWidth;
+      if (width === 0 || width === drawn) return;
+      drawn = width;
+      void redraws.get(host)?.();
+    }).observe(host);
+  }
+  if (typeof matchMedia !== "function") return;
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const onChange = () => {
+    if (host.isConnected) void redraws.get(host)?.();
+    else scheme.removeEventListener?.("change", onChange);
+  };
+  scheme.addEventListener?.("change", onChange);
 }

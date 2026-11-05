@@ -7,8 +7,8 @@
  * corners and 3px gaps, filled from the rain ramp on a square-root scale
  * with the value in the cell when there is room. ≈ marks a prorated month,
  * the hatch an invalid one, a dashed outline a month before the archive
- * began, and the `note` outline over a light hatch the current month, which
- * is not yet comparable. Tap, hover, focus or the arrow keys write a month's
+ * began, and the `now` outline over its ramp fill the current month, which
+ * is not yet comparable (hatched only when it has no total so far). Tap, hover, focus or the arrow keys write a month's
  * full sentence to the live readout below the grid. Below 520px of chart
  * width the values and the season column go; the readout keeps both.
  *
@@ -17,7 +17,7 @@
  */
 import "./almanac.css";
 
-import { WATER_MONTHS, dayText, formatStamp, inches } from "../format.js";
+import { WATER_MONTHS, dayText, inches } from "../format.js";
 import { make } from "../dom.js";
 import { hatchGap } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
@@ -42,26 +42,28 @@ import {
   tableValue,
   wettestMonth,
 } from "./almanac-text.js";
+import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
-/** Headline and standfirst, the section's first two parts. */
-function heading(host: HTMLElement, headline: string, standfirst: string): void {
-  const title = make("h2", "alm-headline", headline);
-  title.dataset.part = "headline";
+/** Finding and standfirst, the tile's first two parts after its kicker. */
+function heading(host: HTMLElement, finding: string, standfirst: string): void {
   const lede = make("p", "standfirst", standfirst);
   lede.dataset.part = "standfirst";
-  host.append(title, lede);
+  host.append(tileFinding(finding), lede);
 }
 
-/** The source line: method first, then the archive lag. */
-function source(host: HTMLElement, snapshot: DashboardSnapshot, method: string): void {
-  const lag =
-    snapshot.archive_newest_ms === null
-      ? null
-      : `Archived through ${formatStamp(snapshot.archive_newest_ms)}.`;
-  const line = make("p", "ov-source", [method, lag].filter(Boolean).join(" "));
-  line.dataset.part = "source";
-  host.append(line);
+/**
+ * The folded source note: the method, with the archive time on its closed
+ * line and the lag, past 15 minutes, in its chip.
+ */
+function source(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  what: string,
+  method: string,
+  gaps: string | null,
+): void {
+  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps })));
 }
 
 // ---------- the almanac grid ----------
@@ -118,8 +120,10 @@ function monthMark(month: AlmanacMonth | null, max: number): HTMLElement {
     mark.append(make("span", "alm-value", `${prefix}${cellText(month.rain_in!)}`));
     mark.title = sentence;
   } else if (kind === "current") {
-    if (month.to_date_in !== null)
+    if (month.to_date_in !== null) {
+      mark.dataset.step = String(rampStep(month.to_date_in, max));
       mark.append(make("span", "alm-value", cellText(month.to_date_in)));
+    }
     mark.title = sentence;
   } else if (kind === "before") {
     mark.title = sentence;
@@ -294,11 +298,16 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
   figure.append(readout);
   host.append(figure);
   wire(table, readout, almanac);
+  const hatched = almanac.years
+    .flatMap((year) => year.months)
+    .filter((month) => month !== null && cellKind(month) === "invalid").length;
   source(
     host,
     snapshot,
-    "Source: the station archive, each day's highest daily rain counter summed by month, with today's live total. " +
+    "daily rain counter, summed by month",
+    "The station archive, each day's highest daily rain counter summed by month, with today's live total. " +
       "≈ marks a month scaled up over a few missing days.",
+    gapReasons([[hatched, "month", "months"]]),
   );
 }
 
@@ -306,6 +315,8 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
 export const almanacGrid: OverviewSection = {
   id: "almanac",
   label: "Rain by month, each water year",
+  kicker: "Rain almanac",
+  span: 3,
   render: renderGrid,
 };
 
@@ -411,12 +422,18 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   host.append(frame);
 
   const live = snapshot.current.rain_today_in;
+  const statuses = almanac.rolling
+    .flatMap((window) => window.years.filter((y) => columns.includes(y.year)))
+    .map((year) => year.status);
+  const hatched = hatchedCount(statuses);
   source(
     host,
     snapshot,
-    "Source: the station archive, each day's highest daily rain counter, with today's live total" +
+    "daily rain counter with today's live total",
+    "The station archive, each day's highest daily rain counter, with today's live total" +
       (live === null ? "." : ` (${inches(live)}).`) +
       " ≈ marks a window scaled up over a few missing days.",
+    gapReasons([[hatched, "window", "windows"]]),
   );
 }
 
@@ -424,5 +441,6 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
 export const rollingRain: OverviewSection = {
   id: "rolling-rain",
   label: "Rain over the last week, month and season",
+  kicker: "Rain, rolling windows",
   render: renderRolling,
 };

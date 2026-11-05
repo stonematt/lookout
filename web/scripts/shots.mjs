@@ -6,7 +6,8 @@
  *   npm run shots -- <base-url> <out-dir> [query ...]
  *
  * e.g. npm run shots -- http://localhost:5177 /tmp/shots "fixture=raining&age=3"
- * Each query (default: none) is shot at 390px and 1280px in both themes.
+ * Each query (default: none) is shot at 390px, 1280px and 1440px in both
+ * themes: 1440 is the width of the desktop boards.
  * Install the browser once with `npx playwright install chromium`.
  */
 import { mkdirSync } from "node:fs";
@@ -21,7 +22,7 @@ if (!base || !outDir) {
 }
 mkdirSync(outDir, { recursive: true });
 
-const WIDTHS = [390, 1280];
+const WIDTHS = [390, 1280, 1440];
 const SCHEMES = ["light", "dark"];
 const browser = await chromium.launch();
 try {

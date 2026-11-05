@@ -1,13 +1,14 @@
 /**
  * The scaffolding every hand-drawn SVG chart shares (DESIGN.md, "Chart
- * grammar"): elements, a canvas with its own hatch, haloed labels, the y
+ * grammar"): elements, a canvas with its own hatch, haloed labels, labels
+ * on a pill of the surface (`pillLabel`, for a reason over a hatch), the y
  * axis, round ticks, scales, scrubbing for the live readout, and drawing at
  * the host's real width. The Overview's hero lead and temperature context,
  * the Rain tab and the Solar tab draw with it; each passes its own class
  * prefix, so its stylesheet keeps its own look.
  */
 import { svgEl } from "../dom.js";
-import { MONTHS, addDays } from "../format.js";
+import { MONTHS, addDays, dayText } from "../format.js";
 import { reasonLabel, svgHatch } from "../gaps.js";
 import type { GapReason } from "../snapshot.js";
 
@@ -17,8 +18,21 @@ export const FALLBACK_WIDTH = 640;
 /** About how wide one character of a 12.5px chart label is. */
 export const LABEL_CHAR_PX = 6.8;
 
-/** Below this chart width, ticks thin out and labels shorten. */
+/**
+ * Below this chart width a chart draws its phone layout (DESIGN.md, "The
+ * Chart Width Rule"): ticks thin out, labels shorten, the now label sits
+ * above its dot, and a chart of days shows its last 30.
+ */
 export const NARROW = 520;
+
+/**
+ * How many steps a chart of this width divides its y axis into, about
+ * (`zeroTicks`' count): two on a phone, so three ticks.
+ */
+export const yTickSteps = (width: number): number => (width < NARROW ? 2 : 4);
+
+/** Days a chart of days shows by default at phone width (the 30 / 90 switch). */
+export const PHONE_DAYS = 30;
 
 /** What a chart writes to its readout for one position. */
 export type Readout = (text: string) => void;
@@ -70,6 +84,115 @@ export function chartLabel(
   return svgEl("text", { x, y, class: cls, "text-anchor": anchor }, text);
 }
 
+/** How far a label's pill reaches past its glyphs (DESIGN.md Shapes: a 4px halo). */
+export const PILL_PAD = 4;
+
+/** A pill's corner: the cell corner, like the HTML reason's `.gap-label`. */
+const PILL_RADIUS = 3;
+
+/** How big a label is, for its pill before the text can be measured. */
+export interface PillSize {
+  /** Its font size in pixels: 12 for a label, 13 for a now annotation. */
+  font: number;
+  /** About how wide one of its characters is. */
+  charPx: number;
+}
+
+/** A 12px label (`--type-label`). */
+export const LABEL_SIZE: PillSize = { font: 12, charPx: LABEL_CHAR_PX };
+
+/** A 13px semibold now annotation (`--type-annotation`). */
+export const NOTE_SIZE: PillSize = { font: 13, charPx: LABEL_CHAR_PX * 1.15 };
+
+/**
+ * A label on a pill of the surface it sits on, so stripes or marks never
+ * show between its letters (DESIGN.md Shapes: "Text never sits on the
+ * stripes"). The SVG form of the HTML reason pill (`.gap-label`): every
+ * reason over a hatch, and every now label that can land on one, draws
+ * with it. The pill is sized from an estimate, then fitted to the text's
+ * real box once it is laid out.
+ *
+ * Append it after the marks it must sit over, a now rule included: the
+ * label is drawn on top, so no mark crosses its text.
+ *
+ * @param x - Its anchor.
+ * @param y - Its baseline.
+ * @param text - Its words.
+ * @param cls - The text's class, e.g. "rain-label".
+ * @param anchor - `text-anchor`.
+ * @param size - Its type size, for the estimate.
+ * @returns A `g.chart-pill` holding the pill rect, then the text.
+ */
+export function pillLabel(
+  x: number,
+  y: number,
+  text: string,
+  cls: string,
+  anchor = "start",
+  size: PillSize = LABEL_SIZE,
+): SVGGElement {
+  const width = text.length * size.charPx;
+  const left = anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
+  const pill = svgEl("rect", {
+    class: "chart-pill-ground",
+    x: left - PILL_PAD,
+    y: y - size.font * 0.78 - PILL_PAD,
+    width: width + PILL_PAD * 2,
+    height: size.font + PILL_PAD * 2,
+    rx: PILL_RADIUS,
+  });
+  const label = chartLabel(x, y, text, cls, anchor);
+  const group = svgEl("g", { class: "chart-pill", "data-part": "pill" });
+  group.append(pill, label);
+  fitPill(pill, label);
+  return group;
+}
+
+/**
+ * Move a chart's pills to the top of its drawing, so a mark drawn after
+ * them (a selected day's outline) never crosses their text. Call it once
+ * the chart is drawn, before it goes on the page.
+ *
+ * @param svg - The chart.
+ */
+export function raisePills(svg: SVGSVGElement): void {
+  svg.append(...svg.querySelectorAll(":scope > .chart-pill"));
+}
+
+/** Fit a pill to its text's real box once the text is on the page. */
+function fitPill(pill: SVGRectElement, label: SVGTextElement): void {
+  const fit = () => {
+    if (!label.isConnected) return;
+    let box: DOMRect;
+    try {
+      box = label.getBBox();
+    } catch {
+      return;
+    }
+    if (!box.width) return;
+    pill.setAttribute("x", String(box.x - PILL_PAD));
+    pill.setAttribute("y", String(box.y - PILL_PAD));
+    pill.setAttribute("width", String(box.width + PILL_PAD * 2));
+    pill.setAttribute("height", String(box.height + PILL_PAD * 2));
+  };
+  if (typeof requestAnimationFrame !== "function") return;
+  requestAnimationFrame(fit);
+  // Measured again once the web font is in, as it changes the width.
+  void document.fonts?.ready.then(() => requestAnimationFrame(fit));
+}
+
+/**
+ * Whether a day column is hatched as not in the record: any reason but
+ * before the archive, which the chart leaves blank. A tile's source chip
+ * counts the same days.
+ *
+ * @param reason - The day's reason, null for a day in the record.
+ * @returns True when the day is hatched.
+ */
+export function missingDay(reason: GapReason | null): boolean {
+  return reason !== null && reason !== "before_archive";
+}
+
 /**
  * Hatch the days not in the record over a row of day columns, with the
  * reason in place where it fits. A day before the archive is left to the
@@ -94,13 +217,13 @@ export function hatchMissingDays(
   bottom: number,
   labelCls: string,
 ): void {
-  const missing = (i: number) => reasons[i] !== null && reasons[i] !== "before_archive";
-  for (const [a, b] of runs(reasons.length, missing)) {
+  for (const [a, b] of runs(reasons.length, (i) => missingDay(reasons[i] ?? null))) {
     const width = x(b) + step - x(a);
     svg.append(svgEl("rect", { x: x(a), y: top, width, height: bottom - top, fill: hatch, rx: 2 }));
     const words = reasonLabel(reasons[a] as GapReason);
-    if (width >= words.length * LABEL_CHAR_PX + 8) {
-      svg.append(chartLabel(x(a) + width / 2, top + 14, words, labelCls, "middle"));
+    // Room for the reason on its pill, with stripes showing either side.
+    if (width >= words.length * LABEL_CHAR_PX + 4 * PILL_PAD) {
+      svg.append(pillLabel(x(a) + width / 2, top + 18, words, labelCls, "middle"));
     }
   }
 }
@@ -136,6 +259,91 @@ export function monthTicks(
       ),
     );
   }
+}
+
+/**
+ * Date ticks under a short row of day columns (a month or so): today's
+ * date at the right, then every two weeks back, e.g. "Oct 5 · Oct 19 ·
+ * Nov 2". A longer row is ticked by month (`monthTicks`).
+ *
+ * @param svg - The chart.
+ * @param first - The first column's day, "YYYY-MM-DD".
+ * @param count - How many columns.
+ * @param x - Day index to its column's left edge.
+ * @param step - A column's width.
+ * @param y - The ticks' top.
+ * @param prefix - The chart family's class prefix, e.g. "rain".
+ */
+export function dayTicks(
+  svg: SVGSVGElement,
+  first: string,
+  count: number,
+  x: (i: number) => number,
+  step: number,
+  y: number,
+  prefix: string,
+): void {
+  if (count > 45) {
+    monthTicks(svg, first, count, x, y, prefix);
+    return;
+  }
+  for (let i = count - 1; i >= 0; i -= 14) {
+    const at = x(i) + step / 2;
+    const text = dayText(addDays(first, i));
+    // The newest ends at the plot's right edge; one too close to the left
+    // edge to centre starts there.
+    const anchor =
+      i === count - 1 ? "end" : at - (text.length * LABEL_CHAR_PX) / 2 < x(0) ? "start" : "middle";
+    const lx = anchor === "end" ? x(i) + step : anchor === "start" ? x(0) : at;
+    svg.append(svgEl("line", { x1: at, x2: at, y1: y - 4, y2: y, class: `${prefix}-axis` }));
+    svg.append(
+      svgEl("text", { x: lx, y: y + 13, class: `${prefix}-tick`, "text-anchor": anchor }, text),
+    );
+  }
+}
+
+/** Where a now label goes on a phone: centred over its dot, kept inside. */
+export interface AboveDot {
+  x: number;
+  y: number;
+  anchor: "start" | "middle" | "end";
+  /** The label's left and right edges, for a chart that keeps it clear of other marks. */
+  from: number;
+  to: number;
+}
+
+/**
+ * The now label above its dot (the phone layout): centred over it, or
+ * ending (or starting) at it where centring would run off the plot.
+ *
+ * @param cx - The dot's centre.
+ * @param cy - The dot's centre.
+ * @param text - The label.
+ * @param left - The plot's left edge.
+ * @param right - The plot's right edge (the label may reach the chart's).
+ * @param minY - The highest baseline the chart has room for.
+ * @returns The label's anchor point and text-anchor.
+ */
+export function aboveDot(
+  cx: number,
+  cy: number,
+  text: string,
+  left: number,
+  right: number,
+  minY: number,
+): AboveDot {
+  // The annotation is 13px bold, a little wider than a 12.5px label.
+  const half = (text.length * LABEL_CHAR_PX * 1.15) / 2;
+  const y = Math.max(minY, cy - 12);
+  if (cx + half > right) {
+    const x = Math.min(cx + 6, right);
+    return { x, y, anchor: "end", from: x - 2 * half, to: x };
+  }
+  if (cx - half < left) {
+    const x = Math.max(cx - 6, left);
+    return { x, y, anchor: "start", from: x, to: x + 2 * half };
+  }
+  return { x: cx, y, anchor: "middle", from: cx - half, to: cx + half };
 }
 
 /** How a y axis names its unit. */
@@ -215,17 +423,19 @@ export function zeroTicks(max: number, count = 4): number[] {
 }
 
 /**
- * Up to five round ticks over [lo, hi].
+ * Round ticks over [lo, hi]: up to five, or as few as a phone wants.
  *
  * @param lo - The low end.
  * @param hi - The high end.
+ * @param steps - At most how many steps the span holds; 2 gives three ticks.
  * @returns The ticks, ascending.
  */
-export function niceTicks(lo: number, hi: number): number[] {
+export function niceTicks(lo: number, hi: number, steps = 5): number[] {
   const span = hi - lo || 1;
   const raw = span / 4;
   const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= 5) ?? raw;
+  const step =
+    [1, 2, 2.5, 5, 10, 20, 25, 50].map((m) => m * mag).find((s) => span / s <= steps) ?? raw;
   const ticks: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step)
     ticks.push(Number(v.toPrecision(6)));
@@ -315,8 +525,9 @@ export function scrub(
  *
  * @param host - The chart's host.
  * @param draw - Draws at a width.
+ * @returns Draws again at the last width (a switch changed what is shown).
  */
-export function drawSized(host: HTMLElement, draw: (width: number) => void): void {
+export function drawSized(host: HTMLElement, draw: (width: number) => void): () => void {
   let drawn = 0;
   const redraw = () => {
     const width = Math.floor(host.clientWidth) || FALLBACK_WIDTH;
@@ -330,4 +541,5 @@ export function drawSized(host: HTMLElement, draw: (width: number) => void): voi
       if (host.clientWidth > 0) redraw();
     }).observe(host);
   }
+  return () => draw(drawn || FALLBACK_WIDTH);
 }

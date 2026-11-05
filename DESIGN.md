@@ -1,7 +1,6 @@
 ---
 name: Lookout
 description: A personal weather record for one station. It reads like Dark Sky and argues like the FT. Findings first, on quiet slate tiles, in both themes.
-status: "Target design, adopted Nov 2026. web/src/styles/tokens.css still carries the earlier Paper world until the restyle lands; this file is the source the restyle moves to."
 colors:
   # Light values are the base keys; each -dark key is the same role in dark mode.
   # Dark is the primary design; light is its twin, held to the same contrast rules.
@@ -39,11 +38,11 @@ colors:
   sun-bar: "#a87a24"
   sun-band: "#f5e9c8"
   sun-band-edge: "#a1802f"
-  sun-0: "#a8873d"
-  sun-1: "#8e6f2c"
-  sun-2: "#75591f"
-  sun-3: "#5c4515"
-  sun-4: "#42310d"
+  sun-0: "#6e5a2e"
+  sun-1: "#8a6f2e"
+  sun-2: "#b8942c"
+  sun-3: "#e3b83a"
+  sun-4: "#f5cd4f"
   ribbon-night: "#2c3640"
   ribbon-day: "#8797a8"
   ribbon-rain: "#2f5f94"
@@ -369,7 +368,7 @@ Light values are the frontmatter base keys and each `-dark` key is the same role
 ### Data
 - **Rain** (`rain-line`, `rain-bar`, `rain-band`, `rain-0` to `rain-4`): the bold now-curve of a storm or season, daily bars, the usual band, and the five-step ramp for the almanac and the rain-by-hour grid. The ramp gets deeper with more rain; in dark mode deeper means lighter.
 - **Temperature** (`temp-cool`, `temp-mild`, `temp-warm`, `temp-iqr`, `temp-band`): the ten-day bars (cool when the high stayed under usual, warm when over, mild when level), the middle-half bar in the periods chart, and the usual band behind each day.
-- **Sun** (`sun-line`, `sun-bar`, `sun-band`, `sun-0` to `sun-4`): the solar trace, daily and quarter-hour bars, the usual band, and the solar almanac ramp.
+- **Sun** (`sun-line`, `sun-bar`, `sun-band`, `sun-0` to `sun-4`): the solar trace, daily and quarter-hour bars, the usual band, and the solar almanac ramp. The ramp runs dim to bright with the sun in both themes: the brightest day is the brightest cell. Named exception: the owner accepted on 2026-11-04 that the light ramp's steps 2 to 4 (`sun-2` 2.87, `sun-3` 1.88, `sun-4` 1.53 on `tile`) sit under 3:1, because the grid reads as a spectrum in context; the cells carry no edge.
 - **Ribbon** (`ribbon-night`, `ribbon-day`, `ribbon-rain`, `ribbon-edge`): the 48-hour ribbon's night and day bands, its rain track, and its outline in light mode.
 - **Median** (`median`): the dashed median drawn over a usual band, in both themes.
 
@@ -441,7 +440,7 @@ Flat. No shadows. Depth is tile on ground, and the one tinted now tile. Inside c
 
 ## Shapes
 
-Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. The ribbon 6px. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 3 to 4px on an 8px repeat. Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
+Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. The ribbon 6px. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 2px on a 12px repeat (2px on a 6px repeat in a chip swatch, which is 12px square). Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
 
 ## Components
 
@@ -498,7 +497,7 @@ Every chart is SVG drawn at its real pixel width, with no chart box and no verti
 - **Ten-day bars:** each day's low-to-high bar over the usual-range band for that date, coloured cool, mild or warm against the usual high.
 - **Daily bars:** one bar per day in its data colour. Today's bar is marked by an r4 `now` dot 4px above its top (on the baseline when today is zero) and the label "today". The selected day is outlined in `ink`; missing days are hatched. On a phone the default is the last 30 days with a 30 / 90 switch; desktop shows 90.
 - **Rain-by-hour grid:** days as columns, hours as rows, filled from the rain ramp on a `ground` background; the current hour outlined in `now` outside the cell, with a 1px `ground` gap. On a phone, the last 30 days.
-- **Almanac grid:** years as rows, months as columns, cells filled from the rain or sun ramp, with the value in the cell. ≈ marks a prorated month; an invalid month is hatched with "n/a"; a month before the archive or still to come is a dashed `rule-strong` outline; the current month is hatched, because it is not yet comparable, and outlined in `now` outside the cell with a 1px `tile` gap.
+- **Almanac grid:** years as rows, months as columns, cells filled from the rain or sun ramp, with the value in the cell. ≈ marks a prorated month; an invalid month is hatched with "n/a"; a month before the archive or still to come is a dashed `rule-strong` outline; the current month is filled from the ramp by its total so far, like the season cell, and outlined in `now` outside the cell with a 1px `tile` gap; it is hatched only when it has no total so far.
 - **Water-year lines:** one line per water year, past years in `ink-3`-weight slate, this year bold in `rain-line` with a `now` dot.
 
 ### Named Rules (data and copy)
@@ -512,7 +511,7 @@ Every chart is SVG drawn at its real pixel width, with no chart box and no verti
 
 **The Name the Years Rule.** A finding that compares years names them, newest first.
 
-**The One Format Rule.** Times `9:36 am`, dates with times `Oct 27, 11:00 pm`, durations `1 d 10 h`, `5 h 12 m`, `45 m`. Station time zone (`station.tz`), imperial units.
+**The One Format Rule.** Times `9:36 am`, dates with times `Oct 27, 11:00 pm`, durations `1 d 10 h`, `5 h 12 m`, `45 m`. Station time zone (`station.tz`), imperial units. That is the evidence form: stat rows, chart labels, the ribbon, event rows and source lines keep it exactly. A tile's finding (its headline) says a duration the way a person does, with the units spelled out: minutes under an hour (`45 minutes`), whole hours to under 3 days (`about 26 hours`), the nearest half day to under 7 days (`about 3.5 days`), whole days after (`about 12 days`). `about` marks a rounded value; an exact one has none. Headlines speak, evidence stays exact.
 
 **The Label Not Colour Rule.** Copy names marks by label or position ("the bold line", "the band", "the rule marked now"), never by colour.
 

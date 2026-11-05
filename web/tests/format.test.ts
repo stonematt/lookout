@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compassPoint,
   daysBetween,
   waterYearSpan,
   MONTHS,
@@ -12,6 +13,7 @@ import {
   formatDayCount,
   formatDays,
   formatDuration,
+  formatDurationSpoken,
   formatHours,
   formatStamp,
   formatTime,
@@ -47,6 +49,40 @@ describe("formatTime", () => {
   it("names a time's Pacific month", () => {
     // 2026-02-01T05:00:00Z is still Jan 31 in Pacific time.
     expect(localMonthName(Date.UTC(2026, 1, 1, 5))).toBe("January");
+  });
+});
+
+describe("formatDurationSpoken", () => {
+  const H = 60 * MIN;
+  const D = 24 * H;
+
+  it("keeps minutes under an hour", () => {
+    expect(formatDurationSpoken(59 * MIN)).toBe("59 minutes");
+    expect(formatDurationSpoken(1 * MIN)).toBe("1 minute");
+    expect(formatDurationSpoken(30_000)).toBe("under 1 minute");
+  });
+
+  it("rounds to whole hours from 1 h to under 3 days", () => {
+    expect(formatDurationSpoken(1 * H)).toBe("1 hour");
+    expect(formatDurationSpoken(26 * H)).toBe("26 hours");
+    expect(formatDurationSpoken(26 * H + 20 * MIN)).toBe("about 26 hours");
+    expect(formatDurationSpoken(38 * H + 40 * MIN)).toBe("about 39 hours");
+    expect(formatDurationSpoken(71 * H + 59 * MIN)).toBe("about 72 hours");
+  });
+
+  it("rounds to the nearest half day from 3 to under 7 days", () => {
+    expect(formatDurationSpoken(72 * H)).toBe("3 days");
+    expect(formatDurationSpoken(3 * D + 5 * H)).toBe("about 3 days");
+    expect(formatDurationSpoken(3 * D + 12 * H)).toBe("3.5 days");
+    expect(formatDurationSpoken(3 * D + 9 * H)).toBe("about 3.5 days");
+    expect(formatDurationSpoken(6 * D + 23 * H)).toBe("about 7 days");
+  });
+
+  it("rounds to whole days from 7 days", () => {
+    expect(formatDurationSpoken(7 * D)).toBe("7 days");
+    expect(formatDurationSpoken(12 * D + 5 * H)).toBe("about 12 days");
+    expect(formatDurationSpoken(30 * D + 6 * H)).toBe("about 30 days");
+    expect(formatDurationSpoken(12 * D + 18 * H)).toBe("about 13 days");
   });
 });
 
@@ -143,6 +179,23 @@ describe("units", () => {
     expect(kwhPerM2(2.414)).toBe("2.41 kWh/m²");
     expect(kwhPerM2(61.23)).toBe("61.2 kWh/m²");
     expect(kwhPerM2(123.4, { unit: false })).toBe("123");
+  });
+});
+
+describe("compassPoint", () => {
+  it.each([
+    [0, "N"],
+    [11.2, "N"],
+    [11.3, "NNE"],
+    [90, "E"],
+    [124, "SE"],
+    [180, "S"],
+    [270, "W"],
+    [348.7, "NNW"],
+    [348.8, "N"],
+    [360, "N"],
+  ])("%s° reads %s", (deg, point) => {
+    expect(compassPoint(deg)).toBe(point);
   });
 });
 
