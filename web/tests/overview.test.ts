@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { setLayout } from "../src/layout.js";
 import { conditionSentence } from "../src/overview/condition.js";
 import { renderOverview, SECTIONS } from "../src/overview/index.js";
 import { clearNowLabel, rainStep, ribbonClaim, ribbonTicks } from "../src/overview/ribbon.js";
@@ -14,6 +15,8 @@ const dry = parseDashboard(golden("dry", "dashboard"));
 let panel: HTMLElement;
 
 beforeEach(() => {
+  // No layout set: the phone rules apply, as on a page before its switch runs.
+  document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML = "<div id=panel></div>";
   panel = document.getElementById("panel")!;
 });
@@ -23,29 +26,54 @@ const text = (selector: string) =>
 const all = (selector: string) => [...panel.querySelectorAll<HTMLElement>(selector)];
 
 describe("the Overview", () => {
-  it("opens with the first screen, in the Phone First-Screen order", () => {
+  it("opens with the now tile, in the Phone First-Screen order", () => {
     renderOverview(panel, raining);
 
-    const first = panel.querySelector("[data-section=first-screen]")!;
-    expect(panel.firstElementChild).toBe(first);
+    const first = panel.querySelector(".tile-grid > .tile")!;
+    expect(first.getAttribute("data-section")).toBe("first-screen");
+    expect(first.getAttribute("data-surface")).toBe("now");
     const order = [...first.querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    expect(order).toEqual(["temperature", "condition", "right-now", "ribbon"]);
+    expect(order).toEqual([
+      "kicker",
+      "finding",
+      "temperature",
+      "condition",
+      "right-now",
+      "ribbon",
+      "source-note",
+      "caveat",
+      "source",
+    ]);
   });
 
-  it("renders each section into its own host, in order", () => {
+  it("renders each section into its own tile, in order, after its kicker", () => {
+    // The grids draw every section as a tile; a phone draws rows (tiles.test).
+    setLayout("four");
     const seen: string[] = [];
     renderOverview(panel, dry, [
-      { id: "a", label: "A", render: (host) => void seen.push(host.dataset.section!) },
-      { id: "b", label: "B", render: (host) => void seen.push(host.dataset.section!) },
+      {
+        id: "a",
+        label: "A",
+        kicker: "Kicker A",
+        render: (host) => void seen.push(`${host.dataset.section} ${host.textContent}`),
+      },
+      {
+        id: "b",
+        label: "B",
+        kicker: (s) => `Kicker for ${s.station.name}`,
+        span: 3,
+        render: (host) => void seen.push(`${host.dataset.section} ${host.textContent}`),
+      },
     ]);
 
-    expect(seen).toEqual(["a", "b"]);
-    expect(all(".ov-section").map((el) => el.getAttribute("aria-label"))).toEqual(["A", "B"]);
+    expect(seen).toEqual(["a Kicker A", `b Kicker for ${dry.station.name}`]);
+    expect(all(".tile").map((el) => el.getAttribute("aria-label"))).toEqual(["A", "B"]);
+    expect(all(".tile").map((el) => el.dataset.span)).toEqual(["1", "3"]);
   });
 
-  it("starts its section list with the first screen", () => {
+  it("starts its section list with the now tile", () => {
     expect(SECTIONS[0]?.id).toBe("first-screen");
   });
 });
@@ -115,7 +143,7 @@ describe("the current temperature and its condition sentence", () => {
 });
 
 describe("the Right-now strip", () => {
-  it("lists feels like, wind and rain today from the snapshot's reading", () => {
+  it("lists feels like, wind, rain today and humidity from the snapshot's reading", () => {
     renderOverview(panel, raining);
 
     const items = all("[data-part=right-now] > div").map((div) => [
@@ -126,6 +154,7 @@ describe("the Right-now strip", () => {
       ["feels like", "59.3°"],
       ["wind", "3.0 mph"],
       ["rain today", "0.30 in"],
+      ["humidity", "66%"],
     ]);
   });
 
@@ -143,7 +172,7 @@ describe("the 48-hour condition ribbon", () => {
   it("draws night, day and rain slots, in four rain steps", () => {
     renderOverview(panel, raining);
 
-    const rain = all(".ribbon-band rect[data-rain]").map((r) => r.dataset.rain);
+    const rain = all(".ribbon-rain rect[data-rain]").map((r) => r.dataset.rain);
     // Event 2 at 0.06 in/hr (step 2) and event 3 at 0.12 in/hr (step 3).
     expect(new Set(rain)).toEqual(new Set(["2", "3"]));
     expect(all(".ribbon-band rect[data-light=day]").length).toBeGreaterThan(0);
@@ -153,6 +182,54 @@ describe("the 48-hour condition ribbon", () => {
     expect(rainStep(0.075)).toBe(3); // 0.30 in/hr
     expect(rainStep(0.1)).toBe(4);
     expect(rainStep(0)).toBeNull();
+  });
+
+  it("draws rain as its own track of bars under the band, never over it", () => {
+    renderOverview(panel, raining);
+
+    expect(all(".ribbon-band [data-rain]")).toEqual([]);
+    const track = panel.querySelector(".ribbon-rain")!;
+    expect(track.previousElementSibling?.classList.contains("ribbon-band")).toBe(true);
+    expect(track.getAttribute("aria-hidden")).toBe("true");
+    // Each bar stands on the track's floor; a heavier step stands taller.
+    const heights = (step: string) =>
+      all(`.ribbon-rain rect[data-rain="${step}"]`).map((r) => {
+        const h = Number(r.getAttribute("height"));
+        expect(Number(r.getAttribute("y")) + h).toBe(100);
+        return h;
+      });
+    expect(Math.min(...heights("3"))).toBeGreaterThan(Math.max(...heights("2")));
+    // Rain is unknown past the archive: the track is hatched there as well.
+    const hatches = all(".ribbon-rain .ribbon-rain-hatch");
+    expect(hatches).toHaveLength(1);
+    expect(hatches[0]?.style.right).toBe("0px");
+  });
+
+  it("draws a bar for every wet slot and none for a dry one", () => {
+    renderOverview(panel, raining);
+    const wet = raining.condition_ribbon!.rain_in.filter((r) => r !== null && r > 0).length;
+    const covered = all(".ribbon-rain rect[data-rain]").reduce(
+      (sum, r) => sum + Number(r.dataset.slots),
+      0,
+    );
+    expect(covered).toBe(wet);
+
+    const ribbon = dry.condition_ribbon!;
+    renderOverview(panel, {
+      ...dry,
+      condition_ribbon: { ...ribbon, rain_in: ribbon.rain_in.map((r) => (r === null ? r : 0)) },
+    });
+    expect(panel.querySelector(".ribbon-rain")).not.toBeNull();
+    expect(all(".ribbon-rain rect")).toEqual([]);
+  });
+
+  it("keys rain by bar height", () => {
+    renderOverview(panel, raining);
+
+    const steps = all(".ribbon-key-ramp i").map((i) => i.className);
+    expect(steps).toEqual([1, 2, 3, 4].map((s) => `ribbon-key-rain-${s}`));
+    const items = all(".ribbon-key-item").map((i) => i.textContent?.replace(/\s+/g, " ").trim());
+    expect(items).toEqual(["night", "day", "rain, light heavy", "no archived reading"]);
   });
 
   it("traces the temperature and ends at the live value", () => {
@@ -197,14 +274,14 @@ describe("the 48-hour condition ribbon", () => {
     // Jan 6, 4:30 pm to Jan 8, 4:30 pm Pacific.
     // Thursday noon (91% across) sits under the "now" label.
     expect(ticks).toEqual(["Wed", "6 am", "noon", "6 pm", "Thu", "6 am"]);
-    // Thursday 6 am (78%) would run into it on a phone: marked late.
-    expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.late)).toEqual([
-      false,
-      false,
+    // The midnights name their days: a phone-width ribbon shows only them.
+    expect(ribbonTicks(raining.condition_ribbon!).map((t) => t.day)).toEqual([
+      true,
       false,
       false,
       false,
       true,
+      false,
     ]);
   });
 
@@ -287,6 +364,10 @@ describe("the 48-hour condition ribbon", () => {
     expect(panel.querySelector(".ribbon-band")?.getAttribute("role")).toBe("img");
     expect(panel.querySelector(".ribbon-band")?.getAttribute("aria-label")).toMatch(
       /^48-hour condition ribbon: 40° to 60°/,
+    );
+    expect(panel.querySelector(".ribbon-band")?.getAttribute("aria-label")).toBe(
+      `48-hour condition ribbon: ${ribbonClaim(raining.condition_ribbon!).replace(/^The last 48 hours, /, "")} ` +
+        "Day and night, rain intensity and the temperature trace, oldest on the left.",
     );
   });
 

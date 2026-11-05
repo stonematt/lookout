@@ -45,3 +45,10 @@ Verdict: ship
 - [ ] note: streamlit import at `lookout/core/data_processing.py:9` — not rechecked; the refresh path does not import it
 - [ ] note: socket guard in `tests/conftest.py` — not rechecked
 - [ ] fix: the Vercel Storj key covers the whole `lookout` bucket, not `snapshot/` (Matt, 2026-11-01) — #247
+
+### 2026-11-04 — goal PR #358 at `0abc3f2`, pre-UAT
+Verdict: ship
+- checked: lint clean (`no-unsanitized`), 731 web tests pass, CSP check 0 violations over 8 runs, `web/vercel.json` unchanged; no test files deleted
+- [ ] note: ten-day colour decided in the web (`web/src/overview/temperature.ts:302`); move it to the snapshot with a `SCHEMA_VERSION` bump after UAT (#374)
+- [ ] note: event rows lose ctrl-click open in a new tab (#370); lag arithmetic sits in three places off one web constant `STALE_AFTER_MS` (`web/src/format.ts:45`)
+- streamlit import, socket guard, #247 scope, `HC_PING_KEY`, publish order — not checkable in a web-only diff; still open

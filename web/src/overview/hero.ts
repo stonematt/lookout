@@ -3,8 +3,9 @@
  * notable thing right now, chosen in Python (`lookout/snapshot/lead.py`),
  * and a "Why this leads" disclosure listing every rule with its live value.
  *
- * The section runs finding headline, standfirst, the hero facts, the chart,
- * the source line, then the disclosure. The chart follows "Bold now over a
+ * The leading tile runs its kicker (what leads, after the leading-tile
+ * dot), the finding, standfirst, the hero facts, the chart, then two folded
+ * lines: "Why this leads" and the source note. The chart follows "Bold now over a
  * soft usual range": the shaded band is the middle half of the comparison
  * set, the dashed line its median, the bold line now, ending in a dot with
  * its value. Where the live reading is ahead of the archive, that span is
@@ -20,7 +21,9 @@ import {
   degrees,
   formatDayCount,
   formatDays,
+  formatDaysSpoken,
   formatDuration,
+  formatDurationSpoken,
   formatStamp,
   hourName,
   inches,
@@ -29,10 +32,19 @@ import {
   WET_DAY_IN,
   wattsPerM2,
 } from "../format.js";
-import { niceTicks, scale } from "../charts/svg.js";
+import {
+  NARROW,
+  NOTE_SIZE,
+  aboveDot,
+  niceTicks,
+  pillLabel,
+  scale,
+  yTickSteps,
+} from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { gapSentence, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, HeroLead, LeadKind, LeadRule } from "../snapshot.js";
+import { fold, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
 /** A live reading further ahead of the archive than this is hatched. */
@@ -42,6 +54,7 @@ const LAG_HATCH_MS = 15 * 60_000;
 
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${degrees(Math.abs(v))}`;
 const sinceText = (hours: number) => formatDuration(hours * HOUR_MS);
+const sinceSpoken = (hours: number) => formatDurationSpoken(hours * HOUR_MS);
 
 function rule(lead: HeroLead, kind: LeadKind): LeadRule {
   return lead.rules.find((r) => r.kind === kind)!;
@@ -79,7 +92,7 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
       if (snapshot.active_rain_event)
         return `Raining now: ${inches(now ?? 0, { digits: 2 })} so far${usual}`;
       const since = rule(lead, "rain").value ?? 0;
-      return `Rain ended ${sinceText(since)} ago, after ${inches(now ?? 0, { digits: 2 })}${usual}`;
+      return `Rain ended ${sinceSpoken(since)} ago, after ${inches(now ?? 0, { digits: 2 })}${usual}`;
     }
     case "temperature": {
       const t = rule(lead, "temperature");
@@ -103,7 +116,7 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
         calm.reference === null
           ? ""
           : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
-      return `${formatDays(calm.value)} since it last rained${usual}`;
+      return `${formatDaysSpoken(calm.value)} since it last rained${usual}`;
     }
   }
 }
@@ -226,7 +239,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
         ? "raining now"
         : r.value === null
           ? "no rain event on record"
-          : `the last event ended ${sinceText(r.value)} ago`;
+          : `the last event ended ${sinceSpoken(r.value)} ago`;
       return `Rain event live or ended in the last ${r.threshold ?? 12} h: ${value}`;
     }
     case "temperature": {
@@ -245,7 +258,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
         r.reference === null
           ? "; the usual dry spell is not compared"
           : `, against a usual dry spell of ${formatDayCount(r.reference)}`;
-      return `Otherwise, calm: ${formatDays(r.value)} since it last rained${usual}`;
+      return `Otherwise, calm: ${formatDaysSpoken(r.value)} since it last rained${usual}`;
     }
   }
 }
@@ -256,7 +269,7 @@ export function ruleText(r: LeadRule, snapshot: DashboardSnapshot): string {
  * @param snapshot - The dashboard snapshot.
  * @returns The sentence.
  */
-export function heroSource(snapshot: DashboardSnapshot): string {
+function heroSource(snapshot: DashboardSnapshot): string {
   const lead = snapshot.hero_lead;
   const lag =
     liveLagMs(snapshot) > LAG_HATCH_MS
@@ -365,7 +378,7 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   const nowMs = lead.now_ms;
   const t0 = trace.start_ms;
   const t1 = hourly ? t0 + trace.values.length * slotMs : nowMs;
-  const narrow = width < 520;
+  const narrow = width < NARROW;
   const f: Frame = { w: width, h: narrow ? 220 : 260, l: 40, r: 12, t: 24, b: 28 };
   const iw = f.w - f.l - f.r;
   const ih = f.h - f.t - f.b;
@@ -397,7 +410,10 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   const pad = (hi - lo || 1) * 0.12;
   if (lead.unit === "f") lo -= pad;
   hi += pad;
-  const ticks = niceTicks(lo, hi);
+  // Three ticks on a phone: two steps, and a third tick above when the
+  // span holds only one.
+  const ticks = narrow ? niceTicks(lo, hi, yTickSteps(width)) : niceTicks(lo, hi);
+  if (narrow && ticks.length === 2) ticks.push(+(2 * ticks[1]! - ticks[0]!).toPrecision(6));
   lo = Math.min(lo, ticks[0] ?? lo);
   hi = Math.max(hi, ticks.at(-1) ?? hi);
 
@@ -495,10 +511,12 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
       }),
     );
     g.append(
-      svgEl(
-        "text",
-        { class: "hero-label", x: x(nowMs) - 4, y: ih - 8, "text-anchor": "end" },
+      pillLabel(
+        x(nowMs) - 8,
+        ih - 10,
         hourly ? "only the live reading is known" : "only the live total is known",
+        "hero-label",
+        "end",
       ),
     );
   }
@@ -519,19 +537,14 @@ function timeChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
     );
   }
   g.append(svgEl("circle", { class: "hero-dot", cx: dot[0], cy: dot[1], r: 5 }));
+  const note = nowLabel(lead);
   const right = dot[0] + 8 + 110 > iw + f.r;
-  g.append(
-    svgEl(
-      "text",
-      {
-        class: "hero-note",
-        x: right ? dot[0] - 8 : dot[0] + 8,
-        y: dot[1] - 8,
-        "text-anchor": right ? "end" : "start",
-      },
-      nowLabel(lead),
-    ),
-  );
+  // On a phone the label sits above its dot.
+  const place = narrow
+    ? aboveDot(dot[0], dot[1], note, -f.l, iw + f.r, 12 - f.t)
+    : { x: right ? dot[0] - 10 : dot[0] + 10, y: dot[1] - 10, anchor: right ? "end" : "start" };
+  // On its pill: over the live span it sits on the hatch.
+  g.append(pillLabel(place.x, place.y, note, "hero-note", place.anchor, NOTE_SIZE));
   return root;
 }
 
@@ -633,12 +646,8 @@ function drawChart(host: HTMLElement, snapshot: DashboardSnapshot): void {
 
 function whyThisLeads(snapshot: DashboardSnapshot): HTMLElement {
   const lead = snapshot.hero_lead;
-  const details = document.createElement("details");
-  details.className = "hero-why";
-  details.dataset.part = "why";
-  const summary = document.createElement("summary");
-  summary.textContent = "Why this leads";
   const list = document.createElement("ol");
+  list.className = "hero-why";
   for (const r of lead.rules) {
     const item = document.createElement("li");
     item.dataset.rule = r.kind;
@@ -653,18 +662,44 @@ function whyThisLeads(snapshot: DashboardSnapshot): HTMLElement {
     item.append(ring, words);
     list.append(item);
   }
-  details.append(summary, list);
-  return details;
+  return fold("Why this leads", [list], "why");
+}
+
+/** What leads, as the leading tile's kicker. */
+const KICKERS: Record<LeadKind, string> = {
+  rain: "Leading: rain",
+  temperature: "Leading: temperature",
+  solar: "Leading: sun",
+  calm: "Leading: the dry spell",
+};
+
+/** What the lead's numbers come from, for the closed source line. */
+const SOURCES: Record<LeadKind, string> = {
+  rain: "Event Catalog",
+  temperature: "hourly means",
+  solar: "hourly means",
+  calm: "daily rain",
+};
+
+/**
+ * The chip's short reason when a gap hides part of the lead's chart: the
+ * calm lead's usual dry spell, when its 365 days cannot be compared, or any
+ * other lead's usual band, when it has no comparison set to draw.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The reason, or null.
+ */
+export function heroGaps(snapshot: DashboardSnapshot): string | null {
+  const lead = snapshot.hero_lead;
+  if (lead.kind === "calm") {
+    return rule(lead, "calm").reference === null ? "usual dry spell not compared" : null;
+  }
+  return lead.usual_median === null ? "usual range not compared" : null;
 }
 
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const lead = snapshot.hero_lead;
   host.dataset.lead = lead.kind;
-
-  const headline = document.createElement("h2");
-  headline.className = "hero-headline";
-  headline.dataset.part = "headline";
-  headline.textContent = leadHeadline(snapshot);
 
   const standfirst = document.createElement("p");
   standfirst.className = "standfirst";
@@ -688,12 +723,19 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   chart.className = "hero-chart";
   chart.dataset.part = "chart";
 
-  const source = document.createElement("p");
-  source.className = "ov-source";
-  source.dataset.part = "source";
-  source.textContent = heroSource(snapshot);
+  const source = sourceNote(snapshot, {
+    what: SOURCES[lead.kind],
+    method: heroSource(snapshot),
+    gaps: heroGaps(snapshot),
+  });
 
-  host.append(headline, standfirst, facts, chart, source, whyThisLeads(snapshot));
+  host.append(
+    tileFinding(leadHeadline(snapshot), { lead: true }),
+    standfirst,
+    facts,
+    chart,
+    tileFolds(whyThisLeads(snapshot), source),
+  );
   drawChart(chart, snapshot);
   if (typeof ResizeObserver !== "undefined") {
     let width = chart.clientWidth;
@@ -705,9 +747,13 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
 }
 
-/** The hero lead and "Why this leads", as an Overview section. */
+/** The leading tile and "Why this leads", as an Overview section. */
 export const heroLead: OverviewSection = {
   id: "hero-lead",
   label: "What leads right now",
+  kicker: (snapshot) => KICKERS[snapshot.hero_lead.kind],
+  span: 2,
+  phoneTop: true,
+  leading: true,
   render,
 };

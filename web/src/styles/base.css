@@ -1,8 +1,10 @@
 /*
  * Page chrome: base type, the page column, the header and the tabs.
- * DESIGN.md rules this file keeps: one family, upright and left-aligned;
- * a 12px text floor; tabular digits only where numbers line up; flat paper
- * (no shadows, no tinted cards); a 3px focus ring on everything focusable.
+ * DESIGN.md rules this file keeps: one family, Lexend, upright and
+ * left-aligned, no all-caps; a 12px text floor; tabular digits only where
+ * numbers line up; flat (no shadows: a `box-shadow` here and in the other
+ * stylesheets is only ever a ring or a halo); slate chrome, so colour is left to the
+ * data; a 2px `ink` focus ring on everything focusable.
  */
 *,
 *::before,
@@ -16,8 +18,7 @@ html {
   font-family: var(--sans);
   font-size: 100%;
   line-height: 1.55;
-  letter-spacing: 0.012em;
-  word-spacing: 0.08em;
+  letter-spacing: 0.01em;
   -webkit-text-size-adjust: 100%;
   font-variant-numeric: normal;
   text-align: left;
@@ -42,42 +43,182 @@ button {
 }
 
 a {
-  color: var(--rain-3);
+  color: var(--ink);
   text-underline-offset: 3px;
 }
 
 ::selection {
-  background: var(--rain-1);
+  background: var(--now-surface);
   color: var(--ink);
 }
 
 :focus-visible {
-  outline: 3px solid var(--rain-3);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
-/* the 135° hatch: the one visual word for "not valid" */
-:root {
-  --gap-hatch: repeating-linear-gradient(135deg, var(--gap-a) 0 4px, var(--gap-b) 4px 8px);
+/*
+ * the 135° hatch: the one visual word for "not valid". `hatch` stripes, 2px
+ * on a 12px repeat (2px on 6px in a chip swatch), over the surface the hatch
+ * sits on; set per element so a tile's `--surface` (or a now tile's `--hatch`) reaches it.
+ */
+.gap-hatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 var(--hatch-stripe),
+    var(--surface) var(--hatch-stripe) var(--hatch-repeat)
+  );
 }
 
-.gap-hatch {
-  background: var(--gap-hatch);
+.hatch-swatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 var(--hatch-chip-stripe),
+    var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat)
+  );
+}
+
+/* a hatched chip's swatch: the stripes beside the text, never under it */
+.hatch-swatch {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-cell);
+  vertical-align: -1px;
 }
 
 .standfirst {
-  font-size: var(--step--1);
-  line-height: 1.6;
+  font-size: var(--type-standfirst);
+  line-height: 1.55;
   color: var(--ink-2);
   max-width: 62ch;
   text-wrap: pretty;
 }
 
 /* ---------- the page column ---------- */
+/* phone: the header, the sticky tab bar, then the panels. On both grids
+   (the layout switch, `layout.ts`) a container up to 1360px with a 24px
+   gutter, and the tabs as pills on the right of the header's row */
 .page {
-  max-width: 1240px;
+  max-width: calc(1360px + 2 * var(--gutter));
   margin: 0 auto;
   padding: 0 var(--gutter) 96px;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) {
+  --gutter: 24px;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--s-5);
+  align-items: start;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page > #masthead {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page > .tabs {
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  padding: var(--s-3) 0 var(--s-2);
+  border-bottom: 0;
+  background: none;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .page > #sections {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  padding-top: var(--s-3);
+}
+
+/* ---------- phone: the compact header and the bottom tab bar ---------- */
+/* under 760px (or before the switch has run): a 52px header holding the
+   station and the live line, and the tabs as a bottom bar of four equal
+   48px targets, padded clear of the home indicator (DESIGN.md "Header and
+   tabs"). The bar stays where it is in the page's order, before the panels;
+   only its place on screen moves. */
+:root:not([data-layout="two"], [data-layout="four"]) .page {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .masthead {
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 52px;
+  padding: var(--s-1) 0;
+}
+
+/* the name, or the selector, takes the width the live line leaves */
+:root:not([data-layout="two"], [data-layout="four"]) .masthead-station {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .masthead-ages {
+  /* the live line never truncates: it wraps within two thirds of the row */
+  flex: 0 0 auto;
+  max-width: 66%;
+  align-items: flex-end;
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .masthead-line {
+  justify-content: flex-end;
+  font-size: var(--type-annotation);
+  text-align: right;
+}
+
+/* a lone reading line is the live line: its time and age, no label */
+:root:not([data-layout="two"], [data-layout="four"])
+  .masthead-ages:has(.masthead-figures[hidden])
+  .masthead-reading
+  .masthead-label {
+  display: none;
+}
+
+/* the station's details strip is the desktop header's; a phone keeps 52px */
+:root:not([data-layout="two"], [data-layout="four"]) .masthead-archive {
+  display: none;
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .page > .tabs {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0;
+  padding: var(--s-2) var(--s-3) calc(var(--s-2) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--rule);
+  border-bottom: 0;
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .page > .tabs .tabs-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-1);
+  padding: 0;
+  overflow: visible;
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .page > .tabs .tab {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 2px;
+  border-radius: var(--r-tab-phone);
+  /* one line at 390px for every label, "Rain Events" included */
+  font-size: var(--type-annotation);
+  line-height: 1.2;
 }
 
 /* ---------- the header ---------- */
@@ -90,10 +231,9 @@ a {
 }
 
 .masthead-station {
-  font-size: var(--step-1);
+  font-size: var(--type-finding);
   font-weight: 600;
   line-height: 1.3;
-  letter-spacing: 0.005em;
 }
 
 /* the reading, and under it, only when they lag, the figures' own age */
@@ -108,8 +248,8 @@ a {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-1) var(--s-2);
-  font-size: var(--step--1);
-  color: var(--ink-2);
+  font-size: var(--type-standfirst);
+  color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -117,7 +257,7 @@ a {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--rain-3);
+  background: var(--rain-bar);
   flex: none;
 }
 
@@ -132,22 +272,35 @@ a {
   margin-right: var(--s-2);
 }
 
-/* stale: past 15 minutes. The words say it; the hollow dot and hatch back it */
+/* stale: past 15 minutes. The words say it; the hollow dot and a hatched
+   chip back it, its stripes in a swatch beside the age, never under it */
 .masthead-line[data-stale="true"] .masthead-dot {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--ink-3);
 }
 
 .masthead-line[data-stale="true"] .masthead-age:not(:empty) {
-  font-weight: 650;
-  padding: 0 var(--s-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-weight: 600;
+  padding: 0 7px;
   border: 1px solid var(--rule-strong);
-  border-radius: var(--r-sm);
-  background: var(--gap-hatch);
+  border-radius: var(--r-pill);
+  color: var(--ink-2);
 }
 
-.masthead-line[data-stale="true"] .masthead-age::before {
-  content: none;
+.masthead-line[data-stale="true"] .masthead-age:not(:empty)::before {
+  content: "";
+  margin: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-cell);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hatch) 0 var(--hatch-chip-stripe),
+    var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat)
+  );
 }
 
 .masthead-line[hidden] {
@@ -168,8 +321,8 @@ a {
   margin-left: var(--s-1);
   padding: 0 var(--s-3);
   border: 1px solid var(--rule-strong);
-  border-radius: var(--r-md);
-  background: var(--surface);
+  border-radius: var(--r-pill);
+  background: transparent;
   color: var(--ink);
   font-weight: 600;
   cursor: pointer;
@@ -177,7 +330,8 @@ a {
 
 /*
  * the station selector: with two or more stations the name is a native
- * dropdown, set as the heading it replaces. 1rem or more, so iOS does not
+ * dropdown, set as the 600-weight name it replaces with a chevron after it, so
+ * the header looks the same with one station or many. 1rem or more, so iOS does not
  * zoom on focus; the chevron is drawn in CSS (the CSP allows no data: image).
  */
 .masthead-picks {
@@ -190,12 +344,13 @@ a {
   max-width: 100%;
   min-height: 44px;
   margin: 0;
-  padding: 0 40px 0 var(--s-3);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--r-md);
-  background: var(--surface);
+  padding: 0 32px 0 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
   color: var(--ink);
   font: inherit;
+  font-weight: 600;
   letter-spacing: inherit;
   text-overflow: ellipsis;
   cursor: pointer;
@@ -205,7 +360,7 @@ a {
   content: "";
   position: absolute;
   top: 50%;
-  right: 16px;
+  right: 12px;
   width: 8px;
   height: 8px;
   border-right: 2px solid var(--ink-2);
@@ -216,8 +371,8 @@ a {
 
 /* the details strip's last part: where the station's archive begins */
 .masthead-archive {
-  font-size: var(--step--1);
-  color: var(--ink-2);
+  font-size: var(--type-standfirst);
+  color: var(--ink-3);
 }
 
 .masthead-archive[hidden] {
@@ -242,7 +397,10 @@ a {
 
 .tabs-list {
   display: flex;
+  align-items: center;
   gap: var(--s-1);
+  /* room for the focus ring, which the scroll box would otherwise clip */
+  padding: var(--s-1) var(--s-1) var(--s-2);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -251,18 +409,17 @@ a {
   display: none;
 }
 
+/* a tab is a pill; the current one an `ink` pill with `ground` text */
 .tab {
   flex: none;
-  min-height: 46px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 0 16px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--r-pill);
   background: none;
   color: var(--ink-2);
-  font-size: var(--step-0);
-  letter-spacing: 0.01em;
+  font-size: var(--type-standfirst);
   cursor: pointer;
-  box-shadow: inset 0 -3px 0 transparent;
 }
 
 .tab:hover {
@@ -270,14 +427,9 @@ a {
 }
 
 .tab[aria-selected="true"] {
-  color: var(--ink);
-  font-weight: 650;
-  box-shadow: inset 0 -3px 0 var(--rain-3);
-}
-
-/* the focus ring sits inside the bar so the sticky edge never clips it */
-.tab:focus-visible {
-  outline-offset: -3px;
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 600;
 }
 
 .panel[hidden] {
@@ -286,10 +438,4 @@ a {
 
 .panel:focus-visible {
   outline-offset: 4px;
-}
-
-@media (min-width: 1024px) {
-  .tabs {
-    margin-bottom: var(--s-6);
-  }
 }

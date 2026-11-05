@@ -1,0 +1,43 @@
+/*
+ * The 30 / 90 switch over a chart of days: segments are pills in a
+ * `rule-strong` border, 44px tall on a phone and 40px from 760px; the
+ * pressed one is `ink` with `ground` text (DESIGN.md, "Segments").
+ */
+.days-seg {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: var(--s-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+}
+
+.days-seg[hidden] {
+  display: none;
+}
+
+.days-seg button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--type-standfirst);
+  cursor: pointer;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .days-seg button {
+  min-height: 40px;
+}
+
+.days-seg button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 600;
+}
+
+.days-seg button:focus-visible {
+  outline-offset: -3px;
+}

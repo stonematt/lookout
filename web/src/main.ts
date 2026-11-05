@@ -3,7 +3,7 @@
  * own `station`, and on the lane server `fixture` and `age`, passed on, read
  * from the URL at each call so a chosen station is followed.
  */
-import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
+import "@fontsource-variable/lexend/wght.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 

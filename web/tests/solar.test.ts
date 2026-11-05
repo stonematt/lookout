@@ -4,6 +4,8 @@
  * selected day's round trip through the URL, and its words against worked
  * examples.
  */
+import { readFileSync } from "node:fs";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { kwhPerM2 as kwh } from "../src/format.js";
@@ -119,6 +121,35 @@ describe("daily energy", () => {
     expect(stripValue("Yesterday")?.classList.contains("gap-hatch")).toBe(true);
   });
 
+  it("keeps wide window values whole, each in its own column that can hold one", () => {
+    // Live data: 5 digits plus "≈" and the unit; the goldens' values are small.
+    const copy = structuredClone(raining);
+    const wide = [12345, 9876, 1188, 284, 61.2, 2.41];
+    copy.solar_tab!.windows.forEach((w, i) => {
+      w.energy_kwh_m2 = wide[i]!;
+      w.status = { ...w.status, status: "prorated", reason: "gap", missing_days: 1 };
+    });
+    render(copy);
+    const values = [...section("daily").querySelectorAll(".solar-stats dd")].map((d) => text(d));
+    expect(values).toEqual(
+      [
+        "≈ 12345 kWh/m²",
+        "≈ 9876 kWh/m²",
+        "≈ 1188 kWh/m²",
+        "≈ 284 kWh/m²",
+        "≈ 61.2 kWh/m²",
+        "≈ 2.41 kWh/m²",
+      ].map((v) => expect.stringContaining(v)),
+    );
+    // happy-dom lays nothing out: the style sheet is the contract. A column is
+    // at least 9.5rem and a value wraps, never `nowrap` into its neighbour.
+    const css = readFileSync(`${process.cwd()}/src/solar/solar.css`, "utf8");
+    expect(css).toMatch(/\.solar-stats \{[^}]*minmax\(min\(100%, 9\.5rem\), 1fr\)/);
+    const dd = css.match(/\.solar-stats dd \{[^}]*\}/)![0];
+    expect(dd).not.toMatch(/nowrap/);
+    expect(dd).toMatch(/overflow-wrap: anywhere/);
+  });
+
   it("draws the daily bars", () => {
     render(raining);
     expect(section("daily").querySelectorAll(".solar-bar").length).toBe(5);
@@ -142,7 +173,7 @@ describe("the 24-hour view", () => {
   it("names the live reading when the 24 hours cannot be totalled", () => {
     render(dry);
     expect(text(section("now").querySelector("h2"))).toBe("Solar radiation is 0 W/m² now");
-    expect(text(section("now").querySelector(".solar-source"))).toContain(
+    expect(text(section("now").querySelector("[data-part=source]"))).toContain(
       "The 24-hour energy is not totalled",
     );
   });

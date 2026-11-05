@@ -1,47 +1,244 @@
 /*
- * Design tokens from DESIGN.md ("The Annotated Almanac"), the Paper world.
- * Light is the default; dark follows the OS, and an explicit
+ * Design tokens from DESIGN.md ("Tiles That Talk"). The colour values are the
+ * DESIGN.md frontmatter's: the base keys in light, the `-dark` keys in dark,
+ * under the same names. Dark follows the OS, and an explicit
  * `data-theme="light|dark"` on <html> (from `?theme=`) wins over it.
- * Keep these values in step with DESIGN.md's frontmatter.
+ * tests/tokens.test.ts holds these values to DESIGN.md and checks every pair
+ * in its Contrast table, in both themes.
+ *
+ * `--surface` is the colour of whatever a mark sits on: the ground here, and
+ * a tile or the now tile where one sets it. Halos, the gap hatch's ground and
+ * the space round a `now` mark use it, so they match any surface.
  */
 :root {
-  --ground: #f7f4ee;
-  --surface: #fcfbf8;
-  --ink: #26231f;
-  --ink-2: #4b463f;
-  --ink-3: #686259;
-  --rule: #e3ded3;
-  --rule-strong: #c2baab;
-  --rain-0: #dde5ee;
-  --rain-1: #a9bdd3;
-  --rain-2: #6a8aac;
-  --rain-3: #365f8b;
-  --rain-4: #1f405f;
-  --temp-cold: #4a6f94;
-  --temp-cool: #86a3bd;
-  --temp-mild: #b3aea4;
-  --temp-warm: #cf9654;
-  --temp-hot: #b0522b;
-  --sun: #d9a23c;
-  --sun-soft: #f1e2bd;
-  --night: #ece7dc;
-  --note: #94325a;
-  --gap-a: #e6e1d6;
-  --gap-b: #f7f4ee;
+  /* chrome */
+  --ground: #f3f5f7;
+  --tile: #ffffff;
+  --now-surface: #e2e9f0;
+  --ink: #11161c;
+  --ink-2: #353e48;
+  --ink-3: #4d5763;
+  --ink-on-now: #2c353f;
+  --rule: #e1e5e9;
+  --rule-strong: #7d8995;
+  --hatch: #7d8995;
+  /* the hatch weight: 2px stripes on a 12px repeat, 2px on a 6px repeat in a chip swatch */
+  --hatch-stripe: 2px;
+  --hatch-repeat: 12px;
+  --hatch-chip-stripe: 2px;
+  --hatch-chip-repeat: 6px;
+  --now: #a74b11;
+  --median: #11161c;
+  /* the two inks for text in a ramp cell */
+  --on-ramp-pale: #ffffff;
+  --on-ramp-deep: #11161c;
+  /* rain */
+  --rain-line: #1d4a7a;
+  --rain-bar: #3b6fa6;
+  --rain-band: #dce7f3;
+  --rain-band-edge: #6f8fb3;
+  --rain-0: #6a8fb7;
+  --rain-1: #52789f;
+  --rain-2: #3d6289;
+  --rain-3: #2a4b6f;
+  --rain-4: #1a3352;
+  /* temperature */
+  --temp-band: #e8ecf0;
+  --temp-band-edge: #7d8995;
+  --temp-cool: #3f6890;
+  --temp-mild: #5e6e66;
+  --temp-warm: #b5602a;
+  --temp-iqr: #5a7da1;
+  /* sun */
+  --sun-line: #8a6413;
+  --sun-bar: #a87a24;
+  --sun-band: #f5e9c8;
+  --sun-band-edge: #a1802f;
+  --sun-0: #6e5a2e;
+  --sun-1: #8a6f2e;
+  --sun-2: #b8942c;
+  --sun-3: #e3b83a;
+  --sun-4: #f5cd4f;
+  /* the 48-hour ribbon */
+  --ribbon-night: #2c3640;
+  --ribbon-day: #8797a8;
+  --ribbon-rain: #2f5f94;
+  --ribbon-edge: #5d6976;
 
-  --sans:
-    "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "Atkinson Hyperlegible",
-    system-ui, sans-serif;
+  /* text on each ramp cell: the cell ink that passes 4.5:1 there */
+  --on-rain-0: var(--on-ramp-deep);
+  --on-rain-1: var(--on-ramp-pale);
+  --on-rain-2: var(--on-ramp-pale);
+  --on-rain-3: var(--on-ramp-pale);
+  --on-rain-4: var(--on-ramp-pale);
+  --on-sun-0: var(--on-ramp-pale);
+  --on-sun-1: var(--on-ramp-pale);
+  --on-sun-2: var(--on-ramp-deep);
+  --on-sun-3: var(--on-ramp-deep);
+  --on-sun-4: var(--on-ramp-deep);
 
-  /* type steps */
-  --step--1: 0.875rem;
-  --step-0: 1rem;
-  --step-1: 1.1875rem;
-  --step-2: 1.3125rem;
-  --step-3: 1.625rem;
-  --step-4: 4rem;
-  --source: 0.8125rem;
-  --label: 0.75rem;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* chrome */
+    --ground: #11161c;
+    --tile: #1a2129;
+    --now-surface: #354251;
+    --ink: #eef2f5;
+    --ink-2: #c3ccd5;
+    --ink-3: #aab5c0;
+    --ink-on-now: #dfe6ec;
+    --rule: #2a333d;
+    --rule-strong: #6b7886;
+    --hatch: #64717e;
+    --now: #f2a65e;
+    --median: #11161c;
+    /* the two inks for text in a ramp cell */
+    --on-ramp-pale: #ffffff;
+    --on-ramp-deep: #11161c;
+    /* rain */
+    --rain-line: #d6e9fb;
+    --rain-bar: #7fb0e0;
+    --rain-band: #55779c;
+    --rain-band-edge: #55779c;
+    --rain-0: #4f7299;
+    --rain-1: #5f86b0;
+    --rain-2: #7aa3cc;
+    --rain-3: #9fc2e4;
+    --rain-4: #cfe3f6;
+    /* temperature */
+    --temp-band: #606d7a;
+    --temp-band-edge: #606d7a;
+    --temp-cool: #b4cde6;
+    --temp-mild: #d3dfd8;
+    --temp-warm: #f5bd8a;
+    --temp-iqr: #9fb9d3;
+    /* sun */
+    --sun-line: #f6cf74;
+    --sun-bar: #c99d45;
+    --sun-band: #7d6b40;
+    --sun-band-edge: #7d6b40;
+    --sun-0: #7d6b40;
+    --sun-1: #a88b45;
+    --sun-2: #c99d45;
+    --sun-3: #e3b75a;
+    --sun-4: #f7d98f;
+    /* the 48-hour ribbon */
+    --ribbon-night: #1c242d;
+    --ribbon-day: #8a9aab;
+    --ribbon-rain: #a9d0f5;
+    --ribbon-edge: #8a9aab;
+
+    /* text on each ramp cell: the cell ink that passes 4.5:1 there */
+    --on-rain-0: var(--on-ramp-pale);
+    --on-rain-1: var(--on-ramp-deep);
+    --on-rain-2: var(--on-ramp-deep);
+    --on-rain-3: var(--on-ramp-deep);
+    --on-rain-4: var(--on-ramp-deep);
+    --on-sun-0: var(--on-ramp-pale);
+    --on-sun-1: var(--on-ramp-deep);
+    --on-sun-2: var(--on-ramp-deep);
+    --on-sun-3: var(--on-ramp-deep);
+    --on-sun-4: var(--on-ramp-deep);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  /* chrome */
+  --ground: #11161c;
+  --tile: #1a2129;
+  --now-surface: #354251;
+  --ink: #eef2f5;
+  --ink-2: #c3ccd5;
+  --ink-3: #aab5c0;
+  --ink-on-now: #dfe6ec;
+  --rule: #2a333d;
+  --rule-strong: #6b7886;
+  --hatch: #64717e;
+  --now: #f2a65e;
+  --median: #11161c;
+  /* the two inks for text in a ramp cell */
+  --on-ramp-pale: #ffffff;
+  --on-ramp-deep: #11161c;
+  /* rain */
+  --rain-line: #d6e9fb;
+  --rain-bar: #7fb0e0;
+  --rain-band: #55779c;
+  --rain-band-edge: #55779c;
+  --rain-0: #4f7299;
+  --rain-1: #5f86b0;
+  --rain-2: #7aa3cc;
+  --rain-3: #9fc2e4;
+  --rain-4: #cfe3f6;
+  /* temperature */
+  --temp-band: #606d7a;
+  --temp-band-edge: #606d7a;
+  --temp-cool: #b4cde6;
+  --temp-mild: #d3dfd8;
+  --temp-warm: #f5bd8a;
+  --temp-iqr: #9fb9d3;
+  /* sun */
+  --sun-line: #f6cf74;
+  --sun-bar: #c99d45;
+  --sun-band: #7d6b40;
+  --sun-band-edge: #7d6b40;
+  --sun-0: #7d6b40;
+  --sun-1: #a88b45;
+  --sun-2: #c99d45;
+  --sun-3: #e3b75a;
+  --sun-4: #f7d98f;
+  /* the 48-hour ribbon */
+  --ribbon-night: #1c242d;
+  --ribbon-day: #8a9aab;
+  --ribbon-rain: #a9d0f5;
+  --ribbon-edge: #8a9aab;
+
+  /* text on each ramp cell: the cell ink that passes 4.5:1 there */
+  --on-rain-0: var(--on-ramp-pale);
+  --on-rain-1: var(--on-ramp-deep);
+  --on-rain-2: var(--on-ramp-deep);
+  --on-rain-3: var(--on-ramp-deep);
+  --on-rain-4: var(--on-ramp-deep);
+  --on-sun-0: var(--on-ramp-pale);
+  --on-sun-1: var(--on-ramp-deep);
+  --on-sun-2: var(--on-ramp-deep);
+  --on-sun-3: var(--on-ramp-deep);
+  --on-sun-4: var(--on-ramp-deep);
+
+  color-scheme: dark;
+}
+
+/* Everything but colour: the same in both themes. */
+:root {
+  --surface: var(--ground);
+
+  /* one family, Lexend, self-hosted (src/main.ts imports its face) */
+  --sans: "Lexend Variable", Lexend, system-ui, sans-serif;
+
+  /*
+   * Type steps (DESIGN.md "Typography"): the phone sizes here, the desktop
+   * sizes from 760px below. A step with no desktop size is the same on both.
+   * Weights: 300 display and fact, 400 reading text and stats, 500 findings
+   * and kickers, 600 annotations, the station name and the current tab.
+   */
+  --type-display: clamp(5.25rem, 22vw, 7.5rem);
+  --type-finding-lead: 1.25rem;
+  --type-finding: 1rem;
+  --type-condition: 1rem;
+  --type-fact: 2rem;
+  --type-stat: 1.25rem;
+  --type-body: 1rem;
+  --type-standfirst: 0.875rem;
+  --type-kicker: 0.8125rem;
+  --type-source: 0.8125rem;
+  /* chart text, keys and chips: the 12px floor */
+  --type-axis: 12px;
+  --type-label: 12px;
+  --type-annotation: 13px;
 
   /* space */
   --s-1: 4px;
@@ -54,75 +251,30 @@
   --s-8: 72px;
 
   /* corners */
-  --r-xs: 2px;
-  --r-sm: 4px;
-  --r-md: 8px;
+  --r-cell: 3px;
+  --r-ribbon: 6px;
+  --r-row: 16px;
+  --r-tile-phone: 20px;
+  --r-tile: 22px;
   --r-pill: 999px;
+  /* a phone's bottom tab bar target (DESIGN.md `tab-bar-phone`) */
+  --r-tab-phone: 14px;
 
-  /* the page gutter: 16px, 32px from 1024px */
+  /* the page gutter: 16px on a phone, 24px on both grids (base.css sets
+     it from the layout switch) */
   --gutter: 16px;
 
-  color-scheme: light;
+  /* tile padding: 16px on a phone, 22px on both grids */
+  --tile-pad-phone: 16px;
+  --tile-pad: 22px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 760px) {
   :root {
-    --gutter: 32px;
+    --type-finding-lead: 1.5rem;
+    --type-finding: 1.1875rem;
+    --type-condition: 1.25rem;
+    --type-fact: 2.5rem;
+    --type-stat: 1.375rem;
   }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground: #1b1a18;
-    --surface: #242321;
-    --ink: #ece8e0;
-    --ink-2: #c3bdb2;
-    --ink-3: #9d968b;
-    --rule: #34322e;
-    --rule-strong: #4f4c46;
-    --rain-0: #263342;
-    --rain-1: #3a5573;
-    --rain-2: #5f87b2;
-    --rain-3: #93b3d6;
-    --rain-4: #d0e0f0;
-    --temp-cold: #6f95bd;
-    --temp-cool: #94b1cb;
-    --temp-mild: #8f8a80;
-    --temp-warm: #d8a463;
-    --temp-hot: #e07a4d;
-    --sun: #e2b04f;
-    --sun-soft: #3a3220;
-    --night: #151412;
-    --note: #e59ab8;
-    --gap-a: #2a2927;
-    --gap-b: #1b1a18;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --ground: #1b1a18;
-  --surface: #242321;
-  --ink: #ece8e0;
-  --ink-2: #c3bdb2;
-  --ink-3: #9d968b;
-  --rule: #34322e;
-  --rule-strong: #4f4c46;
-  --rain-0: #263342;
-  --rain-1: #3a5573;
-  --rain-2: #5f87b2;
-  --rain-3: #93b3d6;
-  --rain-4: #d0e0f0;
-  --temp-cold: #6f95bd;
-  --temp-cool: #94b1cb;
-  --temp-mild: #8f8a80;
-  --temp-warm: #d8a463;
-  --temp-hot: #e07a4d;
-  --sun: #e2b04f;
-  --sun-soft: #3a3220;
-  --night: #151412;
-  --note: #e59ab8;
-  --gap-a: #2a2927;
-  --gap-b: #1b1a18;
-  color-scheme: dark;
 }

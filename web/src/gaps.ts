@@ -39,9 +39,9 @@ const LABELS: Record<GapReason, string> = {
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
 const COMPACT_LABEL = "n/a";
 
-/** The hatch's repeat and its stripe (DESIGN.md: 4px on an 8px repeat). */
-const HATCH_REPEAT_PX = 8;
-const HATCH_STRIPE_PX = 4;
+/** The hatch's repeat and its stripe (DESIGN.md: 2px on a 12px repeat). */
+const HATCH_REPEAT_PX = 12;
+const HATCH_STRIPE_PX = 2;
 
 /**
  * A one-day gap status, so a day's reason reads like any window's.
@@ -242,7 +242,8 @@ let patternCount = 0;
 
 /**
  * Give an SVG chart the 135° hatch as a pattern of its own (`gap-hatch-a`
- * stripes over `gap-hatch-b`, coloured in gaps.css), for the marks that
+ * stripes in `hatch` over `gap-hatch-b` in the surface, coloured in
+ * gaps.css), for the marks that
  * stand for what is not in the record.
  *
  * @param root - The chart's SVG.
@@ -293,10 +294,10 @@ export interface PlotlyHatch {
 /**
  * The 135° hatch as a Plotly bar pattern.
  *
- * @param gapA - The stripe colour (the `--gap-a` token's value).
- * @param gapB - The ground colour (the `--gap-b` token's value).
+ * @param stripe - The stripe colour (the `--hatch` token's value).
+ * @param ground - The colour under it (the `--surface` token's value).
  * @returns The `marker.pattern`.
  */
-export function plotlyHatch(gapA: string, gapB: string): PlotlyHatch {
-  return { shape: "\\", fgcolor: gapA, bgcolor: gapB, size: HATCH_REPEAT_PX, solidity: 0.45 };
+export function plotlyHatch(stripe: string, ground: string): PlotlyHatch {
+  return { shape: "\\", fgcolor: stripe, bgcolor: ground, size: HATCH_REPEAT_PX, solidity: 0.17 };
 }
