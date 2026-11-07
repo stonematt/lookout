@@ -53,7 +53,10 @@ Solar window valid and holding wide, 5-digit values, as live data does). It
 exits 1, naming the view, on page sideways scroll, a chart narrower than the
 box that holds it, or stat values whose text boxes touch. It takes about a
 minute and is a CI step. `-- --prove` adds the pre-fix Solar window CSS (#395)
-to the `live` case and passes only if the check then fails.
+to the `live` case and passes only if the check then fails there (a failure in
+any other case still fails the run). Given a base URL, `node scripts/layout-check.mjs
+http://localhost:5177` checks that running server (a `VITE_LANE_SERVER=1`
+build under `vite preview`, or the lane server) and skips the build and preview.
 
 ## The lane server
 

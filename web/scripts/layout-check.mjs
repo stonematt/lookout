@@ -4,6 +4,7 @@
  * Chromium and fail, naming the view, on three layout facts.
  *
  *   npm run layout-check            # builds with VITE_LANE_SERVER=1, then checks
+ *   node scripts/layout-check.mjs <base-url>  # check a running build instead
  *   npm run layout-check -- --prove # also proves the #395 shape would fail
  *
  *  1. Sideways scroll: the page's `scrollWidth` is wider than its
@@ -171,8 +172,13 @@ async function inspectTab(page) {
 }
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const server = await preview({ root, preview: { port: 0, host: "127.0.0.1", strictPort: false } });
-const base = server.resolvedUrls.local[0].replace(/\/$/, "");
+// An optional base URL checks a server already running (as `shots.mjs` does);
+// without one the script serves `dist/` itself.
+const given = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
+const server = given
+  ? null
+  : await preview({ root, preview: { port: 0, host: "127.0.0.1", strictPort: false } });
+const base = (given ?? server.resolvedUrls.local[0]).replace(/\/$/, "");
 const browser = await chromium.launch();
 const failures = [];
 const started = Date.now();
@@ -205,8 +211,10 @@ try {
           console.log(`${problems.length ? "FAIL" : "ok  "} ${view}`);
           for (const p of problems) {
             console.log(`       ${p}`);
-            failures.push(`${view}: ${p}`);
-            if (p.startsWith("stats touch")) proved = true;
+            // Under --prove only the wide case's touching stats are the
+            // expected failure; anything else still fails the run.
+            if (prove && kase.wide && p.startsWith("stats touch")) proved = true;
+            else failures.push(`${view}: ${p}`);
           }
         }
         await page.close();
@@ -215,13 +223,17 @@ try {
   }
 } finally {
   await browser.close();
-  await server.close();
+  await server?.close();
 }
 const seconds = ((Date.now() - started) / 1000).toFixed(0);
 console.log(
   `${CASES.length * WIDTHS.length * SCHEMES.length * TABS.length} views in ${seconds}s, ${seen.charts} charts and ${seen.stats} stat lists measured`,
 );
 
+if (failures.length) {
+  console.error(`${failures.length} layout problem(s):\n${failures.join("\n")}`);
+  process.exit(1);
+}
 if (prove) {
   if (!proved) {
     console.error("--prove: the #395 shape did not fail the check");
@@ -229,9 +241,5 @@ if (prove) {
   }
   console.log("--prove: the #395 shape fails the check, as it should");
   process.exit(0);
-}
-if (failures.length) {
-  console.error(`${failures.length} layout problem(s):\n${failures.join("\n")}`);
-  process.exit(1);
 }
 console.log("no layout problems");
