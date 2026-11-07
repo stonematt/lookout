@@ -1,0 +1,48 @@
+<!-- @dsCard group="Surfaces" height=560 subtitle="A kicker, one large value, one sentence; a 2x2 on a phone" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:transparent}
+:root{--type-display:7.5rem;--type-finding-lead:1.5rem;--type-finding:1.1875rem;--type-condition:1.25rem;--type-fact:2.5rem;--type-stat:1.375rem;--type-body:1rem;--type-standfirst:.875rem;--type-kicker:.8125rem;--type-source:.8125rem;--type-axis:12px;--type-label:12px;--type-annotation:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:12px}
+.col{display:grid;gap:16px;padding:12px}
+.panel{--surface:var(--ground);background:var(--ground);color:var(--ink);padding:16px;border-radius:var(--r-tile);font-family:var(--font-sans);font-size:1rem;line-height:1.55;letter-spacing:.01em;text-align:left;min-width:0}
+.panel h2,.panel p,.panel dl,.panel dd{margin:0}
+.theme-name{font-size:12px;color:var(--ink-3);margin:0 0 12px}
+.tile{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
+.tile+.tile{margin-top:16px}
+.tile[data-surface="now"]{--surface:var(--now-surface);--hatch:var(--ink-3)}
+.tile-kicker{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
+.tile-lead-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--now)}
+.tile-finding{margin:0;font-size:var(--type-finding);font-weight:500;line-height:1.4;max-width:44ch;text-wrap:pretty}
+.tile-finding-lead{font-size:var(--type-finding-lead);line-height:1.33;max-width:52ch}
+.standfirst{margin-top:8px;font-size:var(--type-standfirst);line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty}
+.tile-folds{display:flex;flex-direction:column;margin-top:auto;padding-top:16px}
+.fold{border-top:1px solid var(--rule);font-size:var(--type-source);line-height:1.55;color:var(--ink-3)}
+.fold-line{display:block;min-height:32px;padding:6px 0;list-style:none;cursor:pointer}
+.fold-line::-webkit-details-marker{display:none}
+.fold-line::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;vertical-align:1px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(-45deg)}
+.fold[open]>.fold-line::before{transform:translateY(-1px) rotate(45deg)}
+.fold-body{padding-bottom:8px}
+.ov-source{margin:0;font-size:var(--type-source);line-height:1.55;color:var(--ink-3);max-width:62ch}
+.gap-hatch{background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-stripe),var(--surface) var(--hatch-stripe) var(--hatch-repeat))}
+.hatch-swatch{display:inline-block;flex:none;width:12px;height:12px;border-radius:var(--r-cell);vertical-align:-1px;background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-chip-stripe),var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat))}
+.hatch-chip{display:inline-flex;margin:2px 0 2px 8px;vertical-align:middle;align-items:center;gap:4px;padding:0 7px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2);font-size:var(--type-label);line-height:20px;white-space:nowrap}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.qf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.qf-grid .tile+.tile{margin-top:0}
+.qf-value{margin:4px 0 0;font-size:var(--type-fact);font-weight:300;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.qf-unit{font-size:var(--type-stat);font-weight:400}
+.qf-sentence{margin:8px 0 0;font-size:var(--type-standfirst);line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty}
+</style>
+</head>
+<body>
+<div class="row"><section class="panel" data-theme="dark"><p class="theme-name">Dark</p><div class="qf-grid"><article class="tile" data-fact ><p class="tile-kicker">Wind</p><p class="qf-value">6 <span class="qf-unit">mph</span></p><p class="qf-sentence">Gusting to 14 mph, from the west-northwest.</p></article><article class="tile" data-fact ><p class="tile-kicker">Pressure</p><p class="qf-value">30.12 <span class="qf-unit">inHg</span></p><p class="qf-sentence">Steady over the last 3 hours.</p></article><article class="tile" data-fact ><p class="tile-kicker">Air</p><p class="qf-value">88% <span class="qf-unit">humidity</span></p><p class="qf-sentence">The dew point is 44°, 3° under the air.</p></article><article class="tile" data-fact data-section="sun-moon"><p class="tile-kicker">Sun and moon</p><p class="qf-value">7:09 am <span class="qf-unit">to 4:49 pm</span></p><p class="qf-sentence">9 h 40 m of daylight. The moon is 38% lit.</p></article></div></section><section class="panel" data-theme="light"><p class="theme-name">Light</p><div class="qf-grid"><article class="tile" data-fact ><p class="tile-kicker">Wind</p><p class="qf-value">6 <span class="qf-unit">mph</span></p><p class="qf-sentence">Gusting to 14 mph, from the west-northwest.</p></article><article class="tile" data-fact ><p class="tile-kicker">Pressure</p><p class="qf-value">30.12 <span class="qf-unit">inHg</span></p><p class="qf-sentence">Steady over the last 3 hours.</p></article><article class="tile" data-fact ><p class="tile-kicker">Air</p><p class="qf-value">88% <span class="qf-unit">humidity</span></p><p class="qf-sentence">The dew point is 44°, 3° under the air.</p></article><article class="tile" data-fact data-section="sun-moon"><p class="tile-kicker">Sun and moon</p><p class="qf-value">7:09 am <span class="qf-unit">to 4:49 pm</span></p><p class="qf-sentence">9 h 40 m of daylight. The moon is 38% lit.</p></article></div></section></div>
+</body>
+</html>
