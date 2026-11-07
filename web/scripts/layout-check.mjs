@@ -1,0 +1,237 @@
+#!/usr/bin/env node
+/**
+ * Layout check (#402): open every tab of the built site in its own headless
+ * Chromium and fail, naming the view, on three layout facts.
+ *
+ *   npm run layout-check            # builds with VITE_LANE_SERVER=1, then checks
+ *   npm run layout-check -- --prove # also proves the #395 shape would fail
+ *
+ *  1. Sideways scroll: the page's `scrollWidth` is wider than its
+ *     `clientWidth`.
+ *  2. A chart narrower than its tile's content box: an `svg[role=img]` or a
+ *     Plotly chart whose width falls short of the element that holds it.
+ *  3. Stat values that touch: in a `dl`, the text of two different items
+ *     (a value, its label) whose boxes overlap.
+ *
+ * Every tab is visited at 320, 390, 760 and 1440 px, in light and dark, on
+ * three cases: the `dry` and `raining` goldens, and `live`, the raining
+ * golden with every Rain and Solar window valid and holding the wide values
+ * live data produces (5 digits, as in #395), which the goldens do not. On a
+ * phone each folded finding row is opened in turn, so a chart inside a
+ * closed row is measured too. Layout facts only; taste stays with the
+ * design-compliance pass.
+ *
+ * It serves `dist/` with `vite preview` itself (the lane server's read
+ * functions, so no secrets and no network), on a free port. `--prove` adds
+ * the pre-fix Solar window CSS (a0c7d57^) to the `live` case and exits 1
+ * unless the check then reports touching stats, so the check is shown to
+ * catch #395. Uses the `playwright` dev dependency's Chromium
+ * (`npx playwright install chromium` once).
+ */
+import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright";
+import { preview } from "vite";
+
+const WIDTHS = [320, 390, 760, 1440];
+const SCHEMES = ["light", "dark"];
+const TABS = ["overview", "rain", "events", "solar"];
+const CASES = [
+  { name: "dry", query: "fixture=dry&age=3" },
+  { name: "raining", query: "fixture=raining&age=3" },
+  { name: "live", query: "fixture=raining&age=3", wide: true },
+];
+
+/** The pre-fix Solar window strip (before a0c7d57): nowrap values, 140px columns. */
+const PRE_FIX_CSS = `
+.solar-stats { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; }
+.solar-stats dd { white-space: nowrap !important; overflow-wrap: normal !important; }
+`;
+
+const prove = process.argv.includes("--prove");
+
+/** Give the windows the wide values live data holds, all valid. */
+function widen(dashboard) {
+  const wide = [4.12, 5.87, 38.5, 284.4, 99999.9, 1188.2, 54321.1];
+  for (const [tab, field] of [
+    ["solar_tab", "energy_kwh_m2"],
+    ["rain_tab", "total_in"],
+  ]) {
+    dashboard[tab]?.windows.forEach((window, i) => {
+      window[field] = wide[i % wide.length];
+      window.status = { ...window.status, status: "valid", reason: null, missing_days: 0 };
+    });
+  }
+  return dashboard;
+}
+
+/** Runs in the page: the layout facts that are wrong in the open tab. */
+function measure() {
+  const found = [];
+  const panel = document.querySelector("[role=tabpanel]:not([hidden])") ?? document.body;
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && el.checkVisibility();
+  };
+  const label = (el) =>
+    `${el.tagName.toLowerCase()}${[...el.classList]
+      .slice(0, 2)
+      .map((c) => `.${c}`)
+      .join("")}`;
+  const tile = (el) => el.closest("[data-section]")?.dataset.section ?? "page";
+
+  // 2. a chart narrower than the box that holds it
+  const charts = [...panel.querySelectorAll("svg[role=img], .js-plotly-plot")].filter(
+    (el) => visible(el) && !el.closest("button, summary"),
+  );
+  for (const chart of charts) {
+    const host = chart.parentElement;
+    const style = getComputedStyle(host);
+    const content =
+      host.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const width = chart.getBoundingClientRect().width;
+    if (width < content - 1.5) {
+      // (1.5px of sub-pixel rounding is not a defect)
+      found.push(
+        `chart ${label(chart)} in ${tile(chart)} is ${width.toFixed(0)}px, its ${label(host)} holds ${content.toFixed(0)}px`,
+      );
+    }
+  }
+
+  // 3. stat values that touch: text boxes of different items of one dl
+  for (const dl of panel.querySelectorAll("dl")) {
+    if (!visible(dl)) continue;
+    const boxes = [];
+    for (const item of dl.children) {
+      const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.textContent.trim()) continue;
+        // Screen-reader-only text (`.gap-sr`, `.ov-sr`) is clipped, not drawn.
+        if (node.parentElement.closest(".gap-sr, .ov-sr")) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) {
+          if (r.width > 0 && r.height > 0) boxes.push({ item, r, text: node.textContent.trim() });
+        }
+      }
+    }
+    for (let a = 0; a < boxes.length; a++) {
+      for (let b = a + 1; b < boxes.length; b++) {
+        if (boxes[a].item === boxes[b].item) continue;
+        const x =
+          Math.min(boxes[a].r.right, boxes[b].r.right) - Math.max(boxes[a].r.left, boxes[b].r.left);
+        const y =
+          Math.min(boxes[a].r.bottom, boxes[b].r.bottom) - Math.max(boxes[a].r.top, boxes[b].r.top);
+        if (x > 1 && y > 1) {
+          found.push(
+            `stats touch in ${tile(dl)} ${label(dl)}: "${boxes[a].text}" and "${boxes[b].text}"`,
+          );
+        }
+      }
+    }
+  }
+  const stats = [...panel.querySelectorAll("dl")].filter(visible).length;
+  return { found, charts: charts.length, stats };
+}
+
+/** Page-level sideways scroll, in the open tab. */
+async function scrolls(page) {
+  return page.evaluate(() => {
+    const { scrollWidth, clientWidth } = document.documentElement;
+    return scrollWidth > clientWidth
+      ? `page scrolls sideways (${scrollWidth}/${clientWidth})`
+      : null;
+  });
+}
+
+/** How many charts and stat lists were measured, so a silent run shows. */
+const seen = { charts: 0, stats: 0 };
+
+/** Facts for the open tab; on a phone, each folded row opened in turn. */
+async function inspectTab(page) {
+  const problems = [];
+  const take = async () => {
+    const sideways = await scrolls(page);
+    if (sideways) problems.push(sideways);
+    const result = await page.evaluate(measure);
+    problems.push(...result.found);
+    seen.charts += result.charts;
+    seen.stats += result.stats;
+  };
+  await take();
+  const rows = await page.$$("[role=tabpanel]:not([hidden]) details.tile-row");
+  for (const row of rows) {
+    await row.evaluate((d) => {
+      d.open = true;
+    });
+    await page.waitForTimeout(150);
+    await take();
+  }
+  return problems;
+}
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const server = await preview({ root, preview: { port: 0, host: "127.0.0.1", strictPort: false } });
+const base = server.resolvedUrls.local[0].replace(/\/$/, "");
+const browser = await chromium.launch();
+const failures = [];
+const started = Date.now();
+let proved = false;
+try {
+  for (const kase of CASES) {
+    for (const width of WIDTHS) {
+      for (const colorScheme of SCHEMES) {
+        const page = await browser.newPage({ viewport: { width, height: 844 }, colorScheme });
+        if (kase.wide) {
+          await page.route("**/dashboard*", async (route) => {
+            const response = await route.fetch();
+            await route.fulfill({ response, json: widen(await response.json()) });
+          });
+        }
+        page.on("pageerror", (e) =>
+          failures.push(`${kase.name} ${width}px ${colorScheme}: page error ${e.message}`),
+        );
+        await page.goto(`${base}/?${kase.query}#overview`, { waitUntil: "load" });
+        await page.waitForSelector(".masthead-age:not(:empty)", { timeout: 5000 });
+        if (kase.wide && prove) await page.addStyleTag({ content: PRE_FIX_CSS });
+        for (const tab of TABS) {
+          await page.evaluate((id) => (location.hash = id), tab);
+          if (tab === "events" && (await page.$(".ev-chart"))) {
+            await page.waitForSelector(".ev-chart.js-plotly-plot", { timeout: 10000 });
+          }
+          await page.waitForTimeout(300);
+          const problems = [...new Set(await inspectTab(page))];
+          const view = `${kase.name} #${tab} ${width}px ${colorScheme}`;
+          console.log(`${problems.length ? "FAIL" : "ok  "} ${view}`);
+          for (const p of problems) {
+            console.log(`       ${p}`);
+            failures.push(`${view}: ${p}`);
+            if (p.startsWith("stats touch")) proved = true;
+          }
+        }
+        await page.close();
+      }
+    }
+  }
+} finally {
+  await browser.close();
+  await server.close();
+}
+const seconds = ((Date.now() - started) / 1000).toFixed(0);
+console.log(
+  `${CASES.length * WIDTHS.length * SCHEMES.length * TABS.length} views in ${seconds}s, ${seen.charts} charts and ${seen.stats} stat lists measured`,
+);
+
+if (prove) {
+  if (!proved) {
+    console.error("--prove: the #395 shape did not fail the check");
+    process.exit(1);
+  }
+  console.log("--prove: the #395 shape fails the check, as it should");
+  process.exit(0);
+}
+if (failures.length) {
+  console.error(`${failures.length} layout problem(s):\n${failures.join("\n")}`);
+  process.exit(1);
+}
+console.log("no layout problems");
