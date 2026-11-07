@@ -107,5 +107,5 @@ def build_snapshot(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
         ),
         sun_moon=sun_moon(station, clock),
-        widget_view=widget_view(active, lead, clock),
+        widget_view=widget_view(active, lead),
     )

@@ -8,60 +8,48 @@ order, and the first that holds is the view:
 
 1. **rain_event**: an event is live and more than `RAIN_EVENT_IN` has fallen
    in it (`ActiveRainEvent.total_in`, the live `eventrainin`).
-2. **dry_spell**: the station-local date is in a summer month
-   (`SUMMER_MONTHS`) and it has been dry for at least `DRY_SPELL_DAYS`: the
-   hero lead's calm rule value, the days since `lastRain`.
+2. **dry_spell**: the current dry spell is longer than the usual dry spell,
+   in any month. Both are the hero lead's calm rule: its value is the days
+   since `lastRain`, its reference the median completed dry spell over the
+   last 365 days. Without a usual dry spell (an invalid window) it cannot
+   hold.
 3. **temperature_ranges**, otherwise: now against today, 7, 30 and 365 days.
 
 Functions:
-- widget_view(active, lead, clock): The `WidgetView` for one snapshot.
+- widget_view(active, lead): The `WidgetView` for one snapshot.
 """
 
 from typing import Optional
 
-from lookout.snapshot.clock import StationClock
-from lookout.snapshot.model import ActiveRainEvent, HeroLead, WidgetView
+from lookout.snapshot.model import ActiveRainEvent, HeroLead, LeadRule, WidgetView
 
 RAIN_EVENT_IN = 0.04
 """The rain event view needs more than this much rain in the live event."""
 
-SUMMER_MONTHS = (6, 7, 8, 9)
-"""Station-local months in which the dry spell view can show, June to
-September (the station's dry season; northern hemisphere)."""
 
-DRY_SPELL_DAYS = 3.0
-"""The dry spell view needs at least this many days since it last rained."""
-
-
-def _days_dry(lead: HeroLead) -> Optional[float]:
+def _longer_than_usual(calm: Optional[LeadRule]) -> bool:
     """
-    The days since it last rained: the calm rule's value.
+    Whether the current dry spell is longer than the usual dry spell.
 
-    :param lead: The hero lead, which carries every rule's value.
-    :return: The days, or None when there is no `lastRain` reading.
+    :param calm: The calm lead rule, or None.
+    :return: True only when both values are known and the spell is longer.
     """
-    calm = next((rule for rule in lead.rules if rule.kind == "calm"), None)
-    return None if calm is None else calm.value
+    if calm is None or calm.value is None or calm.reference is None:
+        return False
+    return calm.value > calm.reference
 
 
-def widget_view(
-    active: Optional[ActiveRainEvent], lead: HeroLead, clock: StationClock
-) -> WidgetView:
+def widget_view(active: Optional[ActiveRainEvent], lead: HeroLead) -> WidgetView:
     """
     Choose the widget's view.
 
     :param active: The active rain event, or None.
-    :param lead: The hero lead, for the days since it last rained.
-    :param clock: The build's station clock, for the station-local month.
+    :param lead: The hero lead, whose calm rule holds the dry spell.
     :return: The view name.
     """
     if active is not None and active.total_in > RAIN_EVENT_IN:
         return "rain_event"
-    days_dry = _days_dry(lead)
-    if (
-        clock.today.month in SUMMER_MONTHS
-        and days_dry is not None
-        and days_dry >= DRY_SPELL_DAYS
-    ):
+    calm = next((rule for rule in lead.rules if rule.kind == "calm"), None)
+    if _longer_than_usual(calm):
         return "dry_spell"
     return "temperature_ranges"

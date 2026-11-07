@@ -259,8 +259,8 @@ _Avoid_: headline, hero metric, featured stat.
 
 Which view a widget shows now, picked in the snapshot so every widget shows
 the same one (`lookout.snapshot.widget`). Checked in order: **rain_event**
-while an event is live with more than 0.04 in in it; **dry_spell** in June
-to September once it has been dry for 3 days or more; otherwise
+while an event is live with more than 0.04 in in it; **dry_spell** while the
+current dry spell is longer than the usual dry spell, in any month; otherwise
 **temperature_ranges**, now against today, 7, 30 and 365 days. It is not the
 lead: the lead ranks the Overview's hero, the widget view picks a widget's
 picture.

@@ -4,8 +4,8 @@ The widget view, through `build_snapshot`: which view a widget shows now.
 The rules are checked in order and the first that holds is the view:
 
 1. rain_event, if an event is live with more than 0.04 in in it;
-2. dry_spell, if it is June to September at the station and it has been dry
-   for at least 3 days;
+2. dry_spell, if the current dry spell is longer than the usual dry spell
+   (the calm lead's comparison), in any month;
 3. otherwise temperature_ranges.
 
 The view is in the dashboard and in the context block, so a widget reading
@@ -24,28 +24,22 @@ from tests.snapshot_helpers import (
     scenario_until,
 )
 
-SUMMER_NOW = "2026-07-10T20:00:00Z"  # Fri Jul 10, 1 pm local
+NOW = "2026-01-10T20:00:00Z"
 
 
-def dry_station(month: str, rain_day: str):
+def rain_every_fifth_day(end: str) -> pd.DataFrame:
     """
-    A station from the 1st to the 10th of `month` ("YYYY-MM"), 1 pm local,
-    that last rained for an hour on `rain_day` (the day of the month).
+    A year of rain for an hour every fifth day, the last on Sat 2026-01-03,
+    running dry to `end`: every completed dry spell is four days long.
     """
-    now = f"{month}-10T20:00:00Z"
-    full = build_archive(
-        f"{month}-01T08:00:00Z",
-        f"{month}-10T20:05:00Z",
-        rain=(RainSpell(f"{month}-{rain_day}T18:00:00Z", 1, 0.12),),
-    )
-    archive = full[full["dateutc"] < ms(now)].reset_index(drop=True)
-    live = live_row(full, now)
-    return build(archive, live, f"{month}-10T20:02:00Z", event_catalog(archive))
+    days = pd.date_range(end="2026-01-03", periods=73, freq="5D")
+    spells = tuple(RainSpell(f"{day.date()}T18:00:00Z", 1, 0.12) for day in days)
+    return build_archive("2025-01-01T08:00:00Z", end, rain=spells)
 
 
-def days_dry(snapshot) -> float:
-    """The days since it last rained: the calm rule's value."""
-    return next(r.value for r in snapshot.hero_lead.rules if r.kind == "calm")
+def calm(snapshot):
+    """The calm rule: days since it last rained, against the usual dry spell."""
+    return next(r for r in snapshot.hero_lead.rules if r.kind == "calm")
 
 
 def test_a_live_event_over_four_hundredths_shows_the_rain_event():
@@ -69,30 +63,41 @@ def test_a_live_event_of_exactly_four_hundredths_does_not():
     assert snapshot.widget_view == "temperature_ranges"
 
 
-def test_a_summer_dry_spell_of_three_days_or_more_shows_the_dry_spell():
-    snapshot = dry_station("2026-07", "05")
+def test_a_dry_spell_longer_than_usual_shows_the_dry_spell_in_any_month():
+    # Thu Jan 8, 11 pm local: five and a half days dry against a usual four.
+    end = "2026-01-09T07:00:00Z"
+    snapshot = build(rain_every_fifth_day(end), None, end)
 
-    assert days_dry(snapshot) >= 3
+    assert calm(snapshot).value > calm(snapshot).reference == 4.0
     assert snapshot.widget_view == "dry_spell"
 
 
-def test_summer_rain_yesterday_shows_temperature_ranges():
-    snapshot = dry_station("2026-07", "09")
+def test_a_dry_spell_shorter_than_usual_shows_temperature_ranges():
+    # Mon Jan 5, 11 pm local: two and a half days dry against a usual four.
+    end = "2026-01-06T07:00:00Z"
+    snapshot = build(rain_every_fifth_day(end), None, end)
 
-    assert days_dry(snapshot) < 3
+    assert calm(snapshot).value < calm(snapshot).reference == 4.0
     assert snapshot.widget_view == "temperature_ranges"
 
 
-def test_the_same_dry_spell_in_winter_shows_temperature_ranges():
-    snapshot = dry_station("2026-01", "05")
+def test_without_a_usual_dry_spell_a_long_dry_run_shows_temperature_ranges():
+    # Ten days of record: the 365-day window is invalid, so there is no usual.
+    archive = build_archive(
+        "2026-01-01T08:00:00Z",
+        "2026-01-10T20:00:00Z",
+        rain=(RainSpell("2026-01-02T18:00:00Z", 1, 0.12),),
+    )
 
-    assert snapshot.active_rain_event is None
-    assert days_dry(snapshot) >= 3
+    snapshot = build(archive, None, NOW)
+
+    assert calm(snapshot).value > 7
+    assert calm(snapshot).reference is None
     assert snapshot.widget_view == "temperature_ranges"
 
 
 def test_a_snapshot_with_no_history_shows_temperature_ranges():
-    snapshot = build(pd.DataFrame({"dateutc": []}), None, SUMMER_NOW)
+    snapshot = build(pd.DataFrame({"dateutc": []}), None, NOW)
 
     assert snapshot.widget_view == "temperature_ranges"
 
