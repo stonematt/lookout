@@ -52,5 +52,5 @@ Python: type hints on every parameter and return; a module docstring stating pur
 - **Issues**: GitHub `stonematt/lookout` via `gh`; read an issue's brief before working it: a ticket's body, or a triaged issue's Agent Brief comment. `docs/agents/issue-tracker.md`, labels in `docs/agents/triage-labels.md`.
 - **Swarm runs**: `.claude/swarm-profile.md` owns the gates, landing policy and per-run repo facts.
 - **Initiatives and lessons**: `docs/product-lead/`. Release reviews: `docs/panel/`.
-- **UI work**: `DESIGN.md` and `PRODUCT.md`.
+- **UI work**: `DESIGN.md` and `PRODUCT.md`. For decks, Design canvases and other claude.ai artifacts made in this repo, use the Lookout design system https://claude.ai/artifact/Bmri2bVCvPqPumexcZkMXc instead of the account default; it is built from `DESIGN.md`, which wins where they differ.
 - **Energy catalog design**: `ENERGY_CATALOG.md`.
