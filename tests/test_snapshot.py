@@ -262,6 +262,7 @@ class TestDocuments:
             "observed_at_ms",
             "current",
             "active_rain_event",
+            "widget_view",
         }
         for name in CONTEXT_FIELDS:
             assert context[name] == dashboard[name]
