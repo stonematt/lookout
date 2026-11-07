@@ -11,7 +11,7 @@ html,body{margin:0;background:transparent}
 :root{--type-display:7.5rem;--type-finding-lead:1.5rem;--type-finding:1.1875rem;--type-condition:1.25rem;--type-fact:2.5rem;--type-stat:1.375rem;--type-body:1rem;--type-standfirst:.875rem;--type-kicker:.8125rem;--type-source:.8125rem;--type-axis:12px;--type-label:12px;--type-annotation:13px}
 .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:12px}
 .col{display:grid;gap:16px;padding:12px}
-.panel{--surface:var(--ground);background:var(--ground);color:var(--ink);padding:16px;border-radius:var(--r-tile);font-family:var(--font-sans);font-size:1rem;line-height:1.55;letter-spacing:.01em;text-align:left;min-width:0}
+.panel{--surface:var(--ground);background:var(--ground);color:var(--ink);padding:16px;border-radius:var(--r-tile);font-family:var(--font-sans, Lexend, system-ui, sans-serif);font-size:1rem;line-height:1.55;letter-spacing:.01em;text-align:left;min-width:0}
 .panel h2,.panel p,.panel dl,.panel dd{margin:0}
 .theme-name{font-size:12px;color:var(--ink-3);margin:0 0 12px}
 .tile{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
@@ -40,7 +40,7 @@ html,body{margin:0;background:transparent}
 .hero-facts dt{order:2;font-size:var(--type-source);line-height:1.4;color:var(--ink-2)}
 .hero-facts dd{order:1;font-size:var(--type-stat);font-weight:400;line-height:1.25}
 .hero-chart{margin-top:12px}
-.hero-svg{display:block;max-width:100%;overflow:visible;font-family:var(--font-sans)}
+.hero-svg{display:block;max-width:100%;overflow:visible;font-family:var(--font-sans, Lexend, system-ui, sans-serif)}
 .hero-grid{stroke:var(--rule);stroke-width:1}
 .hero-tick{font-size:var(--type-axis);fill:var(--ink-3);font-variant-numeric:tabular-nums}
 .hero-label,.hero-note{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
