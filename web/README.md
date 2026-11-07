@@ -67,6 +67,8 @@ Stop it with Ctrl-C, or `kill` its PID.
 
 Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
 
+`ignoreCommand` in `vercel.json` runs `scripts/vercel-ignore.sh`, which skips the Vercel build for `shots/*` and `lane/*` branches; every other branch builds.
+
 ## Security headers
 
 `vercel.json` sets `Content-Security-Policy`, `X-Content-Type-Options`,
