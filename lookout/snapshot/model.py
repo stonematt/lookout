@@ -54,6 +54,7 @@ CONTEXT_FIELDS: Tuple[str, ...] = (
     "observed_at_ms",
     "current",
     "active_rain_event",
+    "widget_view",
 )
 
 
@@ -320,6 +321,7 @@ LeadKind = Literal["rain", "temperature", "solar", "calm"]
 LeadRuleUnit = Literal["hours", "degrees_f", "wm2", "days"]
 LeadChartUnit = Literal["in", "f", "wm2", "days"]
 LeadMissing = Literal["no_event", "no_reading", "no_comparison"]
+WidgetView = Literal["rain_event", "dry_spell", "temperature_ranges"]
 
 
 @dataclass(frozen=True)
@@ -1180,6 +1182,8 @@ class Snapshot:
         catalog.
     :param sun_moon: The sun and moon today, or None when the station has
         no coordinates.
+    :param widget_view: Which view a widget shows now: "rain_event",
+        "dry_spell" or "temperature_ranges" (`lookout.snapshot.widget`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1200,6 +1204,7 @@ class Snapshot:
     almanac: Almanac
     solar_tab: Optional[SolarTab]
     sun_moon: Optional[SunMoon]
+    widget_view: WidgetView
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

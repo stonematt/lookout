@@ -36,6 +36,7 @@ from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
+from lookout.snapshot.widget import widget_view
 
 
 def build_snapshot(
@@ -75,6 +76,9 @@ def build_snapshot(
     current = current_conditions(stitched, clock)
     active = active_rain_event(event_catalog, current, observed_at_ms)
     days = count_days(archive, current, clock)
+    lead = hero_lead(
+        archive, stitched, event_catalog, active, current, observed_at_ms, days
+    )
 
     return Snapshot(
         station=station,
@@ -93,9 +97,7 @@ def build_snapshot(
             clock,
             days.rain.water_year_status,
         ),
-        hero_lead=hero_lead(
-            archive, stitched, event_catalog, active, current, observed_at_ms, days
-        ),
+        hero_lead=lead,
         rain_tab=rain_tab(stitched, days),
         temperature_context=temperature_context(
             stitched, current, observed_at_ms, days.coverage
@@ -105,4 +107,5 @@ def build_snapshot(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
         ),
         sun_moon=sun_moon(station, clock),
+        widget_view=widget_view(active, lead),
     )
