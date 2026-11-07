@@ -559,4 +559,5 @@ The tightest pairs, measured Nov 2026:
 ## Sources
 
 - Prototypes: the Lookout Prototypes canvas, rows E (desktop, widgets) and F (phone). https://claude.ai/artifact/3L81ndVLwwTKZP1jE4Ecmp
+- Design system, built from this file and the shipped `web/src/styles/` for decks and Design canvases: `design-system/` in this repo, mirrored at https://claude.ai/artifact/Bmri2bVCvPqPumexcZkMXc
 - The earlier Paper-world system this replaces is in git history (DESIGN.md before Nov 2026).
