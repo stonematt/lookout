@@ -96,16 +96,24 @@ export function oneStation(): StationIndex {
 }
 
 /**
- * One golden document as the schema 2 refresh run wrote it: the v3 golden
- * with `schema_version` 2 and the v3 `sun_moon` block removed. Built here,
- * never by editing a golden file (#351).
+ * The schema version before `SCHEMA_VERSION`: the one the site still reads
+ * (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`). The next schema bump changes this
+ * constant and `goldenPrevious`'s removals below; every N-1 test follows.
+ */
+export const PREVIOUS_SCHEMA_VERSION = 2;
+
+/**
+ * One golden document as the refresh run wrote it at `PREVIOUS_SCHEMA_VERSION`:
+ * the current golden with `schema_version` set back and the fields the current
+ * version added removed (v3 added the `sun_moon` block). Built here, never by
+ * editing a golden file (#351).
  *
  * @param scenario - "dry" or "raining".
  * @param kind - "dashboard" or "context".
  * @returns The parsed JSON, untyped.
  */
-export function goldenV2(scenario: Scenario, kind: "dashboard" | "context"): unknown {
+export function goldenPrevious(scenario: Scenario, kind: "dashboard" | "context"): unknown {
   const doc = golden(scenario, kind) as Record<string, unknown>;
   delete doc.sun_moon;
-  return { ...doc, schema_version: 2 };
+  return { ...doc, schema_version: PREVIOUS_SCHEMA_VERSION };
 }
