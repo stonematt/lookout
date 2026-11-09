@@ -23,7 +23,7 @@ Commands:
                     Reports only; --save backs up the stored catalog and
                     writes the new one. --save --dry-run says what --save
                     would do; --dry-run alone is refused.
-    rain-catalog    Rebuild the Event Catalog from the archive. A dry run by
+    event-catalog   Rebuild the Event Catalog from the archive. A dry run by
                     default: the stored catalog's read outcome (found, missing
                     or failed) and event count, the detected event count, and
                     the events added or dropped. --save backs up the stored
@@ -38,7 +38,7 @@ not the wall clock, so a stalled station still shows its last good days.
 Exit status: 0 done, 1 refused or failed.
 
 A command that saves (fill-gap without --dry-run, energy-catalog --save
-without --dry-run, rain-catalog --save) is an archive writer: it takes the
+without --dry-run, event-catalog --save) is an archive writer: it takes the
 archive-writer lock (#244) before any work, and exits 1 naming the lock file
 when another writer holds it. Every other command runs regardless.
 """
@@ -486,7 +486,7 @@ def cmd_energy_catalog(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_rain_catalog(args: argparse.Namespace) -> int:
+def cmd_event_catalog(args: argparse.Namespace) -> int:
     """
     Rebuild the Event Catalog from the archive; write it only with --save.
 
@@ -553,7 +553,7 @@ def saves(args: argparse.Namespace) -> bool:
         return not args.dry_run
     if args.command == "energy-catalog":
         return args.save and not args.dry_run
-    if args.command == "rain-catalog":
+    if args.command == "event-catalog":
         return args.save
     return False
 
@@ -598,8 +598,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="With --save: write nothing"
     )
 
-    rain = command("rain-catalog", cmd_rain_catalog, "Rebuild the Event Catalog")
-    rain.add_argument("--save", action="store_true", help="Back up and save it")
+    events = command("event-catalog", cmd_event_catalog, "Rebuild the Event Catalog")
+    events.add_argument("--save", action="store_true", help="Back up and save it")
     return parser
 
 
