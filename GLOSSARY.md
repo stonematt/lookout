@@ -178,7 +178,7 @@ _Avoid_: combine, overwrite, "fetched wins".
 A command that saves the archive or a catalog (the Event Catalog or the
 energy catalog), of which at most one runs on a host at a time. The refresh
 run, catchup, `diagnostics fill-gap`, `diagnostics energy-catalog --save`,
-`diagnostics rain-catalog --save` and `repair_rain --write` are archive
+`diagnostics event-catalog --save` and `repair_rain --write` are archive
 writers; each takes the per-host archive-writer lock
 (`lookout.utils.archive_lock`) before it does any work. A read-only command,
 or a writer run without its save flag, is not one and takes no lock.
