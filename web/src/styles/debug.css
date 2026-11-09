@@ -4,6 +4,12 @@
  * only the grid and the key/value tree. Slate chrome: colour marks a value's
  * type quietly, with the data inks the dashboard already uses.
  */
+/* the dashboard's page is a grid for its header and tabs; here, the header
+   stacks over the tiles */
+#dump.page {
+  display: block;
+}
+
 .debug-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -105,7 +111,9 @@
 .json-pre {
   margin: var(--s-3) 0 0;
   overflow-x: auto;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  /* one family, Lexend (DESIGN.md); the indent is leading spaces, so it holds */
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
   font-size: var(--type-annotation);
   line-height: 1.5;
   color: var(--ink-2);
