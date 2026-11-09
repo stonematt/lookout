@@ -12,7 +12,11 @@
  * indented JSON in a last, folded tile. Every value reaches the page through
  * `textContent`.
  *
- * Offers `renderDump` and `renderTree`.
+ * A station selector in the header, drawn as the dashboard's, writes the
+ * chosen `?station=` to the URL (a new history entry, so Back returns to the
+ * last station) and reads `/current` again.
+ *
+ * Offers `renderDump`, `renderTree` and `stationPicker`.
  */
 import "@fontsource-variable/lexend/wght.css";
 import "./styles/tokens.css";
@@ -22,7 +26,8 @@ import "./styles/debug.css";
 
 import { make } from "./dom.js";
 import { mountLayout } from "./layout.js";
-import { READ_TIMEOUT_MS, readUrl } from "./load.js";
+import { READ_TIMEOUT_MS, fetchStations, readUrl } from "./load.js";
+import type { StationIndex } from "./stations.js";
 import { applyThemeOverride } from "./theme.js";
 
 /** Blocks shown first, in this order; any other object block follows. */
@@ -122,17 +127,61 @@ function stationName(body: unknown): string {
   return typeof station.mac === "string" ? station.mac : "Raw /current";
 }
 
+/** The MAC the body is for, upper case; null when it names none. */
+function shownMac(body: unknown): string | null {
+  const station = isObject(body) ? body.station : undefined;
+  return isObject(station) && typeof station.mac === "string" ? station.mac.toUpperCase() : null;
+}
+
 /**
- * The page: a header naming the station and the read, then a tile for each
- * object block (`last_data` and `context` first), a tile of the document's
- * own fields, and the whole body as indented JSON in a folded tile.
+ * The station selector, as the dashboard's header draws it (the same
+ * classes): one option per indexed station, the shown one selected.
+ *
+ * @param index - The station index.
+ * @param shown - The MAC shown, or null.
+ * @param onChoose - Called with the MAC chosen.
+ * @returns The selector's wrapper; null for an index of one station.
+ */
+export function stationPicker(
+  index: StationIndex,
+  shown: string | null,
+  onChoose: (mac: string) => void,
+): HTMLElement | null {
+  if (index.stations.length < 2) return null;
+  const select = make("select", "station-select");
+  select.setAttribute("aria-label", "Station");
+  for (const entry of index.stations) {
+    const option = make("option", "", entry.name ?? `Unnamed station …${entry.mac.slice(-5)}`);
+    option.value = entry.mac;
+    option.selected = entry.mac.toUpperCase() === shown;
+    select.append(option);
+  }
+  select.addEventListener("change", () => onChoose(select.value));
+  const wrap = make("span", "masthead-picks");
+  wrap.append(select);
+  return wrap;
+}
+
+/**
+ * The page: a header naming the station (a selector when the index lists
+ * two or more) and the read, then a tile for each object block (`last_data`
+ * and `context` first), a tile of the document's own fields, and the whole
+ * body as indented JSON in a folded tile.
  *
  * @param url - The URL read.
  * @param status - Its HTTP status.
  * @param bodyText - Its body text.
+ * @param index - The station index, for the selector; null without one.
+ * @param onChoose - Called with the MAC a visitor chooses.
  * @returns The header and the tiles' grid.
  */
-export function renderDump(url: string, status: number, bodyText: string): HTMLElement[] {
+export function renderDump(
+  url: string,
+  status: number,
+  bodyText: string,
+  index: StationIndex | null = null,
+  onChoose: (mac: string) => void = () => undefined,
+): HTMLElement[] {
   let body: unknown;
   let raw = bodyText;
   try {
@@ -143,7 +192,10 @@ export function renderDump(url: string, status: number, bodyText: string): HTMLE
   }
 
   const header = make("header", "masthead");
-  header.append(make("h1", "masthead-station", stationName(body)));
+  const heading = make("h1", "masthead-station", stationName(body));
+  const picker = index && stationPicker(index, shownMac(body), onChoose);
+  if (picker) heading.replaceChildren(picker);
+  header.append(heading);
   const line = make("p", "masthead-line debug-request", `GET ${url} · ${status}`);
   line.dataset.ok = String(status >= 200 && status < 300);
   header.append(line);
@@ -170,21 +222,45 @@ function rank(key: string): number {
   return at === -1 ? LEAD_BLOCKS.length : at;
 }
 
-async function main(): Promise<void> {
-  applyThemeOverride(location.search);
-  mountLayout();
-  const root = document.getElementById("dump");
-  if (!root) return;
+/** The station index, read once; null when it cannot be read (no selector). */
+let index: Promise<StationIndex | null> | null = null;
+
+/** Read `/current` for the station the URL names, and draw it. */
+async function show(root: HTMLElement): Promise<void> {
+  index ??= fetchStations(location.search).catch(() => null);
   const url = readUrl("/current", location.search);
+  let status = 0;
+  let text: string;
   try {
     const response = await fetch(url, {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(READ_TIMEOUT_MS),
     });
-    root.replaceChildren(...renderDump(url, response.status, await response.text()));
+    status = response.status;
+    text = await response.text();
   } catch (error) {
-    root.replaceChildren(...renderDump(url, 0, `GET ${url} failed: ${String(error)}`));
+    text = `GET ${url} failed: ${String(error)}`;
   }
+  // A later choice already started over: drop this answer.
+  if (url !== readUrl("/current", location.search)) return;
+  root.replaceChildren(...renderDump(url, status, text, await index, (mac) => choose(root, mac)));
 }
 
-if (typeof document !== "undefined") void main();
+/** A visitor chose a station: put it in the URL (Back returns) and show it. */
+function choose(root: HTMLElement, mac: string): void {
+  const url = new URL(location.href);
+  url.searchParams.set("station", mac);
+  history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  void show(root);
+}
+
+function main(): void {
+  applyThemeOverride(location.search);
+  mountLayout();
+  const root = document.getElementById("dump");
+  if (!root) return;
+  window.addEventListener("popstate", () => void show(root));
+  void show(root);
+}
+
+if (typeof document !== "undefined") main();

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 
-import { renderDump, renderTree } from "../src/debug.js";
+import { renderDump, renderTree, stationPicker } from "../src/debug.js";
+import { FIXTURE_MAC, SALMON_MAC, oneStation, twoStations } from "./golden.js";
 
 const BODY = {
   schema_version: 3,
@@ -43,6 +44,36 @@ describe("renderDump", () => {
     expect(header!.querySelector<HTMLElement>(".debug-request")!.dataset.ok).toBe("false");
     expect(kickers(grid!)).toEqual(["raw JSON"]);
     expect(grid!.querySelector("pre")!.textContent).toBe("Bad Gateway");
+  });
+});
+
+describe("stationPicker", () => {
+  it("lists every indexed station with the shown one selected", () => {
+    const wrap = stationPicker(twoStations(), SALMON_MAC, () => undefined)!;
+    const select = wrap.querySelector("select")!;
+    expect(wrap.className).toBe("masthead-picks");
+    expect([...select.options].map((o) => o.value)).toEqual([FIXTURE_MAC, SALMON_MAC]);
+    expect(select.value).toBe(SALMON_MAC);
+  });
+
+  it("hands the chosen MAC on", () => {
+    const chosen: string[] = [];
+    const select = stationPicker(twoStations(), FIXTURE_MAC, (mac) =>
+      chosen.push(mac),
+    )!.querySelector("select")!;
+    select.value = SALMON_MAC;
+    select.dispatchEvent(new Event("change"));
+    expect(chosen).toEqual([SALMON_MAC]);
+  });
+
+  it("draws nothing for one station", () => {
+    expect(stationPicker(oneStation(), FIXTURE_MAC, () => undefined)).toBeNull();
+  });
+
+  it("takes the station name's place in the header", () => {
+    const [header] = renderDump("/current", 200, JSON.stringify(BODY), twoStations());
+    const select = header!.querySelector("h1 select")!;
+    expect((select as HTMLSelectElement).value).toBe(FIXTURE_MAC);
   });
 });
 
