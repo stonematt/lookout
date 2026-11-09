@@ -9,8 +9,7 @@
     { "source": "/current", "destination": "/api/current" },
     { "source": "/event", "destination": "/api/event" },
     { "source": "/status", "destination": "/api/status" },
-    { "source": "/stations", "destination": "/api/stations" },
-    { "source": "/last-data", "destination": "/api/last-data" }
+    { "source": "/stations", "destination": "/api/stations" }
   ],
   "headers": [
     {

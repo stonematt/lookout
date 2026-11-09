@@ -1,123 +1,95 @@
 /**
- * The debug page (`/debug.html`): dumps Ambient's raw `lastData` for every
- * station in the station index, from one read of `/last-data`.
+ * The debug page (`/debug.html`): dumps the raw Ambient `lastData` for every
+ * station in the station index, as `/current` returns it.
  *
- * Ambient allows one call a second per API key, shared with the dashboard's
- * `/current` and the refresh run. `/last-data` answers every station from
- * one Ambient `/devices` call and the CDN holds it for a minute, so opening
- * or reloading this page costs Ambient at most one call a minute. What it
- * shows is what Ambient holds now: the same `lastData` the refresh run reads
- * every five minutes. Every value reaches the page through `textContent`.
+ * `/current` reads Ambient live (cached for a minute), so this is what Ambient
+ * holds now, the same `lastData` the refresh run reads every five minutes.
+ * Stations are read one after another, not in parallel, to stay inside
+ * Ambient's rate limit. Every value reaches the page through `textContent`.
  *
- * Offers `parseLastData`, `renderStationDump` and `renderDump`.
+ * Offers `debugSearch` and `renderStationDump`.
  */
 import "./styles/tokens.css";
 import "./styles/base.css";
 
 import { make } from "./dom.js";
-import { READ_TIMEOUT_MS, ReadError, readUrl } from "./load.js";
-import { SnapshotContractError, isRecord } from "./snapshot.js";
-
-/** One station's raw reading, as `/last-data` serves it. */
-export interface StationLastData {
-  mac: string;
-  name: string | null;
-  /** Ambient's `lastData` as received; null when Ambient has none for it. */
-  last_data: Record<string, unknown> | null;
-}
-
-/** The `/last-data` document (`server/handlers.ts`). */
-export interface LastDataDocument {
-  kind: "last_data";
-  read_at_ms: number;
-  stations: StationLastData[];
-}
+import { fetchCurrent, fetchStations } from "./load.js";
+import type { CurrentReading } from "./snapshot.js";
+import type { StationEntry } from "./stations.js";
 
 /**
- * Check a `/last-data` body's shape.
+ * The query to read one station with: the page's own query (so a lane
+ * server's `fixture` and `age` pass on) with `station` set to its MAC.
  *
- * @param doc - The parsed JSON.
- * @returns The typed document.
- * @throws SnapshotContractError when it is not one.
+ * @param pageSearch - The page's `location.search`.
+ * @param mac - The station's MAC.
+ * @returns A `?`-prefixed query.
  */
-export function parseLastData(doc: unknown): LastDataDocument {
-  if (
-    !isRecord(doc) ||
-    doc.kind !== "last_data" ||
-    typeof doc.read_at_ms !== "number" ||
-    !Array.isArray(doc.stations) ||
-    !doc.stations.every(
-      (s) =>
-        isRecord(s) &&
-        typeof s.mac === "string" &&
-        (s.name === null || typeof s.name === "string") &&
-        (s.last_data === null || isRecord(s.last_data)),
-    )
-  ) {
-    throw new SnapshotContractError("last_data: malformed document");
-  }
-  return doc as unknown as LastDataDocument;
+export function debugSearch(pageSearch: string, mac: string): string {
+  const query = new URLSearchParams(pageSearch);
+  query.set("station", mac);
+  return `?${query.toString()}`;
 }
 
 /**
- * One station's section: its heading, when the reading was taken, and the
- * raw `lastData` as indented JSON.
+ * One station's section: its heading, when the reading was observed, and
+ * the raw `last_data` (or the read error) as indented JSON.
  *
- * @param station - The station's entry in `/last-data`.
+ * @param station - The station's index entry.
+ * @param result - Its `/current` reading, or the error the read failed with.
  * @returns The section element.
  */
-export function renderStationDump(station: StationLastData): HTMLElement {
+export function renderStationDump(
+  station: StationEntry,
+  result: CurrentReading | Error,
+): HTMLElement {
   const section = make("section", "debug-station");
   section.append(make("h2", "", `${station.name ?? "(unnamed)"} · ${station.mac}`));
-  const data = station.last_data;
-  const observed = data && typeof data.dateutc === "number" ? data.dateutc : null;
+  if (result instanceof Error) {
+    section.append(make("p", "debug-error", `read failed: ${result.message}`));
+    return section;
+  }
+  const observed = result.observed_at_ms;
   section.append(
     make(
       "p",
       "debug-meta",
-      observed === null ? "observed: unknown" : `observed: ${new Date(observed).toISOString()}`,
+      observed === null
+        ? "observed: unknown"
+        : `observed: ${new Date(observed).toISOString()} (${station.tz})`,
     ),
   );
   section.append(
     make(
       "pre",
       "debug-json",
-      data === null
-        ? "no lastData returned (Ambient is not listing this station)"
-        : JSON.stringify(data, null, 2),
+      result.last_data === null
+        ? "no lastData returned (Ambient unreachable or not listing this station)"
+        : JSON.stringify(result.last_data, null, 2),
     ),
   );
   return section;
 }
 
-/**
- * The whole dump: when Ambient was read, then one section per station.
- *
- * @param doc - The `/last-data` document.
- * @returns The elements to show, in order.
- */
-export function renderDump(doc: LastDataDocument): HTMLElement[] {
-  const read = make(
-    "p",
-    "debug-meta",
-    `Ambient read at ${new Date(doc.read_at_ms).toISOString()} (cached up to a minute)`,
-  );
-  return [read, ...doc.stations.map(renderStationDump)];
-}
-
 async function main(): Promise<void> {
   const root = document.getElementById("dump");
   if (!root) return;
-  const url = readUrl("/last-data", window.location.search);
+  const search = window.location.search;
+  let stations: StationEntry[];
   try {
-    const response = await fetch(url, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(READ_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new ReadError(url, response.status);
-    root.append(...renderDump(parseLastData(await response.json())));
+    stations = (await fetchStations(search)).stations;
   } catch (error) {
-    root.append(make("p", "debug-error", `read failed: ${String(error)}`));
+    root.append(make("p", "debug-error", `station index read failed: ${String(error)}`));
+    return;
+  }
+  for (const station of stations) {
+    let result: CurrentReading | Error;
+    try {
+      result = await fetchCurrent(debugSearch(search, station.mac));
+    } catch (error) {
+      result = error instanceof Error ? error : new Error(String(error));
+    }
+    root.append(renderStationDump(station, result));
   }
 }
 

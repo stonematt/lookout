@@ -12,9 +12,6 @@
  *   never reads it; it is for a post-release check.
  * - `/stations` returns the station index (#272): the stations the site can
  *   show, in inventory order, the first being the default station.
- * - `/last-data` returns Ambient's raw `lastData` for every indexed station,
- *   from one Ambient call, for the debug page. Ambient allows one call a
- *   second per key, so the page never reads `/current` once per station.
  *
  * The CDN keys its cache on the whole URL, so each read function reads its
  * sources only at one spelling of its URL: the bare path, plus its own
@@ -42,7 +39,7 @@ import {
 } from "../src/snapshot.js";
 import type { StationIndex } from "../src/stations.js";
 import { findStation } from "../src/stations.js";
-import type { DevicesReader, LiveReader } from "./ambient.js";
+import type { LiveReader } from "./ambient.js";
 import { describeError } from "./errors.js";
 import type { CurveReader, SnapshotReader, StationsReader } from "./storj.js";
 
@@ -54,9 +51,6 @@ export const DASHBOARD_CACHE = "s-maxage=300, stale-while-revalidate=300, stale-
 
 /** `/current`: short, so the live reading stays live and Ambient is spared. */
 export const CURRENT_CACHE = "s-maxage=60, stale-while-revalidate=60, stale-if-error=300";
-
-/** `/last-data`: as `/current`, so viewers share one Ambient call a minute. */
-export const LAST_DATA_CACHE = CURRENT_CACHE;
 
 /** `/status`: short, so a check after a run sees that run within a minute. */
 export const STATUS_CACHE = "s-maxage=60, stale-if-error=300";
@@ -89,8 +83,6 @@ export interface ReadSources {
   readSnapshot: SnapshotReader;
   /** Only `/current` needs it. */
   readLive?: LiveReader;
-  /** Only `/last-data` needs it. */
-  readDevices?: DevicesReader;
   /** Only `/event` needs it (`server/event.ts`). */
   readCurve?: CurveReader;
 }
@@ -414,67 +406,4 @@ export async function handleStations(request: Request, sources: ReadSources): Pr
   if (query instanceof Response) return query;
   const index = await readIndex(sources, "stations");
   return index instanceof Response ? index : jsonResponse(index, 200, STATIONS_CACHE);
-}
-
-/** One indexed station's raw reading, in `/last-data`. */
-export interface StationLastData {
-  mac: string;
-  /** Ambient's name for it, else the station index's; null when unnamed. */
-  name: string | null;
-  /** Ambient's `lastData` as received; null when Ambient has none for it. */
-  last_data: LastData | null;
-}
-
-/** The `/last-data` document. */
-export interface LastDataDocument {
-  kind: "last_data";
-  /** When this function read Ambient, epoch ms. */
-  read_at_ms: number;
-  /** In station index order. */
-  stations: StationLastData[];
-}
-
-/**
- * GET /last-data: Ambient's raw `lastData` for every station the station
- * index lists, for the debug page. One Ambient `/devices` call answers for
- * every station; devices the index does not list are left out.
- *
- * @param request - The incoming request; it takes no parameters.
- * @param sources - Where to read; needs `readDevices`.
- * @param now - The clock, for `read_at_ms`.
- * @returns 200, cached as `/current`; the index's 404 or 502; 502, briefly
- *   cached, when Ambient fails.
- */
-export async function handleLastData(
-  request: Request,
-  sources: ReadSources,
-  now: () => number = Date.now,
-): Promise<Response> {
-  const readDevices = sources.readDevices;
-  if (!readDevices) return errorResponse(500, "no live source configured");
-  const query = checkQuery(request);
-  if (query instanceof Response) return query;
-  const index = await readIndex(sources, "last-data");
-  if (index instanceof Response) return index;
-  let devices;
-  try {
-    devices = await readDevices();
-  } catch (error) {
-    console.error("last-data: Ambient read failed", describeError(error));
-    return errorResponse(502, "Ambient could not be read", FAILURE_CACHE);
-  }
-  const byMac = new Map(devices.map((d) => [d.mac, d]));
-  const body: LastDataDocument = {
-    kind: "last_data",
-    read_at_ms: now(),
-    stations: index.stations.map((station) => {
-      const device = byMac.get(station.mac.toUpperCase());
-      return {
-        mac: station.mac,
-        name: device?.name ?? station.name,
-        last_data: device?.lastData ?? null,
-      };
-    }),
-  };
-  return jsonResponse(body, 200, LAST_DATA_CACHE);
 }

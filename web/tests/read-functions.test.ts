@@ -131,7 +131,6 @@ let currentGET: Get;
 let dashboardGET: Get;
 let statusGET: Get;
 let stationsGET: Get;
-let lastDataGET: Get;
 
 beforeEach(async () => {
   world = {
@@ -153,7 +152,6 @@ beforeEach(async () => {
   dashboardGET = (await import("../api/dashboard.js")).GET;
   statusGET = (await import("../api/status.js")).GET;
   stationsGET = (await import("../api/stations.js")).GET;
-  lastDataGET = (await import("../api/last-data.js")).GET;
 });
 
 afterEach(() => {
@@ -588,62 +586,6 @@ describe("GET /stations", () => {
       logged.mockRestore();
       expect(response.status).toBe(502);
       expect(response.headers.get("cache-control")).toBe("s-maxage=15");
-    },
-  );
-});
-
-describe("GET /last-data", () => {
-  const ambientCalls = () => world.calls.filter((c) => c.url.startsWith(AMBIENT));
-
-  it("answers every indexed station from one Ambient call, cached as /current", async () => {
-    world.devices = [
-      ambientDevice(1_000, STRANGER),
-      ambientDevice(2_000, OTHER.toLowerCase()),
-      ambientDevice(3_000),
-    ];
-
-    const response = await lastDataGET(get("/last-data"));
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe(
-      "s-maxage=60, stale-while-revalidate=60, stale-if-error=300",
-    );
-    expect(ambientCalls()).toHaveLength(1);
-    const body = await response.json();
-    expect(body.kind).toBe("last_data");
-    expect(body.stations).toEqual([
-      {
-        mac: MAC,
-        name: "Ambient Name",
-        last_data: { dateutc: 3_000, tempf: 59.5, eventrainin: 0.31 },
-      },
-      {
-        mac: OTHER,
-        name: "Ambient Name",
-        last_data: { dateutc: 2_000, tempf: 59.5, eventrainin: 0.31 },
-      },
-      // In the index, not on the Ambient account: named from the index.
-      { mac: NEW, name: "Station 77", last_data: null },
-    ]);
-    // A device the index does not list is never served.
-    expect(JSON.stringify(body)).not.toContain(STRANGER);
-  });
-
-  it.each([429, 500])("answers 502, briefly cached, when Ambient answers %s", async (status) => {
-    world.ambientStatus = status;
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const response = await lastDataGET(get("/last-data"));
-    logged.mockRestore();
-    expect(response.status).toBe(502);
-    expect(response.headers.get("cache-control")).toBe("s-maxage=15");
-  });
-
-  it.each(["/last-data?x=1", `/last-data?${station(MAC)}`])(
-    "refuses %s without reading anything",
-    async (path) => {
-      const response = await lastDataGET(get(path));
-      expect(response.status).toBe(400);
-      expect(world.calls).toHaveLength(0);
     },
   );
 });

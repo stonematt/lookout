@@ -7,7 +7,7 @@
  * optionally `AMBIENT_ENDPOINT`. Which stations are served, and the default
  * one, come from the station index on Storj (#272), not from the env.
  */
-import { DEFAULT_AMBIENT_ENDPOINT, ambientDevicesReader, ambientReader } from "./ambient.js";
+import { DEFAULT_AMBIENT_ENDPOINT, ambientReader } from "./ambient.js";
 import type { ReadSources } from "./handlers.js";
 import { errorResponse } from "./handlers.js";
 import { storjCurveReader, storjReader, storjStationsReader } from "./storj.js";
@@ -20,7 +20,7 @@ export const REQUIRED_NAMES = [
   "STORJ_BUCKET",
 ] as const;
 
-/** What `/current` and `/last-data` need on top. */
+/** What `/current` needs on top. */
 export const LIVE_NAMES = ["AMBIENT_API_KEY", "AMBIENT_APPLICATION_KEY"] as const;
 
 /** Environment variables, as `process.env` holds them. */
@@ -65,13 +65,14 @@ export function sourcesFromEnv(
     readCurve: storjCurveReader(storj, fetchImpl),
   };
   if (live) {
-    const ambient = {
-      apiKey: value("AMBIENT_API_KEY"),
-      applicationKey: value("AMBIENT_APPLICATION_KEY"),
-      endpoint: env.AMBIENT_ENDPOINT?.trim() || DEFAULT_AMBIENT_ENDPOINT,
-    };
-    sources.readLive = ambientReader(ambient, fetchImpl);
-    sources.readDevices = ambientDevicesReader(ambient, fetchImpl);
+    sources.readLive = ambientReader(
+      {
+        apiKey: value("AMBIENT_API_KEY"),
+        applicationKey: value("AMBIENT_APPLICATION_KEY"),
+        endpoint: env.AMBIENT_ENDPOINT?.trim() || DEFAULT_AMBIENT_ENDPOINT,
+      },
+      fetchImpl,
+    );
   }
   return sources;
 }

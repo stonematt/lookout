@@ -48,36 +48,20 @@ interface AmbientDevice {
   lastData?: unknown;
 }
 
-/** One device on the Ambient account, with its newest reading. */
-export interface LiveDevice {
-  /** Its MAC address, upper case. */
-  mac: string;
-  /** Its name in Ambient, or null. */
-  name: string | null;
-  /** Its newest reading; null when Ambient has none with a `dateutc`. */
-  lastData: LastData | null;
-}
-
 /**
- * Read every device on the account in one `/devices` call.
- * Rejects with an `AmbientReadError` when Ambient fails.
- */
-export type DevicesReader = () => Promise<LiveDevice[]>;
-
-/**
- * A reader for every device on the Ambient account: one `/devices` call.
+ * A reader for live readings from Ambient.
  *
  * @param config - The API and application keys and the endpoint.
  * @param fetchImpl - The fetch to call Ambient with.
  * @param timeoutMs - How long one call may take before it fails.
  * @returns The reader.
  */
-export function ambientDevicesReader(
+export function ambientReader(
   config: AmbientConfig,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = AMBIENT_TIMEOUT_MS,
-): DevicesReader {
-  return async () => {
+): LiveReader {
+  return async (mac) => {
     const url = new URL(`${config.endpoint.replace(/\/+$/, "")}/devices`);
     url.searchParams.set("apiKey", config.apiKey);
     url.searchParams.set("applicationKey", config.applicationKey);
@@ -96,39 +80,12 @@ export function ambientDevicesReader(
     if (!Array.isArray(devices)) {
       throw new AmbientReadError("Ambient /devices did not return a list");
     }
-    const live: LiveDevice[] = [];
-    for (const device of devices as AmbientDevice[]) {
-      if (typeof device.macAddress !== "string") continue;
-      const lastData = device.lastData as LastData | undefined;
-      const name = device.info?.name;
-      live.push({
-        mac: device.macAddress.toUpperCase(),
-        name: typeof name === "string" ? name : null,
-        lastData: lastData && typeof lastData.dateutc === "number" ? lastData : null,
-      });
-    }
-    return live;
-  };
-}
-
-/**
- * A reader for one station's live reading, picked by MAC from one
- * `/devices` call.
- *
- * @param config - The API and application keys and the endpoint.
- * @param fetchImpl - The fetch to call Ambient with.
- * @param timeoutMs - How long one call may take before it fails.
- * @returns The reader.
- */
-export function ambientReader(
-  config: AmbientConfig,
-  fetchImpl: typeof fetch = fetch,
-  timeoutMs: number = AMBIENT_TIMEOUT_MS,
-): LiveReader {
-  const readDevices = ambientDevicesReader(config, fetchImpl, timeoutMs);
-  return async (mac) => {
-    const device = (await readDevices()).find((d) => d.mac === mac);
-    if (!device || !device.lastData) return null;
-    return { lastData: device.lastData, name: device.name };
+    const device = (devices as AmbientDevice[]).find(
+      (d) => typeof d.macAddress === "string" && d.macAddress.toUpperCase() === mac,
+    );
+    const lastData = device?.lastData as LastData | undefined;
+    if (!device || !lastData || typeof lastData.dateutc !== "number") return null;
+    const name = device.info?.name;
+    return { lastData, name: typeof name === "string" ? name : null };
   };
 }
