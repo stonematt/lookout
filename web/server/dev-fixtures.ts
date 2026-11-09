@@ -38,6 +38,7 @@ import {
   errorResponse,
   handleCurrent,
   handleDashboard,
+  handleLastData,
   handleStations,
   handleStatus,
 } from "./handlers.js";
@@ -145,6 +146,7 @@ function fixtureSources(scenario: Scenario, ageMinutes: number | null, nowMs: nu
     readSnapshot: async (asked, kind) =>
       asked === mac ? JSON.stringify(shiftTimes(goldenDoc(scenario, kind), shift)) : null,
     readLive: async () => null,
+    readDevices: async () => [],
     readCurve: async (asked, startMs) => {
       const text = asked === mac ? goldenCurve(scenario, startMs - delta) : null;
       return text === null ? null : JSON.stringify(shiftTimes(JSON.parse(text), shift));
@@ -172,6 +174,7 @@ export async function devResponse(url: string, env: Env, nowMs: number): Promise
     "/event": handleEvent,
     "/status": handleStatus,
     "/stations": handleStations,
+    "/last-data": handleLastData,
   }[parsed.pathname];
   if (!handler) return null;
 

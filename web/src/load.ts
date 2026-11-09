@@ -28,22 +28,22 @@ const LANE_PASSED_ON = ["fixture", "age"] as const;
 /**
  * The URL of a read function, carrying the page's passed-on parameters.
  *
- * @param path - "/dashboard", "/current", "/event" or "/stations" (which is
- *   not passed `station`).
+ * @param path - "/dashboard", "/current", "/event", "/stations" or
+ *   "/last-data" (the last two are not passed `station`).
  * @param pageSearch - The page's `location.search`.
  * @param own - The call's own parameters, e.g. `/event`'s `start`.
  * @param laneServer - Whether the server takes `fixture` and `age`.
  * @returns The path with its query.
  */
 export function readUrl(
-  path: "/dashboard" | "/current" | "/event" | "/stations",
+  path: "/dashboard" | "/current" | "/event" | "/stations" | "/last-data",
   pageSearch: string,
   own: Record<string, string> = {},
   laneServer: boolean = LANE_SERVER,
 ): string {
   const page = new URLSearchParams(pageSearch);
   const query = new URLSearchParams(own);
-  const passed = path === "/stations" ? [] : PASSED_ON;
+  const passed = path === "/stations" || path === "/last-data" ? [] : PASSED_ON;
   for (const name of laneServer ? [...passed, ...LANE_PASSED_ON] : passed) {
     const value = page.get(name);
     if (value !== null) query.set(name, value);
