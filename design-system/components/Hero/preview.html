@@ -1,0 +1,63 @@
+<!-- @dsCard group="Overview" height=760 subtitle="The leading tile: finding, facts, bold now over a usual band, why it leads" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:transparent}
+:root{--type-display:7.5rem;--type-finding-lead:1.5rem;--type-finding:1.1875rem;--type-condition:1.25rem;--type-fact:2.5rem;--type-stat:1.375rem;--type-body:1rem;--type-standfirst:.875rem;--type-kicker:.8125rem;--type-source:.8125rem;--type-axis:12px;--type-label:12px;--type-annotation:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:12px}
+.col{display:grid;gap:16px;padding:12px}
+.panel{--surface:var(--ground);background:var(--ground);color:var(--ink);padding:16px;border-radius:var(--r-tile);font-family:var(--font-sans, Lexend, system-ui, sans-serif);font-size:1rem;line-height:1.55;letter-spacing:.01em;text-align:left;min-width:0}
+.panel h2,.panel p,.panel dl,.panel dd{margin:0}
+.theme-name{font-size:12px;color:var(--ink-3);margin:0 0 12px}
+.tile{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
+.tile+.tile{margin-top:16px}
+.tile[data-surface="now"]{--surface:var(--now-surface);--hatch:var(--ink-3)}
+.tile-kicker{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
+.tile-lead-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--now)}
+.tile-finding{margin:0;font-size:var(--type-finding);font-weight:500;line-height:1.4;max-width:44ch;text-wrap:pretty}
+.tile-finding-lead{font-size:var(--type-finding-lead);line-height:1.33;max-width:52ch}
+.standfirst{margin-top:8px;font-size:var(--type-standfirst);line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty}
+.tile-folds{display:flex;flex-direction:column;margin-top:auto;padding-top:16px}
+.fold{border-top:1px solid var(--rule);font-size:var(--type-source);line-height:1.55;color:var(--ink-3)}
+.fold-line{display:block;min-height:32px;padding:6px 0;list-style:none;cursor:pointer}
+.fold-line::-webkit-details-marker{display:none}
+.fold-line::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;vertical-align:1px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(-45deg)}
+.fold[open]>.fold-line::before{transform:translateY(-1px) rotate(45deg)}
+.fold-body{padding-bottom:8px}
+.ov-source{margin:0;font-size:var(--type-source);line-height:1.55;color:var(--ink-3);max-width:62ch}
+.gap-hatch{background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-stripe),var(--surface) var(--hatch-stripe) var(--hatch-repeat))}
+.hatch-swatch{display:inline-block;flex:none;width:12px;height:12px;border-radius:var(--r-cell);vertical-align:-1px;background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-chip-stripe),var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat))}
+.hatch-chip{display:inline-flex;margin:2px 0 2px 8px;vertical-align:middle;align-items:center;gap:4px;padding:0 7px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2);font-size:var(--type-label);line-height:20px;white-space:nowrap}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.hero-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px;max-width:520px;margin:12px 0 0 !important;padding:8px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums}
+.hero-facts div{display:flex;flex-direction:column;min-width:0}
+.hero-facts dt{order:2;font-size:var(--type-source);line-height:1.4;color:var(--ink-2)}
+.hero-facts dd{order:1;font-size:var(--type-stat);font-weight:400;line-height:1.25}
+.hero-chart{margin-top:12px}
+.hero-svg{display:block;max-width:100%;overflow:visible;font-family:var(--font-sans, Lexend, system-ui, sans-serif)}
+.hero-grid{stroke:var(--rule);stroke-width:1}
+.hero-tick{font-size:var(--type-axis);fill:var(--ink-3);font-variant-numeric:tabular-nums}
+.hero-label,.hero-note{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+.hero-label{font-size:var(--type-label);fill:var(--ink-2)}
+.hero-note{font-size:var(--type-annotation);font-weight:600;fill:var(--now);font-variant-numeric:tabular-nums}
+.hero-band{fill:var(--rain-band);stroke:var(--rain-band-edge);stroke-width:1}
+.hero-median{fill:none;stroke:var(--median);stroke-width:1.5;stroke-dasharray:4 3}
+.hero-line{fill:none;stroke:var(--rain-line);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+.hero-dot{fill:var(--now);stroke:var(--surface);stroke-width:2}
+.hero-why{display:grid;gap:8px;max-width:62ch;margin:4px 0 0;padding:0;list-style:none}
+.hero-why li{display:flex;align-items:baseline;gap:8px;line-height:1.5}
+.hero-ring{flex:none;width:8px;height:8px;border:1.5px solid var(--rule-strong);border-radius:var(--r-pill);transform:translateY(-1px)}
+.hero-why li[data-met="true"] .hero-ring{background:var(--ink);border-color:var(--ink)}
+.hero-why li[data-lead]{color:var(--ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="row"><section class="panel" data-theme="dark"><p class="theme-name">Dark</p><article class="tile" data-section="lead"><p class="tile-kicker"><span class="tile-lead-dot"></span>Rain</p><h2 class="tile-finding tile-finding-lead">It has rained for 3 hours, and 0.42 in has fallen, more than most storms by now.</h2><p class="standfirst">The bold line is this storm so far. The band holds the middle half of past storms hour by hour, with a dashed median.</p><dl class="hero-facts"><div><dd>0.42 in</dd><dt>so far</dt></div><div><dd>0.21 in/h</dd><dt>peak rate</dt></div><div><dd>3 h 5 m</dd><dt>raining for</dt></div></dl><div class="hero-chart"><svg class="hero-svg" viewBox="0 0 420 160" width="100%%" style="max-width:420px" role="img" aria-label="Rain so far in this storm against the middle half of past storms"><line class="hero-grid" x1="34" x2="382" y1="128.0" y2="128.0"/><text class="hero-tick" x="28" y="132.0" text-anchor="end">0</text><line class="hero-grid" x1="34" x2="382" y1="100.4" y2="100.4"/><text class="hero-tick" x="28" y="104.4" text-anchor="end">.2</text><line class="hero-grid" x1="34" x2="382" y1="72.8" y2="72.8"/><text class="hero-tick" x="28" y="76.8" text-anchor="end">.4</text><line class="hero-grid" x1="34" x2="382" y1="45.2" y2="45.2"/><text class="hero-tick" x="28" y="49.2" text-anchor="end">.6 in</text><text class="hero-tick" x="34.0" y="150" text-anchor="middle">0h</text><text class="hero-tick" x="150.0" y="150" text-anchor="middle">2h</text><text class="hero-tick" x="266.0" y="150" text-anchor="middle">4h</text><text class="hero-tick" x="382.0" y="150" text-anchor="middle">6h</text><path class="hero-band" d="M34.0,125.2 L92.0,108.7 L150.0,92.1 L208.0,78.3 L266.0,67.3 L324.0,59.0 L382.0,52.1 L382.0,97.6 L324.0,100.4 L266.0,104.5 L208.0,110.1 L150.0,115.6 L92.0,122.5 L34.0,128.0 Z"/><path class="hero-median" d="M34.0,126.6 L92.0,117.0 L150.0,105.9 L208.0,96.3 L266.0,86.6 L324.0,81.1 L382.0,75.6"/><path class="hero-line" d="M34.0,128.0 L63.0,119.7 L92.0,111.4 L121.0,101.8 L150.0,92.1 L179.0,81.1 L208.0,70.0"/><circle class="hero-dot" cx="208.0" cy="70.0" r="5.5"/><text class="hero-note" x="198.0" y="64.0" text-anchor="end">0.42 in</text><text class="hero-label" x="300.8" y="46.7">usual band</text></svg></div><div class="tile-folds"><details class="fold"><summary class="fold-line">Why this leads</summary><div class="fold-body"><ul class="hero-why"><li data-met="true" data-lead><i class="hero-ring"></i>Rain: an event is live. Met.</li><li data-met="false"><i class="hero-ring"></i>Temperature: 4° from the month median, 10° needed.</li><li data-met="false"><i class="hero-ring"></i>Solar: 120 W/m², 400 needed.</li></ul></div></details><details class="fold"><summary class="fold-line">Source · Ambient station archive, archived 7:35 am</summary><div class="fold-body"><p class="ov-source">Storms come from the Event Catalog; the band is the middle half of completed events at the same hour of rain.</p></div></details></div></article></section><section class="panel" data-theme="light"><p class="theme-name">Light</p><article class="tile" data-section="lead"><p class="tile-kicker"><span class="tile-lead-dot"></span>Rain</p><h2 class="tile-finding tile-finding-lead">It has rained for 3 hours, and 0.42 in has fallen, more than most storms by now.</h2><p class="standfirst">The bold line is this storm so far. The band holds the middle half of past storms hour by hour, with a dashed median.</p><dl class="hero-facts"><div><dd>0.42 in</dd><dt>so far</dt></div><div><dd>0.21 in/h</dd><dt>peak rate</dt></div><div><dd>3 h 5 m</dd><dt>raining for</dt></div></dl><div class="hero-chart"><svg class="hero-svg" viewBox="0 0 420 160" width="100%%" style="max-width:420px" role="img" aria-label="Rain so far in this storm against the middle half of past storms"><line class="hero-grid" x1="34" x2="382" y1="128.0" y2="128.0"/><text class="hero-tick" x="28" y="132.0" text-anchor="end">0</text><line class="hero-grid" x1="34" x2="382" y1="100.4" y2="100.4"/><text class="hero-tick" x="28" y="104.4" text-anchor="end">.2</text><line class="hero-grid" x1="34" x2="382" y1="72.8" y2="72.8"/><text class="hero-tick" x="28" y="76.8" text-anchor="end">.4</text><line class="hero-grid" x1="34" x2="382" y1="45.2" y2="45.2"/><text class="hero-tick" x="28" y="49.2" text-anchor="end">.6 in</text><text class="hero-tick" x="34.0" y="150" text-anchor="middle">0h</text><text class="hero-tick" x="150.0" y="150" text-anchor="middle">2h</text><text class="hero-tick" x="266.0" y="150" text-anchor="middle">4h</text><text class="hero-tick" x="382.0" y="150" text-anchor="middle">6h</text><path class="hero-band" d="M34.0,125.2 L92.0,108.7 L150.0,92.1 L208.0,78.3 L266.0,67.3 L324.0,59.0 L382.0,52.1 L382.0,97.6 L324.0,100.4 L266.0,104.5 L208.0,110.1 L150.0,115.6 L92.0,122.5 L34.0,128.0 Z"/><path class="hero-median" d="M34.0,126.6 L92.0,117.0 L150.0,105.9 L208.0,96.3 L266.0,86.6 L324.0,81.1 L382.0,75.6"/><path class="hero-line" d="M34.0,128.0 L63.0,119.7 L92.0,111.4 L121.0,101.8 L150.0,92.1 L179.0,81.1 L208.0,70.0"/><circle class="hero-dot" cx="208.0" cy="70.0" r="5.5"/><text class="hero-note" x="198.0" y="64.0" text-anchor="end">0.42 in</text><text class="hero-label" x="300.8" y="46.7">usual band</text></svg></div><div class="tile-folds"><details class="fold"><summary class="fold-line">Why this leads</summary><div class="fold-body"><ul class="hero-why"><li data-met="true" data-lead><i class="hero-ring"></i>Rain: an event is live. Met.</li><li data-met="false"><i class="hero-ring"></i>Temperature: 4° from the month median, 10° needed.</li><li data-met="false"><i class="hero-ring"></i>Solar: 120 W/m², 400 needed.</li></ul></div></details><details class="fold"><summary class="fold-line">Source · Ambient station archive, archived 7:35 am</summary><div class="fold-body"><p class="ov-source">Storms come from the Event Catalog; the band is the middle half of completed events at the same hour of rain.</p></div></details></div></article></section></div>
+</body>
+</html>

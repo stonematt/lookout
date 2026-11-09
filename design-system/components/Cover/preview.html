@@ -1,0 +1,46 @@
+<!-- @dsCard height=300 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=960">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400&display=swap">
+<style>
+html,body{margin:0;background:var(--ground)}
+svg{display:block;width:960px;height:300px;background:var(--ground)}
+.rain{fill:var(--rain-bar);rx:var(--r-tile)}
+.now{fill:var(--now);rx:var(--r-tile)}
+.sun{fill:var(--sun-bar);rx:var(--r-tile)}
+.slate{fill:var(--rule-strong);rx:var(--r-tile)}
+.gap{fill:url(#hatch);rx:var(--r-tile)}
+.hatch-a{fill:var(--hatch)}
+.hatch-b{fill:var(--ground)}
+.name{font-family:var(--font-sans, Lexend, system-ui, sans-serif);font-weight:300;font-size:96px;letter-spacing:-.04em;fill:var(--ink)}
+.tag{font-family:var(--font-sans, Lexend, system-ui, sans-serif);font-weight:400;font-size:14px;fill:var(--ink-3)}
+</style>
+</head>
+<body>
+<svg viewBox="0 0 960 300" width="960" height="300" role="img" aria-label="Lookout">
+<!--
+derivation
+blocks: rain-bar 208x136 (spacing 16 steps, r-tile 22), now 112x136, sun-bar 144x104 bleeding off the right edge, rule-strong 208x116: the record's data hues and its one orange, in slate.
+arrangement: a flush modular grid of unequal tiles at a 16px gap, starting at x=480, the right-hand tiles bleeding off the edge, like the dashboard's own tile grid.
+pattern: the gap hatch, 135 degree stripes 2px on a 12px repeat (hatch-stripe, hatch-repeat), set into the one tile-sized slot left open, because hatching is the one visual word the record uses for a gap; tiles that talk, and one that says "not valid".
+scales: gap s-4 16px, radius r-tile 22px, stripe 2px / 12px, name 96px at weight 300 (display weight).
+-->
+<defs>
+<pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+<rect class="hatch-b" width="12" height="12"/>
+<rect class="hatch-a" width="2" height="12"/>
+</pattern>
+</defs>
+<rect class="rain" x="480" y="16" width="208" height="136"/>
+<rect class="now" x="704" y="16" width="112" height="136"/>
+<rect class="sun" x="832" y="16" width="144" height="104"/>
+<rect class="slate" x="480" y="168" width="208" height="116"/>
+<rect class="gap" x="704" y="168" width="272" height="116"/>
+<text class="name" x="32" y="214">Lookout</text>
+<text class="tag" x="36" y="250">A personal weather record for one station.</text>
+</svg>
+</body>
+</html>

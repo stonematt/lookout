@@ -43,3 +43,12 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # Sideways scroll, chart width and touching stat values on every tab,
+      # at 320 to 1440 px, light and dark (web/scripts/layout-check.mjs).
+      # Builds with VITE_LANE_SERVER=1 and serves the goldens; no secrets.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Layout check
+        run: npm run layout-check

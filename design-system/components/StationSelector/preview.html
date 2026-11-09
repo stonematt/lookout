@@ -1,0 +1,56 @@
+<!-- @dsCard group="Navigation" height=520 subtitle="The station name is the selector; the live line goes hollow and hatched when stale" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:transparent}
+:root{--type-display:7.5rem;--type-finding-lead:1.5rem;--type-finding:1.1875rem;--type-condition:1.25rem;--type-fact:2.5rem;--type-stat:1.375rem;--type-body:1rem;--type-standfirst:.875rem;--type-kicker:.8125rem;--type-source:.8125rem;--type-axis:12px;--type-label:12px;--type-annotation:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:12px}
+.col{display:grid;gap:16px;padding:12px}
+.panel{--surface:var(--ground);background:var(--ground);color:var(--ink);padding:16px;border-radius:var(--r-tile);font-family:var(--font-sans, Lexend, system-ui, sans-serif);font-size:1rem;line-height:1.55;letter-spacing:.01em;text-align:left;min-width:0}
+.panel h2,.panel p,.panel dl,.panel dd{margin:0}
+.theme-name{font-size:12px;color:var(--ink-3);margin:0 0 12px}
+.tile{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
+.tile+.tile{margin-top:16px}
+.tile[data-surface="now"]{--surface:var(--now-surface);--hatch:var(--ink-3)}
+.tile-kicker{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
+.tile-lead-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--now)}
+.tile-finding{margin:0;font-size:var(--type-finding);font-weight:500;line-height:1.4;max-width:44ch;text-wrap:pretty}
+.tile-finding-lead{font-size:var(--type-finding-lead);line-height:1.33;max-width:52ch}
+.standfirst{margin-top:8px;font-size:var(--type-standfirst);line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty}
+.tile-folds{display:flex;flex-direction:column;margin-top:auto;padding-top:16px}
+.fold{border-top:1px solid var(--rule);font-size:var(--type-source);line-height:1.55;color:var(--ink-3)}
+.fold-line{display:block;min-height:32px;padding:6px 0;list-style:none;cursor:pointer}
+.fold-line::-webkit-details-marker{display:none}
+.fold-line::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;vertical-align:1px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(-45deg)}
+.fold[open]>.fold-line::before{transform:translateY(-1px) rotate(45deg)}
+.fold-body{padding-bottom:8px}
+.ov-source{margin:0;font-size:var(--type-source);line-height:1.55;color:var(--ink-3);max-width:62ch}
+.gap-hatch{background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-stripe),var(--surface) var(--hatch-stripe) var(--hatch-repeat))}
+.hatch-swatch{display:inline-block;flex:none;width:12px;height:12px;border-radius:var(--r-cell);vertical-align:-1px;background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-chip-stripe),var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat))}
+.hatch-chip{display:inline-flex;margin:2px 0 2px 8px;vertical-align:middle;align-items:center;gap:4px;padding:0 7px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2);font-size:var(--type-label);line-height:20px;white-space:nowrap}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.masthead{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;padding:4px 0;min-height:52px}
+.masthead-station{margin:0;font-size:var(--type-finding);font-weight:600;line-height:1.3}
+.masthead-picks{position:relative;max-width:100%}
+.station-select{appearance:none;-webkit-appearance:none;max-width:100%;min-height:44px;margin:0;padding:0 32px 0 0;border:0;border-radius:var(--r-pill);background:transparent;color:var(--ink);font:inherit;font-size:var(--type-finding);font-weight:600;letter-spacing:inherit;text-overflow:ellipsis;cursor:pointer}
+.station-select option{color:#11161c;background:#ffffff}
+.masthead-picks::after{content:"";position:absolute;top:50%;right:12px;width:8px;height:8px;border-right:2px solid var(--ink-2);border-bottom:2px solid var(--ink-2);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.masthead-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:var(--type-standfirst);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.masthead-dot{width:8px;height:8px;border-radius:50%;background:var(--rain-bar);flex:none}
+.masthead-age{color:var(--ink);white-space:nowrap}
+.masthead-age::before{content:"·";color:var(--ink-3);margin-right:8px}
+.masthead-line[data-stale="true"] .masthead-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+.masthead-line[data-stale="true"] .masthead-age{display:inline-flex;align-items:center;gap:4px;font-weight:600;padding:0 7px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);color:var(--ink-2)}
+.masthead-line[data-stale="true"] .masthead-age::before{content:"";margin:0;width:12px;height:12px;border-radius:var(--r-cell);background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-chip-stripe),var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat))}
+</style>
+</head>
+<body>
+<div class="row"><section class="panel" data-theme="dark"><p class="theme-name">Dark</p><p class="tile-kicker">Two or more stations: the name is the selector</p><header class="masthead"><div class="masthead-picks"><select class="station-select" aria-label="Station"><option>lookout post</option><option>Salmon Run</option></select></div><div class="masthead-line"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">3 m ago</span></div></header><p class="tile-kicker" style="margin-top:20px">One station: plain text, no chevron</p><header class="masthead"><h1 class="masthead-station">lookout post</h1><div class="masthead-line"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">3 m ago</span></div></header><p class="tile-kicker" style="margin-top:20px">Stale, past 15 minutes: hollow dot, hatched chip</p><header class="masthead"><div class="masthead-picks"><select class="station-select" aria-label="Station"><option>lookout post</option><option>Salmon Run</option></select></div><div class="masthead-line" data-stale="true"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">22 m ago</span></div></header><p class="tile-kicker" style="margin-top:20px">Phone, a long name ends in an ellipsis</p><header class="masthead" style="max-width:340px"><div class="masthead-picks" style="flex:1 1 0;min-width:0"><select class="station-select" style="width:100%" aria-label="Station"><option>Backyard station on the north ridge above the creek</option><option>lookout post</option></select></div><div class="masthead-line"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">3 m ago</span></div></header></section><section class="panel" data-theme="light"><p class="theme-name">Light</p><p class="tile-kicker">Two or more stations: the name is the selector</p><header class="masthead"><div class="masthead-picks"><select class="station-select" aria-label="Station"><option>lookout post</option><option>Salmon Run</option></select></div><div class="masthead-line"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">3 m ago</span></div></header><p class="tile-kicker" style="margin-top:20px">One station: plain text, no chevron</p><header class="masthead"><h1 class="masthead-station">lookout post</h1><div class="masthead-line"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">3 m ago</span></div></header><p class="tile-kicker" style="margin-top:20px">Stale, past 15 minutes: hollow dot, hatched chip</p><header class="masthead"><div class="masthead-picks"><select class="station-select" aria-label="Station"><option>lookout post</option><option>Salmon Run</option></select></div><div class="masthead-line" data-stale="true"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">22 m ago</span></div></header><p class="tile-kicker" style="margin-top:20px">Phone, a long name ends in an ellipsis</p><header class="masthead" style="max-width:340px"><div class="masthead-picks" style="flex:1 1 0;min-width:0"><select class="station-select" style="width:100%" aria-label="Station"><option>Backyard station on the north ridge above the creek</option><option>lookout post</option></select></div><div class="masthead-line"><span class="masthead-dot"></span><span class="masthead-when">Fri Nov 6, 7:40 am</span><span class="masthead-age">3 m ago</span></div></header></section></div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+ "v": 3,
+ "layout": "files",
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-07T02:57:19Z"
+ },
+ "title": "Lookout",
+ "namespace": "Lookout",
+ "libraries": [],
+ "sections": {},
+ "groups": [],
+ "assetGroups": {},
+ "blobs": {},
+ "docs": {
+  "readme": "design-system/README.md",
+  "sections": []
+ },
+ "lastChange": {
+  "by": "Matt Stone",
+  "via": "Claude Code",
+  "at": "2026-11-07T02:57:19Z",
+  "note": "First build from DESIGN.md and web/src/styles"
+ }
+}

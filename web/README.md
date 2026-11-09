@@ -13,6 +13,7 @@ charts. The design system is `DESIGN.md` at the repo root.
 | Path                                   | What it is                                                                                                                    |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard`, then `/current`, and `/stations`; choosing a station writes `?station=` |
+| `debug.html`, `src/debug.ts`           | The debug page: the raw `/current` answer for `?station=`, as tiles plus the body as received, with the station selector      |
 | `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions   |
 | `src/stations.ts`                      | The station index contract: `parseStationIndex`, `findStation`, `shownStation` (the default station when none is named)       |
 | `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` / `fetchStations` from the browser                                                          |
@@ -28,6 +29,7 @@ charts. The design system is `DESIGN.md` at the repo root.
 | `server/env.ts`                        | Builds the readers from `process.env` and answers 500 naming unset variables                                                  |
 | `server/dev-fixtures.ts`               | The lane server's read functions, served from the goldens                                                                     |
 | `tests/`                               | Vitest. `tests/golden.ts` loads `tests/golden/snapshots/` from the repo root, in place                                        |
+| `scripts/layout-check.mjs`             | Layout facts on every tab: sideways scroll, chart width, touching stat values (`npm run layout-check`)                        |
 | `scripts/shots.mjs`                    | Headless screenshots at 390px and 1280px, light and dark                                                                      |
 
 ## Commands
@@ -44,6 +46,18 @@ npm run shots -- http://localhost:5177 <out-dir> "" "fixture=raining&age=3"
 
 The web gate is `npm run build && npm test`. `build` runs the typecheck.
 `npm run shots` needs the browser once: `npx playwright install chromium`.
+
+`npm run layout-check` builds with `VITE_LANE_SERVER=1`, serves the build itself
+and visits every tab at 320, 390, 760 and 1440px, light and dark, on the `dry`
+and `raining` goldens and a `live` case (the raining golden with every Rain and
+Solar window valid and holding wide, 5-digit values, as live data does). It
+exits 1, naming the view, on page sideways scroll, a chart narrower than the
+box that holds it, or stat values whose text boxes touch. It takes about a
+minute and is a CI step. `-- --prove` adds the pre-fix Solar window CSS (#395)
+to the `live` case and passes only if the check then fails there (a failure in
+any other case still fails the run). Given a base URL, `node scripts/layout-check.mjs
+http://localhost:5177` checks that running server (a `VITE_LANE_SERVER=1`
+build under `vite preview`, or the lane server) and skips the build and preview.
 
 ## The lane server
 
