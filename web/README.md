@@ -13,6 +13,7 @@ charts. The design system is `DESIGN.md` at the repo root.
 | Path                                   | What it is                                                                                                                    |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `index.html`, `src/main.ts`            | The page: header plus tab shell, fed by `/dashboard`, then `/current`, and `/stations`; choosing a station writes `?station=` |
+| `debug.html`, `src/debug.ts`           | The debug page: the raw `/current` answer for `?station=`, as tiles plus the body as received, with the station selector      |
 | `src/snapshot.ts`                      | The snapshot contract types and `parseDashboard` / `parseContext` / `parseCurrent`, shared by the browser and the functions   |
 | `src/stations.ts`                      | The station index contract: `parseStationIndex`, `findStation`, `shownStation` (the default station when none is named)       |
 | `src/load.ts`                          | `fetchDashboard` / `fetchCurrent` / `fetchStations` from the browser                                                          |

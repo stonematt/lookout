@@ -217,6 +217,7 @@ export function renderDump(
   return [header, grid];
 }
 
+/** A block's place among the tiles: `LEAD_BLOCKS` first, the rest after. */
 function rank(key: string): number {
   const at = LEAD_BLOCKS.indexOf(key);
   return at === -1 ? LEAD_BLOCKS.length : at;
@@ -241,9 +242,10 @@ async function show(root: HTMLElement): Promise<void> {
   } catch (error) {
     text = `GET ${url} failed: ${String(error)}`;
   }
+  const stations = await index;
   // A later choice already started over: drop this answer.
   if (url !== readUrl("/current", location.search)) return;
-  root.replaceChildren(...renderDump(url, status, text, await index, (mac) => choose(root, mac)));
+  root.replaceChildren(...renderDump(url, status, text, stations, (mac) => choose(root, mac)));
 }
 
 /** A visitor chose a station: put it in the URL (Back returns) and show it. */

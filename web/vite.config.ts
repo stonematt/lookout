@@ -14,7 +14,7 @@ export default defineConfig({
     outDir: "dist",
     target: "es2022",
     rollupOptions: {
-      // The site, and the debug page that dumps each station's lastData.
+      // The site, and the debug page that dumps one station's raw /current.
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         debug: fileURLToPath(new URL("./debug.html", import.meta.url)),
