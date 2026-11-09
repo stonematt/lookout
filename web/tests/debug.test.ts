@@ -1,41 +1,25 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 
-import { debugSearch, renderStationDump } from "../src/debug.js";
-import { SCHEMA_VERSION, parseCurrent } from "../src/snapshot.js";
-import { FIXTURE_MAC, SALMON_MAC, twoStations } from "./golden.js";
+import { renderDump } from "../src/debug.js";
 
-const station = twoStations().stations[0]!;
-
-describe("debugSearch", () => {
-  it("sets the station and keeps the lane server's parameters", () => {
-    const query = new URLSearchParams(debugSearch("?fixture=dry&station=x", SALMON_MAC));
-    expect(query.get("station")).toBe(SALMON_MAC);
-    expect(query.get("fixture")).toBe("dry");
-  });
-});
-
-describe("renderStationDump", () => {
-  it("dumps last_data as text, never as markup", () => {
-    const reading = parseCurrent({
-      schema_version: SCHEMA_VERSION,
-      kind: "current",
-      station: { mac: FIXTURE_MAC, name: "Fixture Station" },
-      observed_at_ms: 1767918300000,
-      built_at_ms: null,
-      last_data: { dateutc: 1767918300000, note: "<img src=x>" },
-      context: null,
-    });
-    const section = renderStationDump(station, reading);
-    const pre = section.querySelector("pre")!;
-    expect(JSON.parse(pre.textContent!)).toMatchObject({ note: "<img src=x>" });
-    expect(section.querySelector("img")).toBeNull();
-    expect(section.querySelector("h2")!.textContent).toContain(FIXTURE_MAC);
+describe("renderDump", () => {
+  it("shows the URL and status, then the body as indented JSON", () => {
+    const body = JSON.stringify({ kind: "current", last_data: { dateutc: 1, tempf: 59.5 } });
+    const [meta, pre] = renderDump("/current?station=X", 200, body);
+    expect(meta!.textContent).toBe("GET /current?station=X → 200");
+    expect(pre!.textContent).toBe(JSON.stringify(JSON.parse(body), null, 2));
   });
 
-  it("shows a failed read instead of the dump", () => {
-    const section = renderStationDump(station, new Error("/current answered 502"));
-    expect(section.querySelector("pre")).toBeNull();
-    expect(section.textContent).toContain("502");
+  it("puts values in as text, never as markup", () => {
+    const [, pre] = renderDump("/current", 200, JSON.stringify({ note: "<img src=x>" }));
+    expect(pre!.querySelector("img")).toBeNull();
+    expect(pre!.textContent).toContain("<img src=x>");
+  });
+
+  it("shows a body that is not JSON as it came", () => {
+    const [meta, pre] = renderDump("/current", 502, "Bad Gateway");
+    expect(meta!.textContent).toContain("502");
+    expect(pre!.textContent).toBe("Bad Gateway");
   });
 });
