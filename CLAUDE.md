@@ -17,6 +17,7 @@ CI runs both gates on PRs into `dev`, `goal/**` and `main`. `npm run format` fix
 ## Layout
 
 - `lookout/storage/storj.py` - every Storj read and write; the archive load and save
+- `lookout/storage/archive_readback.py` - the raw read-back and checks of a saved archive (the rain repair)
 - `lookout/core/` - archive merge, rain and energy catalogs, rain and solar analysis
 - `lookout/snapshot/` - `build_snapshot` (pure), the snapshot dataclass and JSON contract, the publish
 - `lookout/cli/` - `refresh.py` (the cron's run), `catchup.py`, `diagnostics.py` and `repair_rain.py` (both take `--station <MAC>`, the default station without it; a MAC not in the inventory exits 1), `stations.py` (`stations scan`, `stations add <MAC>`)

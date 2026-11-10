@@ -585,6 +585,21 @@ def backup_and_save_catalog(
         raise StorageWriteError(f"Failed to save s3://{bucket}/{catalog_path}")
 
 
+def repair_backup_key(mac: str, now: Optional[datetime.datetime] = None) -> str:
+    """
+    The key a repair save's backup of the archive goes to (#169).
+
+    A folder of its own, `.backups/<mac>/<YYYYMMDD>-<HHMMSS>-repair/`, so it
+    never shares a folder with the daily backup and never overwrites it.
+
+    :param mac: The station's MAC address.
+    :param now: The moment to stamp it with; the current time when None.
+    :return: The backup's key.
+    """
+    stamp = (now or datetime.datetime.now()).strftime("%Y%m%d-%H%M%S")
+    return f".backups/{mac}/{stamp}-repair/{mac}.{HISTORY_FILE_TYPE}"
+
+
 def backup_and_save_history(
     df: pd.DataFrame,
     device: dict,
@@ -592,29 +607,47 @@ def backup_and_save_history(
     *,
     stored: pd.DataFrame,
     repair: bool = False,
-) -> None:
+) -> Optional[str]:
     """
     Back up the old archive and save the updated DataFrame to S3.
+
+    A routine save backs up once a day (`backup_archive`). A repair save
+    (#169) always copies the live archive, just before it saves, to a repair
+    backup folder of its own (`repair_backup_key`), even when today's backup
+    exists: that copy is the rollback point.
 
     :param df: The archive to save.
     :param device: The station's `/devices` entry.
     :param bucket: The bucket.
     :param stored: The archive as the caller read it; see `save_archive`.
     :param repair: True only for an explicit repair; see `save_archive`.
-    :raises BackupError: If the backup fails; nothing is saved then.
+    :return: The repair backup's key when `repair`; None for a routine save.
+    :raises BackupError: If the backup fails or the archive to back up is
+        missing; nothing is saved then.
     :raises ArchiveLossError: If `df` would drop a stored reading or blank a
         stored value and `repair` is False.
     :raises StorageWriteError: If the save fails.
     """
     mac = device["macAddress"]
+    backup_key = None
 
     try:
-        backup_archive(bucket=bucket, mac=mac)
+        if repair:
+            backup_key = backup_object(
+                bucket, f"{mac}.{HISTORY_FILE_TYPE}", repair_backup_key(mac)
+            )
+            if backup_key is None:
+                raise BackupError(
+                    f"No archive s3://{bucket}/{mac}.{HISTORY_FILE_TYPE} to back up"
+                )
+        else:
+            backup_archive(bucket=bucket, mac=mac)
     except BackupError as e:
         logger.error(f"Backup failed for {mac}; not saving: {e}")
         raise
 
     save_archive(df, bucket, mac, stored=stored, repair=repair)
+    return backup_key
 
 
 # Example usage
