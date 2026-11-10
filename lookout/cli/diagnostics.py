@@ -144,6 +144,10 @@ def load_station(
     Read strictly (#160): `fill-gap` and the rain repair save over the
     archive, and hand it to the save as `stored`, which guards against it.
 
+    Do not read a saved archive back through here to check it: the archive
+    is normalized (sorted ascending, duplicates dropped), so it hides the
+    stored order and duplicates. Use `archive_readback.read_back` (#170).
+
     :param bucket: The bucket.
     :param station: The station's MAC; the default station when None.
     :return: The station's `/devices` entry and its archive.

@@ -39,6 +39,7 @@ import lookout.api.awn_controller as awn
 from lookout.cli.diagnostics import add_station_arg, emit, load_station
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import archive_merge
+from lookout.storage import archive_readback
 from lookout.storage.station_inventory import StationNotInInventory
 from lookout.storage.storj import backup_and_save_history, read_df_from_s3
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
@@ -95,7 +96,9 @@ could save the archive at the same time):
 
   3. The real run. Same checks; if any day refills short or a check fails,
      nothing is written. Otherwise it backs the live archive up to
-     .backups/<MAC>/<today>/ and saves the repaired archive:
+     .backups/<MAC>/<stamp>-repair/ (always, even when today's backup
+     exists; the run prints the key, the rollback point), saves the
+     repaired archive, then reads it back raw and checks it (#170):
 
          PYTHONPATH=. python -m lookout.cli.repair_rain --write
 
@@ -580,8 +583,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     :param argv: Arguments, without the program name; `sys.argv` when None.
     :return: 0 when the repair checks out (and, with --write, was saved);
         1 when a day refilled short, a check failed, or the raw reference is
-        missing, `--station` is not in the station inventory, or (with
-        --write) another archive writer holds the lock.
+        missing, `--station` is not in the station inventory, (with
+        --write) another archive writer holds the lock, or the read-back of
+        the saved archive fails a check (the archive is then saved; the
+        failure lines name the rollback backup).
     :raises StorageReadError: If the archive or the raw reference read
         failed; nothing is written then.
     """
@@ -614,8 +619,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             problems.append(f"the raw reference {reference_key} is missing or empty")
 
         repaired = archive
+        restored_ms: List[int] = []
         for first, last in args.window:
             repaired, repair = repair_window(device, repaired, reference, first, last)
+            restored_ms += [int(ms) for ms in repair.restored["dateutc"]]
             problems += report_window(
                 repair, repaired, reference, reference_key, args.tolerance
             )
@@ -630,15 +637,60 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 1
 
         # An explicit repair: the save may drop or blank what it corrects (#190).
-        backup_and_save_history(
+        # It backs the live archive up first, to a folder of its own (#169).
+        backup_key = backup_and_save_history(
             df=repaired,
             device=device,
             bucket=args.bucket,
             stored=archive,
             repair=True,
         )
-        emit(f"Live archive backed up to .backups/{mac}/; repaired archive saved.")
-        return 0
+        emit(f"Rollback point: s3://{args.bucket}/{backup_key}")
+        emit("Repaired archive saved.")
+        ok = read_back_ok(
+            args, mac, archive, repaired, reference, restored_ms, backup_key
+        )
+        return 0 if ok else 1
+
+
+def read_back_ok(
+    args: argparse.Namespace,
+    mac: str,
+    before: pd.DataFrame,
+    repaired: pd.DataFrame,
+    reference: pd.DataFrame,
+    restored_ms: Sequence[int],
+    backup_key: Optional[str],
+) -> bool:
+    """
+    Read the saved archive back raw and check it (#170), one line per check.
+
+    Raw, never `load_station`: it sorts ascending and drops duplicates, so it
+    cannot see the stored order (`archive_readback`).
+
+    :param args: The parsed arguments.
+    :param mac: The station's MAC address.
+    :param before: The archive the repair loaded.
+    :param repaired: The archive the repair saved, in memory.
+    :param reference: The protected raw backup.
+    :param restored_ms: The `dateutc` of every row restored from it.
+    :param backup_key: The rollback backup, named on any failure.
+    :return: True when every check passed.
+    """
+    stored = archive_readback.read_back(args.bucket, mac)
+    bounds = [window_bounds(first, last) for first, last in args.window]
+    checks = archive_readback.check_readback(stored, before, len(repaired), bounds)
+    checked, differ = verify_restored(stored, reference, restored_ms)
+    checks.append(
+        archive_readback.Check(
+            "restored rows equal the raw reference",
+            differ == 0,
+            f"{checked} checked, {differ} differ",
+        )
+    )
+    for check in checks:
+        emit(check.line(backup_key))
+    return all(check.ok for check in checks)
 
 
 if __name__ == "__main__":
