@@ -10,7 +10,9 @@ misled the #95 check. The save guard (#190) does not cover a repair save
 either, since a repair may drop or blank readings on purpose.
 
 Functions:
+- `Check`: one check's verdict and report line.
 - `read_back`: the stored archive, raw.
+- `content_hash`, `outside`: the outside-the-windows comparison.
 - `check_readback`: the order, count and outside-the-windows checks.
 """
 

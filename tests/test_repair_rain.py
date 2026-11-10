@@ -645,3 +645,39 @@ def test_a_bad_stored_archive_fails_its_readback_check(
     assert status == 1
     line = next(ln for ln in out.splitlines() if f"FAILED: {failed}" in ln)
     assert REPAIR_KEY in line
+
+
+def duplicated(df: pd.DataFrame) -> pd.DataFrame:
+    return pd.concat([df, df.head(1)], ignore_index=True).sort_values(
+        "dateutc", ascending=False, kind="stable", ignore_index=True
+    )
+
+
+def test_a_duplicate_dateutc_fails_the_order_check(
+    seed, truth, capsys, monkeypatch, frozen_today
+):
+    seed(truth)
+    _save_then(monkeypatch, duplicated)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert "FAILED: dateutc strictly decreasing" in out
+
+
+def test_an_unreadable_readback_names_the_rollback_key(
+    seed, truth, capsys, monkeypatch, frozen_today
+):
+    station = seed(truth)
+    save = storj.save_archive
+
+    def save_then_delete(df, bucket, mac, **kwargs):
+        save(df, bucket, mac, **kwargs)
+        station.s3.delete_object(Bucket=BUCKET, Key=ARCHIVE_KEY)
+
+    monkeypatch.setattr(storj, "save_archive", save_then_delete)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert f"Roll back from {REPAIR_KEY}" in out

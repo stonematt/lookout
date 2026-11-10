@@ -39,7 +39,7 @@ import lookout.api.awn_controller as awn
 from lookout.cli.diagnostics import add_station_arg, emit, load_station
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import archive_merge
-from lookout.storage import archive_readback
+from lookout.storage import archive_readback, storj
 from lookout.storage.station_inventory import StationNotInInventory
 from lookout.storage.storj import backup_and_save_history, read_df_from_s3
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
@@ -677,7 +677,12 @@ def read_back_ok(
     :param backup_key: The rollback backup, named on any failure.
     :return: True when every check passed.
     """
-    stored = archive_readback.read_back(args.bucket, mac)
+    try:
+        stored = archive_readback.read_back(args.bucket, mac)
+    except storj.StorageReadError as e:
+        emit(f"Read-back check FAILED: the saved archive is unreadable ({e})")
+        emit(f"Roll back from {backup_key}")
+        return False
     bounds = [window_bounds(first, last) for first, last in args.window]
     checks = archive_readback.check_readback(stored, before, len(repaired), bounds)
     checked, differ = verify_restored(stored, reference, restored_ms)
