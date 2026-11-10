@@ -119,12 +119,18 @@ def _curve(readings: pd.DataFrame, start_ms: int, end_ms: int) -> EventCurve:
 
 
 def _stats(events: pd.DataFrame) -> EventStats:
-    """`summarize_events` as the snapshot's dataclass, rounded for JSON."""
+    """
+    `summarize_events` as the snapshot's dataclass, rounded for JSON.
+
+    The median is over completed events only: the live event is never part
+    of the median it is measured against, as in the Overview lead (#375).
+    """
     summary = summarize_events(events)
+    completed = events[~events["live"]] if "live" in events else events
     return EventStats(
         count=int(summary["count"]),
         total_in=round(float(summary["total_in"]), 3),
-        median_in=number(summary["median_in"]),
+        median_in=number(summarize_events(completed)["median_in"]),
         mean_duration_minutes=number(summary["mean_duration_minutes"], 1),
     )
 

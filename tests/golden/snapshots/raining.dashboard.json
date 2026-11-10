@@ -750,7 +750,7 @@
     "all_time": {
       "count": 3,
       "total_in": 1.14,
-      "median_in": 0.36,
+      "median_in": 0.42,
       "mean_duration_minutes": 541.7
     },
     "seasons": [
@@ -759,7 +759,7 @@
         "stats": {
           "count": 3,
           "total_in": 1.14,
-          "median_in": 0.36,
+          "median_in": 0.42,
           "mean_duration_minutes": 541.7
         },
         "status": {
