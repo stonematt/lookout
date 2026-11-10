@@ -82,11 +82,11 @@ describe("the event list", () => {
     mountEvents(panel, raining(), deps);
 
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "The wettest of 3 events since Jan 4, 2026, brought 0.48 in, against 0.36 in for the median event",
+      "The wettest of 3 events since Jan 4, 2026, brought 0.48 in, against 0.42 in for the median event",
     );
     const stats = panel.querySelector(".ev-stats")!.textContent!;
     expect(stats).toContain("3");
-    expect(stats).toContain("0.36 in"); // the median event
+    expect(stats).toContain("0.42 in"); // the median event
     expect(panel.querySelector(".ev-list-finding")!.textContent).toBe("3 events, newest first");
   });
 
@@ -217,7 +217,7 @@ describe("the open row", () => {
     mountEvents(panel, raining(), deps);
     await flush();
 
-    expect(drawnLast()[3]).toEqual({ chart: "total", medianIn: 0.36 });
+    expect(drawnLast()[3]).toEqual({ chart: "total", medianIn: 0.42 });
     expect(drawnLast()[0]).toBe(charts().querySelector(".ev-chart"));
   });
 
@@ -361,7 +361,7 @@ describe("the open row", () => {
     click("[data-chart=rate]");
     await flush();
 
-    expect(drawnLast()[3]).toEqual({ chart: "rate", medianIn: 0.36 });
+    expect(drawnLast()[3]).toEqual({ chart: "rate", medianIn: 0.42 });
     expect(drawnLast()[1]).toEqual(curveOf(EVENT_2));
     expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
     expect(panel.querySelector(row(EVENT_2))).toBe(head);
@@ -394,17 +394,17 @@ describe("the open row", () => {
     const snapshot = raining();
     snapshot.rain_events.seasons[0]!.stats = {
       ...snapshot.rain_events.seasons[0]!.stats,
-      median_in: 0.42,
+      median_in: 0.5,
     };
     mountEvents(panel, snapshot, deps);
     await flush();
-    expect(drawnLast()[3].medianIn).toBe(0.36);
+    expect(drawnLast()[3].medianIn).toBe(0.42);
 
     pick(String(snapshot.rain_events.seasons[0]!.water_year));
     await flush();
 
-    expect(drawnLast()[3].medianIn).toBe(0.42);
-    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.42 in");
+    expect(drawnLast()[3].medianIn).toBe(0.5);
+    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.50 in");
   });
 
   it("follows the default rule within a water year the open row is not in", async () => {

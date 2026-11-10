@@ -263,3 +263,10 @@ reads as dry. The **usual dry spell** is the median completed dry spell over
 the last 365 days. One definition serves the Rain tab and the calm lead
 (`lookout.core.rainfall_analysis.dry_spells`).
 _Avoid_: drought, days without rain (for the spell itself).
+
+### usual event
+
+The median total of completed rain events. The live (ongoing) event is never
+part of the median it is measured against. The Overview's rain lead and the
+Rain events catalog (all-time and per water year) use this one rule (#375).
+_Avoid_: median event (for a median that counts the live event).
