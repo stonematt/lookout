@@ -677,7 +677,7 @@ interface SnapshotHead {
   widget_view?: WidgetView;
 }
 
-/** A widget's views: the live rain event, a summer dry spell, or the default. */
+/** A widget's views: the live rain event, a longer-than-usual dry spell, or the default. */
 export type WidgetView = "rain_event" | "dry_spell" | "temperature_ranges";
 
 /** `snapshot/<MAC>.dashboard.json`: every field of the snapshot. */
