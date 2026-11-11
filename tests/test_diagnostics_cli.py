@@ -166,7 +166,7 @@ class TestStationFlag:
             ["fill-gap", "--index", "0"],
             ["fill-gap", "--index", "0", "--dry-run"],
             ["energy-catalog", "--save"],
-            ["rain-catalog", "--save"],
+            ["event-catalog", "--save"],
         ],
     )
     def test_a_mac_outside_the_inventory_is_refused_before_ambient_or_a_write(
@@ -466,7 +466,7 @@ class TestRainCatalog:
         self.store_catalog(station)
         keys = station.keys()
 
-        status, out = run(["rain-catalog"], capsys)
+        status, out = run(["event-catalog"], capsys)
 
         assert status == 0
         assert "Stored catalog: found, 1 events" in out
@@ -479,7 +479,7 @@ class TestRainCatalog:
     def test_dry_run_reports_a_missing_catalog(self, seed, capsys):
         station = seed()
 
-        status, out = run(["rain-catalog"], capsys)
+        status, out = run(["event-catalog"], capsys)
 
         assert status == 0
         assert "Stored catalog: missing" in out
@@ -492,7 +492,7 @@ class TestRainCatalog:
         )
         keys = station.keys()
 
-        status, out = run(["rain-catalog"], capsys)
+        status, out = run(["event-catalog"], capsys)
 
         assert status == 0
         assert "Stored catalog: failed" in out
@@ -510,7 +510,7 @@ class TestRainCatalog:
             lambda self, archive, auto_save=False: pd.DataFrame(),
         )
 
-        status, out = run(["rain-catalog", "--save"], capsys)
+        status, out = run(["event-catalog", "--save"], capsys)
 
         assert status == 1
         assert "No rain events could be detected" in out
@@ -521,7 +521,7 @@ class TestRainCatalog:
         station = seed()
         self.store_catalog(station)
 
-        status, out = run(["rain-catalog", "--save"], capsys)
+        status, out = run(["event-catalog", "--save"], capsys)
 
         assert status == 0
         assert "backed up to backups/" in out
@@ -532,7 +532,7 @@ class TestRainCatalog:
     def test_save_with_no_catalog_writes_with_no_backup(self, seed, capsys):
         station = seed()
 
-        status, out = run(["rain-catalog", "--save"], capsys)
+        status, out = run(["event-catalog", "--save"], capsys)
 
         assert status == 0
         assert "no backup" in out
@@ -545,7 +545,7 @@ class TestRainCatalog:
             Bucket=BUCKET, Key=EVENT_KEY, Body=CORRUPT_CATALOG
         )
 
-        status, out = run(["rain-catalog", "--save"], capsys)
+        status, out = run(["event-catalog", "--save"], capsys)
 
         assert status == 0
         (backup,) = self.backups(station)
@@ -563,7 +563,7 @@ class TestRainCatalog:
 
         monkeypatch.setattr(storj, "backup_object", refuse)
 
-        status, out = run(["rain-catalog", "--save"], capsys)
+        status, out = run(["event-catalog", "--save"], capsys)
 
         assert status == 1
         assert "unchanged" in out
@@ -635,7 +635,7 @@ def test_importing_the_diagnostics_cli_loads_no_streamlit():
 WRITERS = [
     ["fill-gap", "--index", "1"],
     ["energy-catalog", "--save"],
-    ["rain-catalog", "--save"],
+    ["event-catalog", "--save"],
 ]
 READERS = [
     ["gaps"],
@@ -645,7 +645,7 @@ READERS = [
     ["fill-gap", "--index", "1", "--dry-run"],
     ["energy-catalog"],
     ["energy-catalog", "--save", "--dry-run"],
-    ["rain-catalog"],
+    ["event-catalog"],
 ]
 
 
@@ -682,7 +682,7 @@ class TestArchiveWriterLock:
     def test_a_writer_leaves_the_lock_free_when_it_ends(self, seed, capsys):
         seed()
 
-        status, _ = run(["rain-catalog", "--save"], capsys)
+        status, _ = run(["event-catalog", "--save"], capsys)
 
         assert status == 0
         with hold_archive_lock():

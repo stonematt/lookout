@@ -134,7 +134,15 @@ class TestSummaries:
         assert stats.count == 3
         # 0.36 + 0.48 + 0.3 (event 3 at its live total).
         assert stats.total_in == pytest.approx(1.14)
-        assert stats.median_in == pytest.approx(0.36)
+        # The median is over completed events (0.36, 0.48), not the live one.
+        assert stats.median_in == pytest.approx(0.42)
+
+    def test_the_catalog_median_is_the_leads_usual_event(self):
+        station = raining_station()
+
+        assert station.rain_events.all_time.median_in == pytest.approx(
+            station.hero_lead.usual_median
+        )
 
     def test_events_fall_in_the_water_year_they_start_in(self):
         # Sep 30 11:30 pm local (PDT) is water year 2025; Oct 2 is 2026.

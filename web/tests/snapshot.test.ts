@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   SCHEMA_VERSION,
+  SNAPSHOT_SCHEMA_VERSIONS,
   SnapshotContractError,
   newestObservation,
   parseContext,
@@ -9,7 +10,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import { fetchCurrent } from "../src/load.js";
-import { golden, goldenV2 } from "./golden.js";
+import { PREVIOUS_SCHEMA_VERSION, golden, goldenPrevious } from "./golden.js";
 
 describe("the contract version", () => {
   it("is the version the Python builder writes (read from the goldens)", () => {
@@ -193,8 +194,8 @@ describe("parseCurrent", () => {
   });
 
   it("keeps a v2 context: the envelope is this site's, the context is the refresh run's", () => {
-    const body = parseCurrent(current(goldenV2("raining", "context")));
-    expect(body.context?.schema_version).toBe(2);
+    const body = parseCurrent(current(goldenPrevious("raining", "context")));
+    expect(body.context?.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
   });
 
   it("refuses a body at schema_version 2: this site's own server writes 3", () => {
@@ -218,20 +219,26 @@ describe("newestObservation", () => {
   });
 });
 
-describe("schema version 2 (the version before)", () => {
-  // The refresh run on production writes v2 until the v3 release; the site
-  // reads both so the two need not switch at the same moment (#351).
-  it("reads a v2 dashboard, its sun_moon null", () => {
+describe("the schema version before (N-1, ADR-0008)", () => {
+  // The site reads N and N-1 so the site and the refresh run need not switch
+  // at the same moment (#351). PREVIOUS_SCHEMA_VERSION is the one constant the
+  // next bump changes; these tests keep guarding the rule.
+  it("is the version just before SCHEMA_VERSION, and one the site reads", () => {
+    expect(PREVIOUS_SCHEMA_VERSION).toBe(SCHEMA_VERSION - 1);
+    expect(SNAPSHOT_SCHEMA_VERSIONS).toContain(PREVIOUS_SCHEMA_VERSION);
+  });
+
+  it("reads an N-1 dashboard, its sun_moon null", () => {
     for (const scenario of ["dry", "raining"] as const) {
-      const snap = parseDashboard(goldenV2(scenario, "dashboard"));
-      expect(snap.schema_version).toBe(2);
+      const snap = parseDashboard(goldenPrevious(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
       expect(snap.sun_moon).toBeNull();
     }
   });
 
-  it("reads a v2 context", () => {
-    const block = parseContext(goldenV2("raining", "context"));
-    expect(block.schema_version).toBe(2);
+  it("reads an N-1 context", () => {
+    const block = parseContext(goldenPrevious("raining", "context"));
+    expect(block.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
     expect(block.kind).toBe("context");
   });
 

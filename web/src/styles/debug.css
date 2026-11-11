@@ -1,0 +1,120 @@
+/*
+ * The debug page (`debug.ts`): the raw `/current` answer in the site's own
+ * chrome. Tiles from tiles.css, the header from base.css; this file adds
+ * only the grid and the key/value tree. Slate chrome: colour marks a value's
+ * type quietly, with the data inks the dashboard already uses.
+ */
+/* the dashboard's page is a grid for its header and tabs; here, the header
+   stacks over the tiles */
+#dump.page {
+  display: block;
+}
+
+.debug-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+  padding-top: var(--s-3);
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .debug-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* the raw body runs the full width */
+.debug-tile:has(.json-raw) {
+  grid-column: 1 / -1;
+}
+
+.debug-request[data-ok="false"] {
+  color: var(--now);
+}
+
+/* ---------- the key/value tree ---------- */
+.json-tree {
+  margin: 0;
+  font-size: var(--type-standfirst);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.json-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 40%) minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-1) 0;
+  border-top: 1px solid var(--rule);
+}
+
+.json-row:first-child {
+  border-top: 0;
+}
+
+.json-key {
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.json-value {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.json-string {
+  color: var(--rain-line);
+}
+
+.json-boolean,
+.json-null {
+  color: var(--temp-warm);
+}
+
+.json-time {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--type-annotation);
+}
+
+/* a nested block spans the row: its name, then its own tree indented */
+.json-row:has(> .json-fold) {
+  display: block;
+}
+
+.json-fold > summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.json-fold > .json-tree {
+  margin: var(--s-1) 0 var(--s-1) var(--s-3);
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--rule);
+}
+
+.json-count {
+  margin-left: var(--s-2);
+  color: var(--ink-3);
+  font-weight: 400;
+  font-size: var(--type-annotation);
+}
+
+/* ---------- the raw body ---------- */
+.json-raw > summary {
+  cursor: pointer;
+  font-size: var(--type-standfirst);
+  color: var(--ink-2);
+}
+
+.json-pre {
+  margin: var(--s-3) 0 0;
+  overflow-x: auto;
+  /* one family, Lexend (DESIGN.md); the indent is leading spaces, so it holds */
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--type-annotation);
+  line-height: 1.5;
+  color: var(--ink-2);
+}

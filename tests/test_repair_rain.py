@@ -192,7 +192,9 @@ def test_dry_run_restores_from_the_backup_and_writes_nothing(seed, truth, capsys
     )
 
 
-def test_write_restores_only_the_rain_columns_of_window_rows(seed, truth, capsys):
+def test_write_restores_only_the_rain_columns_of_window_rows(
+    seed, truth, capsys, frozen_today
+):
     """Backup values, 3 decimals; every other column and row as stored."""
     reference = truth.copy()
     reference["tempf"] = 99.0  # the backup's other columns are not used
@@ -201,8 +203,8 @@ def test_write_restores_only_the_rain_columns_of_window_rows(seed, truth, capsys
     status, out = run(["--write"], capsys)
 
     assert status == 0, out
-    assert BACKUP_KEY in station.keys()
-    backed_up = storj.get_df_from_s3(BUCKET, BACKUP_KEY, file_type="parquet")
+    assert REPAIR_KEY in station.keys()
+    backed_up = storj.get_df_from_s3(BUCKET, REPAIR_KEY, file_type="parquet")
     assert len(backed_up) == len(station.archive)
     stored = station.stored()
     assert len(stored) == len(station.archive)
@@ -319,7 +321,7 @@ def test_a_day_that_refills_short_aborts_the_write(seed, truth, capsys):
 
 
 def test_the_rain_repair_may_drop_and_blank_as_an_explicit_repair(
-    seed, truth, capsys, monkeypatch
+    seed, truth, capsys, monkeypatch, frozen_today
 ):
     """#190: the rain repair passes the repair allowance at its save."""
     station = seed(truth)
@@ -328,17 +330,23 @@ def test_the_rain_repair_may_drop_and_blank_as_an_explicit_repair(
 
     def lossy(*args, **kwargs):
         repaired, repair = repair_window(*args, **kwargs)
-        return repaired.iloc[1:].assign(tempf=float("nan")), repair
+        # Inside the window only: the read-back flags a loss outside it.
+        inside = in_window(repaired)
+        lost = repaired[inside].iloc[1:].assign(tempf=float("nan"))
+        return pd.concat([repaired[~inside], lost], ignore_index=True), repair
 
     monkeypatch.setattr(repair_rain, "repair_window", lossy)
     monkeypatch.setattr(repair_rain, "report_window", lambda *_a, **_k: [])
+    # The read-back rightly flags the dropped restored row; this test is
+    # about the save allowance only.
+    monkeypatch.setattr(repair_rain, "read_back_ok", lambda *_a, **_k: True)
 
     status, _out = run(["--write"], capsys)
 
     assert status == 0
     stored = station.stored()
     assert len(stored) == len(before) - 1
-    assert stored["tempf"].isna().all()
+    assert stored["tempf"].isna().sum() == in_window(stored).sum()
 
 
 def test_a_failed_archive_read_stops_the_repair_before_any_save(
@@ -542,3 +550,134 @@ def test_a_station_outside_the_inventory_is_refused_before_ambient(
     assert "Refused: Station 00:00:00:00:00:99 is not in the station" in out
     assert station.replay.calls == []
     assert station.keys() == keys
+
+
+# The repair backup and the raw read-back (#169, #170).
+REPAIR_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}-120000-repair/{ARCHIVE_KEY}"
+
+
+def test_a_repair_backs_up_even_when_todays_backup_exists(
+    seed, truth, capsys, frozen_today
+):
+    station = seed(truth)
+    station.s3.put_object(Bucket=BUCKET, Key=BACKUP_KEY, Body=b"daily")
+    before = station.stored()
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 0, out
+    assert station.s3.get_object(Bucket=BUCKET, Key=BACKUP_KEY)["Body"].read() == (
+        b"daily"
+    )
+    assert REPAIR_KEY in station.keys()
+    pd.testing.assert_frame_equal(station.stored(REPAIR_KEY), before)
+    assert REPAIR_KEY in out
+
+
+def test_a_failed_repair_backup_saves_nothing(
+    seed, truth, capsys, monkeypatch, frozen_today
+):
+    station = seed(truth)
+    keys = station.keys()
+    before = station.stored()
+    flaky_storj(monkeypatch, station.s3, copy=True)
+
+    with pytest.raises(storj.BackupError):
+        run(["--write"], capsys)
+
+    assert station.keys() == keys
+    pd.testing.assert_frame_equal(station.stored(), before)
+
+
+def test_a_correct_write_passes_every_readback_check(seed, truth, capsys, frozen_today):
+    seed(truth)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 0, out
+    assert out.count("Read-back check passed") == 4
+    assert "FAILED" not in out
+
+
+def _save_then(monkeypatch, damage: Callable[[pd.DataFrame], pd.DataFrame]) -> None:
+    """After the repair's save, replace the stored archive with `damage` of it."""
+    save = storj.save_archive
+
+    def save_and_damage(df, bucket, mac, **kwargs):
+        save(df, bucket, mac, **kwargs)
+        stored = storj.read_df_from_s3(bucket, f"{mac}.parquet", file_type="parquet")
+        storj.save_df_to_s3(damage(stored), bucket, f"{mac}.parquet")
+
+    monkeypatch.setattr(storj, "save_archive", save_and_damage)
+
+
+def oldest_first(df: pd.DataFrame) -> pd.DataFrame:
+    return df.iloc[::-1].reset_index(drop=True)
+
+
+def missing_a_row(df: pd.DataFrame) -> pd.DataFrame:
+    return df.drop(df.index[len(df) // 2]).reset_index(drop=True)
+
+
+def changed_outside(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    row = ~in_window(out)
+    out.loc[row[row].index[0], "tempf"] += 1.0
+    return out
+
+
+@pytest.mark.parametrize(
+    "damage, failed",
+    [
+        (oldest_first, "dateutc strictly decreasing"),
+        (missing_a_row, "row count"),
+        (changed_outside, "rows outside the windows unchanged"),
+    ],
+)
+def test_a_bad_stored_archive_fails_its_readback_check(
+    seed, truth, capsys, monkeypatch, frozen_today, damage, failed
+):
+    seed(truth)
+    _save_then(monkeypatch, damage)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    line = next(ln for ln in out.splitlines() if f"FAILED: {failed}" in ln)
+    assert REPAIR_KEY in line
+
+
+def duplicated(df: pd.DataFrame) -> pd.DataFrame:
+    return pd.concat([df, df.head(1)], ignore_index=True).sort_values(
+        "dateutc", ascending=False, kind="stable", ignore_index=True
+    )
+
+
+def test_a_duplicate_dateutc_fails_the_order_check(
+    seed, truth, capsys, monkeypatch, frozen_today
+):
+    seed(truth)
+    _save_then(monkeypatch, duplicated)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert "FAILED: dateutc strictly decreasing" in out
+
+
+def test_an_unreadable_readback_names_the_rollback_key(
+    seed, truth, capsys, monkeypatch, frozen_today
+):
+    station = seed(truth)
+    save = storj.save_archive
+
+    def save_then_delete(df, bucket, mac, **kwargs):
+        save(df, bucket, mac, **kwargs)
+        station.s3.delete_object(Bucket=BUCKET, Key=ARCHIVE_KEY)
+
+    monkeypatch.setattr(storj, "save_archive", save_then_delete)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 1
+    assert f"Roll back from {REPAIR_KEY}" in out
