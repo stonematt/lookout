@@ -14,11 +14,13 @@ Functions:
   missing returns None, failed (including a corrupt object) raises
   `StorageReadError`. `read_df_from_s3` and `read_json_from_s3` follow it;
   `backup_object` applies it to a copy, raising `BackupError` instead.
-  `load_archive` raises on missing too, since a missing archive is an
-  error, and so does `archive_newest_ms`, which reads only the archive's
-  `dateutc`. `get_df_from_s3` forgives a failed read (an empty frame) for
-  Streamlit. There is no separate existence check: callers read once and
-  act on the outcome. Saves that fail raise `StorageWriteError`
+  `load_archive` raises on missing too (`ArchiveMissing`, a
+  `StorageReadError` that `stations add` alone catches, to build a first
+  archive), since a missing archive is an error, and so does
+  `archive_newest_ms`, which reads only the archive's `dateutc`.
+  `get_df_from_s3` forgives a failed read (an empty frame) for Streamlit.
+  There is no separate existence check: callers read once and act on the
+  outcome. Saves that fail raise `StorageWriteError`
   (`ArchiveLossError` for an archive save that would drop a stored reading
   or blank a stored value), and a failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
