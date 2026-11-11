@@ -175,7 +175,7 @@ class ArchiveSession:
         """
         _require_lock()
         rollback_key = storj.repair_backup_key(self.mac, reason=reason)
-        archive_key = f"{self.mac}.{storj.HISTORY_FILE_TYPE}"
+        archive_key = f"{self.mac}.{HISTORY_FILE_TYPE}"
         if storj.backup_object(self.bucket, archive_key, rollback_key) is None:
             raise storj.BackupError(
                 f"No archive s3://{self.bucket}/{archive_key} to back up"

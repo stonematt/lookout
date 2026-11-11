@@ -277,6 +277,17 @@ class TestReplace:
         assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
         assert stored_bytes(fake_s3) == before
 
+    def test_an_archive_gone_before_the_backup_raises_and_saves_nothing(
+        self, stored, fake_s3, locked
+    ):
+        session = archive_store.open(BUCKET, FAKE_MAC)
+        fake_s3.delete_object(Bucket=BUCKET, Key=ARCHIVE_KEY)
+
+        with pytest.raises(storj.BackupError, match="to back up"):
+            session.replace(replaced(session.archive), "normalize")
+
+        assert bucket_keys(fake_s3) == []
+
     @pytest.mark.parametrize("reason", ["", "Rain Carryover", "../daily", "rain-"])
     def test_a_reason_that_is_not_hyphenated_words_refuses_and_writes_nothing(
         self, stored, fake_s3, locked, reason
