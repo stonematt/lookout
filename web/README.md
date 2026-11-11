@@ -74,12 +74,18 @@ Stop it with Ctrl-C, or `kill` its PID.
   or whatever `LOOKOUT_FIXTURE` names.
 - `?age=<minutes>` shifts every `_ms` time so that the newest observation is
   that many minutes old (or set `LOOKOUT_AGE_MIN`). Without it the goldens are
-  served as recorded, which means long stale.
+  served as recorded, which means long stale. Only the `_ms` times move.
+  Decided values such as month labels and window texts (the Rain by month
+  grid, the "so far" sentences) keep the date the golden was built, so a
+  shifted date can sit beside another month's label. A real snapshot boxes
+  the reading's own month.
 - `?theme=light|dark` forces a theme.
 - `/current` has `last_data: null` here, because Ambient is never called in
   dev.
 
 Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
+
+`ignoreCommand` in `vercel.json` runs `scripts/vercel-ignore.sh`, which skips the Vercel build for `shots/*` and `lane/*` branches; every other branch builds.
 
 ## Security headers
 

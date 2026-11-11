@@ -73,6 +73,14 @@ describe("the headline names the finding with its number", () => {
     expect(host.dataset.lead).toBe("rain");
   });
 
+  it("rain: the usual event is the Rain events catalog's median, the same number (#375)", () => {
+    expect(raining.hero_lead.usual_median).not.toBeNull();
+    expect(raining.rain_events.all_time.median_in).toBe(raining.hero_lead.usual_median);
+    for (const season of raining.rain_events.seasons) {
+      expect(season.stats.median_in).toBe(raining.hero_lead.usual_median);
+    }
+  });
+
   it("temperature, naming the compared years", () => {
     expect(leadHeadline(withLead("temperature"))).toBe(
       "10.0° warmer than usual for noon in January (2025)",

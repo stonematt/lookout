@@ -178,7 +178,7 @@ _Avoid_: combine, overwrite, "fetched wins".
 A command that saves the archive or a catalog (the Event Catalog or the
 energy catalog), of which at most one runs on a host at a time. The refresh
 run, catchup, `diagnostics fill-gap`, `diagnostics energy-catalog --save`,
-`diagnostics rain-catalog --save` and `repair_rain --write` are archive
+`diagnostics event-catalog --save` and `repair_rain --write` are archive
 writers; each takes the per-host archive-writer lock
 (`lookout.utils.archive_lock`) before it does any work. A read-only command,
 or a writer run without its save flag, is not one and takes no lock.
@@ -263,3 +263,10 @@ reads as dry. The **usual dry spell** is the median completed dry spell over
 the last 365 days. One definition serves the Rain tab and the calm lead
 (`lookout.core.rainfall_analysis.dry_spells`).
 _Avoid_: drought, days without rain (for the spell itself).
+
+### usual event
+
+The median total of completed rain events. The live (ongoing) event is never
+part of the median it is measured against. The Overview's rain lead and the
+Rain events catalog (all-time and per water year) use this one rule (#375).
+_Avoid_: median event (for a median that counts the live event).
