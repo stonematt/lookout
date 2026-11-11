@@ -29,9 +29,10 @@ Usage:
    per-station pipeline. Each station's archive and frames are released
    before the next station loads, so the memory peak stays at one
    station's size.
-   a. `update_archive(device, bucket, fetched)`: back up, load, merge the
-      fetched readings, save (`catchup.save_fetched`); the archive as
-      saved, raw. A station with no archive fails; it is never rebuilt.
+   a. The archive: opened and the fetched readings merged in through the
+      archive store (`lookout.storage.archive_store`), which backs up and
+      saves only when the merge changed something; the archive as merged,
+      raw. A station with no archive fails; it is never rebuilt.
    b. `correct_rain(station, bucket, archive, live)`: the stored rain
       corrections applied once, in memory (#95), to the archive and to the
       live reading alike (#118). Every later step reads these; the archive
@@ -71,9 +72,8 @@ MAC (`lookout.utils.log_util.station_context`).
 
 Each step runs through `_step`, which logs "Peak memory after <step>: N MB"
 (#280): the process's peak RSS so far, which only rises, so the step where it
-jumps set the peak. `fetch_delta` logs `ambient_fetch`, and `update_archive`
-its own three (archive_load, archive_merge, archive_save; see
-`catchup.save_fetched`).
+jumps set the peak. `fetch_delta` logs `ambient_fetch`, and the archive
+store its own three (archive_load, archive_merge, archive_save).
 
 `main` is the shell entry point: it runs `run` and turns the outcome into an
 exit status, 1 when the run or any station failed, and sends the
@@ -142,6 +142,7 @@ from lookout.snapshot.status import (
     publish_status,
 )
 from lookout.utils.healthchecks import Heartbeat
+from lookout.storage import archive_store
 from lookout.storage.station_inventory import load_inventory, read_inventory
 from lookout.storage.storj import archive_newest_ms, backup_and_save_catalog
 from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
@@ -306,18 +307,6 @@ def fetch_delta(device: Dict, bucket: str, pages: int) -> Tuple[pd.DataFrame, in
     """
     newest = archive_newest_ms(bucket, device["macAddress"])
     return catchup.fetch_delta(device, newest, pages), newest
-
-
-def update_archive(device: Dict, bucket: str, fetched: pd.DataFrame) -> pd.DataFrame:
-    """
-    Step 3a: back up, load and save the archive with the fetched readings.
-
-    :param device: The station's `/devices` entry.
-    :param bucket: The bucket.
-    :param fetched: What `fetch_delta` fetched for the station.
-    :return: The archive as saved: raw, no rain corrections applied.
-    """
-    return catchup.save_fetched(device, bucket, fetched)
 
 
 def correct_rain(
@@ -677,9 +666,12 @@ def refresh_station(
         station_run.fetched,
     )
     station_run.fetched = None
-    # Logs its own peak lines, one per part (#280), so it skips `_step`'s.
-    archive = update_archive(device, bucket, fetched)
-    del fetched
+    # The archive store logs its own peak lines, one per part (#280), so
+    # this skips `_step`'s.
+    session = archive_store.open(bucket, device["macAddress"])
+    session.merge(fetched)
+    archive = session.archive
+    del fetched, session
     station_run.archive_start_ms = int(archive["dateutc"].min())
     archive, live = _step(
         "correct_rain", correct_rain, station, bucket, archive, device.get("lastData")
