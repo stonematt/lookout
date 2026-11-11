@@ -566,14 +566,14 @@ class TestRepairArchiveBackup:
         assert f"Rollback point: s3://{BUCKET}/{REPAIR_BACKUP_KEY}" in lines
 
     def test_a_failed_repair_backup_fails_the_run_and_leaves_the_archive(
-        self, catchup_station, monkeypatch
+        self, catchup_station, monkeypatch, caplog
     ):
         station = catchup_station()
         keys, before = station.keys(), stored_bytes(station)
         flaky_storj(monkeypatch, station.s3, copy=True)
 
         with pytest.raises(storj.BackupError):
-            catchup_main_repair()
+            self.repair(caplog)
 
         assert stored_bytes(station) == before
         assert station.keys() == keys
@@ -615,8 +615,8 @@ class TestRepairArchiveBackup:
         flaky = ReadBackFails(station.s3)
         monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
 
-        with caplog.at_level("INFO"), pytest.raises(ReadbackFailed):
-            catchup_main_repair()
+        with pytest.raises(ReadbackFailed):
+            self.repair(caplog)
 
         lines = [r.getMessage() for r in caplog.records]
         failed = [line for line in lines if line.startswith("Read-back check FAILED")]
@@ -624,12 +624,19 @@ class TestRepairArchiveBackup:
         assert "the saved archive is unreadable" in failed[0]
         assert failed[0].endswith(f"roll back from {REPAIR_BACKUP_KEY}")
 
+    def test_a_failed_read_back_exits_1(self, catchup_station, monkeypatch, caplog):
+        station = catchup_station()
+        flaky = ReadBackFails(station.s3)
+        monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+        monkeypatch.setattr(
+            "sys.argv", ["catchup.py", "--bucket", BUCKET, "--repair-archive"]
+        )
 
-def catchup_main_repair() -> None:
-    """Run `catchup --repair-archive` once, writing."""
-    from lookout.cli import catchup
+        with pytest.raises(SystemExit) as exited:
+            runpy.run_module("lookout.cli.catchup", run_name="__main__")
 
-    catchup.main(BUCKET, dry_run=False, pages=20, repair_archive=True)
+        assert exited.value.code == 1
+        assert "Read-back check FAILED: the saved archive is unreadable" in caplog.text
 
 
 # ---------- paging over a longer outage ----------

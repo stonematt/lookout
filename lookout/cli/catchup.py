@@ -16,7 +16,7 @@ Usage:
 
 import argparse
 import sys
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import pandas as pd
 
@@ -84,7 +84,7 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
 
 
 def _check_repair_readback(
-    bucket_name: str, mac: str, repaired: pd.DataFrame, backup_key: Optional[str]
+    bucket_name: str, mac: str, repaired: pd.DataFrame, backup_key: str
 ) -> None:
     """
     Read the repaired archive back raw and check it (#170, #422).
