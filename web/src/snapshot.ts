@@ -669,7 +669,16 @@ interface SnapshotHead {
   observed_at_ms: number | null;
   current: SnapshotConditions;
   active_rain_event: ActiveRainEvent | null;
+  /**
+   * Which view a widget shows now, chosen by Python
+   * (`lookout/snapshot/widget.py`). Absent from documents published before
+   * it was added; the site does not read it.
+   */
+  widget_view?: WidgetView;
 }
+
+/** A widget's views: the live rain event, a longer-than-usual dry spell, or the default. */
+export type WidgetView = "rain_event" | "dry_spell" | "temperature_ranges";
 
 /** `snapshot/<MAC>.dashboard.json`: every field of the snapshot. */
 export interface DashboardSnapshot extends SnapshotHead {

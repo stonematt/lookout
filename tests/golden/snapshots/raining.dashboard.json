@@ -13590,5 +13590,6 @@
     "moon_illumination_pct": 68,
     "days_to_full_moon": 24
   },
+  "widget_view": "rain_event",
   "stale_catalogs": []
 }
