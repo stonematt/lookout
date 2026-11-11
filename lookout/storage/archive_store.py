@@ -25,6 +25,13 @@ call the backup functions themselves.
   blank a stored reading raises `ArchiveLossError`. It returns the merge
   report. Plain merges do not read the archive back: a read-back is a full
   download, and the refresh run merges every 5 minutes.
+- `ArchiveSession.replace(df, reason, windows=None, checks=None)` is a
+  deliberate repair (#430). It takes the repair backup immediately before
+  it saves, every time (`storj.repair_backup_key`, with `reason` in the
+  folder name), saves with the loss check lifted, then reads the archive
+  back raw and checks it (`lookout.storage.archive_readback`); a failed or
+  unreadable read-back raises `ReadbackFailed`. It returns the merge report
+  of `df` against the archive as opened.
 
 Every verb that may save refuses, before it reads or writes anything, when
 this process does not hold the archive-writer lock (`ArchiveLockNotHeld`),
@@ -36,17 +43,21 @@ Offers `open`, `create`, `ArchiveSession`, `ArchiveExists` and
 """
 
 from datetime import datetime, timezone
+from typing import Callable, List, Optional, Sequence, Tuple
 
 import pandas as pd
 
 from lookout.config import HISTORY_FILE_TYPE
 from lookout.core import archive_merge
-from lookout.storage import storj
+from lookout.storage import archive_readback, storj
 from lookout.utils import archive_lock
 from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__)
+
+# A caller's own checks of a replace's raw read-back.
+ExtraChecks = Callable[[pd.DataFrame], List[archive_readback.Check]]
 
 
 class ArchiveExists(RuntimeError):
@@ -117,6 +128,115 @@ class ArchiveSession:
         log_peak_rss("archive_save", logger)
         self._archive = merged
         return report
+
+    def replace(
+        self,
+        df: pd.DataFrame,
+        reason: str,
+        windows: Optional[Sequence[Tuple[int, int]]] = None,
+        checks: Optional[ExtraChecks] = None,
+    ) -> archive_merge.MergeReport:
+        """
+        Replace the archive with a repaired one: a deliberate repair.
+
+        Takes the repair backup immediately before it saves, every time, even
+        when today's daily backup exists, then saves with the loss check
+        lifted: a repair may drop readings and blank values. Then reads the
+        saved archive back raw (`archive_readback.read_back`) and checks it,
+        one log line per check; an unreadable read-back is a failed check.
+        The checks: as many rows as `df`, stored newest first with no
+        duplicate, and the rows outside `windows` unchanged. With `windows`,
+        those rows are compared with the archive as opened (the repair
+        touched only its windows); without, the whole archive is the
+        repair's window, and every stored row is compared with `df`.
+
+        :param df: The repaired archive, whole, any row order.
+        :param reason: Why, as lowercase hyphenated words (e.g.
+            "rain-carryover"); it goes into the repair backup's folder name
+            (`storj.repair_backup_key`) and the log.
+        :param windows: The `dateutc` spans the repair changed, each start
+            inclusive and end exclusive; None when it rewrote the whole
+            archive.
+        :param checks: The caller's own checks of the raw read-back, run
+            after the archive store's (e.g. the rain repair's restored rows
+            against its reference).
+        :return: What `df` adds, fills and updates against the archive as
+            opened, as a merge would count it.
+        :raises ArchiveLockNotHeld: If this process does not hold the
+            archive-writer lock; nothing is backed up or written.
+        :raises ValueError: If `reason` is not lowercase hyphenated words;
+            nothing is backed up or written.
+        :raises BackupError: If the repair backup fails, or there is no
+            archive to back up; nothing is saved.
+        :raises StorageWriteError: If the save fails.
+        :raises ReadbackFailed: If the saved archive failed a check or could
+            not be read back; the archive is saved, and the error names the
+            repair backup to roll back from.
+        """
+        _require_lock()
+        rollback_key = storj.repair_backup_key(self.mac, reason=reason)
+        archive_key = f"{self.mac}.{storj.HISTORY_FILE_TYPE}"
+        if storj.backup_object(self.bucket, archive_key, rollback_key) is None:
+            raise storj.BackupError(
+                f"No archive s3://{self.bucket}/{archive_key} to back up"
+            )
+        logger.info(
+            f"Archive replace ({reason}): rollback point "
+            f"s3://{self.bucket}/{rollback_key}"
+        )
+        opened = self._archive
+        report = archive_merge.merge(opened, df).report
+        logger.info(f"Archive replace ({reason}): {report.describe()}")
+        storj.save_archive(df, self.bucket, self.mac, stored=opened, repair=True)
+        logger.info(f"Archive saved: {_describe(df)}")
+        self._archive = df
+        if windows is None:
+            before, bounds = df, []
+        else:
+            before, bounds = opened, list(windows)
+        self._read_back(before, len(df), bounds, checks, rollback_key)
+        return report
+
+    def _read_back(
+        self,
+        before: pd.DataFrame,
+        expected_rows: int,
+        bounds: List[Tuple[int, int]],
+        checks: Optional[ExtraChecks],
+        rollback_key: str,
+    ) -> None:
+        """
+        Read the saved archive back raw and check it, one log line per check.
+
+        :param before: What the rows outside `bounds` must equal.
+        :param expected_rows: The row count the save should have left.
+        :param bounds: The repair's windows; empty for the whole archive.
+        :param checks: The caller's own checks of the read-back.
+        :param rollback_key: The repair backup, named on any failure.
+        :raises ReadbackFailed: If any check failed or the read-back failed.
+        """
+        try:
+            stored = archive_readback.read_back(self.bucket, self.mac)
+        except storj.StorageReadError as e:
+            results = [
+                archive_readback.Check("the saved archive is unreadable", False, str(e))
+            ]
+        else:
+            results = archive_readback.check_readback(
+                stored, before, expected_rows, bounds
+            )
+            if checks is not None:
+                results += checks(stored)
+        for check in results:
+            if check.ok:
+                logger.info(check.line(rollback_key))
+            else:
+                logger.error(check.line(rollback_key))
+        if not all(check.ok for check in results):
+            raise archive_readback.ReadbackFailed(
+                f"The replaced archive failed its read-back; roll back from "
+                f"s3://{self.bucket}/{rollback_key}"
+            )
 
 
 def open(bucket: str, mac: str) -> ArchiveSession:

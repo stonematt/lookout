@@ -31,6 +31,7 @@ Functions:
 import datetime
 import json
 import os
+import re
 from io import BytesIO
 from typing import List, Optional
 
@@ -48,6 +49,9 @@ logger = app_logger(__name__)
 
 # For logging with both console and file output
 backup_logger = app_logger("backup_logger", log_file="backup.log")
+
+# A repair reason, as it goes into the repair backup's folder name.
+REPAIR_REASON = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
 def get_s3_client():
@@ -596,19 +600,36 @@ def backup_and_save_catalog(
         raise StorageWriteError(f"Failed to save s3://{bucket}/{catalog_path}")
 
 
-def repair_backup_key(mac: str, now: Optional[datetime.datetime] = None) -> str:
+def repair_backup_key(
+    mac: str,
+    now: Optional[datetime.datetime] = None,
+    reason: Optional[str] = None,
+) -> str:
     """
     The key a repair save's backup of the archive goes to (#169).
 
     A folder of its own, `.backups/<mac>/<YYYYMMDD>-<HHMMSS>-repair/`, so it
-    never shares a folder with the daily backup and never overwrites it.
+    never shares a folder with the daily backup and never overwrites it. A
+    reason (#430) is a suffix inside the folder name,
+    `<YYYYMMDD>-<HHMMSS>-repair-<reason>/`: the folder still starts with the
+    stamp and `-repair`, and still holds `<mac>.<HISTORY_FILE_TYPE>`.
 
     :param mac: The station's MAC address.
     :param now: The moment to stamp it with; the current time when None.
+    :param reason: Why the archive is repaired: lowercase letters and digits
+        in hyphenated words, e.g. "rain-carryover". None for no suffix.
     :return: The backup's key.
+    :raises ValueError: If `reason` is not such a slug.
     """
     stamp = (now or datetime.datetime.now()).strftime("%Y%m%d-%H%M%S")
-    return f".backups/{mac}/{stamp}-repair/{mac}.{HISTORY_FILE_TYPE}"
+    folder = f"{stamp}-repair"
+    if reason is not None:
+        if not REPAIR_REASON.fullmatch(reason):
+            raise ValueError(
+                f"A repair reason is lowercase hyphenated words, not {reason!r}"
+            )
+        folder += f"-{reason}"
+    return f".backups/{mac}/{folder}/{mac}.{HISTORY_FILE_TYPE}"
 
 
 def backup_and_save_history(

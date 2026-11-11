@@ -5,10 +5,11 @@ This module pulls data since the last known timestamp in the archive and updates
 S3 storage with any newly retrieved data. Supports a dry-run mode for simulation
 and offline testing. Also supports archive repair (schema normalization) with
 --repair-archive and optional --dry-run; the repair also strips the derived
-columns stored (#191). A repair that writes backs the archive up to a repair
-backup of its own right before it saves, every time, and reads the saved
-archive back raw (#422); a dry run does neither. A run that writes takes the
-archive-writer lock first (#244); `--dry-run` alone takes none.
+columns stored (#191). A repair that writes saves through the archive
+store's replace (#430), which backs the archive up to a repair backup of its
+own right before it saves, every time, and reads the saved archive back raw;
+a dry run does neither. A run that writes takes the archive-writer lock
+first (#244); `--dry-run` alone takes none.
 
 Usage:
     python catchup.py --bucket lookout [--dry-run] [--pages 20] [--repair-archive]
@@ -21,10 +22,9 @@ from typing import Dict, Tuple
 import pandas as pd
 
 import lookout.api.awn_controller as awn
-import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
 from lookout.core import archive_merge
-from lookout.storage import archive_readback, archive_store
+from lookout.storage import archive_store
 from lookout.storage.station_inventory import resolve_station
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import normalize
@@ -32,6 +32,9 @@ from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__, log_file="catchup.log")
+
+# The reason a `--repair-archive` replace names, in its repair backup's key.
+REPAIR_REASON = "normalize"
 
 
 # ---------- archive utilities ----------
@@ -81,42 +84,6 @@ def _repair_archive_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
         metrics["max"] = pd.to_datetime(mx, unit="ms", utc=True)
 
     return fixed, metrics
-
-
-def _check_repair_readback(
-    bucket_name: str, mac: str, repaired: pd.DataFrame, backup_key: str
-) -> None:
-    """
-    Read the repaired archive back raw and check it (#170, #422).
-
-    The repair rewrites the whole archive, so the read-back is checked against
-    the repaired archive itself, with no windows: the stored rows must be the
-    repaired rows, as many, newest first with no duplicate. One log line per
-    check; an unreadable read-back is a failed check.
-
-    :param bucket_name: The bucket.
-    :param mac: The station's MAC address.
-    :param repaired: The archive the repair saved, in memory.
-    :param backup_key: The repair backup, named on any failure.
-    :raises ReadbackFailed: If any check failed.
-    """
-    try:
-        stored = archive_readback.read_back(bucket_name, mac)
-    except sj.StorageReadError as e:
-        checks = [
-            archive_readback.Check("the saved archive is unreadable", False, str(e))
-        ]
-    else:
-        checks = archive_readback.check_readback(stored, repaired, len(repaired), [])
-    for check in checks:
-        if check.ok:
-            logger.info(check.line(backup_key))
-        else:
-            logger.error(check.line(backup_key))
-    if not all(check.ok for check in checks):
-        raise archive_readback.ReadbackFailed(
-            f"The repaired archive failed its read-back; roll back from {backup_key}"
-        )
 
 
 def _log_archive_range(df: pd.DataFrame, label: str) -> None:
@@ -187,29 +154,6 @@ def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
     return fetched
 
 
-def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
-    """
-    Load the station's archive from storage and normalize it.
-
-    Strict (#160): a run that saves after this must never start from a
-    failed read, so it reads storage directly (no dev-mode local cache) and
-    raises rather than returning an empty frame. The archive returned is
-    after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
-    it is the archive the save is guarded by (`save_archive`'s `stored`).
-
-    :param device: The station's `/devices` entry.
-    :param bucket_name: S3 bucket to read from.
-    :return: The normalized archive, at least one row.
-    :raises StorageReadError: If the archive is missing, unreadable, or has
-        no valid rows.
-    """
-    archive_df = sj.load_archive(bucket_name, device["macAddress"])
-
-    _log_archive_range(archive_df, "Loaded archive")
-    logger.info(f"Total records in archive: {len(archive_df)}")
-    return archive_df
-
-
 def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> None:
     """
     Update archived weather data or repair archive schema.
@@ -221,8 +165,8 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
     :raises ArchiveLockHeld: If a run that writes (any but `--dry-run`)
         finds another archive writer holding the lock (#244); raised before
         anything is read or written.
-    :raises StorageReadError: If the station inventory is missing or cannot
-        be read; raised before anything is written.
+    :raises StorageReadError: If the station inventory or the archive is
+        missing or cannot be read; raised before anything is written.
     :raises StationNotFoundError: If the default station (the station
         inventory's first) is not on the Ambient account; raised before
         anything is written.
@@ -253,9 +197,11 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
             update_archive(device, bucket_name, pages)
             return
 
-        archive_df = _load_archive(device, bucket_name)
+        session = archive_store.open(bucket_name, mac)
+        _log_archive_range(session.archive, "Loaded archive")
+        logger.info(f"Total records in archive: {len(session.archive)}")
 
-        fixed, m = _repair_archive_df(archive_df)
+        fixed, m = _repair_archive_df(session.archive)
         logger.info(
             "Archive repair: %s -> %s rows (dropped=%s), dtype %s -> %s, "
             "range %s .. %s",
@@ -277,16 +223,12 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
             logger.info("Dry-run: NOT saving repaired archive.")
             return
 
-        # Persist the repaired archive, newest first (#133), and exit. An
-        # explicit repair: the one catchup save that may drop or blank (#190).
-        # It backs the live archive up first, every time, to a repair backup
-        # of its own (#169, #422), then reads the saved archive back raw.
-        backup_key = sj.backup_and_save_history(
-            fixed, device, bucket_name, stored=archive_df, repair=True
-        )
-        logger.info(f"Rollback point: s3://{bucket_name}/{backup_key}")
+        # An explicit repair: the one catchup save that may drop or blank
+        # (#190). The archive store backs the live archive up to a repair
+        # backup first, every time, then reads the saved archive back raw
+        # (#430). It rewrites the whole archive, so it names no windows.
+        session.replace(fixed, REPAIR_REASON)
         logger.info("Repaired archive saved.")
-        _check_repair_readback(bucket_name, mac, fixed, backup_key)
 
 
 if __name__ == "__main__":
