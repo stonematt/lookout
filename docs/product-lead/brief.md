@@ -15,7 +15,7 @@ Product context: `PRODUCT.md` (users, principles, constraints), `DESIGN.md` (The
 One line each. The product lead infers the rung; write one here only when Matt overrides it.
 
 - **Move Lookout off Streamlit** — replace the Streamlit app with a cron-built snapshot on Storj and a Vite + TypeScript + Plotly.js site on Vercel · containers: map #51, spec #66 and its sub-issues #67–#86, bug #63 (sub-issue of #66)
-- **Deepen storage reads, archive merge and daily rain** — the three refactors kept from the 2026-11-01 architecture review · containers: specs #172, #173, #174 and their sub-issues #180–#199, goal PR #201 (merged to dev 2026-11-02), held ticket #191, follow-ups #219, #220, #224 · also #140 (duplicated energy updaters; grill with #224 as one refactor: both cover the catalog backup routes), #169 (repair backup and raw read-back, #170 folded in; lands before #224) · #173 closed 2026-11-09
+- **Deepen storage reads, archive merge and daily rain** — the three refactors kept from the 2026-11-01 architecture review · containers: specs #172, #173, #174 and their sub-issues #180–#199, goal PR #201 (merged to dev 2026-11-02), held ticket #191, follow-up #219 · #169 (repair backup and raw read-back, #170 folded in) closed · #173 closed 2026-11-09 · #220, #224 and #140 closed 2026-11-11 as superseded by #423 and #424 (the 2026-11-10 review)
 - **Release 2026.11.1** — shipped dev to main and introduced versioning (ADR-0007), 2026-11-03 · ledger #277, release PR #289, tag `v2026.11.1`
 - **Serve a second station: Salmon Run** — shipped 2026-11-03: Salmon Run is archived and served beside Lookout Post, from a station inventory on Storj (ADR-0006). Four releases under an autonomy grant (`docs/agents/autonomy.md`, removed when #294 closed; in git history), program ledger #294: A 2026.11.2 ops and logging (#296), B 2026.11.3 inventory and multi-station refresh run (#314), C 2026.11.4 station index, site and archive memory cuts (#325), D measured the memory peak and closed #234's gate as met-enough (Matt). Salmon Run added 21:15 UTC. · open: #275 (rain events after Salmon Run's first rain, human), #329 (archive load sets the memory peak, needs-triage), #247 step 4 (revoke the old credential, Matt) · deep retro: PR #331; case study in Matt's vault (2026-11-03)
 - **Tiles That Talk redesign** — shipped 2026-11-04 as release 2026.11.6 (release PR #398, `main` `6213e96`, tag `v2026.11.6`): the site as tiles that state their findings, a phone layout with an accordion of findings, dark and light themes. Its prerequisite release 2026.11.5 (PR #356, tag `v2026.11.5`) shipped first: the site reads snapshot schema 2 and 3, and the refresh run writes 3 with the sun and moon block, so UAT ran on a goal-branch preview with live data. That rule is now ADR-0008. · containers: spec #332, goal PR #358, ledger #348 (both releases) · deferred: #374 (ten-day bar colour, needs a snapshot contract change), #375 (two medians for one event, Python, predates the redesign), #328 and #134 (rain near midnight, data bugs), #353 (local UAT environment, parked), #399 (the N−1 contract test), #226 (lane-server fixture), #401 (skip Vercel previews for `shots/*` and lane branches, PR #404) · open for Matt: delete the `shots/*` branches
@@ -24,7 +24,8 @@ One line each. The product lead infers the rung; write one here only when Matt o
 - **New site views** — Streamlit carry-overs and new views · containers: #252 (year-over-year period selector), #253 (numbers-first conditions strip), #255 and #390 (wind: merge into one wind spec; needs a snapshot block, so a schema bump under ADR-0008)
 - **Brand and product direction** — grill first · containers: #256 (consumer review and brand pass), #409 (iOS widget; draft PR #408 adds `widget_view` to the snapshot)
 - **Ops and tooling** — containers: #266 (uv lockfile and `pyproject.toml`; touches CI and `itri`), #257 (post-release log and monitor checks; split into its three items before a build), #258 (rename `diagnostics rain-catalog` to `event-catalog`, BSE)
-- **architecture review** · due (285 files since `a43d894`, threshold 30) · next: `/improve-codebase-architecture`
+- **One write path for the archive and catalogs** — refactors kept from the 2026-11-10 architecture review, grilled the same day; build in this order · containers: #422 (`catchup --repair-archive` repair backup, `bug`), #423 (archive store), #424 (catalog store; takes over #220, #224, #140), each blocked by the one before · rung: grill done; #423 and #424 need `/to-spec` and `/to-tickets` before a swarm · related: #329 (archive load memory peak; lands in the archive store's `open`)
+- **Move the site's remaining decisions into the snapshot** — 2026-11-10 architecture review, grilled · container: #425, blocked by #424 · two releases, Python first, no schema bump (ADR-0008 §4) · collides with draft PR #408 (snapshot `build.py`, `model.py`, goldens): sequence after it
 
 ## Where the tickets live
 
@@ -40,7 +41,7 @@ Vercel is on the Hobby plan: about 100 deployments a day, and every branch push 
 
 | Last architecture review | Date | Threshold |
 |---|---|---|
-| `a43d894` (head of `goal/off-streamlit`; report kept 5 candidates, 3 became #172–#174) | 2026-11-01 | 30 files or 1,500 lines |
+| `6884418` (`dev`; report kept 7 candidates, 3 grilled into #423–#425 plus fix #422; chart host and refresh station inputs left unfiled) | 2026-11-10 | 30 files or 1,500 lines |
 
 Threshold history: none yet.
 
