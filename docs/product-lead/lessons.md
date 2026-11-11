@@ -94,6 +94,14 @@ Run over ledger #348 and the UAT log it cites (https://github.com/stonematt/look
 
 All five `[skill]` lessons above are for release-manager. They were rolled up in one comment on stonematt/stonematt-skills#137 (2026-11-06) and are proposed in stonematt/stonematt-skills#165; each gets `folded <sha>` once that PR merges.
 
+## 2026-11-11 — iOS widget (#409, PR #408) missed release 2026.11.8
+
+Matt asked why the product lead never nagged about the widget as nearly ready to release. It was not on the radar: the PR sat ready for UAT from 2026-11-06, release 2026.11.7 (2026-11-09) and the 2026.11.8 cut both went out without it, and the 2026.11.8 release session learned of it only when this session tried to merge.
+
+- [skill] **The brief line for a new initiative was deferred to its merge, so no later run could see it.** The issue (#409) opened mid-grill, and the brief line was put off "until this lands, so it doesn't ride in this PR". A status run reads the brief, so the initiative was invisible from the moment this session went idle. Skill line to change: SKILL.md step 2 — an initiative gets its brief line the day its first container (issue, map or PR) opens, on its own small docs PR if no other PR is going; never defer the line to the work's merge. rolled up https://github.com/stonematt/stonematt-skills/issues/137#issuecomment-6800883818
+- [skill] **A ready PR waiting on Matt's UAT was never raised when a release was cut.** No status page was written this session, so the director never counted the wait, and the release manager for 2026.11.8 scoped `dev` without knowing a near-done initiative was one merge away. Skill line to change: SKILL.md step 2 "When a release ledger is open" — at each status run and whenever a release ledger opens, name to Matt every initiative at QA or UAT with its PR, and ask in or out of this release, before the release's bump PR is tested. And step 4: a session that grills or builds an initiative writes the status page before it goes idle. rolled up https://github.com/stonematt/stonematt-skills/issues/137#issuecomment-6800883818
+- [project] **The widget had no brief line.** Fold into: brief, Initiatives — the iOS widget line. folded a823aa2
+
 ## 2026-11-11 — release 2026.11.8 retro
 
 Retro over ledger #421 (plain `dev`-to-`main` release, no spec or goal PR).

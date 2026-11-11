@@ -124,8 +124,8 @@ _Avoid_: cache, export, payload.
 ### context block
 
 The small part of the snapshot that `/current` serves next to Ambient's live
-`lastData`: the station, the build and observation times, current conditions
-and the active rain event (`CONTEXT_FIELDS`). Published as
+`lastData`: the station, the build and observation times, current conditions,
+the active rain event and the widget view (`CONTEXT_FIELDS`). Published as
 `snapshot/<MAC>.context.json`, so a live reading always arrives with the
 context it is read against.
 _Avoid_: context file, mini snapshot.
@@ -254,6 +254,17 @@ event is live or ended in the last 12 h; temperature at 10°F or more from
 this hour's month median; solar at 400 W/m² or more; otherwise calm, the
 days since rain against the usual dry spell.
 _Avoid_: headline, hero metric, featured stat.
+
+### widget view
+
+Which view a widget shows now, picked in the snapshot so every widget shows
+the same one (`lookout.snapshot.widget`). Checked in order: **rain_event**
+while an event is live with more than 0.04 in in it; **dry_spell** while the
+current dry spell is longer than the usual dry spell, in any month; otherwise
+**temperature_ranges**, now against today, 7, 30 and 365 days. It is not the
+lead: the lead ranks the Overview's hero, the widget view picks a widget's
+picture.
+_Avoid_: widget mode, widget state.
 
 ### dry spell
 

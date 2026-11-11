@@ -25,6 +25,7 @@ One line each. The product lead infers the rung; write one here only when Matt o
 - **New site views** — Streamlit carry-overs and new views · containers: #252 (year-over-year period selector), #253 (numbers-first conditions strip), #255 and #390 (wind: merge into one wind spec; needs a snapshot block, so a schema bump under ADR-0008)
 - **Brand and product direction** — grill first · containers: #256 (consumer review and brand pass), #409 (iOS widget; draft PR #408 adds `widget_view` to the snapshot)
 - **Ops and tooling** — containers: #266 (uv lockfile and `pyproject.toml`; touches CI and `itri`), #257 (post-release log and monitor checks; split into its three items before a build), #258 (rename `diagnostics rain-catalog` to `event-catalog`, BSE)
+- **iOS widget: current plus context** — a Scriptable Home Screen widget (WidgetKit app later) that shows one station's reading against its own history, in the view the snapshot picks (`widget_view`: rain event, dry spell longer than usual, or temperature ranges) · containers: issue #409 (grilled brief in its comments), PR #408 (held for release 2026.11.8, rides 2026.11.9), design canvas https://claude.ai/artifact/89qcDbpQrTDrLdddMUCzMw · open for Matt: phone UAT after the merge (`widgets/scriptable/README.md`) · later: recent rain against usual, rain today against past days, the WidgetKit view
 - **architecture review** · due (285 files since `a43d894`, threshold 30) · next: `/improve-codebase-architecture`
 
 ## Where the tickets live

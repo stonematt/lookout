@@ -32,5 +32,6 @@
     "duration_minutes": 145.0,
     "total_in": 0.3,
     "avg_rate_in_hr": 0.12413793103448276
-  }
+  },
+  "widget_view": "rain_event"
 }
