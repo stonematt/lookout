@@ -11,8 +11,13 @@ call the backup functions themselves.
 
 - `open(bucket, mac)` loads the archive through `storj.load_archive`
   (normalized; a failed read raises `StorageReadError`, ADR-0004, and so
-  does a missing archive: adding a station is a human act) and returns an
-  `ArchiveSession`.
+  does a missing archive, as `storj.ArchiveMissing`: adding a station is a
+  human act) and returns an `ArchiveSession`.
+- `create(bucket, mac, fetched)` builds a station's first archive, for
+  `stations add`. It refuses when an archive is found (`ArchiveExists`),
+  raises when the read failed (an unknown archive state never counts as
+  "no archive", ADR-0004), takes no backup, and saves through the archive
+  save.
 - `ArchiveSession.merge(fetched)` merges fetched readings by the archive
   merge (Ambient wins, `lookout.core.archive_merge`). When nothing changed
   it writes nothing and takes no backup. Otherwise it takes the daily
@@ -26,13 +31,15 @@ this process does not hold the archive-writer lock (`ArchiveLockNotHeld`),
 whether or not this call would have saved: a writer that forgets the lock
 fails on its first run.
 
-Offers `open` and `ArchiveSession`.
+Offers `open`, `create`, `ArchiveSession`, `ArchiveExists` and
+`NoReadings`.
 """
 
 from datetime import datetime, timezone
 
 import pandas as pd
 
+from lookout.config import HISTORY_FILE_TYPE
 from lookout.core import archive_merge
 from lookout.storage import storj
 from lookout.utils import archive_lock
@@ -40,6 +47,14 @@ from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__)
+
+
+class ArchiveExists(RuntimeError):
+    """`create` found an archive stored for the station; it wrote nothing."""
+
+
+class NoReadings(ValueError):
+    """`create` was given no valid reading to build an archive from."""
 
 
 class ArchiveSession:
@@ -114,12 +129,54 @@ def open(bucket: str, mac: str) -> ArchiveSession:
     :param bucket: The bucket.
     :param mac: The station's MAC address.
     :return: The session to merge through.
-    :raises StorageReadError: If the archive is missing, unreadable, or has
-        no valid rows (ADR-0004).
+    :raises StorageReadError: If the archive is missing (`ArchiveMissing`),
+        unreadable, or has no valid rows (ADR-0004).
     """
     archive = storj.load_archive(bucket, mac)
     logger.info(f"Archive loaded: {_describe(archive)}")
     log_peak_rss("archive_load", logger)
+    return ArchiveSession(bucket, mac, archive)
+
+
+def create(bucket: str, mac: str, fetched: pd.DataFrame) -> ArchiveSession:
+    """
+    Build a station's first archive from fetched readings, and save it.
+
+    For `stations add`, when no archive is stored for the station. It reads
+    the archive's key first: a found archive is refused, never overwritten,
+    and a failed read raises, since an unknown archive state never counts as
+    "no archive" (ADR-0004). There is nothing to back up, so it takes no
+    backup. The readings join through the archive merge, as every fetch
+    does, and save through the archive save.
+
+    :param bucket: The bucket.
+    :param mac: The station's MAC address.
+    :param fetched: The readings Ambient sent, raw.
+    :return: The session, holding the archive as saved.
+    :raises ArchiveLockNotHeld: If this process does not hold the
+        archive-writer lock; nothing is read or written.
+    :raises StorageReadError: If the archive read failed; nothing is written.
+    :raises ArchiveExists: If an archive is stored for the station; nothing
+        is written.
+    :raises NoReadings: If `fetched` holds no valid reading; nothing is
+        written.
+    :raises StorageWriteError: If the save fails.
+    """
+    _require_lock()
+    key = f"{mac}.{HISTORY_FILE_TYPE}"
+    # Only `dateutc` is parsed: the read only has to end found, missing or
+    # failed, and a found archive is refused whatever it holds.
+    found = storj.read_df_from_s3(
+        bucket, key, file_type=HISTORY_FILE_TYPE, columns=["dateutc"]
+    )
+    if found is not None:
+        raise ArchiveExists(f"s3://{bucket}/{key} is stored; not creating it")
+    archive, report = archive_merge.merge(pd.DataFrame(), fetched)
+    logger.info(f"First archive merge: {report.describe()}")
+    if archive.empty:
+        raise NoReadings(f"no valid reading for {mac}; nothing to archive")
+    storj.save_archive(archive, bucket, mac, stored=pd.DataFrame())
+    logger.info(f"Archive created: {_describe(archive)}")
     return ArchiveSession(bucket, mac, archive)
 
 

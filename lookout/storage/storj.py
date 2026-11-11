@@ -68,6 +68,15 @@ class StorageReadError(RuntimeError):
     """A stored object could not be read, or read back as nothing usable."""
 
 
+class ArchiveMissing(StorageReadError):
+    """
+    No archive is stored for the station: the read ended missing, not failed.
+
+    Still a `StorageReadError`, so every archive writer aborts on it
+    (ADR-0004); only `stations add` catches it, to build a first archive.
+    """
+
+
 class StorageWriteError(RuntimeError):
     """A save to storage failed; the stored object is as it was."""
 
@@ -189,16 +198,16 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     :param bucket: The bucket.
     :param mac: The station's MAC address.
     :return: The normalized archive (ascending `dateutc`), at least one row.
-    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing,
-        unreadable, or has no valid rows: a run that saved after such a read
-        would overwrite the archive with nothing.
+    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing
+        (`ArchiveMissing`), unreadable, or has no valid rows: a run that
+        saved after such a read would overwrite the archive with nothing.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
     stored = read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE)
     if stored is None:
         # A missing archive is an error (ADR-0004): adding a station is a
         # human act, never inferred from an absent archive.
-        raise StorageReadError(f"s3://{bucket}/{key} is missing")
+        raise ArchiveMissing(f"s3://{bucket}/{key} is missing")
     archive = normalize(stored)
     if archive.empty:
         raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
