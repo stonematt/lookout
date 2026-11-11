@@ -26,6 +26,7 @@ cd web && npm run format:check && npm run lint && npm run build && npm test
 
 - **Test through the public entry points**: assert on what `build_snapshot`, the CLIs or the storage module return or write, not on internals. Fakes for Storj and Ambient (`tests/fixtures/`) are the boundary; don't patch Lookout's own functions.
   - *Sanctioned exception:* `tests/test_snapshot_rain_agreement.py::test_the_days_are_counted_once_per_build` patches `ArchiveCoverage.__init__` and `extract_daily_rainfall` to count calls. Spec #174's "counted once per build" leaves no trace in the snapshot output. A new exception needs the same reason, named here.
+  - *Sanctioned exception:* `tests/test_archive_store.py::TestMerge::test_a_merge_that_would_drop_a_stored_reading_raises` patches `archive_merge.merge` with a stand-in that drops a reading. The archive merge never drops one, so the archive store's loss check (spec #423, "a lossy merge raises") cannot be reached through its interface otherwise. The catchup tests' loss-check patches (`TestArchiveSafety`) predate this rule.
 - Name a test for the behaviour it pins, and cover the error paths as well as the success paths.
 
 ## Branches

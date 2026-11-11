@@ -18,8 +18,17 @@ For each window the repair:
    precision Ambient serves now, and checks the restored rows equal the
    backup exactly.
 
-A dry run is the default. `--write` takes the archive-writer lock first
-(#244) and exits 1, doing nothing, when another archive writer holds it.
+A reading the backup or Ambient holds more than once resolves as the
+archive merge resolves it (`dateutc.normalize`: the last copy wins), never
+by a rule of the repair's own (#431).
+
+A dry run is the default: it takes no lock, no backup, and writes nothing.
+`--write` takes the archive-writer lock first (#244) and exits 1, doing
+nothing, when another archive writer holds it. It saves through the archive
+store's `replace` (`lookout.storage.archive_store`), which takes the repair
+backup, saves, and reads the archive back raw and checks it, with this
+repair's own check that the restored rows equal the backup. The archive is
+raw throughout: rain corrections apply on read, never here (#95).
 
 Usage:
     python -m lookout.cli.repair_rain [--bucket lookout] [--station MAC] [--write]
@@ -36,14 +45,14 @@ import numpy as np
 import pandas as pd
 
 import lookout.api.awn_controller as awn
-from lookout.cli.diagnostics import add_station_arg, emit, load_station
+from lookout.api.ambient_client import get_station_device
+from lookout.cli.diagnostics import add_station_arg, emit
 from lookout.config import DEFAULT_BUCKET
 from lookout.core import archive_merge
-from lookout.storage import archive_readback, storj
-from lookout.storage.station_inventory import StationNotInInventory
-from lookout.storage.storj import backup_and_save_history, read_df_from_s3
+from lookout.storage import archive_readback, archive_store, storj
+from lookout.storage.station_inventory import StationNotInInventory, resolve_station
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
-from lookout.utils.dateutc import DEFAULT_TZ, INTERVAL_MS, from_local_date
+from lookout.utils.dateutc import DEFAULT_TZ, INTERVAL_MS, from_local_date, normalize
 
 # Station-local days, first and last inclusive: from each carryover day the
 # owner found damaged to the end of its year (owner check on #95).
@@ -53,6 +62,8 @@ DEFAULT_WINDOWS: List[Tuple[str, str]] = [
 ]
 # The newest backup with raw counters, kept out of `.backups/` rotation.
 REFERENCE_KEY = "backups/{mac}.raw-pre-95_20251222.parquet"
+# Why, for the archive store's repair backup folder and log.
+REPAIR_REASON = "rain-carryover"
 # Every rain counter: the four `apply_corrections` touches, plus the event
 # and hourly totals, so a restored row's rain columns all come from one place.
 RAIN_COLUMNS = (
@@ -96,9 +107,10 @@ could save the archive at the same time):
 
   3. The real run. Same checks; if any day refills short or a check fails,
      nothing is written. Otherwise it backs the live archive up to
-     .backups/<MAC>/<stamp>-repair/ (always, even when today's backup
-     exists; the run prints the key, the rollback point), saves the
-     repaired archive, then reads it back raw and checks it (#170):
+     .backups/<MAC>/<stamp>-repair-rain-carryover/ (always, even when
+     today's backup exists; the run logs the key, the rollback point),
+     saves the repaired archive, then reads it back raw and checks it
+     (#170), one logged line per check:
 
          PYTHONPATH=. python -m lookout.cli.repair_rain --write
 
@@ -219,13 +231,16 @@ def restore_from_reference(rows: pd.DataFrame, reference: pd.DataFrame) -> pd.Da
     Set the rain counters of `rows` from the reference, matched on `dateutc`.
 
     :param rows: Archive rows, every one held by the reference.
-    :param reference: The raw backup.
+    :param reference: The raw backup, normalized (`dateutc.normalize`): one
+        row per reading.
     :return: A copy of `rows`; its rain columns the reference also has are
         the reference's values, every other column as it was.
     """
     out = rows.copy()
     columns = [c for c in RAIN_COLUMNS if c in out and c in reference]
-    source = reference.drop_duplicates("dateutc", keep="last").set_index("dateutc")
+    if not columns:
+        return out
+    source = reference.set_index("dateutc")
     for col in columns:
         out[col] = out["dateutc"].map(source[col]).to_numpy()
     return out
@@ -280,8 +295,8 @@ def repair_window(
     page reached past it.
 
     :param device: The station's `/devices` entry.
-    :param archive: The archive, `dateutc` in epoch ms.
-    :param reference: The protected raw backup; may be empty.
+    :param archive: The archive, raw, `dateutc` in epoch ms.
+    :param reference: The protected raw backup, normalized; may be empty.
     :param first_day: The window's first station-local day.
     :param last_day: Its last day, inclusive.
     :param sleep: Wait a second per Ambient page.
@@ -319,16 +334,21 @@ def repair_window(
             sleep=sleep,
         )
         statuses.append(outcome.status)
-        filled = outcome.history_df
+        fetched = outcome.fetched
+        if fetched.empty:
+            continue
         parts.append(
-            filled[
-                (filled["dateutc"] >= span_start)
-                & (filled["dateutc"] < span_end)
-                & ~filled["dateutc"].isin(restored["dateutc"])
+            fetched[
+                (fetched["dateutc"] >= span_start)
+                & (fetched["dateutc"] < span_end)
+                & ~fetched["dateutc"].isin(restored["dateutc"])
             ]
         )
-    refilled = pd.concat(parts, ignore_index=True) if parts else window.iloc[0:0]
-    refilled = refilled.drop_duplicates("dateutc", keep="last")
+    # The spans are disjoint, so a repeat can only come from Ambient within
+    # one span; it resolves as the archive merge resolves it.
+    refilled = normalize(pd.concat(parts)) if parts else window.iloc[0:0]
+    if refilled.empty:
+        refilled = window.iloc[0:0]  # keep the columns `normalize` drops
     after = pd.concat([restored, refilled], ignore_index=True)
     repaired, swapped = archive_merge.replace(archive, start_ms, end_ms, after)
     return repaired, WindowRepair(
@@ -421,22 +441,24 @@ def verify_restored(
     """
     Check the restored rows of the repaired archive equal the backup exactly.
 
-    :param repaired: The repaired archive.
-    :param reference: The protected raw backup.
+    :param repaired: The repaired archive, in memory or read back raw.
+    :param reference: The protected raw backup, normalized
+        (`dateutc.normalize`): one row per reading.
     :param dateutcs: The restored rows' `dateutc`.
     :return: (rows checked, rows whose rain counters differ). A row the
-        repaired archive lost, or NaN on one side only, counts as differing.
+        repaired archive lost or holds more than once, or NaN on one side
+        only, counts as differing.
     """
     wanted = pd.Index(list(dateutcs))
     if wanted.empty:
         return 0, 0
     columns = [c for c in RAIN_COLUMNS if c in repaired and c in reference]
-    got = repaired.drop_duplicates("dateutc").set_index("dateutc")
-    want = reference.drop_duplicates("dateutc").set_index("dateutc")
-    got = got.reindex(wanted)[columns]
-    want = want.reindex(wanted)[columns]
+    # No copy of a repeated reading is picked over another: it differs.
+    once = repaired[~repaired["dateutc"].duplicated(keep=False)]
+    got = once.set_index("dateutc").reindex(wanted)[columns]
+    want = reference.set_index("dateutc").reindex(wanted)[columns]
     same = (got == want) | (got.isna() & want.isna())
-    lost = ~wanted.isin(repaired["dateutc"])
+    lost = ~wanted.isin(once["dateutc"])
     differ = ~same.all(axis=1).to_numpy() | lost
     return len(wanted), int(differ.sum())
 
@@ -588,7 +610,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         the saved archive fails a check (the archive is then saved; the
         failure lines name the rollback backup).
     :raises StorageReadError: If the archive or the raw reference read
-        failed; nothing is written then.
+        failed, or the archive is missing; nothing is written then.
+    :raises BackupError: With --write, if the repair backup failed;
+        nothing is saved.
+    :raises StorageWriteError: With --write, if the save failed.
     """
     args = parse_args(argv)
     # --write makes this an archive writer: it takes the lock before any
@@ -600,19 +625,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
     with lock:
         try:
-            device, archive = load_station(args.bucket, args.station)
+            device = get_station_device(resolve_station(args.bucket, args.station))
         except StationNotInInventory as e:
             emit(f"Refused: {e}; nothing done.")
             return 1
         mac = device["macAddress"]
+        # Opening reads only: a dry run opens the archive too, and never
+        # calls a verb that saves. Raw, as stored (#95).
+        session = archive_store.open(args.bucket, mac)
+        archive = session.archive
         reference_key = REFERENCE_KEY.format(mac=mac)
         # A failed read raises (ADR-0004): the repair never compares against a
         # reference it could not read.
-        reference = read_df_from_s3(args.bucket, reference_key, file_type="parquet")
+        reference = storj.read_df_from_s3(
+            args.bucket, reference_key, file_type="parquet"
+        )
         if reference is None:
             emit(f"Problem: the raw reference {reference_key} is missing or empty")
             emit("Nothing written: fix the problems above first.")
             return 1
+        # A repeated reading resolves as the archive merge resolves it (#431).
+        reference = normalize(reference)
 
         problems: List[str] = []
         if reference.empty:
@@ -636,66 +669,46 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             emit("Nothing written: fix the problems above first.")
             return 1
 
-        # An explicit repair: the save may drop or blank what it corrects (#190).
-        # It backs the live archive up first, to a folder of its own (#169).
-        backup_key = backup_and_save_history(
-            df=repaired,
-            device=device,
-            bucket=args.bucket,
-            stored=archive,
-            repair=True,
-        )
-        emit(f"Rollback point: s3://{args.bucket}/{backup_key}")
-        emit("Repaired archive saved.")
-        ok = read_back_ok(
-            args, mac, archive, repaired, reference, restored_ms, backup_key
-        )
-        return 0 if ok else 1
+        # An explicit repair through the archive store: it takes the repair
+        # backup, saves with the loss check lifted (#190), and reads the
+        # archive back raw, logging one line per check (#169, #170).
+        try:
+            session.replace(
+                repaired,
+                REPAIR_REASON,
+                windows=[window_bounds(first, last) for first, last in args.window],
+                checks=restored_check(reference, restored_ms),
+            )
+        except archive_readback.ReadbackFailed as e:
+            emit(f"Repaired archive saved, but its read-back failed: {e}")
+            return 1
+        emit("Repaired archive saved; every read-back check passed.")
+        return 0
 
 
-def read_back_ok(
-    args: argparse.Namespace,
-    mac: str,
-    before: pd.DataFrame,
-    repaired: pd.DataFrame,
-    reference: pd.DataFrame,
-    restored_ms: Sequence[int],
-    backup_key: Optional[str],
-) -> bool:
+def restored_check(
+    reference: pd.DataFrame, restored_ms: Sequence[int]
+) -> archive_store.ExtraChecks:
     """
-    Read the saved archive back raw and check it (#170), one line per check.
+    The repair's own check of the raw read-back, for `replace`.
 
-    Raw, never `load_station`: it sorts ascending and drops duplicates, so it
-    cannot see the stored order (`archive_readback`).
-
-    :param args: The parsed arguments.
-    :param mac: The station's MAC address.
-    :param before: The archive the repair loaded.
-    :param repaired: The archive the repair saved, in memory.
-    :param reference: The protected raw backup.
+    :param reference: The protected raw backup, normalized.
     :param restored_ms: The `dateutc` of every row restored from it.
-    :param backup_key: The rollback backup, named on any failure.
-    :return: True when every check passed.
+    :return: A check that the restored rows, as stored, equal the backup.
     """
-    try:
-        stored = archive_readback.read_back(args.bucket, mac)
-    except storj.StorageReadError as e:
-        emit(f"Read-back check FAILED: the saved archive is unreadable ({e})")
-        emit(f"Roll back from {backup_key}")
-        return False
-    bounds = [window_bounds(first, last) for first, last in args.window]
-    checks = archive_readback.check_readback(stored, before, len(repaired), bounds)
-    checked, differ = verify_restored(stored, reference, restored_ms)
-    checks.append(
-        archive_readback.Check(
-            "restored rows equal the raw reference",
-            differ == 0,
-            f"{checked} checked, {differ} differ",
-        )
-    )
-    for check in checks:
-        emit(check.line(backup_key))
-    return all(check.ok for check in checks)
+
+    def check(stored: pd.DataFrame) -> List[archive_readback.Check]:
+        """:param stored: The raw read-back. :return: The one check."""
+        checked, differ = verify_restored(stored, reference, restored_ms)
+        return [
+            archive_readback.Check(
+                "restored rows equal the raw reference",
+                differ == 0,
+                f"{checked} checked, {differ} differ",
+            )
+        ]
+
+    return check
 
 
 if __name__ == "__main__":

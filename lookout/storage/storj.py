@@ -14,11 +14,13 @@ Functions:
   missing returns None, failed (including a corrupt object) raises
   `StorageReadError`. `read_df_from_s3` and `read_json_from_s3` follow it;
   `backup_object` applies it to a copy, raising `BackupError` instead.
-  `load_archive` raises on missing too, since a missing archive is an
-  error, and so does `archive_newest_ms`, which reads only the archive's
-  `dateutc`. `get_df_from_s3` forgives a failed read (an empty frame) for
-  Streamlit. There is no separate existence check: callers read once and
-  act on the outcome. Saves that fail raise `StorageWriteError`
+  `load_archive` raises on missing too (`ArchiveMissing`, a
+  `StorageReadError` that `stations add` alone catches, to build a first
+  archive), since a missing archive is an error, and so does
+  `archive_newest_ms`, which reads only the archive's `dateutc`.
+  `get_df_from_s3` forgives a failed read (an empty frame) for Streamlit.
+  There is no separate existence check: callers read once and act on the
+  outcome. Saves that fail raise `StorageWriteError`
   (`ArchiveLossError` for an archive save that would drop a stored reading
   or blank a stored value), and a failed backup raises `BackupError`.
 - Convert pandas DataFrames to/from JSON or Parquet format for S3 storage.
@@ -29,6 +31,7 @@ Functions:
 import datetime
 import json
 import os
+import re
 from io import BytesIO
 from typing import List, Optional
 
@@ -46,6 +49,9 @@ logger = app_logger(__name__)
 
 # For logging with both console and file output
 backup_logger = app_logger("backup_logger", log_file="backup.log")
+
+# A repair reason, as it goes into the repair backup's folder name.
+REPAIR_REASON_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
 def get_s3_client():
@@ -66,6 +72,15 @@ def get_s3_client():
 
 class StorageReadError(RuntimeError):
     """A stored object could not be read, or read back as nothing usable."""
+
+
+class ArchiveMissing(StorageReadError):
+    """
+    No archive is stored for the station: the read ended missing, not failed.
+
+    Still a `StorageReadError`, so every archive writer aborts on it
+    (ADR-0004); only `stations add` catches it, to build a first archive.
+    """
 
 
 class StorageWriteError(RuntimeError):
@@ -182,23 +197,23 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     """
     Read a station's archive for a run that will save over it (#160).
 
-    Every archive writer loads through here. The archive comes back through
-    `dateutc.normalize`, which drops invalid and duplicate rows, and it is
-    what the writer hands `save_archive` as `stored`.
+    The archive store loads through here (`archive_store.open`) and passes
+    the result to `save_archive` as `stored`. The archive comes back through
+    `dateutc.normalize`, which drops invalid and duplicate rows.
 
     :param bucket: The bucket.
     :param mac: The station's MAC address.
     :return: The normalized archive (ascending `dateutc`), at least one row.
-    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing,
-        unreadable, or has no valid rows: a run that saved after such a read
-        would overwrite the archive with nothing.
+    :raises StorageReadError: If `<mac>.<HISTORY_FILE_TYPE>` is missing
+        (`ArchiveMissing`), unreadable, or has no valid rows: a run that
+        saved after such a read would overwrite the archive with nothing.
     """
     key = f"{mac}.{HISTORY_FILE_TYPE}"
     stored = read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE)
     if stored is None:
         # A missing archive is an error (ADR-0004): adding a station is a
         # human act, never inferred from an absent archive.
-        raise StorageReadError(f"s3://{bucket}/{key} is missing")
+        raise ArchiveMissing(f"s3://{bucket}/{key} is missing")
     archive = normalize(stored)
     if archive.empty:
         raise StorageReadError(f"s3://{bucket}/{key} has no rows with a valid dateutc")
@@ -374,8 +389,8 @@ def save_archive(
     caller that built `df` without the archive merge is guarded too: it is
     refused if any stored `dateutc` is absent from `df`, or any stored
     raw value is NaN in `df` (`archive_merge.loss`). Updated values and added
-    readings pass. Only an explicit repair (the rain repair and catchup's
-    `--repair-archive`) passes `repair=True`, which logs the loss and saves.
+    readings pass. Only the archive store's `replace` (a deliberate repair)
+    passes `repair=True`, which logs the loss and saves.
 
     :param df: The archive, any row order.
     :param bucket: The bucket.
@@ -585,105 +600,33 @@ def backup_and_save_catalog(
         raise StorageWriteError(f"Failed to save s3://{bucket}/{catalog_path}")
 
 
-def repair_backup_key(mac: str, now: Optional[datetime.datetime] = None) -> str:
+def repair_backup_key(
+    mac: str,
+    now: Optional[datetime.datetime] = None,
+    reason: Optional[str] = None,
+) -> str:
     """
     The key a repair save's backup of the archive goes to (#169).
 
-    A folder of its own, `.backups/<mac>/<YYYYMMDD>-<HHMMSS>-repair/`, so it
-    never shares a folder with the daily backup and never overwrites it.
+    A folder of its own,
+    `.backups/<mac>/<YYYYMMDD>-<HHMMSS>-repair-<reason>/` (the reason is
+    optional), so it never shares a folder with the daily backup and never
+    overwrites it. The folder starts with the stamp and `-repair`, and holds
+    `<mac>.<HISTORY_FILE_TYPE>`.
 
     :param mac: The station's MAC address.
     :param now: The moment to stamp it with; the current time when None.
+    :param reason: Why the archive is repaired: lowercase letters and digits
+        in hyphenated words, e.g. "rain-carryover". None for no suffix.
     :return: The backup's key.
+    :raises ValueError: If `reason` is not such a slug.
     """
     stamp = (now or datetime.datetime.now()).strftime("%Y%m%d-%H%M%S")
-    return f".backups/{mac}/{stamp}-repair/{mac}.{HISTORY_FILE_TYPE}"
-
-
-def backup_and_save_history(
-    df: pd.DataFrame,
-    device: dict,
-    bucket: str = "lookout",
-    *,
-    stored: pd.DataFrame,
-    repair: bool = False,
-) -> Optional[str]:
-    """
-    Back up the old archive and save the updated DataFrame to S3.
-
-    A routine save backs up once a day (`backup_archive`). A repair save
-    (#169) always copies the live archive, just before it saves, to a repair
-    backup folder of its own (`repair_backup_key`), even when today's backup
-    exists: that copy is the rollback point.
-
-    :param df: The archive to save.
-    :param device: The station's `/devices` entry.
-    :param bucket: The bucket.
-    :param stored: The archive as the caller read it; see `save_archive`.
-    :param repair: True only for an explicit repair; see `save_archive`.
-    :return: The repair backup's key when `repair`; None for a routine save.
-    :raises BackupError: If the backup fails or the archive to back up is
-        missing; nothing is saved then.
-    :raises ArchiveLossError: If `df` would drop a stored reading or blank a
-        stored value and `repair` is False.
-    :raises StorageWriteError: If the save fails.
-    """
-    mac = device["macAddress"]
-    backup_key = None
-
-    try:
-        if repair:
-            backup_key = backup_object(
-                bucket, f"{mac}.{HISTORY_FILE_TYPE}", repair_backup_key(mac)
+    folder = f"{stamp}-repair"
+    if reason is not None:
+        if not REPAIR_REASON_PATTERN.fullmatch(reason):
+            raise ValueError(
+                f"A repair reason is lowercase hyphenated words, not {reason!r}"
             )
-            if backup_key is None:
-                raise BackupError(
-                    f"No archive s3://{bucket}/{mac}.{HISTORY_FILE_TYPE} to back up"
-                )
-        else:
-            backup_archive(bucket=bucket, mac=mac)
-    except BackupError as e:
-        logger.error(f"Backup failed for {mac}; not saving: {e}")
-        raise
-
-    save_archive(df, bucket, mac, stored=stored, repair=repair)
-    return backup_key
-
-
-# Example usage
-def main() -> None:
-    """
-    Main function to execute various tests.
-    """
-    bucket_name = "lookout"
-    device_id = "98:CD:AC:22:0D:E5"
-
-    # List bucket contents
-    bucket_items = list_bucket_items(bucket_name, depth=3)
-    print(f"Items in bucket: {len(bucket_items)}")
-
-    # Perform dry run backup for the device
-    backup_archive(bucket=bucket_name, mac=device_id)
-
-    # Test saving a dummy DataFrame to S3
-    test_df = pd.DataFrame(
-        {
-            "sensor": ["temp", "humid"],
-            "value": [72.5, 38.2],
-            "timestamp": [pd.Timestamp.now(), pd.Timestamp.now()],
-        }
-    )
-    test_key = f"{device_id}/test_upload.parquet"
-    save_df_to_s3(test_df, bucket_name, test_key)
-
-    # Clean up test file
-    try:
-        s3 = get_s3_client()
-        s3.delete_object(Bucket=bucket_name, Key=test_key)
-        logger.info(f"Deleted test upload: s3://{bucket_name}/{test_key}")
-    except Exception as e:
-        logger.warning(f"Failed to delete test upload: {e}")
-
-
-if __name__ == "__main__":
-    main()
+        folder += f"-{reason}"
+    return f".backups/{mac}/{folder}/{mac}.{HISTORY_FILE_TYPE}"

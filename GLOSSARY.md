@@ -173,14 +173,32 @@ values **filled** (stored had none) and values **updated** (Ambient's
 differs). A deliberate correction is a **replace**, never a merge.
 _Avoid_: combine, overwrite, "fetched wins".
 
+### archive store
+
+The one module that saves a station's archive
+(`lookout.storage.archive_store`). An archive writer opens the archive
+through it and names the change: a **merge** of fetched readings, or a
+**replace** for a repair. A merge that changes nothing writes nothing and
+takes no backup; one that changes something takes the day's backup, then
+saves, refusing to drop a stored reading or blank a stored value. A
+replace names its reason, takes a repair backup every time, saves even
+what drops or blanks, then reads the archive back raw and checks it. It
+refuses to save unless this process
+holds the archive-writer lock. It is a module, not a command: the command
+is the archive writer.
+A station's first archive is a **create** (`stations add`): it refuses when
+an archive is found, raises when the read failed, and takes no backup.
+_Avoid_: archive writer (the command), storage layer, saver.
+
 ### archive writer
 
 A command that saves the archive or a catalog (the Event Catalog or the
 energy catalog), of which at most one runs on a host at a time. The refresh
 run, catchup, `diagnostics fill-gap`, `diagnostics energy-catalog --save`,
-`diagnostics event-catalog --save` and `repair_rain --write` are archive
-writers; each takes the per-host archive-writer lock
-(`lookout.utils.archive_lock`) before it does any work. A read-only command,
+`diagnostics event-catalog --save`, `repair_rain --write` and
+`stations add` are archive writers; each takes the per-host archive-writer lock
+(`lookout.utils.archive_lock`) before it does any work, and an archive
+writer saves the archive through the **archive store**. A read-only command,
 or a writer run without its save flag, is not one and takes no lock.
 _Avoid_: saver, cron job (the refresh run is one writer among several).
 

@@ -10,6 +10,7 @@ misled the #95 check. The save guard (#190) does not cover a repair save
 either, since a repair may drop or blank readings on purpose.
 
 Functions:
+- `ReadbackFailed`: a repair whose read-back failed a check.
 - `Check`: one check's verdict and report line.
 - `read_back`: the stored archive, raw.
 - `content_hash`, `outside`: the outside-the-windows comparison.
@@ -23,6 +24,10 @@ import pandas as pd
 
 from lookout.core import archive_merge
 from lookout.storage import storj
+
+
+class ReadbackFailed(RuntimeError):
+    """A repair saved, and the read-back of the saved archive failed a check."""
 
 
 @dataclass
