@@ -16,7 +16,10 @@
 const BASE_URL = "https://lookout.stonecover.com";
 const REFRESH_MINUTES = 5;
 
+// The views in the order `lookout/snapshot/widget.py` checks its rules, so
+// All stations ranks stations the way Python ranks views.
 const VIEW_RANK = { rain_event: 0, dry_spell: 1, temperature_ranges: 2 };
+const DEFAULT_VIEW = "temperature_ranges";
 const RANGE_ROWS = [
   ["today", "Today"],
   ["7d", "7 days"],
@@ -75,8 +78,24 @@ function matchStation(stations, parameter) {
  * @returns The leading entry.
  */
 function leadingStation(entries) {
-  const rank = (e) => VIEW_RANK[e.view] ?? VIEW_RANK.temperature_ranges;
+  const rank = (e) => VIEW_RANK[e.view] ?? VIEW_RANK[DEFAULT_VIEW];
   return entries.reduce((best, e) => (rank(e) < rank(best) ? e : best));
+}
+
+/**
+ * The leading dashboard among those that loaded, for All stations.
+ *
+ * @param results - `Promise.allSettled` results, one per station in index
+ *   order, each fulfilled with a `/dashboard` document.
+ * @returns The leading station's dashboard.
+ * @throws When no station's dashboard loaded.
+ */
+function leadingDashboard(results) {
+  const docs = results
+    .filter((r) => r.status === "fulfilled")
+    .map((r) => r.value);
+  if (docs.length === 0) throw new Error("no station's dashboard loaded");
+  return leadingStation(docs.map((doc) => ({ doc, view: viewOf(doc) }))).doc;
 }
 
 /** Minutes as the site's exact short form: "45 m", "5 h 34 m", "1 d 1 h". */
@@ -99,7 +118,7 @@ function dayCount(value) {
 function viewOf(dashboard) {
   return dashboard.widget_view in VIEW_RANK
     ? dashboard.widget_view
-    : "temperature_ranges";
+    : DEFAULT_VIEW;
 }
 
 function temperatureModel(dashboard) {
@@ -472,14 +491,12 @@ async function main() {
     let dashboard;
     if (choice.error) widget = messageWidget(choice.error);
     else if (choice.all) {
-      const docs = await Promise.all(
+      const results = await Promise.allSettled(
         index.stations.map((s) =>
           getJSON(`/dashboard?station=${encodeURIComponent(s.mac)}`),
         ),
       );
-      dashboard = leadingStation(
-        docs.map((doc) => ({ doc, view: viewOf(doc) })),
-      ).doc;
+      dashboard = leadingDashboard(results);
     } else {
       dashboard = await getJSON(
         `/dashboard?station=${encodeURIComponent(choice.station.mac)}`,
@@ -504,6 +521,7 @@ if (typeof Script === "undefined") {
   module.exports = {
     matchStation,
     leadingStation,
+    leadingDashboard,
     widgetModel,
     formatDuration,
   };

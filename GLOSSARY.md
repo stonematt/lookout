@@ -124,7 +124,7 @@ _Avoid_: cache, export, payload.
 ### context block
 
 The small part of the snapshot that `/current` serves next to Ambient's live
-`lastData`: the station, the build and observation times, current conditions
+`lastData`: the station, the build and observation times, current conditions,
 the active rain event and the widget view (`CONTEXT_FIELDS`). Published as
 `snapshot/<MAC>.context.json`, so a live reading always arrives with the
 context it is read against.

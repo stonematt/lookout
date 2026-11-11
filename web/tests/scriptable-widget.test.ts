@@ -38,6 +38,7 @@ interface Widget {
     parameter: string | null,
   ): { all: true } | { station: Station } | { error: string };
   leadingStation<T extends { view: string }>(entries: T[]): T;
+  leadingDashboard(results: PromiseSettledResult<unknown>[]): unknown;
   widgetModel(dashboard: unknown): Model;
   formatDuration(minutes: number): string;
 }
@@ -93,6 +94,27 @@ describe("leadingStation", () => {
       { mac: "b", view: "dry_spell" },
     ];
     expect(widget.leadingStation(entries).mac).toBe("a");
+  });
+});
+
+describe("leadingDashboard", () => {
+  it("leads with a station that loaded when another station's fetch failed", () => {
+    const raining = dashboard("raining");
+    const results: PromiseSettledResult<unknown>[] = [
+      { status: "rejected", reason: new Error("timeout") },
+      { status: "fulfilled", value: dashboard("dry") },
+      { status: "fulfilled", value: raining },
+    ];
+
+    expect(widget.leadingDashboard(results)).toBe(raining);
+  });
+
+  it("fails only when no station loaded", () => {
+    const results: PromiseSettledResult<unknown>[] = [
+      { status: "rejected", reason: new Error("timeout") },
+    ];
+
+    expect(() => widget.leadingDashboard(results)).toThrow();
   });
 });
 
