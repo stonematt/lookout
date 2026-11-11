@@ -608,11 +608,11 @@ def repair_backup_key(
     """
     The key a repair save's backup of the archive goes to (#169).
 
-    A folder of its own, `.backups/<mac>/<YYYYMMDD>-<HHMMSS>-repair/`, so it
-    never shares a folder with the daily backup and never overwrites it. A
-    reason (#430) is a suffix inside the folder name,
-    `<YYYYMMDD>-<HHMMSS>-repair-<reason>/`: the folder still starts with the
-    stamp and `-repair`, and still holds `<mac>.<HISTORY_FILE_TYPE>`.
+    A folder of its own,
+    `.backups/<mac>/<YYYYMMDD>-<HHMMSS>-repair-<reason>/` (the reason is
+    optional), so it never shares a folder with the daily backup and never
+    overwrites it. The folder starts with the stamp and `-repair`, and holds
+    `<mac>.<HISTORY_FILE_TYPE>`.
 
     :param mac: The station's MAC address.
     :param now: The moment to stamp it with; the current time when None.
@@ -630,92 +630,3 @@ def repair_backup_key(
             )
         folder += f"-{reason}"
     return f".backups/{mac}/{folder}/{mac}.{HISTORY_FILE_TYPE}"
-
-
-def backup_and_save_history(
-    df: pd.DataFrame,
-    device: dict,
-    bucket: str = "lookout",
-    *,
-    stored: pd.DataFrame,
-    repair: bool = False,
-) -> Optional[str]:
-    """
-    Back up the old archive and save the updated DataFrame to S3.
-
-    A routine save backs up once a day (`backup_archive`). A repair save
-    (#169) always copies the live archive, just before it saves, to a repair
-    backup folder of its own (`repair_backup_key`), even when today's backup
-    exists: that copy is the rollback point.
-
-    :param df: The archive to save.
-    :param device: The station's `/devices` entry.
-    :param bucket: The bucket.
-    :param stored: The archive as the caller read it; see `save_archive`.
-    :param repair: True only for an explicit repair; see `save_archive`.
-    :return: The repair backup's key when `repair`; None for a routine save.
-    :raises BackupError: If the backup fails or the archive to back up is
-        missing; nothing is saved then.
-    :raises ArchiveLossError: If `df` would drop a stored reading or blank a
-        stored value and `repair` is False.
-    :raises StorageWriteError: If the save fails.
-    """
-    mac = device["macAddress"]
-    backup_key = None
-
-    try:
-        if repair:
-            backup_key = backup_object(
-                bucket, f"{mac}.{HISTORY_FILE_TYPE}", repair_backup_key(mac)
-            )
-            if backup_key is None:
-                raise BackupError(
-                    f"No archive s3://{bucket}/{mac}.{HISTORY_FILE_TYPE} to back up"
-                )
-        else:
-            backup_archive(bucket=bucket, mac=mac)
-    except BackupError as e:
-        logger.error(f"Backup failed for {mac}; not saving: {e}")
-        raise
-
-    save_archive(df, bucket, mac, stored=stored, repair=repair)
-    return backup_key
-
-
-# Example usage
-def main() -> None:
-    """
-    Main function to execute various tests.
-    """
-    bucket_name = "lookout"
-    device_id = "98:CD:AC:22:0D:E5"
-
-    # List bucket contents
-    bucket_items = list_bucket_items(bucket_name, depth=3)
-    print(f"Items in bucket: {len(bucket_items)}")
-
-    # Perform dry run backup for the device
-    backup_archive(bucket=bucket_name, mac=device_id)
-
-    # Test saving a dummy DataFrame to S3
-    test_df = pd.DataFrame(
-        {
-            "sensor": ["temp", "humid"],
-            "value": [72.5, 38.2],
-            "timestamp": [pd.Timestamp.now(), pd.Timestamp.now()],
-        }
-    )
-    test_key = f"{device_id}/test_upload.parquet"
-    save_df_to_s3(test_df, bucket_name, test_key)
-
-    # Clean up test file
-    try:
-        s3 = get_s3_client()
-        s3.delete_object(Bucket=bucket_name, Key=test_key)
-        logger.info(f"Deleted test upload: s3://{bucket_name}/{test_key}")
-    except Exception as e:
-        logger.warning(f"Failed to delete test upload: {e}")
-
-
-if __name__ == "__main__":
-    main()
