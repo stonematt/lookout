@@ -581,6 +581,18 @@ class TestRepairArchiveBackup:
             f"{REPAIR_BACKUP_KEY}" in lines
         )
 
+    def test_a_repair_reports_its_rollback_key_beside_its_success(
+        self, catchup_station, caplog
+    ):
+        catchup_station()
+
+        lines = self.repair(caplog)
+
+        saved = lines.index("Repaired archive saved.")
+        assert lines[saved + 1] == (
+            f"Rollback point: s3://{BUCKET}/{REPAIR_BACKUP_KEY}"
+        )
+
     def test_a_failed_repair_backup_fails_the_run_and_leaves_the_archive(
         self, catchup_station, monkeypatch, caplog
     ):
@@ -605,6 +617,8 @@ class TestRepairArchiveBackup:
         assert station.keys() == keys
         assert stored_bytes(station) == before
         assert not [line for line in lines if "Read-back" in line]
+        assert not [line for line in lines if "Rollback point" in line]
+        assert not [line for line in lines if "rollback point" in line]
 
     def test_a_repair_reads_the_archive_back_and_reports_each_check(
         self, catchup_station, caplog

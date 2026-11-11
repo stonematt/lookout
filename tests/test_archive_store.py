@@ -249,9 +249,23 @@ class TestReplace:
     def test_a_replace_returns_the_merge_report(self, stored, locked):
         session = archive_store.open(BUCKET, FAKE_MAC)
 
-        report = session.replace(replaced(session.archive), "normalize")
+        report = session.replace(replaced(session.archive), "normalize").report
 
         assert (report.added, report.filled, report.updated) == (0, 0, 1)
+
+    def test_a_replace_gives_back_the_repair_backup_it_wrote(
+        self, stored, fake_s3, locked
+    ):
+        before = stored_bytes(fake_s3)
+        session = archive_store.open(BUCKET, FAKE_MAC)
+
+        replacement = session.replace(replaced(session.archive), "normalize")
+
+        assert replacement.rollback_key == repair_backup_key("normalize")
+        assert replacement.rollback_uri == (
+            f"s3://{BUCKET}/{repair_backup_key('normalize')}"
+        )
+        assert stored_bytes(fake_s3, replacement.rollback_key) == before
 
     def test_the_reason_is_in_the_log(self, stored, locked, caplog):
         session = archive_store.open(BUCKET, FAKE_MAC)

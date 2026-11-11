@@ -8,7 +8,8 @@ and offline testing. Also supports archive repair (schema normalization) with
 columns stored (#191). A repair that writes saves through the archive
 store's replace (#430), which backs the archive up to a repair backup of its
 own right before it saves, every time, and reads the saved archive back raw;
-a dry run does neither. A run that writes takes the archive-writer lock
+on success it logs that backup's s3:// key, the rollback point (#451). A dry
+run does none of this. A run that writes takes the archive-writer lock
 first (#244); `--dry-run` alone takes none.
 
 Usage:
@@ -227,8 +228,9 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
         # (#190). The archive store backs the live archive up to a repair
         # backup first, every time, then reads the saved archive back raw
         # (#430). It rewrites the whole archive, so it names no windows.
-        session.replace(fixed, REPAIR_REASON)
+        replacement = session.replace(fixed, REPAIR_REASON)
         logger.info("Repaired archive saved.")
+        logger.info(f"Rollback point: {replacement.rollback_uri}")
 
 
 if __name__ == "__main__":

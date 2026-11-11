@@ -631,6 +631,31 @@ def test_a_repair_backs_up_even_when_todays_backup_exists(
     assert f"rollback point s3://{BUCKET}/{REPAIR_KEY}" in caplog.text
 
 
+def test_a_write_prints_the_rollback_key_beside_its_success(
+    seed, truth, capsys, frozen_today
+):
+    seed(truth)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 0, out
+    lines = out.splitlines()
+    saved = lines.index("Repaired archive saved; every read-back check passed.")
+    assert lines[saved + 1] == f"Rollback point: s3://{BUCKET}/{REPAIR_KEY}"
+
+
+def test_a_dry_run_prints_no_rollback_key(seed, truth, capsys, frozen_today):
+    station = seed(truth)
+    keys = station.keys()
+
+    status, out = run([], capsys)
+
+    assert status == 0, out
+    assert "Rollback point" not in out
+    assert ".backups/" not in out
+    assert station.keys() == keys
+
+
 def test_a_failed_repair_backup_saves_nothing(
     seed, truth, capsys, monkeypatch, frozen_today
 ):
