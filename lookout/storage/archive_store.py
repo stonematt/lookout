@@ -94,7 +94,7 @@ class Replacement:
 
         :return: The rollback point's URI.
         """
-        return f"s3://{self.bucket}/{self.rollback_key}"
+        return _uri(self.bucket, self.rollback_key)
 
 
 class ArchiveSession:
@@ -212,7 +212,7 @@ class ArchiveSession:
             )
         logger.info(
             f"Archive replace ({reason}): rollback point "
-            f"s3://{self.bucket}/{rollback_key}"
+            f"{_uri(self.bucket, rollback_key)}"
         )
         opened = self._archive
         report = archive_merge.merge(opened, df).report
@@ -265,8 +265,19 @@ class ArchiveSession:
         if not all(check.ok for check in results):
             raise archive_readback.ReadbackFailed(
                 f"The replaced archive failed its read-back; roll back from "
-                f"s3://{self.bucket}/{rollback_key}"
+                f"{_uri(self.bucket, rollback_key)}"
             )
+
+
+def _uri(bucket: str, key: str) -> str:
+    """
+    An object's `s3://<bucket>/<key>`, as the run's output names it.
+
+    :param bucket: The bucket.
+    :param key: The object's key.
+    :return: The URI.
+    """
+    return f"s3://{bucket}/{key}"
 
 
 def open(bucket: str, mac: str) -> ArchiveSession:

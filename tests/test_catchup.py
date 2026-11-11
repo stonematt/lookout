@@ -617,8 +617,8 @@ class TestRepairArchiveBackup:
         assert station.keys() == keys
         assert stored_bytes(station) == before
         assert not [line for line in lines if "Read-back" in line]
-        assert not [line for line in lines if "Rollback point" in line]
-        assert not [line for line in lines if "rollback point" in line]
+        # Neither the run's own rollback line nor the store's backup log line.
+        assert not [line for line in lines if "rollback point" in line.lower()]
 
     def test_a_repair_reads_the_archive_back_and_reports_each_check(
         self, catchup_station, caplog

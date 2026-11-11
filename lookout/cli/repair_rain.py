@@ -27,7 +27,8 @@ A dry run is the default: it takes no lock, no backup, and writes nothing.
 nothing, when another archive writer holds it. It saves through the archive
 store's `replace` (`lookout.storage.archive_store`), which takes the repair
 backup, saves, and reads the archive back raw and checks it, with this
-repair's own check that the restored rows equal the backup. The archive is
+repair's own check that the restored rows equal the backup; on success the
+run prints the repair backup's key, the rollback point (#451). The archive is
 raw throughout: rain corrections apply on read, never here (#95).
 
 Usage:
