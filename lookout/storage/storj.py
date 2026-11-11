@@ -51,7 +51,7 @@ logger = app_logger(__name__)
 backup_logger = app_logger("backup_logger", log_file="backup.log")
 
 # A repair reason, as it goes into the repair backup's folder name.
-REPAIR_REASON = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+REPAIR_REASON_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
 def get_s3_client():
@@ -624,7 +624,7 @@ def repair_backup_key(
     stamp = (now or datetime.datetime.now()).strftime("%Y%m%d-%H%M%S")
     folder = f"{stamp}-repair"
     if reason is not None:
-        if not REPAIR_REASON.fullmatch(reason):
+        if not REPAIR_REASON_PATTERN.fullmatch(reason):
             raise ValueError(
                 f"A repair reason is lowercase hyphenated words, not {reason!r}"
             )
