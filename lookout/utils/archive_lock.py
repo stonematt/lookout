@@ -16,6 +16,8 @@ Functions:
     hold_archive_lock: Take the lock now, or raise `ArchiveLockHeld`.
     writer_lock: The lock for a writer that saves, a no-op for one that
         does not.
+    held_by_this_process: Whether this process holds the lock now; the
+        archive store refuses to save without it (`ArchiveLockNotHeld`).
 """
 
 import contextlib
@@ -27,6 +29,9 @@ from typing import ContextManager, Optional, Type, Union
 
 LOCK_FILE_ENV = "LOOKOUT_LOCK_FILE"
 DEFAULT_LOCK_FILE = Path(".local") / "state" / "lookout" / "archive-writer.lock"
+# The lock this process holds, if any: a second take in the same process
+# fails on the `flock` like any other writer's, so there is at most one.
+_held: Optional["ArchiveLock"] = None
 
 
 class ArchiveLockHeld(Exception):
@@ -38,6 +43,21 @@ class ArchiveLockHeld(Exception):
 
     def __init__(self, path: Path) -> None:
         super().__init__(f"Another archive writer holds the lock {path}")
+        self.path = path
+
+
+class ArchiveLockNotHeld(RuntimeError):
+    """
+    A save was asked of a process that does not hold the archive-writer lock.
+
+    :param path: The lock file it should hold.
+    """
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(
+            f"Refusing to save: this process does not hold the archive-writer "
+            f"lock {path}; an archive writer takes it at its entry point"
+        )
         self.path = path
 
 
@@ -55,8 +75,11 @@ class ArchiveLock:
 
     def release(self) -> None:
         """Release the lock; a second call does nothing."""
+        global _held
         if self._fd is None:
             return
+        if _held is self:
+            _held = None
         fcntl.flock(self._fd, fcntl.LOCK_UN)
         os.close(self._fd)
         self._fd = None
@@ -112,7 +135,21 @@ def hold_archive_lock() -> ArchiveLock:
     except BlockingIOError:
         os.close(fd)
         raise ArchiveLockHeld(path) from None
-    return ArchiveLock(path, fd)
+    global _held
+    _held = ArchiveLock(path, fd)
+    return _held
+
+
+def held_by_this_process() -> bool:
+    """
+    Whether this process holds the archive-writer lock, at its current path.
+
+    A lock taken on another path (a changed `LOOKOUT_LOCK_FILE`) does not
+    count, nor does one already released.
+
+    :return: True while a lock this process took is held.
+    """
+    return _held is not None and _held.path == lock_file()
 
 
 def writer_lock(

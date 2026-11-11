@@ -26,5 +26,6 @@
     "temp_trend": "steady",
     "barometer_trend": "steady"
   },
-  "active_rain_event": null
+  "active_rain_event": null,
+  "widget_view": "temperature_ranges"
 }

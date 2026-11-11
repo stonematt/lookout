@@ -1,7 +1,8 @@
 """
 memory_harness.py: The refresh run's memory, step by step, measured offline.
 
-Runs the refresh run's steps (`lookout.cli.refresh`) against a local archive
+Runs the refresh run's steps (the functions of `lookout.cli.refresh`, and
+the archive store for the archive merge) against a local archive
 parquet, with Storj and Ambient faked at the boundary, and prints the peak
 RSS and the tracemalloc peak of each step (#281, spec #234). The memory
 levers of #234 take their before and after numbers from it.
@@ -87,7 +88,7 @@ FAKE_ENV = {
 STEPS = (
     "load_stations",
     "fetch_delta",
-    "update_archive",
+    "merge_archive",
     "correct_rain",
     "load_catalogs",
     "update_catalogs",
@@ -242,6 +243,8 @@ def _run_steps(config: Dict[str, Any]) -> HarnessReport:
     # The refresh logger opens refresh.log in the working directory.
     os.chdir(workdir)
     os.environ.update(FAKE_ENV)
+    # The steps hold an archive-writer lock of their own, never the host's.
+    os.environ["LOOKOUT_LOCK_FILE"] = str(workdir / "archive-writer.lock")
     attempts = _block_internet()
 
     from lookout import secrets_loader
@@ -450,8 +453,11 @@ def _measured_run(
     The refresh run's steps, in `refresh.run`'s order, each one measured.
 
     Each step is called through its public function in
-    `lookout.cli.refresh`; the build time is a minute after the newest
-    reading, as a cron run builds it, and the fetch's now is pinned to it.
+    `lookout.cli.refresh`, except `merge_archive`, which opens and merges
+    through the archive store as `refresh_station` does, under the
+    archive-writer lock (a file in the harness's temp dir); the build time
+    is a minute after the newest reading, as a cron run builds it, and the
+    fetch's now is pinned to it.
 
     :param device: The `/devices` entry the fake Ambient serves.
     :param newest_ms: The newest reading's `dateutc`.
@@ -461,6 +467,8 @@ def _measured_run(
     from lookout.api import awn_controller
     from lookout.cli import refresh
     from lookout.snapshot import Station
+    from lookout.storage import archive_store
+    from lookout.utils.archive_lock import hold_archive_lock
 
     bucket = HARNESS_BUCKET
     pages = config["pages"] or refresh.DEFAULT_PAGES
@@ -478,6 +486,14 @@ def _measured_run(
         steps.append(record)
         return result
 
+    def merge_archive() -> Any:
+        """The refresh run's archive step. :return: The archive, merged."""
+        session = archive_store.open(bucket, device["macAddress"])
+        session.merge(fetched)
+        return session.archive
+
+    # Held for the whole run, as `refresh.main` holds it.
+    lock = hold_archive_lock()
     if config["trace"]:
         tracemalloc.start()
     try:
@@ -487,9 +503,7 @@ def _measured_run(
         fetched, _newest = step(
             "fetch_delta", lambda: refresh.fetch_delta(device, bucket, pages)
         )
-        archive = step(
-            "update_archive", lambda: refresh.update_archive(device, bucket, fetched)
-        )
+        archive = step("merge_archive", merge_archive)
         archive, live = step(
             "correct_rain",
             lambda: refresh.correct_rain(
@@ -512,6 +526,7 @@ def _measured_run(
     finally:
         if config["trace"]:
             tracemalloc.stop()
+        lock.release()
     return steps
 
 

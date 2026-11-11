@@ -5,8 +5,12 @@ This module pulls data since the last known timestamp in the archive and updates
 S3 storage with any newly retrieved data. Supports a dry-run mode for simulation
 and offline testing. Also supports archive repair (schema normalization) with
 --repair-archive and optional --dry-run; the repair also strips the derived
-columns stored (#191). A run that writes takes the
-archive-writer lock first (#244); `--dry-run` alone takes none.
+columns stored (#191). A repair that writes saves through the archive
+store's replace (#430), which backs the archive up to a repair backup of its
+own right before it saves, every time, and reads the saved archive back raw;
+on success it logs that backup's s3:// key, the rollback point (#451). A dry
+run does none of this. A run that writes takes the archive-writer lock
+first (#244); `--dry-run` alone takes none.
 
 Usage:
     python catchup.py --bucket lookout [--dry-run] [--pages 20] [--repair-archive]
@@ -19,9 +23,9 @@ from typing import Dict, Tuple
 import pandas as pd
 
 import lookout.api.awn_controller as awn
-import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
 from lookout.core import archive_merge
+from lookout.storage import archive_store
 from lookout.storage.station_inventory import resolve_station
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import normalize
@@ -29,6 +33,9 @@ from lookout.utils.log_util import app_logger
 from lookout.utils.memory_utils import log_peak_rss
 
 logger = app_logger(__name__, log_file="catchup.log")
+
+# The reason a `--repair-archive` replace names, in its repair backup's key.
+REPAIR_REASON = "normalize"
 
 
 # ---------- archive utilities ----------
@@ -97,51 +104,38 @@ def _log_archive_range(df: pd.DataFrame, label: str) -> None:
         lo = pd.to_datetime(lo_ms, unit="ms", utc=True)
         hi = pd.to_datetime(hi_ms, unit="ms", utc=True)
 
-    logger.info(
-        f"{label}: Range: ({lo.strftime('%y-%m-%d %H:%M')}) - ({hi.strftime('%y-%m-%d %H:%M')})"
-    )
+    span = f"({lo.strftime('%y-%m-%d %H:%M')}) - ({hi.strftime('%y-%m-%d %H:%M')})"
+    logger.info(f"{label}: Range: {span}")
 
 
 # ---------- main flow ----------
 
 
-def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
+def update_archive(device: Dict, bucket_name: str, pages: int) -> None:
     """
-    One catchup: back up the archive, merge in what Ambient has since, save.
+    One catchup: open the archive, fetch what Ambient has since, merge it in.
 
-    Fetched readings join the archive through the archive merge: new
-    readings are added, and for the readings re-fetched, Ambient's value wins
-    for each value it sends while values it omits keep their stored value.
-    The merge report (added, filled, updated, one-sided columns) is logged.
-
-    The catchup CLI runs this. The refresh run does the same work in two
-    phases, so all its Ambient calls come before any station's archive is
-    loaded (#271): `fetch_delta` first, then `save_fetched`. Every failure
-    raises, so the run exits non-zero (#160): a failed backup before
-    anything is read, a failed or empty archive read before anything is
-    saved, a save that would drop a stored reading or blank a stored value,
-    and a failed save.
+    The merge goes through the archive store (`archive_store`), which takes
+    the daily backup and saves only when the merge changed something (#242),
+    and refuses a save that would drop a stored reading or blank a stored
+    value. The refresh run does the same in two phases, so all its Ambient
+    calls come before any station's archive is loaded (#271): `fetch_delta`
+    first, then the archive store's merge. Every failure raises, so the run
+    exits non-zero (#160).
 
     :param device: The station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
     :param pages: Maximum number of pages to retrieve.
-    :return: The archive as stored after the run. When the merge changed
-        nothing the save is skipped (#242); the content is the archive as read.
-    :raises BackupError: If the backup fails.
     :raises StorageReadError: If the archive cannot be read or holds no rows.
     :raises CatchupStalled: If Ambient holds readings past a gap the run
         could not cross.
+    :raises BackupError: If the backup before a save fails.
     :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
         would drop a stored reading or blank a stored value.
     """
-    # Always back up before mutating the current archive
-    sj.backup_archive(bucket=bucket_name, mac=device["macAddress"])
-
-    archive_df = _load_archive(device, bucket_name)
-    log_peak_rss("archive_load", logger)
-
-    fetched = fetch_delta(device, int(archive_df["dateutc"].iloc[-1]), pages)
-    return _merge_and_save(device, bucket_name, archive_df, fetched)
+    session = archive_store.open(bucket_name, device["macAddress"])
+    fetched = fetch_delta(device, int(session.archive["dateutc"].max()), pages)
+    session.merge(fetched)
 
 
 def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
@@ -161,92 +155,6 @@ def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
     return fetched
 
 
-def save_fetched(device: Dict, bucket_name: str, fetched: pd.DataFrame) -> pd.DataFrame:
-    """
-    Back up the archive, merge in readings already fetched, save.
-
-    The refresh run's archive step (#271): `fetch_delta` ran earlier, in the
-    run's Ambient phase. Every failure raises, as `update_archive`'s do.
-
-    :param device: The station's `/devices` entry.
-    :param bucket_name: S3 bucket to read/write data.
-    :param fetched: What `fetch_delta` returned for this station.
-    :return: The archive as stored after the run (the archive as read when
-        the merge changed nothing and the save was skipped, #242).
-    :raises BackupError: If the backup fails.
-    :raises StorageReadError: If the archive cannot be read or holds no rows.
-    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
-        would drop a stored reading or blank a stored value.
-    """
-    sj.backup_archive(bucket=bucket_name, mac=device["macAddress"])
-
-    archive_df = _load_archive(device, bucket_name)
-    log_peak_rss("archive_load", logger)
-
-    return _merge_and_save(device, bucket_name, archive_df, fetched)
-
-
-def _merge_and_save(
-    device: Dict, bucket_name: str, archive_df: pd.DataFrame, fetched: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Merge fetched readings into the loaded archive and save it when changed.
-
-    :param device: The station's `/devices` entry.
-    :param bucket_name: S3 bucket to write to.
-    :param archive_df: The archive as loaded; the save's `stored` guard.
-    :param fetched: The fetched readings, raw.
-    :return: The merged archive.
-    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
-        would drop a stored reading or blank a stored value.
-    """
-    # Ambient wins for each value it sends; the routine re-fetch of the last
-    # readings shows up as updated values, never as a failure.
-    new_archive_df, report = archive_merge.merge(archive_df, fetched)
-    logger.info(f"Archive merge: {report.describe()}")
-    _log_archive_range(new_archive_df, "Updated archive")
-    logger.info(f"Total records after update: {len(new_archive_df)}")
-    log_peak_rss("archive_merge", logger)
-
-    if not report.changed:
-        # Nothing to write: skip the 13 MB rewrite, and its window for a
-        # partial write, every 5 minutes (#242). The backup above still ran.
-        logger.info("Archive save skipped: the merge changed nothing.")
-        log_peak_rss("archive_save", logger)
-        return new_archive_df
-
-    # Save updated archive to S3, newest first whatever came back (#133)
-    sj.save_archive(
-        new_archive_df, bucket_name, device["macAddress"], stored=archive_df
-    )
-    logger.info("Updated archive saved.")
-    log_peak_rss("archive_save", logger)
-    return new_archive_df
-
-
-def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:
-    """
-    Load the station's archive from storage and normalize it.
-
-    Strict (#160): a run that saves after this must never start from a
-    failed read, so it reads storage directly (no dev-mode local cache) and
-    raises rather than returning an empty frame. The archive returned is
-    after `normalize` drops invalid and duplicate rows (`sj.load_archive`);
-    it is the archive the save is guarded by (`save_archive`'s `stored`).
-
-    :param device: The station's `/devices` entry.
-    :param bucket_name: S3 bucket to read from.
-    :return: The normalized archive, at least one row.
-    :raises StorageReadError: If the archive is missing, unreadable, or has
-        no valid rows.
-    """
-    archive_df = sj.load_archive(bucket_name, device["macAddress"])
-
-    _log_archive_range(archive_df, "Loaded archive")
-    logger.info(f"Total records in archive: {len(archive_df)}")
-    return archive_df
-
-
 def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> None:
     """
     Update archived weather data or repair archive schema.
@@ -258,11 +166,15 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
     :raises ArchiveLockHeld: If a run that writes (any but `--dry-run`)
         finds another archive writer holding the lock (#244); raised before
         anything is read or written.
-    :raises StorageReadError: If the station inventory is missing or cannot
-        be read; raised before anything is written.
+    :raises StorageReadError: If the station inventory or the archive is
+        missing or cannot be read; raised before anything is written.
     :raises StationNotFoundError: If the default station (the station
         inventory's first) is not on the Ambient account; raised before
         anything is written.
+    :raises BackupError: If a repair cannot take its repair backup; the
+        archive is not saved then.
+    :raises ReadbackFailed: If a repair's read-back of the saved archive
+        fails a check or cannot be read; the log names the repair backup.
     """
     with writer_lock(saves=not dry_run):
         device = get_station_device(resolve_station(bucket_name))
@@ -286,11 +198,11 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
             update_archive(device, bucket_name, pages)
             return
 
-        # Back up before repairing (skipped in dry-run)
-        sj.backup_archive(bucket=bucket_name, mac=mac, dry_run=dry_run)
-        archive_df = _load_archive(device, bucket_name)
+        session = archive_store.open(bucket_name, mac)
+        _log_archive_range(session.archive, "Loaded archive")
+        logger.info(f"Total records in archive: {len(session.archive)}")
 
-        fixed, m = _repair_archive_df(archive_df)
+        fixed, m = _repair_archive_df(session.archive)
         logger.info(
             "Archive repair: %s -> %s rows (dropped=%s), dtype %s -> %s, "
             "range %s .. %s",
@@ -312,10 +224,13 @@ def main(bucket_name: str, dry_run: bool, pages: int, repair_archive: bool) -> N
             logger.info("Dry-run: NOT saving repaired archive.")
             return
 
-        # Persist the repaired archive, newest first (#133), and exit. An
-        # explicit repair: the one catchup save that may drop or blank (#190).
-        sj.save_archive(fixed, bucket_name, mac, stored=archive_df, repair=True)
+        # An explicit repair: the one catchup save that may drop or blank
+        # (#190). The archive store backs the live archive up to a repair
+        # backup first, every time, then reads the saved archive back raw
+        # (#430). It rewrites the whole archive, so it names no windows.
+        replacement = session.replace(fixed, REPAIR_REASON)
         logger.info("Repaired archive saved.")
+        logger.info(f"Rollback point: {replacement.rollback_uri}")
 
 
 if __name__ == "__main__":

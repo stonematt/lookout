@@ -46,6 +46,7 @@ from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import (
     BUCKET,
     FROZEN_DAY,
+    FlakyStorj,
     bucket_keys,
     flaky_storj,
     seed_inventory,
@@ -319,6 +320,17 @@ class TestCatchupRun:
         # Same day: the backup is skipped, so it still holds the original.
         assert_frame_equal(station.stored(BACKUP_KEY), station.archive)
 
+    def test_a_run_with_nothing_new_writes_nothing_and_takes_no_backup(
+        self, catchup_station
+    ):
+        station = catchup_station(history=[])
+        before = stored_bytes(station)
+
+        station.run()
+
+        assert station.keys() == [ARCHIVE_KEY, INVENTORY_KEY]
+        assert stored_bytes(station) == before
+
     def test_dry_run_writes_nothing(self, catchup_station):
         station = catchup_station()
 
@@ -519,6 +531,142 @@ class TestRepairArchiveStripsDerived:
         lines = self.repair(True, caplog)
 
         assert "Archive repair: no derived columns stored" in lines
+
+
+# ---------- the repair backup and read-back (#422) ----------
+
+REPAIR_BACKUP_KEY = (
+    f".backups/{FAKE_MAC}/{FROZEN_DAY}-120000-repair-normalize/{ARCHIVE_KEY}"
+)
+
+
+class ReadBackFails(FlakyStorj):
+    """Storage whose archive read fails once the archive has been saved."""
+
+    def upload_fileobj(self, **kwargs: object) -> None:
+        super().upload_fileobj(**kwargs)
+        if kwargs["Key"] == ARCHIVE_KEY:
+            self.read = ARCHIVE_KEY
+
+
+class TestRepairArchiveBackup:
+    """
+    `--repair-archive` backs the archive up to a repair backup of its own
+    right before it saves, every time, and reads the saved archive back (#422).
+    """
+
+    def repair(self, caplog, dry_run: bool = False) -> List[str]:
+        from lookout.cli import catchup
+
+        with caplog.at_level("INFO"):
+            catchup.main(BUCKET, dry_run=dry_run, pages=20, repair_archive=True)
+        return [r.getMessage() for r in caplog.records]
+
+    def test_a_repair_after_the_daily_backup_keeps_the_archive_it_replaced(
+        self, catchup_station, caplog
+    ):
+        archive = load_real_slice()
+        station = catchup_station(archive=archive.iloc[::-1].reset_index(drop=True))
+        before = stored_bytes(station)
+        # The day's first routine save already took the daily backup.
+        station.s3.put_object(Bucket=BUCKET, Key=BACKUP_KEY, Body=b"this morning")
+
+        lines = self.repair(caplog)
+
+        assert stored_bytes(station, REPAIR_BACKUP_KEY) == before
+        assert stored_bytes(station, BACKUP_KEY) == b"this morning"
+        assert stored_bytes(station) != before
+        assert (
+            f"Archive replace (normalize): rollback point s3://{BUCKET}/"
+            f"{REPAIR_BACKUP_KEY}" in lines
+        )
+
+    def test_a_repair_reports_its_rollback_key_beside_its_success(
+        self, catchup_station, caplog
+    ):
+        catchup_station()
+
+        lines = self.repair(caplog)
+
+        saved = lines.index("Repaired archive saved.")
+        assert lines[saved + 1] == (
+            f"Rollback point: s3://{BUCKET}/{REPAIR_BACKUP_KEY}"
+        )
+
+    def test_a_failed_repair_backup_fails_the_run_and_leaves_the_archive(
+        self, catchup_station, monkeypatch, caplog
+    ):
+        station = catchup_station()
+        keys, before = station.keys(), stored_bytes(station)
+        flaky_storj(monkeypatch, station.s3, copy=True)
+
+        with pytest.raises(storj.BackupError):
+            self.repair(caplog)
+
+        assert stored_bytes(station) == before
+        assert station.keys() == keys
+
+    def test_a_dry_run_takes_no_backup_and_writes_nothing(
+        self, catchup_station, caplog
+    ):
+        station = catchup_station()
+        keys, before = station.keys(), stored_bytes(station)
+
+        lines = self.repair(caplog, dry_run=True)
+
+        assert station.keys() == keys
+        assert stored_bytes(station) == before
+        assert not [line for line in lines if "Read-back" in line]
+        # Neither the run's own rollback line nor the store's backup log line.
+        assert not [line for line in lines if "rollback point" in line.lower()]
+
+    def test_a_repair_reads_the_archive_back_and_reports_each_check(
+        self, catchup_station, caplog
+    ):
+        catchup_station()
+
+        lines = self.repair(caplog)
+
+        checks = [line for line in lines if line.startswith("Read-back check")]
+        assert checks == [
+            "Read-back check passed: row count "
+            f"({len(load_real_slice())} stored, {len(load_real_slice())} predicted)",
+            "Read-back check passed: rows outside the windows unchanged "
+            f"({len(load_real_slice())} stored, {len(load_real_slice())} before)",
+            "Read-back check passed: dateutc strictly decreasing (0 duplicates)",
+        ]
+
+    def test_an_unreadable_read_back_is_a_failed_check_that_fails_the_run(
+        self, catchup_station, monkeypatch, caplog
+    ):
+        from lookout.storage.archive_readback import ReadbackFailed
+
+        station = catchup_station()
+        flaky = ReadBackFails(station.s3)
+        monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+
+        with pytest.raises(ReadbackFailed):
+            self.repair(caplog)
+
+        lines = [r.getMessage() for r in caplog.records]
+        failed = [line for line in lines if line.startswith("Read-back check FAILED")]
+        assert len(failed) == 1
+        assert "the saved archive is unreadable" in failed[0]
+        assert failed[0].endswith(f"roll back from {REPAIR_BACKUP_KEY}")
+
+    def test_a_failed_read_back_exits_1(self, catchup_station, monkeypatch, caplog):
+        station = catchup_station()
+        flaky = ReadBackFails(station.s3)
+        monkeypatch.setattr(storj, "get_s3_client", lambda: flaky)
+        monkeypatch.setattr(
+            "sys.argv", ["catchup.py", "--bucket", BUCKET, "--repair-archive"]
+        )
+
+        with pytest.raises(SystemExit) as exited:
+            runpy.run_module("lookout.cli.catchup", run_name="__main__")
+
+        assert exited.value.code == 1
+        assert "Read-back check FAILED: the saved archive is unreadable" in caplog.text
 
 
 # ---------- paging over a longer outage ----------

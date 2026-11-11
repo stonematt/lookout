@@ -19,6 +19,7 @@ from lookout.api.ambient_client import StationNotFoundError
 from lookout.cli import refresh
 from lookout.storage.station_inventory import INVENTORY_KEY, resolve_station
 from lookout.storage.storj import StorageReadError
+from lookout.utils.archive_lock import hold_archive_lock
 from tests.fixtures.ambient import devices_body, load_devices
 from tests.fixtures.archive import FAKE_MAC
 from tests.fixtures.storage import BUCKET, bucket_keys, seed_inventory
@@ -201,7 +202,8 @@ def test_the_refresh_run_ignores_a_device_not_in_the_inventory(
     # writes anything under its MAC.
     station: CatchupStation = catchup_station(devices=_two_stations())
 
-    runs = refresh.run(bucket=BUCKET, pages=20, clock=lambda: station.now)
+    with hold_archive_lock():  # as `refresh.main` holds it
+        runs = refresh.run(bucket=BUCKET, pages=20, clock=lambda: station.now)
 
     assert [run.mac for run in runs] == [FAKE_MAC]
     assert runs[0].ok

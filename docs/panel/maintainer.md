@@ -14,6 +14,7 @@
 - Characterization tests pin the behaviour of the catchup run, the archive merge and the Event Catalog before the code they cover changes.
 - Secrets load from `~/.config/lookout/secrets.toml` in one place; the Vercel side holds only a read-only Storj credential.
 - No second copy of the domain logic between Python and the front end; the front end reads the snapshot, it does not recompute.
+- A writer that rewrites the archive prints its rollback backup key on stdout when it succeeds; a key only in the log is not enough (Matt, 2026-11-11, #451).
 
 ## What I let pass
 
@@ -52,3 +53,12 @@ Verdict: ship
 - [ ] note: ten-day colour decided in the web (`web/src/overview/temperature.ts:302`); move it to the snapshot with a `SCHEMA_VERSION` bump after UAT (#374)
 - [ ] note: event rows lose ctrl-click open in a new tab (#370); lag arithmetic sits in three places off one web constant `STALE_AFTER_MS` (`web/src/format.ts:45`)
 - streamlit import, socket guard, #247 scope, `HC_PING_KEY`, publish order — not checkable in a web-only diff; still open
+
+### 2026-11-11 — goal PR #440 at `a2c7ed9`, archive store, pre-UAT
+
+Verdict: ship
+- checked: every archive writer saves through `lookout/storage/archive_store.py`; no `save_archive` or `backup_archive` call outside it and `storj.py`; refresh still reaches the run-level handler, the failed status and the Healthchecks ping on a store error
+- [ ] fix: `docs/agents/operations.md` has no `catchup --repair-archive` entry (repair backup, read-back, exit 1)
+- [ ] note: `operations.md:8` and `CLAUDE.md:28` name only the daily backup folder, not `<stamp>-repair-<reason>/`; `catchup.update_archive` keeps the deleted refresh function's name
+- [x] #244 lock: now also checked at save time (`held_by_this_process`)
+- streamlit import, socket guard, `HC_PING_KEY`, publish order, #247 scope, #374, #370 — not in this diff; still open

@@ -256,6 +256,21 @@ class TestAddAdopts:
         assert acct.inventory() is None
         assert acct.history_calls(FAKE_MAC) == []
 
+    def test_a_stored_archive_with_no_valid_reading_is_not_adopted(
+        self, account, capsys
+    ):
+        acct = account()
+        storj.save_df_to_s3(acct.archive.assign(dateutc=0), BUCKET, ARCHIVE_KEY)
+        before = acct.raw(ARCHIVE_KEY)
+
+        status, out = run(["add", FAKE_MAC], capsys)
+
+        assert status == 1
+        assert "add failed" in out
+        assert acct.raw(ARCHIVE_KEY) == before
+        assert acct.inventory() is None
+        assert acct.history_calls(FAKE_MAC) == []
+
 
 # ---------- add: build the first archive ----------
 
@@ -276,6 +291,15 @@ class TestAddBuilds:
             == acct.history.sort_values("dateutc")["tempf"].tolist()
         )
         assert acct.inventory() == [FAKE_MAC, NEW_MAC]
+
+    def test_a_first_build_takes_no_archive_backup(self, account, capsys):
+        acct = account()
+        acct.store_inventory([FAKE_MAC])
+
+        status, _ = run(["add", NEW_MAC], capsys)
+
+        assert status == 0
+        assert [k for k in acct.keys() if NEW_MAC in k] == [NEW_ARCHIVE_KEY]
 
     def test_saves_the_archive_newest_first(self, account, capsys):
         account()

@@ -13,10 +13,12 @@ Commands:
           inventory. Then it gets an archive: one stored for the MAC is
           adopted as it is, never rewritten; with none stored, the first
           archive is built from Ambient's history, paging back from now
-          until Ambient returns no older readings, and saved through the
-          archive save. The inventory is backed up before the archive step,
-          so a failed backup writes nothing, and the station is appended
-          after it, so a failed backfill leaves the inventory as it was.
+          until Ambient returns no older readings, and created through the
+          archive store (`archive_store.open` adopts, `archive_store.create`
+          builds; a failed read is never taken for no archive). The
+          inventory is backed up before the archive step, so a failed
+          backup writes nothing, and the station is appended after it, so
+          a failed backfill leaves the inventory as it was.
           The first add seeds the inventory, and that station is the
           default station. Running `add` again adopts an archive that a
           failed inventory write left behind.
@@ -35,11 +37,9 @@ import pandas as pd
 
 import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, find_station, get_devices
-from lookout.config import DEFAULT_BUCKET, HISTORY_FILE_TYPE
-from lookout.core import archive_merge
-from lookout.storage import station_inventory, storj
+from lookout.config import DEFAULT_BUCKET
+from lookout.storage import archive_store, station_inventory, storj
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
-from lookout.utils.dateutc import normalize
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="stations.log")
@@ -148,29 +148,29 @@ def give_archive(bucket: str, device: Dict) -> None:
         archive is corrupt or holds no valid reading; nothing is written.
     :raises Refused: If Ambient holds no reading for the station.
     :raises AmbientRequestError: If a history page request failed.
+    :raises ArchiveExists: If an archive appeared between the two reads;
+        nothing is written.
     :raises StorageWriteError: If the save failed.
     """
     mac = device["macAddress"]
-    key = f"{mac}.{HISTORY_FILE_TYPE}"
-    stored = storj.read_df_from_s3(bucket, key, file_type=HISTORY_FILE_TYPE)
-    if stored is not None:
-        archive = normalize(stored)
-        if archive.empty:
-            raise storj.StorageReadError(
-                f"s3://{bucket}/{key} has no rows with a valid dateutc; "
-                "not adopting it"
-            )
-        emit(f"Adopted the stored archive, unchanged: {span(archive)}.")
+    try:
+        # Adopting reads through the archive store, with every load's checks.
+        adopted = archive_store.open(bucket, mac)
+    except storj.ArchiveMissing:
+        pass  # only a found-nothing read builds; a failed one raises (ADR-0004)
+    else:
+        emit(f"Adopted the stored archive, unchanged: {span(adopted.archive)}.")
         return
 
     emit(f"No archive stored for {mac}; building it from Ambient's history.")
     fetched = awn.fetch_full_history(device)
-    archive, report = archive_merge.merge(pd.DataFrame(), fetched)
-    logger.info(f"First archive merge: {report.describe()}")
-    if archive.empty:
-        raise Refused(f"Ambient holds no readings for {mac}; nothing to archive")
-    storj.save_archive(archive, bucket, mac, stored=pd.DataFrame())
-    emit(f"Built and saved the first archive: {span(archive)}.")
+    try:
+        created = archive_store.create(bucket, mac, fetched)
+    except archive_store.NoReadings:
+        raise Refused(
+            f"Ambient holds no readings for {mac}; nothing to archive"
+        ) from None
+    emit(f"Built and saved the first archive: {span(created.archive)}.")
 
 
 def cmd_add(args: argparse.Namespace) -> int:
