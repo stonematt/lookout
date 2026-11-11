@@ -141,11 +141,11 @@ from lookout.snapshot.status import (
     code_version,
     publish_status,
 )
-from lookout.utils.healthchecks import Heartbeat
 from lookout.storage import archive_store
 from lookout.storage.station_inventory import load_inventory, read_inventory
 from lookout.storage.storj import archive_newest_ms, backup_and_save_catalog
 from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
+from lookout.utils.healthchecks import Heartbeat
 from lookout.utils.log_util import app_logger, station_context
 from lookout.utils.memory_utils import log_peak_rss
 

@@ -484,7 +484,7 @@ def _measured_run(
         steps.append(record)
         return result
 
-    def update_archive() -> Any:
+    def merge_archive() -> Any:
         """The refresh run's archive step. :return: The archive, merged."""
         session = archive_store.open(bucket, device["macAddress"])
         session.merge(fetched)
@@ -501,7 +501,7 @@ def _measured_run(
         fetched, _newest = step(
             "fetch_delta", lambda: refresh.fetch_delta(device, bucket, pages)
         )
-        archive = step("update_archive", update_archive)
+        archive = step("update_archive", merge_archive)
         archive, live = step(
             "correct_rain",
             lambda: refresh.correct_rain(

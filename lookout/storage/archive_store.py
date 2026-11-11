@@ -64,7 +64,9 @@ class ArchiveSession:
         Raw, as stored: rain corrections are applied on read by the caller,
         never here (#95).
 
-        :return: The frame; after a merge, newest `dateutc` first.
+        :return: The frame. Row order is not part of the contract (as
+            loaded it is oldest first, after a merge newest first): take the
+            newest reading with `max()`, never by position.
         """
         return self._archive
 

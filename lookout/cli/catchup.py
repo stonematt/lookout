@@ -166,7 +166,7 @@ def update_archive(device: Dict, bucket_name: str, pages: int) -> None:
         would drop a stored reading or blank a stored value.
     """
     session = archive_store.open(bucket_name, device["macAddress"])
-    fetched = fetch_delta(device, int(session.archive["dateutc"].iloc[-1]), pages)
+    fetched = fetch_delta(device, int(session.archive["dateutc"].max()), pages)
     session.merge(fetched)
 
 
