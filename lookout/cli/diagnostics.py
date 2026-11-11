@@ -12,9 +12,11 @@ Commands:
     gaps            List archive gaps (--threshold minutes, --days N or
                     --since/--until dates).
     fill-gap        Fill one gap, picked by --index (a row of `gaps`, same
-                    window flags) or by --start and --end, then save the
-                    archive after a backup. --dry-run fetches and writes
-                    nothing. Exits 1 when Ambient has no data for the gap.
+                    window flags) or by --start and --end: fetch it from
+                    Ambient and merge it through the archive store, which
+                    backs up and saves. --dry-run fetches and writes
+                    nothing. Exits 1, nothing saved, when the merge changed
+                    nothing.
     coverage        Samples per hour per day, as a text grid (--days N).
     status          The archive's newest record against the device's live
                     reading, and the lag between them.
@@ -55,10 +57,10 @@ from lookout.config import DEFAULT_BUCKET
 from lookout.core import energy_catalog_func
 from lookout.core.energy_catalog import EnergyCatalog
 from lookout.core.rain_events import RainEventCatalog
+from lookout.storage import archive_store
 from lookout.storage.storj import (
     BackupError,
     StorageReadError,
-    backup_and_save_history,
     load_archive,
 )
 from lookout.storage.station_inventory import StationNotInInventory, resolve_station
@@ -141,8 +143,8 @@ def load_station(
     """
     A station and its archive, normalized (ascending `dateutc`).
 
-    Read strictly (#160): `fill-gap` and the rain repair save over the
-    archive, and hand it to the save as `stored`, which guards against it.
+    Read strictly (#160), like every archive load. `fill-gap` opens its
+    archive through the archive store instead, which it saves through.
 
     Do not read a saved archive back through here to check it: the archive
     is normalized (sorted ascending, duplicates dropped), so it hides the
@@ -307,12 +309,19 @@ def resolve_gap(
 
 def cmd_fill_gap(args: argparse.Namespace) -> int:
     """
-    Fill one gap from Ambient, back up the archive and save it.
+    Fill one gap from Ambient, merging through the archive store.
+
+    The archive store backs up and saves only when the merge changed
+    something; a merge that changed nothing exits 1, "Nothing saved".
 
     :param args: Parsed arguments.
     :return: The exit status.
     """
-    device, archive = load_station(args.bucket, args.station)
+    device = get_station_device(resolve_station(args.bucket, args.station))
+    # Read strictly through the archive store (#160): the merge saves over
+    # the archive it opened, which guards the save. Opening needs no lock.
+    session = archive_store.open(args.bucket, device["macAddress"])
+    archive = session.archive
     picked = resolve_gap(archive, args)
     if picked is None:
         return 1
@@ -331,24 +340,17 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         emit(f"At most {MAX_FILL_PAGES} pages, then merge (raw), back up, save.")
         return 0
 
-    outcome = awn.fill_archive_gap(device, archive, start, end)
+    outcome = awn.fill_archive_gap(device, archive, start, end, pages=MAX_FILL_PAGES)
     if outcome.status == "refused":
         emit("Refused: the gap is inverted or no archive data precedes it.")
         return 1
-    if outcome.skipped:
+    report = session.merge(outcome.fetched)
+    if not report.changed:
         emit(
             "Ambient had no new data for this gap (0 added, 0 filled, "
             "0 updated). Nothing saved."
         )
         return 1
-
-    backup_and_save_history(
-        df=outcome.history_df,
-        device=device,
-        bucket=args.bucket,
-        stored=archive,
-    )
-    report = outcome.report
     emit(
         f"Merged {report.added} added, {report.filled} filled, "
         f"{report.updated} updated; archive backed up and saved."
