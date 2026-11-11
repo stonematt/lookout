@@ -1,7 +1,8 @@
 """
 memory_harness.py: The refresh run's memory, step by step, measured offline.
 
-Runs the refresh run's steps (`lookout.cli.refresh`) against a local archive
+Runs the refresh run's steps (the functions of `lookout.cli.refresh`, and
+the archive store for the archive merge) against a local archive
 parquet, with Storj and Ambient faked at the boundary, and prints the peak
 RSS and the tracemalloc peak of each step (#281, spec #234). The memory
 levers of #234 take their before and after numbers from it.
@@ -87,7 +88,7 @@ FAKE_ENV = {
 STEPS = (
     "load_stations",
     "fetch_delta",
-    "update_archive",
+    "merge_archive",
     "correct_rain",
     "load_catalogs",
     "update_catalogs",
@@ -452,10 +453,11 @@ def _measured_run(
     The refresh run's steps, in `refresh.run`'s order, each one measured.
 
     Each step is called through its public function in
-    `lookout.cli.refresh`, the archive step through the archive store as
-    `refresh_station` calls it, under the archive-writer lock (a file in
-    the harness's temp dir); the build time is a minute after the newest
-    reading, as a cron run builds it, and the fetch's now is pinned to it.
+    `lookout.cli.refresh`, except `merge_archive`, which opens and merges
+    through the archive store as `refresh_station` does, under the
+    archive-writer lock (a file in the harness's temp dir); the build time
+    is a minute after the newest reading, as a cron run builds it, and the
+    fetch's now is pinned to it.
 
     :param device: The `/devices` entry the fake Ambient serves.
     :param newest_ms: The newest reading's `dateutc`.
@@ -501,7 +503,7 @@ def _measured_run(
         fetched, _newest = step(
             "fetch_delta", lambda: refresh.fetch_delta(device, bucket, pages)
         )
-        archive = step("update_archive", merge_archive)
+        archive = step("merge_archive", merge_archive)
         archive, live = step(
             "correct_rain",
             lambda: refresh.correct_rain(

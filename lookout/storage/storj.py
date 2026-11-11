@@ -197,9 +197,9 @@ def load_archive(bucket: str, mac: str) -> pd.DataFrame:
     """
     Read a station's archive for a run that will save over it (#160).
 
-    Every archive writer loads through here. The archive comes back through
-    `dateutc.normalize`, which drops invalid and duplicate rows, and it is
-    what the writer hands `save_archive` as `stored`.
+    The archive store loads through here (`archive_store.open`) and passes
+    the result to `save_archive` as `stored`. The archive comes back through
+    `dateutc.normalize`, which drops invalid and duplicate rows.
 
     :param bucket: The bucket.
     :param mac: The station's MAC address.
@@ -389,8 +389,8 @@ def save_archive(
     caller that built `df` without the archive merge is guarded too: it is
     refused if any stored `dateutc` is absent from `df`, or any stored
     raw value is NaN in `df` (`archive_merge.loss`). Updated values and added
-    readings pass. Only an explicit repair (the rain repair and catchup's
-    `--repair-archive`) passes `repair=True`, which logs the loss and saves.
+    readings pass. Only the archive store's `replace` (a deliberate repair)
+    passes `repair=True`, which logs the loss and saves.
 
     :param df: The archive, any row order.
     :param bucket: The bucket.

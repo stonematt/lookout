@@ -24,7 +24,7 @@ from tests.fixtures.real import load_real_slice
 REFRESH_STEPS = [
     "load_stations",
     "fetch_delta",
-    "update_archive",
+    "merge_archive",
     "correct_rain",
     "load_catalogs",
     "update_catalogs",
