@@ -30,18 +30,21 @@ call the backup functions themselves.
   it saves, every time (`storj.repair_backup_key`, with `reason` in the
   folder name), saves with the loss check lifted, then reads the archive
   back raw and checks it (`lookout.storage.archive_readback`); a failed or
-  unreadable read-back raises `ReadbackFailed`. It returns the merge report
-  of `df` against the archive as opened.
+  unreadable read-back raises `ReadbackFailed`. It returns a
+  `Replacement`: the merge report of `df` against the archive as opened,
+  and the repair backup it wrote, the rollback point the repair writer
+  prints (#451).
 
 Every verb that may save refuses, before it reads or writes anything, when
 this process does not hold the archive-writer lock (`ArchiveLockNotHeld`),
 whether or not this call would have saved: a writer that forgets the lock
 fails on its first run.
 
-Offers `open`, `create`, `ArchiveSession`, `ExtraChecks`, `ArchiveExists`
-and `NoReadings`.
+Offers `open`, `create`, `ArchiveSession`, `Replacement`, `ExtraChecks`,
+`ArchiveExists` and `NoReadings`.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, List, Optional, Sequence, Tuple
 
@@ -66,6 +69,32 @@ class ArchiveExists(RuntimeError):
 
 class NoReadings(ValueError):
     """`create` was given no valid reading to build an archive from."""
+
+
+@dataclass(frozen=True)
+class Replacement:
+    """
+    What a `replace` did: its merge report and the repair backup it wrote.
+
+    :param report: What the repaired archive adds, fills and updates
+        against the archive as opened, as a merge would count it.
+    :param bucket: The bucket the repair backup is in.
+    :param rollback_key: The repair backup's key: the archive as it stood
+        before the repair, the point to roll back to.
+    """
+
+    report: archive_merge.MergeReport
+    bucket: str
+    rollback_key: str
+
+    @property
+    def rollback_uri(self) -> str:
+        """
+        The repair backup as `s3://<bucket>/<key>`, for the run's output.
+
+        :return: The rollback point's URI.
+        """
+        return _uri(self.bucket, self.rollback_key)
 
 
 class ArchiveSession:
@@ -135,7 +164,7 @@ class ArchiveSession:
         reason: str,
         windows: Optional[Sequence[Tuple[int, int]]] = None,
         checks: Optional[ExtraChecks] = None,
-    ) -> archive_merge.MergeReport:
+    ) -> Replacement:
         """
         Replace the archive with a repaired one: a deliberate repair.
 
@@ -160,8 +189,9 @@ class ArchiveSession:
         :param checks: The caller's own checks of the raw read-back, run
             after the archive store's (e.g. the rain repair's restored rows
             against its reference).
-        :return: What `df` adds, fills and updates against the archive as
-            opened, as a merge would count it.
+        :return: The merge report of `df` against the archive as opened,
+            and the repair backup's key, for the caller to print as the
+            rollback point (#451).
         :raises ArchiveLockNotHeld: If this process does not hold the
             archive-writer lock; nothing is backed up or written.
         :raises ValueError: If `reason` is not lowercase hyphenated words;
@@ -182,7 +212,7 @@ class ArchiveSession:
             )
         logger.info(
             f"Archive replace ({reason}): rollback point "
-            f"s3://{self.bucket}/{rollback_key}"
+            f"{_uri(self.bucket, rollback_key)}"
         )
         opened = self._archive
         report = archive_merge.merge(opened, df).report
@@ -195,7 +225,7 @@ class ArchiveSession:
         else:
             before, bounds = opened, list(windows)
         self._read_back(before, len(df), bounds, checks, rollback_key)
-        return report
+        return Replacement(report, self.bucket, rollback_key)
 
     def _read_back(
         self,
@@ -235,8 +265,19 @@ class ArchiveSession:
         if not all(check.ok for check in results):
             raise archive_readback.ReadbackFailed(
                 f"The replaced archive failed its read-back; roll back from "
-                f"s3://{self.bucket}/{rollback_key}"
+                f"{_uri(self.bucket, rollback_key)}"
             )
+
+
+def _uri(bucket: str, key: str) -> str:
+    """
+    An object's `s3://<bucket>/<key>`, as the run's output names it.
+
+    :param bucket: The bucket.
+    :param key: The object's key.
+    :return: The URI.
+    """
+    return f"s3://{bucket}/{key}"
 
 
 def open(bucket: str, mac: str) -> ArchiveSession:

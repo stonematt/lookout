@@ -27,7 +27,8 @@ A dry run is the default: it takes no lock, no backup, and writes nothing.
 nothing, when another archive writer holds it. It saves through the archive
 store's `replace` (`lookout.storage.archive_store`), which takes the repair
 backup, saves, and reads the archive back raw and checks it, with this
-repair's own check that the restored rows equal the backup. The archive is
+repair's own check that the restored rows equal the backup; on success the
+run prints the repair backup's key, the rollback point (#451). The archive is
 raw throughout: rain corrections apply on read, never here (#95).
 
 Usage:
@@ -108,9 +109,10 @@ could save the archive at the same time):
   3. The real run. Same checks; if any day refills short or a check fails,
      nothing is written. Otherwise it backs the live archive up to
      .backups/<MAC>/<stamp>-repair-rain-carryover/ (always, even when
-     today's backup exists; the run logs the key, the rollback point),
-     saves the repaired archive, then reads it back raw and checks it
-     (#170), one logged line per check:
+     today's backup exists), saves the repaired archive, then reads it
+     back raw and checks it (#170), one logged line per check. It prints
+     the backup's key, the rollback point, as s3://<bucket>/<key>: beside
+     the success line, or in the read-back failure:
 
          PYTHONPATH=. python -m lookout.cli.repair_rain --write
 
@@ -673,7 +675,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # backup, saves with the loss check lifted (#190), and reads the
         # archive back raw, logging one line per check (#169, #170).
         try:
-            session.replace(
+            replacement = session.replace(
                 repaired,
                 REPAIR_REASON,
                 windows=[window_bounds(first, last) for first, last in args.window],
@@ -683,6 +685,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             emit(f"Repaired archive saved, but its read-back failed: {e}")
             return 1
         emit("Repaired archive saved; every read-back check passed.")
+        emit(f"Rollback point: {replacement.rollback_uri}")
         return 0
 
 
