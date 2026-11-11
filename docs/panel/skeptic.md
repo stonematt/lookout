@@ -55,3 +55,12 @@ Verdict: ship
 - [ ] fix: usual event 0.42 in (excludes the live event, `lookout/snapshot/lead.py:171`) against catalog median 0.36 in (includes it, `events.py:127`); pre-existing (#375)
 - [ ] fix: ten-day temperature ramp stops 28/56/84°F decided in the web — `web/src/overview/temperature.ts:301` (#374)
 - [x] the web renders `water_year` for the SEASON row — `web/src/overview/almanac.ts:175,347`; hours with no readings show a key, not 0.0
+
+### 2026-11-11 — goal PR #440 at `a2c7ed9`, archive store, pre-UAT
+
+Verdict: ship
+- checked: `merge` saves against the stored archive (loss check on); only `replace` lifts it; every replace backs up then reads back raw; dry runs call `open` only; rain corrections stay on read (#95); tests go through the store and CLI entry points on moto
+- [ ] note: a whole-archive `replace` checks the read-back against the new frame only; say so in its docstring
+- [ ] note: no entry-point test makes `stations add` or the refresh run raise `ArchiveLockNotHeld`
+- [x] usual event against catalog median (#375): shipped in 2026.11.8 (#418)
+- #374 ramp stops, INFO log on every correction — not in this diff; still open
