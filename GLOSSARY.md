@@ -183,6 +183,8 @@ something takes the day's backup, then saves, refusing to drop a stored
 reading or blank a stored value. It refuses to save unless this process
 holds the archive-writer lock. It is a module, not a command: the command
 is the archive writer.
+A station's first archive is a **create** (`stations add`): it refuses when
+an archive is found, raises when the read failed, and takes no backup.
 _Avoid_: archive writer (the command), storage layer, saver.
 
 ### archive writer
@@ -190,8 +192,8 @@ _Avoid_: archive writer (the command), storage layer, saver.
 A command that saves the archive or a catalog (the Event Catalog or the
 energy catalog), of which at most one runs on a host at a time. The refresh
 run, catchup, `diagnostics fill-gap`, `diagnostics energy-catalog --save`,
-`diagnostics event-catalog --save` and `repair_rain --write` are archive
-writers; each takes the per-host archive-writer lock
+`diagnostics event-catalog --save`, `repair_rain --write` and
+`stations add` are archive writers; each takes the per-host archive-writer lock
 (`lookout.utils.archive_lock`) before it does any work, and an archive
 writer saves the archive through the **archive store**. A read-only command,
 or a writer run without its save flag, is not one and takes no lock.

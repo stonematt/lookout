@@ -94,6 +94,19 @@ class TestOpen:
         with pytest.raises(storj.StorageReadError, match="missing"):
             archive_store.open(BUCKET, FAKE_MAC)
 
+    def test_a_missing_archive_is_told_apart_from_a_failed_read(
+        self, stored, fake_s3, monkeypatch
+    ):
+        # `stations add` builds only on missing, never on failed (ADR-0004).
+        with pytest.raises(storj.ArchiveMissing):
+            archive_store.open(BUCKET, "00:00:00:00:00:00")
+
+        flaky_storj(monkeypatch, fake_s3, read=ARCHIVE_KEY)
+        with pytest.raises(storj.StorageReadError) as failed:
+            archive_store.open(BUCKET, FAKE_MAC)
+
+        assert not isinstance(failed.value, storj.ArchiveMissing)
+
 
 class TestMerge:
     def test_a_merge_that_changes_nothing_writes_nothing_and_takes_no_backup(
@@ -206,3 +219,64 @@ class TestTheLock:
 
         with pytest.raises(ArchiveLockNotHeld):
             session.merge(refetched(stored))
+
+
+class TestCreate:
+    def test_builds_the_first_archive_newest_first_with_no_backup(
+        self, fake_s3, locked
+    ):
+        fetched = text_as_values(load_real_slice())
+
+        session = archive_store.create(BUCKET, FAKE_MAC, fetched)
+
+        assert bucket_keys(fake_s3) == [ARCHIVE_KEY]  # nothing to back up
+        raw = storj.read_df_from_s3(BUCKET, ARCHIVE_KEY, file_type="parquet")
+        assert raw["dateutc"].is_monotonic_decreasing
+        saved = storj.load_archive(BUCKET, FAKE_MAC)
+        assert sorted(saved["dateutc"]) == sorted(fetched["dateutc"])
+        assert len(session.archive) == len(fetched)
+
+    def test_refuses_a_found_archive_and_leaves_it_as_it_was(
+        self, stored, fake_s3, locked
+    ):
+        before = stored_bytes(fake_s3)
+
+        with pytest.raises(archive_store.ArchiveExists):
+            archive_store.create(BUCKET, FAKE_MAC, new_readings(stored, 1))
+
+        assert bucket_keys(fake_s3) == [ARCHIVE_KEY]
+        assert stored_bytes(fake_s3) == before
+
+    def test_refuses_a_found_archive_with_no_valid_reading(self, fake_s3, locked):
+        # Whatever the stored object holds, a first build never overwrites it.
+        stale = load_real_slice().assign(dateutc=0)
+        storj.save_df_to_s3(stale, BUCKET, ARCHIVE_KEY)
+        before = stored_bytes(fake_s3)
+
+        with pytest.raises(archive_store.ArchiveExists):
+            archive_store.create(BUCKET, FAKE_MAC, text_as_values(load_real_slice()))
+
+        assert stored_bytes(fake_s3) == before
+
+    def test_a_failed_read_raises_and_writes_nothing(
+        self, fake_s3, monkeypatch, locked
+    ):
+        # A read that failed is not "no archive" (ADR-0004).
+        flaky_storj(monkeypatch, fake_s3, read=ARCHIVE_KEY)
+
+        with pytest.raises(storj.StorageReadError):
+            archive_store.create(BUCKET, FAKE_MAC, text_as_values(load_real_slice()))
+
+        assert bucket_keys(fake_s3) == []
+
+    def test_no_valid_reading_raises_and_writes_nothing(self, fake_s3, locked):
+        with pytest.raises(archive_store.NoReadings):
+            archive_store.create(BUCKET, FAKE_MAC, pd.DataFrame())
+
+        assert bucket_keys(fake_s3) == []
+
+    def test_without_the_lock_it_refuses_and_writes_nothing(self, fake_s3):
+        with pytest.raises(ArchiveLockNotHeld):
+            archive_store.create(BUCKET, FAKE_MAC, text_as_values(load_real_slice()))
+
+        assert bucket_keys(fake_s3) == []
