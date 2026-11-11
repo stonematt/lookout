@@ -20,7 +20,7 @@ from lookout.api import awn_controller as awn
 from lookout.cli import repair_rain
 from lookout.storage import storj
 from lookout.utils.archive_lock import hold_archive_lock
-from lookout.utils.dateutc import from_local_date
+from lookout.utils.dateutc import from_local_date, normalize
 from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
@@ -114,6 +114,11 @@ def seed(catchup_station, monkeypatch) -> Callable[..., CatchupStation]:  # noqa
         return station
 
     return _seed
+
+
+def readback_lines(caplog: pytest.LogCaptureFixture) -> List[str]:
+    """The read-back check lines the archive store logged."""
+    return [m for m in caplog.messages if m.startswith("Read-back check")]
 
 
 def run(argv: List[str], capsys: pytest.CaptureFixture) -> Tuple[int, str]:
@@ -321,7 +326,7 @@ def test_a_day_that_refills_short_aborts_the_write(seed, truth, capsys):
 
 
 def test_the_rain_repair_may_drop_and_blank_as_an_explicit_repair(
-    seed, truth, capsys, monkeypatch, frozen_today
+    seed, truth, capsys, monkeypatch, frozen_today, caplog
 ):
     """#190: the rain repair passes the repair allowance at its save."""
     station = seed(truth)
@@ -337,13 +342,16 @@ def test_the_rain_repair_may_drop_and_blank_as_an_explicit_repair(
 
     monkeypatch.setattr(repair_rain, "repair_window", lossy)
     monkeypatch.setattr(repair_rain, "report_window", lambda *_a, **_k: [])
-    # The read-back rightly flags the dropped restored row; this test is
-    # about the save allowance only.
-    monkeypatch.setattr(repair_rain, "read_back_ok", lambda *_a, **_k: True)
 
-    status, _out = run(["--write"], capsys)
+    with caplog.at_level("INFO"):
+        status, _out = run(["--write"], capsys)
 
-    assert status == 0
+    # Saved; the read-back then rightly flags the dropped restored row, and
+    # nothing else.
+    assert status == 1
+    failed = [line for line in readback_lines(caplog) if "FAILED" in line]
+    assert len(failed) == 1
+    assert "FAILED: restored rows equal the raw reference" in failed[0]
     stored = station.stored()
     assert len(stored) == len(before) - 1
     assert stored["tempf"].isna().sum() == in_window(stored).sum()
@@ -446,6 +454,50 @@ class TestVerifyRestored:
         assert repair_rain.verify_restored(reference, reference, [1]) == (1, 0)
 
 
+# ---------- one precedence rule (#431) ----------
+# A reading repeated in the reference or in what Ambient serves resolves as
+# the archive merge resolves it (`dateutc.normalize`: the last copy wins),
+# never by a rule of the repair's own.
+
+
+def test_a_reading_the_reference_repeats_restores_from_the_copy_the_merge_keeps(
+    seed, truth, capsys, frozen_today
+):
+    x = START_MS + 6 * 3_600_000
+    later = truth[truth["dateutc"] == x].assign(
+        yearlyrainin=lambda df: df["yearlyrainin"] + 0.25
+    )
+    reference = pd.concat([truth, later], ignore_index=True)
+    station = seed(truth, reference=reference)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 0, out
+    rows = int(in_window(truth).sum())
+    assert f"restored {rows} from the backup" in out
+    assert f"{rows} restored rows checked, 0 differ from the backup" in out
+    stored_reference = storj.read_df_from_s3(BUCKET, REFERENCE_KEY, "parquet")
+    copies = stored_reference.loc[stored_reference["dateutc"] == x, "yearlyrainin"]
+    assert copies.nunique() == 2
+    kept = by_time(normalize(stored_reference)).loc[x, "yearlyrainin"]
+    assert by_time(station.stored()).loc[x, "yearlyrainin"] == kept
+
+
+def test_a_reading_ambient_serves_twice_is_refilled_once(
+    seed, truth, capsys, frozen_today
+):
+    archive, reference, served = _hole_and_two_strays(truth, 0.0)
+    x = START_MS + 6 * 3_600_000 + FIVE_MIN
+    served = pd.concat([served, served[served["dateutc"] == x]], ignore_index=True)
+    station = seed(truth, served=served, reference=reference, archive=archive)
+
+    status, out = run(["--write"], capsys)
+
+    assert status == 0, out
+    assert "refilled 3 from Ambient" in out
+    assert station.stored()["dateutc"].is_unique
+
+
 # ---------- the archive-writer lock (#244) ----------
 
 
@@ -506,30 +558,32 @@ def seed_second(station: CatchupStation, truth: pd.DataFrame) -> str:
     return key
 
 
-def test_without_station_the_default_station_is_repaired(seed, truth, capsys):
+def test_without_station_the_default_station_is_repaired(seed, truth, capsys, caplog):
     station = seed(truth)
     second_key = seed_second(station, truth)
     second_before = storj.get_df_from_s3(BUCKET, second_key, file_type="parquet")
 
-    status, out = run(["--write"], capsys)
+    with caplog.at_level("INFO"):
+        status, _out = run(["--write"], capsys)
 
     assert status == 0
-    assert FAKE_MAC in out
+    assert f".backups/{FAKE_MAC}/" in caplog.text
     assert_counters_equal(window_of(station.stored()), by_time(truth))
     pd.testing.assert_frame_equal(
         storj.get_df_from_s3(BUCKET, second_key, file_type="parquet"), second_before
     )
 
 
-def test_station_repairs_the_named_station_only(seed, truth, capsys):
+def test_station_repairs_the_named_station_only(seed, truth, capsys, caplog):
     station = seed(truth)
     second_key = seed_second(station, truth)
     first_before = station.stored()
 
-    status, out = run(["--write", "--station", SECOND_MAC.lower()], capsys)
+    with caplog.at_level("INFO"):
+        status, _out = run(["--write", "--station", SECOND_MAC.lower()], capsys)
 
     assert status == 0
-    assert f".backups/{SECOND_MAC}/" in out
+    assert f".backups/{SECOND_MAC}/" in caplog.text
     repaired = storj.get_df_from_s3(BUCKET, second_key, file_type="parquet")
     assert_counters_equal(window_of(repaired), by_time(truth))
     pd.testing.assert_frame_equal(station.stored(), first_before)
@@ -553,17 +607,20 @@ def test_a_station_outside_the_inventory_is_refused_before_ambient(
 
 
 # The repair backup and the raw read-back (#169, #170).
-REPAIR_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}-120000-repair/{ARCHIVE_KEY}"
+REPAIR_KEY = (
+    f".backups/{FAKE_MAC}/{FROZEN_DAY}-120000-repair-rain-carryover/{ARCHIVE_KEY}"
+)
 
 
 def test_a_repair_backs_up_even_when_todays_backup_exists(
-    seed, truth, capsys, frozen_today
+    seed, truth, capsys, frozen_today, caplog
 ):
     station = seed(truth)
     station.s3.put_object(Bucket=BUCKET, Key=BACKUP_KEY, Body=b"daily")
     before = station.stored()
 
-    status, out = run(["--write"], capsys)
+    with caplog.at_level("INFO"):
+        status, out = run(["--write"], capsys)
 
     assert status == 0, out
     assert station.s3.get_object(Bucket=BUCKET, Key=BACKUP_KEY)["Body"].read() == (
@@ -571,7 +628,7 @@ def test_a_repair_backs_up_even_when_todays_backup_exists(
     )
     assert REPAIR_KEY in station.keys()
     pd.testing.assert_frame_equal(station.stored(REPAIR_KEY), before)
-    assert REPAIR_KEY in out
+    assert f"rollback point s3://{BUCKET}/{REPAIR_KEY}" in caplog.text
 
 
 def test_a_failed_repair_backup_saves_nothing(
@@ -589,14 +646,19 @@ def test_a_failed_repair_backup_saves_nothing(
     pd.testing.assert_frame_equal(station.stored(), before)
 
 
-def test_a_correct_write_passes_every_readback_check(seed, truth, capsys, frozen_today):
+def test_a_correct_write_passes_every_readback_check(
+    seed, truth, capsys, frozen_today, caplog
+):
     seed(truth)
 
-    status, out = run(["--write"], capsys)
+    with caplog.at_level("INFO"):
+        status, out = run(["--write"], capsys)
 
     assert status == 0, out
-    assert out.count("Read-back check passed") == 4
-    assert "FAILED" not in out
+    lines = readback_lines(caplog)
+    assert len(lines) == 4
+    assert all(line.startswith("Read-back check passed") for line in lines)
+    assert "passed: restored rows equal the raw reference" in lines[-1]
 
 
 def _save_then(monkeypatch, damage: Callable[[pd.DataFrame], pd.DataFrame]) -> None:
@@ -635,16 +697,18 @@ def changed_outside(df: pd.DataFrame) -> pd.DataFrame:
     ],
 )
 def test_a_bad_stored_archive_fails_its_readback_check(
-    seed, truth, capsys, monkeypatch, frozen_today, damage, failed
+    seed, truth, capsys, monkeypatch, frozen_today, caplog, damage, failed
 ):
     seed(truth)
     _save_then(monkeypatch, damage)
 
-    status, out = run(["--write"], capsys)
+    with caplog.at_level("INFO"):
+        status, out = run(["--write"], capsys)
 
     assert status == 1
-    line = next(ln for ln in out.splitlines() if f"FAILED: {failed}" in ln)
+    line = next(ln for ln in readback_lines(caplog) if f"FAILED: {failed}" in ln)
     assert REPAIR_KEY in line
+    assert f"roll back from s3://{BUCKET}/{REPAIR_KEY}" in out
 
 
 def duplicated(df: pd.DataFrame) -> pd.DataFrame:
@@ -654,15 +718,17 @@ def duplicated(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def test_a_duplicate_dateutc_fails_the_order_check(
-    seed, truth, capsys, monkeypatch, frozen_today
+    seed, truth, capsys, monkeypatch, frozen_today, caplog
 ):
     seed(truth)
     _save_then(monkeypatch, duplicated)
 
-    status, out = run(["--write"], capsys)
+    with caplog.at_level("INFO"):
+        status, _out = run(["--write"], capsys)
 
     assert status == 1
-    assert "FAILED: dateutc strictly decreasing" in out
+    failed = "FAILED: dateutc strictly decreasing"
+    assert any(failed in line for line in readback_lines(caplog))
 
 
 def test_an_unreadable_readback_names_the_rollback_key(
@@ -680,4 +746,4 @@ def test_an_unreadable_readback_names_the_rollback_key(
     status, out = run(["--write"], capsys)
 
     assert status == 1
-    assert f"Roll back from {REPAIR_KEY}" in out
+    assert f"roll back from s3://{BUCKET}/{REPAIR_KEY}" in out
