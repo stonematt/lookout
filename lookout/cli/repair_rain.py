@@ -347,6 +347,8 @@ def repair_window(
     # The spans are disjoint, so a repeat can only come from Ambient within
     # one span; it resolves as the archive merge resolves it.
     refilled = normalize(pd.concat(parts)) if parts else window.iloc[0:0]
+    if refilled.empty:
+        refilled = window.iloc[0:0]  # keep the columns `normalize` drops
     after = pd.concat([restored, refilled], ignore_index=True)
     repaired, swapped = archive_merge.replace(archive, start_ms, end_ms, after)
     return repaired, WindowRepair(
@@ -608,7 +610,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         the saved archive fails a check (the archive is then saved; the
         failure lines name the rollback backup).
     :raises StorageReadError: If the archive or the raw reference read
-        failed; nothing is written then.
+        failed, or the archive is missing; nothing is written then.
+    :raises BackupError: With --write, if the repair backup failed;
+        nothing is saved.
+    :raises StorageWriteError: With --write, if the save failed.
     """
     args = parse_args(argv)
     # --write makes this an archive writer: it takes the lock before any
