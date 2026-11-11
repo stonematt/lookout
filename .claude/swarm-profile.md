@@ -125,3 +125,12 @@
 4. Compare with the boards and DESIGN.md as in loop step 4, across tabs as well: one header, one tile shape, one source-line form, one `now` orange, and every number the same wherever it appears.
 5. Apply the same fix-or-note rule. Each obvious defect becomes an issue and a fix link off the goal branch, fenced to the files it names, landed like any link with the gates after its merge. Reshoot the tabs a fix touches.
 6. Push the final set to `shots/goal-tiles-that-talk` and post the result as one comment on the goal PR: the tip SHA, a table of links by tab, width, theme and data case, the fixes made with their PRs, and the matches / differs on purpose / left for review lists. Send the comment link to the release manager for the ledger's compliance-pass line (#348); the orchestrator does not edit the ledger. The left-for-review list is what Matt's UAT starts from.
+
+**Archive store run (2026-11-11, spec #423, tickets #422 #428–#433)**
+- Goal branch `goal/archive-store`, cut from `dev` at `150057b`. Lane PRs target it; CI runs on them (`goal/**`). The goal PR targets `dev` and stays unmerged until Matt's UAT. Release ledger: #439.
+- Baseline at `150057b` (clean worktree, uv venv, no secrets): pytest **1065 passed** (~128s); web format and lint clean, build ok, **778 passed**. Probes at `$TMPDIR`, `~`, `~/.config/`, `~/.config/lookout/` and the main checkout's `data/` all survived.
+- Lanes work on `lane/<slug>` branches and are launched isolated (`isolation: "worktree"`), since the orchestrator runs inside a worktree.
+- Every ticket in this run touches an archive writer. Lanes run them only through tests on moto and recorded Ambient pages. Never run `catchup`, `refresh`, `diagnostics fill-gap`, `repair_rain --write`, `stations add` or `lookout/storage/storj.py`'s `main()` (its demo backs up the live archive for real, #140 (d)) outside pytest.
+- Shared hub files, merged by rebase in build order: `lookout/cli/catchup.py` (#422, #428, #430), `lookout/storage/archive_store.py` (new in #428; #430 adds `replace`, #432 adds `create`), `tests/test_archive_store.py`. Nothing in scope is a fenced file (no schema, lockfile or generated golden).
+- After #428 lands, the archive store refuses a save unless this process holds the archive-writer lock. A test that saves through it takes the lock first (`lookout.utils.archive_lock`), with `LOOKOUT_LOCK_FILE` already under `tmp_path`.
+- `lookout/cli/memory_harness.py` and `tests/test_memory_harness.py` also call the old save helpers; #433 must move or remove them.
