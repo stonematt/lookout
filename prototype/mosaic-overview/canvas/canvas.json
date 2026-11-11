@@ -1,0 +1,100 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Main.dc.html": {
+      "h": 1660,
+      "is_interactive": true,
+      "radius": 28,
+      "title": "Phone overview, a dry day: mosaic",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Raining.dc.html": {
+      "h": 844,
+      "radius": 28,
+      "title": "Phone overview, raining: first screen",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "Zoom.dc.html": {
+      "h": 1780,
+      "is_interactive": true,
+      "radius": 28,
+      "title": "Tap a tile: temperature zoomed",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-10T18:00:00Z",
+    "v": 1
+  },
+  "designSystems": [
+    {
+      "artifact": "https://claude.ai/artifact/Bmri2bVCvPqPumexcZkMXc",
+      "copiedAt": "2026-11-10T18:00:00Z",
+      "namespace": "lookout",
+      "title": "Lookout",
+      "version": null
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  },
+  "noteOrder": [
+    "t1",
+    "s1",
+    "s2",
+    "s3",
+    "shape-86jmv7"
+  ],
+  "notes": {
+    "s1": {
+      "fill": "blue",
+      "text": "The idea\n\n1. Now stays on top: the temperature, and today hour by hour against the usual for this date (±7 days, earlier years).\n2. One full-width feature tile, chosen by the refresh run: whatever is most unusual right now. A live rain event always wins.\n3. A two-column mosaic of half-width tiles: a number, a short delta, and a mini chart that makes the comparison. No sentences, no how-to-read lines.\n4. Tapping a tile zooms it into the full view, where the FT-style finding headline, the long charts and the year-over-year comparisons live.",
+      "w": 340,
+      "x": 1410,
+      "y": 0
+    },
+    "s2": {
+      "fill": "gray",
+      "text": "Sample values throughout, not station data. Light theme only here; the tokens are the site's.\n\nTry it: press Play on the dry-day board and tap the feature tile or the temperature tile.",
+      "w": 340,
+      "x": 1410,
+      "y": 520
+    },
+    "s3": {
+      "fill": "orange",
+      "text": "Open questions\n\n- What earns the feature slot on a dry day (biggest departure from normal, or a priority list)?\n- Which eight tiles, and in what order?\n- Zoom as a full-screen view (shown) or a bottom sheet?\n- Desktop: the same tiles on a 4-column grid, the feature spanning 2x2.\n\nHistory grows: a window row or tile appears only once the station's record covers it (Salmon Run, from Nov 3, shows Today, Yesterday, 7 days and Full history).",
+      "w": 340,
+      "x": 1410,
+      "y": 800
+    },
+    "shape-86jmv7": {
+      "kind": "line",
+      "x": 570,
+      "x2": 730,
+      "y": 1058,
+      "y2": 1058
+    },
+    "t1": {
+      "kind": "title1",
+      "maxW": 1330,
+      "text": "Lookout overview: now, one feature, a mosaic of context",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Raining.dc.html",
+    "Zoom.dc.html"
+  ],
+  "pages": [],
+  "title": "Lookout Mosaic Overview"
+}
