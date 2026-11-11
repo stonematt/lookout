@@ -38,8 +38,8 @@ this process does not hold the archive-writer lock (`ArchiveLockNotHeld`),
 whether or not this call would have saved: a writer that forgets the lock
 fails on its first run.
 
-Offers `open`, `create`, `ArchiveSession`, `ArchiveExists` and
-`NoReadings`.
+Offers `open`, `create`, `ArchiveSession`, `ExtraChecks`, `ArchiveExists`
+and `NoReadings`.
 """
 
 from datetime import datetime, timezone

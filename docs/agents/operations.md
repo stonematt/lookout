@@ -79,5 +79,5 @@ Each of these reads live secrets and Storj (and most call Ambient). Run them fro
   4. Check `https://lookout.stonecover.com/stations` (both stations, Lookout Post first), `/dashboard` (Lookout Post) and `/dashboard?station=<Salmon Run MAC, URL-encoded>`.
 - **Rain repair** (#95), restores the raw rain counters in the damaged windows from Ambient and cross-checks them against the raw backup. It takes `--station <MAC>` like diagnostics (default station without it; a MAC not in the inventory exits 1). Read `python -m lookout.cli.repair_rain --help` first.
   - Dry run, the default, writes nothing: `python -m lookout.cli.repair_rain`. Every day should read `rows N -> N` (or more), no `short` line, and `0 over tolerance`; it exits 1 if not.
-  - Real run: `python -m lookout.cli.repair_rain --write`. Same checks; it writes nothing if any fail, else backs the live archive up to `.backups/<MAC>/<today>/` and saves the repair.
+  - Real run: `python -m lookout.cli.repair_rain --write`. Same checks; it writes nothing if any fail, else backs the live archive up to the repair backup folder `.backups/<MAC>/<YYYYMMDD-HHMMSS>-repair-rain-carryover/` and saves the repair.
   - Other windows, as station-local days (repeatable): `--window 2025-10-14 2025-12-31`. The 2025 window is about 90 Ambient pages, a second each.
