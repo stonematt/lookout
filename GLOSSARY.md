@@ -177,10 +177,13 @@ _Avoid_: combine, overwrite, "fetched wins".
 
 The one module that saves a station's archive
 (`lookout.storage.archive_store`). An archive writer opens the archive
-through it and names the change: a **merge** of fetched readings. A merge
-that changes nothing writes nothing and takes no backup; one that changes
-something takes the day's backup, then saves, refusing to drop a stored
-reading or blank a stored value. It refuses to save unless this process
+through it and names the change: a **merge** of fetched readings, or a
+**replace** for a repair. A merge that changes nothing writes nothing and
+takes no backup; one that changes something takes the day's backup, then
+saves, refusing to drop a stored reading or blank a stored value. A
+replace names its reason, takes a repair backup every time, saves even
+what drops or blanks, then reads the archive back raw and checks it. It
+refuses to save unless this process
 holds the archive-writer lock. It is a module, not a command: the command
 is the archive writer.
 A station's first archive is a **create** (`stations add`): it refuses when

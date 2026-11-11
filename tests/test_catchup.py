@@ -535,7 +535,9 @@ class TestRepairArchiveStripsDerived:
 
 # ---------- the repair backup and read-back (#422) ----------
 
-REPAIR_BACKUP_KEY = f".backups/{FAKE_MAC}/{FROZEN_DAY}-120000-repair/{ARCHIVE_KEY}"
+REPAIR_BACKUP_KEY = (
+    f".backups/{FAKE_MAC}/{FROZEN_DAY}-120000-repair-normalize/{ARCHIVE_KEY}"
+)
 
 
 class ReadBackFails(FlakyStorj):
@@ -574,7 +576,10 @@ class TestRepairArchiveBackup:
         assert stored_bytes(station, REPAIR_BACKUP_KEY) == before
         assert stored_bytes(station, BACKUP_KEY) == b"this morning"
         assert stored_bytes(station) != before
-        assert f"Rollback point: s3://{BUCKET}/{REPAIR_BACKUP_KEY}" in lines
+        assert (
+            f"Archive replace (normalize): rollback point s3://{BUCKET}/"
+            f"{REPAIR_BACKUP_KEY}" in lines
+        )
 
     def test_a_failed_repair_backup_fails_the_run_and_leaves_the_archive(
         self, catchup_station, monkeypatch, caplog

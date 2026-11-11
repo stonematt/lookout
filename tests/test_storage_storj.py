@@ -559,9 +559,11 @@ def _calls_passing_repair() -> set:
     return found
 
 
-def test_only_the_rain_repair_and_repair_archive_pass_the_repair_allowance():
+def test_only_the_archive_store_replace_and_the_rain_repair_pass_the_repair_allowance():
+    # `catchup --repair-archive` repairs through the archive store's replace
+    # (#430); the rain repair moves onto it next (#431).
     assert _calls_passing_repair() == {
-        ("lookout/cli/catchup.py", "main"),
+        ("lookout/storage/archive_store.py", "replace"),
         ("lookout/cli/repair_rain.py", "main"),
     }
 
