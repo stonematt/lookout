@@ -51,6 +51,7 @@ from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.fixtures.storage import BUCKET, FlakyStorj, flaky_storj, seed_inventory
 from tests.test_catchup import (  # noqa: F401 (catchup_station is a fixture)
     ARCHIVE_KEY,
+    BACKUP_KEY,
     RECORDED_ROWS,
     CatchupStation,
     catchup_station,
@@ -71,12 +72,15 @@ def run_refresh(station: CatchupStation) -> Snapshot:
     One refresh run, as the cron does it, at the station's frozen now.
 
     The inventory lists only the fixture station, so the run is that
-    station's; its failure is raised here as the run caught it.
+    station's; its failure is raised here as the run caught it. The run
+    holds the archive-writer lock, as `main` does, since the archive store
+    refuses to save without it.
 
     :param station: The seeded station.
     :return: The published snapshot.
     """
-    (run,) = refresh.run(bucket=BUCKET, pages=20, clock=lambda: station.now)
+    with hold_archive_lock():
+        (run,) = refresh.run(bucket=BUCKET, pages=20, clock=lambda: station.now)
     if run.error is not None:
         raise run.error
     return run.snapshot
@@ -196,20 +200,6 @@ class TestRefreshRun:
         assert stored.dtypes.astype(str).to_dict() == text_as_category(
             archive.dtypes, ["battrain"]
         )
-
-    def test_the_archive_step_hands_on_its_text_as_category(self, seed):
-        # #285: the archive as saved, which every later step reads, holds
-        # its text as category, though Ambient's fetch sends plain text.
-        station = seed()
-        (run,) = refresh.load_stations(BUCKET)
-        fetched, _ = refresh.fetch_delta(run.device, BUCKET, pages=20)
-        assert fetched["battrain"].dtype == object
-
-        archive = refresh.update_archive(run.device, BUCKET, fetched)
-
-        assert archive["battrain"].dtype == "category"
-        assert len(archive) == len(station.archive) + RECORDED_ROWS
-        assert archive["battrain"].isna().sum() == 0
 
     def test_the_snapshot_is_built_from_the_caught_up_archive(self, seed):
         station = seed()
@@ -1599,7 +1589,7 @@ class TestNoopArchiveSave:
         monkeypatch.setattr(storj, "get_s3_client", lambda: station.s3)
         return writes
 
-    def test_a_merge_that_changes_nothing_saves_no_archive(
+    def test_a_merge_that_changes_nothing_saves_no_archive_and_takes_no_backup(
         self, seed, monkeypatch, caplog
     ):
         station = seed(history=[])
@@ -1611,6 +1601,7 @@ class TestNoopArchiveSave:
 
         assert ARCHIVE_KEY not in writes
         assert stored_bytes(station, ARCHIVE_KEY) == before
+        assert BACKUP_KEY not in station.keys()
         assert "skipped" in caplog.text.lower()
 
     def test_a_skipped_save_still_publishes_the_snapshot(self, seed):

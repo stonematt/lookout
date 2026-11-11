@@ -24,7 +24,7 @@ import lookout.api.awn_controller as awn
 import lookout.storage.storj as sj
 from lookout.api.ambient_client import get_station_device
 from lookout.core import archive_merge
-from lookout.storage import archive_readback
+from lookout.storage import archive_readback, archive_store
 from lookout.storage.station_inventory import resolve_station
 from lookout.utils.archive_lock import ArchiveLockHeld, writer_lock
 from lookout.utils.dateutc import normalize
@@ -136,51 +136,38 @@ def _log_archive_range(df: pd.DataFrame, label: str) -> None:
         lo = pd.to_datetime(lo_ms, unit="ms", utc=True)
         hi = pd.to_datetime(hi_ms, unit="ms", utc=True)
 
-    logger.info(
-        f"{label}: Range: ({lo.strftime('%y-%m-%d %H:%M')}) - ({hi.strftime('%y-%m-%d %H:%M')})"
-    )
+    span = f"({lo.strftime('%y-%m-%d %H:%M')}) - ({hi.strftime('%y-%m-%d %H:%M')})"
+    logger.info(f"{label}: Range: {span}")
 
 
 # ---------- main flow ----------
 
 
-def update_archive(device: Dict, bucket_name: str, pages: int) -> pd.DataFrame:
+def update_archive(device: Dict, bucket_name: str, pages: int) -> None:
     """
-    One catchup: back up the archive, merge in what Ambient has since, save.
+    One catchup: open the archive, fetch what Ambient has since, merge it in.
 
-    Fetched readings join the archive through the archive merge: new
-    readings are added, and for the readings re-fetched, Ambient's value wins
-    for each value it sends while values it omits keep their stored value.
-    The merge report (added, filled, updated, one-sided columns) is logged.
-
-    The catchup CLI runs this. The refresh run does the same work in two
-    phases, so all its Ambient calls come before any station's archive is
-    loaded (#271): `fetch_delta` first, then `save_fetched`. Every failure
-    raises, so the run exits non-zero (#160): a failed backup before
-    anything is read, a failed or empty archive read before anything is
-    saved, a save that would drop a stored reading or blank a stored value,
-    and a failed save.
+    The merge goes through the archive store (`archive_store`), which takes
+    the daily backup and saves only when the merge changed something (#242),
+    and refuses a save that would drop a stored reading or blank a stored
+    value. The refresh run does the same in two phases, so all its Ambient
+    calls come before any station's archive is loaded (#271): `fetch_delta`
+    first, then the archive store's merge. Every failure raises, so the run
+    exits non-zero (#160).
 
     :param device: The station's `/devices` entry.
     :param bucket_name: S3 bucket to read/write data.
     :param pages: Maximum number of pages to retrieve.
-    :return: The archive as stored after the run. When the merge changed
-        nothing the save is skipped (#242); the content is the archive as read.
-    :raises BackupError: If the backup fails.
     :raises StorageReadError: If the archive cannot be read or holds no rows.
     :raises CatchupStalled: If Ambient holds readings past a gap the run
         could not cross.
+    :raises BackupError: If the backup before a save fails.
     :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
         would drop a stored reading or blank a stored value.
     """
-    # Always back up before mutating the current archive
-    sj.backup_archive(bucket=bucket_name, mac=device["macAddress"])
-
-    archive_df = _load_archive(device, bucket_name)
-    log_peak_rss("archive_load", logger)
-
-    fetched = fetch_delta(device, int(archive_df["dateutc"].iloc[-1]), pages)
-    return _merge_and_save(device, bucket_name, archive_df, fetched)
+    session = archive_store.open(bucket_name, device["macAddress"])
+    fetched = fetch_delta(device, int(session.archive["dateutc"].max()), pages)
+    session.merge(fetched)
 
 
 def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
@@ -198,69 +185,6 @@ def fetch_delta(device: Dict, newest_ms: int, pages: int) -> pd.DataFrame:
     fetched = awn.fetch_since_last_archive(device, newest_only, sleep=True, pages=pages)
     log_peak_rss("ambient_fetch", logger)
     return fetched
-
-
-def save_fetched(device: Dict, bucket_name: str, fetched: pd.DataFrame) -> pd.DataFrame:
-    """
-    Back up the archive, merge in readings already fetched, save.
-
-    The refresh run's archive step (#271): `fetch_delta` ran earlier, in the
-    run's Ambient phase. Every failure raises, as `update_archive`'s do.
-
-    :param device: The station's `/devices` entry.
-    :param bucket_name: S3 bucket to read/write data.
-    :param fetched: What `fetch_delta` returned for this station.
-    :return: The archive as stored after the run (the archive as read when
-        the merge changed nothing and the save was skipped, #242).
-    :raises BackupError: If the backup fails.
-    :raises StorageReadError: If the archive cannot be read or holds no rows.
-    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
-        would drop a stored reading or blank a stored value.
-    """
-    sj.backup_archive(bucket=bucket_name, mac=device["macAddress"])
-
-    archive_df = _load_archive(device, bucket_name)
-    log_peak_rss("archive_load", logger)
-
-    return _merge_and_save(device, bucket_name, archive_df, fetched)
-
-
-def _merge_and_save(
-    device: Dict, bucket_name: str, archive_df: pd.DataFrame, fetched: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Merge fetched readings into the loaded archive and save it when changed.
-
-    :param device: The station's `/devices` entry.
-    :param bucket_name: S3 bucket to write to.
-    :param archive_df: The archive as loaded; the save's `stored` guard.
-    :param fetched: The fetched readings, raw.
-    :return: The merged archive.
-    :raises StorageWriteError: If the save fails, or (`ArchiveLossError`)
-        would drop a stored reading or blank a stored value.
-    """
-    # Ambient wins for each value it sends; the routine re-fetch of the last
-    # readings shows up as updated values, never as a failure.
-    new_archive_df, report = archive_merge.merge(archive_df, fetched)
-    logger.info(f"Archive merge: {report.describe()}")
-    _log_archive_range(new_archive_df, "Updated archive")
-    logger.info(f"Total records after update: {len(new_archive_df)}")
-    log_peak_rss("archive_merge", logger)
-
-    if not report.changed:
-        # Nothing to write: skip the 13 MB rewrite, and its window for a
-        # partial write, every 5 minutes (#242). The backup above still ran.
-        logger.info("Archive save skipped: the merge changed nothing.")
-        log_peak_rss("archive_save", logger)
-        return new_archive_df
-
-    # Save updated archive to S3, newest first whatever came back (#133)
-    sj.save_archive(
-        new_archive_df, bucket_name, device["macAddress"], stored=archive_df
-    )
-    logger.info("Updated archive saved.")
-    log_peak_rss("archive_save", logger)
-    return new_archive_df
 
 
 def _load_archive(device: Dict, bucket_name: str) -> pd.DataFrame:

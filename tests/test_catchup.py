@@ -320,6 +320,17 @@ class TestCatchupRun:
         # Same day: the backup is skipped, so it still holds the original.
         assert_frame_equal(station.stored(BACKUP_KEY), station.archive)
 
+    def test_a_run_with_nothing_new_writes_nothing_and_takes_no_backup(
+        self, catchup_station
+    ):
+        station = catchup_station(history=[])
+        before = stored_bytes(station)
+
+        station.run()
+
+        assert station.keys() == [ARCHIVE_KEY, INVENTORY_KEY]
+        assert stored_bytes(station) == before
+
     def test_dry_run_writes_nothing(self, catchup_station):
         station = catchup_station()
 
