@@ -14,6 +14,7 @@
 - Characterization tests pin the behaviour of the catchup run, the archive merge and the Event Catalog before the code they cover changes.
 - Secrets load from `~/.config/lookout/secrets.toml` in one place; the Vercel side holds only a read-only Storj credential.
 - No second copy of the domain logic between Python and the front end; the front end reads the snapshot, it does not recompute.
+- A writer that rewrites the archive prints its rollback backup key on stdout when it succeeds; a key only in the log is not enough (Matt, 2026-11-11, #451).
 
 ## What I let pass
 
