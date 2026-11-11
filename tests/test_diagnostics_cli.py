@@ -15,12 +15,10 @@ from typing import Callable, List, Optional, Tuple
 
 import pandas as pd
 import pytest
-from pandas.testing import assert_frame_equal
 
 from lookout.api import awn_controller as awn
 from lookout.cli import diagnostics
 from lookout.core import rain_corrections
-from lookout.core.archive_merge import MergeReport
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import storj
 from lookout.utils.archive_lock import hold_archive_lock
@@ -279,27 +277,6 @@ class TestFillGap:
         assert "fill-gap failed" in out
         assert len(station.stored()) == len(station.archive)
 
-    def test_a_fill_that_would_drop_a_stored_reading_is_refused(
-        self, seed, capsys, monkeypatch
-    ):
-        """#190: the fill-gap save is guarded by the archive it loaded."""
-        station = seed()
-        before = station.stored()
-
-        def lossy(device, archive, start, end):
-            return awn.GapFill(
-                archive.iloc[1:], start, end, "filled", MergeReport(updated=1)
-            )
-
-        monkeypatch.setattr(diagnostics.awn, "fill_archive_gap", lossy)
-
-        status, out = run(["fill-gap", "--index", "1"], capsys)
-
-        assert status == 1
-        assert "Merged" not in out
-        assert "fill-gap failed" in out
-        assert_frame_equal(station.stored(), before)
-
     def test_a_failed_archive_read_fails_the_fill_and_saves_nothing(
         self, seed, capsys, monkeypatch
     ):
@@ -331,6 +308,23 @@ class TestFillGap:
         assert "no new data" in out
         assert len(station.stored()) == len(station.archive)
         assert BACKUP_KEY not in station.keys()
+
+    def test_a_fill_that_changes_nothing_saves_nothing_and_exits_1(self, seed, capsys):
+        """
+        Ambient sends the gap's neighbours exactly as stored: readings come
+        back, the merge changes nothing, so no backup and no save (#242).
+        """
+        station = seed(history=scenario_archive())
+        keys = station.keys()
+
+        status, out = run(["fill-gap", "--index", "1"], capsys)
+
+        assert status == 1
+        assert "0 added, 0 filled, 0 updated). Nothing saved." in out
+        assert "Merged" not in out
+        assert station.keys() == keys
+        assert BACKUP_KEY not in station.keys()
+        assert any(path != "/devices" for path, _ in station.replay.calls)
 
     def test_a_fill_that_only_updates_values_saves_and_prints_the_counts(
         self, seed, capsys

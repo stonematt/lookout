@@ -3,7 +3,8 @@ Characterize how the AWN controller merges history into the archive.
 
 Pins what `lookout.api.awn_controller` does today with data in and data out:
 combine, dedup and sort on `dateutc`; paging forward from the newest archive
-row; gap filling and its outcome (filled, no new data, refused). Where the
+row, then `archive_merge.merge` of what came back; gap filling, which fetches
+and never merges, and its outcome (fetched or refused). Where the
 behaviour looks wrong
 the test pins it as it is and says so, so the phase-1 refactor changes it on
 purpose or not at all.
@@ -51,6 +52,22 @@ def week(gaps: Sequence[Gap] = SCENARIO.gaps) -> pd.DataFrame:
 def device() -> dict:
     """The fixture station as the controller receives it, `lastData.tz` set."""
     return devices_body({"dateutc": 1})[0]
+
+
+def since_last_archive(device: dict, archive: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    """
+    The archive with what Ambient holds since its newest reading merged in.
+
+    The fetch, then the archive merge (Ambient wins), as an archive writer
+    runs them before the archive store saves.
+
+    :param device: The station's `/devices` entry.
+    :param archive: The archive, raw.
+    :param kwargs: Passed to `fetch_since_last_archive`.
+    :return: The merged archive, newest first.
+    """
+    fetched = awn.fetch_since_last_archive(device, archive, **kwargs)
+    return archive_merge.merge(archive, fetched).archive
 
 
 def serve(ambient_replay, df: pd.DataFrame) -> None:
@@ -434,7 +451,7 @@ class TestGapSeekAcrossAnOutage:
         archive, truth, end = outage(hours=150)
         serve(ambient_replay, truth)
 
-        awn.get_history_since_last_archive(device, archive, pages=20, end_date=end)
+        since_last_archive(device, archive, pages=20, end_date=end)
 
         spans = windows(ambient_replay)
         assert len(spans) >= 6
@@ -454,9 +471,7 @@ class TestGapSeekAcrossAnOutage:
         serve(ambient_replay, truth)
         resume = OUTAGE_START + pd.Timedelta(hours=hours)
 
-        result = awn.get_history_since_last_archive(
-            device, archive, pages=20, end_date=end
-        )
+        result = since_last_archive(device, archive, pages=20, end_date=end)
 
         newest = result["dateutc"].max()
         assert newest >= ms(str(resume + pd.Timedelta(days=1)))
@@ -477,9 +492,7 @@ class TestGapSeekAcrossAnOutage:
         archive, truth, end = outage(hours=41)
         serve(ambient_replay, truth)
 
-        result = awn.get_history_since_last_archive(
-            device, archive, pages=4, end_date=end
-        )
+        result = since_last_archive(device, archive, pages=4, end_date=end)
 
         ends = [str(e) for _, e in windows(ambient_replay)]
         assert ends == [
@@ -505,9 +518,7 @@ class TestGapSeekAcrossAnOutage:
         archive, truth, end = outage(hours, after_days=1)
         serve(ambient_replay, truth)
 
-        result = awn.get_history_since_last_archive(
-            device, archive, pages=20, end_date=end
-        )
+        result = since_last_archive(device, archive, pages=20, end_date=end)
 
         assert set(result["dateutc"]) == set(truth["dateutc"])
         assert result["dateutc"].is_unique
@@ -524,7 +535,7 @@ class TestGapSeekAcrossAnOutage:
         serve(ambient_replay, truth)
 
         with pytest.raises(awn.CatchupStalled):
-            awn.get_history_since_last_archive(device, archive, pages=12, end_date=end)
+            since_last_archive(device, archive, pages=12, end_date=end)
 
     @pytest.mark.parametrize("pages", [11, 20])
     def test_a_station_still_silent_past_the_walks_reach_adds_nothing(
@@ -537,9 +548,7 @@ class TestGapSeekAcrossAnOutage:
         archive, truth, end = outage(hours=240, after_days=0)
         serve(ambient_replay, truth)
 
-        result = awn.get_history_since_last_archive(
-            device, archive, pages=pages, end_date=end
-        )
+        result = since_last_archive(device, archive, pages=pages, end_date=end)
 
         assert len(result) == len(archive)
 
@@ -558,7 +567,7 @@ class TestGapSeekAcrossAnOutage:
         serve(ambient_replay, truth)
         bound = OUTAGE_START + pd.Timedelta(hours=100)
 
-        awn.get_history_since_last_archive(device, archive, pages=20, end_date=bound)
+        since_last_archive(device, archive, pages=20, end_date=bound)
 
         cursors = [e - PROBE_REACH for _, e in windows(ambient_replay)]
         assert len(cursors) >= 5
@@ -573,7 +582,7 @@ class TestGapSeekAcrossAnOutage:
         )
         serve(ambient_replay, archive)
 
-        awn.get_history_since_last_archive(device, archive, pages=20)
+        since_last_archive(device, archive, pages=20)
 
         latest = pd.Timestamp.now(tz="UTC")
         spans = windows(ambient_replay)
@@ -582,16 +591,16 @@ class TestGapSeekAcrossAnOutage:
 
 
 class TestHistorySinceLastArchive:
-    """`get_history_since_last_archive`: page forward and merge into the archive."""
+    """`fetch_since_last_archive`, then `archive_merge.merge`: page forward, merge."""
 
-    def test_invalid_archive_comes_back_unchanged_with_no_requests(
+    def test_an_invalid_archive_fetches_nothing_and_merges_unchanged(
         self, fake_s3, ambient_replay, device
     ):
-        empty = pd.DataFrame()
-        no_dateutc = pd.DataFrame({"tempf": [1.0]})
+        for archive in (pd.DataFrame(), pd.DataFrame({"tempf": [1.0]})):
+            fetched = awn.fetch_since_last_archive(device, archive)
 
-        assert awn.get_history_since_last_archive(device, empty) is empty
-        assert awn.get_history_since_last_archive(device, no_dateutc) is no_dateutc
+            assert fetched.empty
+            assert not archive_merge.merge(archive, fetched).report.changed
         assert ambient_replay.calls == []
 
     def test_new_pages_extend_the_archive_without_duplicates(
@@ -601,7 +610,7 @@ class TestHistorySinceLastArchive:
         archive = full[full.dateutc < ms("2026-01-08T00:00:00Z")]
         serve(ambient_replay, full)
 
-        result = awn.get_history_since_last_archive(
+        result = since_last_archive(
             device, archive, end_date=pd.Timestamp("2026-01-08T03:00:00Z")
         )
 
@@ -635,7 +644,7 @@ class TestHistorySinceLastArchive:
         serve(ambient_replay, full)
         end_date = pd.Timestamp("2026-01-08T03:00:00Z")
 
-        result = awn.get_history_since_last_archive(device, archive, end_date=end_date)
+        result = since_last_archive(device, archive, end_date=end_date)
 
         # The page ends at cursor + 1235 minutes, 2026-01-08T20:25Z at the last row.
         assert result["dateutc"].max() == ms("2026-01-08T20:25:00Z")
@@ -647,7 +656,7 @@ class TestHistorySinceLastArchive:
         archive = full[full.dateutc < ms("2026-01-11T07:00:00Z")]
         serve(ambient_replay, full)
 
-        result = awn.get_history_since_last_archive(
+        result = since_last_archive(
             device, archive, end_date=pd.Timestamp("2026-01-10T00:00:00Z")
         )
 
@@ -661,7 +670,7 @@ class TestHistorySinceLastArchive:
         archive = week(gaps=())
         serve(ambient_replay, archive)
 
-        result = awn.get_history_since_last_archive(
+        result = since_last_archive(
             device, archive, end_date=pd.Timestamp("2026-01-12T00:00:00Z")
         )
 
@@ -685,7 +694,7 @@ class TestHistorySinceLastArchive:
         archive = carried[carried.dateutc < ms("2026-01-09T12:00:00Z")]
         serve(ambient_replay, carried)
 
-        result = awn.get_history_since_last_archive(
+        result = since_last_archive(
             device, archive, end_date=pd.Timestamp("2026-01-10T12:00:00Z")
         )
 
@@ -698,9 +707,9 @@ class TestHistorySinceLastArchive:
 
 
 class TestFillArchiveGap:
-    """`fill_archive_gap`: fetch a missing stretch and report how it went."""
+    """`fill_archive_gap`: fetch a missing stretch; the caller merges it."""
 
-    def test_fills_a_gap_from_the_station_history(
+    def test_fetches_the_gap_from_the_station_history(
         self, fake_s3, ambient_replay, device
     ):
         archive = week()
@@ -709,14 +718,27 @@ class TestFillArchiveGap:
 
         result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
 
-        assert result.status == "filled"
-        assert not result.skipped
-        assert result.report.added == len(truth) - len(archive)
-        filled = result.history_df
+        assert result.status == "fetched"
+        missing = set(truth["dateutc"]) - set(archive["dateutc"])
+        assert missing <= set(result.fetched["dateutc"])
+        filled, report = archive_merge.merge(archive, result.fetched)
+        assert report.added == len(truth) - len(archive)
         assert len(filled) == len(truth)
         assert filled["dateutc"].is_unique
         assert filled["dateutc"].is_monotonic_decreasing
         assert set(filled["dateutc"]) == set(truth["dateutc"])
+
+    def test_the_fill_merges_nothing_into_the_archive_it_was_handed(
+        self, fake_s3, ambient_replay, device
+    ):
+        archive = week()
+        before = archive.copy()
+        serve(ambient_replay, week(gaps=(CARRY_GAP,)))
+
+        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+
+        pd.testing.assert_frame_equal(archive, before)
+        assert not result.fetched.empty
 
     def test_an_interior_fill_drops_no_archive_row_and_warns_nothing(
         self, fake_s3, ambient_replay, device, caplog
@@ -725,8 +747,8 @@ class TestFillArchiveGap:
         The slice before the gap keeps `dateutc` as int ms.
 
         It used to be sliced from a copy converted to Timestamps, so the
-        merge inside `get_history_since_last_archive` saw a mixed column
-        and `normalize` dropped every archive row ("dropped N of M").
+        merge of the fetched rows saw a mixed column and `normalize` dropped
+        every archive row ("dropped N of M").
         """
         archive = week()
         serve(ambient_replay, week(gaps=(CARRY_GAP,)))
@@ -745,9 +767,11 @@ class TestFillArchiveGap:
                 result = awn.fill_archive_gap(
                     device, archive, PLAIN_GAP.start, PLAIN_GAP.end
                 )
+            filled, _ = archive_merge.merge(archive, result.fetched)
 
-        assert result.status == "filled"
+        assert result.status == "fetched"
         assert seen == ["int64", "int64"]
+        assert set(archive["dateutc"]) <= set(filled["dateutc"])
         assert not [r for r in caplog.records if "dateutc.normalize" in r.message]
 
     def test_fill_leaves_a_raw_archive_raw(self, fake_s3, ambient_replay, device):
@@ -764,16 +788,17 @@ class TestFillArchiveGap:
         truth = week(gaps=(CARRY_GAP,))
         serve(ambient_replay, truth)
 
-        filled = awn.fill_archive_gap(
+        fetched = awn.fill_archive_gap(
             device, carried, PLAIN_GAP.start, PLAIN_GAP.end
-        ).history_df
+        ).fetched
+        filled = archive_merge.merge(carried, fetched).archive
 
         merged = filled.merge(truth, on="dateutc", suffixes=("", "_raw"))
         assert len(merged) == len(filled) == len(truth)
         for col in COUNTERS:
             assert (merged[col] - merged[col + "_raw"]).abs().max() < 1e-9
 
-    def test_a_gap_with_no_new_data_comes_back_skipped(
+    def test_a_gap_ambient_has_nothing_for_fetches_nothing(
         self, fake_s3, ambient_replay, device
     ):
         archive = week()
@@ -781,14 +806,13 @@ class TestFillArchiveGap:
 
         result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
 
-        assert result.history_df is archive
-        assert result.status == "no_new_data"
-        assert result.skipped
-        assert not result.report.changed
+        assert result.status == "fetched"
+        assert result.fetched.empty
+        assert not archive_merge.merge(archive, result.fetched).report.changed
         assert result.start == pd.Timestamp(PLAIN_GAP.start, tz="UTC")
         assert result.end == pd.Timestamp(PLAIN_GAP.end, tz="UTC")
 
-    def test_an_overshooting_fetch_saves_updates_and_keeps_omitted_values(
+    def test_an_overshooting_fetch_merges_updates_and_keeps_omitted_values(
         self, fake_s3, ambient_replay, device
     ):
         """
@@ -808,34 +832,21 @@ class TestFillArchiveGap:
             records, key=lambda r: r["dateutc"], reverse=True
         )
 
-        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
+        fetched = awn.fill_archive_gap(
+            device, archive, PLAIN_GAP.start, PLAIN_GAP.end
+        ).fetched
+        filled, report = archive_merge.merge(archive, fetched)
 
-        assert result.status == "filled"
-        assert result.report.added == len(truth) - len(archive)
-        assert result.report.updated > 0
-        filled = result.history_df.set_index("dateutc")
+        assert report.added == len(truth) - len(archive)
+        assert report.updated > 0
+        filled = filled.set_index("dateutc")
         stored = archive.set_index("dateutc")
         overlap = stored.index.intersection(filled.index)
         assert (filled.loc[overlap, "hum"] == 50.0).all()
         moved = overlap[filled.loc[overlap, "tempf"] != stored.loc[overlap, "tempf"]]
-        assert len(moved) == result.report.updated
+        assert len(moved) == report.updated
         expected = truth.set_index("dateutc").loc[moved, "tempf"]
         assert (filled.loc[moved, "tempf"] - expected).abs().max() < 1e-6
-
-    def test_a_fill_that_only_updates_values_reports_and_is_filled(
-        self, fake_s3, ambient_replay, device
-    ):
-        archive = week()
-        changed = archive.copy()
-        changed["tempf"] = changed["tempf"] + 1.0
-        serve(ambient_replay, changed)
-
-        result = awn.fill_archive_gap(device, archive, PLAIN_GAP.start, PLAIN_GAP.end)
-
-        assert result.status == "filled"
-        assert result.report.added == 0
-        assert result.report.updated > 0
-        assert not result.skipped
 
     def test_an_inverted_gap_is_refused_without_a_request(
         self, fake_s3, ambient_replay, device
@@ -844,9 +855,8 @@ class TestFillArchiveGap:
 
         result = awn.fill_archive_gap(device, archive, PLAIN_GAP.end, PLAIN_GAP.start)
 
-        assert result.history_df is archive
         assert result.status == "refused"
-        assert not result.skipped
+        assert result.fetched.empty
         assert ambient_replay.calls == []
 
     def test_a_gap_before_all_archive_data_is_refused(
@@ -858,8 +868,8 @@ class TestFillArchiveGap:
             device, archive, "2025-12-01T00:00:00Z", "2025-12-01T04:00:00Z"
         )
 
-        assert result.history_df is archive
         assert result.status == "refused"
+        assert result.fetched.empty
         assert ambient_replay.calls == []
 
 

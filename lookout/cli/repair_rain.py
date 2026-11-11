@@ -319,12 +319,14 @@ def repair_window(
             sleep=sleep,
         )
         statuses.append(outcome.status)
-        filled = outcome.history_df
+        fetched = outcome.fetched
+        if fetched.empty:
+            continue
         parts.append(
-            filled[
-                (filled["dateutc"] >= span_start)
-                & (filled["dateutc"] < span_end)
-                & ~filled["dateutc"].isin(restored["dateutc"])
+            fetched[
+                (fetched["dateutc"] >= span_start)
+                & (fetched["dateutc"] < span_end)
+                & ~fetched["dateutc"].isin(restored["dateutc"])
             ]
         )
     refilled = pd.concat(parts, ignore_index=True) if parts else window.iloc[0:0]
