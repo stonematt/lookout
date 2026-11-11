@@ -143,8 +143,9 @@ def load_station(
     """
     A station and its archive, normalized (ascending `dateutc`).
 
-    Read strictly (#160), like every archive load. `fill-gap` opens its
-    archive through the archive store instead, which it saves through.
+    Read strictly (#160): a failed or missing read raises, never reads as
+    an empty archive. `fill-gap` opens its archive through the archive store
+    instead, since it saves over it.
 
     Do not read a saved archive back through here to check it: the archive
     is normalized (sorted ascending, duplicates dropped), so it hides the
@@ -337,7 +338,11 @@ def cmd_fill_gap(args: argparse.Namespace) -> int:
         )
         emit("Dry run: nothing fetched, nothing written.")
         emit(f"Would fetch Ambient history after {baseline}, up to the gap's end.")
-        emit(f"At most {MAX_FILL_PAGES} pages, then merge (raw), back up, save.")
+        emit(
+            f"At most {MAX_FILL_PAGES} pages, then merge (raw) through the "
+            "archive store, which backs up and saves only when it changed "
+            "something."
+        )
         return 0
 
     outcome = awn.fill_archive_gap(device, archive, start, end, pages=MAX_FILL_PAGES)

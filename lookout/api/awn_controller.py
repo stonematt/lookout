@@ -703,7 +703,8 @@ def fill_archive_gap(
     Fetch Ambient's readings for a gap in the archive; merge nothing.
 
     The fetch starts from the newest archive reading before the gap and
-    stops at the gap's end. The archive passed in is read, never changed.
+    pages up to the gap's end; its last page may run past it into stored
+    readings. The archive passed in is read, never changed.
 
     :param device: The station's `/devices` entry.
     :param history_df: The archive, raw (as stored), `dateutc` in epoch ms.
