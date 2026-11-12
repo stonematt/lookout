@@ -3835,7 +3835,8 @@
         "total_in": null,
         "to_date_in": null
       }
-    ]
+    ],
+    "usual_to_date": null
   },
   "temperature_context": {
     "now": 59.3,

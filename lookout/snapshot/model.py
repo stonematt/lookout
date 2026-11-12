@@ -1027,6 +1027,28 @@ class WaterYearCurve:
 
 
 @dataclass(frozen=True)
+class UsualToDate:
+    """
+    This water year's rain to date against the usual rain to date (#539).
+
+    The usual is the median, over the earlier water years whose curve has a
+    value at `RainTab.day_index` (`WaterYearCurve.to_date_in`: the window
+    from Oct 1 to this date is valid or prorated), of that value. An even
+    count of years takes the mean of the middle two.
+
+    :param usual_in: The usual rain by this date.
+    :param years: How many earlier water years the usual rests on; at least 1.
+    :param percent: This year's `to_date_in` as a percent of `usual_in`,
+        rounded to a whole percent; None when this year's value is None or
+        the usual is 0.
+    """
+
+    usual_in: float
+    years: int
+    percent: Optional[int]
+
+
+@dataclass(frozen=True)
 class RainTab:
     """
     Everything the Rain tab shows (`lookout.snapshot.rain_tab`). Every rain
@@ -1038,6 +1060,8 @@ class RainTab:
     :param dry_spells: The current dry spell against the record.
     :param day_index: Today's place in the water-year curves.
     :param water_years: Every water year the archive reaches, oldest first.
+    :param usual_to_date: This water year's rain to date against the usual;
+        None when no earlier water year has a value at `day_index`.
     """
 
     windows: Tuple[RainWindow, ...]
@@ -1045,6 +1069,7 @@ class RainTab:
     dry_spells: DrySpells
     day_index: int
     water_years: Tuple[WaterYearCurve, ...]
+    usual_to_date: Optional[UsualToDate]
 
 
 @dataclass(frozen=True)

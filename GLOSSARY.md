@@ -316,6 +316,17 @@ part of the median it is measured against. The Overview's rain lead and the
 Rain events catalog (all-time and per water year) use this one rule (#375).
 _Avoid_: median event (for a median that counts the live event).
 
+### usual rain to date
+
+The median, over earlier **water years**, of each year's rain from Oct 1 to
+this date, read at the same place the Rain tab's year-over-year finding
+compares; an even count takes the mean of the middle two. A year counts when
+its window to this date is valid or prorated. This water year's rain to date
+is published as a whole percent of it, as in "74% of usual", with the count
+of years it rests on (`rain_tab.usual_to_date`, #539). There is none before
+an earlier year covers the date, and no percent of a usual of 0.
+_Avoid_: normal rainfall, average to date.
+
 ### usual band
 
 What a reading usually does at each hour of the day around this date: the

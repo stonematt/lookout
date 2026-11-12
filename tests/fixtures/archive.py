@@ -29,8 +29,9 @@ over overlapping ranges with the same spells agree row for row.
 two spells), a carryover gap and a plain gap.
 
 `seasoned_archive()` builds the seasoned station (#461): 2024 and 2025 around
-20 May and a recent 45-day run to `SEASONED_NOW`, a temperature pushed past
-its usual 90th percentile, two indoor sensors and a low sensor 1 battery.
+20 May, water year 2025 from its Oct 1 and a recent run through water year
+2026 to `SEASONED_NOW` (#539), a temperature pushed past its usual 90th
+percentile, two indoor sensors and a low sensor 1 battery.
 """
 
 from dataclasses import dataclass, field
@@ -326,13 +327,19 @@ SEASONED_BLOCKS = (
     # Each earlier year: local 2024-05-04 to 2024-05-28 (PDT), so the window
     # `SPREAD_DAYS` either side of every day in the ten-day list is whole.
     ("2024-05-04T07:00:00Z", "2024-05-29T07:00:00Z"),
+    # Water year 2025 from its Oct 1 (#539), so its rain by 20 May compares.
+    # 1-3 May stay missing, so May 2025 stays an incomplete month, as before.
+    ("2024-10-01T07:00:00Z", "2025-05-01T07:00:00Z"),
     ("2025-05-04T07:00:00Z", "2025-05-29T07:00:00Z"),
-    # The recent run: 45 local days up to and including `SEASONED_NOW`.
-    ("2026-04-05T07:00:00Z", "2026-05-20T22:05:00Z"),
+    # The recent run: water year 2026 from its Oct 1 up to and including
+    # `SEASONED_NOW`.
+    ("2025-10-01T07:00:00Z", "2026-05-20T22:05:00Z"),
 )
 
 SEASONED_RAIN = (
     RainSpell("2024-05-12T15:00:00Z", hours=3, inches_per_hour=0.08),
+    # Water year 2025's rain by 20 May (#539).
+    RainSpell("2025-01-15T18:00:00Z", hours=3, inches_per_hour=0.1),
     RainSpell("2025-05-23T18:00:00Z", hours=2, inches_per_hour=0.1),
     RainSpell("2026-05-01T16:00:00Z", hours=4, inches_per_hour=0.05),
     RainSpell("2026-05-17T19:00:00Z", hours=2, inches_per_hour=0.12),
@@ -378,12 +385,14 @@ def seasoned_archive(
     newest_first: bool = True, rain: Sequence[RainSpell] = SEASONED_RAIN
 ) -> pd.DataFrame:
     """
-    Build the seasoned station: two earlier years around 20 May and a recent run.
+    Build the seasoned station: two earlier years and a recent run.
 
     The earlier years 2024 and 2025 hold local 4-28 May, so `SPREAD_DAYS`
-    either side of each of the last ten days is whole; the recent run holds
-    the 45 local days to `SEASONED_NOW`. Between the blocks the archive has
-    no rows. Each day's temperature is the builder's diurnal curve plus
+    either side of each of the last ten days is whole. Water year 2025 also
+    holds Oct 1 to Apr 30, so its rain by 20 May compares (#539), with 1-3
+    May missing so May 2025 stays incomplete; the recent run holds water
+    year 2026 from Oct 1 to `SEASONED_NOW`. Between the blocks the archive
+    has no rows. Each day's temperature is the builder's diurnal curve plus
     `_day_offset`, and the reading at `SEASONED_NOW` is `SEASONED_PUSHED_TEMPF`.
 
     The archive also holds the indoor and battery columns the live archives
