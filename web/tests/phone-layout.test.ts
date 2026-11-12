@@ -100,7 +100,7 @@ const PHONE = {
     "daylight",
     "inside",
   ],
-  rain: ["daily", "rows: years dry hours"],
+  rain: ["years", "rows: daily dry hours"],
   solar: ["now", "rows: daily day heatmaps"],
   // The event list is itself an accordion (#339): open, never a row.
   events: ["catalog", "events"],
@@ -235,7 +235,7 @@ describe("from 760px", () => {
     view = viewport(at).install();
     await boot(parsed("raining"), "rain");
     expect(panel("rain").querySelector("details.tile-row, .tile-rows")).toBeNull();
-    expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
+    expect(shape("rain")).toEqual(["years", "daily", "dry", "hours"]);
   });
 
   it("redraws the open tab as tiles when the viewport crosses 760px, and as rows again under it", async () => {
@@ -243,10 +243,10 @@ describe("from 760px", () => {
     expect(shape("rain")).toEqual(PHONE.rain);
     view.resize(1280);
     expect(document.documentElement.dataset.layout).toBe("four");
-    expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
+    expect(shape("rain")).toEqual(["years", "daily", "dry", "hours"]);
     expect(shape("overview")).toContain("temperature");
     view.resize(900);
-    expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
+    expect(shape("rain")).toEqual(["years", "daily", "dry", "hours"]);
     view.resize(390);
     expect(shape("rain")).toEqual(PHONE.rain);
   });

@@ -3,8 +3,9 @@
  * Quiet tiles (#458, Mosaic Overview release 1), through `startPage` on the
  * goldens at phone and desktop width: no Overview tile carries a standfirst
  * or an archive lag chip, no tile carries an `aria-label` that repeats its
- * finding (#472), and the header states freshness once. The Rain, Solar and Rain events tabs
- * keep their standfirsts and lag chips until a later release.
+ * finding (#472), and the header states freshness once. The Rain tab
+ * drops its standfirsts and lag chips with its reorder (#475); the Solar and
+ * Rain events tabs keep theirs until a later release.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -103,12 +104,21 @@ describe("the other tabs, until their own release", () => {
   const snapshot = parseDashboard(golden("raining", "dashboard"));
 
   it("keep their standfirsts and lag chips", async () => {
+    await boot(snapshot, 1440, "solar");
+    const lag = lagCaveat(snapshot)!;
+
+    expect(panel("solar").querySelectorAll("[data-part=standfirst]").length).toBeGreaterThan(0);
+    const chips = [...panel("solar").querySelectorAll("[data-part=caveat]")].map(words);
+    expect(chips).toContain(lag);
+  });
+
+  it("except the Rain tab, which has neither since its reorder (#475)", async () => {
     await boot(snapshot, 1440, "rain");
     const lag = lagCaveat(snapshot)!;
 
-    expect(panel("rain").querySelectorAll("[data-part=standfirst]").length).toBeGreaterThan(0);
+    expect(panel("rain").querySelectorAll("[data-part=standfirst]")).toHaveLength(0);
     const chips = [...panel("rain").querySelectorAll("[data-part=caveat]")].map(words);
-    expect(chips).toContain(lag);
+    expect(chips).not.toContain(lag);
   });
 
   it("keep their tiles' names from their registries", async () => {

@@ -6,6 +6,8 @@
  * lines, ending with "Source". This module offers the parts and the grid
  * they sit in:
  *
+ * - `SectionOptions`: how a section shared with a zoom draws there (no
+ *   source note).
  * - `TileSection`: what a tab declares per section, in its registry: its id,
  *   accessible name, kicker, column span, whether it belongs to a phone tab's
  *   fixed top, whether it is the now tile or a mosaic tile,
@@ -118,6 +120,19 @@ export interface TileSection {
    * @param snapshot - The dashboard snapshot.
    */
   render(host: HTMLElement, snapshot: DashboardSnapshot): void;
+}
+
+/**
+ * How a section's render draws: as its tab's tile, or in an Overview zoom
+ * that shows the same section (one home per chart, #475).
+ */
+export interface SectionOptions {
+  /**
+   * Whether the section ends in its folded source note. Default true: a
+   * tab keeps its notes. A zoom passes false, as the Overview's sources
+   * footer carries the tile's line (prototype decision 22).
+   */
+  notes?: boolean;
 }
 
 /**

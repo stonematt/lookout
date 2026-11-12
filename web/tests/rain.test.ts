@@ -24,6 +24,7 @@ import { golden } from "./golden.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
+const seasoned = parseDashboard(golden("seasoned", "dashboard"));
 
 let panel: HTMLElement;
 
@@ -99,14 +100,16 @@ describe("the Rain tab's words", () => {
     );
   });
 
-  it("says why windows are not compared, grouped by reason", () => {
-    expect(windowsNote(raining)).toBe(
+  it("says why the windows shown are not compared, grouped by reason", () => {
+    expect(windowsNote(dry)).toBe("Not compared: Today and yesterday are not archived yet.");
+    // Raining: the windows not compared are the ones the record does not
+    // cover yet, which the strip leaves out, so the note says nothing.
+    expect(windowsNote(raining)).toBeNull();
+    const covered = structuredClone(raining);
+    for (const window of covered.rain_tab.windows) window.status.shown = true;
+    expect(windowsNote(covered)).toBe(
       "Not compared: 7 days, 30 days, 90 days, 365 days and water year " +
         "start before the archive began.",
-    );
-    expect(windowsNote(dry)).toBe(
-      "Not compared: Today, yesterday, 7 days, 30 days, 90 days, 365 days " +
-        "and water year are not archived yet.",
     );
   });
 
@@ -200,16 +203,21 @@ describe("the Rain tab", () => {
       { status: "valid", reason: null },
     );
     const window = week.rain_tab.windows.find((w) => w.key === "7d")!;
-    Object.assign(window.status, { status: "invalid", reason: "gap", missing_days: 1 });
+    Object.assign(window.status, {
+      status: "invalid",
+      reason: "gap",
+      missing_days: 1,
+      shown: true,
+    });
     window.total_in = null;
     renderRain(panel, week);
 
-    const dds = [...section("daily").querySelectorAll(".rain-windows dd")];
+    const dds = [...section("years").querySelectorAll(".rain-windows dd")];
     expect(text(dds[2]!.querySelector(".gap-label"))).toBe("n/a");
     expect(windowsNote(week)).toContain("7 days");
   });
 
-  it("renders its four sections as tiles, in the board's order", () => {
+  it("leads with the water year, then the daily bars, dry spells and rain by the hour", () => {
     // The grids: on a phone all but the fixed top are rows (tiles.test).
     setLayout("four");
     renderRain(panel, raining);
@@ -217,11 +225,56 @@ describe("the Rain tab", () => {
     const ids = [...panel.querySelectorAll(".tile-grid > .tile")].map((s) =>
       s.getAttribute("data-section"),
     );
-    expect(ids).toEqual(["daily", "years", "dry", "hours"]);
+    expect(ids).toEqual(["years", "daily", "dry", "hours"]);
     for (const host of panel.querySelectorAll(".tile")) {
       expect(host.querySelector("h2")?.textContent).toBeTruthy();
+      // Each keeps its source note (the tab is exempt from decision 22).
       expect(host.querySelector("[data-part=source]")?.textContent).toBeTruthy();
     }
+  });
+
+  it("keeps the water year as the phone's fixed top", () => {
+    setLayout("phone");
+    renderRain(panel, raining);
+
+    const top = panel.querySelector(".tile-grid > .tile[data-phone-top]");
+    expect(top?.getAttribute("data-section")).toBe("years");
+    const rows = [...panel.querySelectorAll("details.tile-row")].map((r) =>
+      r.getAttribute("data-section"),
+    );
+    expect(rows).toEqual(["daily", "dry", "hours"]);
+  });
+
+  it("puts the window strip under the water-year chart, not with the daily bars", () => {
+    // No golden has a comparable water year yet; give the seasoned one two.
+    const place = seasoned.rain_tab.day_index;
+    renderRain(
+      panel,
+      withTab(seasoned, { water_years: [year(2025, place, 3.1), year(2026, place, 4.2)] }),
+    );
+    const years = section("years");
+    const chart = years.querySelector(".rain-chart")!;
+    const strip = years.querySelector(".rain-windows")!;
+
+    expect(chart.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(section("daily").querySelector(".rain-windows")).toBeNull();
+  });
+
+  it("has no standfirst and no lag chip on any section", () => {
+    // The dry golden's archive lags its live reading by hours.
+    renderRain(panel, dry);
+
+    expect(panel.querySelector("[data-part=standfirst], .standfirst")).toBeNull();
+    const chips = [...panel.querySelectorAll("[data-part=caveat]")].map((c) => text(c));
+    expect(chips.some((c) => c?.includes("behind"))).toBe(false);
+  });
+
+  it("hides a window the record does not cover, instead of n/a", () => {
+    // Raining: 7 days to the water year start before the archive began.
+    renderRain(panel, raining);
+    const names = [...section("years").querySelectorAll(".rain-windows dt")].map((dt) => text(dt));
+
+    expect(names).toEqual(["Today", "Yesterday"]);
   });
 
   it("states days since rain as the same number as the Overview's dry spell feature", () => {
@@ -240,21 +293,22 @@ describe("the Rain tab", () => {
     expect(text(section("dry").querySelector("h2"))).toBe("about 39 hours since it last rained");
   });
 
-  it("hatches each window that cannot be compared, with its reason", () => {
-    renderRain(panel, raining);
-    const cells = [...section("daily").querySelectorAll(".rain-windows dd")];
+  it("hatches each window the record covers but cannot compare, with its reason", () => {
+    // Seasoned: 90 days to the water year are covered, with a gap in them.
+    renderRain(panel, seasoned);
+    const cells = [...section("years").querySelectorAll(".rain-windows dd")];
 
     expect(cells.map((dd) => dd.classList.contains("gap-hatch"))).toEqual([
       false,
       false,
-      true,
-      true,
+      false,
+      false,
       true,
       true,
       true,
     ]);
-    expect(text(cells[2]?.querySelector(".gap-label"))).toBe("n/a");
-    expect(cells[2]?.querySelector(".gap-sr")?.textContent).toContain("before the archive began");
+    expect(text(cells[4]?.querySelector(".gap-label"))).toBe("n/a");
+    expect(cells[4]?.querySelector(".gap-sr")?.textContent).toBeTruthy();
   });
 
   it("hatches today while only the live total is known, and says so", () => {
@@ -262,11 +316,11 @@ describe("the Rain tab", () => {
     const live = structuredClone(dry);
     live.current.rain_today_in = 0;
     renderRain(panel, live);
-    const today = section("daily").querySelector(".rain-windows dd")!;
+    const today = section("years").querySelector(".rain-windows dd")!;
 
     expect(text(today.querySelector(".gap-label"))).toBe("n/a");
     expect(today.querySelector(".gap-sr")?.textContent).toContain("does not reach this far yet");
-    expect(text(section("daily").querySelector("[data-part=source]"))).toContain(
+    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "The live reading has 0.00 in today; only the live total is known",
     );
   });
@@ -338,10 +392,10 @@ describe("the Rain tab", () => {
     expect(Number(label!.getAttribute("y"))).toBeLessThan(Number(yesterday.getAttribute("y")));
   });
 
-  it("says the day marked today is the live total", () => {
+  it("says the day marked today is the live total, in its source note", () => {
     renderRain(panel, raining);
-    const standfirst = text(section("daily").querySelector("[data-part=standfirst]"));
-    expect(standfirst).toContain("the day marked today is the live total");
+    const note = text(section("daily").querySelector("[data-part=source]"));
+    expect(note).toContain("the day marked today is the live total");
   });
 
   it("reads each day out from the keyboard", () => {

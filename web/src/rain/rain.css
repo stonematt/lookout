@@ -66,6 +66,13 @@
   padding-left: var(--s-1);
 }
 
+/* a strip with a rule under it already, the source note's or (in a zoom)
+   the one between panels, draws no second rule of its own */
+.rain-stats:has(+ .tile-folds),
+.zoom-panel > .rain-stats:last-child {
+  border-bottom: 0;
+}
+
 .rain-years-gap {
   margin-top: var(--s-3);
   min-height: 96px;
