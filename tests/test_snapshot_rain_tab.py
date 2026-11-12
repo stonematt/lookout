@@ -17,7 +17,7 @@ import pytest
 from lookout.snapshot import Station, build_snapshot
 from lookout.snapshot.model import Snapshot
 from tests.fixtures.archive import STATION_TZ, Gap, RainSpell, build_archive
-from tests.snapshot_helpers import raining_station
+from tests.snapshot_helpers import raining_station, seasoned_station
 
 STATION = Station(mac="00:11:22:33:44:55", name="Fixture Station", tz=STATION_TZ)
 
@@ -363,3 +363,93 @@ class TestWaterYears:
         assert wy2026.cumulative_in[9] == approx(0.2 * 10 / 9)
         assert wy2026.prorated[9] and not wy2026.prorated[1]
         assert wy2026.status.status == "prorated"
+
+
+class TestRainToDateAgainstUsual:
+    """
+    This water year's rain to date as a percent of the usual (#539): the
+    median, over earlier water years, of each one's rain by this date, the
+    same place the year-over-year finding compares (`to_date_in`).
+    """
+
+    START = "2023-09-20T07:00:00Z"
+    END = "2026-01-10T08:00:00Z"
+    NOW = "2026-01-10T07:59:00Z"  # Fri Jan 9, 23:59 PST
+    RAIN = [
+        RainSpell("2023-12-10T18:00:00Z", 2, 0.25),  # WY2024: 0.5 in by Jan 9
+        RainSpell("2024-12-10T18:00:00Z", 2, 0.5),  # WY2025: 1.0 in by Jan 9
+        RainSpell("2025-03-01T18:00:00Z", 1, 0.4),  # WY2025, after this date
+        RainSpell("2025-11-01T18:00:00Z", 1, 0.5),  # WY2026: 0.5 in
+    ]
+
+    @pytest.fixture(scope="class")
+    def snapshot(self) -> Snapshot:
+        return build(build_archive(self.START, self.END, rain=self.RAIN), self.NOW)
+
+    def test_two_years_meet_at_the_mean_of_their_middle_pair(self, snapshot):
+        usual = snapshot.rain_tab.usual_to_date
+
+        # WY2023 began before the archive; WY2024 (0.5) and WY2025 (1.0)
+        # cover Jan 9, so the usual is 0.75 and 0.5 in is 66.7%: 67.
+        assert usual.years == 2
+        assert usual.usual_in == approx(0.75)
+        assert usual.percent == 67
+
+    def test_an_earlier_year_with_too_many_missing_days_is_left_out(self):
+        # Two weeks missing in Nov 2023: WY2024's Oct 1 - Jan 9 misses over
+        # 10% of its days, so it cannot be read by this date.
+        gaps = [Gap("2023-11-01T07:00:00Z", "2023-11-15T08:00:00Z")]
+        archive = build_archive(self.START, self.END, rain=self.RAIN, gaps=gaps)
+
+        usual = build(archive, self.NOW).rain_tab.usual_to_date
+
+        assert usual.years == 1
+        assert usual.usual_in == approx(1.0)
+        assert usual.percent == 50
+
+    def test_an_earlier_year_with_a_few_missing_days_counts_prorated(self):
+        # Nov 1-2 2023 missing: 2 of WY2024's 101 days by Jan 9, so its rain
+        # by this date is prorated to 0.5 * 101 / 99 and still counts.
+        gaps = [Gap("2023-11-01T07:00:00Z", "2023-11-03T07:00:00Z")]
+        archive = build_archive(self.START, self.END, rain=self.RAIN, gaps=gaps)
+
+        usual = build(archive, self.NOW).rain_tab.usual_to_date
+
+        assert usual.years == 2
+        assert usual.usual_in == approx((0.5 * 101 / 99 + 1.0) / 2)
+
+    def test_a_usual_of_nothing_has_no_percent(self):
+        # Only WY2026 rains by Jan 9: the usual is 0 in, and no percent of it.
+        rain = [s for s in self.RAIN if s.start >= "2025-01-01"]
+        archive = build_archive(self.START, self.END, rain=rain)
+
+        usual = build(archive, self.NOW).rain_tab.usual_to_date
+
+        assert usual.years == 2
+        assert usual.usual_in == 0.0
+        assert usual.percent is None
+
+    def test_this_year_unreadable_by_this_date_has_no_percent(self):
+        # Two weeks missing in Nov 2025: this year cannot be read by Jan 9,
+        # though the usual still can.
+        gaps = [Gap("2025-11-10T08:00:00Z", "2025-11-24T08:00:00Z")]
+        archive = build_archive(self.START, self.END, rain=self.RAIN, gaps=gaps)
+
+        usual = build(archive, self.NOW).rain_tab.usual_to_date
+
+        assert usual.years == 2
+        assert usual.usual_in == approx(0.75)
+        assert usual.percent is None
+
+    def test_a_young_station_has_no_usual(self):
+        assert raining_station().rain_tab.usual_to_date is None
+
+    def test_the_seasoned_station_rests_on_its_one_whole_earlier_year(self):
+        usual = seasoned_station().rain_tab.usual_to_date
+
+        # WY2025 rains 0.3 in by May 20 with May 1-3 missing, prorated over
+        # its 232 days to 0.304; WY2024 began before the archive. WY2026 has
+        # 0.2 + 0.24 in, 145% of 0.304.
+        assert usual.years == 1
+        assert usual.usual_in == approx(0.3 * 232 / 229)
+        assert usual.percent == 145
