@@ -1,18 +1,41 @@
 /*
- * The now tile, phone first: temperature and condition
- * sentence, the Right-now strip, the 48-hour condition ribbon. The
- * temperature is Display type, the sentence Condition, the strip Stat; the
- * ribbon draws in the ribbon tokens, outlined by `ribbon-edge` (which equals
- * the day band in dark), with its rain track under the band in `ribbon-rain`
- * and the one `now` dot and label.
+ * The now tile, the Overview's fixed top (#468): the temperature in Display
+ * type, then today against the usual band for this date. The band is
+ * `temp-band`, edged in light mode (`temp-band-edge`, which equals the band
+ * in dark); the median is dashed in `ink-on-now`, which reads on the now
+ * surface in both themes (README decision 12); today's line is `ink`, ending
+ * in the one `now` dot and label; today's rain stands in `ribbon-rain` bars on
+ * a track of its own along the foot, never over the band.
  */
 
-/* ---------- the temperature and its sentence ---------- */
+/* ---------- the layout: stacked on a phone, side by side on the grids ---------- */
+.tile[data-section="first-screen"] > .today-chart {
+  margin-top: var(--s-4);
+}
+
+/* on the grids the temperature stands left of the chart, the folds under both */
+:root:is([data-layout="two"], [data-layout="four"]) .tile[data-section="first-screen"] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  column-gap: var(--s-6);
+}
+
+:root:is([data-layout="two"], [data-layout="four"])
+  .tile[data-section="first-screen"]
+  > .today-chart {
+  margin-top: 0;
+}
+
+.tile[data-section="first-screen"] > .tile-folds {
+  grid-column: 1 / -1;
+}
+
+/* ---------- the temperature ---------- */
 .now-line {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2) var(--s-5);
+  flex-direction: column;
+  gap: var(--s-2);
 }
 
 .now-temp {
@@ -34,275 +57,103 @@
   letter-spacing: 0;
 }
 
-.now-condition {
-  flex: 1 1 200px;
-  max-width: 44ch;
-  font-size: var(--type-condition);
-  line-height: 1.45;
-  text-wrap: pretty;
+/* ---------- today against the usual band ---------- */
+.today-chart {
+  min-width: 0;
+  min-height: 1px;
 }
 
-/* ---------- the Right-now strip ---------- */
-/* four stats: two columns on a phone, four on both grids */
-.right-now {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-2) var(--s-3);
-  margin: var(--s-4) 0 0;
-  padding: var(--s-2) 0;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  font-variant-numeric: tabular-nums;
-}
-
-:root:is([data-layout="two"], [data-layout="four"]) .right-now {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.right-now div {
-  display: flex;
-  flex-direction: column;
-}
-
-.right-now dt {
-  order: 2;
-  font-size: var(--type-source);
-  color: var(--ink-2);
-}
-
-.right-now dd {
-  order: 1;
-  margin: 0;
-  font-size: var(--type-stat);
-  font-weight: 400;
-  line-height: 1.25;
-  white-space: nowrap;
-}
-
-/* ---------- the 48-hour condition ribbon ---------- */
-.ribbon {
-  margin-top: var(--s-5);
-  font-variant-numeric: tabular-nums;
-}
-
-.ribbon-claim {
-  margin-bottom: var(--s-2);
-  font-size: var(--type-standfirst);
-  line-height: 1.45;
-  color: var(--ink-2);
-  max-width: 62ch;
-  text-wrap: pretty;
-  font-variant-numeric: normal;
-}
-
-.ribbon-band {
-  position: relative;
-  height: 44px;
-  border-radius: var(--r-ribbon);
-  overflow: hidden;
-  background: var(--ribbon-night);
-}
-
-/* the band's outline: 3:1 on the now surface in light; in dark it is the
-   day band's own colour, and the band passes by its fill */
-.ribbon-band::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--ribbon-edge);
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.ribbon-band svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.today-svg {
   display: block;
+  max-width: 100%;
+  overflow: visible;
+  font-family: var(--sans);
 }
 
-.ribbon-band rect[data-light="night"] {
-  fill: var(--ribbon-night);
-}
-.ribbon-band rect[data-light="day"] {
-  fill: var(--ribbon-day);
-}
-
-/* the rain track under the band: bars on the now surface, intensity by
-   height (a heavier step stands a quarter taller), never over the band */
-.ribbon-rain {
-  position: relative;
-  height: 16px;
-  margin-top: 3px;
-  /* the track's floor, so a dry track still reads as a track */
-  border-bottom: 1px solid var(--rule);
-}
-
-.ribbon-rain svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.ribbon-rain rect {
-  fill: var(--ribbon-rain);
-}
-
-.ribbon-hatch,
-.ribbon-rain-hatch {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  /* a half-hour lag is 2 of 192 slots: keep it visible on a phone */
-  min-width: 6px;
-}
-
-.ribbon-rain-hatch {
-  border-radius: var(--r-cell);
-}
-
-/* a tick the now label would run into (`clearNowLabel`) */
-.ribbon-tick.ribbon-tick-hidden {
-  visibility: hidden;
-}
-
-/* under 520px of band (the Chart Width Rule, `fitRibbon`) the ticks name
-   only the days */
-.ribbon[data-narrow="true"] .ribbon-tick:not(.ribbon-tick-day) {
-  display: none;
-}
-
-/* on a phone the band, the rain track and the ticks run edge to edge in
-   the tile, out through its padding */
-:root[data-layout="phone"] .tile .ribbon-band,
-:root[data-layout="phone"] .tile .ribbon-rain,
-:root[data-layout="phone"] .tile .ribbon-ticks {
-  margin-inline: calc(-1 * var(--tile-pad-phone));
-}
-
-:root[data-layout="phone"] .tile .ribbon-band {
-  border-radius: 0;
-}
-
-:root[data-layout="phone"] .tile .ribbon-now {
-  right: var(--s-2);
-}
-
-.ribbon-trace polyline {
+.today-plot {
   fill: none;
-  vector-effect: non-scaling-stroke;
-  stroke-linejoin: round;
-  stroke-linecap: round;
 }
 
-.ribbon-halo {
+.today-grid {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-opacity: 0.35;
+}
+
+.today-tick,
+.today-x {
+  font-size: var(--type-axis);
+  fill: var(--ink-on-now);
+  font-variant-numeric: tabular-nums;
+}
+
+.today-band {
+  fill: var(--temp-band);
+}
+
+.today-band-edge {
+  fill: none;
+  stroke: var(--temp-band-edge);
+  stroke-width: 1;
+}
+
+.today-median {
+  fill: none;
+  stroke: var(--ink-on-now);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.today-basis,
+.today-now {
+  paint-order: stroke;
   stroke: var(--surface);
-  stroke-width: 5;
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
-.ribbon-line {
+.today-basis {
+  font-size: var(--type-label);
+  fill: var(--ink-on-now);
+}
+
+.today-line,
+.today-join {
+  fill: none;
   stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.today-line {
+  stroke-width: 2.5;
+}
+
+.today-join {
+  stroke-width: 2;
+  stroke-dasharray: 1 5;
+}
+
+.today-dot {
+  fill: var(--now);
+  stroke: var(--surface);
   stroke-width: 2;
 }
 
-.ribbon-live {
-  stroke: var(--ink);
-  stroke-width: 1.5;
-  stroke-dasharray: 1 4;
-}
-
-.ribbon-dot {
-  position: absolute;
-  right: 3px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--now);
-  box-shadow: 0 0 0 2px var(--surface);
-  transform: translateY(-50%);
-}
-
-.ribbon-ticks {
-  position: relative;
-  height: 22px;
-  margin-top: 3px;
-  font-size: var(--type-axis);
-  line-height: 1.3;
-  color: var(--ink-3);
-}
-
-.ribbon-tick {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-
-.ribbon-tick::before {
-  content: "";
-  display: block;
-  width: 1px;
-  height: 4px;
-  margin: 0 auto 1px;
-  background: var(--rule-strong);
-}
-
-.ribbon-now {
-  position: absolute;
-  top: 5px;
-  right: 0;
+.today-now {
   font-size: var(--type-annotation);
   font-weight: 600;
-  color: var(--now);
-  white-space: nowrap;
+  fill: var(--now);
+  font-variant-numeric: tabular-nums;
 }
 
-.ribbon-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px var(--s-3);
-  margin-top: var(--s-1);
-  font-size: var(--type-label);
-  color: var(--ink-2);
+/* the rain track: bars on the now surface, intensity by height */
+.today-rain rect[data-rain] {
+  fill: var(--ribbon-rain);
 }
 
-.ribbon-key-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  white-space: nowrap;
-}
-
-.ribbon-key i {
-  display: inline-block;
-  width: 12px;
-  height: 9px;
-  border-radius: var(--r-cell);
-  border: 1px solid var(--rule-strong);
-}
-
-/* the rain key: four bars of the one rain colour, rising light to heavy
-   (each bar's height is set from the track's own rule, `rainBarHeight`) */
-.ribbon-key-ramp {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 1px;
-  height: 12px;
-}
-
-.ribbon-key-ramp i {
-  width: 4px;
-  border: 0;
-  border-radius: 0;
-  background: var(--ribbon-rain);
-}
-
-.ribbon-key-night {
-  background: var(--ribbon-night);
-}
-.ribbon-key-day {
-  background: var(--ribbon-day);
+/* the track's floor, so a dry track still reads as a track */
+.today-rain-floor {
+  stroke: var(--ink-3);
+  stroke-width: 1;
 }

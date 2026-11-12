@@ -466,6 +466,8 @@ export interface TemperatureContext {
   ten_day_years: number[];
   /** The temperature strip, then the rain strip. */
   strips: NormalStrip[];
+  /** Today's usual band by hour (#462); absent from a snapshot written before it. */
+  usual_band?: UsualBand | null;
 }
 
 /**
@@ -1006,6 +1008,73 @@ function checkTemperature(context: unknown): void {
     !Array.isArray(context.strips)
   ) {
     throw new SnapshotContractError("dashboard: temperature_context missing");
+  }
+  checkUsualBand(context.usual_band);
+}
+
+// ---------- the usual band (#462, drawn by the Overview hero, #468) ----------
+
+/** Which days a usual band is over; Python decides it (`UsualBand` in model.py). */
+export type UsualBasis = "earlier_years" | "recent_days" | "median_only";
+
+/** One station-local hour of the usual band. */
+export interface UsualHour {
+  /** The wall-clock hour, 0 to 23. */
+  hour: number;
+  /** The hour's median; null with no readings. */
+  median: number | null;
+  /** The middle half's edges; always null for "median_only". */
+  q1: number | null;
+  q3: number | null;
+  readings: number;
+}
+
+/**
+ * What temperature usually does at each hour around today's date: over
+ * earlier years' days within a week of it, or the station's own recent days,
+ * or (under 20 days of readings) those days' median only.
+ */
+export interface UsualBand {
+  basis: UsualBasis;
+  unit: "f";
+  /** The earlier years used, newest first; empty unless "earlier_years". */
+  years: number[];
+  /** How many counted days the band is over. */
+  days: number;
+  /** The 24 station-local hours, 0 to 23 in order. */
+  hours: UsualHour[];
+}
+
+const USUAL_BASES: readonly string[] = ["earlier_years", "recent_days", "median_only"];
+
+const isValueOrNull = (v: unknown) => v === null || typeof v === "number";
+
+/**
+ * Check `temperature_context.usual_band`: absent (a snapshot written before
+ * Release A) or null is fine, and the hero draws without it; present, it must
+ * hold its basis and 24 hours of numbers.
+ */
+function checkUsualBand(band: unknown): void {
+  if (band === undefined || band === null) return;
+  const hoursOk =
+    isRecord(band) &&
+    Array.isArray(band.hours) &&
+    band.hours.length === 24 &&
+    band.hours.every(
+      (h, i) =>
+        isRecord(h) &&
+        h.hour === i &&
+        isValueOrNull(h.median) &&
+        isValueOrNull(h.q1) &&
+        isValueOrNull(h.q3),
+    );
+  if (
+    !hoursOk ||
+    !USUAL_BASES.includes(band.basis as string) ||
+    !Array.isArray(band.years) ||
+    !Number.isInteger(band.days)
+  ) {
+    throw new SnapshotContractError("dashboard: temperature_context.usual_band malformed");
   }
 }
 

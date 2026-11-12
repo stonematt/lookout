@@ -141,20 +141,17 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     ]);
   });
 
-  it("holds the four Right-now stats, then the ribbon, in the now tile", async () => {
+  it("holds the temperature, then today against the usual band, in the now tile", async () => {
     const panel = await boot(parsed(scenario));
     const now = panel.querySelector<HTMLElement>("[data-section=first-screen]")!;
 
     expect(now.dataset.surface).toBe("now");
-    expect([...now.querySelectorAll("[data-part=right-now] dt")].map(words)).toEqual([
-      "feels like",
-      "wind",
-      "rain today",
-      "humidity",
-    ]);
-    const strip = now.querySelector("[data-part=right-now]")!;
-    const ribbon = now.querySelector("[data-part=ribbon]")!;
-    expect(strip.compareDocumentPosition(ribbon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(now.querySelector("[data-part=right-now], [data-part=ribbon]")).toBeNull();
+    const temperature = now.querySelector("[data-part=temperature]")!;
+    const chart = now.querySelector("[data-part=today-chart]")!;
+    expect(
+      temperature.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("marks the now and leading tiles as the phone's fixed top, and no other", async () => {
@@ -194,30 +191,10 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     const nows = [...text.matchAll(/now (\d+\.\d)°|(\d+\.\d)° now/g)].map((m) => m[1] ?? m[2]);
     expect(nows.length).toBeGreaterThan(1);
     expect(new Set(nows)).toEqual(new Set([t]));
-    // The Right-now stats are the live reading's.
-    const stat = (label: string) =>
-      words(
-        [...panel.querySelectorAll("[data-part=right-now] > div")]
-          .find((d) => words(d.querySelector("dt")) === label)
-          ?.querySelector("dd"),
-      );
-    const c = snapshot.current;
-    expect(stat("humidity")).toBe(`${Math.round(c.humidity_pct!)}%`);
-    expect(stat("wind")).toBe(`${c.wind_speed_mph!.toFixed(1)} mph`);
-    expect(stat("feels like")).toBe(`${c.feels_like_f!.toFixed(1)}°`);
-    // Rain today: the stat, and every "<x> in so far today".
+    // Every "<x> in so far today" is the live total.
     const today = snapshot.current.rain_today_in;
-    const strip = words(
-      [...panel.querySelectorAll("[data-part=right-now] > div")]
-        .find((d) => words(d.querySelector("dt")) === "rain today")
-        ?.querySelector("dd"),
-    );
-    if (today === null) expect(strip).toBe("n/a");
-    else {
-      expect(strip).toBe(`${today.toFixed(2)} in`);
-      for (const m of text.matchAll(/(\d+\.\d+) in so far today/g))
-        expect(m[1]).toBe(today.toFixed(2));
-    }
+    for (const m of text.matchAll(/(\d+\.\d+) in so far today/g))
+      expect(m[1]).toBe(today?.toFixed(2));
   });
 
   it("still hatches each invalid comparison in place, with its reason", async () => {
