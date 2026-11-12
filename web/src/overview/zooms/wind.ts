@@ -331,16 +331,16 @@ function pointBars(w: WindRoseWindow): HTMLElement | null {
   for (const point of w.points) {
     const item = make("li", "wind-bar");
     item.dataset.point = point.direction;
+    // The percent follows the bar's end, as on the board.
     const track = make("span", "wind-bar-track");
-    track.setAttribute("aria-hidden", "true");
     const fill = make("span", "wind-bar-fill");
+    fill.setAttribute("aria-hidden", "true");
     fill.style.width = `${point.share_pct ?? 0}%`;
-    track.append(fill);
-    item.append(
-      make("span", "wind-bar-label", point.direction),
-      track,
+    track.append(
+      fill,
       make("span", "wind-bar-value", point.share_pct === null ? "n/a" : `${point.share_pct}%`),
     );
+    item.append(make("span", "wind-bar-label", point.direction), track);
     list.append(item);
   }
   block.append(list);

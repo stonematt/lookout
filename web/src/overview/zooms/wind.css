@@ -163,7 +163,7 @@
 
 .wind-bar {
   display: grid;
-  grid-template-columns: 2.5em minmax(0, 1fr) 3em;
+  grid-template-columns: 2.5em minmax(0, 1fr);
   align-items: center;
   gap: var(--s-2);
   font-size: var(--type-standfirst);
@@ -171,15 +171,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* the bar, then its percent just past its end; the bar's width is its
+   share of the track, kept clear of the percent at 100% */
 .wind-bar-track {
-  display: block;
-  height: 18px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
 }
 
 .wind-bar-fill {
-  display: block;
-  height: 100%;
-  min-width: 0;
+  flex: none;
+  max-width: calc(100% - 3.5em);
+  height: 18px;
   border-radius: var(--r-cell);
   background: var(--ink-2);
 }

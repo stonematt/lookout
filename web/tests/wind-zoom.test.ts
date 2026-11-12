@@ -155,7 +155,7 @@ describe("the wind rose, seasoned station", () => {
     expect(rows[0]).toBe("N no readings");
     expect(rows[10]).toBe("SW 4.5 mph 10.6 mph");
     // The bars' graphics are hidden; their words are read.
-    for (const bar of host.querySelectorAll(".wind-bar-track")) {
+    for (const bar of host.querySelectorAll(".wind-bar-fill")) {
       expect(bar.getAttribute("aria-hidden")).toBe("true");
     }
   });
