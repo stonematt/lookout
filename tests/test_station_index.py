@@ -30,12 +30,7 @@ from lookout.storage import storj
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import FAKE_MAC, SCENARIO, SEASONED_MAC, build_archive
 from tests.fixtures.storage import BUCKET, flaky_storj, seed_inventory
-from tests.snapshot_helpers import (
-    REGENERATE,
-    dry_station,
-    raining_station,
-    seasoned_station,
-)
+from tests.snapshot_helpers import GOLDEN_SCENARIOS, REGENERATE
 from tests.test_catchup import CatchupStation, ms, reporting
 from tests.test_refresh import (  # noqa: F401 (seed, catchup_station, fixed_code)
     EVENT_CATALOG_KEY,
@@ -292,11 +287,7 @@ GOLDEN_FIRST = {
     "raining": {"mac": FAKE_MAC, "name": "Fixture Station"},
     "seasoned": {"mac": SEASONED_MAC, "name": "Seasoned Station"},
 }
-SCENARIOS = {
-    "dry": dry_station,
-    "raining": raining_station,
-    "seasoned": seasoned_station,
-}
+SCENARIOS = GOLDEN_SCENARIOS
 
 
 class TestTheReaderRefusesWhatTheSiteRefuses:

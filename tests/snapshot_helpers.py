@@ -8,7 +8,7 @@ rewrites its file instead of comparing.
 """
 
 import os
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import pandas as pd
 
@@ -163,3 +163,11 @@ def seasoned_station() -> Snapshot:
         station=SEASONED_STATION,
         now=pd.Timestamp(SEASONED_BUILT),
     )
+
+
+GOLDEN_SCENARIOS: Dict[str, Callable[[], Snapshot]] = {
+    "dry": dry_station,
+    "raining": raining_station,
+    "seasoned": seasoned_station,
+}
+"""Each golden scenario's builder: the snapshot, status and index goldens."""

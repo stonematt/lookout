@@ -45,6 +45,7 @@ from tests.fixtures.archive import (
 )
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.snapshot_helpers import (
+    GOLDEN_SCENARIOS,
     RAIN_LIVE,
     REGENERATE,
     SEASONED_ARCHIVE_NEWEST,
@@ -64,11 +65,7 @@ GOLDEN_DIR = Path(__file__).parent / "golden" / "snapshots"
 REAL_MAC = "98:CD:AC:22:0D:E5"
 
 
-SCENARIOS = {
-    "dry": dry_station,
-    "raining": raining_station,
-    "seasoned": seasoned_station,
-}
+SCENARIOS = GOLDEN_SCENARIOS
 
 
 def assert_matches_golden(document: Dict, name: str) -> None:
@@ -353,6 +350,10 @@ def test_curve_golden_files_hold_no_real_station():
 # ---------- the seasoned golden (#461) ----------
 
 
+# Two earlier years of `SPREAD_DAYS` either side of a date.
+USUAL_DAYS = 2 * (2 * SPREAD_DAYS + 1)
+
+
 class TestSeasonedGolden:
     """
     The seasoned station has earlier years; `dry` and `raining` have none.
@@ -367,7 +368,7 @@ class TestSeasonedGolden:
         assert len(rows) == 10
         for row in rows:
             assert row.usual_years == (2025, 2024)
-            assert row.usual_days == 2 * (2 * SPREAD_DAYS + 1)
+            assert row.usual_days == USUAL_DAYS
 
     def test_the_young_station_shape_stays_in_the_dry_golden(self):
         rows = dry_station().temperature_context.ten_days
@@ -388,7 +389,7 @@ class TestSeasonedGolden:
             usual |= (days >= first) & (days <= last) & (local.dt.hour == now.hour)
         readings = archive.loc[usual, "tempf"]
 
-        assert len(readings) == 2 * (2 * SPREAD_DAYS + 1) * 12
+        assert len(readings) == USUAL_DAYS * 12  # five-minute readings an hour
         p90 = float(np.percentile(readings, 90))
         assert p90 == pytest.approx(64.6)
         current = seasoned_station().current

@@ -23,12 +23,18 @@ function goldenIndex(scenario: Scenario): Record<string, unknown> {
   >;
 }
 
+/** Each golden index's first station: the scenario's own. */
+const GOLDEN_FIRST: Record<Scenario, string> = {
+  dry: "Fixture Station",
+  raining: "Fixture Station",
+  seasoned: "Seasoned Station",
+};
+
 describe("the station index contract", () => {
   it.each(SCENARIOS)("reads the %s golden", (scenario) => {
     const index = parseStationIndex(goldenIndex(scenario));
     expect(index.schema_version).toBe(STATION_INDEX_SCHEMA_VERSION);
-    const first = scenario === "seasoned" ? "Seasoned Station" : "Fixture Station";
-    expect(index.stations.map((s) => s.name)).toEqual([first, "Salmon Run"]);
+    expect(index.stations.map((s) => s.name)).toEqual([GOLDEN_FIRST[scenario], "Salmon Run"]);
     expect(index.stations[1]!.newest_reading_ms).toBeNull();
   });
 

@@ -27,6 +27,10 @@ over overlapping ranges with the same spells agree row for row.
 
 `scenario_archive()` builds `SCENARIO`: a week with three rain events (one of
 two spells), a carryover gap and a plain gap.
+
+`seasoned_archive()` builds the seasoned station (#461): 2024 and 2025 around
+20 May and a recent 45-day run to `SEASONED_NOW`, a temperature pushed past
+its usual 90th percentile, two indoor sensors and a low sensor 1 battery.
 """
 
 from dataclasses import dataclass, field
@@ -386,7 +390,7 @@ def seasoned_archive(newest_first: bool = True) -> pd.DataFrame:
         1.0,
     )
     df["battrain"] = pd.Series(["1"] * len(df), dtype="category")
-    now = df["dateutc"] == pd.Timestamp(SEASONED_NOW).value // 10**6
-    df.loc[now, ["tempf", "feelsLike"]] = SEASONED_PUSHED_TEMPF
+    at_now = df["dateutc"] == pd.Timestamp(SEASONED_NOW).value // 10**6
+    df.loc[at_now, ["tempf", "feelsLike"]] = SEASONED_PUSHED_TEMPF
     df = df.sort_values("dateutc", ascending=not newest_first)
     return df.reset_index(drop=True)
