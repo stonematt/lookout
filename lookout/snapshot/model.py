@@ -562,6 +562,25 @@ class TemperatureDay:
 
 
 @dataclass(frozen=True)
+class TenDayHighs:
+    """
+    The last ten days' highs against their usual highs (#540): the Last 10
+    days tile's one number, such as "+5° highs over usual", decided here so
+    the site only words it.
+
+    :param delta_f: The mean of the ten-day list's highs minus the mean of
+        their usual highs, over the paired days only, in whole degrees F,
+        rounded half away from zero; a difference that rounds to zero is 0,
+        never -0.
+    :param days: How many days it is over: those with both a high and a
+        usual high, 1 to 10.
+    """
+
+    delta_f: int
+    days: int
+
+
+@dataclass(frozen=True)
 class NormalStrip:
     """
     One "now against normal" strip: the current value among past days.
@@ -695,6 +714,8 @@ class TemperatureContext:
     :param ten_days: The last ten local days, oldest first, ending today.
     :param ten_day_years: Every earlier year the list's normal is over,
         newest first.
+    :param ten_day_highs: The list's highs against their usual highs; null
+        when no day has both a high and a usual high.
     :param strips: The temperature strip, then the rain strip.
     :param usual_band: Today's usual band by station-local hour, which the
         Overview hero draws today against.
@@ -711,6 +732,7 @@ class TemperatureContext:
     periods: Tuple[TemperaturePeriod, ...]
     ten_days: Tuple[TemperatureDay, ...]
     ten_day_years: Tuple[int, ...]
+    ten_day_highs: Optional[TenDayHighs]
     strips: Tuple[NormalStrip, ...]
     usual_band: UsualBand
     full_history: Optional[TemperaturePeriod]

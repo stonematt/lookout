@@ -4145,6 +4145,7 @@
       }
     ],
     "ten_day_years": [],
+    "ten_day_highs": null,
     "strips": [
       {
         "kind": "temperature",

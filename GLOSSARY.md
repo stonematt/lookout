@@ -346,3 +346,13 @@ snapshot decides the hour, the difference and the band's basis
 Feature Rule's 15-minute test) or the band has no median for that hour.
 One value serves the Overview's top line and the Temperature tile (#518).
 _Avoid_: anomaly, departure, delta from normal.
+
+### highs against usual
+
+The mean of the last ten days' highs minus the mean of their usual highs
+(each day's median daily high over ±7 days in earlier years), in whole
+degrees F, as in "+5° highs over usual". Only days with both a high and a
+usual high count, and the count is published with it
+(`temperature_context.ten_day_highs`, #540). There is none when no day has
+both, as before a station's first earlier year.
+_Avoid_: ten-day anomaly, average departure.

@@ -6231,6 +6231,10 @@
       2025,
       2024
     ],
+    "ten_day_highs": {
+      "delta_f": 2,
+      "days": 10
+    },
     "strips": [
       {
         "kind": "temperature",
