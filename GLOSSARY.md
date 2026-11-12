@@ -320,3 +320,13 @@ comes from its own recent days instead, the last 14 at most, and says so;
 with under 20 days of readings it is the median only. Once an earlier year
 covers the date, recent days are no longer used. "Usual" is the house word.
 _Avoid_: normal, normal range, climate normal, average day.
+
+### now against the usual
+
+The current temperature minus the **usual band**'s median for its
+station-local hour, in whole degrees F, as in "+8° on usual for 2 pm". The
+snapshot decides the hour, the difference and the band's basis
+(`usual_band.now_delta`); there is none while the reading is stale (the
+Feature Rule's 15-minute test) or the band has no median for that hour.
+One value serves the Overview's top line and the Temperature tile (#518).
+_Avoid_: anomaly, departure, delta from normal.

@@ -16,6 +16,7 @@ DST week, for the 23- and 25-hour days), each starting on a local midnight
 so its first day counts.
 """
 
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Iterable, List, Sequence
 
@@ -143,7 +144,8 @@ class TestRecentDays:
         )
         warmer.loc[today_rows, "tempf"] = 99.0
 
-        assert band(warmer) == before
+        # Only now against the usual follows today's (newest) reading.
+        assert replace(band(warmer), now_delta=None) == replace(before, now_delta=None)
 
     def test_a_gap_day_is_not_counted_so_n_says_so(self):
         gone = Gap("2026-01-02T08:00:00Z", "2026-01-03T08:00:00Z")  # local Jan 2
@@ -227,6 +229,6 @@ class TestContract:
         doc = build(station("2025-12-17T08:00:00Z"), None, NOW).dashboard()
         usual = doc["temperature_context"]["usual_band"]
 
-        assert set(usual) == {"basis", "unit", "years", "days", "hours"}
+        assert set(usual) == {"basis", "unit", "years", "days", "hours", "now_delta"}
         assert set(usual["hours"][0]) == {"hour", "median", "q1", "q3", "readings"}
         assert doc["schema_version"] == 3
