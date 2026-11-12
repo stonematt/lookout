@@ -714,7 +714,12 @@ function renderPeriods(
   );
 }
 
-function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
+/** The ten-day list under its finding; the tile form folds its source. */
+function renderTenDays(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: BlockOptions = {},
+): void {
   const days = shownDays(snapshot);
   host.dataset.block = "ten-days";
   const chart = chartHost("days-chart");
@@ -722,6 +727,10 @@ function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
     tileFinding(daysHeadline(snapshot)),
     chart,
     spoken([...days].reverse().map(daySentence)),
+  );
+  mountChart(chart, (w) => daysChart(snapshot, w));
+  if (options.zoom) return;
+  host.append(
     tileFolds(
       sourceNote(snapshot, {
         what: "daily low and high",
@@ -733,7 +742,6 @@ function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
       }),
     ),
   );
-  mountChart(chart, (w) => daysChart(snapshot, w));
 }
 
 function stripHeadline(strip: NormalStrip): string {
@@ -808,6 +816,11 @@ export function renderPeriodsZoom(host: HTMLElement, snapshot: DashboardSnapshot
 /** The temperature zoom's now-against-this-date strips; no source fold. */
 export function renderStripsZoom(host: HTMLElement, snapshot: DashboardSnapshot): void {
   renderStrips(host, snapshot, { zoom: true });
+}
+
+/** The Last 10 days zoom's high-low list (#477); no source fold. */
+export function renderTenDaysZoom(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  renderTenDays(host, snapshot, { zoom: true });
 }
 
 /** Temperature across periods: one range bar per window, the now rule across them. */

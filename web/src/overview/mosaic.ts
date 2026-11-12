@@ -100,6 +100,11 @@ export interface MosaicTile {
    */
   shown?(snapshot: DashboardSnapshot): boolean;
   /**
+   * Why the tile is not drawn when its own `shown` says no, in a sentence:
+   * the sources footer gives it in the tile's place. None by default.
+   */
+  absent?(snapshot: DashboardSnapshot): string;
+  /**
    * Rows in place of one number (Inside: one per sensor), each a name, a
    * reading, an aside and a line; drawn under the title, before the delta.
    */
@@ -297,6 +302,10 @@ export function mosaicSection(tile: MosaicTile): OverviewSection {
     shown: (snapshot) =>
       depthShown(snapshot, tile.depth) && (tile.shown ? tile.shown(snapshot) : true),
     source: (snapshot) => tile.source(snapshot),
+    absent: (snapshot) =>
+      tile.absent && tile.shown && depthShown(snapshot, tile.depth) && !tile.shown(snapshot)
+        ? tile.absent(snapshot)
+        : null,
     render: (host, snapshot) => render(tile, host, snapshot),
   };
 }

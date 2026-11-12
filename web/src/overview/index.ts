@@ -74,8 +74,7 @@ export function renderOverview(
   for (const tile of grid.querySelectorAll<HTMLElement>("[data-section]")) {
     tile.id = `overview-${tile.dataset.section}`;
   }
-  const drawn = sections.filter((s) => !s.shown || s.shown(snapshot));
-  const footer = sourcesFooter(snapshot, drawn);
+  const footer = sourcesFooter(snapshot, sections);
   if (footer) panel.append(footer);
   drawZoom(panel, snapshot);
 }

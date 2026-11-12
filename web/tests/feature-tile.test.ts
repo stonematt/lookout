@@ -183,7 +183,18 @@ describe("the feature tile", () => {
   });
 
   it.each([
-    ["humidity", 22, "pct", 3, "22%", "drier", "3rd", "#overview-air", "Go to Air"],
+    // Humidity and pressure open their zooms (#477), not the tile's old id.
+    [
+      "humidity",
+      22,
+      "pct",
+      3,
+      "22%",
+      "drier",
+      "3rd",
+      "#overview/humidity",
+      "Open the humidity view",
+    ],
     ["wind_gust", 31.5, "mph", 98, "31.5 mph", "gustier", "98th", "#overview-wind", "Go to Wind"],
     [
       "pressure",
@@ -193,8 +204,8 @@ describe("the feature tile", () => {
       "29.41 inHg",
       "lower",
       "1st",
-      "#overview-pressure",
-      "Go to Pressure",
+      "#overview/pressure",
+      "Open the pressure view",
     ],
     ["solar", 140, "wm2", 2, "140 W/m²", "duller", "2nd", "#solar", "Open the Solar tab"],
   ])(

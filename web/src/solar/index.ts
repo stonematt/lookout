@@ -13,6 +13,9 @@
  * The selected day lives in the URL (`?solar_day=YYYY-MM-DD`), so a shared
  * link opens on it. Picking a day on the daily bars, either day heatmap or
  * the date field updates the URL in place and redraws what shows it.
+ *
+ * Offers `renderSolar`, and `renderSunlightNow`, the top section, which the
+ * Overview's Sun zoom draws too (#477), without its source note.
  */
 import "./solar.css";
 
@@ -145,9 +148,33 @@ interface Mount {
   dayHost: HTMLElement | null;
 }
 
-/** The 24-hour tile. */
-function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab): void {
-  const trace = tab.last_24h;
+/** How the Sunlight now section is drawn. */
+export interface SunlightNowOptions {
+  /**
+   * Fold the source note at its foot, as the Solar tab does; true by
+   * default. The Sun zoom leaves it out (prototype decision 22: the
+   * Overview's sources footer carries the Sun tile's line).
+   */
+  note?: boolean;
+}
+
+/**
+ * The Solar tab's top section, Sunlight now: its finding, standfirst, the
+ * last 24 hours against the usual range, and its live readout, then the
+ * folded source note unless `note` is false. The Solar tab and the
+ * Overview's Sun zoom both draw it.
+ *
+ * @param host - The tile or zoom panel to fill.
+ * @param snapshot - The dashboard snapshot.
+ * @param options - Whether to fold the source note.
+ */
+export function renderSunlightNow(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: SunlightNowOptions = {},
+): void {
+  const withNote = options.note ?? true;
+  const trace = snapshot.solar_tab?.last_24h ?? null;
   const live = snapshot.current.solar_wm2;
   heading(
     host,
@@ -155,6 +182,7 @@ function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab
     "The bold line is solar radiation over the last 24 hours; 1 kWh/m² is an hour of full midday sun. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
   );
   if (!trace) {
+    if (!withNote) return;
     host.append(
       source(snapshot, "the station's solar sensor", [
         "The station's solar sensor. There is no observation in this snapshot yet.",
@@ -167,6 +195,7 @@ function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab
   sized(chart, (w) =>
     drawTrace(chart, trace, snapshot.archive_newest_ms, w, (t) => (readout.textContent = t)),
   );
+  if (!withNote) return;
   const noUsual = trace.usual.status === "invalid";
   host.append(
     source(
@@ -502,7 +531,7 @@ function solarSections(mount: Mount): TileSection[] {
       kicker: "Sunlight now",
       span: 4,
       phoneTop: true,
-      render: (host, snapshot) => renderNow(host, snapshot, mount.tab),
+      render: (host, snapshot) => renderSunlightNow(host, snapshot),
     },
     {
       id: "daily",

@@ -338,6 +338,8 @@ export const daylightTile: MosaicTile = {
   title: "Daylight",
   zoomName: "daylight",
   shown: (snapshot) => snapshot.sun_moon !== null,
+  // The Sun and moon card said it in its body; with no tile, the footer does.
+  absent: () => "Not known: the station reports no location.",
   read(snapshot) {
     const block = snapshot.sun_moon;
     if (!block) return { value: null, delta: "the station reports no location" };
