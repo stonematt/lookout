@@ -178,8 +178,8 @@ describe("the feature tile", () => {
       /^Temperature 72.0°, warmer than usual for (\d+ (am|pm)|noon|midnight): the 100th percentile/,
     );
     expect(name).toContain("in earlier years");
-    expect(name).toMatch(/\. Go to Temperature\.$/);
-    expect(link().getAttribute("href")).toBe("#overview-temperature");
+    expect(name).toMatch(/\. Open the temperature view\.$/);
+    expect(link().getAttribute("href")).toBe("#overview/temperature");
   });
 
   it.each([
@@ -235,8 +235,8 @@ describe("the feature tile", () => {
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Today");
     const t = dry.current.temperature_f!.toFixed(1);
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe(`${t}°`);
-    expect(linkName()).toBe(`a usual day, ${t}° now. Go to Temperature.`);
-    expect(link().getAttribute("href")).toBe("#overview-temperature");
+    expect(linkName()).toBe(`a usual day, ${t}° now. Open the temperature view.`);
+    expect(link().getAttribute("href")).toBe("#overview/temperature");
   });
 
   it("gives every Overview tile an id the in-page links reach", () => {
@@ -246,12 +246,12 @@ describe("the feature tile", () => {
     }
   });
 
-  it("points at an open tile on a phone, the Overview having no finding rows", () => {
+  it("points at the temperature zoom on a phone, its tile open, the Overview having no finding rows", () => {
     setLayout("phone");
     draw(parseDashboard(golden("dry", "dashboard")));
     const target = panel.querySelector<HTMLElement>("#overview-temperature")!;
 
-    expect(link().getAttribute("href")).toBe("#overview-temperature");
+    expect(link().getAttribute("href")).toBe("#overview/temperature");
     expect(target.tagName).toBe("SECTION");
     expect(panel.querySelector("details.tile-row")).toBeNull();
   });

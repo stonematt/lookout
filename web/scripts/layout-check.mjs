@@ -19,8 +19,12 @@
  * golden with every Rain and Solar window valid and holding the wide values
  * live data produces (5 digits, as in #395), which the goldens do not. On a
  * phone each folded finding row is opened in turn, so a chart inside a
- * closed row is measured too. Layout facts only; taste stays with the
- * design-compliance pass.
+ * closed row is measured too. Then every registered zoom (#474) is opened
+ * at its route, `#overview/<slug>`, at each width, scheme and case, and
+ * measured the same way: the zooms are found from the Overview's tile
+ * links (`a[data-zoom]`, set by `src/overview/zoom.ts` for each slug in
+ * `src/overview/zooms/index.ts`), so a new zoom needs no change here.
+ * Layout facts only; taste stays with the design-compliance pass.
  *
  * It serves `dist/` with `vite preview` itself (the lane server's read
  * functions, so no secrets and no network), on a free port. `--prove` adds
@@ -79,7 +83,11 @@ function measure() {
       .slice(0, 2)
       .map((c) => `.${c}`)
       .join("")}`;
-  const tile = (el) => el.closest("[data-section]")?.dataset.section ?? "page";
+  const tile = (el) => {
+    const zoom = el.closest(".zoom");
+    if (zoom) return `zoom ${zoom.dataset.zoom}`;
+    return el.closest("[data-section]")?.dataset.section ?? "page";
+  };
 
   // 2. a chart narrower than the box that holds it
   const charts = [...panel.querySelectorAll("svg[role=img], .js-plotly-plot")].filter(
@@ -183,6 +191,20 @@ const browser = await chromium.launch();
 const failures = [];
 const started = Date.now();
 let proved = false;
+let zoomViews = 0;
+
+/** Print a view's result and keep its problems as failures. */
+function report(view, found, kase) {
+  const problems = [...new Set(found)];
+  console.log(`${problems.length ? "FAIL" : "ok  "} ${view}`);
+  for (const p of problems) {
+    console.log(`       ${p}`);
+    // Under --prove only the wide case's touching stats are the
+    // expected failure; anything else still fails the run.
+    if (prove && kase.wide && p.startsWith("stats touch")) proved = true;
+    else failures.push(`${view}: ${p}`);
+  }
+}
 try {
   for (const kase of CASES) {
     for (const width of WIDTHS) {
@@ -206,16 +228,22 @@ try {
             await page.waitForSelector(".ev-chart.js-plotly-plot", { timeout: 10000 });
           }
           await page.waitForTimeout(300);
-          const problems = [...new Set(await inspectTab(page))];
-          const view = `${kase.name} #${tab} ${width}px ${colorScheme}`;
-          console.log(`${problems.length ? "FAIL" : "ok  "} ${view}`);
-          for (const p of problems) {
-            console.log(`       ${p}`);
-            // Under --prove only the wide case's touching stats are the
-            // expected failure; anything else still fails the run.
-            if (prove && kase.wide && p.startsWith("stats touch")) proved = true;
-            else failures.push(`${view}: ${p}`);
-          }
+          report(`${kase.name} #${tab} ${width}px ${colorScheme}`, await inspectTab(page), kase);
+        }
+        // Every zoom the Overview registers (#474): its tiles' links carry
+        // `data-zoom`, so a zoom a lane registers is measured with no change here.
+        await page.evaluate(() => (location.hash = "overview"));
+        await page.waitForTimeout(150);
+        const zooms = await page.$$eval("a[data-zoom]", (links) => [
+          ...new Set(links.map((a) => a.dataset.zoom)),
+        ]);
+        for (const slug of zooms) {
+          await page.evaluate((s) => (location.hash = `overview/${s}`), slug);
+          await page.waitForSelector(`.zoom[data-zoom="${slug}"]`, { timeout: 5000 });
+          await page.waitForTimeout(300);
+          const view = `${kase.name} #overview/${slug} ${width}px ${colorScheme}`;
+          report(view, await inspectTab(page), kase);
+          zoomViews += 1;
         }
         await page.close();
       }
@@ -227,7 +255,7 @@ try {
 }
 const seconds = ((Date.now() - started) / 1000).toFixed(0);
 console.log(
-  `${CASES.length * WIDTHS.length * SCHEMES.length * TABS.length} views in ${seconds}s, ${seen.charts} charts and ${seen.stats} stat lists measured`,
+  `${CASES.length * WIDTHS.length * SCHEMES.length * TABS.length + zoomViews} views (${zoomViews} zooms) in ${seconds}s, ${seen.charts} charts and ${seen.stats} stat lists measured`,
 );
 
 if (failures.length) {

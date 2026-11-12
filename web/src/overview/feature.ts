@@ -9,11 +9,13 @@
  * accessible name comes from its content, as the mosaic tiles' does (#543):
  * the visible finding, read once, with hidden words round it that say the
  * kicker and value in full (both `aria-hidden`) and where the link goes
- * ("Open the Rain tab"). No `aria-label` replaces the content. Until the zooms land
- * (`#overview/<tile>`, #474), the link goes where the evidence is today: the
- * Rain Events tab for rain, the Rain tab for a dry spell, the Solar tab for
- * unusual sun, and otherwise the Overview tile carrying the reading
- * (`#overview-<section>`: the Temperature, Wind, Pressure or Humidity tile).
+ * ("Open the Rain tab"). No `aria-label` replaces the content. A temperature
+ * feature (unusual, or a usual day) opens the temperature zoom
+ * (`#overview/temperature`, #474). Until the other zooms land, the link goes
+ * where the evidence is today: the Rain Events tab for rain, the Rain tab
+ * for a dry spell, the Solar tab for unusual sun, and otherwise the
+ * Overview tile carrying the reading (`#overview-<section>`: the Wind,
+ * Pressure or Humidity tile).
  *
  * Every value is the snapshot's: this module words, formats and links; it
  * does not pick, rank or compare.
@@ -71,9 +73,10 @@ export interface FeatureView {
 
 const RAIN_EVENTS: Target = { href: "#events", words: "Open the Rain Events tab" };
 const RAIN: Target = { href: "#rain", words: "Open the Rain tab" };
+// The temperature zoom (#474), in the tile's own words.
 const TEMPERATURE: Target = {
-  href: `#overview-${temperatureTile.slug}`,
-  words: "Go to Temperature",
+  href: `#overview/${temperatureTile.slug}`,
+  words: `Open the ${temperatureTile.zoomName} view`,
 };
 
 /** Per reading: its name, the two comparatives, its Overview target. */

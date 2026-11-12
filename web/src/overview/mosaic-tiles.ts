@@ -28,8 +28,7 @@ import { missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { WET_DAY_IN, degrees, formatDayCount, formatDays, inches } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
-import type { DashboardSnapshot, TemperatureDay, TemperaturePeriod } from "../snapshot.js";
-import { isShown } from "./history.js";
+import type { DashboardSnapshot } from "../snapshot.js";
 import type { MosaicTile } from "./mosaic.js";
 import {
   daylightTile,
@@ -40,7 +39,7 @@ import {
   windTile,
 } from "./mosaic-conditions.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
-import { rampColour, shownDays } from "./temperature.js";
+import { rampColour, shownDays, todayInList, todayPeriod } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
 
 const SHORT_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short" });
@@ -49,21 +48,6 @@ const SHORT_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "
 const ROW_LABEL_PX = 46;
 
 // ---------- Temperature ----------
-
-/** The "today" window, when the record covers it. */
-function todayPeriod(snapshot: DashboardSnapshot): TemperaturePeriod | null {
-  const today = snapshot.temperature_context.periods.find((p) => p.status.key === "today");
-  return today && isShown(today.status) ? today : null;
-}
-
-/** Today in the ten-day list: its usual low and high for this date. */
-function todayInList(snapshot: DashboardSnapshot): TemperatureDay | null {
-  const today = todayPeriod(snapshot);
-  if (!today) return null;
-  return (
-    snapshot.temperature_context.ten_days.find((d) => d.day === today.status.first_day) ?? null
-  );
-}
 
 /** The usual and today rows of the window range chart, with the now rule. */
 function temperatureChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
