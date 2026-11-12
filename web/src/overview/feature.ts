@@ -11,11 +11,11 @@
  * kicker and value in full (both `aria-hidden`) and where the link goes
  * ("Open the Rain tab"). No `aria-label` replaces the content. A temperature
  * feature (unusual, or a usual day) opens the temperature zoom
- * (`#overview/temperature`, #474). Until the other zooms land, the link goes
- * where the evidence is today: the Rain Events tab for rain, the Rain tab
- * for a dry spell, the Solar tab for unusual sun, and otherwise the
- * Overview tile carrying the reading (`#overview-<section>`: the Wind,
- * Pressure or Humidity tile).
+ * (`#overview/temperature`, #474), and an unusual humidity or pressure its
+ * reading's zoom (`#overview/humidity`, `#overview/pressure`, #477). Until
+ * the other zooms land, the link goes where the evidence is today: the Rain
+ * Events tab for rain, the Rain tab for a dry spell, the Solar tab for
+ * unusual sun, and the Wind tile (`#overview-wind`) for an unusual gust.
  *
  * Every value is the snapshot's: this module words, formats and links; it
  * does not pick, rank or compare.
@@ -42,7 +42,9 @@ import {
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
+import type { MosaicTile } from "./mosaic.js";
 import { spoken } from "./mosaic.js";
+import { humidityTile, pressureTile } from "./mosaic-conditions.js";
 import { temperatureTile } from "./mosaic-tiles.js";
 
 /** Where the tile's link goes, and the words that say so. */
@@ -73,11 +75,13 @@ export interface FeatureView {
 
 const RAIN_EVENTS: Target = { href: "#events", words: "Open the Rain Events tab" };
 const RAIN: Target = { href: "#rain", words: "Open the Rain tab" };
-// The temperature zoom (#474), in the tile's own words.
-const TEMPERATURE: Target = {
-  href: `#overview/${temperatureTile.slug}`,
-  words: `Open the ${temperatureTile.zoomName} view`,
-};
+/** A mosaic tile's zoom as a target, in the tile's own words. */
+const zoomTarget = (tile: MosaicTile): Target => ({
+  href: `#overview/${tile.slug}`,
+  words: `Open the ${tile.zoomName} view`,
+});
+// The temperature zoom (#474).
+const TEMPERATURE = zoomTarget(temperatureTile);
 
 /** Per reading: its name, the two comparatives, its Overview target. */
 const READINGS: Record<
@@ -89,7 +93,7 @@ const READINGS: Record<
     name: "humidity",
     high: "more humid",
     low: "drier",
-    target: { href: "#overview-air", words: "Go to Air" },
+    target: zoomTarget(humidityTile),
   },
   wind_gust: {
     name: "wind gust",
@@ -101,7 +105,7 @@ const READINGS: Record<
     name: "pressure",
     high: "higher",
     low: "lower",
-    target: { href: "#overview-pressure", words: "Go to Pressure" },
+    target: zoomTarget(pressureTile),
   },
   solar: {
     name: "sun",

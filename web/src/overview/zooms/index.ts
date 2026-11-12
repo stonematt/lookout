@@ -12,8 +12,14 @@
  * Offers `ZOOMS`.
  */
 import type { ZoomDefinition } from "../zoom.js";
+import { daylightZoom } from "./daylight.js";
 import { drySpellZoom } from "./dry-spell.js";
+import { humidityZoom } from "./humidity.js";
+import { insideZoom } from "./inside.js";
+import { tenDaysZoom } from "./last-10-days.js";
+import { pressureZoom } from "./pressure.js";
 import { rainZoom } from "./rain.js";
+import { sunZoom } from "./sun.js";
 import { temperatureZoom } from "./temperature.js";
 import { windZoom } from "./wind.js";
 
@@ -21,6 +27,12 @@ import { windZoom } from "./wind.js";
 export const ZOOMS: readonly ZoomDefinition[] = [
   temperatureZoom, // #474
   rainZoom, // #475
+  tenDaysZoom, // #477
   drySpellZoom, // #475
   windZoom, // #476
+  pressureZoom, // #477
+  humidityZoom, // #477
+  sunZoom, // #477
+  daylightZoom, // #477
+  insideZoom, // #477
 ];
