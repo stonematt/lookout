@@ -72,8 +72,8 @@ spell → `dry_spell`, anything else → `temperature_ranges`.
 - **A 1-hour hold.** Rejected for 3 hours: the replay gave 1 hour a median
   of 11 changes a day (18 on the worst) and no bounces, about 7 minutes'
   extra delay before a new feature shows; 3 hours gave a median of 5 (8 on
-  the worst) and no bounces, about 12 minutes. The replay's steps understate changes slightly and its delay
-  figures are approximate.
+  the worst) and no bounces, about 12 minutes. The replay's 15-minute
+  steps understate changes slightly, and its delay figures are approximate.
 
 ## Consequences
 

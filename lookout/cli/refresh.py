@@ -50,10 +50,11 @@ Usage:
       stale (#118): one catalog's bug never stops the snapshot publishing.
    e. `read_previous(station, bucket)`: the feature of the station's last
       published dashboard snapshot, for the Feature Rule's hold (#533); a
-      snapshot read, never the archive. Missing (or published before the
-      hold) means no hold; a read that fails, or a document that cannot be
-      parsed, fails the station before its snapshot is written (ADR-0004),
-      so the last published snapshot stays up. Then
+      snapshot read, never the archive. Missing, published before the hold,
+      or a feature the rule cannot read means no hold; a read that fails,
+      or a document that is not JSON, fails the station before its
+      snapshot is written (ADR-0004), so the last published snapshot stays
+      up. Then
       `build(station, live, archive, catalogs, now, previous)`:
       `build_snapshot`, with the stale catalogs marked on it.
    f. `publish(snapshot, bucket)`: both documents under `snapshot/`.
@@ -566,10 +567,11 @@ def read_previous(station: Station, bucket: str) -> Optional[Feature]:
     :param station: The station.
     :param bucket: The bucket.
     :return: The last published feature; None when there is no dashboard
-        snapshot, or its feature predates the hold (no `since_ms`).
-    :raises StorageReadError: If the read fails or the document cannot be
-        parsed (ADR-0004): the station fails before its snapshot is written,
-        so the last published one stays up.
+        snapshot, or its feature predates the hold (no `since_ms`) or names
+        a kind or reading the rule does not know.
+    :raises StorageReadError: If the read fails or the document is not JSON
+        (ADR-0004): the station fails before its snapshot is written, so
+        the last published one stays up.
     """
     key = snapshot_keys(station.mac)["dashboard"]
     return previous_feature(read_json_from_s3(bucket, key))

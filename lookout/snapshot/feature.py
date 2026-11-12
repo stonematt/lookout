@@ -112,6 +112,21 @@ READINGS: Tuple[Judged, ...] = (
 )
 """Every judged reading, in tie-break order: on an exact tie the first wins."""
 
+READING_BY_NAME: Dict[str, Judged] = {judged.reading: judged for judged in READINGS}
+"""Each judged reading by its name in the feature, for the hold."""
+
+
+class Ranked(NamedTuple):
+    """
+    One reading judged this build.
+
+    :param rank: Its exact percentile rank, 0 to 100.
+    :param feature: Its unusual feature, `percentile` rounded for publishing.
+    """
+
+    rank: float
+    feature: Feature
+
 
 class Judging(NamedTuple):
     """
@@ -255,7 +270,7 @@ def _judge(
     judging: Judging,
     since_ms: int,
     held: bool,
-) -> Optional[Tuple[float, Feature]]:
+) -> Optional[Ranked]:
     """
     One reading judged against its usual readings at the hour.
 
@@ -277,9 +292,9 @@ def _judge(
     if len(at_hour) == 0:
         return None
     rank = _percentile(float(value), at_hour)
-    return (
-        rank,
-        Feature(
+    return Ranked(
+        rank=rank,
+        feature=Feature(
             kind="unusual",
             reading=judged.reading,
             value=value,
@@ -315,12 +330,18 @@ def _unusual(
         return None
     found: List[Tuple[float, Feature]] = []
     for judged in READINGS:
-        result = _judge(
-            judged, stitched, current, coverage, judging, clock.now_ms, False
+        ranked = _judge(
+            judged,
+            stitched,
+            current,
+            coverage,
+            judging,
+            since_ms=clock.now_ms,
+            held=False,
         )
-        if result is None or not _outside(result[0]):
+        if ranked is None or not _outside(ranked.rank):
             continue
-        found.append((abs(result[0] - 50.0), result[1]))
+        found.append((abs(ranked.rank - 50.0), ranked.feature))
     if not found:
         return None
     # `max` keeps the first of equals, so a tie goes to the earlier reading.
@@ -369,15 +390,19 @@ def _held(
     """
     if previous.kind in ("dry_spell", "quiet"):
         return _bare(previous.kind, previous.since_ms, True)
-    if previous.kind != "unusual" or judging is None:
+    judged = READING_BY_NAME.get(previous.reading or "")
+    if previous.kind != "unusual" or judging is None or judged is None:
         return None
-    for judged in READINGS:
-        if judged.reading == previous.reading:
-            result = _judge(
-                judged, stitched, current, coverage, judging, previous.since_ms, True
-            )
-            return None if result is None else result[1]
-    return None
+    ranked = _judge(
+        judged,
+        stitched,
+        current,
+        coverage,
+        judging,
+        since_ms=previous.since_ms,
+        held=True,
+    )
+    return None if ranked is None else ranked.feature
 
 
 def feature(
@@ -417,9 +442,10 @@ def feature(
         return picked
     if _subject(picked) == _subject(previous):
         return replace(picked, since_ms=previous.since_ms)
-    if picked.kind == "rain" or clock.now_ms - previous.since_ms >= (
-        HOLD_HOURS * HOUR_MS
-    ):
+    age_ms = clock.now_ms - previous.since_ms
+    # A choice time after the build (a clock gone back) holds nothing, so a
+    # hold can never outlast its hours.
+    if picked.kind == "rain" or not 0 <= age_ms < HOLD_HOURS * HOUR_MS:
         return picked
     held = _held(previous, stitched, current, coverage, judging)
     return picked if held is None else held
@@ -433,7 +459,9 @@ def previous_feature(dashboard: Optional[Dict[str, Any]]) -> Optional[Feature]:
         (`Snapshot.dashboard()`), or None when there is none.
     :return: Its feature; None when there is no document, it has no feature,
         or its feature has no `since_ms` (published before the hold) or a
-        kind or reading this rule does not know. None means no hold.
+        kind or reading this rule does not know (an old "wind_gust"). None
+        means no hold: a document that parsed as JSON is never a failed read
+        (ADR-0004); only the hold is lost.
     """
     published = (dashboard or {}).get("feature")
     if not isinstance(published, dict):
@@ -444,7 +472,7 @@ def previous_feature(dashboard: Optional[Dict[str, Any]]) -> Optional[Feature]:
     if published.get("kind") not in get_args(FeatureKind):
         return None
     reading = published.get("reading")
-    if reading is not None and reading not in [j.reading for j in READINGS]:
+    if reading is not None and reading not in READING_BY_NAME:
         return None
     return Feature(
         kind=published["kind"],

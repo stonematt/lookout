@@ -417,7 +417,7 @@ class DrySpellNow:
 
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
 FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
-FeatureUnit = Literal["f", "pct", "mph", "inhg", "wm2"]
+FeatureUnit = Literal["f", "pct", "inhg", "wm2"]
 
 
 @dataclass(frozen=True)

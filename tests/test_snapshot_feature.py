@@ -556,6 +556,14 @@ class TestHold:
         assert snapshot.feature.held is False
         assert snapshot.feature.since_ms == BUILT_MS
 
+    def test_a_choice_time_after_the_build_holds_nothing(self):
+        # A clock gone back must not hold a subject for ever.
+        snapshot = seasoned(previous=chosen("dry_spell", ago_ms=-HOUR_MS))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS
+
     def test_the_same_subject_keeps_its_first_choice_time(self):
         previous = chosen("unusual", "temperature", ago_ms=5 * HOUR_MS)
 

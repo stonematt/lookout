@@ -2239,6 +2239,26 @@ class TestTheHoldReadsTheLastSnapshot:
         assert snapshot.feature.held is False
         assert snapshot.feature.since_ms == snapshot.built_at_ms
 
+    def test_a_held_wind_gust_from_before_the_change_holds_nothing(self, seed):
+        # Wind gust can no longer win, so a stored one is not kept either.
+        station = seed()
+        first = run_refresh(station)
+        gust = {
+            **self.bare("unusual", first.built_at_ms - 3_600_000),
+            "reading": "wind_gust",
+            "value": 30.0,
+            "unit": "mph",
+            "percentile": 100,
+            "outside_usual": True,
+        }
+        self.publish_feature(station, gust)
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.feature.kind == first.feature.kind
+        assert snapshot.feature.reading != "wind_gust"
+        assert snapshot.feature.held is False
+
     def test_a_failed_read_fails_the_station_and_keeps_the_last_snapshot(
         self, seed, fake_healthchecks, monkeypatch
     ):
