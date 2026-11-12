@@ -10,6 +10,8 @@ Three views, each fact computed once here (the One Number Rule):
   usual low and high. The usual (design fork, see `_usual_days`) is the
   median daily low and median daily high over the days within `SPREAD_DAYS`
   either side of that date in earlier years.
+  The list also carries its highs against usual (#540): the mean high
+  minus the mean usual high over the days that have both, in whole degrees.
 - **Strips**: how unusual this moment is for the date. A temperature dot is
   a past day's mean at this local hour; a rain dot is that day's rain by
   this time of day, so "so far" compares like with like. Past days are the
@@ -61,6 +63,7 @@ from lookout.snapshot.model import (
     TemperatureContext,
     TemperatureDay,
     TemperaturePeriod,
+    TenDayHighs,
     UsualBand,
     UsualBasis,
     UsualHour,
@@ -330,6 +333,35 @@ def _ten_days(
     return tuple(rows), tuple(sorted(all_years, reverse=True))
 
 
+def _ten_day_highs(rows: Sequence[TemperatureDay]) -> Optional[TenDayHighs]:
+    """
+    The ten-day list's highs against their usual highs (#540).
+
+    Only days with both a high and a usual high count, so a gap or a day
+    without earlier years never pulls either mean. The mean of the
+    differences is the difference of the means over the same days; it is
+    taken in decimal, as `_whole_degrees` does, so a one-decimal half rounds
+    half away from zero and never off by float error. `int` of a decimal
+    zero is 0, so a small negative mean never reads -0.
+
+    :param rows: The ten-day list.
+    :return: The whole-degree delta and its day count, or None when no day
+        has both.
+    """
+    differences = [
+        Decimal(str(row.high)) - Decimal(str(row.usual_high))
+        for row in rows
+        if row.high is not None and row.usual_high is not None
+    ]
+    if not differences:
+        return None
+    mean = sum(differences) / len(differences)
+    return TenDayHighs(
+        delta_f=int(mean.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
+        days=len(differences),
+    )
+
+
 def _share(values: Sequence[float], test: Callable[[float], bool]) -> int:
     """The whole percent of `values` for which `test` holds."""
     return int(round(100 * sum(1 for v in values if test(v)) / len(values)))
@@ -588,6 +620,7 @@ def temperature_context(
             periods=_periods(coverage, None, None),
             ten_days=(),
             ten_day_years=(),
+            ten_day_highs=None,
             strips=(),
             usual_band=usual_band(
                 stitched, coverage, current.temperature_f, observed_at_ms
@@ -633,6 +666,7 @@ def temperature_context(
         periods=periods,
         ten_days=ten_days,
         ten_day_years=ten_day_years,
+        ten_day_highs=_ten_day_highs(ten_days),
         strips=strips,
         usual_band=usual_band(
             stitched, coverage, current.temperature_f, observed_at_ms
