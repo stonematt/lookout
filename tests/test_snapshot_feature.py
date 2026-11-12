@@ -4,7 +4,7 @@ The feature (ADR-0009, #464), through `build_snapshot`.
 The Feature Rule, checked in order, first that holds:
 
 1. rain: an event is live, or the newest event ended at most 12 h before
-   the build time;
+   the build time; it names that event by `event_start_ms` (#523);
 2. unusual: a reading (temperature, humidity, wind gust, pressure, solar)
    is below the 10th or above the 90th percentile of its readings at this
    hour over the usual window's earlier years; skipped without an earlier
@@ -318,6 +318,67 @@ class TestRain:
         assert snapshot.widget_view == "temperature_ranges"
 
 
+class TestRainNamesItsEvent:
+    """A rain feature carries its event's `start_ms`, the Event Catalog key."""
+
+    def test_a_live_event_is_named(self):
+        snapshot = raining_station()
+
+        live = [row for row in snapshot.rain_events.events if row.live]
+        assert len(live) == 1
+        assert snapshot.feature.event_start_ms == live[0].start_ms
+        assert snapshot.feature.event_start_ms == ms("2026-01-08T22:00:00Z")  # event 3
+
+    def test_an_ended_event_is_named_by_its_start(self):
+        # Event 3 rained 22:00Z-02:00Z; six hours after, nothing is live.
+        archive = scenario_until("2026-01-09T12:00:00Z")
+
+        snapshot = build(archive, None, "2026-01-09T08:00:00Z", event_catalog(archive))
+
+        assert snapshot.active_rain_event is None
+        assert snapshot.feature.kind == "rain"
+        assert snapshot.feature.event_start_ms == ms("2026-01-08T22:00:00Z")
+        named = [
+            row
+            for row in snapshot.rain_events.events
+            if row.start_ms == snapshot.feature.event_start_ms
+        ]
+        assert len(named) == 1
+        assert not named[0].live
+
+    def test_the_newest_ended_event_is_named_not_an_earlier_one(self):
+        # Event 2 (07 Jan 04:00Z-14:00Z) ended after event 1; event 3 is to come.
+        archive = scenario_until("2026-01-07T20:00:00Z")
+
+        snapshot = build(archive, None, "2026-01-07T20:00:00Z", event_catalog(archive))
+
+        assert snapshot.feature.kind == "rain"
+        assert snapshot.feature.event_start_ms == ms("2026-01-07T04:00:00Z")
+
+    def test_a_feature_past_the_rain_hours_names_no_event(self):
+        archive = scenario_until("2026-01-09T12:00:00Z")
+        catalog = event_catalog(archive)
+        end = int(pd.Timestamp(catalog["end_time"].max()).value // 10**6)
+        at = pd.Timestamp(end + 12 * 3_600_000 + 1, unit="ms", tz="UTC").isoformat()
+
+        snapshot = build(archive, None, at, catalog)
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.event_start_ms is None
+
+    def test_a_dry_spell_names_no_event(self):
+        snapshot = build(rain_every_fifth_day(DRY_END), None, DRY_END)
+
+        assert snapshot.feature.kind == "dry_spell"
+        assert snapshot.feature.event_start_ms is None
+
+    def test_the_dashboard_publishes_the_key(self):
+        dashboard = raining_station().dashboard()
+
+        assert dashboard["feature"]["kind"] == "rain"
+        assert dashboard["feature"]["event_start_ms"] == ms("2026-01-08T22:00:00Z")
+
+
 class TestDrySpell:
     def test_an_unusual_reading_beats_a_long_dry_spell(self):
         full = rain_every_fifth_day(DRY_END)
@@ -358,6 +419,7 @@ class TestPublished:
             "value": SEASONED_PUSHED_TEMPF,
             "unit": "f",
             "percentile": 100,
+            "event_start_ms": None,
         }
 
     def test_a_quiet_feature_carries_nulls(self):
@@ -369,6 +431,7 @@ class TestPublished:
             "value": None,
             "unit": None,
             "percentile": None,
+            "event_start_ms": None,
         }
 
     def test_a_snapshot_with_no_history_is_quiet(self):

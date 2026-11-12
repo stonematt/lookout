@@ -13553,7 +13553,8 @@
     "reading": null,
     "value": null,
     "unit": null,
-    "percentile": null
+    "percentile": null,
+    "event_start_ms": null
   },
   "widget_view": "temperature_ranges",
   "record_depth": {

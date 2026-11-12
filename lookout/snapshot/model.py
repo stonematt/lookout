@@ -439,6 +439,9 @@ class Feature:
         readings at this hour, 0 to 100: the share below it, a reading equal
         to it counting half, rounded to a whole number that stays outside
         10 to 90; else None.
+    :param event_start_ms: For "rain", the `start_ms` of the event the rule
+        held on, the key of its `rain_events` row: the live event when one
+        is live, else the newest ended event. None for every other kind.
     """
 
     kind: FeatureKind
@@ -446,6 +449,7 @@ class Feature:
     value: Optional[float]
     unit: Optional[FeatureUnit]
     percentile: Optional[int]
+    event_start_ms: Optional[int]
 
 
 @dataclass(frozen=True)

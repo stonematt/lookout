@@ -19272,7 +19272,8 @@
     "reading": "temperature",
     "value": 72.0,
     "unit": "f",
-    "percentile": 100
+    "percentile": 100,
+    "event_start_ms": null
   },
   "widget_view": "temperature_ranges",
   "record_depth": {
