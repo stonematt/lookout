@@ -610,7 +610,12 @@
         "q3": 47.6,
         "readings": 360
       }
-    ]
+    ],
+    "now_delta": {
+      "hour": 11,
+      "delta_f": -3,
+      "basis": "earlier_years"
+    }
   },
   "full_history": {
     "status": {
