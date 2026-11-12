@@ -23,9 +23,23 @@
  * nothing. Offers `todayChart` (the chart block), `todayChartName` (its
  * accessible name), `nowDeltaText` (the one-line delta on usual under the
  * temperature), `nowDeltaWords` (the same delta without its hour, for the
- * Temperature tile), `bandBasisLabel` and `bandBasisWords`.
+ * Temperature tile), `readingDayWords` (the newest reading's day, when it is
+ * not today's), `bandBasisLabel` and `bandBasisWords`.
+ *
+ * Just after midnight, before today's first reading, the plot still draws
+ * today's band and median, and the delta line names the newest reading's
+ * hour and day ("+3° on usual for 11 pm yesterday", #563).
  */
-import { clockHours, degrees, formatStamp, hourText, localDay, signed } from "../format.js";
+import {
+  clockHours,
+  degrees,
+  formatStamp,
+  formatTime,
+  hourText,
+  localDay,
+  relativeDay,
+  signed,
+} from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
 import {
   NARROW,
@@ -174,14 +188,34 @@ export function bandBasisWords(band: UsualBand): string {
  * usual for its own hour. Python decided the hour and the rounded degrees.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "+12° on usual for 3 pm", "−1° on usual for 11 pm", "at usual
- *   for 4 pm" for a delta of 0; null when the snapshot has no delta (no line,
- *   no fallback).
+ * @returns E.g. "+12° on usual for 3 pm", "−1° on usual for 11 pm yesterday"
+ *   (a reading from before midnight), "at usual for 4 pm" for a delta of 0;
+ *   null when the snapshot has no delta (no line, no fallback).
  */
 export function nowDeltaText(snapshot: DashboardSnapshot): string | null {
   const words = nowDeltaWords(snapshot);
   const delta = snapshot.temperature_context.usual_band?.now_delta ?? null;
-  return words === null || !delta ? null : `${words} for ${hourText(delta.hour)}`;
+  return words === null || !delta
+    ? null
+    : `${words} for ${hourText(delta.hour)}${readingDayWords(snapshot)}`;
+}
+
+/**
+ * The newest reading's day, said after its time when it is not the
+ * snapshot's today: just after midnight, before today's first reading, the
+ * hero's line and the feature name the reading they describe (#563). The
+ * day is the reading's station-local day against the snapshot's today, both
+ * the snapshot's.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns "" for a reading from today (or none), " yesterday", or
+ *   " on Nov 17" for an older one.
+ */
+export function readingDayWords(snapshot: DashboardSnapshot): string {
+  const at = snapshot.observed_at_ms;
+  if (at === null) return "";
+  const day = relativeDay(localDay(at), todayOf(snapshot));
+  return day === null ? "" : ` ${day}`;
 }
 
 /**
@@ -201,6 +235,22 @@ export function nowDeltaWords(snapshot: DashboardSnapshot): string | null {
 }
 
 /**
+ * The newest reading, when it is from before today: what the empty line
+ * waits on, in the chart's name.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. " (the newest is 39.4° at 11:55 pm yesterday)"; "" when the
+ *   newest reading is today's, or there is none.
+ */
+function newestBefore(snapshot: DashboardSnapshot): string {
+  const at = snapshot.observed_at_ms;
+  const t = snapshot.current.temperature_f;
+  const day = readingDayWords(snapshot);
+  if (at === null || t === null || !day) return "";
+  return ` (the newest is ${degrees(t)} at ${formatTime(at)}${day})`;
+}
+
+/**
  * The chart's accessible name: what is drawn, from the snapshot.
  *
  * @param snapshot - The dashboard snapshot.
@@ -215,7 +265,7 @@ export function todayChartName(snapshot: DashboardSnapshot): string {
     : "; no usual band in this snapshot yet.";
   const known = slots.some((s) => s.temperature !== null);
   const line = !known
-    ? "Today's temperature has no reading yet"
+    ? `Today's temperature has no reading yet${newestBefore(snapshot)}`
     : live && snapshot.observed_at_ms !== null
       ? `Today's temperature from midnight to ${degrees(live.temperature!)} at ${formatStamp(snapshot.observed_at_ms)}`
       : "Today's temperature from midnight";
