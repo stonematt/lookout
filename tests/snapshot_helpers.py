@@ -24,6 +24,7 @@ from tests.fixtures.archive import (
     SEASONED_MAC,
     SEASONED_NOW,
     STATION_TZ,
+    RainSpell,
     build_archive,
     seasoned_archive,
 )
@@ -61,6 +62,17 @@ def live_row(df: pd.DataFrame, when: str) -> Dict:
 def scenario_until(end: str) -> pd.DataFrame:
     """The SCENARIO station, cut off before `end` (exclusive)."""
     return build_archive(SCENARIO.start, end, rain=SCENARIO.rain, gaps=SCENARIO.gaps)
+
+
+def rain_every_fifth_day(end: str) -> pd.DataFrame:
+    """
+    A year of rain for an hour every fifth day, the last on Sat 2026-01-03,
+    running dry to `end`: every completed dry spell is four days long, and
+    2025 covers early January, so the usual band has an earlier year.
+    """
+    days = pd.date_range(end="2026-01-03", periods=73, freq="5D")
+    spells = tuple(RainSpell(f"{day.date()}T18:00:00Z", 1, 0.12) for day in days)
+    return build_archive("2025-01-01T08:00:00Z", end, rain=spells)
 
 
 def event_catalog(archive: pd.DataFrame) -> pd.DataFrame:

@@ -415,6 +415,39 @@ class DrySpellNow:
     usual_days: Optional[float]
 
 
+FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
+FeatureReading = Literal["temperature", "humidity", "wind_gust", "pressure", "solar"]
+FeatureUnit = Literal["f", "pct", "mph", "inhg", "wm2"]
+
+
+@dataclass(frozen=True)
+class Feature:
+    """
+    The feature: what the Overview's feature tile shows and every widget's
+    view follows, picked by the Feature Rule (ADR-0009,
+    `lookout.snapshot.feature`).
+
+    :param kind: The first rule that holds: "rain", "unusual", "dry_spell"
+        or "quiet" (temperature, a usual day).
+    :param reading: For "unusual", the reading furthest out: "temperature",
+        "humidity", "wind_gust", "pressure" or "solar"; else None.
+    :param value: For "unusual", that reading's current value in `unit`;
+        else None.
+    :param unit: For "unusual", the value's unit: "f", "pct", "mph", "inhg"
+        or "wm2"; else None.
+    :param percentile: For "unusual", where the value sits among its usual
+        readings at this hour, 0 to 100: the share below it, a reading equal
+        to it counting half, rounded to a whole number that stays outside
+        10 to 90; else None.
+    """
+
+    kind: FeatureKind
+    reading: Optional[FeatureReading]
+    value: Optional[float]
+    unit: Optional[FeatureUnit]
+    percentile: Optional[int]
+
+
 @dataclass(frozen=True)
 class HeroLead:
     """
@@ -1356,8 +1389,10 @@ class Snapshot:
         catalog.
     :param sun_moon: The sun and moon today, or None when the station has
         no coordinates.
+    :param feature: The feature, by the Feature Rule (ADR-0009).
     :param widget_view: Which view a widget shows now: "rain_event",
-        "dry_spell" or "temperature_ranges" (`lookout.snapshot.widget`).
+        "dry_spell" or "temperature_ranges", the feature mapped
+        (`lookout.snapshot.widget`).
     :param record_depth: The record's depth: what each comparison and tile shows
         and the next unlock (`lookout.snapshot.depth`).
     :param stale_catalogs: The catalogs this run could not update and built
@@ -1381,6 +1416,7 @@ class Snapshot:
     almanac: Almanac
     solar_tab: Optional[SolarTab]
     sun_moon: Optional[SunMoon]
+    feature: Feature
     widget_view: WidgetView
     record_depth: RecordDepth
     stale_catalogs: Tuple[StaleCatalog, ...] = ()

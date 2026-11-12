@@ -13841,6 +13841,13 @@
     "moon_illumination_pct": 68,
     "days_to_full_moon": 24
   },
+  "feature": {
+    "kind": "rain",
+    "reading": null,
+    "value": null,
+    "unit": null,
+    "percentile": null
+  },
   "widget_view": "rain_event",
   "record_depth": {
     "first_day": "2026-01-04",

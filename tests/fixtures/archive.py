@@ -353,7 +353,9 @@ def _day_offset(local: pd.Series) -> np.ndarray:
     return np.round(5 * np.sin(ordinal * 2.399963), 1)
 
 
-def seasoned_archive(newest_first: bool = True) -> pd.DataFrame:
+def seasoned_archive(
+    newest_first: bool = True, rain: Sequence[RainSpell] = SEASONED_RAIN
+) -> pd.DataFrame:
     """
     Build the seasoned station: two earlier years around 20 May and a recent run.
 
@@ -370,10 +372,11 @@ def seasoned_archive(newest_first: bool = True) -> pd.DataFrame:
     sends 1 for OK; `batt1` reads 0 from `SEASONED_LOW_BATTERY_FROM`.
 
     :param newest_first: Sort newest row first, as the Storj archive is.
+    :param rain: The rain spells; `SEASONED_RAIN` unless a test adds one.
     :return: The archive DataFrame, index reset.
     """
     blocks = [
-        build_archive(start, end, rain=SEASONED_RAIN, newest_first=False)
+        build_archive(start, end, rain=rain, newest_first=False)
         for start, end in SEASONED_BLOCKS
     ]
     df = pd.concat(blocks, ignore_index=True)

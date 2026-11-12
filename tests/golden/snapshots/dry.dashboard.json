@@ -13542,6 +13542,13 @@
     "moon_illumination_pct": 0,
     "days_to_full_moon": 15
   },
+  "feature": {
+    "kind": "quiet",
+    "reading": null,
+    "value": null,
+    "unit": null,
+    "percentile": null
+  },
   "widget_view": "temperature_ranges",
   "record_depth": {
     "first_day": "2025-11-17",
