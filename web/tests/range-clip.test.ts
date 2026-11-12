@@ -16,11 +16,13 @@ type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 
 let panel: HTMLElement;
 let widthOf = 0;
+let saved: PropertyDescriptor | undefined;
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-layout");
   document.body.innerHTML = "<div id=panel></div>";
   panel = document.getElementById("panel")!;
+  saved = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
   Object.defineProperty(HTMLElement.prototype, "clientWidth", {
     configurable: true,
     get: () => widthOf,
@@ -28,7 +30,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  if (saved) Object.defineProperty(HTMLElement.prototype, "clientWidth", saved);
+  else delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
 });
 
 /** The raining golden, its Full history stretched to 102.4 and -12 and marked approximate. */
@@ -45,24 +48,27 @@ function wide(): Doc {
 }
 
 describe("the window range chart's value labels", () => {
-  it.each([256, 326, 1000])("stay inside a %ipx SVG with 102° and -12° at the ends", (width) => {
-    widthOf = width;
-    renderOverview(panel, parseDashboard(wide()));
+  it.each([256, 326, 1000, 1360])(
+    "stay inside a %ipx SVG with 102° and -12° at the ends",
+    (width) => {
+      widthOf = width;
+      renderOverview(panel, parseDashboard(wide()));
 
-    const svg = panel.querySelector("[data-part=periods-chart] svg")!;
-    expect(Number(svg.getAttribute("width"))).toBe(width);
-    const values = [...svg.querySelectorAll<SVGTextElement>(".tc-value")];
-    expect(values.map((v) => v.textContent)).toContain("≈ 102°");
-    expect(values.map((v) => v.textContent)).toContain("≈ -12°");
+      const svg = panel.querySelector("[data-part=periods-chart] svg")!;
+      expect(Number(svg.getAttribute("width"))).toBe(width);
+      const values = [...svg.querySelectorAll<SVGTextElement>(".tc-value")];
+      expect(values.map((v) => v.textContent)).toContain("≈ 102°");
+      expect(values.map((v) => v.textContent)).toContain("≈ -12°");
 
-    // The plot group's left edge is its translate; a phone has none.
-    const plot = svg.querySelector("g[transform]")!;
-    const shift = Number(/translate\(([-\d.]+)/.exec(plot.getAttribute("transform")!)![1]);
-    for (const v of values) {
-      const extent = (v.textContent ?? "").length * LABEL_CHAR_PX;
-      const x = shift + Number(v.getAttribute("x"));
-      if (v.getAttribute("text-anchor") === "end") expect(x - extent).toBeGreaterThanOrEqual(0);
-      else expect(x + extent).toBeLessThanOrEqual(width);
-    }
-  });
+      // The plot group's left edge is its translate; a phone has none.
+      const plot = svg.querySelector("g[transform]")!;
+      const shift = Number(/translate\(([-\d.]+)/.exec(plot.getAttribute("transform")!)![1]);
+      for (const v of values) {
+        const extent = (v.textContent ?? "").length * LABEL_CHAR_PX;
+        const x = shift + Number(v.getAttribute("x"));
+        if (v.getAttribute("text-anchor") === "end") expect(x - extent).toBeGreaterThanOrEqual(0);
+        else expect(x + extent).toBeLessThanOrEqual(width);
+      }
+    },
+  );
 });
