@@ -432,7 +432,7 @@ The frontmatter carries each step: the base key is the phone size and the `-desk
 The layout switches on the root's `data-layout` (`phone`, `two`, `four`), set from the viewport at 760px and 1180px, so the grid and the zoom read one answer.
 
 **The Phone First-Screen Rule.** On a phone, each tab opens with a short fixed top, then its context:
-- **Overview:** the now tile (the current temperature, its delta on usual for this hour, and today against the usual band), then the feature tile, full width, then the mosaic, two tiles to a row. No accordion and no finding rows: the context is visible without a tap, and a tap zooms a tile. The sources footer ends the page.
+- **Overview:** the now tile (the current temperature, its delta on usual for this hour, and today against the usual band), then the feature tile, full width, then the mosaic, two tiles to a row. Nothing on the Overview folds: the context is visible without a tap, and a tap zooms a tile. The sources footer ends the page.
 - **Rain, Solar:** the tab's top finding with its stats and its main chart, always open; the tab's other sections as finding rows.
 - **Rain events:** see Event list.
 The Overview is about two phone screens before its footer.
