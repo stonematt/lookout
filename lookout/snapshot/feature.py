@@ -18,7 +18,8 @@ order, the first that holds is the feature:
    counting half, times 100 (so a gauge that never moves sits at 50). The
    reading furthest from the 50th wins; on an exact tie the first in
    `READINGS` wins. The rule is decided on the exact percentile; the one
-   published is rounded to a whole number. Skipped entirely unless the
+   published is rounded to a whole number, but never into the band (at
+   most `LOW` - 1 below it, at least `HIGH` + 1 above it). Skipped entirely unless the
    window's basis is "earlier_years": a recent-days band is too thin to call
    anything unusual.
 3. **dry_spell**: the snapshot's `DrySpellNow`, `days_since_rain` longer
@@ -30,7 +31,7 @@ Functions:
   dry, clock): The `Feature` for one snapshot.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -62,15 +63,31 @@ LOW = 10.0
 HIGH = 90.0
 """A reading above this percentile of its usual is unusual."""
 
-READINGS: Tuple[Tuple[FeatureReading, str, str, FeatureUnit], ...] = (
-    ("temperature", "tempf", "temperature_f", "f"),
-    ("humidity", "humidity", "humidity_pct", "pct"),
-    ("wind_gust", "windgustmph", "wind_gust_mph", "mph"),
-    ("pressure", "baromrelin", "barometer_inhg", "inhg"),
-    ("solar", "solarradiation", "solar_wm2", "wm2"),
+
+class Judged(NamedTuple):
+    """
+    One reading the unusual rule judges.
+
+    :param reading: Its name in the feature.
+    :param column: Its archive column, for its usual readings.
+    :param field: Its `SnapshotConditions` field, for its current value.
+    :param unit: The unit of its value.
+    """
+
+    reading: FeatureReading
+    column: str
+    field: str
+    unit: FeatureUnit
+
+
+READINGS: Tuple[Judged, ...] = (
+    Judged("temperature", "tempf", "temperature_f", "f"),
+    Judged("humidity", "humidity", "humidity_pct", "pct"),
+    Judged("wind_gust", "windgustmph", "wind_gust_mph", "mph"),
+    Judged("pressure", "baromrelin", "barometer_inhg", "inhg"),
+    Judged("solar", "solarradiation", "solar_wm2", "wm2"),
 )
-"""Each judged reading: its name, archive column, current field and unit, in
-tie-break order."""
+"""Every judged reading, in tie-break order: on an exact tie the first wins."""
 
 
 def _bare(kind: FeatureKind) -> Feature:
@@ -112,6 +129,19 @@ def _percentile(value: float, usual: np.ndarray) -> float:
     return 100.0 * (below + equal / 2) / len(usual)
 
 
+def _published(rank: float) -> int:
+    """
+    An unusual rank as published: whole, and still outside the band.
+
+    :param rank: The exact percentile rank, below `LOW` or above `HIGH`.
+    :return: It rounded, kept below `LOW` or above `HIGH` (9.6 is 9, not 10).
+    """
+    whole = int(round(rank))
+    if rank < LOW:
+        return min(whole, int(LOW) - 1)
+    return max(whole, int(HIGH) + 1)
+
+
 def _unusual(
     stitched: pd.DataFrame,
     current: SnapshotConditions,
@@ -134,12 +164,12 @@ def _unusual(
     window = usual_window(coverage, observed.date())
     if window.basis != "earlier_years":
         return None
-    found: List[Tuple[float, int, Feature]] = []
-    for order, (reading, column, field, unit) in enumerate(READINGS):
-        value = getattr(current, field)
+    found: List[Tuple[float, Feature]] = []
+    for judged in READINGS:
+        value = getattr(current, judged.field)
         if value is None:
             continue
-        usual = usual_readings(stitched, coverage.tz, window.days, column)
+        usual = usual_readings(stitched, coverage.tz, window.days, judged.column)
         at_hour = usual[observed.hour]
         if len(at_hour) == 0:
             continue
@@ -148,20 +178,20 @@ def _unusual(
             continue
         found.append(
             (
-                -abs(rank - 50.0),
-                order,
+                abs(rank - 50.0),
                 Feature(
                     kind="unusual",
-                    reading=reading,
+                    reading=judged.reading,
                     value=value,
-                    unit=unit,
-                    percentile=int(round(rank)),
+                    unit=judged.unit,
+                    percentile=_published(rank),
                 ),
             )
         )
     if not found:
         return None
-    return min(found, key=lambda item: (item[0], item[1]))[2]
+    # `max` keeps the first of equals, so a tie goes to the earlier reading.
+    return max(found, key=lambda item: item[0])[1]
 
 
 def _dry_spell(dry: DrySpellNow) -> bool:

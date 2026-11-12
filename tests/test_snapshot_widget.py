@@ -22,21 +22,12 @@ from tests.snapshot_helpers import (
     event_catalog,
     live_row,
     ms,
+    rain_every_fifth_day,
     raining_station,
     scenario_until,
 )
 
 NOW = "2026-01-10T20:00:00Z"
-
-
-def rain_every_fifth_day(end: str) -> pd.DataFrame:
-    """
-    A year of rain for an hour every fifth day, the last on Sat 2026-01-03,
-    running dry to `end`: every completed dry spell is four days long.
-    """
-    days = pd.date_range(end="2026-01-03", periods=73, freq="5D")
-    spells = tuple(RainSpell(f"{day.date()}T18:00:00Z", 1, 0.12) for day in days)
-    return build_archive("2025-01-01T08:00:00Z", end, rain=spells)
 
 
 def spell(snapshot):

@@ -437,7 +437,8 @@ class Feature:
         or "wm2"; else None.
     :param percentile: For "unusual", where the value sits among its usual
         readings at this hour, 0 to 100: the share below it, a reading equal
-        to it counting half, rounded to a whole number; else None.
+        to it counting half, rounded to a whole number that stays outside
+        10 to 90; else None.
     """
 
     kind: FeatureKind

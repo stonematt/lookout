@@ -47,6 +47,7 @@ from tests.snapshot_helpers import (
     event_catalog,
     live_row,
     ms,
+    rain_every_fifth_day,
     raining_station,
     scenario_until,
     seasoned_station,
@@ -110,16 +111,6 @@ def usual_tempf(share: float) -> float:
     """The seasoned usual temperature at 15:00 at quantile `share`."""
     values = hour_readings(seasoned_archive(), USUAL_DAYS, HOUR, "tempf")
     return float(np.quantile(values, share))
-
-
-def rain_every_fifth_day(end: str) -> pd.DataFrame:
-    """
-    A year of rain for an hour every fifth day, the last on Sat 2026-01-03:
-    every completed dry spell is four days long, and 2025 covers this date.
-    """
-    days = pd.date_range(end="2026-01-03", periods=73, freq="5D")
-    spells = tuple(RainSpell(f"{day.date()}T18:00:00Z", 1, 0.12) for day in days)
-    return build_archive("2025-01-01T08:00:00Z", end, rain=spells)
 
 
 # Thu Jan 8, 10:30 pm local: mid-hour, so no reading sits at its hour's edge.
