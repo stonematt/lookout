@@ -37,24 +37,27 @@ export interface Segment {
 }
 
 /**
- * A segmented control (DESIGN.md "Segmented control"): a named group of
- * buttons, the chosen one `aria-pressed`. Pressing another chooses it; the
- * caller redraws.
+ * A segmented control (DESIGN.md "Segmented control and select"): a named
+ * group of buttons, each carrying its key as a data attribute, the chosen
+ * one `aria-pressed`. Pressing another chooses it; the caller redraws.
  *
  * @param className - The group's class: "days-seg", and any of the caller's.
  * @param label - The group's accessible name.
+ * @param data - The data attribute each button's key goes in: "days" for
+ *   `data-days`.
  * @param segments - The buttons, in order.
  * @param chosen - The key chosen now.
  * @param choose - Called with a newly pressed segment's key.
- * @returns The group, and its buttons, in order, for the caller's data.
+ * @returns The group.
  */
 export function segmented(
   className: string,
   label: string,
+  data: string,
   segments: readonly Segment[],
   chosen: () => string,
   choose: (key: string) => void,
-): { el: HTMLElement; buttons: HTMLButtonElement[] } {
+): HTMLElement {
   const el = make("div", className);
   el.setAttribute("role", "group");
   el.setAttribute("aria-label", label);
@@ -66,6 +69,7 @@ export function segmented(
   const buttons = segments.map(({ key, text }) => {
     const button = make("button", "", text);
     button.type = "button";
+    button.dataset[data] = key;
     button.onclick = () => {
       if (chosen() === key) return;
       choose(key);
@@ -75,7 +79,7 @@ export function segmented(
     return button;
   });
   press();
-  return { el, buttons };
+  return el;
 }
 
 /**
@@ -88,18 +92,17 @@ export function segmented(
  */
 function daysSwitch(label: string, onChange: () => void, all = 90): DaysSwitch {
   let chosen = Math.min(PHONE_DAYS, all);
-  const counts = [PHONE_DAYS, all];
-  const { el, buttons } = segmented(
+  const el = segmented(
     "days-seg",
     label,
-    counts.map((days) => ({ key: String(days), text: `${days} days` })),
+    "days",
+    [PHONE_DAYS, all].map((days) => ({ key: String(days), text: `${days} days` })),
     () => String(chosen),
     (key) => {
       chosen = Number(key);
       onChange();
     },
   );
-  buttons.forEach((b, i) => (b.dataset.days = String(counts[i])));
   el.hidden = true;
   return {
     el,

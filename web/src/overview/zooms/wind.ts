@@ -71,20 +71,20 @@ function shownWindows(rose: WindRose | undefined): WindRoseWindow[] {
   return rose?.windows.filter((w) => w.status.shown !== false) ?? [];
 }
 
-/** A window's length as a count and its unit: [24, "hours"], [7, "days"]. */
-function windowLength(w: WindRoseWindow): [number, "hours" | "days"] {
-  return w.hours < 48 ? [w.hours, "hours"] : [w.hours / 24, "days"];
+/** A window's length in its unit: 24 hours, or 7 days from 48 hours. */
+function windowLength(w: WindRoseWindow): { count: number; unit: "hours" | "days" } {
+  return w.hours < 48 ? { count: w.hours, unit: "hours" } : { count: w.hours / 24, unit: "days" };
 }
 
 /** A window's segment label: "24 h", "7 days". */
 function segmentLabel(w: WindRoseWindow): string {
-  const [count, unit] = windowLength(w);
+  const { count, unit } = windowLength(w);
   return `${count} ${unit === "hours" ? "h" : unit}`;
 }
 
 /** A window as a caption's tail: "last 24 hours", "last 7 days". */
 function spanShort(w: WindRoseWindow): string {
-  const [count, unit] = windowLength(w);
+  const { count, unit } = windowLength(w);
   return `last ${count} ${unit}`;
 }
 
@@ -96,7 +96,7 @@ function spanPhrase(w: WindRoseWindow): string {
 // ---------- the control ----------
 
 /**
- * The segmented control over the windows (DESIGN.md "Segmented control",
+ * The segmented control over the windows (DESIGN.md "Segmented control and select",
  * the 30 / 90 switch's look, 44px tall at every width).
  */
 function windowControl(
@@ -104,15 +104,14 @@ function windowControl(
   chosen: () => string,
   choose: (key: string) => void,
 ): HTMLElement {
-  const { el, buttons } = segmented(
+  return segmented(
     "days-seg wind-seg",
     "Window shown",
+    "window",
     windows.map((w) => ({ key: w.key, text: segmentLabel(w) })),
     chosen,
     choose,
   );
-  buttons.forEach((b, i) => (b.dataset.window = windows[i]!.key));
-  return el;
 }
 
 // ---------- the rose ----------

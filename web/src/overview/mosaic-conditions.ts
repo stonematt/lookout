@@ -24,10 +24,10 @@
  * Every value is the snapshot's; these only word, format and draw. A missing
  * live reading reads "n/a", never zero.
  *
- * Offers `windClauses`, `calmThreshold`, `windTile`, `pressureTile`, `humidityTile`, `sunTile`,
- * `daylightTile`, `insideTile`, `sensorRow` (one indoor sensor's words),
- * and `lastIndex` and `traceMarks` (a series' line and now dot), which the
- * Inside zoom shares.
+ * Offers `windClauses`, `calmThreshold`, `windTile`, `pressureTile`,
+ * `humidityTile`, `sunTile`, `daylightTile`, `insideTile`, `sensorRow` (one
+ * indoor sensor's words), and `lastIndex` and `traceMarks` (a series' line
+ * and now dot), which the Inside zoom shares.
  */
 import { runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";

@@ -671,18 +671,13 @@ export function daysHeadline(snapshot: DashboardSnapshot): string {
 }
 
 /**
- * How a temperature block is drawn: as a tile, or in the zoom. The zoom's
- * form has no source fold (prototype decision 22: the Overview's sources
- * footer holds it), its finding sits under the panel's title, and the
- * window range chart gains the Usual row.
+ * The window range chart under its finding; the tile form folds its source.
+ * In the zoom (`options.zoom`) the chart gains the Usual row.
  */
-type BlockOptions = SectionOptions;
-
-/** The window range chart under its finding; the tile form folds its source. */
 function renderPeriods(
   host: HTMLElement,
   snapshot: DashboardSnapshot,
-  options: BlockOptions = {},
+  options: SectionOptions = {},
 ): void {
   const periods = periodRows(snapshot);
   host.dataset.block = "periods";
@@ -715,7 +710,7 @@ function renderPeriods(
 function renderTenDays(
   host: HTMLElement,
   snapshot: DashboardSnapshot,
-  options: BlockOptions = {},
+  options: SectionOptions = {},
 ): void {
   const days = shownDays(snapshot);
   host.dataset.block = "ten-days";
@@ -750,7 +745,7 @@ function stripHeadline(strip: NormalStrip): string {
 function renderStrips(
   host: HTMLElement,
   snapshot: DashboardSnapshot,
-  options: BlockOptions = {},
+  options: SectionOptions = {},
 ): void {
   const ctx = snapshot.temperature_context;
   host.dataset.block = "strips";

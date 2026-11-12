@@ -74,7 +74,9 @@ describe("every zoom's headings nest", () => {
     const zoom = document.querySelector<HTMLElement>(`.zoom[data-zoom="${slug}"]`);
     if (!zoom) {
       // This golden does not draw the tile (Inside or Daylight on a station
-      // without them), so there is no zoom to walk.
+      // without them), so there is no zoom to walk. The seasoned golden
+      // draws every tile, so each zoom is walked there at least.
+      expect(scenario).not.toBe("seasoned");
       expect(document.querySelector(".zoom")).toBeNull();
       return;
     }
