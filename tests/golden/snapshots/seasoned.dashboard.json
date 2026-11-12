@@ -1230,6 +1230,10 @@
       ]
     }
   },
+  "dry_spell": {
+    "days_since_rain": 3.05,
+    "usual_days": null
+  },
   "rain_tab": {
     "windows": [
       {

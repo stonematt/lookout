@@ -30,7 +30,7 @@ from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.depth import record_depth
-from lookout.snapshot.lead import hero_lead
+from lookout.snapshot.lead import completed_dry_spells, dry_spell, hero_lead
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
@@ -77,8 +77,18 @@ def build_snapshot(
     current = current_conditions(stitched, clock)
     active = active_rain_event(event_catalog, current, observed_at_ms)
     days = count_days(archive, current, clock)
+    spells = completed_dry_spells(days)
+    dry = dry_spell(current, observed_at_ms, spells[0])
     lead = hero_lead(
-        archive, stitched, event_catalog, active, current, observed_at_ms, days
+        archive,
+        stitched,
+        event_catalog,
+        active,
+        current,
+        observed_at_ms,
+        days,
+        dry,
+        spells,
     )
 
     return Snapshot(
@@ -99,6 +109,7 @@ def build_snapshot(
             days.rain.water_year_status,
         ),
         hero_lead=lead,
+        dry_spell=dry,
         rain_tab=rain_tab(stitched, days),
         temperature_context=temperature_context(
             stitched, current, observed_at_ms, days.coverage
@@ -108,6 +119,6 @@ def build_snapshot(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
         ),
         sun_moon=sun_moon(station, clock),
-        widget_view=widget_view(active, lead),
+        widget_view=widget_view(active, dry),
         record_depth=record_depth(days.coverage),
     )

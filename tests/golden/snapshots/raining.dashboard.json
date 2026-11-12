@@ -966,6 +966,10 @@
       "usual_high": []
     }
   },
+  "dry_spell": {
+    "days_since_rain": 0.0,
+    "usual_days": null
+  },
   "rain_tab": {
     "windows": [
       {
