@@ -25,9 +25,10 @@ One line each. The product lead infers the rung; write one here only when Matt o
 - **New site views** — Streamlit carry-overs and new views · containers: #252 (year-over-year period selector), #253 (numbers-first conditions strip), #255 and #390 (wind: merge into one wind spec; needs a snapshot block, so a schema bump under ADR-0008)
 - **Brand and product direction** — grill first · containers: #256 (consumer review and brand pass), #409 (iOS widget; draft PR #408 adds `widget_view` to the snapshot)
 - **Ops and tooling** — containers: #266 (uv lockfile and `pyproject.toml`; touches CI and `itri`), #257 (post-release log and monitor checks; split into its three items before a build), #258 (rename `diagnostics rain-catalog` to `event-catalog`, BSE)
-- **One write path for the archive and catalogs** — refactors kept from the 2026-11-10 architecture review, grilled the same day; build in this order · containers: #422 (`catchup --repair-archive` repair backup, `bug`), #423 (archive store), #424 (catalog store; takes over #220, #224, #140), each blocked by the one before · #423 specced and ticketed 2026-11-11 (sub-issues #428–#433); #422 and #428–#433 are the archive store release, release ledger #439, swarm session `swarm-archive-store` on `goal/archive-store` from 2026-11-11; #424 still needs `/to-spec` and `/to-tickets` · related: #329 (archive load memory peak; lands in the archive store's `open`)
+- **One write path for the archive and catalogs** — refactors kept from the 2026-11-10 architecture review, grilled the same day; build in this order · containers: #422 (`catchup --repair-archive` repair backup, `bug`), #423 (archive store), #424 (catalog store; takes over #220, #224, #140), each blocked by the one before · #423 specced and ticketed 2026-11-11 (sub-issues #428–#433); #422, #428–#433, #448 and #451 shipped 2026-11-11 as release 2026.11.9 (ledger #439, goal PR #440, release PR #456, `main` `1cfe391`, tag `v2026.11.9`); deferred: #452 (`repair_rain` for a station with no raw reference, `ready-for-agent`), #455 (make `storj` save and backup private, `refactor`, `needs-triage`); #423 closed; #424 still needs `/to-spec` and `/to-tickets` · related: #329 (archive load memory peak; lands in the archive store's `open`)
 - **Move the site's remaining decisions into the snapshot** — 2026-11-10 architecture review, grilled · container: #425, blocked by #424 · two releases, Python first, no schema bump (ADR-0008 §4) · touches the same snapshot files as the iOS widget (PR #408, merged into `dev` 2026-11-11)
 - **iOS widget: current plus context** — a Scriptable Home Screen widget (WidgetKit app later) that shows one station's reading against its own history, in the view the snapshot picks (`widget_view`: rain event, dry spell longer than usual, or temperature ranges) · containers: issue #409 (grilled brief in its comments), PR #408 (merged into `dev` 2026-11-11, rides 2026.11.9), design canvas https://claude.ai/artifact/89qcDbpQrTDrLdddMUCzMw · open for Matt: phone UAT after the merge (`widgets/scriptable/README.md`) · later: recent rain against usual, rain today against past days, the WidgetKit view
+- **Mosaic Overview** — the Overview goes visual first: a usual-band hero, one feature tile (ADR-0009), a mosaic of ten tiles that zoom, history that grows · containers: initiative #426 (grill record), spec #460, prototype branch `prototype/mosaic-overview` (never merged), program #484, ledgers #485 (Release 1, #458), #486 (A, #461–#467), #487 (B1, #468–#471), #488 (B2, #472–#478), #489 (C, #479 then #480) · release manager session `lookout · mosaic-release` from 2026-11-11 · #425 keeps only its Solar rows and `meta` block
 
 ## Where the tickets live
 
@@ -41,11 +42,15 @@ Vercel is on the Hobby plan: about 100 deployments a day, and every branch push 
 
 ## Drift
 
-| Last architecture review | Date | Threshold |
-|---|---|---|
-| `6884418` (`dev`; report kept 7 candidates, 3 grilled into #423–#425 plus fix #422; chart host and refresh station inputs left unfiled) | 2026-11-10 | 30 files or 1,500 lines |
+| Last architecture review | Date | Drift counted from | Threshold |
+|---|---|---|---|
+| `6884418` (`dev`; report kept 7 candidates, 3 grilled into #423–#425 plus fix #422; chart host and refresh station inputs left unfiled) | 2026-11-10 | `46fed04` (`dev`, release 2026.11.9: the archive store refactor landed) | 40 source files (Matt, 2026-11-11) |
 
-Threshold history: none yet.
+Drift counts from the last refactor a review produced, not from the review: the refactor's own changes are the review's output, not drift (Matt, 2026-11-11). When #424 (catalog store) lands, move the counter to its merge on `dev`.
+
+Count source files only: `git diff --name-only <counted-from> origin/dev -- . ':!docs' ':!*.md' ':!tests' ':!web/tests' ':!design-system' | wc -l`. Docs, tests, goldens and design-system previews follow the source and would count each change twice. The count catches features piling up, each built without checking whether it drifted from intent or made a second way to do something that already has a way: in the site (the chart-drawing suggestion) or in the middle tier (a writer reaching past the archive store).
+
+Threshold history: 2026-11-11, was 30 files or 1,500 lines, counted from the review commit. Now 40 source files, counted from the refactor's landing (Matt: a simple file count without docs; the number is the product lead's). Measured on past releases: the second-station program (2026.11.1 to 2026.11.4) 49, Tiles That Talk (to 2026.11.6) 49, release 2026.11.8's small features 15, the archive store refactor 17. So one large initiative, or about three releases of small features, triggers a review.
 
 ## Vault page
 

@@ -272,6 +272,18 @@ event is live or ended in the last 12 h; temperature at 10°F or more from
 this hour's month median; solar at 400 W/m² or more; otherwise calm, the
 days since rain against the usual dry spell.
 _Avoid_: headline, hero metric, featured stat.
+To be replaced by the **feature** (ADR-0009).
+
+### feature
+
+The one reading the Overview's full-width feature tile shows, and the one
+every widget's view follows. Picked by the Feature Rule (ADR-0009), first
+that holds: rain while an event is live or ended in the last 12 h; a reading
+outside its usual band for this hour (below the 10th or above the 90th
+percentile), the furthest out winning; a dry spell longer than the usual dry
+spell; otherwise temperature, as a usual day. Replaces the **lead** and
+decides the **widget view**.
+_Avoid_: lead (once the feature ships), hero, featured stat, highlight.
 
 ### widget view
 
@@ -281,7 +293,8 @@ while an event is live with more than 0.04 in in it; **dry_spell** while the
 current dry spell is longer than the usual dry spell, in any month; otherwise
 **temperature_ranges**, now against today, 7, 30 and 365 days. It is not the
 lead: the lead ranks the Overview's hero, the widget view picks a widget's
-picture.
+picture. Once the **feature** ships, the widget view is the feature mapped
+to these three views (ADR-0009).
 _Avoid_: widget mode, widget state.
 
 ### dry spell
@@ -299,3 +312,13 @@ The median total of completed rain events. The live (ongoing) event is never
 part of the median it is measured against. The Overview's rain lead and the
 Rain events catalog (all-time and per water year) use this one rule (#375).
 _Avoid_: median event (for a median that counts the live event).
+
+### usual band
+
+What a reading usually does at each hour of the day around this date: the
+median and the middle half of that hour's readings over ±7 days around this
+date in every earlier year. Before the station has an earlier year, the band
+comes from its own recent days instead, the last 14 at most, and says so;
+with under 20 days of readings it is the median only. Once an earlier year
+covers the date, recent days are no longer used. "Usual" is the house word.
+_Avoid_: normal, normal range, climate normal, average day.

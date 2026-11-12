@@ -45,16 +45,9 @@ import {
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
-/** Finding and standfirst, the tile's first two parts after its kicker. */
-function heading(host: HTMLElement, finding: string, standfirst: string): void {
-  const lede = make("p", "standfirst", standfirst);
-  lede.dataset.part = "standfirst";
-  host.append(tileFinding(finding), lede);
-}
-
 /**
  * The folded source note: the method, with the archive time on its closed
- * line and the lag, past 15 minutes, in its chip.
+ * line. No lag chip: the header states freshness once (#458).
  */
 function source(
   host: HTMLElement,
@@ -63,7 +56,7 @@ function source(
   method: string,
   gaps: string | null,
 ): void {
-  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps })));
+  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps, lag: false })));
 }
 
 // ---------- the almanac grid ----------
@@ -281,12 +274,7 @@ function wire(table: HTMLTableElement, readout: HTMLElement, almanac: Almanac): 
 function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const { almanac } = snapshot;
   const max = wettestMonth(almanac);
-  heading(
-    host,
-    gridHeadline(almanac),
-    "Each row is a water year, Oct through Sep, named by the year it ends in. " +
-      "The more rain, the stronger a cell's fill, on a square-root scale so drier months still differ; the key reads it.",
-  );
+  host.append(tileFinding(gridHeadline(almanac)));
   const figure = make("figure", "alm-figure");
   figure.dataset.part = "chart";
   figure.append(rampKey(max));
@@ -305,7 +293,9 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
     host,
     snapshot,
     "daily rain counter, summed by month",
-    "The station archive, each day's highest daily rain counter summed by month, with today's live total. " +
+    "Each row is a water year, Oct through Sep, named by the year it ends in. " +
+      "The more rain, the stronger a cell's fill, on a square-root scale so drier months still differ; the key reads it. " +
+      "The station archive, each day's highest daily rain counter summed by month, with today's live total. " +
       "≈ marks a month scaled up over a few missing days.",
     gapReasons([[hatched, "month", "months"]]),
   );
@@ -358,19 +348,15 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const { almanac } = snapshot;
   const columns = (almanac.rolling[0]?.years ?? []).slice(0, NAMED_YEARS + 1).map((y) => y.year);
   const today = almanac.rolling[0]?.years[0]?.status.last_day;
-  heading(
-    host,
-    rollingHeadline(almanac),
-    today
-      ? `Rain in inches over each window ending ${dayText(today)}, against the same days in earlier years. ` +
-          "Since Oct 1 is the water year so far."
-      : "Rain in inches over each window ending today, against the same days in earlier years.",
-  );
+  host.append(tileFinding(rollingHeadline(almanac)));
+  // The day the windows end, once the standfirst is gone (#458): in the
+  // table's caption and the method paragraph.
+  const ending = today ? `ending ${dayText(today)}` : "ending today";
 
   const table = make("table", "alm-table");
   table.dataset.part = "table";
   table.append(
-    make("caption", "ov-sr", "Rain over rolling windows, inches, by year, newest first"),
+    make("caption", "ov-sr", `Rain over rolling windows ${ending}, inches, by year, newest first`),
   );
   const head = document.createElement("thead");
   const headRow = document.createElement("tr");
@@ -430,7 +416,9 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
     host,
     snapshot,
     "daily rain counter with today's live total",
-    "The station archive, each day's highest daily rain counter, with today's live total" +
+    `Rain in inches over each window ${ending}, against the same days in earlier years; ` +
+      "since Oct 1 is the water year so far. " +
+      "The station archive, each day's highest daily rain counter, with today's live total" +
       (live === null ? "." : ` (${inches(live)}).`) +
       " ≈ marks a window scaled up over a few missing days.",
     gapReasons([[hatched, "window", "windows"]]),

@@ -177,7 +177,10 @@ class ArchiveSession:
         duplicate, and the rows outside `windows` unchanged. With `windows`,
         those rows are compared with the archive as opened (the repair
         touched only its windows); without, the whole archive is the
-        repair's window, and every stored row is compared with `df`.
+        repair's window, and every stored row is compared with `df`. A
+        whole-archive replace therefore checks the read-back against the new
+        frame only: with the loss check lifted, nothing compares it with the
+        archive as opened, and the repair backup is the only record of that.
 
         :param df: The repaired archive, whole, any row order.
         :param reason: Why, as lowercase hyphenated words (e.g.

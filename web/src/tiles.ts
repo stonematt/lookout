@@ -31,7 +31,8 @@
  * `tiles.css` also carries `.ov-source` and `.ov-sr` (screen-reader-only
  * text), so a tab that renders tiles needs no other stylesheet for them.
  * - `archiveLagMs`, `lagCaveat`: the archive lag the chip names, from the
- *   snapshot's own two times, never the browser clock.
+ *   snapshot's own two times, never the browser clock. The Overview's notes
+ *   carry no lag chip (#458); the Rain, Solar and Rain events tabs keep it.
  * - `hatchedCount`, `gapReasons`: how many statuses are hatched as not
  *   compared, and the chip's short reason naming those counts.
  *
@@ -90,8 +91,16 @@ export interface TileSection {
   /** The leading tile: its kicker carries the leading-tile `now` dot. */
   leading?: boolean;
   /**
+   * The tile's finding as words, for a tab that names its tiles by their
+   * findings (`TileOptions.nameByFinding`): for a tile whose finding is not
+   * one `tileFinding` heading (the now tile, a quick fact). By default the
+   * rendered finding's text.
+   */
+  finding?(snapshot: DashboardSnapshot): string;
+  /**
    * Fill the tile from the snapshot, after its kicker: the finding first
-   * (`tileFinding`), then standfirst, chart and folded lines.
+   * (`tileFinding`), then standfirst (not on the Overview), chart and folded
+   * lines.
    *
    * @param host - The tile, attached to the panel, holding its kicker.
    * @param snapshot - The dashboard snapshot.
@@ -136,6 +145,31 @@ export interface TileOptions {
    * the Overview); none by default.
    */
   rowsHeading?: string;
+  /**
+   * Name each tile, and on a phone each finding row, by its finding instead
+   * of its registry label, so a screen reader hears what the tile found
+   * (the Overview, #458).
+   */
+  nameByFinding?: boolean;
+}
+
+/**
+ * A rendered section's finding, as words: its own `finding`, else the text
+ * of its finding part.
+ *
+ * @param host - The rendered tile or row.
+ * @param section - The section.
+ * @param snapshot - The dashboard snapshot.
+ * @returns The words, or null when the section has no finding.
+ */
+function findingName(
+  host: HTMLElement,
+  section: TileSection,
+  snapshot: DashboardSnapshot,
+): string | null {
+  if (section.finding) return section.finding(snapshot);
+  const text = host.querySelector("[data-part=finding]")?.textContent?.replace(/\s+/g, " ").trim();
+  return text || null;
 }
 
 /** The section's `data-` attributes, the same on a tile and a row. */
@@ -209,7 +243,7 @@ function exclusiveRows(grid: HTMLElement): void {
  * @param panel - The tab's panel.
  * @param snapshot - The dashboard snapshot.
  * @param sections - The tab's registry, in order.
- * @param options - The rows' heading, on a phone.
+ * @param options - The rows' heading, on a phone, and how tiles are named.
  * @returns The grid.
  */
 export function renderTiles(
@@ -244,6 +278,10 @@ export function renderTiles(
       const row = startRow(section, snapshot, group);
       rows.append(row);
       section.render(row, snapshot);
+      if (options.nameByFinding) {
+        const name = findingName(row, section, snapshot);
+        if (name) row.setAttribute("aria-label", name);
+      }
       finishRow(row);
       continue;
     }
@@ -255,6 +293,8 @@ export function renderTiles(
     host.append(renderKicker(section, snapshot));
     grid.append(host);
     section.render(host, snapshot);
+    if (options.nameByFinding)
+      host.setAttribute("aria-label", findingName(host, section, snapshot) ?? section.label);
   }
   if (phone) exclusiveRows(grid);
   return grid;
@@ -337,6 +377,11 @@ export interface SourceNoteSpec {
    * snapshot's gap statuses ("5 windows not compared"); null when none does.
    */
   gaps?: string | null;
+  /**
+   * Whether the closed line carries the archive lag chip. Default true; the
+   * Overview passes false, as the header states freshness once (#458).
+   */
+  lag?: boolean;
 }
 
 /**
@@ -376,8 +421,9 @@ export function sourceLine(snapshot: DashboardSnapshot, what: string): string {
 
 /**
  * A tile's folded source note. The chip shows when the archive lags the
- * live reading past 15 minutes, or a gap hides part of the chart, and
- * nowhere else; the in-chart hatch stays, and the note explains it.
+ * live reading past 15 minutes (unless `spec.lag` is false), or a gap hides
+ * part of the chart, and nowhere else; the in-chart hatch stays, and the
+ * note explains it.
  *
  * @param snapshot - The dashboard snapshot.
  * @param spec - What the note says.
@@ -388,7 +434,8 @@ export function sourceNote(snapshot: DashboardSnapshot, spec: SourceNoteSpec): H
   const words = document.createElement("span");
   words.className = "fold-words";
   words.textContent = sourceLine(snapshot, spec.what);
-  const reasons = [lagCaveat(snapshot), spec.gaps ?? null].filter((r): r is string => r !== null);
+  const lag = spec.lag === false ? null : lagCaveat(snapshot);
+  const reasons = [lag, spec.gaps ?? null].filter((r): r is string => r !== null);
   // One chip per reason, each a whole pill, wrapping as a unit.
   const line: Node[] = [words, ...reasons.map(hatchChip)];
   const method = document.createElement("p");

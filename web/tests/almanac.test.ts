@@ -337,8 +337,10 @@ describe("the rolling-window table", () => {
     expect(text(earlier.querySelector(".gap-label"))).toBe("n/a");
   });
 
-  it("says when each window ends", () => {
-    expect(text(host.querySelector("[data-part=standfirst]"))).toContain("ending Oct 12");
+  it("says when each window ends, in its caption and method, with no standfirst", () => {
+    expect(host.querySelector("[data-part=standfirst]")).toBeNull();
+    expect(text(host.querySelector("caption"))).toContain("ending Oct 12");
+    expect(text(host.querySelector("[data-part=source]"))).toContain("ending Oct 12");
   });
 });
 

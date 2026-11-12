@@ -4,8 +4,10 @@
  * and a "Why this leads" disclosure listing every rule with its live value.
  *
  * The leading tile runs its kicker (what leads, after the leading-tile
- * dot), the finding, standfirst, the hero facts, the chart, then two folded
- * lines: "Why this leads" and the source note. The chart follows "Bold now over a
+ * dot), the finding, the hero facts, the chart, then two folded lines:
+ * "Why this leads" and the source note. It carries no standfirst (#458):
+ * how to read the chart is the chart's accessible description and opens
+ * the source note's method. The chart follows "Bold now over a
  * soft usual range": the shaded band is the middle half of the comparison
  * set, the dashed line its median, the bold line now, ending in a dot with
  * its value. Where the live reading is ahead of the archive, that span is
@@ -122,12 +124,13 @@ export function leadHeadline(snapshot: DashboardSnapshot): string {
 }
 
 /**
- * The one line under the headline that says how to read the chart.
+ * The one line that says how to read the lead's chart: the chart's
+ * accessible description, and the first sentence of the source note's method.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns The standfirst.
+ * @returns The sentence.
  */
-export function leadStandfirst(snapshot: DashboardSnapshot): string {
+export function howToRead(snapshot: DashboardSnapshot): string {
   const lead = snapshot.hero_lead;
   const band = lead.usual_median !== null;
   switch (lead.kind) {
@@ -628,7 +631,7 @@ function spellChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement |
  * @returns The sentence.
  */
 export function chartLabel(snapshot: DashboardSnapshot): string {
-  return `${leadHeadline(snapshot)}. ${leadStandfirst(snapshot)}`;
+  return `${leadHeadline(snapshot)}. ${howToRead(snapshot)}`;
 }
 
 function drawChart(host: HTMLElement, snapshot: DashboardSnapshot): void {
@@ -701,11 +704,6 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const lead = snapshot.hero_lead;
   host.dataset.lead = lead.kind;
 
-  const standfirst = document.createElement("p");
-  standfirst.className = "standfirst";
-  standfirst.dataset.part = "standfirst";
-  standfirst.textContent = leadStandfirst(snapshot);
-
   const facts = document.createElement("dl");
   facts.className = "hero-facts";
   facts.dataset.part = "facts";
@@ -725,13 +723,13 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
 
   const source = sourceNote(snapshot, {
     what: SOURCES[lead.kind],
-    method: heroSource(snapshot),
+    method: `${howToRead(snapshot)} ${heroSource(snapshot)}`,
     gaps: heroGaps(snapshot),
+    lag: false,
   });
 
   host.append(
     tileFinding(leadHeadline(snapshot), { lead: true }),
-    standfirst,
     facts,
     chart,
     tileFolds(whyThisLeads(snapshot), source),
