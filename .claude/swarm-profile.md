@@ -134,3 +134,9 @@
 - Shared hub files, merged by rebase in build order: `lookout/cli/catchup.py` (#422, #428, #430), `lookout/storage/archive_store.py` (new in #428; #430 adds `replace`, #432 adds `create`), `tests/test_archive_store.py`. Nothing in scope is a fenced file (no schema, lockfile or generated golden).
 - After #428 lands, the archive store refuses a save unless this process holds the archive-writer lock. A test that saves through it takes the lock first (`lookout.utils.archive_lock`), with `LOOKOUT_LOCK_FILE` already under `tmp_path`.
 - `lookout/cli/memory_harness.py` and `tests/test_memory_harness.py` also call the old save helpers; #433 must move or remove them.
+
+**Mosaic Overview Release 1 run (2026-11-11, spec #460, ticket #458)**
+- Goal branch `goal/mosaic-r1`, cut from `dev` at `4b681af`. One lane, web only. Lane PRs target it; CI runs on them (`goal/**`). The goal PR targets `dev` and stays unmerged until Matt's UAT. Release ledger: #485; program: #484.
+- Runs beside Release A (`goal/mosaic-python`), which edits Python only. This run never touches `lookout/` or `tests/`.
+- Design reference: branch `prototype/mosaic-overview` (never merged, rebased or deleted). Boards are PNGs under `prototype/mosaic-overview/images/proposed/` (`Main`, `MainDark` and `Desktop` show the Overview and header); `images/before/` is the site before. Read them with `git show origin/prototype/mosaic-overview:<path> > <scratch>/boards/<name>.png`. The boards draw the full mosaic of later releases, so Release 1 is checked against them only for the header freshness line and the absence of standfirsts and lag chips.
+- `lagCaveat` and `gapReasons` live in the shared `web/src/tiles.ts`, which the Rain, Solar and Rain events tabs also use. Release 1 removes standfirsts and lag chips from Overview tiles only; the Rain tab's turn is a later release.
