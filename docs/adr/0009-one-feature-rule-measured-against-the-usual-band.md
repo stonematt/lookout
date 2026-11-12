@@ -90,6 +90,6 @@ spell → `dry_spell`, anything else → `temperature_ranges`.
   (pressure, humidity, solar) maps to `temperature_ranges`.
 - The snapshot reads its own last published document: a read that fails
   or is not JSON logs a warning and holds nothing, and the station still
-  publishes (the narrow exception to ADR-0004 above). The hold adds fields only (no
-  version bump, ADR-0008 §4); a snapshot published before it carries no
-  choice time and holds nothing.
+  publishes (the narrow exception to ADR-0004 above). The hold adds
+  fields only (no version bump, ADR-0008 §4); a snapshot published before
+  it carries no choice time and holds nothing.
