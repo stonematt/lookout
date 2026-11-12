@@ -48,6 +48,8 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 17. **Ten tiles: Inside is the tenth** (Matt, Nov 11). It has one row for each indoor sensor: the reading, its humidity and a 24-hour line. Lookout Post has two sensors, Salmon Run one. The tile hides on a station with no indoor sensor. On the phone it pairs with Daylight; on desktop row 4 holds Daylight and Inside, with two cells empty.
 18. **Battery health is a header warning, not a tile** (Matt, Nov 11). Ambient reports each sensor's battery only as OK or low. A line under the freshness note names the sensor, for example "Rain gauge battery low", and appears only while a flag reads low. It is drawn in ink, not orange, because orange means now. The Raining board shows it.
 
+19. **The wind zoom leads with a wind rose** (Matt, Nov 11). It has 16 directions over a window of 24 h, 7 days or 30 days. In each direction a dark wedge reaches the average wind and a lighter, edged wedge behind it reaches the highest gust. Rings sit every 5 mph, and now is the orange dot with a leader to its label. Calm readings have no direction, so they are left out, and a line under the rose gives their share. Under the rose, a bar chart gives the share of windy readings from each of the 8 compass points. The wind tile links to this zoom. Boards: `WindZoom`, `WindZoomDark`. Radial charts for time, such as the year in a circle, are tabled.
+
 ## Accessibility audit (Nov 11, `/impeccable audit`)
 
 Axe-core 4.10 (WCAG 2.2 A/AA and best practice) on every board, light and dark, found no colour-contrast failures in text. The impeccable detector found no anti-patterns, only advisories that sizes and radii are off the DESIGN.md ramp (prototype drift; the build uses the tokens). Chart graphics were measured by hand, since axe does not check them.
@@ -84,6 +86,6 @@ New snapshot fields, so schema bumps shipped in two releases each (ADR-0008): th
 
 - No widget board.
 - Charts are SVGs scaled to their box, so on the desktop board their text grows with the tile (zoom labels near 20 px, tile labels near 12 px). The site redraws at width (`drawSized`), so this is a drawing artefact, not a proposal.
-- Only the temperature and rain zooms are drawn; the rain zoom is light only.
+- Only the temperature, rain and wind zooms are drawn; the rain zoom is light only.
 - The Raining board's tiles below the fold are stubs, and it has no humidity tile.
 - The dark boards are the light boards with the DESIGN.md -dark values swapped in; no dark-specific layout was tried.

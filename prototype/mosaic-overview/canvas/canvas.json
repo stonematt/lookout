@@ -59,6 +59,22 @@
       "w": 1440,
       "x": 0,
       "y": 4600
+    },
+    "WindZoom.dc.html": {
+      "h": 1180,
+      "radius": 28,
+      "title": "Tap the wind tile: the wind rose",
+      "w": 390,
+      "x": 1850,
+      "y": 2200
+    },
+    "WindZoomDark.dc.html": {
+      "h": 1180,
+      "radius": 28,
+      "title": "The wind rose, dark",
+      "w": 390,
+      "x": 2320,
+      "y": 2200
     }
   },
   "createdOnFiles": {
@@ -153,7 +169,9 @@
     "MainDark.dc.html",
     "ZoomDark.dc.html",
     "RainZoom.dc.html",
-    "Desktop.dc.html"
+    "Desktop.dc.html",
+    "WindZoom.dc.html",
+    "WindZoomDark.dc.html"
   ],
   "pages": [],
   "title": "Lookout Mosaic Overview"
