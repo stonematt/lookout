@@ -7292,7 +7292,8 @@
           }
         ]
       }
-    ]
+    ],
+    "grid_finding": null
   },
   "solar_tab": {
     "windows": [
