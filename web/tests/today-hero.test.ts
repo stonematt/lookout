@@ -254,6 +254,17 @@ describe("the delta line on usual", () => {
     expect(line()).toBe("at usual for 4 pm");
   });
 
+  it("writes a below-zero reading and delta with the true minus, in the tile and its name", () => {
+    const doc = withDelta({ hour: 6, delta_f: -9, basis: "earlier_years" });
+    (doc.current as Record<string, unknown>).temperature_f = -4.26;
+    renderOverview(panel, parseDashboard(doc));
+    expect(words(hero().querySelector("[data-part=temperature]"))).toBe("−4.3°F");
+    expect(line()).toBe("−9° on usual for 6 am");
+    const name = hero().getAttribute("aria-label")!;
+    expect(name).toContain("−4.3°F now, −9° on usual for 6 am.");
+    expect(name).not.toMatch(/-\d/);
+  });
+
   it("stands under the temperature, in the tile's name", () => {
     renderOverview(panel, seasoned);
     const parts = [...hero().querySelectorAll("[data-part]")].map((el) =>

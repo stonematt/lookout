@@ -24,7 +24,7 @@
  * accessible name), `nowDeltaText` (the one-line delta on usual under the
  * temperature), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
  */
-import { clockHours, degrees, formatStamp, hourText, localDay } from "../format.js";
+import { clockHours, degrees, formatStamp, hourText, localDay, signed } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
 import {
   NARROW,
@@ -197,8 +197,7 @@ export function nowDeltaText(snapshot: DashboardSnapshot): string | null {
   if (!delta) return null;
   const hour = hourText(delta.hour);
   if (delta.delta_f === 0) return `at usual for ${hour}`;
-  const sign = delta.delta_f > 0 ? "+" : "−";
-  return `${sign}${Math.abs(delta.delta_f)}° on usual for ${hour}`;
+  return `${signed(delta.delta_f, 0, { plus: true })}° on usual for ${hour}`;
 }
 
 /**

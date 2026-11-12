@@ -16,7 +16,7 @@
  */
 import "./first-screen.css";
 
-import { formatDuration, formatStamp } from "../format.js";
+import { formatDuration, formatStamp, signed } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import { sourceNote, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -33,7 +33,7 @@ function temperature(snapshot: DashboardSnapshot): HTMLElement {
   }
   const unit = document.createElement("sup");
   unit.textContent = "°F";
-  node.append(t.toFixed(1), unit);
+  node.append(signed(t), unit);
   return node;
 }
 
@@ -79,7 +79,7 @@ export function nowFinding(snapshot: DashboardSnapshot): string {
   const t = snapshot.current.temperature_f;
   if (t === null) return "Temperature not known.";
   const delta = nowDeltaText(snapshot);
-  return delta ? `${t.toFixed(1)}°F now, ${delta}.` : `${t.toFixed(1)}°F now.`;
+  return delta ? `${signed(t)}°F now, ${delta}.` : `${signed(t)}°F now.`;
 }
 
 /** The delta line under the temperature; none when the snapshot decided none. */

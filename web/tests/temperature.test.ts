@@ -143,6 +143,21 @@ describe("temperature across periods", () => {
     expect(values.filter((v) => v.startsWith("≈ "))).toHaveLength(2);
   });
 
+  it("writes a below-zero low with the true minus, in the chart and its words", () => {
+    const ctx = structuredClone(year);
+    const month = ctx.periods[3]!;
+    Object.assign(month, { low: -12.4, q1: -3 });
+    month.status = { ...month.status, status: "prorated", reason: "gap", missing_days: 2 };
+    show(withYear(ctx));
+
+    const values = all("[data-part=periods-chart] .tc-value").map((el) => el.textContent!);
+    expect(values).toContain("≈ −12°");
+    const spoken = text("[data-block=periods] .ov-sr")!;
+    expect(spoken).toContain("low −12.4°");
+    expect(spoken).toContain("middle half −3.0° to");
+    expect(`${values.join(" ")} ${spoken}`).not.toMatch(/-\d/);
+  });
+
   it("hatches every row the record covers when the archive lags, as in the dry golden", () => {
     show(dry);
 
