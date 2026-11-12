@@ -16,11 +16,12 @@ import {
   staleCatalog,
 } from "../src/snapshot.js";
 import { staleCatalogNote } from "../src/stale.js";
-import { golden, goldenCurve } from "./golden.js";
+import type { Scenario } from "./golden.js";
+import { SCENARIOS, golden, goldenCurve } from "./golden.js";
 
 const AS_OF = Date.UTC(2026, 0, 8, 0, 45);
 
-function withStale(scenario: "dry" | "raining", stale: unknown): DashboardSnapshot {
+function withStale(scenario: Scenario, stale: unknown): DashboardSnapshot {
   const doc = structuredClone(golden(scenario, "dashboard")) as Record<string, unknown>;
   doc.stale_catalogs = stale;
   return parseDashboard(doc);
@@ -38,7 +39,7 @@ const text = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g
 
 describe("the stale_catalogs contract", () => {
   it("is empty in a normal run's goldens", () => {
-    for (const scenario of ["dry", "raining"] as const) {
+    for (const scenario of SCENARIOS) {
       expect(parseDashboard(golden(scenario, "dashboard")).stale_catalogs).toEqual([]);
     }
   });

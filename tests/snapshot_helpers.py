@@ -1,13 +1,14 @@
 """
-Shared builders for the snapshot tests: the fixture station, its two golden
-scenarios, and `build_snapshot` called the way the refresh run calls it.
+Shared builders for the snapshot tests: the fixture stations, the three golden
+scenarios (`dry`, `raining` and `seasoned`), and `build_snapshot` called the
+way the refresh run calls it.
 
 `REGENERATE` is set by `LOOKOUT_REGEN_GOLDEN=1`; a golden test that sees it
 rewrites its file instead of comparing.
 """
 
 import os
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import pandas as pd
 
@@ -17,7 +18,15 @@ from lookout.snapshot import Snapshot, Station, build_snapshot
 from lookout.snapshot.model import StationLocation
 from lookout.snapshot.status import CodeVersion
 from tests.fixtures.ambient import load_devices, to_ambient_records
-from tests.fixtures.archive import FAKE_MAC, SCENARIO, STATION_TZ, build_archive
+from tests.fixtures.archive import (
+    FAKE_MAC,
+    SCENARIO,
+    SEASONED_MAC,
+    SEASONED_NOW,
+    STATION_TZ,
+    build_archive,
+    seasoned_archive,
+)
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 
 REGENERATE = os.environ.get("LOOKOUT_REGEN_GOLDEN") == "1"
@@ -25,6 +34,13 @@ REGENERATE = os.environ.get("LOOKOUT_REGEN_GOLDEN") == "1"
 STATION = Station(
     mac=FAKE_MAC,
     name="Fixture Station",
+    tz=STATION_TZ,
+    location=StationLocation(lat=45.0, lon=-123.0),
+)
+# The seasoned station (#461): its own fake MAC, the same zone and place.
+SEASONED_STATION = Station(
+    mac=SEASONED_MAC,
+    name="Seasoned Station",
     tz=STATION_TZ,
     location=StationLocation(lat=45.0, lon=-123.0),
 )
@@ -117,3 +133,41 @@ def raining_station() -> Snapshot:
         event_catalog(archive),
         energy_catalog(archive),
     )
+
+
+# The seasoned station's archive stops 30 minutes before its live reading, as
+# the refresh run's archive lags Ambient; it is built a minute after the live.
+SEASONED_ARCHIVE_NEWEST = "2026-05-20T21:30:00Z"
+SEASONED_BUILT = "2026-05-20T22:01:00Z"
+
+
+def seasoned_station() -> Snapshot:
+    """
+    The seasoned station, its live reading at `SEASONED_NOW`.
+
+    Two earlier years around 20 May and a recent run of 45 days. The archive
+    ends at `SEASONED_ARCHIVE_NEWEST`; the live reading, half an hour ahead,
+    carries the temperature pushed past the 90th percentile of its usual
+    window and sensor 1's low battery.
+    """
+    full = seasoned_archive()
+    archive = full[full["dateutc"] <= ms(SEASONED_ARCHIVE_NEWEST)].reset_index(
+        drop=True
+    )
+    live = live_row(full, SEASONED_NOW)
+    return build_snapshot(
+        archive=archive,
+        live=live,
+        event_catalog=event_catalog(archive),
+        energy_catalog=energy_catalog(archive),
+        station=SEASONED_STATION,
+        now=pd.Timestamp(SEASONED_BUILT),
+    )
+
+
+GOLDEN_SCENARIOS: Dict[str, Callable[[], Snapshot]] = {
+    "dry": dry_station,
+    "raining": raining_station,
+    "seasoned": seasoned_station,
+}
+"""Each golden scenario's builder: the snapshot, status and index goldens."""

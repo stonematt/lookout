@@ -28,7 +28,7 @@ import type {
 } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
-import { golden } from "./golden.js";
+import { SCENARIOS, golden } from "./golden.js";
 
 let page: Page | null = null;
 
@@ -86,7 +86,7 @@ function expectPadded(text: SVGTextElement, rect: SVGRectElement): void {
   expect(height).toBeGreaterThanOrEqual(12 + 2 * PILL_PAD);
 }
 
-describe.each(["dry", "raining"] as const)("the %s golden's hatch labels", (scenario) => {
+describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
   it("puts every reason over a hatch on a pill, on every SVG tab", async () => {
     await boot(scenario, "overview", "rain", "solar");
     const reasons = texts(document).filter((t) => REASONS.has(t.textContent ?? ""));

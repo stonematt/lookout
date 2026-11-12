@@ -34,7 +34,8 @@ import type {
   WaterYearCurve,
 } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
-import { golden } from "./golden.js";
+import type { Scenario } from "./golden.js";
+import { SCENARIOS, golden } from "./golden.js";
 import { viewport } from "./viewport.js";
 
 const HOUR = 3_600_000;
@@ -332,7 +333,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const dashboard = (scenario: "dry" | "raining"): DashboardSnapshot =>
+const dashboard = (scenario: Scenario): DashboardSnapshot =>
   parseDashboard(structuredClone(golden(scenario, "dashboard")));
 
 /** A fresh panel in the page. */
@@ -528,7 +529,7 @@ describe("every hand-drawn chart at phone width", () => {
   function rendered(): HTMLElement[] {
     layOut(PHONE);
     const hosts: HTMLElement[] = [];
-    for (const scenario of ["dry", "raining"] as const) {
+    for (const scenario of SCENARIOS) {
       for (const render of [renderOverview, renderRain, renderSolar]) {
         const host = document.createElement("section");
         document.body.append(host);

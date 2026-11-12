@@ -10,11 +10,11 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import { fetchCurrent } from "../src/load.js";
-import { PREVIOUS_SCHEMA_VERSION, golden, goldenPrevious } from "./golden.js";
+import { PREVIOUS_SCHEMA_VERSION, SCENARIOS, golden, goldenPrevious } from "./golden.js";
 
 describe("the contract version", () => {
   it("is the version the Python builder writes (read from the goldens)", () => {
-    for (const scenario of ["dry", "raining"] as const) {
+    for (const scenario of SCENARIOS) {
       for (const kind of ["dashboard", "context"] as const) {
         const doc = golden(scenario, kind) as { schema_version: number };
         expect(doc.schema_version).toBe(SCHEMA_VERSION);
@@ -229,7 +229,7 @@ describe("the schema version before (N-1, ADR-0008)", () => {
   });
 
   it("reads an N-1 dashboard, its sun_moon null", () => {
-    for (const scenario of ["dry", "raining"] as const) {
+    for (const scenario of SCENARIOS) {
       const snap = parseDashboard(goldenPrevious(scenario, "dashboard"));
       expect(snap.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
       expect(snap.sun_moon).toBeNull();

@@ -14,7 +14,7 @@ import { parseDashboard } from "../src/snapshot.js";
 import { heroGaps } from "../src/overview/hero.js";
 import { archiveLagMs, gapReasons, lagCaveat, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
-import { golden, twoStations } from "./golden.js";
+import { SCENARIOS, golden, twoStations } from "./golden.js";
 
 let page: Page | null = null;
 
@@ -69,7 +69,7 @@ function chips(panel: HTMLElement): Record<string, string[]> {
   return out;
 }
 
-describe.each(["dry", "raining"] as const)("the %s golden's Overview", (scenario) => {
+describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
   it("renders every section as a tile whose first text is its kicker, then its finding", async () => {
     const panel = await boot(parsed(scenario));
     const tiles = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")];
@@ -236,8 +236,8 @@ describe.each(["dry", "raining"] as const)("the %s golden's Overview", (scenario
 
 describe("the hatched chip on a tile's closed source line", () => {
   it("names the archive lag on every tile of a golden that lags past 15 minutes", async () => {
-    // Both goldens lag: dry by 3 h, raining by 30 m.
-    for (const scenario of ["dry", "raining"] as const) {
+    // Every golden lags: dry by 3 h, raining and seasoned by 30 m.
+    for (const scenario of SCENARIOS) {
       const snapshot = parsed(scenario);
       expect(archiveLagMs(snapshot)).toBeGreaterThan(15 * 60_000);
       const panel = await boot(snapshot);
