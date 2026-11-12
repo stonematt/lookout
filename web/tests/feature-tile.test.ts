@@ -73,7 +73,7 @@ describe("the feature tile", () => {
     expect(links[0]!.querySelector("a, button, details, input")).toBeNull();
   });
 
-  it("spans half the four-column grid beside temperature, so every row is whole", () => {
+  it("spans the whole four-column row, so every row is whole", () => {
     draw(parseDashboard(golden("seasoned", "dashboard")));
     const spans = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
       Number(t.dataset.span),
@@ -85,7 +85,7 @@ describe("the feature tile", () => {
       if (row === 4) row = 0;
     }
     expect(row).toBe(0);
-    expect(tile()!.dataset.span).toBe("2");
+    expect(tile()!.dataset.span).toBe("4");
   });
 
   it.each(SCENARIOS)(

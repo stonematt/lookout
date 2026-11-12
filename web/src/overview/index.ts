@@ -74,12 +74,10 @@ export function renderOverview(
   const hiddenSections = new Set<OverviewSection>();
   if (!snapshot.feature) hiddenSections.add(featureTile);
   if (!rollingHasRows(snapshot)) hiddenSections.add(rollingRain);
-  // A tile takes the columns of the tile beside it when that one is not
-  // drawn, so its four-column row stays whole: the almanac for the rolling
-  // tile, the temperature periods for the feature.
-  const widened = (s: OverviewSection) =>
-    (s === almanacGrid && hiddenSections.has(rollingRain)) ||
-    (s === temperaturePeriods && hiddenSections.has(featureTile));
+  // The almanac takes the columns of the rolling tile when that one is not
+  // drawn, so its four-column row stays whole. The feature and the
+  // temperature periods each fill a row, so the feature leaves no hole.
+  const widened = (s: OverviewSection) => s === almanacGrid && hiddenSections.has(rollingRain);
   const shown = sections
     .filter((s) => !hiddenSections.has(s))
     .map((s) => (widened(s) ? { ...s, span: 4 as const } : s));

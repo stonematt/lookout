@@ -328,10 +328,9 @@ export const featureTile: OverviewSection = {
   id: "feature",
   label: "The feature",
   kicker: (snapshot) => featureView(snapshot)?.kicker ?? "The feature",
-  // Half the four-column grid, the feature's column of the desktop board,
-  // beside temperature in context, so every row stays whole; the whole
-  // width of the two-column grid and of a phone.
-  span: 2,
+  // The whole row of the four-column grid, under the now tile (#469); the
+  // whole width of the two-column grid and of a phone.
+  span: 4,
   phoneTop: true,
   finding: (snapshot) => featureView(snapshot)?.name ?? "The feature",
   render,
