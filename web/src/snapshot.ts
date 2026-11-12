@@ -860,6 +860,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
+/** `battery_flags` may be absent (N-1); when present it must be a list of flags. */
 function checkBatteryFlags(list: unknown): void {
   if (list === undefined) return;
   if (
