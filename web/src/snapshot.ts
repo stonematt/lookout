@@ -708,6 +708,19 @@ export interface DashboardSnapshot extends SnapshotHead {
    * from documents published before #118, which the parse reads as empty.
    */
   stale_catalogs: StaleCatalog[];
+  /**
+   * Each sensor battery still reporting, with the name the site prints.
+   * Absent from snapshots published before #466; the site reads that as
+   * none to show (ADR-0008).
+   */
+  battery_flags?: BatteryFlag[];
+}
+
+/** One sensor's battery: its Ambient column, the name printed, and whether it reads low. */
+export interface BatteryFlag {
+  key: string;
+  name: string;
+  low: boolean;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -843,7 +856,24 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   const sun_moon = head.schema_version === 2 && !("sun_moon" in head) ? null : head.sun_moon;
   checkSunMoon(sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
+  checkBatteryFlags(head.battery_flags);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
+}
+
+function checkBatteryFlags(list: unknown): void {
+  if (list === undefined) return;
+  if (
+    !Array.isArray(list) ||
+    !list.every(
+      (f) =>
+        isRecord(f) &&
+        typeof f.key === "string" &&
+        typeof f.name === "string" &&
+        typeof f.low === "boolean",
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: battery_flags malformed");
+  }
 }
 
 function checkStaleCatalogs(list: unknown): StaleCatalog[] {
