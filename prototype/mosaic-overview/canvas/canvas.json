@@ -3,7 +3,7 @@
   "attachments": {},
   "boards": {
     "Main.dc.html": {
-      "h": 1660,
+      "h": 1830,
       "is_interactive": true,
       "radius": 28,
       "title": "Phone overview, a dry day: mosaic",
@@ -27,6 +27,38 @@
       "w": 390,
       "x": 940,
       "y": 0
+    },
+    "MainDark.dc.html": {
+      "h": 1990,
+      "radius": 28,
+      "title": "Phone overview, dark: mosaic",
+      "w": 390,
+      "x": 0,
+      "y": 2200
+    },
+    "ZoomDark.dc.html": {
+      "h": 2080,
+      "radius": 28,
+      "title": "Temperature zoomed, dark",
+      "w": 390,
+      "x": 470,
+      "y": 2200
+    },
+    "RainZoom.dc.html": {
+      "h": 1060,
+      "radius": 28,
+      "title": "Tap the rain tile: the Rain tab's top section as the zoom",
+      "w": 390,
+      "x": 940,
+      "y": 2200
+    },
+    "Desktop.dc.html": {
+      "h": 2726,
+      "radius": 16,
+      "title": "Desktop, 1440: four columns, feature 2x2, temperature zoom open in place",
+      "w": 1440,
+      "x": 0,
+      "y": 4600
     }
   },
   "createdOnFiles": {
@@ -50,7 +82,10 @@
     "s1",
     "s2",
     "s3",
-    "shape-86jmv7"
+    "shape-86jmv7",
+    "q2",
+    "q3",
+    "q1"
   ],
   "notes": {
     "s1": {
@@ -69,7 +104,7 @@
     },
     "s3": {
       "fill": "orange",
-      "text": "Open questions\n\n- What earns the feature slot on a dry day (biggest departure from normal, or a priority list)?\n- Which eight tiles, and in what order?\n- Zoom as a full-screen view (shown) or a bottom sheet?\n- Desktop: the same tiles on a 4-column grid, the feature spanning 2x2.\n\nHistory grows: a window row or tile appears only once the station's record covers it (Salmon Run, from Nov 3, shows Today, Yesterday, 7 days and Full history).",
+      "text": "Open questions\n\n- What earns the feature slot on a dry day (biggest departure from usual, or a priority list)?\n- Which eight tiles, and in what order?\n- Zoom as a full-screen view (shown) or a bottom sheet?\n- Desktop: the same tiles on a 4-column grid, the feature spanning 2x2.\n\nHistory grows: a window row or tile appears only once the station's record covers it (Salmon Run, from Nov 3, shows Today, Yesterday, 7 days and Full history).",
       "w": 340,
       "x": 1410,
       "y": 800
@@ -88,12 +123,37 @@
       "w": 240,
       "x": 0,
       "y": -300
+    },
+    "q1": {
+      "fill": "blue",
+      "text": "Does the four-column grid fight the phone's two-column order? No.\n\nWith row-first flow and the feature spanning 2x2, the phone's first two pairs (Temperature | Rain, Last 10 days | Dry spell) become the 2x2 block beside the feature, and the next two pairs fill row 3. Same order, pairs stay pairs.\n\nCosts: nine tiles leave Daylight alone on both grids (three empty cells on desktop), and a hidden tile shifts every later tile by one cell. A zoom opens as a full-width row under the tapped tile's row; for the tiles beside the feature that is under the feature block.",
+      "w": 360,
+      "x": 1520,
+      "y": 4600
+    },
+    "q2": {
+      "fill": "blue",
+      "text": "Does the usual band read in dark? In the hero, yes; under bars, no.\n\nHero: the band (temp-band dark on the now surface, 1.9:1) reads better than in light (1.3:1). The median must be drawn in --ink-on-now (8.1:1), not --median, which is #11161c in both themes (1.8:1 there). See the inset on the dark mosaic.\n\nUnder bars (feature chart, day by day, year by year): temp-band dark #606d7a is too heavy. Middle-half bars on it reach 2.6:1 and the band label is lost. A band at #38444f keeps bars at 4.9:1 or more and the label at 4.8:1. See the inset on the dark zoom.",
+      "w": 360,
+      "x": 1410,
+      "y": 2200
+    },
+    "q3": {
+      "fill": "orange",
+      "text": "Can the Rain tab's top section lead the rain zoom unchanged? No.\n\nToday the top section is \"Rain, by window\" (window strip, then each day of the last 30 or 90). The rain tile draws the water-year curves, which sit second on the Rain tab. For the tile to be a crop of its zoom's lead, the Rain tab must change:\n1. The water year becomes the top section, with the window strip under its chart.\n2. #252's period selector sits on that chart (drawn: To date, Oct-Mar, Full year; water years only).\n3. No standfirst, no lag chips; a window the record does not cover hides instead of showing n/a.\n4. Daily bars move down the Rain tab; the zoom ends at More in Rain.",
+      "w": 360,
+      "x": 1410,
+      "y": 2760
     }
   },
   "order": [
     "Main.dc.html",
     "Raining.dc.html",
-    "Zoom.dc.html"
+    "Zoom.dc.html",
+    "MainDark.dc.html",
+    "ZoomDark.dc.html",
+    "RainZoom.dc.html",
+    "Desktop.dc.html"
   ],
   "pages": [],
   "title": "Lookout Mosaic Overview"
