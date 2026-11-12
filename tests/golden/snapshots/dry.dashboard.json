@@ -37,7 +37,8 @@
         "days": 30,
         "missing_days": 29,
         "status": "invalid",
-        "reason": "in_progress"
+        "reason": "in_progress",
+        "shown": false
       }
     ],
     "windows": [
@@ -48,7 +49,8 @@
         "days": 1,
         "missing_days": 1,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": true
       },
       {
         "key": "yesterday",
@@ -57,7 +59,8 @@
         "days": 1,
         "missing_days": 1,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": true
       },
       {
         "key": "7d",
@@ -66,7 +69,8 @@
         "days": 7,
         "missing_days": 6,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": false
       },
       {
         "key": "30d",
@@ -75,7 +79,8 @@
         "days": 30,
         "missing_days": 29,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": false
       },
       {
         "key": "90d",
@@ -84,7 +89,8 @@
         "days": 90,
         "missing_days": 89,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": false
       },
       {
         "key": "365d",
@@ -93,7 +99,8 @@
         "days": 365,
         "missing_days": 364,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": false
       },
       {
         "key": "water_year",
@@ -102,7 +109,8 @@
         "days": 50,
         "missing_days": 49,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": false
       }
     ]
   },
@@ -735,7 +743,8 @@
           "days": 50,
           "missing_days": 49,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         }
       }
     ],
@@ -805,7 +814,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         },
         "total_in": null
       },
@@ -818,7 +828,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         },
         "total_in": null
       },
@@ -831,7 +842,8 @@
           "days": 7,
           "missing_days": 6,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "total_in": null
       },
@@ -844,7 +856,8 @@
           "days": 30,
           "missing_days": 29,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "total_in": null
       },
@@ -857,7 +870,8 @@
           "days": 90,
           "missing_days": 89,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "total_in": null
       },
@@ -870,7 +884,8 @@
           "days": 365,
           "missing_days": 364,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "total_in": null
       },
@@ -883,7 +898,8 @@
           "days": 50,
           "missing_days": 49,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "total_in": null
       }
@@ -3542,7 +3558,8 @@
           "days": 50,
           "missing_days": 49,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "total_in": null,
         "to_date_in": null
@@ -3562,7 +3579,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         },
         "low": null,
         "q1": null,
@@ -3579,7 +3597,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         },
         "low": null,
         "q1": null,
@@ -3596,7 +3615,8 @@
           "days": 7,
           "missing_days": 6,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3613,7 +3633,8 @@
           "days": 30,
           "missing_days": 29,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3630,7 +3651,8 @@
           "days": 90,
           "missing_days": 89,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3647,7 +3669,8 @@
           "days": 365,
           "missing_days": 364,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3667,7 +3690,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3685,7 +3709,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3703,7 +3728,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3721,7 +3747,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3739,7 +3766,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3757,7 +3785,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3775,7 +3804,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3793,7 +3823,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.1,
         "high": 53.6,
@@ -3811,7 +3842,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         },
         "low": null,
         "high": null,
@@ -3829,7 +3861,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         },
         "low": null,
         "high": null,
@@ -4041,6 +4074,24 @@
           "readings": 12
         }
       ]
+    },
+    "full_history": {
+      "status": {
+        "key": "full_history",
+        "first_day": "2025-11-17",
+        "last_day": "2025-11-19",
+        "days": 3,
+        "missing_days": 2,
+        "status": "invalid",
+        "reason": "not_archived",
+        "shown": true
+      },
+      "low": null,
+      "q1": null,
+      "q3": null,
+      "high": null,
+      "readings": 0,
+      "position": null
     }
   },
   "almanac": {
@@ -4056,7 +4107,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -4070,7 +4122,8 @@
               "days": 30,
               "missing_days": 29,
               "status": "invalid",
-              "reason": "in_progress"
+              "reason": "in_progress",
+              "shown": false
             },
             "rain_in": null,
             "to_date": {
@@ -4080,7 +4133,8 @@
               "days": 19,
               "missing_days": 18,
               "status": "invalid",
-              "reason": "not_archived"
+              "reason": "not_archived",
+              "shown": false
             },
             "to_date_in": null
           },
@@ -4102,7 +4156,8 @@
           "days": 365,
           "missing_days": 364,
           "status": "invalid",
-          "reason": "in_progress"
+          "reason": "in_progress",
+          "shown": false
         },
         "season_in": null
       }
@@ -4120,7 +4175,8 @@
               "days": 7,
               "missing_days": 6,
               "status": "invalid",
-              "reason": "not_archived"
+              "reason": "not_archived",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4139,7 +4195,8 @@
               "days": 30,
               "missing_days": 29,
               "status": "invalid",
-              "reason": "not_archived"
+              "reason": "not_archived",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4158,7 +4215,8 @@
               "days": 90,
               "missing_days": 89,
               "status": "invalid",
-              "reason": "not_archived"
+              "reason": "not_archived",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4177,7 +4235,8 @@
               "days": 365,
               "missing_days": 364,
               "status": "invalid",
-              "reason": "not_archived"
+              "reason": "not_archived",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4196,7 +4255,8 @@
               "days": 50,
               "missing_days": 49,
               "status": "invalid",
-              "reason": "not_archived"
+              "reason": "not_archived",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4217,7 +4277,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         }
       },
       {
@@ -4230,7 +4291,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": true
         }
       },
       {
@@ -4243,7 +4305,8 @@
           "days": 7,
           "missing_days": 6,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         }
       },
       {
@@ -4256,7 +4319,8 @@
           "days": 30,
           "missing_days": 29,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         }
       },
       {
@@ -4269,7 +4333,8 @@
           "days": 90,
           "missing_days": 89,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         }
       },
       {
@@ -4282,7 +4347,8 @@
           "days": 365,
           "missing_days": 364,
           "status": "invalid",
-          "reason": "not_archived"
+          "reason": "not_archived",
+          "shown": false
         }
       }
     ],
@@ -4310,7 +4376,8 @@
           "days": 30,
           "missing_days": 29,
           "status": "invalid",
-          "reason": "in_progress"
+          "reason": "in_progress",
+          "shown": false
         }
       }
     ],
@@ -13442,7 +13509,8 @@
         "days": 30,
         "missing_days": 29,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": false
       },
       "usual_low_wm2": null,
       "usual_median_wm2": null,
@@ -13454,7 +13522,8 @@
         "days": 2,
         "missing_days": 2,
         "status": "invalid",
-        "reason": "not_archived"
+        "reason": "not_archived",
+        "shown": true
       },
       "energy_kwh_m2": null,
       "previous_kwh_m2": null
@@ -13470,5 +13539,107 @@
     "days_to_full_moon": 15
   },
   "widget_view": "temperature_ranges",
+  "record_depth": {
+    "first_day": "2025-11-17",
+    "days": 3,
+    "comparisons": [
+      {
+        "key": "today",
+        "shown": true,
+        "unlocks_on": null
+      },
+      {
+        "key": "yesterday",
+        "shown": true,
+        "unlocks_on": null
+      },
+      {
+        "key": "7d",
+        "shown": false,
+        "unlocks_on": "2025-11-23"
+      },
+      {
+        "key": "30d",
+        "shown": false,
+        "unlocks_on": "2025-12-16"
+      },
+      {
+        "key": "90d",
+        "shown": false,
+        "unlocks_on": "2026-02-14"
+      },
+      {
+        "key": "365d",
+        "shown": false,
+        "unlocks_on": "2026-11-16"
+      },
+      {
+        "key": "water_year",
+        "shown": false,
+        "unlocks_on": "2026-10-01"
+      },
+      {
+        "key": "earlier_year",
+        "shown": false,
+        "unlocks_on": "2026-11-24"
+      },
+      {
+        "key": "full_history",
+        "shown": true,
+        "unlocks_on": null
+      }
+    ],
+    "tiles": [
+      {
+        "key": "temperature",
+        "needs": "yesterday",
+        "shown": true
+      },
+      {
+        "key": "rain",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "last_10_days",
+        "needs": "yesterday",
+        "shown": true
+      },
+      {
+        "key": "dry_spell",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "wind",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "pressure",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "humidity",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "sun",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "daylight",
+        "needs": null,
+        "shown": true
+      }
+    ],
+    "next_unlock": {
+      "key": "7d",
+      "date": "2025-11-23"
+    }
+  },
   "stale_catalogs": []
 }

@@ -245,7 +245,8 @@ class GapStatus:
     Computed by `lookout.snapshot.gaps`, which holds the rules.
 
     :param key: Which one: "YYYY-MM" for a month, else the window's name
-        ("today", "yesterday", "7d", "30d", "90d", "365d", "water_year").
+        ("today", "yesterday", "7d", "30d", "90d", "365d", "water_year",
+        "full_history").
     :param first_day: Its first station-local day.
     :param last_day: Its last station-local day, inclusive.
     :param days: How many days it spans.
@@ -256,6 +257,10 @@ class GapStatus:
         is computed).
     :param reason: Why it is not valid: "gap", "low_coverage",
         "not_archived", "before_archive" or "in_progress"; None when valid.
+    :param shown: Whether the record is deep enough to show it (#463): the
+        archive's first station-local day is on or before `first_day`. A
+        window that is shown still reports its gaps by `status` and `reason`;
+        one that is not is hidden, not hatched. False for an empty archive.
     """
 
     key: str
@@ -265,6 +270,7 @@ class GapStatus:
     missing_days: int
     status: GapState
     reason: Optional[GapReason]
+    shown: bool
 
 
 @dataclass(frozen=True)
@@ -596,6 +602,11 @@ class TemperatureContext:
     :param strips: The temperature strip, then the rain strip.
     :param usual_band: Today's usual band by station-local hour, which the
         Overview hero draws today against.
+    :param full_history: The Full history window (#463), keyed
+        "full_history": the archive's first station-local day through today,
+        its range read like any period's (null values when its gap status is
+        invalid); null for an empty archive. Kept out of `periods`, which
+        holds the standard windows.
     """
 
     now: Optional[float]
@@ -606,6 +617,7 @@ class TemperatureContext:
     ten_day_years: Tuple[int, ...]
     strips: Tuple[NormalStrip, ...]
     usual_band: UsualBand
+    full_history: Optional[TemperaturePeriod]
 
 
 @dataclass(frozen=True)
@@ -1219,6 +1231,85 @@ class StaleCatalog:
 
 
 @dataclass(frozen=True)
+class DepthComparison:
+    """
+    One comparison's record depth (#463): whether the record supports it.
+
+    :param key: The comparison: a standard window ("today", "yesterday",
+        "7d", "30d", "90d", "365d", "water_year", as `Gaps.windows` keys
+        them), "earlier_year" (today's date in an earlier year, ±7 days: the
+        usual band's earlier years, the strips, the ten-day usual and the
+        almanac's earlier-year columns) or "full_history".
+    :param shown: Whether the record covers it. A window's is its gap
+        status's `shown`.
+    :param unlocks_on: The station-local date, "YYYY-MM-DD", it is first
+        shown; null when it is shown already or the archive is empty.
+    """
+
+    key: str
+    shown: bool
+    unlocks_on: Optional[str]
+
+
+@dataclass(frozen=True)
+class DepthTile:
+    """
+    Whether one Overview tile has the record it needs (#463).
+
+    :param key: The tile: "temperature", "rain", "last_10_days",
+        "dry_spell", "wind", "pressure", "humidity", "sun" or "daylight".
+    :param needs: The comparison it needs (a `DepthComparison.key`); null
+        for a tile that needs no record (daylight).
+    :param shown: Whether it is shown: its comparison is.
+    """
+
+    key: str
+    needs: Optional[str]
+    shown: bool
+
+
+@dataclass(frozen=True)
+class NextUnlock:
+    """
+    The comparison the record unlocks next (#463).
+
+    :param key: Its `DepthComparison.key`.
+    :param date: The station-local date, "YYYY-MM-DD", it is first shown.
+    """
+
+    key: str
+    date: str
+
+
+@dataclass(frozen=True)
+class RecordDepth:
+    """
+    How deep the station's record is, and what that shows (#463).
+
+    The site hides a window row, a tile or an almanac column the record does
+    not support and prints one next-unlock line instead of hatched rows
+    (`lookout.snapshot.depth`).
+
+    :param first_day: The archive's first station-local day; null when it
+        is empty.
+    :param days: Station-local days from `first_day` through today; 0 when
+        empty.
+    :param comparisons: Each comparison, the standard windows first, then
+        "earlier_year" and "full_history".
+    :param tiles: Each Overview tile in the mosaic's order, Inside left to
+        its own ticket.
+    :param next_unlock: The comparison not yet shown that unlocks first;
+        null when every comparison is shown or the archive is empty.
+    """
+
+    first_day: Optional[str]
+    days: int
+    comparisons: Tuple[DepthComparison, ...]
+    tiles: Tuple[DepthTile, ...]
+    next_unlock: Optional[NextUnlock]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -1246,6 +1337,8 @@ class Snapshot:
         no coordinates.
     :param widget_view: Which view a widget shows now: "rain_event",
         "dry_spell" or "temperature_ranges" (`lookout.snapshot.widget`).
+    :param record_depth: The record's depth: what each comparison and tile shows
+        and the next unlock (`lookout.snapshot.depth`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1267,6 +1360,7 @@ class Snapshot:
     solar_tab: Optional[SolarTab]
     sun_moon: Optional[SunMoon]
     widget_view: WidgetView
+    record_depth: RecordDepth
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

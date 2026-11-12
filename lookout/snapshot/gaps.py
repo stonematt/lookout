@@ -35,6 +35,11 @@ A window's status then follows, in this order of reasons:
 So a single day, or a week, with any missing day is invalid; prorating starts
 with windows of ten days or more.
 
+Apart from its status, each window says whether it is shown (#463): whether
+the record is deep enough for it, its first day on or after the archive's
+first day. "Shown" is not "valid": a shown window still reports a gap inside
+it, and a window the record does not reach is hidden rather than hatched.
+
 Pass the archive as stored, not the history with the live reading stitched
 in: the status describes what the archive holds. Stitching today's live
 value into a valid or prorated window is the caller's own step.
@@ -45,7 +50,8 @@ The API, for every section that compares months or windows:
   `.window(first_day, last_day)`, `.month(year, month)`, `.rolling(days)`,
   `.water_year()`, `.water_year_status(year)` and
   `.counted_days(first_day, last_day)`; `.excluding(missing)` judges days a
-  derived record lacks as missing. `build_snapshot` makes one, through
+  derived record lacks as missing; `.covers(first_day)` is the history depth
+  every status carries as `shown` (#463). `build_snapshot` makes one, through
   `lookout.snapshot.days.count_days`, and every section shares it.
 - `window_status(archive, first_day, last_day, clock)` and
   `month_status(archive, year, month, clock)`: one-off shorthands.
@@ -132,6 +138,9 @@ class ArchiveCoverage:
         self.empty = stamps.empty
         self.oldest_ms = None if self.empty else int(stamps.min())
         self.newest_ms = None if self.empty else int(stamps.max())
+        self._oldest_local = (
+            None if self.oldest_ms is None else local_time(self.oldest_ms, self.tz)
+        )
 
         # One count per five-minute slot, so a duplicate row is not counted twice.
         slots = pd.Series((stamps // INTERVAL_MS).unique() * INTERVAL_MS)
@@ -159,9 +168,21 @@ class ArchiveCoverage:
     @property
     def first_day(self) -> Optional[date]:
         """The archive's first station-local day, or None when it is empty."""
-        if self.empty:
-            return None
-        return local_time(self.oldest_ms, self.tz).date()
+        return None if self._oldest_local is None else self._oldest_local.date()
+
+    def covers(self, first_day: date) -> bool:
+        """
+        Whether the record is deep enough to show a span starting on a day.
+
+        The history depth (#463): true when the archive's first day is on or
+        before `first_day`. A covered span may still hold gaps; its gap
+        status reports them.
+
+        :param first_day: The span's first station-local day.
+        :return: True when covered; False for an empty archive.
+        """
+        first = self.first_day
+        return first is not None and first <= first_day
 
     def held_days(self) -> Tuple[date, ...]:
         """
@@ -268,6 +289,7 @@ class ArchiveCoverage:
             missing_days=sum(kind != _OK for kind in kinds),
             status=status,
             reason=reason,
+            shown=self.covers(first_day),
         )
 
     def month(self, year: int, month: int) -> GapStatus:
