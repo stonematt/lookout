@@ -7,17 +7,10 @@
   "ignoreCommand": "sh scripts/vercel-ignore.sh",
   "git": {
     "deploymentEnabled": {
+      "**": false,
       "main": true,
-      "goal/**": true,
-      "preview/**": true,
-      "dev": false,
-      "feat/**": false,
-      "fix/**": false,
-      "docs/**": false,
-      "chore/**": false,
-      "lane/**": false,
-      "shots/**": false,
-      "prototype/**": false
+      "dev": true,
+      "uat/**": true
     }
   },
   "rewrites": [
