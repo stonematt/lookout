@@ -84,8 +84,8 @@ const rows = (tab: string) => [
 
 /** Each tab's phone shape: its fixed top first, then one group of rows. */
 const PHONE = {
-  // The Overview has no rows (#472): the mosaic, two to a row, then the
-  // quick facts (#340).
+  // The Overview has no rows (#472): the mosaic's ten tiles (#473), two to
+  // a row.
   overview: [
     "first-screen",
     "feature",
@@ -95,8 +95,10 @@ const PHONE = {
     "dry-spell",
     "wind",
     "pressure",
-    "air",
-    "sun-moon", // #341
+    "humidity",
+    "sun",
+    "daylight",
+    "inside",
   ],
   rain: ["daily", "rows: years dry hours"],
   solar: ["now", "rows: daily day heatmaps"],

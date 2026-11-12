@@ -8,7 +8,7 @@
  *
  * - `TileSection`: what a tab declares per section, in its registry: its id,
  *   accessible name, kicker, column span, whether it belongs to a phone tab's
- *   fixed top, whether it is the now tile, a quick fact or a mosaic tile,
+ *   fixed top, whether it is the now tile or a mosaic tile,
  *   whether this snapshot draws it, and its `render`.
  * - `renderTiles`: renders a registry into a tab panel as a `.tile-grid` of
  *   `.tile` hosts, each opening with its kicker. The grid's columns follow
@@ -87,12 +87,6 @@ export interface TileSection {
    */
   phoneOpen?: boolean;
   /**
-   * A quick-fact tile (DESIGN.md "Quick-fact tiles"): a kicker, one value
-   * and one sentence. On a phone it stays an open tile, never a finding
-   * row, and takes half the grid's width, two to a row.
-   */
-  fact?: boolean;
-  /**
    * A mosaic tile (the Overview, #472): one link to its zoom. On a phone it
    * stays an open tile, never a finding row, and takes half the grid's
    * width, two to a row; on the grids, one column. Its kicker is its title,
@@ -168,7 +162,6 @@ function mark(host: HTMLElement, section: TileSection): void {
   host.dataset.span = String(section.span ?? 1);
   if (section.phoneTop) host.dataset.phoneTop = "true";
   if (section.now) host.dataset.surface = "now";
-  if (section.fact) host.dataset.fact = "true";
   if (section.mosaic) host.dataset.mosaic = "true";
 }
 
@@ -228,7 +221,7 @@ function exclusiveRows(grid: HTMLElement): void {
  * Render a tab's sections into its panel as a grid of tiles, replacing what
  * was there. Each tile is attached before its section renders, so a chart
  * can measure its width when it draws. On a phone, each section that is not
- * in the fixed top (nor kept open, a quick fact or a mosaic tile) renders
+ * in the fixed top (nor kept open, nor a mosaic tile) renders
  * as a closed finding row; a run of rows shares one tile, and every row in
  * the panel one group name. A section whose `shown` says no is skipped.
  *
@@ -252,7 +245,7 @@ export function renderTiles(
   let rows: HTMLElement | null = null;
   for (const section of sections) {
     if (section.shown && !section.shown(snapshot)) continue;
-    if (phone && !section.phoneTop && !section.phoneOpen && !section.fact && !section.mosaic) {
+    if (phone && !section.phoneTop && !section.phoneOpen && !section.mosaic) {
       if (!rows) {
         rows = document.createElement("section");
         rows.className = "tile tile-rows";

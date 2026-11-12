@@ -96,8 +96,8 @@ describe("the Overview's grid under each layout", () => {
     };
   }
 
-  /** The four mosaic tiles, then wind, pressure, air, and sun and moon. */
-  const halves = Array<string>(8).fill("span 1");
+  /** The mosaic's ten tiles. */
+  const halves = Array<string>(10).fill("span 1");
 
   it("is two columns on a phone: now and feature full width, the mosaic two to a row", () => {
     const { columns, spans } = grid("phone");

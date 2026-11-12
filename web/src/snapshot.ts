@@ -745,6 +745,38 @@ export interface DashboardSnapshot extends SnapshotHead {
    * Release A; the site then draws today's view.
    */
   record_depth?: RecordDepth;
+  /**
+   * Each indoor sensor still reporting, the console first, then by number;
+   * empty when the station has none (#466). Absent from snapshots published
+   * before Release A, which the site reads as none (ADR-0008).
+   */
+  indoor?: IndoorSensor[];
+}
+
+/** An indoor sensor's last 24 hours as hourly means (#466). */
+export interface IndoorTrace {
+  /** When the first slot starts. */
+  start_ms: number;
+  /** Each slot's length: 60. */
+  slot_minutes: number;
+  /** The mean temperature in each slot; null for a slot with no reading. */
+  temperature_f: (number | null)[];
+}
+
+/** One indoor sensor still reporting (#466): the console or a numbered one. */
+export interface IndoorSensor {
+  /** "in" for the console, else the sensor's number as text ("1"). */
+  key: string;
+  /** The name the site prints: "Console", "Sensor 1", ... */
+  name: string;
+  /** Its newest temperature in the last 24 hours. */
+  temperature_f: number;
+  /** Its newest humidity; null when it reports none. */
+  humidity_pct: number | null;
+  /** When its newest temperature was read. */
+  observed_at_ms: number;
+  /** Its last 24 hours, hourly. */
+  trace: IndoorTrace;
 }
 
 /** One sensor's battery: its Ambient column, the name printed, and whether it reads low. */
@@ -888,6 +920,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkSunMoon(sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
   checkBatteryFlags(head.battery_flags);
+  checkIndoor(head.indoor);
   checkFeature(head.feature);
   checkDrySpell(head.dry_spell);
   checkRecordDepth(head.record_depth);
@@ -908,6 +941,24 @@ function checkBatteryFlags(list: unknown): void {
     )
   ) {
     throw new SnapshotContractError("dashboard: battery_flags malformed");
+  }
+}
+
+/** `indoor` may be absent (N-1); present, each sensor has a name, a reading and a trace. */
+function checkIndoor(list: unknown): void {
+  if (list === undefined) return;
+  if (
+    !Array.isArray(list) ||
+    !list.every(
+      (s) =>
+        isRecord(s) &&
+        typeof s.name === "string" &&
+        typeof s.temperature_f === "number" &&
+        isRecord(s.trace) &&
+        Array.isArray(s.trace.temperature_f),
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: indoor malformed");
   }
 }
 

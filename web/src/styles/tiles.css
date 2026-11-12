@@ -272,14 +272,13 @@
 }
 
 /* ---------- phone: half-width tiles ---------- */
-/* DESIGN.md "Quick-fact tiles" and the mosaic (#472): on a phone the
-   quick-fact and mosaic tiles sit two to a row; every other tile keeps the
-   full width */
+/* The mosaic (#472, #473): on a phone the mosaic tiles sit two to a row;
+   every other tile keeps the full width */
 :root:not([data-layout="two"], [data-layout="four"]) .tile-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-fact], [data-mosaic]) {
+:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-mosaic]) {
   grid-column: 1 / -1;
 }
 

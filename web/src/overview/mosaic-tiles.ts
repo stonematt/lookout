@@ -1,7 +1,8 @@
 /**
  * The mosaic's tile definitions (#472), in its fixed order (spec #460 story
- * 19): Temperature, Rain, Last 10 days, Dry spell. The remaining six (#473)
- * join `MOSAIC_TILES` in their places.
+ * 19): Temperature, Rain, Last 10 days, Dry spell, then the six from
+ * `mosaic-conditions.ts` (#473): Wind, Pressure, Humidity, Sun, Daylight,
+ * Inside.
  *
  * - Temperature: the live reading (the hero's), today's high, and the
  *   hero's own delta on usual (`nowDeltaWords`, the one snapshot value
@@ -30,6 +31,14 @@ import { gapValue, isComparable, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, TemperatureDay, TemperaturePeriod } from "../snapshot.js";
 import { isShown } from "./history.js";
 import type { MosaicTile } from "./mosaic.js";
+import {
+  daylightTile,
+  humidityTile,
+  insideTile,
+  pressureTile,
+  sunTile,
+  windTile,
+} from "./mosaic-conditions.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
 import { rampColour, shownDays } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
@@ -437,4 +446,10 @@ export const MOSAIC_TILES: readonly MosaicTile[] = [
   rainTile,
   tenDaysTile,
   drySpellTile,
+  windTile,
+  pressureTile,
+  humidityTile,
+  sunTile,
+  daylightTile,
+  insideTile,
 ];
