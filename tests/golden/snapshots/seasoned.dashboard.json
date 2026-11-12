@@ -19273,7 +19273,10 @@
     "value": 72.0,
     "unit": "f",
     "percentile": 100,
-    "event_start_ms": null
+    "event_start_ms": null,
+    "since_ms": 1779314460000,
+    "held": false,
+    "outside_usual": true
   },
   "widget_view": "temperature_ranges",
   "record_depth": {

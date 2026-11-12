@@ -13554,7 +13554,10 @@
     "value": null,
     "unit": null,
     "percentile": null,
-    "event_start_ms": null
+    "event_start_ms": null,
+    "since_ms": 1763539200000,
+    "held": false,
+    "outside_usual": null
   },
   "widget_view": "temperature_ranges",
   "record_depth": {

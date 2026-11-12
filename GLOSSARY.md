@@ -279,11 +279,16 @@ To be replaced by the **feature** (ADR-0009).
 The one reading the Overview's full-width feature tile shows, and the one
 every widget's view follows. Picked by the Feature Rule (ADR-0009), first
 that holds: rain while an event is live or ended in the last 12 h; a reading
-outside its usual band for this hour (below the 10th or above the 90th
-percentile), the furthest out winning; a dry spell longer than the usual dry
-spell; otherwise temperature, as a usual day. Replaces the **lead** and
-decides the **widget view**.
-_Avoid_: lead (once the feature ships), hero, featured stat, highlight.
+(temperature, humidity, pressure or solar; never wind gust) outside its usual
+band for this hour (below the 10th or above the 90th percentile), the
+furthest out winning; a dry spell longer than the usual dry spell; otherwise
+temperature, as a usual day. Its subject is its kind, and for an unusual
+reading which reading. A subject is held for 3 hours from when it was first
+chosen, unless rain starts: a held feature keeps its subject while the
+rule picks another, with its values as they are now. Replaces the **lead**
+and decides the **widget view**.
+_Avoid_: lead (once the feature ships), hero, featured stat, highlight;
+sticky (for the hold).
 
 ### widget view
 

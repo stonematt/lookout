@@ -48,8 +48,15 @@ Usage:
       when the stored one is more than `ENERGY_SAVE_AGE` old. A catalog
       whose update raises is logged at ERROR and kept as stored, and marked
       stale (#118): one catalog's bug never stops the snapshot publishing.
-   e. `build(station, live, archive, catalogs, now)`: `build_snapshot`,
-      with the stale catalogs marked on it.
+   e. `read_previous(station, bucket)`: the feature of the station's last
+      published dashboard snapshot, for the Feature Rule's hold (#533); a
+      snapshot read, never the archive. Missing, published before the hold,
+      or a feature the rule cannot read means no hold; a read that fails,
+      or a document that is not JSON, fails the station before its
+      snapshot is written (ADR-0004), so the last published snapshot stays
+      up. Then
+      `build(station, live, archive, catalogs, now, previous)`:
+      `build_snapshot`, with the stale catalogs marked on it.
    f. `publish(snapshot, bucket)`: both documents under `snapshot/`.
    g. `publish_curves(station, archive, catalogs, bucket)`: a curve file
       for each completed event that has none yet, under
@@ -125,10 +132,11 @@ from lookout.core.energy_catalog_func import CATALOG_TYPE as ENERGY_TYPE
 from lookout.core.rain_corrections import correct_counters, read_catalog
 from lookout.core.rain_events import RainEventCatalog
 from lookout.snapshot import Snapshot, StaleCatalog, Station, build_snapshot
-from lookout.snapshot.model import CatalogName
+from lookout.snapshot.feature import previous_feature
+from lookout.snapshot.model import CatalogName, Feature
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.curves import publish_event_curves
-from lookout.snapshot.publish import publish_snapshot
+from lookout.snapshot.publish import publish_snapshot, snapshot_keys
 from lookout.snapshot.station_index import (
     IndexEntry,
     next_index,
@@ -143,7 +151,11 @@ from lookout.snapshot.status import (
 )
 from lookout.storage import archive_store
 from lookout.storage.station_inventory import load_inventory, read_inventory
-from lookout.storage.storj import archive_newest_ms, backup_and_save_catalog
+from lookout.storage.storj import (
+    archive_newest_ms,
+    backup_and_save_catalog,
+    read_json_from_s3,
+)
 from lookout.utils.archive_lock import ArchiveLockHeld, hold_archive_lock
 from lookout.utils.healthchecks import Heartbeat
 from lookout.utils.log_util import app_logger, station_context
@@ -546,12 +558,32 @@ def stale_catalogs(catalogs: Catalogs) -> Tuple[StaleCatalog, ...]:
     return tuple(marks)
 
 
+def read_previous(station: Station, bucket: str) -> Optional[Feature]:
+    """
+    Step 3e, first: the feature of the station's last published dashboard
+    snapshot, for the Feature Rule's hold (#533). A snapshot read: the
+    archive is not read here.
+
+    :param station: The station.
+    :param bucket: The bucket.
+    :return: The last published feature; None when there is no dashboard
+        snapshot, or its feature predates the hold (no `since_ms`) or names
+        a kind or reading the rule does not know.
+    :raises StorageReadError: If the read fails or the document is not JSON
+        (ADR-0004): the station fails before its snapshot is written, so
+        the last published one stays up.
+    """
+    key = snapshot_keys(station.mac)["dashboard"]
+    return previous_feature(read_json_from_s3(bucket, key))
+
+
 def build(
     station: Station,
     live: Optional[Dict],
     archive: pd.DataFrame,
     catalogs: Catalogs,
     now: datetime,
+    previous: Optional[Feature] = None,
 ) -> Snapshot:
     """
     Step 3e: the snapshot, with the catalogs this run could not update
@@ -562,6 +594,8 @@ def build(
     :param archive: The archive after catchup, rain corrected (`correct_rain`).
     :param catalogs: The catalogs.
     :param now: The build time, timezone-aware.
+    :param previous: The last published feature (`read_previous`), or None:
+        nothing is held.
     :return: The snapshot.
     """
     snapshot = build_snapshot(
@@ -571,6 +605,7 @@ def build(
         energy_catalog=catalogs.energy,
         station=station,
         now=now,
+        previous_feature=previous,
     )
     if not catalogs.stale:
         return snapshot
@@ -680,7 +715,10 @@ def refresh_station(
     catalogs = _step(
         "update_catalogs", update_catalogs, station, bucket, archive, catalogs
     )
-    snapshot = _step("build", build, station, live, archive, catalogs, clock())
+    previous = _step("read_previous", read_previous, station, bucket)
+    snapshot = _step(
+        "build", build, station, live, archive, catalogs, clock(), previous
+    )
     _step("publish", publish, snapshot, bucket)
     try:
         _step("publish_curves", publish_curves, station, archive, catalogs, bucket)

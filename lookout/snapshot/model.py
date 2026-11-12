@@ -416,8 +416,8 @@ class DrySpellNow:
 
 
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
-FeatureReading = Literal["temperature", "humidity", "wind_gust", "pressure", "solar"]
-FeatureUnit = Literal["f", "pct", "mph", "inhg", "wm2"]
+FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
+FeatureUnit = Literal["f", "pct", "inhg", "wm2"]
 
 
 @dataclass(frozen=True)
@@ -428,20 +428,31 @@ class Feature:
     `lookout.snapshot.feature`).
 
     :param kind: The first rule that holds: "rain", "unusual", "dry_spell"
-        or "quiet" (temperature, a usual day).
-    :param reading: For "unusual", the reading furthest out: "temperature",
-        "humidity", "wind_gust", "pressure" or "solar"; else None.
+        or "quiet" (temperature, a usual day); or, while `held`, the kind
+        kept from the last published feature.
+    :param reading: For "unusual", the reading furthest out (or the held
+        one): "temperature", "humidity", "pressure" or "solar"; else None.
     :param value: For "unusual", that reading's current value in `unit`;
         else None.
-    :param unit: For "unusual", the value's unit: "f", "pct", "mph", "inhg"
-        or "wm2"; else None.
+    :param unit: For "unusual", the value's unit: "f", "pct", "inhg" or
+        "wm2"; else None.
     :param percentile: For "unusual", where the value sits among its usual
         readings at this hour, 0 to 100: the share below it, a reading equal
-        to it counting half, rounded to a whole number that stays outside
-        10 to 90; else None.
+        to it counting half, rounded to a whole number. Computed this build,
+        held or not. Outside 10 to 90 it stays outside when rounded; else
+        None.
     :param event_start_ms: For "rain", the `start_ms` of the event the rule
         held on, the key of its `rain_events` row: the live event when one
         is live, else the newest ended event. None for every other kind.
+    :param since_ms: When this subject (the kind, and for "unusual" the
+        reading) was first chosen, the build time of that build: the hold
+        counts from it.
+    :param held: True when the rule picks a different subject this build
+        and the hold keeps this one, chosen under 3 hours ago
+        (`lookout.snapshot.feature.HOLD_HOURS`).
+    :param outside_usual: For "unusual", whether `percentile` is outside 10
+        to 90 this build: always True unless `held`, so a held reading back
+        inside its usual band says so. None for every other kind.
     """
 
     kind: FeatureKind
@@ -450,6 +461,9 @@ class Feature:
     unit: Optional[FeatureUnit]
     percentile: Optional[int]
     event_start_ms: Optional[int]
+    since_ms: int
+    held: bool
+    outside_usual: Optional[bool]
 
 
 @dataclass(frozen=True)
