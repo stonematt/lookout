@@ -43,11 +43,13 @@ Vercel is on the Hobby plan: about 100 deployments a day, and every branch push 
 
 | Last architecture review | Date | Drift counted from | Threshold |
 |---|---|---|---|
-| `6884418` (`dev`; report kept 7 candidates, 3 grilled into #423–#425 plus fix #422; chart host and refresh station inputs left unfiled) | 2026-11-10 | `46fed04` (`dev`, release 2026.11.9: the archive store refactor landed) | 30 files or 1,500 lines (under review, Matt 2026-11-11) |
+| `6884418` (`dev`; report kept 7 candidates, 3 grilled into #423–#425 plus fix #422; chart host and refresh station inputs left unfiled) | 2026-11-10 | `46fed04` (`dev`, release 2026.11.9: the archive store refactor landed) | 40 source files (Matt, 2026-11-11) |
 
 Drift counts from the last refactor a review produced, not from the review: the refactor's own changes are the review's output, not drift (Matt, 2026-11-11). When #424 (catalog store) lands, move the counter to its merge on `dev`.
 
-Threshold history: 2026-11-11, the counter moved from the review commit to the refactor's landing; Matt doubts a file count fits this repo's seams, and a better test is open.
+Count source files only: `git diff --name-only <counted-from> origin/dev -- . ':!docs' ':!*.md' ':!tests' ':!web/tests' ':!design-system' | wc -l`. Docs, tests, goldens and design-system previews follow the source and would count each change twice. The count catches features piling up, each built without checking whether it drifted from intent or made a second way to do something that already has a way: in the site (the chart-drawing suggestion) or in the middle tier (a writer reaching past the archive store).
+
+Threshold history: 2026-11-11, was 30 files or 1,500 lines, counted from the review commit. Now 40 source files, counted from the refactor's landing (Matt: a simple file count without docs; the number is the product lead's). Measured on past releases: the second-station program (2026.11.1 to 2026.11.4) 49, Tiles That Talk (to 2026.11.6) 49, release 2026.11.8's small features 15, the archive store refactor 17. So one large initiative, or about three releases of small features, triggers a review.
 
 ## Vault page
 
