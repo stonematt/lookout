@@ -56,6 +56,10 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 
 21. **This branch is the implementation target** (Matt, Nov 11). It stays complete and unmerged for reference; see Status at the top.
 
+## Third pass (Nov 12)
+
+22. **Sources go in one Overview footer, not on each tile** (Matt, Nov 12). Mosaic tiles and zooms carry no "Source · …" fold and no method paragraph. One footer at the foot of the Overview lists, for each tile, what it reads and how its comparison is made. The archive time is not repeated there, because the header's freshness line already says it once. The footer also shows the site's release version (for example "Lookout 2026.11.12"); `debug.html` shows the same version, and an endpoint returns it. The Rain, Rain Events and Solar tabs keep their source notes for now, as they keep their accordions. No board draws the footer: it follows the `Main` board's type and spacing at the page foot. Release B2 (#472, #477, #478; version: its own ticket).
+
 ## Accessibility audit (Nov 11, `/impeccable audit`)
 
 Axe-core 4.10 (WCAG 2.2 A/AA and best practice) on every board, light and dark, found no colour-contrast failures in text. The impeccable detector found no anti-patterns, only advisories that sizes and radii are off the DESIGN.md ramp (prototype drift; the build uses the tokens). Chart graphics were measured by hand, since axe does not check them.
