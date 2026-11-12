@@ -5,6 +5,14 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "ignoreCommand": "sh scripts/vercel-ignore.sh",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true,
+      "dev": true,
+      "uat/**": true
+    }
+  },
   "rewrites": [
     { "source": "/dashboard", "destination": "/api/dashboard" },
     { "source": "/current", "destination": "/api/current" },

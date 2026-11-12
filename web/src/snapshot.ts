@@ -1161,6 +1161,19 @@ export interface Feature {
    * (an equal one counting half), 0 to 100, always outside 10 to 90.
    */
   percentile: number | null;
+  /**
+   * When this subject was first chosen (Release A3's 3-hour hold, #533); absent
+   * in a snapshot written before A3.
+   */
+  since_ms?: number;
+  /** True when the hold keeps this feature over the rule's pick; absent before A3. */
+  held?: boolean;
+  /**
+   * For "unusual", whether `percentile` is outside 10 to 90 this build:
+   * false only for a held reading back inside its usual band. Absent before
+   * A3, and then the reading is outside.
+   */
+  outside_usual?: boolean | null;
 }
 
 /** The current dry spell against the usual dry spell (`DrySpellNow`). */
@@ -1199,7 +1212,13 @@ function checkFeature(feature: unknown): void {
       : feature.reading === null &&
         feature.value === null &&
         feature.unit === null &&
-        feature.percentile === null);
+        feature.percentile === null) &&
+    // The hold's fields (Release A3) may be absent, from a snapshot before it.
+    (feature.since_ms === undefined || typeof feature.since_ms === "number") &&
+    (feature.held === undefined || typeof feature.held === "boolean") &&
+    (feature.outside_usual === undefined ||
+      feature.outside_usual === null ||
+      typeof feature.outside_usual === "boolean");
   if (!ok) throw new SnapshotContractError("dashboard: feature malformed");
 }
 
