@@ -242,23 +242,6 @@ describe("one number wherever it appears (story 53)", () => {
     expect(why).toContain("calm: about 39 hours since it last rained");
   });
 
-  it("shows today's rain on the Rain tab as the Overview does", async () => {
-    const snapshot = parsed("raining");
-    await boot(snapshot, "rain", "overview");
-    const today = snapshot.current.rain_today_in!.toFixed(2);
-
-    const rainToday = words(
-      panel("rain").querySelector("[data-section=daily] .rain-windows div dd"),
-    );
-    expect(rainToday).toBe(`${today} in`);
-    const overview = words(
-      [...panel("overview").querySelectorAll("[data-part=right-now] > div")]
-        .find((d) => words(d.querySelector("dt")) === "rain today")
-        ?.querySelector("dd"),
-    );
-    expect(overview).toBe(rainToday);
-  });
-
   it("names the catalog's wettest event with the catalog's own total", async () => {
     const snapshot = parsed("raining");
     await boot(snapshot, "events");

@@ -328,6 +328,10 @@ contrast:
   - {fg: ribbon-night, bg: ribbon-day, min: 3, themes: [light, dark]}
   - {fg: ribbon-edge, bg: now-surface, min: 3, themes: [light, dark]}
   - {fg: ribbon-rain, bg: now-surface, min: 3, themes: [light, dark]}
+  # The usual band hero, on the now tile (#468): the median in ink-on-now and
+  # today's line in ink, each across the band; its rain bars are ribbon-rain.
+  - {fg: ink-on-now, bg: temp-band, min: 3, themes: [light, dark]}
+  - {fg: ink, bg: temp-band, min: 3, themes: [light, dark]}
 ---
 
 # Design System: Lookout

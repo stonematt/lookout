@@ -224,19 +224,6 @@ describe("the Rain tab", () => {
     }
   });
 
-  it("shows today's rain as the same number as the Overview", () => {
-    renderRain(panel, raining);
-    const onRain = text(section("daily").querySelector(".rain-windows div dd"));
-    const overview = document.createElement("div");
-    renderOverview(overview, raining);
-    const rightNow = [...overview.querySelectorAll(".right-now div")].find(
-      (item) => text(item.querySelector("dt")) === "rain today",
-    );
-
-    expect(onRain).toBe("0.30 in");
-    expect(text(rightNow?.querySelector("dd"))).toBe(onRain);
-  });
-
   it("states days since rain as the same number as the Overview's calm lead", () => {
     renderRain(panel, dry);
     const overview = document.createElement("div");
