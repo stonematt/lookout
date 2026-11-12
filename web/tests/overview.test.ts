@@ -105,7 +105,7 @@ describe("the now tile's source note", () => {
     expect(text(".ov-source")).toBe(
       "The temperature is the station's reading at Jan 8, 4:25 pm. " +
         "Today's line is the archive in 15-minute slots, to Jan 8, 3:55 pm; " +
-        "after it the live reading is joined by a dotted line, and the rain track is hatched. " +
+        "after it the live reading is joined by a dotted line. " +
         "The band is the usual for each hour of the day: the median of your last 4 days.",
     );
   });

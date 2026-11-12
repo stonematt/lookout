@@ -23,7 +23,7 @@
  * nothing. Offers `todayChart` (the chart block), `todayChartName` (its
  * accessible name), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
  */
-import { degrees, formatStamp, localDay, stationFormat } from "../format.js";
+import { degrees, formatStamp, hourText, localDay, stationFormat } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
 import {
   NARROW,
@@ -47,10 +47,10 @@ const RIGHT_PAD = 6;
 /** The plot's height: taller once there is width for it. */
 const PLOT_H = { narrow: 128, wide: 150 } as const;
 /** The rain track under the plot: its gap from the plot, and its height. */
-const RAIN_GAP = 4;
+const RAIN_GAP = 6;
 const RAIN_H = 14;
 /** The time-of-day labels under the rain track. */
-const X_LABELS_H = 20;
+const X_LABELS_H = 22;
 
 // ---------- the snapshot's today ----------
 
@@ -70,7 +70,12 @@ function clockHours(ms: number): number {
   return value("hour") + value("minute") / 60;
 }
 
-/** The snapshot's today: the "today" period's day, which Python's clock set. */
+/**
+ * The snapshot's today: the "today" period's day, which Python's clock set.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns "YYYY-MM-DD".
+ */
 function todayOf(snapshot: DashboardSnapshot): string {
   const period = snapshot.temperature_context.periods.find((p) => p.status.key === "today");
   return period?.status.first_day ?? localDay(snapshot.built_at_ms);
@@ -82,15 +87,22 @@ interface Slot {
   i: number;
   /** When it starts. */
   start: number;
-  /** Its place on the clock, in hours. */
+  /** Where its reading sits on the clock, in hours: mid-slot, or the live reading's time. */
   at: number;
+  /** The slot's middle on the clock, in hours, where its rain bar stands. */
+  mid: number;
   temperature: number | null;
   rain: number | null;
   /** The ribbon's last slot: the live reading. */
   live: boolean;
 }
 
-/** Today's ribbon slots, oldest first; empty without a ribbon. */
+/**
+ * Today's ribbon slots, oldest first.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The slots in the snapshot's today; empty without a ribbon.
+ */
 function todaySlots(snapshot: DashboardSnapshot): Slot[] {
   const ribbon = snapshot.condition_ribbon;
   if (!ribbon) return [];
@@ -112,6 +124,7 @@ function todaySlots(snapshot: DashboardSnapshot): Slot[] {
       i,
       start,
       at: clockHours(at),
+      mid: clockHours(start + slotMs / 2),
       temperature,
       rain: ribbon.rain_in[i] ?? null,
       live,
@@ -137,7 +150,12 @@ export function todayMissingMs(snapshot: DashboardSnapshot): number {
 
 // ---------- words ----------
 
-/** "your last day", "your last 14 days". */
+/**
+ * The band's recent days in words.
+ *
+ * @param days - How many days the band is over.
+ * @returns "your last day", "your last 14 days".
+ */
 const lastDays = (days: number) => (days === 1 ? "your last day" : `your last ${days} days`);
 
 /**
@@ -216,6 +234,10 @@ interface HourPoint {
  * Runs of consecutive hours that have what a mark needs, each hour at its
  * middle; a run that starts at hour 0 or ends at hour 23 is held flat to that
  * midnight, so the band spans the whole day.
+ *
+ * @param hours - The band's 24 hours.
+ * @param has - Whether an hour has what the mark needs.
+ * @returns The runs, left to right.
  */
 function hourRuns(hours: readonly UsualHour[], has: (h: UsualHour) => boolean): HourPoint[][] {
   const out: HourPoint[][] = [];
@@ -235,7 +257,12 @@ function hourRuns(hours: readonly UsualHour[], has: (h: UsualHour) => boolean): 
   return out;
 }
 
-/** Runs of today's archived slots with a reading, as point lists. */
+/**
+ * Runs of today's archived slots with a reading: one polyline each.
+ *
+ * @param slots - Today's slots.
+ * @returns The runs, oldest first; the live slot is never in one.
+ */
 function lineRuns(slots: readonly Slot[]): Slot[][] {
   const out: Slot[][] = [];
   let run: Slot[] | null = null;
@@ -349,7 +376,8 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
     svg.append(svgEl("polyline", { points: `${point(last)} ${point(live)}`, class: "today-join" }));
   }
 
-  // The rain track along the foot: a bar per wet slot, a hatch per unknown one.
+  // The rain track along the foot: a bar per wet slot, a hatch per gap in the record
+  // (the unarchived tail is told by the dotted join, not hatched here).
   const slotW = x(0.25) - x(0);
   svg.append(
     svgEl("line", {
@@ -360,10 +388,12 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
       class: "today-rain-floor",
     }),
   );
+  const archived = snapshot.archive_newest_ms;
   const rain = svgEl("g", { class: "today-rain" });
   for (const s of slots) {
-    const from = fixed(x(s.at) - slotW / 2);
+    const from = fixed(x(s.mid) - slotW / 2);
     if (s.rain === null) {
+      if (archived === null || s.start > archived) continue;
       rain.append(
         svgEl("rect", {
           x: from,
@@ -391,13 +421,10 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   svg.append(rain);
 
   // The times of day; the closing midnight once there is room for it.
-  const labelY = rainTop + RAIN_H + 15;
+  const labelY = rainTop + RAIN_H + 17;
   for (const [hour, text] of [
-    [0, "midnight"],
-    [6, "6 am"],
-    [12, "noon"],
-    [18, "6 pm"],
-    ...(narrow ? [] : [[24, "midnight"]]),
+    ...[0, 6, 12, 18].map((h) => [h, hourText(h)]),
+    ...(narrow ? [] : [[24, hourText(0)]]),
   ] as [number, string][]) {
     // The opening midnight centres under the plot's edge, over the y
     // gutter, so it keeps clear of "6 am" on a phone.

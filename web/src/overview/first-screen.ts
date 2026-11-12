@@ -65,7 +65,7 @@ function firstScreenSource(snapshot: DashboardSnapshot): string {
   if (lastSlot <= archived || ribbon.rain_in.at(-1) !== null) return `${reading} ${slots}.${usual}`;
   return (
     `${reading} ${slots}, to ${formatStamp(archived)}; after it the live reading is joined by ` +
-    `a dotted line, and the rain track is hatched.${usual}`
+    `a dotted line.${usual}`
   );
 }
 
