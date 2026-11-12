@@ -42,12 +42,31 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 
     Board: `RainZoom`.
 
+15. **Matt's review (Nov 11): the flow is fine and dark looks OK.** A tile hidden for missing history shifts the later tiles; that is accepted. The dark tokens stay as they are; the #38444f inset stays on the board as a reference only.
+16. **The band's label goes in the legend, not the plot.** Bars cover a label drawn inside the band, in both themes. Every chart with a band under bars gets a legend swatch, "usual range" (the band fill with its dashed edge), and no label inside the plot. The "today" label sits above the plot with a leader line down to today's bar.
+
+## Accessibility audit (Nov 11, `/impeccable audit`)
+
+Axe-core 4.10 (WCAG 2.2 A/AA and best practice) on every board, light and dark, found no colour-contrast failures in text. The impeccable detector found no anti-patterns, only advisories that sizes and radii are off the DESIGN.md ramp (prototype drift; the build uses the tokens). Chart graphics were measured by hand, since axe does not check them.
+
+Fixed on the boards:
+- The "today" label overlapped the bars (1.3:1 against a warm bar); it now sits above the plot.
+- The band label was lost under the bars; it is now a legend swatch (decision 16).
+- Tile links carried "Temperature: open the temperature view" as their `aria-label`, which hides the finding from a screen reader. They now carry the finding: "Temperature 60°, high 62°, 7° above usual. Open the temperature view." This is decision 12 on the issue made concrete.
+
+For the spec to carry:
+- **P1. A tile is one link, and its name is its finding.** Every tile is an `<a href="#overview/<tile>">`, not only Temperature and the feature. Its accessible name is the tile's dropped sentence plus "Open the … view". The mini chart is `aria-hidden` inside the link so the sentence is not read twice.
+- **P1. Zoom focus.** Phone: opening a zoom moves focus to its heading; Back returns focus to the tile it came from. Desktop: the tile has `aria-expanded` and `aria-controls`, focus moves into the zoom, and Close or Escape returns focus to the tile. Opening and closing respect `prefers-reduced-motion`.
+- **P1. Headings and landmarks.** The Overview sits in `<main>` with one `<h1>` (the station name, visually hidden where the selector shows it); each tile's title and each zoom section's kicker is a heading. The boards draw them as plain text.
+- **P2. Above-usual against at-or-below differs by hue only** (#b5602a against #5a7da1 is 1.05:1; dark 1.2:1). Position against the band carries the same fact, and the legend names both, so this passes WCAG 1.4.1. Keep the band edge visible wherever these bars are drawn.
+- **P2. The hero's band has no edge.** Its fill is 1.3:1 (light) and 1.9:1 (dark) on the now surface, and `--temp-band-edge` reaches only 2.9:1 and 2.3:1 there. The median line (7.9:1, 8.1:1) and the today line carry the comparison, so the band is context. If the band must stand alone, it needs an edge colour that reaches 3:1 on the now surface.
+- **P2. Segmented controls** (the range and period selectors) are about 35 px tall on the boards. The site's 44 px floor applies.
+- **P3. The dry-spell grid's rain days** stand 2.7:1 off the dry days. The number and "usual is 3" carry the finding.
+
 ## Open questions
 
-- Nine tiles leave Daylight alone on the phone's last row and three empty cells on desktop. Add a tenth tile, merge Sun and Daylight, or accept the gap?
+- The tenth tile, to fill Daylight's empty row. Matt's candidates: the moon phase, an Inside tile with one row per indoor sensor (temperature and humidity; Lookout Post has two, Salmon Run one), or battery health. Ambient sends `tempinf`/`humidityin`, `temp1f`/`humidity1` and the battery flags `battout`, `battin`, `batt1` (1 is OK); none reach the snapshot today.
 - What is #252's selector for: narrowing the dates (drawn) or choosing which years to compare?
-- Adopt a lighter dark band for bands drawn under bars (#38444f, or a new token beside `--temp-band`)?
-- A hidden tile (history missing) shifts every later tile by one cell, so pairs change partners on the phone. Accept it, or hold each tile's slot?
 
 ## Contract impact
 
@@ -63,7 +82,6 @@ New snapshot fields, so schema bumps shipped in two releases each (ADR-0008): th
 
 - No widget board.
 - Charts are SVGs scaled to their box, so on the desktop board their text grows with the tile (zoom labels near 20 px, tile labels near 12 px). The site redraws at width (`drawSized`), so this is a drawing artefact, not a proposal.
-- The light feature chart's "usual range" label still sits under the bars.
 - Only the temperature and rain zooms are drawn; the rain zoom is light only.
 - The Raining board's tiles below the fold are stubs, and it has no humidity tile.
 - The dark boards are the light boards with the DESIGN.md -dark values swapped in; no dark-specific layout was tried.
