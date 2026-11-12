@@ -309,10 +309,17 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
     const at = (p: HourPoint, v: number) => `${fixed(x(p.at))},${fixed(y(v))}`;
     for (const run of hourRuns(band.hours, (h) => h.q1 !== null && h.q3 !== null)) {
       const top = run.map((p) => at(p, p.hour.q3!));
-      const bottom = run.map((p) => at(p, p.hour.q1!)).reverse();
+      const bottom = run.map((p) => at(p, p.hour.q1!));
       svg.append(
-        svgEl("path", { d: `M${top.join(" L")} L${bottom.join(" L")} Z`, class: "today-band" }),
+        svgEl("path", {
+          d: `M${top.join(" L")} L${[...bottom].reverse().join(" L")} Z`,
+          class: "today-band",
+        }),
       );
+      // Edged along its top and foot only: no edge stands at a midnight.
+      for (const edge of [top, bottom]) {
+        svg.append(svgEl("polyline", { points: edge.join(" "), class: "today-band-edge" }));
+      }
     }
     for (const run of hourRuns(band.hours, (h) => h.median !== null)) {
       const points = run.map((p) => at(p, p.hour.median!)).join(" ");
@@ -392,7 +399,9 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
     [18, "6 pm"],
     ...(narrow ? [] : [[24, "midnight"]]),
   ] as [number, string][]) {
-    const anchor = hour === 0 ? "start" : hour === 24 ? "end" : "middle";
+    // The opening midnight centres under the plot's edge, over the y
+    // gutter, so it keeps clear of "6 am" on a phone.
+    const anchor = hour === 24 ? "end" : "middle";
     svg.append(
       svgEl(
         "text",

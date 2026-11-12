@@ -89,6 +89,10 @@
 
 .today-band {
   fill: var(--temp-band);
+}
+
+.today-band-edge {
+  fill: none;
   stroke: var(--temp-band-edge);
   stroke-width: 1;
 }
