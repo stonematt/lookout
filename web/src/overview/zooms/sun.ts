@@ -10,7 +10,7 @@
 import { renderSunlightNow } from "../../solar/index.js";
 import { sunTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
-import { onwardLink } from "./parts.js";
+import { morePanel } from "./more.js";
 
 /** The Sun zoom. */
 export const sunZoom: ZoomDefinition = {
@@ -22,10 +22,11 @@ export const sunZoom: ZoomDefinition = {
       id: "sunlight-now",
       title: "Sunlight now",
       wide: true,
-      render(host, snapshot) {
-        renderSunlightNow(host, snapshot, { note: false });
-        onwardLink(host, "#solar", "More in Solar");
-      },
+      render: (host, snapshot) => renderSunlightNow(host, snapshot, { zoom: true }),
     },
+    morePanel(
+      { hash: "solar", name: "Solar" },
+      "Each day of the last 90, one day by the quarter hour, the solar almanac",
+    ),
   ],
 };

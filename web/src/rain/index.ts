@@ -15,9 +15,9 @@
  *
  * Offers `renderRain`, `SECTIONS`, and the two sections the Overview's
  * zooms draw too, one home per chart: `renderYears` (the rain zoom) and
- * `renderDry` (the dry spell zoom), each taking `SectionOptions` to leave
- * its source note out in a zoom (prototype decision 22; `SectionOptions`
- * in `tiles.ts`).
+ * `renderDry` (the dry spell zoom), each taking `SectionOptions` to draw
+ * in a zoom: no source note (prototype decision 22) and its finding under
+ * the panel's title (`SectionOptions` in `tiles.ts`).
  */
 import "./rain.css";
 
@@ -29,14 +29,7 @@ import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { isShown } from "../overview/history.js";
 import type { SectionOptions, TileSection } from "../tiles.js";
-import {
-  gapReasons,
-  hatchedCount,
-  renderTiles,
-  sourceNote,
-  tileFinding,
-  tileFolds,
-} from "../tiles.js";
+import { gapReasons, hatchedCount, renderTiles, sectionSource, tileFinding } from "../tiles.js";
 import { drawDailyBars, drawHourGrid, drawYearCurves, lastDays } from "./charts.js";
 import {
   WINDOW_NAMES,
@@ -70,31 +63,6 @@ function figure(host: HTMLElement, name: string): { chart: HTMLElement; readout:
   readout.setAttribute("aria-live", "polite");
   host.append(chart, readout);
   return { chart, readout };
-}
-
-/**
- * The folded source note at the tile's foot: the archive time on its
- * closed line, the method inside, and a chip when a gap hides part of the
- * chart. No lag chip: the header states freshness once (#458).
- *
- * @param host - The tile.
- * @param snapshot - The dashboard snapshot.
- * @param options - Whether the section carries its note.
- * @param what - What the numbers come from, short.
- * @param sentences - The method paragraph's sentences; nulls are dropped.
- * @param gaps - What the chart hatches, as the chip's reason; null for none.
- */
-function source(
-  host: HTMLElement,
-  snapshot: DashboardSnapshot,
-  options: SectionOptions,
-  what: string,
-  sentences: (string | null)[],
-  gaps: string | null,
-): void {
-  if (options.notes === false) return;
-  const method = sentences.filter(Boolean).join(" ");
-  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps, lag: false })));
 }
 
 /** Days the bars and the hour grid hatch: the ones not in the record. */
@@ -146,7 +114,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
     draw: (days, width) =>
       drawDailyBars(chart, lastDays(tab.recent, days), width, (t) => (readout.textContent = t)),
   });
-  source(
+  sectionSource(
     host,
     snapshot,
     {},
@@ -165,7 +133,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
  *
  * @param host - The tile, or the zoom's panel.
  * @param snapshot - The dashboard snapshot.
- * @param options - Whether it ends in its source note.
+ * @param options - Whether it draws in a zoom panel.
  */
 export function renderDry(
   host: HTMLElement,
@@ -173,7 +141,7 @@ export function renderDry(
   options: SectionOptions = {},
 ): void {
   const spells = snapshot.rain_tab.dry_spells;
-  host.append(tileFinding(dryHeadline(snapshot)));
+  host.append(tileFinding(dryHeadline(snapshot), options));
   const strip = make("dl", "rain-stats rain-dry-stats");
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
@@ -212,7 +180,7 @@ export function renderDry(
     if (!dd.textContent) dd.textContent = "not known";
   }
   host.append(strip);
-  source(
+  sectionSource(
     host,
     snapshot,
     options,
@@ -233,7 +201,7 @@ export function renderDry(
  *
  * @param host - The tile, or the zoom's panel.
  * @param snapshot - The dashboard snapshot.
- * @param options - Whether it ends in its source note.
+ * @param options - Whether it draws in a zoom panel.
  */
 export function renderYears(
   host: HTMLElement,
@@ -241,7 +209,7 @@ export function renderYears(
   options: SectionOptions = {},
 ): void {
   const tab: RainTab = snapshot.rain_tab;
-  host.append(tileFinding(yearsHeadline(tab)));
+  host.append(tileFinding(yearsHeadline(tab), options));
   const current = tab.water_years[tab.water_years.length - 1];
   if (current && tab.water_years.every((c) => c.cumulative_in.every((v) => v === null))) {
     // No year can be compared: the hatch in place of an empty chart.
@@ -263,7 +231,7 @@ export function renderYears(
       ? `The live reading has ${inches(live)} today; only the live total is known until the archive catches up.`
       : null;
   const hatchedWindows = hatchedCount(tab.windows.map((w) => w.status).filter(isShown));
-  source(
+  sectionSource(
     host,
     snapshot,
     options,
@@ -311,7 +279,7 @@ function renderHours(host: HTMLElement, snapshot: DashboardSnapshot): void {
   gap.append(make("span", "rain-swatch gap-hatch"), document.createTextNode("not in the record"));
   key.append(gap);
   readout.before(key);
-  source(
+  sectionSource(
     host,
     snapshot,
     {},

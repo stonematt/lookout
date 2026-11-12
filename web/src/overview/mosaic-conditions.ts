@@ -1,9 +1,8 @@
 /**
  * The mosaic's last six tiles (#473, spec #460 stories 19, 24–27): Wind,
- * Pressure, Humidity, Sun, Daylight and Inside. They take the places of the
- * quick-fact cards: Air's humidity and dew point join Humidity, and Sun and
- * moon splits into Sun (solar energy) and Daylight (sunrise, sunset, day
- * length). The moon and the cards' full sentences are the zooms' (#477).
+ * Pressure, Humidity, Sun, Daylight and Inside. Humidity carries the dew
+ * point; Sun is the day's solar energy and Daylight sunrise, sunset and
+ * day length. The moon and the full sentences are the zooms' (#476, #477).
  *
  * - Wind: the live speed, where it blows from and its gust; its mini chart
  *   a compass whose arrow points the way the wind blows.
@@ -25,9 +24,10 @@
  * Every value is the snapshot's; these only word, format and draw. A missing
  * live reading reads "n/a", never zero.
  *
- * Offers `windClauses`, `windTile`, `pressureTile`, `humidityTile`, `sunTile`,
- * `daylightTile`, `insideTile`, and `sensorRow` (one indoor sensor's
- * words, which the Inside zoom shares).
+ * Offers `windClauses`, `calmThreshold`, `windTile`, `pressureTile`, `humidityTile`, `sunTile`,
+ * `daylightTile`, `insideTile`, `sensorRow` (one indoor sensor's words),
+ * and `lastIndex` and `traceMarks` (a series' line and now dot), which the
+ * Inside zoom shares.
  */
 import { runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -82,9 +82,32 @@ function endLabels(svg: SVGSVGElement, width: number, left: string, right: strin
 }
 
 /** The index of a series' last reading, or -1. */
-function lastIndex(values: (number | null)[]): number {
+export function lastIndex(values: (number | null)[]): number {
   for (let i = values.length - 1; i >= 0; i--) if (values[i] !== null) return i;
   return -1;
+}
+
+/**
+ * A series' line, split into runs at its nulls, then its last reading as
+ * the now dot: the Inside tile's row lines and the Inside zoom's 24 hours.
+ *
+ * @param values - The series; it holds a reading (`lastIndex` >= 0).
+ * @param x - Index to x.
+ * @param y - Value to y.
+ * @param r - The now dot's radius.
+ * @returns The polylines, then the dot.
+ */
+export function traceMarks(
+  values: (number | null)[],
+  x: (i: number) => number,
+  y: (v: number) => number,
+  r: number,
+): SVGElement[] {
+  const last = lastIndex(values);
+  return [
+    ...polylines(values, x, y).map((points) => svgEl("polyline", { class: "mosaic-line", points })),
+    svgEl("circle", { class: "mosaic-now-dot", cx: x(last), cy: y(values[last]!), r }),
+  ];
 }
 
 // ---------- Wind ----------
@@ -137,6 +160,16 @@ export function windClauses(c: DashboardSnapshot["current"]): {
   };
 }
 
+/**
+ * The calm threshold in words, as the snapshot gives it: "1 mph", "0.5 mph".
+ *
+ * @param value - `wind_rose.calm_below_mph`.
+ * @returns The words.
+ */
+export function calmThreshold(value: number): string {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)} mph`;
+}
+
 /** Wind: the live speed, where it blows from and its gust. */
 export const windTile: MosaicTile = {
   slug: "wind",
@@ -157,12 +190,21 @@ export const windTile: MosaicTile = {
       : { value: mph(speed, { unit: false }), unit: "mph", delta };
   },
   chart: windChart,
-  source: () => ({
-    what: "the live reading: speed, direction and gust",
-    method:
+  source(snapshot) {
+    const live =
       "Speed and gust in mph. The direction is where the wind blows from, to the nearest of 16 " +
-      "compass points; the compass arrow points the way it blows.",
-  }),
+      "compass points; the compass arrow points the way it blows.";
+    const rose = snapshot.wind_rose;
+    if (!rose) return { what: "the live reading: speed, direction and gust", method: live };
+    return {
+      what: "the live reading, and each window's readings for the rose",
+      method:
+        `${live} The rose sorts each window's readings by the direction the wind came ` +
+        "from: each direction's average wind and its highest gust. A reading under " +
+        `${calmThreshold(rose.calm_below_mph)}, or with no direction, is calm and left out of ` +
+        "the rose.",
+    };
+  },
 };
 
 // ---------- Pressure ----------
@@ -371,12 +413,7 @@ function indoorLine(sensor: IndoorSensor, width: number): SVGSVGElement | null {
   const x = scale(0, values.length - 1, 2, width - 6);
   const y = scale(Math.min(...numbers) - 1, Math.max(...numbers) + 1, h - 4, 4);
   const svg = miniChart(width, h);
-  for (const points of polylines(values, x, y)) {
-    svg.append(svgEl("polyline", { class: "mosaic-line", points }));
-  }
-  svg.append(
-    svgEl("circle", { class: "mosaic-now-dot", cx: x(last), cy: y(values[last]!), r: 3.5 }),
-  );
+  svg.append(...traceMarks(values, x, y, 3.5));
   return svg;
 }
 

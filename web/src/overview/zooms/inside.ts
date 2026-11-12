@@ -8,12 +8,12 @@
  *
  * Offers `insideZoom`.
  */
-import { runs, scale } from "../../charts/svg.js";
-import { svgEl } from "../../dom.js";
+import { scale } from "../../charts/svg.js";
+import { spoken, svgEl } from "../../dom.js";
 import { degrees } from "../../format.js";
 import type { DashboardSnapshot, IndoorSensor } from "../../snapshot.js";
-import { insideTile, sensorRow } from "../mosaic-conditions.js";
-import { miniChart, spoken } from "../mosaic.js";
+import { insideTile, lastIndex, sensorRow, traceMarks } from "../mosaic-conditions.js";
+import { miniChart } from "../mosaic.js";
 import type { ZoomDefinition } from "../zoom.js";
 import { factValue, sizedChart } from "./parts.js";
 
@@ -36,14 +36,7 @@ const LEFT = 36;
  */
 function sensorChart(sensor: IndoorSensor, width: number): SVGSVGElement | null {
   const values = sensor.trace.temperature_f;
-  let last = -1;
-  for (let i = values.length - 1; i >= 0; i--) {
-    if (values[i] !== null) {
-      last = i;
-      break;
-    }
-  }
-  if (values.length < 2 || last < 0) return null;
+  if (values.length < 2 || lastIndex(values) < 0) return null;
   const numbers = values.filter((v): v is number => v !== null);
   const low = Math.min(...numbers);
   const high = Math.max(...numbers);
@@ -58,12 +51,7 @@ function sensorChart(sensor: IndoorSensor, width: number): SVGSVGElement | null 
     svgEl("text", { class: "mosaic-label", x: LEFT, y: HEIGHT - 2 }, "24 h ago"),
     svgEl("text", { class: "mosaic-label", x: width, y: HEIGHT - 2, "text-anchor": "end" }, "now"),
   );
-  for (const [a, b] of runs(values.length, (i) => values[i] !== null)) {
-    const points: string[] = [];
-    for (let i = a; i <= b; i++) points.push(`${x(i).toFixed(1)},${y(values[i]!).toFixed(1)}`);
-    svg.append(svgEl("polyline", { class: "mosaic-line", points: points.join(" ") }));
-  }
-  svg.append(svgEl("circle", { class: "mosaic-now-dot", cx: x(last), cy: y(values[last]!), r: 4 }));
+  svg.append(...traceMarks(values, x, y, 4));
   return svg;
 }
 
@@ -83,7 +71,8 @@ function renderSensors(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const reading = document.createElement("p");
     reading.className = "zoom-sensor-reading";
     factValue(reading, row.value, "sensor-value");
-    if (row.aside) reading.append(row.aside.text, spoken(` ${row.aside.spoken}`));
+    // The aside as the tile says it: "humidity 45%".
+    if (row.aside) reading.append(spoken(` ${row.aside.spoken} `), row.aside.text);
     item.append(name, reading);
     list.append(item);
     sizedChart(item, "sensor-line", (width) => sensorChart(sensor, width));

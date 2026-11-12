@@ -1019,7 +1019,10 @@ function checkBatteryFlags(list: unknown): void {
   }
 }
 
-/** `indoor` may be absent (N-1); present, each sensor has a name, a reading and a trace. */
+/**
+ * `indoor` may be absent (N-1); present, each sensor has its key, name,
+ * reading, humidity (a number or null), the time it was read and a trace.
+ */
 function checkIndoor(list: unknown): void {
   if (list === undefined) return;
   if (
@@ -1027,8 +1030,11 @@ function checkIndoor(list: unknown): void {
     !list.every(
       (s) =>
         isRecord(s) &&
+        typeof s.key === "string" &&
         typeof s.name === "string" &&
         typeof s.temperature_f === "number" &&
+        (s.humidity_pct === null || typeof s.humidity_pct === "number") &&
+        isTime(s.observed_at_ms) &&
         isRecord(s.trace) &&
         Array.isArray(s.trace.temperature_f),
     )

@@ -47,19 +47,20 @@
  * - `.zoom-panels`, the two-by-two grid on the grids, one column on a
  *   phone, of `section.zoom-panel[data-panel=<id>]`, each an
  *   `h3.zoom-panel-title` then the panel's content; a `wide` panel
- *   (`[data-wide]`) takes the whole row.
+ *   (`[data-wide]`) takes the whole row. Headings inside a panel are
+ *   `h4` (a shared section's finding, `SectionOptions.zoom` in
+ *   `tiles.ts`), so the zoom's headings nest.
  *
  * Offers `ZoomDefinition`, `ZoomPanel`, `zoomFor`, `isZoomRoute`,
- * `closeZoom` (Close, Back and Escape), `drawZoom` (the Overview calls it
- * after each render) and `followZoom`
+ * `drawZoom` (the Overview calls it after each render) and `followZoom`
  * (the page calls it each time a tab opens or the hash moves).
  */
 import "./zoom.css";
 
+import { spoken } from "../dom.js";
 import { currentLayout } from "../layout.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileReading } from "./mosaic.js";
-import { spoken } from "./mosaic.js";
 import { ZOOMS } from "./zooms/index.js";
 
 /** One panel of a zoom: a heading and what sits under it. */
@@ -222,7 +223,7 @@ function listen(panel: HTMLElement, state: ZoomState): void {
  *
  * @param panel - The Overview's panel.
  */
-export function closeZoom(panel: HTMLElement): void {
+function closeZoom(panel: HTMLElement): void {
   const state = states.get(panel);
   if (!state || state.open === null) return;
   // The entry's own stamp, not a count kept here: an entry another part of

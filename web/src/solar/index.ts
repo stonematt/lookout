@@ -27,7 +27,7 @@ import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { WINDOW_NAMES, listText } from "../rain/text.js";
 import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
-import type { TileSection } from "../tiles.js";
+import type { SectionOptions, TileSection } from "../tiles.js";
 import {
   gapReasons,
   hatchedCount,
@@ -73,16 +73,20 @@ const VIEWS = [
 
 type View = (typeof VIEWS)[number][0];
 
-/** The tile's finding and standfirst, its first parts after the kicker. */
+/**
+ * The tile's finding and standfirst, its first parts after the kicker; in a
+ * zoom panel the finding sits under the panel's title.
+ */
 function heading(
   host: HTMLElement,
   finding: string,
   standfirst: string,
+  options: SectionOptions = {},
 ): {
   title: HTMLElement;
   lede: HTMLElement;
 } {
-  const title = tileFinding(finding);
+  const title = tileFinding(finding, options);
   const lede = make("p", "standfirst", standfirst);
   lede.dataset.part = "standfirst";
   host.append(title, lede);
@@ -148,38 +152,29 @@ interface Mount {
   dayHost: HTMLElement | null;
 }
 
-/** How the Sunlight now section is drawn. */
-export interface SunlightNowOptions {
-  /**
-   * Fold the source note at its foot, as the Solar tab does; true by
-   * default. The Sun zoom leaves it out (prototype decision 22: the
-   * Overview's sources footer carries the Sun tile's line).
-   */
-  note?: boolean;
-}
-
 /**
  * The Solar tab's top section, Sunlight now: its finding, standfirst, the
  * last 24 hours against the usual range, and its live readout, then the
- * folded source note unless `note` is false. The Solar tab and the
- * Overview's Sun zoom both draw it.
+ * folded source note on the Solar tab. The Solar tab and the Overview's Sun
+ * zoom (`options.zoom`: no source note, prototype decision 22) both draw it.
  *
  * @param host - The tile or zoom panel to fill.
  * @param snapshot - The dashboard snapshot.
- * @param options - Whether to fold the source note.
+ * @param options - Whether it draws in a zoom panel.
  */
 export function renderSunlightNow(
   host: HTMLElement,
   snapshot: DashboardSnapshot,
-  options: SunlightNowOptions = {},
+  options: SectionOptions = {},
 ): void {
-  const withNote = options.note ?? true;
+  const withNote = !options.zoom;
   const trace = snapshot.solar_tab?.last_24h ?? null;
   const live = snapshot.current.solar_wm2;
   heading(
     host,
     trace ? traceHeadline(trace, live) : "No solar reading yet",
     "The bold line is solar radiation over the last 24 hours; 1 kWh/m² is an hour of full midday sun. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
+    options,
   );
   if (!trace) {
     if (!withNote) return;

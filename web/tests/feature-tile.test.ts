@@ -183,7 +183,7 @@ describe("the feature tile", () => {
   });
 
   it.each([
-    // Humidity and pressure open their zooms (#477), not the tile's old id.
+    // Each unusual reading opens its tile's zoom (#476, #477).
     [
       "humidity",
       22,
@@ -195,7 +195,17 @@ describe("the feature tile", () => {
       "#overview/humidity",
       "Open the humidity view",
     ],
-    ["wind_gust", 31.5, "mph", 98, "31.5 mph", "gustier", "98th", "#overview-wind", "Go to Wind"],
+    [
+      "wind_gust",
+      31.5,
+      "mph",
+      98,
+      "31.5 mph",
+      "gustier",
+      "98th",
+      "#overview/wind",
+      "Open the wind view",
+    ],
     [
       "pressure",
       29.41,
@@ -207,7 +217,7 @@ describe("the feature tile", () => {
       "#overview/pressure",
       "Open the pressure view",
     ],
-    ["solar", 140, "wm2", 2, "140 W/m²", "duller", "2nd", "#solar", "Open the Solar tab"],
+    ["solar", 140, "wm2", 2, "140 W/m²", "duller", "2nd", "#overview/sun", "Open the sun view"],
   ])(
     "draws an unusual %s from a golden copy",
     (reading, value, unit, percentile, shown, word, ordinal, href, open) => {
@@ -233,9 +243,9 @@ describe("the feature tile", () => {
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 d 9 h");
     expect(linkName()).toBe(
-      "About 9 days since it last rained, against a usual dry spell of 3 days. Open the Rain tab.",
+      "About 9 days since it last rained, against a usual dry spell of 3 days. Open the dry spell view.",
     );
-    expect(link().getAttribute("href")).toBe("#rain");
+    expect(link().getAttribute("href")).toBe("#overview/dry-spell");
   });
 
   it("draws a quiet day as a usual day, with the temperature now", () => {

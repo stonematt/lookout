@@ -119,11 +119,13 @@ describe("the Sun zoom", () => {
     const finding = words(sun.querySelector("[data-part=finding]"));
     expect(sun.querySelector("figure.solar-chart svg")).not.toBeNull();
     expect(sun.querySelector(".solar-readout")).not.toBeNull();
-    const more = sun.querySelector<HTMLAnchorElement>("a[data-part=onward]")!;
-    expect(more.getAttribute("href")).toBe("#solar");
-    expect(more.firstChild?.textContent).toBe("More in Solar");
-    expect(more.querySelector("[aria-hidden=true]")?.textContent).toBe("›");
-    expect(sun.lastElementChild).toBe(more);
+    // "More in Solar" is the zoom's last panel, the one "More in" card.
+    const more = panel("more")!;
+    expect(sun.nextElementSibling).toBe(more);
+    const link = more.querySelector<HTMLAnchorElement>("a.zoom-more")!;
+    expect(link.getAttribute("href")).toBe("#solar");
+    expect(words(link.querySelector(".zoom-panel-title"))).toBe("More in Solar");
+    expect(link.querySelector("[aria-hidden=true]")?.textContent).toBe("›");
 
     // The Solar tab draws the same section, with its source note kept.
     const tab = document.createElement("div");
@@ -253,9 +255,10 @@ describe("the Inside zoom", () => {
       expect(words(el.querySelector("[data-part=sensor-value]"))).toBe(
         `${sensor.temperature_f.toFixed(1)}°`,
       );
+      // Read in the tile's own words and order: "68.0° humidity 45%".
       if (sensor.humidity_pct !== null)
-        expect(words(el.querySelector(".zoom-sensor-reading"))).toContain(
-          `${sensor.humidity_pct}%`,
+        expect(words(el.querySelector(".zoom-sensor-reading"))).toBe(
+          `${sensor.temperature_f.toFixed(1)}° humidity ${sensor.humidity_pct}%`,
         );
       expect(el.querySelector("[data-part=sensor-line] svg")).not.toBeNull();
     });

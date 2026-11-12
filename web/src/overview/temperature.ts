@@ -23,7 +23,7 @@ import "./temperature.css";
 
 import { degrees, inches } from "../format.js";
 import { LABEL_CHAR_PX, NARROW, aboveDot, niceTicks, pillLabel, scale } from "../charts/svg.js";
-import { svgEl } from "../dom.js";
+import { make, spoken, svgEl } from "../dom.js";
 import { gapSentence, gapValue, isComparable, plainGapLabel, svgHatch } from "../gaps.js";
 import type {
   DashboardSnapshot,
@@ -33,6 +33,7 @@ import type {
   TemperaturePeriod,
 } from "../snapshot.js";
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
+import type { SectionOptions } from "../tiles.js";
 import { WINDOW_NAMES, isShown, nextUnlockLine } from "./history.js";
 import type { OverviewSection } from "./index.js";
 
@@ -646,15 +647,12 @@ function stripChart(strip: NormalStrip, width: number): SVGSVGElement | null {
 
 // ---------- the tiles ----------
 
-function spoken(sentences: string[]): HTMLElement {
-  const list = document.createElement("ul");
-  list.className = "ov-sr";
-  for (const s of sentences) {
-    const item = document.createElement("li");
-    item.textContent = s;
-    list.append(item);
-  }
-  return list;
+/** Sentences as a list for screen readers alone, one item each. */
+function spokenList(sentences: string[]): HTMLElement {
+  return spoken(
+    sentences.map((s) => make("li", "", s)),
+    "ul",
+  );
 }
 
 function chartHost(part: string): HTMLElement {
@@ -672,14 +670,13 @@ export function daysHeadline(snapshot: DashboardSnapshot): string {
     : "The last ten days, with no earlier year to set them against";
 }
 
-/** How a temperature block is drawn: as a tile, or in the zoom. */
-interface BlockOptions {
-  /**
-   * The zoom's form: no source fold (prototype decision 22: the Overview's
-   * sources footer holds it) and, on the window range chart, the Usual row.
-   */
-  zoom?: boolean;
-}
+/**
+ * How a temperature block is drawn: as a tile, or in the zoom. The zoom's
+ * form has no source fold (prototype decision 22: the Overview's sources
+ * footer holds it), its finding sits under the panel's title, and the
+ * window range chart gains the Usual row.
+ */
+type BlockOptions = SectionOptions;
 
 /** The window range chart under its finding; the tile form folds its source. */
 function renderPeriods(
@@ -693,10 +690,10 @@ function renderPeriods(
   const unlock = nextUnlockLine(snapshot);
   const usual = options.zoom ? usualSentence(snapshot) : null;
   host.append(
-    tileFinding(periodFinding(snapshot)),
+    tileFinding(periodFinding(snapshot), options),
     chart,
     ...(unlock ? [unlock] : []),
-    spoken([...(usual ? [usual] : []), ...periods.map(periodSentence)]),
+    spokenList([...(usual ? [usual] : []), ...periods.map(periodSentence)]),
   );
   mountChart(chart, (w) => periodsChart(snapshot, w, options.zoom));
   if (options.zoom) return;
@@ -724,9 +721,9 @@ function renderTenDays(
   host.dataset.block = "ten-days";
   const chart = chartHost("days-chart");
   host.append(
-    tileFinding(daysHeadline(snapshot)),
+    tileFinding(daysHeadline(snapshot), options),
     chart,
-    spoken([...days].reverse().map(daySentence)),
+    spokenList([...days].reverse().map(daySentence)),
   );
   mountChart(chart, (w) => daysChart(snapshot, w));
   if (options.zoom) return;
@@ -762,6 +759,7 @@ function renderStrips(
       ctx.strips[0]?.missing === null && ctx.strips[0]
         ? stripHeadline(ctx.strips[0])
         : "Now against usual",
+      options,
     ),
   );
   const stripHosts: [NormalStrip, HTMLElement][] = [];

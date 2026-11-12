@@ -7,7 +7,7 @@
  * they sit in:
  *
  * - `SectionOptions`: how a section shared with a zoom draws there (no
- *   source note).
+ *   source note, its finding a level under the zoom panel's title).
  * - `TileSection`: what a tab declares per section, in its registry: its id,
  *   accessible name, kicker, column span, whether it belongs to a phone tab's
  *   fixed top, whether it is the now tile or a mosaic tile,
@@ -23,13 +23,14 @@
  *   over its finding with a chevron; open, the rest of the section. The page
  *   keeps one row open at a time in script too, where a browser does not
  *   honour `details name=`.
- * - `tileFinding`: the tile's finding, its `h2`, which a section's `render`
- *   appends first.
+ * - `tileFinding`: the tile's finding, its `h2` (an `h4` in a zoom panel),
+ *   which a section's `render` appends first.
  * - `fold`: a closed native disclosure in Source type, a 32px target.
  * - `sourceNote`: the folded source: closed, "Source · <what>, archived
  *   <time>", with a hatched chip (one per reason) when the archive lags the
  *   live reading by more than 15 minutes or a gap hides part of the chart;
- *   open, the full method paragraph (`.ov-source`).
+ *   open, the full method paragraph (`.ov-source`). `sectionSource` ends a
+ *   section shared with a zoom in it, on its tab only.
  *
  * `tiles.css` also carries `.ov-source` and `.ov-sr` (screen-reader-only
  * text), so a tab that renders tiles needs no other stylesheet for them.
@@ -46,6 +47,7 @@
  */
 import "./styles/tiles.css";
 
+import { make, spoken } from "./dom.js";
 import { STALE_AFTER_MS, formatDuration, formatStamp } from "./format.js";
 import { currentLayout } from "./layout.js";
 import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
@@ -135,11 +137,13 @@ export interface TileSection {
  */
 export interface SectionOptions {
   /**
-   * Whether the section ends in its folded source note. Default true: a
-   * tab keeps its notes. A zoom passes false, as the Overview's sources
-   * footer carries the tile's line (prototype decision 22).
+   * Drawn in a zoom panel. The section then ends in no folded source note,
+   * as the Overview's sources footer carries the tile's line (prototype
+   * decision 22), and its finding is an `h4` under the panel's `h3` title,
+   * so the zoom's headings nest (spec #460 story 56). Default false: the
+   * tab's tile, its finding the `h2`.
    */
-  notes?: boolean;
+  zoom?: boolean;
 }
 
 /**
@@ -158,12 +162,12 @@ function renderKicker(
   snapshot: DashboardSnapshot,
   tag: "p" | "span" = "p",
 ): HTMLElement {
+  const text = kickerText(section, snapshot);
   // The now tile's kicker is its heading for screen readers alone; a mosaic
   // tile's is its title.
-  const node = document.createElement(section.now || section.mosaic ? "h2" : tag);
-  node.className = section.now ? "tile-kicker ov-sr" : "tile-kicker";
+  const node = section.now ? spoken(text, "h2") : make(section.mosaic ? "h2" : tag, "", text);
+  node.classList.add("tile-kicker");
   node.dataset.part = "kicker";
-  node.append(kickerText(section, snapshot));
   return node;
 }
 
@@ -298,11 +302,14 @@ export function renderTiles(
  *
  * @param text - The finding the section composes.
  * @param options - `lead`: the feature tile's or a tab's top finding, in
- *   Finding, lead type.
- * @returns The `h2`.
+ *   Finding, lead type. `zoom`: drawn in a zoom panel, under its `h3`.
+ * @returns The `h2`, or in a zoom panel the `h4`; it looks the same.
  */
-export function tileFinding(text: string, options: { lead?: boolean } = {}): HTMLElement {
-  const node = document.createElement("h2");
+export function tileFinding(
+  text: string,
+  options: { lead?: boolean; zoom?: boolean } = {},
+): HTMLElement {
+  const node = document.createElement(options.zoom ? "h4" : "h2");
   node.className = options.lead ? "tile-finding tile-finding-lead" : "tile-finding";
   node.dataset.part = "finding";
   node.textContent = text;
@@ -461,6 +468,32 @@ export function gapReasons(counts: readonly [number, string, string][]): string 
     .filter(([count]) => count > 0)
     .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
   return parts.length ? `${parts.join(", ")} not compared` : null;
+}
+
+/**
+ * A shared section's folded source note at its foot, on its tab only: in a
+ * zoom (`options.zoom`) the Overview's sources footer carries the line
+ * (prototype decision 22). No lag chip: the header states freshness once
+ * (#458).
+ *
+ * @param host - The tile.
+ * @param snapshot - The dashboard snapshot.
+ * @param options - How the section draws.
+ * @param what - What the numbers come from, short.
+ * @param sentences - The method paragraph's sentences; nulls are dropped.
+ * @param gaps - What the chart hatches, as the chip's reason; null for none.
+ */
+export function sectionSource(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: SectionOptions,
+  what: string,
+  sentences: readonly (string | null)[],
+  gaps: string | null,
+): void {
+  if (options.zoom) return;
+  const method = sentences.filter(Boolean).join(" ");
+  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps, lag: false })));
 }
 
 /**
