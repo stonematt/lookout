@@ -121,14 +121,15 @@ describe("the Overview's grid under each layout", () => {
   it("is four columns of tiles at four-column, each tile at its declared span", () => {
     const { columns, spans } = grid("four");
     expect(columns).toBe("repeat(4, minmax(0, 1fr))");
-    // The now tile takes the whole first row (the Desktop board, #468), the
-    // strips and the ten-day list half a row each, so no row is left with a
-    // hole; the quick facts take a row of four one-column tiles.
-    // With no rolling-window tile (#470) the almanac takes the whole row.
+    // The now tile, the feature and the temperature periods each take a whole
+    // row (the Desktop board, #468, #545), the strips and the ten-day list
+    // half a row each, so no row is left with a hole; the quick facts take a
+    // row of four one-column tiles. With no rolling-window tile (#470) the
+    // almanac takes the whole row.
     expect(spans).toEqual([
       "span 4",
-      "span 2",
-      "span 2",
+      "span 4",
+      "span 4",
       "span 2",
       "span 2",
       "span 4",

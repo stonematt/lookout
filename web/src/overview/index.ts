@@ -4,8 +4,8 @@
  * across periods, now against this date, the last ten days, the rain almanac
  * and the rolling-window rain table, then the quick facts (wind, pressure,
  * air). In the four-column grid the now tile takes the first row, the
- * feature half the second beside temperature in context, now against this
- * date and the last ten days half the third each, the almanac three columns
+ * feature the second, temperature in context the third, now against this
+ * date and the last ten days half the fourth each, the almanac three columns
  * beside the rolling windows, and the quick facts a row of one-column tiles
  * whose fourth cell is sun and moon's. On a phone the quick facts sit after
  * the finding rows, two to a row. A snapshot without a feature (published
@@ -74,12 +74,10 @@ export function renderOverview(
   const hiddenSections = new Set<OverviewSection>();
   if (!snapshot.feature) hiddenSections.add(featureTile);
   if (!rollingHasRows(snapshot)) hiddenSections.add(rollingRain);
-  // A tile takes the columns of the tile beside it when that one is not
-  // drawn, so its four-column row stays whole: the almanac for the rolling
-  // tile, the temperature periods for the feature.
-  const widened = (s: OverviewSection) =>
-    (s === almanacGrid && hiddenSections.has(rollingRain)) ||
-    (s === temperaturePeriods && hiddenSections.has(featureTile));
+  // The almanac takes the columns of the rolling tile when that one is not
+  // drawn, so its four-column row stays whole. The feature and the
+  // temperature periods each fill a row, so the feature leaves no hole.
+  const widened = (s: OverviewSection) => s === almanacGrid && hiddenSections.has(rollingRain);
   const shown = sections
     .filter((s) => !hiddenSections.has(s))
     .map((s) => (widened(s) ? { ...s, span: 4 as const } : s));

@@ -710,7 +710,10 @@ export const temperaturePeriods: OverviewSection = {
   id: "temperature-periods",
   label: "Temperature in context",
   kicker: "Temperature, in context",
-  span: 2,
+  // The whole row, under the full-width feature tile, so the strips and
+  // the ten-day list share the next one whole whether or not a feature
+  // is drawn.
+  span: 4,
   render: renderPeriods,
 };
 
