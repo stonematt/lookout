@@ -4,8 +4,8 @@
  * across periods, now against this date, the last ten days, the rain almanac
  * and the rolling-window rain table, then the quick facts (wind, pressure,
  * air). In the four-column grid the now tile takes the first row, the
- * feature half the second beside temperature in context, now against this
- * date and the last ten days half the third each, the almanac three columns
+ * feature the second, temperature in context the third, now against this
+ * date and the last ten days half the fourth each, the almanac three columns
  * beside the rolling windows, and the quick facts a row of one-column tiles
  * whose fourth cell is sun and moon's. On a phone the quick facts sit after
  * the finding rows, two to a row. A snapshot without a feature (published
