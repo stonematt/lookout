@@ -1309,10 +1309,13 @@ class DepthTile:
     Whether one Overview tile has the record it needs (#463).
 
     :param key: The tile: "temperature", "rain", "last_10_days",
-        "dry_spell", "wind", "pressure", "humidity", "sun" or "daylight".
+        "dry_spell", "wind", "pressure", "humidity", "sun", "daylight" or
+        "inside".
     :param needs: The comparison it needs (a `DepthComparison.key`); null
-        for a tile that needs no record (daylight).
-    :param shown: Whether it is shown: its comparison is.
+        for a tile that needs no record (daylight, inside).
+    :param shown: Whether it is shown: its comparison is. Inside is shown
+        while the station has a current indoor sensor (#466), whatever the
+        record's depth.
     """
 
     key: str
@@ -1348,8 +1351,7 @@ class RecordDepth:
         empty.
     :param comparisons: Each comparison, the standard windows first, then
         "earlier_year" and "full_history".
-    :param tiles: Each Overview tile in the mosaic's order, Inside left to
-        its own ticket.
+    :param tiles: Each Overview tile in the mosaic's order, Inside last.
     :param next_unlock: The comparison not yet shown that unlocks first;
         null when every comparison is shown or the archive is empty.
     """
@@ -1459,6 +1461,73 @@ class WindRose:
 
 
 @dataclass(frozen=True)
+class IndoorTrace:
+    """
+    An indoor sensor's last 24 hours as hourly means (#466).
+
+    Slot `i` covers `start_ms + i * slot_minutes` minutes up to the next
+    slot; the last slot is the hour holding the history's newest reading.
+
+    :param start_ms: When the first slot starts.
+    :param slot_minutes: Each slot's length: 60.
+    :param temperature_f: The mean temperature in each slot, to one decimal;
+        null for a slot with no reading.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    temperature_f: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
+class IndoorSensor:
+    """
+    One indoor sensor still reporting (#466): the console or a numbered one.
+
+    A sensor is current while its temperature has a reading in the last 24
+    hours of the history, measured back from the newest reading
+    (`lookout.snapshot.indoor`).
+
+    :param key: "in" for the console (`tempinf`, `humidityin`), else the
+        sensor's number as text ("1" for `temp1f`, `humidity1`).
+    :param name: The name the site prints: "Console", "Sensor 1", ...
+    :param temperature_f: Its newest temperature in that window, to one
+        decimal.
+    :param humidity_pct: Its newest humidity in that window; null when it
+        reports none.
+    :param observed_at_ms: When its newest temperature was read.
+    :param trace: Its last 24 hours, hourly.
+    """
+
+    key: str
+    name: str
+    temperature_f: float
+    humidity_pct: Optional[float]
+    observed_at_ms: int
+    trace: IndoorTrace
+
+
+@dataclass(frozen=True)
+class BatteryFlag:
+    """
+    One sensor's battery, while the sensor still reports it (#466).
+
+    Ambient sends 1 for OK and 0 for low. A flag with no reading in the last
+    24 hours of the history, or with any other value, is not listed
+    (`lookout.snapshot.indoor`).
+
+    :param key: The Ambient column: "battout", "battin", "batt1", ...
+    :param name: The sensor's name the site prints: "Outdoor sensor",
+        "Console", "Sensor 1", "Rain gauge", ...
+    :param low: Whether the battery reads low.
+    """
+
+    key: str
+    name: str
+    low: bool
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -1494,6 +1563,11 @@ class Snapshot:
         and the next unlock (`lookout.snapshot.depth`).
     :param wind_rose: Where the wind comes from over 24 h, 7 days and 30
         days (`lookout.snapshot.wind`).
+    :param indoor: Each indoor sensor still reporting, the console first,
+        then by number; empty when the station has none
+        (`lookout.snapshot.indoor`).
+    :param battery_flags: Each sensor battery still reporting, OK or low,
+        with the name the site prints (`lookout.snapshot.indoor`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1519,6 +1593,8 @@ class Snapshot:
     widget_view: WidgetView
     record_depth: RecordDepth
     wind_rose: WindRose
+    indoor: Tuple[IndoorSensor, ...]
+    battery_flags: Tuple[BatteryFlag, ...]
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

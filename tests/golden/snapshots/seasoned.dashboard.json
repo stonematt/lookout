@@ -19364,6 +19364,11 @@
         "key": "daylight",
         "needs": null,
         "shown": true
+      },
+      {
+        "key": "inside",
+        "needs": null,
+        "shown": true
       }
     ],
     "next_unlock": null
@@ -20012,5 +20017,103 @@
       }
     ]
   },
+  "indoor": [
+    {
+      "key": "in",
+      "name": "Console",
+      "temperature_f": 68.0,
+      "humidity_pct": 45.0,
+      "observed_at_ms": 1779314400000,
+      "trace": {
+        "start_ms": 1779231600000,
+        "slot_minutes": 60,
+        "temperature_f": [
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0
+        ]
+      }
+    },
+    {
+      "key": "1",
+      "name": "Sensor 1",
+      "temperature_f": 66.0,
+      "humidity_pct": 55.0,
+      "observed_at_ms": 1779314400000,
+      "trace": {
+        "start_ms": 1779231600000,
+        "slot_minutes": 60,
+        "temperature_f": [
+          65.9,
+          65.6,
+          65.2,
+          64.8,
+          64.3,
+          63.8,
+          63.3,
+          62.8,
+          62.4,
+          62.2,
+          62.0,
+          62.0,
+          62.2,
+          62.4,
+          62.8,
+          63.2,
+          63.7,
+          64.2,
+          64.7,
+          65.2,
+          65.6,
+          65.8,
+          66.0,
+          66.0
+        ]
+      }
+    }
+  ],
+  "battery_flags": [
+    {
+      "key": "battout",
+      "name": "Outdoor sensor",
+      "low": false
+    },
+    {
+      "key": "battin",
+      "name": "Console",
+      "low": false
+    },
+    {
+      "key": "batt1",
+      "name": "Sensor 1",
+      "low": true
+    },
+    {
+      "key": "battrain",
+      "name": "Rain gauge",
+      "low": false
+    }
+  ],
   "stale_catalogs": []
 }
