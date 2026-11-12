@@ -28,6 +28,7 @@ from lookout.snapshot.current import (
 )
 from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
+from lookout.snapshot.feature import feature
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.depth import record_depth
 from lookout.snapshot.lead import completed_dry_spells, dry_spell, hero_lead
@@ -90,6 +91,16 @@ def build_snapshot(
         dry,
         spells,
     )
+    picked = feature(
+        event_catalog,
+        active,
+        stitched,
+        current,
+        observed_at_ms,
+        days.coverage,
+        dry,
+        clock,
+    )
 
     return Snapshot(
         station=station,
@@ -119,6 +130,7 @@ def build_snapshot(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
         ),
         sun_moon=sun_moon(station, clock),
-        widget_view=widget_view(active, dry),
+        feature=picked,
+        widget_view=widget_view(picked),
         record_depth=record_depth(days.coverage),
     )

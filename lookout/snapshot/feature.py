@@ -1,0 +1,209 @@
+"""
+feature.py: The feature, picked by the Feature Rule (ADR-0009).
+
+One rule decides what matters now; the Overview's feature tile shows it and
+the widget view is derived from it (`lookout.snapshot.widget`). Checked in
+order, the first that holds is the feature:
+
+1. **rain**: an event is live (the build's `ActiveRainEvent`), or the
+   newest Event Catalog event ended at most `RAIN_HOURS` before the build
+   time (`StationClock.now_ms`). "Ended" is the catalog's `end_time`, as the
+   lead's rain rule reads it (`lookout.snapshot.lead.newest_event`).
+2. **unusual**: a current reading is below the `LOW`th or above the `HIGH`th
+   percentile of its readings at the newest observation's station-local
+   hour, over the usual window for that date (`usual_window`, the ±7 days
+   around it in every comparable earlier year). The readings and their
+   archive columns are `READINGS`. A reading's percentile is its percentile
+   rank: the share of the usual readings below it, a reading equal to it
+   counting half, times 100 (so a gauge that never moves sits at 50). The
+   reading furthest from the 50th wins; on an exact tie the first in
+   `READINGS` wins. The rule is decided on the exact percentile; the one
+   published is rounded to a whole number. Skipped entirely unless the
+   window's basis is "earlier_years": a recent-days band is too thin to call
+   anything unusual.
+3. **dry_spell**: the snapshot's `DrySpellNow`, `days_since_rain` longer
+   than `usual_days`; it cannot hold while either is None.
+4. **quiet**: otherwise, temperature as a usual day.
+
+Functions:
+- feature(event_catalog, active, stitched, current, observed_at_ms, coverage,
+  dry, clock): The `Feature` for one snapshot.
+"""
+
+from typing import List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+
+from lookout.snapshot.clock import StationClock
+from lookout.snapshot.current import to_ms
+from lookout.snapshot.gaps import ArchiveCoverage
+from lookout.snapshot.lead import newest_event
+from lookout.snapshot.model import (
+    ActiveRainEvent,
+    DrySpellNow,
+    Feature,
+    FeatureKind,
+    FeatureReading,
+    FeatureUnit,
+    SnapshotConditions,
+)
+from lookout.snapshot.temperature import usual_readings, usual_window
+from lookout.utils.dateutc import local_time
+
+RAIN_HOURS = 12.0
+"""Rain is the feature while an event is live or ended at most this long ago."""
+
+HOUR_MS = 3_600_000
+
+LOW = 10.0
+"""A reading below this percentile of its usual is unusual."""
+
+HIGH = 90.0
+"""A reading above this percentile of its usual is unusual."""
+
+READINGS: Tuple[Tuple[FeatureReading, str, str, FeatureUnit], ...] = (
+    ("temperature", "tempf", "temperature_f", "f"),
+    ("humidity", "humidity", "humidity_pct", "pct"),
+    ("wind_gust", "windgustmph", "wind_gust_mph", "mph"),
+    ("pressure", "baromrelin", "barometer_inhg", "inhg"),
+    ("solar", "solarradiation", "solar_wm2", "wm2"),
+)
+"""Each judged reading: its name, archive column, current field and unit, in
+tie-break order."""
+
+
+def _bare(kind: FeatureKind) -> Feature:
+    """A feature of `kind` without a reading: every rule but unusual."""
+    return Feature(kind=kind, reading=None, value=None, unit=None, percentile=None)
+
+
+def _rain(
+    event_catalog: Optional[pd.DataFrame],
+    active: Optional[ActiveRainEvent],
+    clock: StationClock,
+) -> bool:
+    """
+    The rain rule: an event is live, or the newest ended within `RAIN_HOURS`.
+
+    :param event_catalog: The Event Catalog, or None.
+    :param active: The active rain event, or None.
+    :param clock: The build's clock; the hours are counted to its `now`.
+    :return: Whether the rule holds.
+    """
+    if active is not None:
+        return True
+    newest = newest_event(event_catalog, clock.now_ms)
+    if newest is None:
+        return False
+    return (clock.now_ms - to_ms(newest["end_time"])) / HOUR_MS <= RAIN_HOURS
+
+
+def _percentile(value: float, usual: np.ndarray) -> float:
+    """
+    The percentile rank of `value` among `usual`: below, plus half of equal.
+
+    :param value: The current reading.
+    :param usual: Its usual readings, not empty.
+    :return: 0 to 100.
+    """
+    below = int(np.count_nonzero(usual < value))
+    equal = int(np.count_nonzero(usual == value))
+    return 100.0 * (below + equal / 2) / len(usual)
+
+
+def _unusual(
+    stitched: pd.DataFrame,
+    current: SnapshotConditions,
+    observed_at_ms: Optional[int],
+    coverage: ArchiveCoverage,
+) -> Optional[Feature]:
+    """
+    The unusual rule: the reading furthest outside its usual, if any is.
+
+    :param stitched: `stitch_live` output.
+    :param current: Current conditions, live stitched.
+    :param observed_at_ms: The newest observation, or None.
+    :param coverage: The build's counted days.
+    :return: The feature, or None when no reading is unusual or the rule is
+        skipped (no observation, no earlier year).
+    """
+    if observed_at_ms is None:
+        return None
+    observed = local_time(observed_at_ms, coverage.tz)
+    window = usual_window(coverage, observed.date())
+    if window.basis != "earlier_years":
+        return None
+    found: List[Tuple[float, int, Feature]] = []
+    for order, (reading, column, field, unit) in enumerate(READINGS):
+        value = getattr(current, field)
+        if value is None:
+            continue
+        usual = usual_readings(stitched, coverage.tz, window.days, column)
+        at_hour = usual[observed.hour]
+        if len(at_hour) == 0:
+            continue
+        rank = _percentile(float(value), at_hour)
+        if LOW <= rank <= HIGH:
+            continue
+        found.append(
+            (
+                -abs(rank - 50.0),
+                order,
+                Feature(
+                    kind="unusual",
+                    reading=reading,
+                    value=value,
+                    unit=unit,
+                    percentile=int(round(rank)),
+                ),
+            )
+        )
+    if not found:
+        return None
+    return min(found, key=lambda item: (item[0], item[1]))[2]
+
+
+def _dry_spell(dry: DrySpellNow) -> bool:
+    """
+    The dry spell rule: the current dry spell is longer than the usual one.
+
+    :param dry: The snapshot's dry spell field.
+    :return: True only when both values are known and the spell is longer.
+    """
+    if dry.days_since_rain is None or dry.usual_days is None:
+        return False
+    return dry.days_since_rain > dry.usual_days
+
+
+def feature(
+    event_catalog: Optional[pd.DataFrame],
+    active: Optional[ActiveRainEvent],
+    stitched: pd.DataFrame,
+    current: SnapshotConditions,
+    observed_at_ms: Optional[int],
+    coverage: ArchiveCoverage,
+    dry: DrySpellNow,
+    clock: StationClock,
+) -> Feature:
+    """
+    Pick the feature by the Feature Rule.
+
+    :param event_catalog: The Event Catalog, or None.
+    :param active: The active rain event, or None.
+    :param stitched: `stitch_live` output.
+    :param current: Current conditions, live stitched.
+    :param observed_at_ms: The newest observation, or None.
+    :param coverage: The build's counted days.
+    :param dry: The snapshot's dry spell field, computed once in the build.
+    :param clock: The build's clock.
+    :return: The feature.
+    """
+    if _rain(event_catalog, active, clock):
+        return _bare("rain")
+    unusual = _unusual(stitched, current, observed_at_ms, coverage)
+    if unusual is not None:
+        return unusual
+    if _dry_spell(dry):
+        return _bare("dry_spell")
+    return _bare("quiet")

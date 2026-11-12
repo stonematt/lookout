@@ -33,6 +33,8 @@ chart's data ("bold now over a soft usual range", DESIGN.md) is computed for
 the lead only.
 
 Functions:
+- newest_event(event_catalog, observed_at_ms): The catalog event that ended
+  last, up to a time; the Feature Rule's rain rule reads it too.
 - completed_dry_spells(days): Every completed dry spell in the 365-day window.
 - dry_spell(current, observed_at_ms, spells): The `DrySpellNow` field, once.
 - hero_lead(archive, stitched, event_catalog, active, current, observed_at_ms,
@@ -104,10 +106,17 @@ def _quartiles(values: Sequence[float], digits: int) -> _Usual:
 # ---------- rain ----------
 
 
-def _newest_event(
+def newest_event(
     event_catalog: Optional[pd.DataFrame], observed_at_ms: Optional[int]
 ) -> Optional[pd.Series]:
-    """The catalog event that ended last, up to the newest observation."""
+    """
+    The catalog event that ended last, up to `observed_at_ms`.
+
+    :param event_catalog: The Event Catalog, or None.
+    :param observed_at_ms: The time to look back from: the newest
+        observation for the lead, the build time for the feature.
+    :return: The event's catalog row, or None when none has ended.
+    """
     if event_catalog is None or event_catalog.empty or observed_at_ms is None:
         return None
     ends = event_catalog["end_time"].map(to_ms)
@@ -449,7 +458,7 @@ def hero_lead(
     month_hours = _MonthHours(archive, coverage, today)
     temperature_by_hour = month_hours.by_hour("tempf", 1)
 
-    newest = _newest_event(event_catalog, observed_at_ms)
+    newest = newest_event(event_catalog, observed_at_ms)
     spell_lengths, spell_window = spells
     # The chart's quartiles; its median is the field's, so they never differ.
     low, _, high = _quartiles(spell_lengths or [], 2)

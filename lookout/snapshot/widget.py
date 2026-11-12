@@ -3,52 +3,37 @@ widget.py: The widget view, which of the widget's views shows now.
 
 A Lookout widget shows one view at a time: the current value against the
 station's own history. Python chooses the view so every widget (Scriptable
-now, a WidgetKit app later) shows the same one. The rules are checked in
-order, and the first that holds is the view:
+now, a WidgetKit app later) shows the same one. It has no rules of its own:
+it is the feature (`lookout.snapshot.feature`, ADR-0009) mapped to the three
+views a widget can draw:
 
-1. **rain_event**: an event is live and more than `RAIN_EVENT_IN` has fallen
-   in it (`ActiveRainEvent.total_in`, the live `eventrainin`).
-2. **dry_spell**: the current dry spell is longer than the usual dry spell,
-   in any month. Both are the snapshot's `dry_spell` field: `days_since_rain`
-   is the days since `lastRain`, `usual_days` the median completed dry
-   spell over the last 365 days. Without a usual dry spell (an invalid window)
-   it cannot hold.
-3. **temperature_ranges**, otherwise: now against today, 7, 30 and 365 days.
+- feature **rain** -> **rain_event**;
+- feature **dry_spell** -> **dry_spell**;
+- anything else (**unusual**, **quiet**) -> **temperature_ranges**, now
+  against today, 7, 30 and 365 days. A widget cannot draw wind or pressure,
+  so an unusual reading of any kind maps here.
 
 Functions:
-- widget_view(active, dry): The `WidgetView` for one snapshot.
+- widget_view(feature): The `WidgetView` for one snapshot.
 """
 
-from typing import Optional
+from typing import Dict
 
-from lookout.snapshot.model import ActiveRainEvent, DrySpellNow, WidgetView
+from lookout.snapshot.model import Feature, FeatureKind, WidgetView
 
-RAIN_EVENT_IN = 0.04
-"""The rain event view needs more than this much rain in the live event."""
+VIEWS: Dict[FeatureKind, WidgetView] = {
+    "rain": "rain_event",
+    "dry_spell": "dry_spell",
+}
+"""The feature kinds a widget has a view for; every other kind is
+`temperature_ranges`."""
 
 
-def _longer_than_usual(dry: DrySpellNow) -> bool:
+def widget_view(feature: Feature) -> WidgetView:
     """
-    Whether the current dry spell is longer than the usual dry spell.
+    The widget's view: the feature, mapped.
 
-    :param dry: The dry spell field.
-    :return: True only when both values are known and the spell is longer.
-    """
-    if dry.days_since_rain is None or dry.usual_days is None:
-        return False
-    return dry.days_since_rain > dry.usual_days
-
-
-def widget_view(active: Optional[ActiveRainEvent], dry: DrySpellNow) -> WidgetView:
-    """
-    Choose the widget's view.
-
-    :param active: The active rain event, or None.
-    :param dry: The dry spell field (days since rain, the usual dry spell).
+    :param feature: The snapshot's feature.
     :return: The view name.
     """
-    if active is not None and active.total_in > RAIN_EVENT_IN:
-        return "rain_event"
-    if _longer_than_usual(dry):
-        return "dry_spell"
-    return "temperature_ranges"
+    return VIEWS.get(feature.kind, "temperature_ranges")

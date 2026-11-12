@@ -19261,6 +19261,13 @@
     "moon_illumination_pct": 22,
     "days_to_full_moon": 11
   },
+  "feature": {
+    "kind": "unusual",
+    "reading": "temperature",
+    "value": 72.0,
+    "unit": "f",
+    "percentile": 100
+  },
   "widget_view": "temperature_ranges",
   "record_depth": {
     "first_day": "2024-05-04",
