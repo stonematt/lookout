@@ -52,6 +52,8 @@ const RAIN_GAP = 6;
 const RAIN_H = 14;
 /** The time-of-day labels under the rain track. */
 const X_LABELS_H = 22;
+/** The band's basis label, on its own row under the times of day, clear of every line. */
+const BASIS_H = 18;
 
 // ---------- the snapshot's today ----------
 
@@ -300,7 +302,8 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   const plotH = narrow ? PLOT_H.narrow : PLOT_H.wide;
   const plotBottom = TOP + plotH;
   const rainTop = plotBottom + RAIN_GAP;
-  const height = rainTop + RAIN_H + X_LABELS_H;
+  const basisRow = band ? BASIS_H : 0;
+  const height = rainTop + RAIN_H + X_LABELS_H + basisRow;
   const left = LEFT;
   const right = width - RIGHT_PAD;
   const { svg, hatch } = canvas(width, height, todayChartName(snapshot), "today-svg");
@@ -355,13 +358,6 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
       const points = run.map((p) => at(p, p.hour.median!)).join(" ");
       svg.append(svgEl("polyline", { points, class: "today-median" }));
     }
-    svg.append(
-      svgEl(
-        "text",
-        { x: right, y: plotBottom - 6, class: "today-basis", "text-anchor": "end" },
-        bandBasisLabel(band),
-      ),
-    );
   }
 
   // Today's line, joined to the live reading.
@@ -437,6 +433,17 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
         "text",
         { x: fixed(x(hour)), y: labelY, class: "today-x", "text-anchor": anchor },
         text,
+      ),
+    );
+  }
+
+  // The band's basis, under the times of day: no line or band edge reaches this row.
+  if (band) {
+    svg.append(
+      svgEl(
+        "text",
+        { x: right, y: labelY + 17, class: "today-basis", "text-anchor": "end" },
+        bandBasisLabel(band),
       ),
     );
   }
