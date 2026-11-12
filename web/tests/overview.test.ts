@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { rainStep } from "../src/charts/rain-step.js";
 import { setLayout } from "../src/layout.js";
 import { renderOverview, SECTIONS } from "../src/overview/index.js";
+import { releaseLine, SITE_RELEASE } from "../src/release.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -109,6 +110,17 @@ describe("the Overview's sources footer (prototype decision 22)", () => {
       expect(what!.length).toBeGreaterThan(5);
       expect(method!.length).toBeGreaterThan(40);
     }
+  });
+
+  it("ends with the release version and short SHA", () => {
+    renderOverview(panel, raining);
+    const footer = panel.querySelector<HTMLElement>("footer.ov-sources")!;
+
+    expect(footer.lastElementChild).toBe(footer.querySelector(".ov-sources-version"));
+    expect(words(footer.querySelector(".ov-sources-version"))).toBe(releaseLine());
+    expect(words(footer.querySelector(".ov-sources-version"))).toContain(
+      `${SITE_RELEASE.version} · ${SITE_RELEASE.sha}`,
+    );
   });
 
   it("repeats no archive or reading time: the header says it once", () => {
