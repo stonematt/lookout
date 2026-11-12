@@ -230,8 +230,23 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
     numbers.push(40, 60);
   }
   const { lo, hi, ticks } = padded(numbers, 3);
-  // Room at each end for the low and high values.
-  const x = scale(lo, hi, 34, iw - 34);
+  // Room at each end for the widest low or high value label: its characters
+  // at the chart's label size, the 7px gap to the dot and the dot's radius,
+  // never less than the 34px a two-digit value needs. Full history's span
+  // is the widest a station's record gives, so a "≈ 102°" or "≈ −12°" must fit.
+  const widest = Math.max(
+    0,
+    ...periods.flatMap((p) =>
+      p.low === null || p.high === null || p.q1 === null || p.q3 === null
+        ? []
+        : [
+            (gapValue(p.status, degrees(p.low, 0)) ?? "").length,
+            (gapValue(p.status, degrees(p.high, 0)) ?? "").length,
+          ],
+    ),
+  );
+  const margin = Math.max(34, Math.ceil(widest * LABEL_CHAR_PX) + 12);
+  const x = scale(lo, hi, margin, iw - margin);
 
   const el = root(width, height, periodFinding(snapshot));
   const hatch = svgHatch(el);
