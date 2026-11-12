@@ -339,7 +339,7 @@ describe("the Pressure tile", () => {
     renderOverview(panel, parseDashboard(d));
 
     expect(value("pressure")).toBe("29.67 inHg");
-    expect(delta("pressure")).toBe("falling over the last 3 hours");
+    expect(delta("pressure")).toBe("falling over 3 hours");
   });
 
   it("reads a missing reading and trend as not known", () => {
@@ -376,7 +376,7 @@ describe("the Sun tile", () => {
 
     expect(words(tile("sun").querySelector("h2"))).toBe("Sun today");
     expect(value("sun")).toBe("4.92 kWh/m²");
-    expect(delta("sun")).toBe("yesterday 6.11 kWh/m²");
+    expect(delta("sun")).toBe("all of yesterday 6.11 kWh/m²");
   });
 
   it("draws the last 24 hours over the usual range, now as the dot", () => {
@@ -405,6 +405,10 @@ describe("the Daylight tile, which takes the sun and moon card's times", () => {
     expect(delta("daylight")).toBe("2 m less than yesterday");
     const labels = [...tile("daylight").querySelectorAll("svg .mosaic-label")].map(words);
     expect(labels).toEqual(["7:15 am", "4:38 pm"]);
+    // The chart is for sight alone, so the link says the two times.
+    expect(nameFrom(tile("daylight").querySelector("a")!)).toContain(
+      "2 m less than yesterday sunrise 7:15 am, sunset 4:38 pm Open the daylight view",
+    );
     // Before sunrise: the arc, and no sun on it.
     expect(tile("daylight").querySelector(".mosaic-now-dot")).toBeNull();
   });

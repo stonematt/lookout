@@ -45,6 +45,20 @@ import type { DashboardSnapshot, IndoorSensor, SolarWindow, SunMoon } from "../s
 import type { MosaicRow, MosaicTile } from "./mosaic.js";
 import { MINI_HEIGHT, ROW_LINE_HEIGHT, miniChart } from "./mosaic.js";
 
+/** The strip under a mini chart that holds its end labels. */
+const AXIS = 16;
+
+/** Where the plot ends above the label strip. */
+const PLOT_BOTTOM = MINI_HEIGHT - AXIS;
+
+/** The baseline of a label in the strip. */
+const LABEL_Y = MINI_HEIGHT - 2;
+
+/** Points as an SVG `points` list: "x,y x,y". */
+function pointList(points: readonly (readonly [number, number])[]): string {
+  return points.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
+}
+
 /** A line's points, split into runs at its nulls, as polyline point lists. */
 function polylines(
   values: (number | null)[],
@@ -52,10 +66,18 @@ function polylines(
   y: (v: number) => number,
 ): string[] {
   return runs(values.length, (i) => values[i] !== null).map(([a, b]) => {
-    const points: string[] = [];
-    for (let i = a; i <= b; i++) points.push(`${x(i).toFixed(1)},${y(values[i]!).toFixed(1)}`);
-    return points.join(" ");
+    const points: [number, number][] = [];
+    for (let i = a; i <= b; i++) points.push([x(i), y(values[i]!)]);
+    return pointList(points);
   });
+}
+
+/** A chart's two end labels in the strip under it. */
+function endLabels(svg: SVGSVGElement, width: number, left: string, right: string): void {
+  svg.append(
+    svgEl("text", { class: "mosaic-label", x: 0, y: LABEL_Y }, left),
+    svgEl("text", { class: "mosaic-label", x: width, y: LABEL_Y, "text-anchor": "end" }, right),
+  );
 }
 
 /** The index of a series' last reading, or -1. */
@@ -89,9 +111,7 @@ function windChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
     svgEl("line", { class: "mosaic-arrow", x1: tail[0], y1: tail[1], x2: base[0], y2: base[1] }),
     svgEl("polygon", {
       class: "mosaic-arrow-head",
-      points: [head, [base[0] + px, base[1] + py], [base[0] - px, base[1] - py]]
-        .map(([a, b]) => `${a!.toFixed(1)},${b!.toFixed(1)}`)
-        .join(" "),
+      points: pointList([head, [base[0] + px, base[1] + py], [base[0] - px, base[1] - py]]),
     }),
   );
   return svg;
@@ -137,7 +157,7 @@ export const pressureTile: MosaicTile = {
   read(snapshot) {
     const c = snapshot.current;
     const trend = c.barometer_trend;
-    const delta = trend === null ? "3-hour trend not known" : `${trend} over the last 3 hours`;
+    const delta = trend === null ? "3-hour trend not known" : `${trend} over 3 hours`;
     return c.barometer_inhg === null
       ? { value: "n/a", delta }
       : { value: inHg(c.barometer_inhg), unit: "inHg", delta };
@@ -179,7 +199,7 @@ function solarWindow(snapshot: DashboardSnapshot, key: string): SolarWindow | nu
 }
 
 /** A window's energy as its gap status allows, bare: "2.41", "≈ 61.2"; or null. */
-function energy(window: SolarWindow | null): string | null {
+function energyText(window: SolarWindow | null): string | null {
   if (!window || window.energy_kwh_m2 === null) return null;
   return gapValue(window.status, kwhPerM2(window.energy_kwh_m2, { unit: false }));
 }
@@ -195,39 +215,30 @@ function sunChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | n
   const low = trace.usual_low_wm2;
   const high = trace.usual_high_wm2;
   const numbers = [...values, ...(high ?? [])].filter((v): v is number => v !== null);
-  const axis = 14;
-  const plotBottom = MINI_HEIGHT - axis - 2;
   const x = scale(0, n - 1, 2, width - 6);
-  const y = scale(0, Math.max(100, ...numbers), plotBottom, 6);
+  const y = scale(0, Math.max(100, ...numbers), PLOT_BOTTOM, 6);
   const svg = miniChart(width);
   svg.append(
-    svgEl("line", { class: "mosaic-base", x1: 0, x2: width, y1: plotBottom, y2: plotBottom }),
+    svgEl("line", { class: "mosaic-base", x1: 0, x2: width, y1: PLOT_BOTTOM, y2: PLOT_BOTTOM }),
   );
   if (low && high) {
     for (const [a, b] of runs(n, (i) => low[i] !== null && high[i] !== null)) {
-      const upper: string[] = [];
-      const lower: string[] = [];
+      const upper: [number, number][] = [];
+      const lower: [number, number][] = [];
       for (let i = a; i <= b; i++) {
-        upper.push(`${x(i).toFixed(1)},${y(high[i]!).toFixed(1)}`);
-        lower.unshift(`${x(i).toFixed(1)},${y(low[i]!).toFixed(1)}`);
+        upper.push([x(i), y(high[i]!)]);
+        lower.unshift([x(i), y(low[i]!)]);
       }
       svg.append(
-        svgEl("polygon", { class: "mosaic-sun-band", points: [...upper, ...lower].join(" ") }),
+        svgEl("polygon", { class: "mosaic-sun-band", points: pointList([...upper, ...lower]) }),
       );
     }
   }
   for (const points of polylines(values, x, y)) {
     svg.append(svgEl("polyline", { class: "mosaic-sun-line", points }));
   }
-  svg.append(
-    svgEl("circle", { class: "mosaic-now-dot", cx: x(last), cy: y(values[last]!), r: 4 }),
-    svgEl("text", { class: "mosaic-label", x: 0, y: MINI_HEIGHT - 2 }, "24 h"),
-    svgEl(
-      "text",
-      { class: "mosaic-label", x: width, y: MINI_HEIGHT - 2, "text-anchor": "end" },
-      "now",
-    ),
-  );
+  svg.append(svgEl("circle", { class: "mosaic-now-dot", cx: x(last), cy: y(values[last]!), r: 4 }));
+  endLabels(svg, width, "24 h", "now");
   return svg;
 }
 
@@ -239,9 +250,9 @@ export const sunTile: MosaicTile = {
   zoomName: "sun",
   shown: (snapshot) => snapshot.solar_tab !== null,
   read(snapshot) {
-    const today = energy(solarWindow(snapshot, "today"));
-    const yesterday = energy(solarWindow(snapshot, "yesterday"));
-    const delta = yesterday === null ? null : `yesterday ${yesterday} kWh/m²`;
+    const today = energyText(solarWindow(snapshot, "today"));
+    const yesterday = energyText(solarWindow(snapshot, "yesterday"));
+    const delta = yesterday === null ? null : `all of yesterday ${yesterday} kWh/m²`;
     return today === null
       ? { value: null, delta: delta ?? "not compared yet" }
       : { value: today, unit: "kWh/m²", delta };
@@ -270,25 +281,22 @@ function daylightChange(block: SunMoon): string {
 function daylightChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const block = snapshot.sun_moon;
   if (!block) return null;
-  const axis = 14;
-  const base = MINI_HEIGHT - axis - 2;
   const pad = 6;
+  // A point on the arc a share `t` of the way from sunrise to sunset.
   const point = (t: number): [number, number] => [
     pad + t * (width - 2 * pad),
-    base - (base - 6) * Math.sin(Math.PI * t),
+    PLOT_BOTTOM - (PLOT_BOTTOM - 6) * Math.sin(Math.PI * t),
   ];
+  // The arc from one share of the day to another, as polyline points.
   const arc = (from: number, to: number): string => {
     const steps = 40;
-    const points: string[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const [px, py] = point(from + ((to - from) * i) / steps);
-      points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
-    }
-    return points.join(" ");
+    const points: [number, number][] = [];
+    for (let i = 0; i <= steps; i++) points.push(point(from + ((to - from) * i) / steps));
+    return pointList(points);
   };
   const svg = miniChart(width);
   svg.append(
-    svgEl("line", { class: "mosaic-base", x1: 0, x2: width, y1: base, y2: base }),
+    svgEl("line", { class: "mosaic-base", x1: 0, x2: width, y1: PLOT_BOTTOM, y2: PLOT_BOTTOM }),
     svgEl("polyline", { class: "mosaic-arc", points: arc(0, 1) }),
   );
   const now = snapshot.observed_at_ms;
@@ -301,18 +309,7 @@ function daylightChart(snapshot: DashboardSnapshot, width: number): SVGSVGElemen
       svgEl("circle", { class: "mosaic-now-dot", cx: sx, cy: sy, r: 4 }),
     );
   }
-  svg.append(
-    svgEl(
-      "text",
-      { class: "mosaic-label", x: 0, y: MINI_HEIGHT - 2 },
-      formatTime(block.sunrise_ms),
-    ),
-    svgEl(
-      "text",
-      { class: "mosaic-label", x: width, y: MINI_HEIGHT - 2, "text-anchor": "end" },
-      formatTime(block.sunset_ms),
-    ),
-  );
+  endLabels(svg, width, formatTime(block.sunrise_ms), formatTime(block.sunset_ms));
   return svg;
 }
 
@@ -329,6 +326,7 @@ export const daylightTile: MosaicTile = {
     return {
       value: formatHours(block.daylight_minutes * 60_000, { noBreak: true }),
       delta: daylightChange(block),
+      spoken: `sunrise ${formatTime(block.sunrise_ms)}, sunset ${formatTime(block.sunset_ms)}`,
     };
   },
   chart: daylightChart,

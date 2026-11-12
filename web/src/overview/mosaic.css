@@ -228,8 +228,8 @@
    line colour */
 .mosaic-arc {
   fill: none;
-  stroke: var(--rule);
-  stroke-width: 3;
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
   stroke-linecap: round;
 }
 

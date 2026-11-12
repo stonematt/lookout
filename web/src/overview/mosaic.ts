@@ -55,6 +55,11 @@ export interface TileReading {
   unit?: string | null;
   /** The short delta under the number; null for none. */
   delta: string | null;
+  /**
+   * Words for screen readers alone, after the delta: what the mini chart
+   * shows that the number and delta do not ("sunrise 7:15 am, ...").
+   */
+  spoken?: string;
 }
 
 /** One mosaic tile, declared once; `mosaicSection` draws it. */
@@ -110,7 +115,7 @@ export interface MosaicRow {
   /** A second reading set after it, with words for screen readers alone. */
   aside: { text: string; spoken: string } | null;
   /** Its line at a width (`aria-hidden`); null when there is nothing to draw. */
-  line?(width: number): SVGSVGElement | null;
+  line(width: number): SVGSVGElement | null;
 }
 
 /** A row's line height. */
@@ -166,8 +171,15 @@ function spoken(text: string): HTMLSpanElement {
   return span;
 }
 
-/** A tile's rows: each its name, its reading and aside, then its line. */
-function rowList(rows: MosaicRow[]): HTMLElement {
+/**
+ * A tile's rows: each its name, its reading and aside, then its line.
+ *
+ * @param rows - The rows.
+ * @returns The list, and a call that draws each row's line once the list
+ *   is in the page and has a width.
+ */
+function rowList(rows: MosaicRow[]): [HTMLElement, () => void] {
+  const draws: (() => void)[] = [];
   const list = document.createElement("div");
   list.className = "mosaic-rows";
   list.dataset.part = "rows";
@@ -190,21 +202,19 @@ function rowList(rows: MosaicRow[]): HTMLElement {
       aside.append(spoken(` ${row.aside.spoken} `), row.aside.text);
       reading.append(aside);
     }
-    item.append(name, reading);
-    const line = row.line;
-    if (line) {
-      const plot = document.createElement("div");
-      plot.className = "mosaic-row-line";
-      plot.setAttribute("aria-hidden", "true");
-      item.append(plot);
-      drawSized(plot, (width) => {
-        const svg = line(width);
-        plot.replaceChildren(...(svg ? [svg] : []));
-      });
-    }
+    const plot = document.createElement("div");
+    plot.className = "mosaic-row-line";
+    plot.setAttribute("aria-hidden", "true");
+    item.append(name, reading, plot);
     list.append(item);
+    draws.push(() =>
+      drawSized(plot, (width) => {
+        const svg = row.line(width);
+        plot.replaceChildren(...(svg ? [svg] : []));
+      }),
+    );
   }
-  return list;
+  return [list, () => draws.forEach((draw) => draw())];
 }
 
 /** Fill a mosaic tile: one link holding its title, number, delta and chart. */
@@ -221,7 +231,12 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   }
 
   const rows = tile.rows?.(snapshot) ?? [];
-  if (rows.length) link.append(rowList(rows));
+  let drawRows = () => {};
+  if (rows.length) {
+    const [list, draw] = rowList(rows);
+    link.append(list);
+    drawRows = draw;
+  }
   const reading = tile.read(snapshot);
   if (reading.value !== null) {
     const value = document.createElement("p");
@@ -244,12 +259,14 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
     delta.textContent = reading.delta;
     link.append(delta);
   }
+  if (reading.spoken) link.append(spoken(reading.spoken));
   const chart = document.createElement("div");
   chart.className = "mosaic-chart";
   chart.dataset.part = "mini-chart";
   chart.setAttribute("aria-hidden", "true");
   link.append(chart, spoken(`Open the ${tile.zoomName} view`));
   host.replaceChildren(link);
+  drawRows();
   const draw = tile.chart;
   if (!draw) return;
   const plot = document.createElement("div");

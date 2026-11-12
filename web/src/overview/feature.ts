@@ -10,7 +10,7 @@
  * (`#overview/<tile>`, #474), the link goes where the evidence is today: the
  * Rain Events tab for rain, the Rain tab for a dry spell, the Solar tab for
  * unusual sun, and otherwise the Overview tile carrying the reading
- * (`#overview-<section>`: the Temperature mosaic tile, or a quick fact).
+ * (`#overview-<section>`: the Temperature, Wind, Pressure or Humidity tile).
  *
  * Every value is the snapshot's: this module words, formats and links; it
  * does not pick, rank or compare.
