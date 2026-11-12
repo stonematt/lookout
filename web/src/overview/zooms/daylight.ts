@@ -57,7 +57,13 @@ const located = (snapshot: DashboardSnapshot): boolean => snapshot.sun_moon !== 
 export const daylightZoom: ZoomDefinition = {
   slug: daylightTile.slug,
   title: daylightTile.title,
-  lead: (snapshot) => daylightTile.read(snapshot),
+  lead: (snapshot) => {
+    const reading = daylightTile.read(snapshot);
+    // The tile keeps "9 h 23 m" on one line; at display size a 320px phone
+    // cannot, so the zoom lets it break between the hours and the minutes.
+    const value = reading.value?.replace(/(h) (\d)/, "$1 $2") ?? null;
+    return { ...reading, value };
+  },
   panels: [
     {
       id: "sun",

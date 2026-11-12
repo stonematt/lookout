@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { airSentence } from "../src/overview/zooms/humidity.js";
 import { pressureSentence } from "../src/overview/zooms/pressure.js";
-import { moonSentence } from "../src/overview/zooms/daylight.js";
+import { daylightZoom, moonSentence } from "../src/overview/zooms/daylight.js";
 import { isZoomRoute } from "../src/overview/zoom.js";
 import { featureView } from "../src/overview/feature.js";
 import type { Page } from "../src/page.js";
@@ -180,6 +180,11 @@ describe("the Daylight zoom", () => {
     const moon = words(panel("moon")!.querySelector("[data-part=moon]"));
     expect(moon).toBe(moonSentence(s.sun_moon!));
     expect(moon).toMatch(/ moon, \d+% lit/);
+  });
+
+  it("lets its lead break between hours and minutes, never inside either", () => {
+    const value = daylightZoom.lead!(parsed()).value!;
+    expect(value).toMatch(/^\d+ h \d+ m$/);
   });
 
   it("words the moon's full day and its last days", () => {
