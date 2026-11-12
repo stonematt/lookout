@@ -16,6 +16,8 @@ import { airSentence } from "../src/overview/zooms/humidity.js";
 import { pressureSentence } from "../src/overview/zooms/pressure.js";
 import { daylightZoom, moonSentence } from "../src/overview/zooms/daylight.js";
 import { isZoomRoute } from "../src/overview/zoom.js";
+import { ZOOMS } from "../src/overview/zooms/index.js";
+import { MOSAIC_TILES } from "../src/overview/mosaic-tiles.js";
 import { featureView } from "../src/overview/feature.js";
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
@@ -81,6 +83,12 @@ const MINE = [
 ] as const;
 
 describe("every tile of #477 opens a zoom", () => {
+  it("registers the zooms in the mosaic's order", () => {
+    const order = MOSAIC_TILES.map((t) => t.slug);
+    const slugs = ZOOMS.map((z) => z.slug);
+    expect(slugs).toEqual(order.filter((slug) => slugs.includes(slug)));
+  });
+
   it.each(MINE)("%s: its tile controls its zoom, and its route opens it", async (slug, title) => {
     await boot("#overview");
     const link = overview().querySelector<HTMLAnchorElement>(
