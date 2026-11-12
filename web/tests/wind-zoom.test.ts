@@ -100,6 +100,9 @@ describe("the wind rose, seasoned station", () => {
     expect(share(host, "S")).toBe("25%");
     expect(share(host, "SW")).toBe("35%");
     expect(share(host, "N")).toBe("0%");
+    // Each bar is drawn against 100%, so its length is its share.
+    const fill = host.querySelector<HTMLElement>('.wind-bars [data-point="SW"] .wind-bar-fill')!;
+    expect(fill.style.width).toBe("35%");
   });
 
   it("never implies a speed threshold such as windy", () => {
@@ -141,6 +144,10 @@ describe("the wind rose, seasoned station", () => {
     expect(words(table.querySelector("caption"))).toBe(
       "Average wind and highest gust from each direction, last 7 days",
     );
+    expect(words(host.querySelector(".wind-sr > p"))).toBe(
+      "Wind rose for the last 7 days: each direction's average wind and highest gust, " +
+        "listed in the table that follows.",
+    );
     const rows = [...table.querySelectorAll("tbody tr")].map((r) =>
       [...r.children].map((cell) => cell.textContent).join(" "),
     );
@@ -181,6 +188,16 @@ describe("the wind rose, young and live stations", () => {
     const nowPanel = panel("now");
     expect(nowPanel.shown?.(snapshot) ?? true).toBe(true);
     expect(words(render("now", snapshot))).toBe("From the WSW, gusts to 8.5 mph.");
+  });
+
+  it("draws no bars for a window with no readings, which the calm line says", () => {
+    const snapshot = parsed("raining");
+    const w = snapshot.wind_rose!.windows[0]!;
+    Object.assign(w, { readings: 0, calm_readings: 0, calm_pct: null });
+    for (const p of w.points) Object.assign(p, { readings: 0, share_pct: null });
+    const host = render("rose", snapshot);
+    expect(words(host.querySelector(".wind-calm"))).toBe("No wind readings in the last 24 hours.");
+    expect(host.querySelector(".wind-bars")).toBeNull();
   });
 
   it("refuses a malformed rose", () => {

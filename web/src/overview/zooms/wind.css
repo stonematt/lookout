@@ -19,6 +19,8 @@
 
 /* the rose and its words; the bars beside it on the grids */
 .wind-body {
+  /* the gust wedge's pale slate, shared by the wedge and its key swatch */
+  --wind-gust-fill: color-mix(in srgb, var(--rule-strong) 35%, var(--surface));
   display: grid;
   gap: var(--s-5);
   min-width: 0;
@@ -61,7 +63,7 @@
 }
 
 .wind-gust {
-  fill: color-mix(in srgb, var(--rule-strong) 35%, var(--surface));
+  fill: var(--wind-gust-fill);
   stroke: var(--rule-strong);
   stroke-width: 1;
   stroke-linejoin: round;
@@ -127,7 +129,7 @@
 }
 
 .wind-swatch-gust {
-  background: color-mix(in srgb, var(--rule-strong) 35%, var(--surface));
+  background: var(--wind-gust-fill);
   border: 1px solid var(--rule-strong);
 }
 

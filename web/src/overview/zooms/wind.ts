@@ -31,7 +31,7 @@ import "./wind.css";
 
 import { drawSized } from "../../charts/svg.js";
 import { make, svgEl } from "../../dom.js";
-import { compassPoint, mph } from "../../format.js";
+import { mph } from "../../format.js";
 import { gapElement, isComparable } from "../../gaps.js";
 import type {
   DashboardSnapshot,
@@ -39,7 +39,7 @@ import type {
   WindRose,
   WindRoseWindow,
 } from "../../snapshot.js";
-import { windTile } from "../mosaic-conditions.js";
+import { windClauses, windTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
 
 /** The window the rose opens on when the record covers it (the board's). */
@@ -76,14 +76,14 @@ function segmentLabel(w: WindRoseWindow): string {
   return w.hours < 48 ? `${w.hours} h` : `${w.hours / 24} days`;
 }
 
-/** A window as a phrase: "the last 24 hours", "the last 7 days". */
-function spanPhrase(w: WindRoseWindow): string {
-  return w.hours < 48 ? `the last ${w.hours} hours` : `the last ${w.hours / 24} days`;
-}
-
 /** A window as a caption's tail: "last 24 hours", "last 7 days". */
 function spanShort(w: WindRoseWindow): string {
-  return spanPhrase(w).replace(/^the /, "");
+  return w.hours < 48 ? `last ${w.hours} hours` : `last ${w.hours / 24} days`;
+}
+
+/** A window as a phrase: "the last 24 hours", "the last 7 days". */
+function spanPhrase(w: WindRoseWindow): string {
+  return `the ${spanShort(w)}`;
 }
 
 /** A threshold in mph as words: "1 mph", "0.5 mph". */
@@ -170,11 +170,10 @@ function roseSvg(w: WindRoseWindow, c: SnapshotConditions, width: number): SVGSV
     "aria-hidden": "true",
     focusable: "false",
   });
-  for (const point of RIM_POINTS) {
-    const deg = RIM_POINTS.indexOf(point) * 45;
-    const [x, y] = polar(cx, cy, outer, deg);
+  RIM_POINTS.forEach((_, i) => {
+    const [x, y] = polar(cx, cy, outer, i * 45);
     svg.append(svgEl("line", { class: "wind-spoke", x1: cx, y1: cy, x2: x, y2: y }));
-  }
+  });
   for (let i = 1; i <= rings; i++) {
     svg.append(svgEl("circle", { class: "wind-ring", cx, cy, r: radius(i * RING_MPH) }));
   }
@@ -189,13 +188,12 @@ function roseSvg(w: WindRoseWindow, c: SnapshotConditions, width: number): SVGSV
       ),
     );
   }
-  for (const point of RIM_POINTS) {
-    const deg = RIM_POINTS.indexOf(point) * 45;
-    const [x, y] = polar(cx, cy, outer + RIM / 2, deg);
+  RIM_POINTS.forEach((point, i) => {
+    const [x, y] = polar(cx, cy, outer + RIM / 2, i * 45);
     svg.append(
       svgEl("text", { class: "wind-compass", x, y: y + 4, "text-anchor": "middle" }, point),
     );
-  }
+  });
   const half = 360 / w.bins.length / 2 - WEDGE_GAP / 2;
   for (const bin of w.bins) {
     if (bin.readings === 0) continue;
@@ -277,7 +275,15 @@ function roseTable(w: WindRoseWindow): HTMLElement {
   }
   table.append(head, body);
   const box = make("div", "wind-sr");
-  box.append(table);
+  box.append(
+    make(
+      "p",
+      "",
+      `Wind rose for the ${spanShort(w)}: each direction's average wind and highest gust, ` +
+        "listed in the table that follows.",
+    ),
+    table,
+  );
   return box;
 }
 
@@ -308,15 +314,19 @@ function calmLine(w: WindRoseWindow, calmBelow: number): string {
   );
 }
 
-/** The share of the readings that were not calm, by compass point. */
-function pointBars(w: WindRoseWindow): HTMLElement {
+/**
+ * The share of the readings that were not calm, by compass point, each bar
+ * drawn against 100%; null for a window with no readings, which the calm
+ * line already says.
+ */
+function pointBars(w: WindRoseWindow): HTMLElement | null {
+  if (w.readings === 0) return null;
   const block = make("div", "wind-bars");
   block.append(make("p", "wind-bars-title", "Readings that were not calm, by direction"));
   if (w.points.every((p) => p.share_pct === null)) {
     block.append(make("p", "wind-bars-none", `Every reading in ${spanPhrase(w)} was calm.`));
     return block;
   }
-  const most = Math.max(1, ...w.points.map((p) => p.share_pct ?? 0));
   const list = make("ul", "wind-bar-list");
   for (const point of w.points) {
     const item = make("li", "wind-bar");
@@ -324,7 +334,7 @@ function pointBars(w: WindRoseWindow): HTMLElement {
     const track = make("span", "wind-bar-track");
     track.setAttribute("aria-hidden", "true");
     const fill = make("span", "wind-bar-fill");
-    fill.style.width = `${((point.share_pct ?? 0) / most) * 100}%`;
+    fill.style.width = `${point.share_pct ?? 0}%`;
     track.append(fill);
     item.append(
       make("span", "wind-bar-label", point.direction),
@@ -396,7 +406,8 @@ function renderRose(host: HTMLElement, snapshot: DashboardSnapshot): void {
       make("p", "wind-calm", calmLine(w, rose.calm_below_mph)),
       roseTable(w),
     );
-    side.append(pointBars(w));
+    const bars = pointBars(w);
+    if (bars) side.append(bars);
   }
   draw();
 }
@@ -411,8 +422,8 @@ function renderRose(host: HTMLElement, snapshot: DashboardSnapshot): void {
  * @returns E.g. "From the SE, gusts to 2.5 mph."
  */
 function windSentence(c: SnapshotConditions): string {
-  const from = c.wind_dir_deg === null ? null : `From the ${compassPoint(c.wind_dir_deg)}`;
-  const gust = c.wind_gust_mph === null ? null : `gusts to ${mph(c.wind_gust_mph)}`;
+  const { from: fromClause, gust } = windClauses(c);
+  const from = fromClause && `F${fromClause.slice(1)}`;
   let rest: string;
   if (from && gust) rest = `${from}, ${gust}.`;
   else if (from) rest = `${from}; gust not known.`;

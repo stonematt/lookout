@@ -1528,7 +1528,17 @@ function checkWindRose(rose: unknown): void {
         typeof w.readings === "number" &&
         (w.calm_pct === null || typeof w.calm_pct === "number") &&
         Array.isArray(w.bins) &&
-        Array.isArray(w.points),
+        w.bins.every(
+          (b) =>
+            isRecord(b) &&
+            typeof b.direction === "string" &&
+            typeof b.centre_deg === "number" &&
+            typeof b.readings === "number",
+        ) &&
+        Array.isArray(w.points) &&
+        w.points.every(
+          (p) => isRecord(p) && typeof p.direction === "string" && typeof p.readings === "number",
+        ),
     )
   ) {
     throw new SnapshotContractError("dashboard: wind_rose malformed");
