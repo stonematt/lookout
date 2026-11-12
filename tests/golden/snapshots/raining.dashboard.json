@@ -43,7 +43,8 @@
         "days": 31,
         "missing_days": 26,
         "status": "invalid",
-        "reason": "in_progress"
+        "reason": "in_progress",
+        "shown": false
       }
     ],
     "windows": [
@@ -54,7 +55,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       {
         "key": "yesterday",
@@ -63,7 +65,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       {
         "key": "7d",
@@ -72,7 +75,8 @@
         "days": 7,
         "missing_days": 2,
         "status": "invalid",
-        "reason": "before_archive"
+        "reason": "before_archive",
+        "shown": false
       },
       {
         "key": "30d",
@@ -81,7 +85,8 @@
         "days": 30,
         "missing_days": 25,
         "status": "invalid",
-        "reason": "before_archive"
+        "reason": "before_archive",
+        "shown": false
       },
       {
         "key": "90d",
@@ -90,7 +95,8 @@
         "days": 90,
         "missing_days": 85,
         "status": "invalid",
-        "reason": "before_archive"
+        "reason": "before_archive",
+        "shown": false
       },
       {
         "key": "365d",
@@ -99,7 +105,8 @@
         "days": 365,
         "missing_days": 360,
         "status": "invalid",
-        "reason": "before_archive"
+        "reason": "before_archive",
+        "shown": false
       },
       {
         "key": "water_year",
@@ -108,7 +115,8 @@
         "days": 100,
         "missing_days": 95,
         "status": "invalid",
-        "reason": "before_archive"
+        "reason": "before_archive",
+        "shown": false
       }
     ]
   },
@@ -769,7 +777,8 @@
           "days": 100,
           "missing_days": 95,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         }
       }
     ],
@@ -968,7 +977,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "total_in": 0.3
       },
@@ -981,7 +991,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "total_in": 0.24
       },
@@ -994,7 +1005,8 @@
           "days": 7,
           "missing_days": 2,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "total_in": null
       },
@@ -1007,7 +1019,8 @@
           "days": 30,
           "missing_days": 25,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "total_in": null
       },
@@ -1020,7 +1033,8 @@
           "days": 90,
           "missing_days": 85,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "total_in": null
       },
@@ -1033,7 +1047,8 @@
           "days": 365,
           "missing_days": 360,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "total_in": null
       },
@@ -1046,7 +1061,8 @@
           "days": 100,
           "missing_days": 95,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "total_in": null
       }
@@ -3809,7 +3825,8 @@
           "days": 100,
           "missing_days": 95,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "total_in": null,
         "to_date_in": null
@@ -3829,7 +3846,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "q1": 41.3,
@@ -3846,7 +3864,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "q1": 42.9,
@@ -3863,7 +3882,8 @@
           "days": 7,
           "missing_days": 2,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3880,7 +3900,8 @@
           "days": 30,
           "missing_days": 25,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3897,7 +3918,8 @@
           "days": 90,
           "missing_days": 85,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3914,7 +3936,8 @@
           "days": 365,
           "missing_days": 360,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "q1": null,
@@ -3934,7 +3957,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3952,7 +3976,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3970,7 +3995,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -3988,7 +4014,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -4006,7 +4033,8 @@
           "days": 1,
           "missing_days": 1,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "low": null,
         "high": null,
@@ -4024,7 +4052,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "high": 60.0,
@@ -4042,7 +4071,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "high": 60.0,
@@ -4060,7 +4090,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "high": 60.0,
@@ -4078,7 +4109,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "high": 60.0,
@@ -4096,7 +4128,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "low": 40.0,
         "high": 60.0,
@@ -4308,6 +4341,24 @@
           "readings": 48
         }
       ]
+    },
+    "full_history": {
+      "status": {
+        "key": "full_history",
+        "first_day": "2026-01-04",
+        "last_day": "2026-01-08",
+        "days": 5,
+        "missing_days": 0,
+        "status": "valid",
+        "reason": null,
+        "shown": true
+      },
+      "low": 40.0,
+      "q1": 42.6,
+      "q3": 57.1,
+      "high": 60.0,
+      "readings": 1345,
+      "position": "above"
     }
   },
   "almanac": {
@@ -4323,7 +4374,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -4337,7 +4389,8 @@
               "days": 30,
               "missing_days": 30,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -4351,7 +4404,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -4365,7 +4419,8 @@
               "days": 31,
               "missing_days": 26,
               "status": "invalid",
-              "reason": "in_progress"
+              "reason": "in_progress",
+              "shown": false
             },
             "rain_in": null,
             "to_date": {
@@ -4375,7 +4430,8 @@
               "days": 8,
               "missing_days": 3,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "to_date_in": null
           },
@@ -4395,7 +4451,8 @@
           "days": 365,
           "missing_days": 360,
           "status": "invalid",
-          "reason": "in_progress"
+          "reason": "in_progress",
+          "shown": false
         },
         "season_in": null
       }
@@ -4413,7 +4470,8 @@
               "days": 7,
               "missing_days": 2,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4432,7 +4490,8 @@
               "days": 30,
               "missing_days": 25,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4451,7 +4510,8 @@
               "days": 90,
               "missing_days": 85,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4470,7 +4530,8 @@
               "days": 365,
               "missing_days": 360,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4489,7 +4550,8 @@
               "days": 100,
               "missing_days": 95,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2026
@@ -4510,7 +4572,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         }
       },
       {
@@ -4523,7 +4586,8 @@
           "days": 1,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         }
       },
       {
@@ -4536,7 +4600,8 @@
           "days": 7,
           "missing_days": 2,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         }
       },
       {
@@ -4549,7 +4614,8 @@
           "days": 30,
           "missing_days": 25,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         }
       },
       {
@@ -4562,7 +4628,8 @@
           "days": 90,
           "missing_days": 85,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         }
       },
       {
@@ -4575,7 +4642,8 @@
           "days": 365,
           "missing_days": 360,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         }
       }
     ],
@@ -4607,7 +4675,8 @@
           "days": 31,
           "missing_days": 26,
           "status": "invalid",
-          "reason": "in_progress"
+          "reason": "in_progress",
+          "shown": false
         }
       }
     ],
@@ -13739,7 +13808,8 @@
         "days": 30,
         "missing_days": 26,
         "status": "invalid",
-        "reason": "before_archive"
+        "reason": "before_archive",
+        "shown": false
       },
       "usual_low_wm2": null,
       "usual_median_wm2": null,
@@ -13751,7 +13821,8 @@
         "days": 2,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "energy_kwh_m2": 5.901,
       "previous_kwh_m2": 6.111
@@ -13767,5 +13838,107 @@
     "days_to_full_moon": 24
   },
   "widget_view": "rain_event",
+  "history": {
+    "first_day": "2026-01-04",
+    "days": 5,
+    "comparisons": [
+      {
+        "key": "today",
+        "shown": true,
+        "unlocks_on": null
+      },
+      {
+        "key": "yesterday",
+        "shown": true,
+        "unlocks_on": null
+      },
+      {
+        "key": "7d",
+        "shown": false,
+        "unlocks_on": "2026-01-10"
+      },
+      {
+        "key": "30d",
+        "shown": false,
+        "unlocks_on": "2026-02-02"
+      },
+      {
+        "key": "90d",
+        "shown": false,
+        "unlocks_on": "2026-04-03"
+      },
+      {
+        "key": "365d",
+        "shown": false,
+        "unlocks_on": "2027-01-03"
+      },
+      {
+        "key": "water_year",
+        "shown": false,
+        "unlocks_on": "2026-10-01"
+      },
+      {
+        "key": "earlier_year",
+        "shown": false,
+        "unlocks_on": "2027-01-11"
+      },
+      {
+        "key": "full_history",
+        "shown": true,
+        "unlocks_on": null
+      }
+    ],
+    "tiles": [
+      {
+        "key": "temperature",
+        "needs": "yesterday",
+        "shown": true
+      },
+      {
+        "key": "rain",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "last_10_days",
+        "needs": "yesterday",
+        "shown": true
+      },
+      {
+        "key": "dry_spell",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "wind",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "pressure",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "humidity",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "sun",
+        "needs": "today",
+        "shown": true
+      },
+      {
+        "key": "daylight",
+        "needs": null,
+        "shown": true
+      }
+    ],
+    "next_unlock": {
+      "key": "7d",
+      "date": "2026-01-10"
+    }
+  },
   "stale_catalogs": []
 }

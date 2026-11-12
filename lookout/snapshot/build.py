@@ -29,6 +29,7 @@ from lookout.snapshot.current import (
 from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.gaps import snapshot_gaps
+from lookout.snapshot.history import history_depth
 from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
@@ -108,4 +109,5 @@ def build_snapshot(
         ),
         sun_moon=sun_moon(station, clock),
         widget_view=widget_view(active, lead),
+        history=history_depth(days.coverage),
     )

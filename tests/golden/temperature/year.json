@@ -11,7 +11,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 45.7,
       "q1": 46.5,
@@ -28,7 +29,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 45.1,
       "q1": 48.0,
@@ -45,7 +47,8 @@
         "days": 7,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 45.1,
       "q1": 51.0,
@@ -62,7 +65,8 @@
         "days": 30,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 41.1,
       "q1": 48.1,
@@ -79,7 +83,8 @@
         "days": 90,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 41.1,
       "q1": 47.5,
@@ -96,7 +101,8 @@
         "days": 365,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 41.0,
       "q1": 47.4,
@@ -116,7 +122,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 41.6,
       "high": 61.6,
@@ -137,7 +144,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 43.9,
       "high": 63.9,
@@ -158,7 +166,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 46.3,
       "high": 66.3,
@@ -179,7 +188,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 46.9,
       "high": 66.9,
@@ -200,7 +210,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 50.3,
       "high": 70.3,
@@ -221,7 +232,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 50.9,
       "high": 70.9,
@@ -242,7 +254,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 49.3,
       "high": 69.3,
@@ -263,7 +276,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 46.7,
       "high": 66.7,
@@ -284,7 +298,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 45.1,
       "high": 65.1,
@@ -305,7 +320,8 @@
         "days": 1,
         "missing_days": 0,
         "status": "valid",
-        "reason": null
+        "reason": null,
+        "shown": true
       },
       "low": 45.7,
       "high": 62.6,
@@ -595,5 +611,23 @@
         "readings": 360
       }
     ]
+  },
+  "full_history": {
+    "status": {
+      "key": "full_history",
+      "first_day": "2023-12-01",
+      "last_day": "2026-01-06",
+      "days": 768,
+      "missing_days": 0,
+      "status": "valid",
+      "reason": null,
+      "shown": true
+    },
+    "low": 37.0,
+    "q1": 45.5,
+    "q3": 58.5,
+    "high": 70.9,
+    "readings": 221041,
+    "position": "inside"
   }
 }

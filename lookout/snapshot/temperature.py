@@ -14,6 +14,8 @@ Three views, each fact computed once here (the One Number Rule):
   a past day's mean at this local hour; a rain dot is that day's rain by
   this time of day, so "so far" compares like with like. Past days are the
   same `SPREAD_DAYS` window around today's date in earlier years.
+- **Full history** (#463): the same range bar over the archive's first
+  day through today, under the same gap rules, beside the periods.
 - **Usual band** (#462): for each station-local hour of today, the median
   and middle half of that hour's readings over the usual window
   (`usual_window`): the same earlier-year windows when one is comparable,
@@ -32,6 +34,7 @@ Functions:
 - temperature_context(stitched, current, observed_at_ms, coverage): The
   `TemperatureContext` section.
 - usual_band(stitched, coverage): Today's `UsualBand`, all 24 hours.
+- same_date(year, day): A date moved to another year, Feb 29 to Feb 28.
 - usual_window(coverage, day): The `UsualWindow`, the days the usual for
   `day` is over, and its basis.
 - usual_readings(stitched, tz, days, column): Each station-local hour's
@@ -48,6 +51,7 @@ import pandas as pd
 
 from lookout.snapshot.gaps import ArchiveCoverage, comparable, standard_window_keys
 from lookout.snapshot.model import (
+    GapStatus,
     NormalStrip,
     SnapshotConditions,
     TemperatureContext,
@@ -75,9 +79,18 @@ MIN_READING_DAYS = 20
 HOURS = tuple(range(24))
 """The station-local wall-clock hours of a day."""
 
+FULL_HISTORY = "full_history"
+"""The Full history window's key: the archive's first day through today."""
 
-def _same_date(year: int, day: date) -> date:
-    """`day` moved to `year`; Feb 29 becomes Feb 28 in a common year."""
+
+def same_date(year: int, day: date) -> date:
+    """
+    `day` moved to `year`; Feb 29 becomes Feb 28 in a common year.
+
+    :param year: The year.
+    :param day: The date.
+    :return: The same month and day in `year`.
+    """
     try:
         return day.replace(year=year)
     except ValueError:
@@ -165,34 +178,70 @@ def _finding(periods: Sequence[TemperaturePeriod]) -> Optional[str]:
     return None
 
 
+def _period(
+    status: GapStatus,
+    coverage: ArchiveCoverage,
+    readings: Optional[_Readings],
+    now: Optional[float],
+) -> TemperaturePeriod:
+    """
+    One window's range bar, with where `now` sits.
+
+    :param status: The window's gap status; values only when it allows.
+    :param coverage: The build's counted days.
+    :param readings: The stitched readings, or None when there are none.
+    :param now: The current temperature.
+    :return: The period; null values when invalid or without readings.
+    """
+    if readings is None:
+        return TemperaturePeriod(status, None, None, None, None, 0, None)
+    counted = coverage.counted_days(
+        date.fromisoformat(status.first_day), date.fromisoformat(status.last_day)
+    )
+    values = comparable(status, lambda: readings.temperatures(counted))
+    if values is None or len(values) == 0:
+        return TemperaturePeriod(status, None, None, None, None, 0, None)
+    q1, q3 = np.quantile(values, [0.25, 0.75])
+    return TemperaturePeriod(
+        status=status,
+        low=number(values.min(), 1),
+        q1=number(q1, 1),
+        q3=number(q3, 1),
+        high=number(values.max(), 1),
+        readings=int(len(values)),
+        position=_position(now, number(q1, 1), number(q3, 1)),
+    )
+
+
 def _periods(
-    coverage: ArchiveCoverage, readings: _Readings, now: Optional[float]
+    coverage: ArchiveCoverage, readings: Optional[_Readings], now: Optional[float]
 ) -> Tuple[TemperaturePeriod, ...]:
     """The range bar of each standard window, with where `now` sits."""
     windows = {w.key: w for w in coverage.standard_windows()}
-    periods: List[TemperaturePeriod] = []
-    for key in standard_window_keys():
-        status = windows[key]
-        counted = coverage.counted_days(
-            date.fromisoformat(status.first_day), date.fromisoformat(status.last_day)
-        )
-        values = comparable(status, lambda c=counted: readings.temperatures(c))
-        if values is None or len(values) == 0:
-            periods.append(TemperaturePeriod(status, None, None, None, None, 0, None))
-            continue
-        q1, q3 = np.quantile(values, [0.25, 0.75])
-        periods.append(
-            TemperaturePeriod(
-                status=status,
-                low=number(values.min(), 1),
-                q1=number(q1, 1),
-                q3=number(q3, 1),
-                high=number(values.max(), 1),
-                readings=int(len(values)),
-                position=_position(now, number(q1, 1), number(q3, 1)),
-            )
-        )
-    return tuple(periods)
+    return tuple(
+        _period(windows[key], coverage, readings, now) for key in standard_window_keys()
+    )
+
+
+def _full_history(
+    coverage: ArchiveCoverage, readings: Optional[_Readings], now: Optional[float]
+) -> Optional[TemperaturePeriod]:
+    """
+    The Full history window: the archive's first day through today (#463).
+
+    It follows the One Gap Status Rule like every window, so a record with
+    more than a tenth of its days missing has no range here.
+
+    :param coverage: The build's counted days.
+    :param readings: The stitched readings, or None when there are none.
+    :param now: The current temperature.
+    :return: Its period; None for an empty archive.
+    """
+    first = coverage.first_day
+    if first is None:
+        return None
+    status = coverage.window(first, coverage.today, FULL_HISTORY)
+    return _period(status, coverage, readings, now)
 
 
 def _normal_years(
@@ -210,7 +259,7 @@ def _normal_years(
         return []
     usable: List[Tuple[int, Tuple[date, ...]]] = []
     for year in range(around.year - 1, first.year - 1, -1):
-        centre = _same_date(year, around)
+        centre = same_date(year, around)
         first_day = centre - timedelta(days=SPREAD_DAYS)
         last_day = centre + timedelta(days=SPREAD_DAYS)
         status = coverage.window(first_day, last_day, f"{year}")
@@ -462,13 +511,16 @@ def temperature_context(
     """
     readings = _Readings(stitched, coverage.tz) if not stitched.empty else None
     if readings is None:
-        by_key = {w.key: w for w in coverage.standard_windows()}
-        empty = tuple(
-            TemperaturePeriod(by_key[key], None, None, None, None, 0, None)
-            for key in standard_window_keys()
-        )
         return TemperatureContext(
-            None, None, None, empty, (), (), (), usual_band(stitched, coverage)
+            None,
+            None,
+            None,
+            _periods(coverage, None, None),
+            (),
+            (),
+            (),
+            usual_band(stitched, coverage),
+            _full_history(coverage, None, None),
         )
 
     periods = _periods(coverage, readings, current.temperature_f)
@@ -511,4 +563,5 @@ def temperature_context(
         ten_day_years=ten_day_years,
         strips=strips,
         usual_band=usual_band(stitched, coverage),
+        full_history=_full_history(coverage, readings, current.temperature_f),
     )
