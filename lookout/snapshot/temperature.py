@@ -20,7 +20,9 @@ Three views, each fact computed once here (the One Number Rule):
   and middle half of that hour's readings over the usual window
   (`usual_window`): the same earlier-year windows when one is comparable,
   else the station's own recent days, the median only while the station
-  has under `MIN_READING_DAYS` counted days.
+  has under `MIN_READING_DAYS` counted days. The band also carries now
+  against the usual for this hour (#518): the current temperature minus
+  the band's median at the reading's station-local hour, in whole degrees.
 
 An earlier year is read only when its 15-day window is comparable
 (`lookout.snapshot.gaps.comparable`), and only over that window's counted
@@ -33,7 +35,8 @@ gaps, so they are not composed here.
 Functions:
 - temperature_context(stitched, current, observed_at_ms, coverage): The
   `TemperatureContext` section.
-- usual_band(stitched, coverage): Today's `UsualBand`, all 24 hours.
+- usual_band(stitched, coverage, now_f, observed_at_ms): Today's
+  `UsualBand`, all 24 hours, with now against the usual for this hour.
 - same_date(year, day): A date moved to another year, Feb 29 to Feb 28.
 - usual_window(coverage, day): The `UsualWindow`, the days the usual for
   `day` is over, and its basis.
@@ -44,6 +47,7 @@ Functions:
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -60,9 +64,10 @@ from lookout.snapshot.model import (
     UsualBand,
     UsualBasis,
     UsualHour,
+    UsualNow,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import from_local_date, local_time, to_local
+from lookout.utils.dateutc import from_local_date, is_fresh, local_time, to_local
 
 SPREAD_DAYS = 7
 """Past days within this many days either side of a date are its normal."""
@@ -480,23 +485,81 @@ def _usual_hour(hour: int, values: np.ndarray, basis: UsualBasis) -> UsualHour:
     )
 
 
-def usual_band(stitched: pd.DataFrame, coverage: ArchiveCoverage) -> UsualBand:
+def _whole_degrees(now_f: float, median: float) -> int:
+    """
+    `now_f - median` in whole degrees, half away from zero (+2.5 is +3).
+
+    Both are one-decimal readings, so the difference is taken in decimal:
+    72.0 - 60.1 is 11.9, not 11.900000000000006.
+
+    :param now_f: The current temperature.
+    :param median: The usual median for its hour.
+    :return: The whole-degree difference.
+    """
+    difference = Decimal(str(now_f)) - Decimal(str(median))
+    return int(difference.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _usual_now(
+    hours: Sequence[UsualHour],
+    basis: UsualBasis,
+    now_f: Optional[float],
+    observed_at_ms: Optional[int],
+    coverage: ArchiveCoverage,
+) -> Optional[UsualNow]:
+    """
+    Now against the usual for this hour (#518).
+
+    The hour is the reading's station-local hour (ADR-0002), read against
+    the band the snapshot carries, so the line and the drawn band agree.
+    A reading is current by the Feature Rule's test, `is_fresh` against the
+    build's `now` (the clock's), never the wall clock.
+
+    :param hours: The band's 24 hours.
+    :param basis: The band's basis.
+    :param now_f: The current temperature, or None.
+    :param observed_at_ms: The newest observation, or None.
+    :param coverage: The build's counted days; its clock is the build's.
+    :return: The hour, delta and basis; None with no current temperature,
+        a stale reading, or no median for that hour.
+    """
+    if now_f is None or observed_at_ms is None:
+        return None
+    if not is_fresh(observed_at_ms, coverage.now_ms):
+        return None
+    hour = local_time(observed_at_ms, coverage.tz).hour
+    median = hours[hour].median
+    if median is None:
+        return None
+    return UsualNow(hour=hour, delta_f=_whole_degrees(now_f, median), basis=basis)
+
+
+def usual_band(
+    stitched: pd.DataFrame,
+    coverage: ArchiveCoverage,
+    now_f: Optional[float],
+    observed_at_ms: Optional[int],
+) -> UsualBand:
     """
     Today's usual temperature band by station-local hour.
 
     :param stitched: `stitch_live` output.
     :param coverage: The build's counted days; its clock says which day is
-        today.
-    :return: The `UsualBand`, all 24 hours.
+        today and what time it is.
+    :param now_f: The current temperature, live stitched, or None.
+    :param observed_at_ms: The newest observation, or None.
+    :return: The `UsualBand`, all 24 hours, with now against the usual.
     """
     window = usual_window(coverage, coverage.today)
     by_hour = usual_readings(stitched, coverage.tz, window.days, "tempf")
+    hours = tuple(_usual_hour(h, by_hour[h], window.basis) for h in HOURS)
     return UsualBand(
         basis=window.basis,
         unit="f",
         years=window.years,
         days=len(window.days),
-        hours=tuple(_usual_hour(h, by_hour[h], window.basis) for h in HOURS),
+        hours=hours,
+        now_delta=_usual_now(hours, window.basis, now_f, observed_at_ms, coverage),
     )
 
 
@@ -526,7 +589,9 @@ def temperature_context(
             ten_days=(),
             ten_day_years=(),
             strips=(),
-            usual_band=usual_band(stitched, coverage),
+            usual_band=usual_band(
+                stitched, coverage, current.temperature_f, observed_at_ms
+            ),
             full_history=_full_history(coverage, None, None),
         )
 
@@ -569,6 +634,8 @@ def temperature_context(
         ten_days=ten_days,
         ten_day_years=ten_day_years,
         strips=strips,
-        usual_band=usual_band(stitched, coverage),
+        usual_band=usual_band(
+            stitched, coverage, current.temperature_f, observed_at_ms
+        ),
         full_history=_full_history(coverage, readings, current.temperature_f),
     )

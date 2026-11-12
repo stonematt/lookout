@@ -4344,7 +4344,12 @@
           "q3": null,
           "readings": 48
         }
-      ]
+      ],
+      "now_delta": {
+        "hour": 16,
+        "delta_f": 0,
+        "basis": "median_only"
+      }
     },
     "full_history": {
       "status": {

@@ -605,6 +605,26 @@ UsualBasis = Literal["earlier_years", "recent_days", "median_only"]
 
 
 @dataclass(frozen=True)
+class UsualNow:
+    """
+    Now against the usual for this hour (#518): the Overview's one line,
+    such as "+8° on usual for 2 pm", decided here so the site only words it.
+
+    :param hour: The current reading's station-local hour, 0 to 23.
+    :param delta_f: The current temperature minus this band's (today's)
+        median for that hour, in whole degrees F, rounded half away from
+        zero. Just after midnight a fresh reading from the evening before
+        is still read against today's band, the one the hero draws.
+    :param basis: The band's basis, so the line can say when the usual
+        comes from recent days.
+    """
+
+    hour: int
+    delta_f: int
+    basis: UsualBasis
+
+
+@dataclass(frozen=True)
 class UsualBand:
     """
     What temperature usually does at each hour around today's date (#462).
@@ -628,6 +648,11 @@ class UsualBand:
         basis is "earlier_years".
     :param days: N, how many counted days the band is over.
     :param hours: The 24 station-local hours, 0 to 23 in order.
+    :param now_delta: Now against the usual for this hour; null when there
+        is no current temperature, the reading is stale (the Feature Rule's
+        freshness test, against the build's `now`), or the band has no
+        median for its hour. Added after schema 3 shipped, so it is
+        additive (ADR-0008).
     """
 
     basis: UsualBasis
@@ -635,6 +660,7 @@ class UsualBand:
     years: Tuple[int, ...]
     days: int
     hours: Tuple[UsualHour, ...]
+    now_delta: Optional[UsualNow]
 
 
 @dataclass(frozen=True)
