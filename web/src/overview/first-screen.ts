@@ -7,8 +7,11 @@
  *
  * Every value is the snapshot's live-stitched `current`, the one value every
  * view reads, and the source note dates it by the snapshot's own reading, so
- * it never borrows the freshness of a newer `/current`. The archive lag goes
- * in the source note under the ribbon, never in the sentence.
+ * it never borrows the freshness of a newer `/current`. The source note
+ * carries no archive lag chip (#458): the header states freshness once, and
+ * the ribbon hatches its unarchived end in place.
+ *
+ * Offers `firstScreen`, the section, and `nowFinding`, its finding in words.
  */
 import "./first-screen.css";
 
@@ -63,7 +66,7 @@ function rightNow(snapshot: DashboardSnapshot): HTMLElement {
 
 /**
  * The source line: where the numbers came from and when they were read, and
- * the archive lag.
+ * where the ribbon's archive ends.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The sentence.
@@ -81,13 +84,26 @@ function firstScreenSource(snapshot: DashboardSnapshot): string {
   if (!ribbon) return reading;
   const slots = `The ribbon is the archive in ${ribbon.slot_minutes}-minute slots`;
   if (archived === null) return `${reading} ${slots}; nothing is archived yet.`;
-  // Name the lag only when the ribbon hatches its end for it.
-  const lag = observed === null ? 0 : observed - archived;
-  if (lag <= 0 || ribbon.rain_in.at(-1) !== null) return `${reading} ${slots}.`;
+  // Explain the hatch only when the ribbon's last slot is past the archive.
+  const lastSlot = ribbon.start_ms + (ribbon.rain_in.length - 1) * ribbon.slot_minutes * 60_000;
+  if (lastSlot <= archived || ribbon.rain_in.at(-1) !== null) return `${reading} ${slots}.`;
   return (
-    `${reading} ${slots}, to ${formatStamp(archived)}; the ${formatDuration(lag)} ` +
-    "after it is hatched, as only the live total is known there."
+    `${reading} ${slots}, to ${formatStamp(archived)}; after it the ribbon is hatched, ` +
+    "as only the live total is known there."
   );
+}
+
+/**
+ * The now tile's finding in words, its accessible name: the temperature,
+ * then the condition sentence beside it.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "59.3°F. Mild and lightly breezy; ..."
+ */
+export function nowFinding(snapshot: DashboardSnapshot): string {
+  const t = snapshot.current.temperature_f;
+  const temp = t === null ? "Temperature not known" : `${t.toFixed(1)}°F`;
+  return `${temp}. ${conditionSentence(snapshot.current)}`;
 }
 
 /**
@@ -126,6 +142,7 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
         what: "the station's reading",
         method: firstScreenSource(snapshot),
         gaps: ribbonGaps(snapshot),
+        lag: false,
       }),
     ),
   );
@@ -139,5 +156,6 @@ export const firstScreen: OverviewSection = {
   span: 2,
   phoneTop: true,
   now: true,
+  finding: nowFinding,
   render,
 };

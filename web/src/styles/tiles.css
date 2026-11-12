@@ -209,7 +209,8 @@
 /* DESIGN.md "The Finding Row": the sections under a phone tab's fixed top,
    one tile of rows split by `rule` hairlines. Closed, a row is its kicker
    over its finding with a chevron in a `rule-strong` ring, at least 56px
-   tall; open, its standfirst, chart and folded source. */
+   tall; open, its standfirst (none on the Overview), chart and folded
+   source. */
 .tile-rows {
   padding-block: var(--s-1);
 }
