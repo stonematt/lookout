@@ -23,7 +23,7 @@
  * nothing. Offers `todayChart` (the chart block), `todayChartName` (its
  * accessible name), `nowDeltaText` (the one-line delta on usual under the
  * temperature), `nowDeltaWords` (the same delta without its hour, for the
- * Temperature tile), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
+ * Temperature tile), `bandBasisLabel` and `bandBasisWords`.
  */
 import { clockHours, degrees, formatStamp, hourText, localDay } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
@@ -117,21 +117,6 @@ function todaySlots(snapshot: DashboardSnapshot): Slot[] {
     });
   }
   return slots;
-}
-
-/**
- * How much of today the archive should hold but has no rain value for: a gap
- * in the record. The unarchived tail is the archive lag's, not a gap.
- *
- * @param snapshot - The dashboard snapshot.
- * @returns Milliseconds; 0 with no gap, no ribbon or nothing archived.
- */
-export function todayMissingMs(snapshot: DashboardSnapshot): number {
-  const ribbon = snapshot.condition_ribbon;
-  const archived = snapshot.archive_newest_ms;
-  if (!ribbon || archived === null) return 0;
-  const gaps = todaySlots(snapshot).filter((s) => s.rain === null && s.start <= archived);
-  return gaps.length * ribbon.slot_minutes * 60_000;
 }
 
 // ---------- words ----------

@@ -51,6 +51,14 @@ import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
 /** How many of the four-column grid's columns a tile spans. */
 export type TileSpan = 1 | 2 | 3 | 4;
 
+/** A section's line in a sources footer. */
+export interface TileSource {
+  /** What it reads, short: "five-minute readings, station time". */
+  what: string;
+  /** How its comparison is made, in a sentence or two. */
+  method: string;
+}
+
 /** One section of a tab, declared in that tab's registry. */
 export interface TileSection {
   /** A stable id: the tile's `data-section`, for tests and styles. */
@@ -96,6 +104,12 @@ export interface TileSection {
    * A section not drawn is skipped, and the later ones move up.
    */
   shown?(snapshot: DashboardSnapshot): boolean;
+  /**
+   * What the section reads and how its comparison is made, for a tab that
+   * gathers its sources in one footer instead of a fold on each tile (the
+   * Overview, prototype decision 22). No archive time: the header says it.
+   */
+  source?(snapshot: DashboardSnapshot): TileSource;
   /**
    * The now tile: the one tile on `now-surface`. Its kicker is for screen
    * readers only, as the temperature beside its condition is its finding.

@@ -329,5 +329,13 @@ export const featureTile: OverviewSection = {
   // A snapshot without a feature (published before Release A, ADR-0008)
   // draws no feature tile.
   shown: (snapshot) => Boolean(snapshot.feature),
+  source: () => ({
+    what: "the refresh run's choice, by the Feature Rule",
+    method:
+      "A rain event that is live or ended in the last 12 hours leads; then a reading below the 10th " +
+      "or above the 90th percentile of its readings at this hour within a week of this date in " +
+      "earlier years, the furthest out winning; " +
+      "then a dry spell longer than the usual one; otherwise a usual day.",
+  }),
   render,
 };

@@ -22,6 +22,7 @@ beforeEach(() => {
 
 const text = (selector: string) =>
   panel.querySelector(selector)?.textContent?.replace(/\s+/g, " ").trim();
+const words = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, " ").trim();
 const all = (selector: string) => [...panel.querySelectorAll<HTMLElement>(selector)];
 
 describe("the Overview", () => {
@@ -34,16 +35,7 @@ describe("the Overview", () => {
     const order = [...first.querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    expect(order).toEqual([
-      "kicker",
-      "finding",
-      "temperature",
-      "delta",
-      "today-chart",
-      "source-note",
-      // No lag chip (#458); the raining golden's today has no gap either.
-      "source",
-    ]);
+    expect(order).toEqual(["kicker", "finding", "temperature", "delta", "today-chart"]);
   });
 
   it("renders each section into its own tile, in order, after its kicker", () => {
@@ -91,34 +83,62 @@ describe("the current temperature", () => {
   });
 });
 
-describe("the now tile's source note", () => {
-  it("explains the hatched end of today in the source line, not in a headline", () => {
+describe("the Overview's sources footer (prototype decision 22)", () => {
+  /** Each footer line: the tile's name, then what it reads, then its method. */
+  const lines = () =>
+    all(".ov-sources-list > div").map((item) =>
+      [...item.children].map((child) => child.textContent),
+    );
+
+  it("folds no source on any Overview tile, and lists every drawn tile once at the foot", () => {
     renderOverview(panel, raining);
 
-    // The lag itself is not named (#458): the header states freshness once.
-    expect(text(".ov-source")).toBe(
-      "The temperature is the station's reading at Jan 8, 4:25 pm. " +
-        "Today's line is the archive in 15-minute slots, to Jan 8, 3:55 pm; " +
-        "after it the live reading is joined by a dotted line. " +
-        "The band is the usual for each hour of the day: the median of your last 4 days.",
-    );
+    expect(panel.querySelector(".tile-grid details, .tile-grid .ov-source")).toBeNull();
+    const footer = panel.querySelector<HTMLElement>("footer.ov-sources")!;
+    expect(panel.lastElementChild).toBe(footer);
+    expect(words(footer.querySelector("h2"))).toBe("Sources and method");
+    expect(lines().map(([name]) => name)).toEqual([
+      "Right now",
+      "The feature",
+      "Temperature",
+      "Rain since Oct 1",
+      "Last 10 days",
+      "Dry spell",
+    ]);
+    for (const [, what, method] of lines()) {
+      expect(what!.length).toBeGreaterThan(5);
+      expect(method!.length).toBeGreaterThan(40);
+    }
   });
 
-  it("dates the reading itself, so it never borrows a fresher one", () => {
+  it("repeats no archive or reading time: the header says it once", () => {
     renderOverview(panel, raining);
-    expect(text(".ov-source")).toMatch(
-      /^The temperature is the station's reading at Jan 8, 4:25 pm\./,
+    const footer = words(panel.querySelector("footer.ov-sources"))!;
+
+    expect(footer).not.toMatch(/archived|\d:\d\d|[ap]m\b/);
+  });
+
+  it("words the now tile's band from its basis", () => {
+    renderOverview(panel, raining);
+
+    expect(lines()[0]![2]).toContain(
+      "The band is the usual for each hour of the day: the median of your last 4 days",
     );
   });
 
-  it("says when there is no reading at all", () => {
-    renderOverview(panel, { ...dry, observed_at_ms: null, condition_ribbon: null });
-    expect(text(".ov-source")).toBe(
-      "The temperature has no reading yet. " +
-        "The band is the usual for each hour of the day: the median of your last day.",
-    );
-  });
+  it("leaves out the line of a tile not drawn", () => {
+    const d = structuredClone(golden("raining", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    delete d.feature;
+    for (const t of d.record_depth.tiles) if (t.key === "rain") t.shown = false;
+    renderOverview(panel, parseDashboard(d));
 
+    const names = lines().map(([name]) => name);
+    expect(names).not.toContain("The feature");
+    expect(names).not.toContain("Rain since Oct 1");
+  });
+});
+
+describe("the now tile without a ribbon", () => {
   it("still draws the chart when there is no ribbon", () => {
     const none: DashboardSnapshot = { ...dry, condition_ribbon: null };
     renderOverview(panel, none);

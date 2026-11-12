@@ -35,6 +35,7 @@ import "./mosaic.css";
 import { drawSized } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
+import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 
 /** A mini chart's height, the same on every tile so a row lines up. */
@@ -76,6 +77,11 @@ export interface MosaicTile {
    * "usual range" legend swatch under it (spec #460 Legends).
    */
   bandUnderBars?: boolean;
+  /**
+   * The tile's line in the Overview's sources footer (`sources.ts`): what it
+   * reads and how its comparison is made. The tile itself folds no source.
+   */
+  source(snapshot: DashboardSnapshot): TileSource;
 }
 
 /**
@@ -192,6 +198,7 @@ export function mosaicSection(tile: MosaicTile): OverviewSection {
     kicker: tile.title,
     mosaic: true,
     shown: (snapshot) => depthShown(snapshot, tile.depth),
+    source: (snapshot) => tile.source(snapshot),
     render: (host, snapshot) => render(tile, host, snapshot),
   };
 }

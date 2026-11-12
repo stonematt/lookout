@@ -13,7 +13,7 @@
   margin-top: var(--s-4);
 }
 
-/* on the grids the temperature stands left of the chart, the folds under both */
+/* on the grids the temperature stands left of the chart */
 :root:is([data-layout="two"], [data-layout="four"]) .tile[data-section="first-screen"] {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -25,10 +25,6 @@
   .tile[data-section="first-screen"]
   > .today-chart {
   margin-top: 0;
-}
-
-.tile[data-section="first-screen"] > .tile-folds {
-  grid-column: 1 / -1;
 }
 
 /* ---------- the temperature ---------- */

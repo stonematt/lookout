@@ -17,6 +17,9 @@
  * published before Release A, ADR-0008), a mosaic tile the record does not
  * cover yet (`record_depth.tiles`, #470).
  *
+ * No Overview tile folds a source (prototype decision 22): under the grid,
+ * one sources footer (`sources.ts`) lists each drawn section's `source`.
+ *
  * Each tile carries the id `overview-<section>`, which the feature tile's
  * link reaches. No tile carries an accessible name of its own (#472): each
  * tile's content names it, so a screen reader hears its finding once.
@@ -38,6 +41,7 @@ import { firstScreen } from "./first-screen.js";
 import { mosaicSection } from "./mosaic.js";
 import { MOSAIC_TILES } from "./mosaic-tiles.js";
 import { airFact, pressureFact, sunMoonFact, windFact } from "./quick-facts.js";
+import { sourcesFooter } from "./sources.js";
 
 /** One tile of the Overview. */
 export type OverviewSection = TileSection;
@@ -70,4 +74,7 @@ export function renderOverview(
   for (const tile of grid.querySelectorAll<HTMLElement>("[data-section]")) {
     tile.id = `overview-${tile.dataset.section}`;
   }
+  const drawn = sections.filter((s) => !s.shown || s.shown(snapshot));
+  const footer = sourcesFooter(snapshot, drawn);
+  if (footer) panel.append(footer);
 }

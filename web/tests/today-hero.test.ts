@@ -74,15 +74,9 @@ describe("the usual band hero", () => {
     const parts = [...hero().querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    expect(parts).toEqual([
-      "kicker",
-      "finding",
-      "temperature",
-      "delta",
-      "today-chart",
-      "source-note",
-      "source",
-    ]);
+    expect(parts).toEqual(["kicker", "finding", "temperature", "delta", "today-chart"]);
+    // No folded source either: its line is in the Overview's footer.
+    expect(hero().querySelector("details")).toBeNull();
     expect(panel.querySelector("[data-part=ribbon], .ribbon-band, .right-now")).toBeNull();
     expect(panel.querySelector("[data-part=condition]")).toBeNull();
   });

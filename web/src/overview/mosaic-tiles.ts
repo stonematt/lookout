@@ -146,6 +146,13 @@ export const temperatureTile: MosaicTile = {
     return { value: t === null ? "n/a" : degrees(t), delta: delta || null };
   },
   chart: temperatureChart,
+  source: () => ({
+    what: "five-minute readings, station time, with the live reading as now",
+    method:
+      "The delta is the hero's: the live reading against the usual median for its hour. " +
+      "The usual row runs from the median daily low to the median daily high for this date in " +
+      "earlier years; today's row from its lowest to its highest reading, the bar its middle half.",
+  }),
 };
 
 // ---------- Rain since Oct 1 ----------
@@ -239,6 +246,13 @@ export const rainTile: MosaicTile = {
     };
   },
   chart: rainChart,
+  source: () => ({
+    what: "daily totals with today's live total",
+    method:
+      "Rain since Oct 1, one line per water year, this year bold, set against the newest earlier " +
+      "year by the same date. Feb 29 is folded into Feb 28 so the years line up; ≈ marks a total " +
+      "scaled up over a few missing days.",
+  }),
 };
 
 // ---------- Last 10 days ----------
@@ -317,6 +331,13 @@ export const tenDaysTile: MosaicTile = {
   },
   chart: tenDaysChart,
   bandUnderBars: true,
+  source: () => ({
+    what: "daily low and high",
+    method:
+      "Each bar runs from the day's low to its high, over the usual range for its date: the median " +
+      "daily low to the median daily high over the days within a week either side of it, in each " +
+      "earlier year whose record there is complete. Today is the day so far.",
+  }),
 };
 
 // ---------- Dry spell ----------
@@ -401,6 +422,13 @@ export const drySpellTile: MosaicTile = {
     };
   },
   chart: dryChart,
+  source: () => ({
+    what: "daily totals; the last rain is the station's own record",
+    method:
+      `The time since the last rain day (at least ${WET_DAY_IN} in), against the usual dry spell: ` +
+      "the median completed spell in the last 365 days. The squares are the last 30 days; a day " +
+      "missing from the record is hatched, never read as dry.",
+  }),
 };
 
 /** The mosaic's tiles, in its fixed order. */

@@ -136,30 +136,15 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     }
   });
 
-  it("folds each tile's source, closed, its full method paragraph inside", async () => {
-    const snapshot = parsed(scenario);
-    const panel = await boot(snapshot);
+  it("folds no source on any tile: one footer lists them (prototype decision 22)", async () => {
+    const panel = await boot(parsed(scenario));
 
-    // A quick fact is the live reading, a value and a sentence: no source to fold.
-    for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
-      expect(tile.querySelector("details"), tile.dataset.section).toBeNull();
-    }
-    // The feature and mosaic tiles are one link each, which holds no disclosure.
-    expect(panel.querySelector("[data-section=feature] details")).toBeNull();
-    expect(panel.querySelector(".tile[data-mosaic] details")).toBeNull();
-    for (const tile of panel.querySelectorAll<HTMLElement>(
-      ".tile:not([data-fact]):not([data-mosaic]):not([data-section=feature])",
-    )) {
-      const notes = tile.querySelectorAll<HTMLDetailsElement>("details[data-part=source-note]");
-      expect(notes.length, tile.dataset.section).toBe(1);
-      const note = notes[0]!;
-      expect(note.open).toBe(false);
-      expect(words(note.querySelector("summary"))).toMatch(/^Source · .+, archived /);
-      const method = note.querySelector("[data-part=source]")!;
-      // Inside the disclosure, not beside it: one tap away, never in view closed.
-      expect(method.closest("details")).toBe(note);
-      expect(words(method)!.length).toBeGreaterThan(40);
-    }
+    expect(panel.querySelector(".tile details, .tile .ov-source")).toBeNull();
+    const footer = panel.querySelector("footer.ov-sources")!;
+    expect(footer).not.toBeNull();
+    expect(footer.closest("main")).not.toBeNull();
+    // The tiles that draw lead the footer in their order (overview.test has the lines).
+    expect(footer.querySelectorAll("dt").length).toBeGreaterThanOrEqual(5);
   });
 
   it("holds the temperature, then today against the usual band, in the now tile", async () => {
