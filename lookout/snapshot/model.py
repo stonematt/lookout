@@ -521,6 +521,61 @@ class NormalStrip:
 
 
 @dataclass(frozen=True)
+class UsualHour:
+    """
+    One station-local hour of the usual band.
+
+    :param hour: The local wall-clock hour, 0 to 23. On a 25-hour day both
+        1 am hours fall in hour 1; a 23-hour day adds nothing to hour 2.
+    :param median: The median of the hour's readings over the band's days;
+        null when there are none.
+    :param q1: The 25th percentile, the middle half's low edge; null with
+        no readings and always null for basis "median_only".
+    :param q3: The 75th percentile, its high edge.
+    :param readings: How many readings the values are over.
+    """
+
+    hour: int
+    median: Optional[float]
+    q1: Optional[float]
+    q3: Optional[float]
+    readings: int
+
+
+@dataclass(frozen=True)
+class UsualBand:
+    """
+    What temperature usually does at each hour around today's date (#462).
+
+    The basis is decided here, so the site labels the band without deciding
+    anything (`lookout.snapshot.temperature.usual_window`):
+
+    - "earlier_years": at least one earlier year's ±7-day window around
+      today is comparable; the band is over every such year's counted days,
+      and recent days are not used.
+    - "recent_days": no earlier year, and 20 or more counted days before
+      today; the band is over the counted days among the 14 before today.
+    - "median_only": no earlier year, under 20 counted days before today;
+      the same recent days, the median only.
+
+    Today is never in its own band.
+
+    :param basis: "earlier_years", "recent_days" or "median_only".
+    :param unit: "f".
+    :param years: The earlier years used, newest first; empty unless the
+        basis is "earlier_years".
+    :param days: N, how many counted days the band is over.
+    :param hours: The 24 station-local hours, 0 to 23 in order.
+    """
+
+    basis: Literal["earlier_years", "recent_days", "median_only"]
+    unit: Literal["f"]
+    years: Tuple[int, ...]
+    days: int
+    hours: Tuple[UsualHour, ...]
+
+
+@dataclass(frozen=True)
 class TemperatureContext:
     """
     The Overview's temperature context (#81).
@@ -535,6 +590,8 @@ class TemperatureContext:
     :param ten_day_years: Every earlier year the list's normal is over,
         newest first.
     :param strips: The temperature strip, then the rain strip.
+    :param usual_band: Today's usual band by station-local hour, which the
+        Overview hero draws today against.
     """
 
     now: Optional[float]
@@ -544,6 +601,7 @@ class TemperatureContext:
     ten_days: Tuple[TemperatureDay, ...]
     ten_day_years: Tuple[int, ...]
     strips: Tuple[NormalStrip, ...]
+    usual_band: UsualBand
 
 
 @dataclass(frozen=True)
