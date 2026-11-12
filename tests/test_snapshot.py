@@ -18,10 +18,12 @@ either side, rerun that command, then rerun the suite.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from lookout.snapshot import (
@@ -32,12 +34,20 @@ from lookout.snapshot import (
 )
 from lookout.snapshot.events import completed_curves
 from lookout.snapshot.model import EventCurve
+from lookout.snapshot.temperature import SPREAD_DAYS
 from tests.fixtures.ambient import load_devices, to_ambient_records
-from tests.fixtures.archive import build_archive
+from tests.fixtures.archive import (
+    SEASONED_MAC,
+    SEASONED_NOW,
+    STATION_TZ,
+    build_archive,
+    seasoned_archive,
+)
 from tests.fixtures.real import AMBIENT_END, load_real_slice
 from tests.snapshot_helpers import (
     RAIN_LIVE,
     REGENERATE,
+    SEASONED_ARCHIVE_NEWEST,
     STATION,
     build,
     dry_station,
@@ -46,6 +56,7 @@ from tests.snapshot_helpers import (
     ms,
     raining_station,
     scenario_until,
+    seasoned_station,
 )
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "snapshots"
@@ -53,7 +64,11 @@ GOLDEN_DIR = Path(__file__).parent / "golden" / "snapshots"
 REAL_MAC = "98:CD:AC:22:0D:E5"
 
 
-SCENARIOS = {"dry": dry_station, "raining": raining_station}
+SCENARIOS = {
+    "dry": dry_station,
+    "raining": raining_station,
+    "seasoned": seasoned_station,
+}
 
 
 def assert_matches_golden(document: Dict, name: str) -> None:
@@ -301,6 +316,9 @@ def scenario_curves(scenario: str) -> List[EventCurve]:
     """
     if scenario == "dry":
         archive = load_real_slice()
+    elif scenario == "seasoned":
+        full = seasoned_archive()
+        archive = full[full["dateutc"] <= ms(SEASONED_ARCHIVE_NEWEST)]
     else:
         full = scenario_until("2026-01-09T00:30:00Z")
         archive = full[full["dateutc"] < ms("2026-01-09T00:00:00Z")]
@@ -330,3 +348,67 @@ def test_curve_golden_files_hold_no_real_station():
 
     assert len(texts) == sum(len(scenario_curves(s)) for s in SCENARIOS)
     assert not any(REAL_MAC in text for text in texts)
+
+
+# ---------- the seasoned golden (#461) ----------
+
+
+class TestSeasonedGolden:
+    """
+    The seasoned station has earlier years; `dry` and `raining` have none.
+
+    Later tickets (the usual band, the Feature Rule, indoor and battery)
+    build on these facts, so they are pinned here.
+    """
+
+    def test_every_day_of_the_ten_day_list_reads_two_earlier_years(self):
+        rows = seasoned_station().temperature_context.ten_days
+
+        assert len(rows) == 10
+        for row in rows:
+            assert row.usual_years == (2025, 2024)
+            assert row.usual_days == 2 * (2 * SPREAD_DAYS + 1)
+
+    def test_the_young_station_shape_stays_in_the_dry_golden(self):
+        rows = dry_station().temperature_context.ten_days
+
+        assert all(row.usual_years == () for row in rows)
+
+    def test_the_current_temperature_is_past_its_usual_90th_percentile(self):
+        archive = seasoned_archive()
+        local = pd.to_datetime(archive["dateutc"], unit="ms", utc=True)
+        local = local.dt.tz_convert(STATION_TZ)
+        now = pd.Timestamp(SEASONED_NOW).tz_convert(STATION_TZ)
+        usual = np.zeros(len(archive), dtype=bool)
+        for year in (2024, 2025):
+            centre = now.date().replace(year=year)
+            first = centre - timedelta(days=SPREAD_DAYS)
+            last = centre + timedelta(days=SPREAD_DAYS)
+            days = local.dt.date
+            usual |= (days >= first) & (days <= last) & (local.dt.hour == now.hour)
+        readings = archive.loc[usual, "tempf"]
+
+        assert len(readings) == 2 * (2 * SPREAD_DAYS + 1) * 12
+        p90 = float(np.percentile(readings, 90))
+        assert p90 == pytest.approx(64.6)
+        current = seasoned_station().current
+        assert current.temperature_f == 72.0
+        assert current.temperature_f > readings.max()
+
+    def test_the_archive_holds_two_indoor_sensors_and_one_low_battery(self):
+        archive = seasoned_archive()
+        newest = archive.iloc[0]
+
+        for column in ("tempinf", "humidityin", "temp1f", "humidity1"):
+            assert archive[column].notna().all()
+        assert isinstance(archive["battrain"].dtype, pd.CategoricalDtype)
+        assert newest["battrain"] == "1"
+        flags = {name: float(newest[name]) for name in ("battout", "battin", "batt1")}
+        assert flags == {"battout": 1.0, "battin": 1.0, "batt1": 0.0}
+
+    def test_the_seasoned_station_is_its_own_fake_station(self):
+        station = seasoned_station().station
+
+        assert station.mac == SEASONED_MAC != REAL_MAC
+        assert station.name == "Seasoned Station"
+        assert station.tz == STATION_TZ
