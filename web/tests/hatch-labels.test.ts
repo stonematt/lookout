@@ -57,10 +57,11 @@ async function boot(scenario: Scenario, ...tabs: string[]): Promise<void> {
   }
 }
 
+/** Each reason, and the Overview's plain wording of it, without "n/a" (#470). */
 const REASONS = new Set(
-  (["gap", "low_coverage", "not_archived", "before_archive", "in_progress"] as GapReason[]).map(
-    reasonLabel,
-  ),
+  (["gap", "low_coverage", "not_archived", "before_archive", "in_progress"] as GapReason[])
+    .map(reasonLabel)
+    .flatMap((label) => [label, label.replace(/^n\/a: /, "")]),
 );
 
 const texts = (root: ParentNode) => [...root.querySelectorAll<SVGTextElement>("svg text")];
@@ -90,8 +91,10 @@ describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
     await boot(scenario, "overview", "rain", "solar");
     const reasons = texts(document).filter((t) => REASONS.has(t.textContent ?? ""));
 
-    // Both goldens lag their archive, so some window reads "not archived yet".
-    expect(reasons.length).toBeGreaterThan(0);
+    // The dry golden lags its archive, so some window reads "not archived
+    // yet"; the seasoned one has gaps. The raining golden draws only what its
+    // record covers, all of it comparable (#470).
+    expect(reasons.length > 0).toBe(scenario !== "raining");
     for (const reason of reasons) expectPadded(reason, pillOf(reason));
   });
 
@@ -102,7 +105,9 @@ describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
     const reasons = [...chart.querySelectorAll(".tc-reason")];
 
     expect(marks.length).toBeGreaterThan(0);
-    expect(reasons.length).toBeGreaterThan(0);
+    // The raining golden's chart draws only the windows its record covers,
+    // each comparable (#470): no hatch, so no reason to place.
+    expect(reasons.length > 0).toBe(scenario !== "raining");
     for (const reason of reasons) {
       for (const mark of marks) {
         expect(
@@ -118,8 +123,12 @@ describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
     const plot = chart.querySelector<SVGGElement>("g[transform]")!;
     const left = Number(/translate\(([\d.]+)/.exec(plot.getAttribute("transform")!)![1]);
     const names = [...chart.querySelectorAll<SVGTextElement>(".tc-row")];
+    const shownDays = parseDashboard(
+      golden(scenario, "dashboard"),
+    ).temperature_context.ten_days.filter((d) => d.status.shown !== false);
 
-    expect(names.length).toBe(10);
+    // The days the record covers (#470).
+    expect(names.length).toBe(shownDays.length);
     for (const name of names) {
       const end = Number(name.getAttribute("x")) + name.textContent!.length * LABEL_CHAR_PX * 1.1;
       expect(left - end).toBeGreaterThanOrEqual(2 * PILL_PAD);

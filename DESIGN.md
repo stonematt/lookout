@@ -467,7 +467,7 @@ The temperature (Display), the condition sentence, a stat strip of feels like, w
 Kicker, finding, standfirst, chart or stats, then the folded source. On desktop a tile can carry two folded lines: "Why this leads" and "Source".
 
 ### Source note
-A native `details`: one closed line, "Source · <what>, archived <time>", in Source type with a 32px target; open, the full method paragraph Python already writes. When the archive lags past 15 minutes or a gap hides part of the chart, the closed line carries a hatched chip with the short reason. The in-chart hatch and "n/a" labels stay; the note explains them, it never replaces them.
+A native `details`: one closed line, "Source · <what>, archived <time>", in Source type with a 32px target; open, the full method paragraph Python already writes. When the archive lags past 15 minutes or a gap hides part of the chart, the closed line carries a hatched chip with the short reason. The in-chart hatch and its short reason stay; the note explains them, it never replaces them. On the Overview a hatch only marks a gap inside a period the record covers, so its reason reads without "n/a" ("gap in record", "gap" in a cell); a period the record does not cover yet is not drawn (#470).
 
 ### Stat strip
 A definition list, value over label, between hairlines or `rule` tops. Two columns on a phone, up to four on desktop.
@@ -501,7 +501,7 @@ Every chart is SVG drawn at its real pixel width, with no chart box and no verti
 - **Ten-day bars:** each day's low-to-high bar over the usual-range band for that date, coloured cool, mild or warm against the usual high.
 - **Daily bars:** one bar per day in its data colour. Today's bar is marked by an r4 `now` dot 4px above its top (on the baseline when today is zero) and the label "today". The selected day is outlined in `ink`; missing days are hatched. On a phone the default is the last 30 days with a 30 / 90 switch; desktop shows 90.
 - **Rain-by-hour grid:** days as columns, hours as rows, filled from the rain ramp on a `ground` background; the current hour outlined in `now` outside the cell, with a 1px `ground` gap. On a phone, the last 30 days.
-- **Almanac grid:** years as rows, months as columns, cells filled from the rain or sun ramp, with the value in the cell. ≈ marks a prorated month; an invalid month is hatched with "n/a"; a month before the archive or still to come is a dashed `rule-strong` outline; the current month is filled from the ramp by its total so far, like the season cell, and outlined in `now` outside the cell with a 1px `tile` gap; it is hatched only when it has no total so far.
+- **Almanac grid:** years as rows, months as columns, cells filled from the rain or sun ramp, with the value in the cell. ≈ marks a prorated month; an invalid month is hatched with "n/a" ("gap" on the Overview); a month before the archive, one the record does not cover yet, or one still to come is a dashed `rule-strong` outline; the current month is filled from the ramp by its total so far, like the season cell, and outlined in `now` outside the cell with a 1px `tile` gap; it is hatched only when it has no total so far.
 - **Water-year lines:** one line per water year, past years in `ink-3`-weight slate, this year bold in `rain-line` with a `now` dot.
 
 ### Named Rules (data and copy)

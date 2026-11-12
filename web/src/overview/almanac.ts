@@ -13,13 +13,20 @@
  * width the values and the season column go; the readout keeps both.
  *
  * The table follows DESIGN.md's "Tables": one row per window, one column per
- * year, newest first; an invalid cell is hatched and reads "n/a".
+ * year, newest first; an invalid cell is hatched with its reason.
+ *
+ * History grows (#470): what the record does not cover yet (`shown` false)
+ * is not hatched. A grid month it does not cover draws as one before the
+ * archive, its season cell stays empty; a table cell it does not cover
+ * stays empty, and a row or column with no cell it covers is not drawn. A
+ * gap inside a shown period stays hatched, worded without "n/a" ("gap").
  */
 import "./almanac.css";
 
 import { WATER_MONTHS, dayText, inches } from "../format.js";
 import { make } from "../dom.js";
 import { hatchGap } from "../gaps.js";
+import type { HatchOptions } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
 import type {
   Almanac,
@@ -32,6 +39,7 @@ import {
   ROLLING_NAMES,
   cellKind,
   cellText,
+  type CellKind,
   gridHeadline,
   monthSentence,
   rampBounds,
@@ -43,7 +51,24 @@ import {
   wettestMonth,
 } from "./almanac-text.js";
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
+import { isShown } from "./history.js";
 import type { OverviewSection } from "./index.js";
+
+/** A shown gap's hatch on the Overview: compact, without "n/a" (#470). */
+const CELL_GAP: HatchOptions = { compact: true, plain: true };
+
+/**
+ * A month's cell kind, with a month the record does not cover yet drawn
+ * as one before the archive, never hatched (#470). The current month is
+ * judged by its days so far, and keeps any total it has.
+ */
+function monthKind(month: AlmanacMonth | null): CellKind {
+  const kind = cellKind(month);
+  if (!month) return kind;
+  if (kind !== "current") return isShown(month.status) ? kind : "before";
+  const covered = !month.to_date || isShown(month.to_date) || month.to_date_in !== null;
+  return covered ? kind : "before";
+}
 
 /**
  * The folded source note: the method, with the archive time on its closed
@@ -94,7 +119,7 @@ function rampKey(max: number): HTMLElement {
 
 /** One month's mark: a button whose name is the month's full sentence. */
 function monthMark(month: AlmanacMonth | null, max: number): HTMLElement {
-  const kind = cellKind(month);
+  const kind = monthKind(month);
   if (!month) {
     const empty = make("span", "alm-cell");
     empty.dataset.kind = kind;
@@ -121,7 +146,7 @@ function monthMark(month: AlmanacMonth | null, max: number): HTMLElement {
   } else if (kind === "before") {
     mark.title = sentence;
   } else {
-    hatchGap(mark, month.status, { compact: true });
+    hatchGap(mark, month.status, CELL_GAP);
   }
   return mark;
 }
@@ -134,10 +159,11 @@ function seasonCell(year: AlmanacYear, almanac: Almanac): HTMLElement {
   cell.title = sentence;
   if (soFar) {
     cell.dataset.kind = "current";
-    if (soFar.rain_in === null) hatchGap(cell, soFar.status, { compact: true });
-    else cell.append(make("span", "alm-value", tableValue(soFar.status, soFar.rain_in)!));
+    if (soFar.rain_in !== null) {
+      cell.append(make("span", "alm-value", tableValue(soFar.status, soFar.rain_in)!));
+    } else if (isShown(soFar.status)) hatchGap(cell, soFar.status, CELL_GAP);
   } else if (year.season_in === null) {
-    hatchGap(cell, year.season, { compact: true });
+    if (isShown(year.season)) hatchGap(cell, year.season, CELL_GAP);
   } else {
     cell.append(make("span", "alm-value", tableValue(year.season, year.season_in)!));
   }
@@ -288,7 +314,7 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
   wire(table, readout, almanac);
   const hatched = almanac.years
     .flatMap((year) => year.months)
-    .filter((month) => month !== null && cellKind(month) === "invalid").length;
+    .filter((month) => month !== null && monthKind(month) === "invalid").length;
   source(
     host,
     snapshot,
@@ -344,9 +370,37 @@ function waterYearHead(window: RollingWindow, columns: number[]): HTMLTableRowEl
   return tr;
 }
 
+/**
+ * The rolling table's rows and columns the record covers: a row (window) or
+ * a column (year) with no cell it covers is not drawn (#470). In a snapshot
+ * written before Release A every cell is covered.
+ *
+ * @param almanac - The snapshot's almanac.
+ * @returns The windows to draw and the years, newest first.
+ */
+function rollingShown(almanac: Almanac): { windows: RollingWindow[]; columns: number[] } {
+  const years = (almanac.rolling[0]?.years ?? []).slice(0, NAMED_YEARS + 1).map((y) => y.year);
+  const covered = (window: RollingWindow, year: number) =>
+    window.years.some((y) => y.year === year && isShown(y.status));
+  const windows = almanac.rolling.filter((w) => years.some((year) => covered(w, year)));
+  const columns = years.filter((year) => windows.some((w) => covered(w, year)));
+  return { windows, columns };
+}
+
+/**
+ * Whether the rolling table has a row the record covers; the Overview draws
+ * no rolling tile without one (#470).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns True when at least one cell is shown.
+ */
+export function rollingHasRows(snapshot: DashboardSnapshot): boolean {
+  return rollingShown(snapshot.almanac).windows.length > 0;
+}
+
 function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const { almanac } = snapshot;
-  const columns = (almanac.rolling[0]?.years ?? []).slice(0, NAMED_YEARS + 1).map((y) => y.year);
+  const { windows, columns } = rollingShown(almanac);
   const today = almanac.rolling[0]?.years[0]?.status.last_day;
   host.append(tileFinding(rollingHeadline(almanac)));
   // The day the windows end, once the standfirst is gone (#458): in the
@@ -370,7 +424,7 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
   head.append(headRow);
   const body = document.createElement("tbody");
-  for (const window of almanac.rolling) {
+  for (const window of windows) {
     const tr = document.createElement("tr");
     tr.dataset.window = window.key;
     const th = make("th", "", ROLLING_NAMES[window.key] ?? window.key);
@@ -388,12 +442,12 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
       const year = window.years.find((y) => y.year === columnYear);
       const td = make("td", i === 0 ? "alm-now" : "");
       if (waterYears) td.setAttribute("headers", `${th.id} ${waterYearId(i)}`);
-      if (!year) {
+      if (!year || !isShown(year.status)) {
         tr.append(td);
         return;
       }
       const value = tableValue(year.status, year.rain_in);
-      if (value === null) hatchGap(td, year.status, { compact: true });
+      if (value === null) hatchGap(td, year.status, CELL_GAP);
       else {
         td.textContent = value;
         hatchGap(td, year.status);
@@ -408,9 +462,10 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   host.append(frame);
 
   const live = snapshot.current.rain_today_in;
-  const statuses = almanac.rolling
+  const statuses = windows
     .flatMap((window) => window.years.filter((y) => columns.includes(y.year)))
-    .map((year) => year.status);
+    .map((year) => year.status)
+    .filter(isShown);
   const hatched = hatchedCount(statuses);
   source(
     host,

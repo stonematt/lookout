@@ -111,6 +111,13 @@ export interface GapStatus {
   status: GapState;
   /** Null when valid; for a prorated one, why days are missing. */
   reason: GapReason | null;
+  /**
+   * Whether the record is deep enough to show it (#463): a shown one still
+   * reports a gap inside it by `status`; one not shown is hidden, not
+   * hatched. Absent from snapshots written before Release A, which the site
+   * reads as shown (ADR-0008).
+   */
+  shown?: boolean;
 }
 
 /** The gap status of every archive month and every standard window. */
@@ -468,6 +475,11 @@ export interface TemperatureContext {
   strips: NormalStrip[];
   /** Today's usual band by hour (#462); absent from a snapshot written before it. */
   usual_band?: UsualBand | null;
+  /**
+   * The Full history window, the archive's first day to today (#463), as
+   * one more range-bar row. Absent from a snapshot written before Release A.
+   */
+  full_history?: TemperaturePeriod | null;
 }
 
 /**
@@ -727,6 +739,12 @@ export interface DashboardSnapshot extends SnapshotHead {
    * published before Release A.
    */
   dry_spell?: DrySpellNow;
+  /**
+   * How deep the station's record is: which comparisons it supports and
+   * the one it unlocks next (#463). Absent from snapshots published before
+   * Release A; the site then draws today's view.
+   */
+  record_depth?: RecordDepth;
 }
 
 /** One sensor's battery: its Ambient column, the name printed, and whether it reads low. */
@@ -872,6 +890,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkBatteryFlags(head.battery_flags);
   checkFeature(head.feature);
   checkDrySpell(head.dry_spell);
+  checkRecordDepth(head.record_depth);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1023,6 +1042,7 @@ function checkTemperature(context: unknown): void {
     throw new SnapshotContractError("dashboard: temperature_context missing");
   }
   checkUsualBand(context.usual_band);
+  checkFullHistory(context.full_history);
 }
 
 // ---------- the usual band (#462, drawn by the Overview hero, #468) ----------
@@ -1270,4 +1290,80 @@ export function newestObservation(
 ): number | null {
   const times = [a, b].filter((t): t is number => typeof t === "number");
   return times.length ? Math.max(...times) : null;
+}
+
+// ---------- history grows: record depth and Full history (#463, drawn by #470) ----------
+
+/** One comparison's record depth: whether the record supports it yet. */
+export interface DepthComparison {
+  /** A standard window ("today" ... "365d", "water_year"), "earlier_year" or "full_history". */
+  key: string;
+  /** Whether the record covers it: a window's is its gap status's `shown`. */
+  shown: boolean;
+  /** The station-local day it is first shown, "YYYY-MM-DD"; null once shown. */
+  unlocks_on: string | null;
+}
+
+/** Whether one Overview tile has the record it needs. */
+export interface DepthTile {
+  /** The tile: "temperature", "rain", "last_10_days" ... "inside". */
+  key: string;
+  /** The comparison it needs (a `DepthComparison.key`); null for none. */
+  needs: string | null;
+  /** Whether it is shown; the mosaic that reads it is Release B2's. */
+  shown: boolean;
+}
+
+/** The comparison the record unlocks next. */
+export interface NextUnlock {
+  /** Its `DepthComparison.key`. */
+  key: string;
+  /** The station-local day it is first shown, "YYYY-MM-DD". */
+  date: string;
+}
+
+/**
+ * How deep the station's record is (`lookout/snapshot/depth.py`). Python
+ * decides what is shown and which unlock is next; the site hides what is
+ * not shown and prints the one next-unlock line.
+ */
+export interface RecordDepth {
+  /** The archive's first station-local day; null when it is empty. */
+  first_day: string | null;
+  /** Station-local days from `first_day` through today; 0 when empty. */
+  days: number;
+  /** Each comparison, the standard windows first, then "earlier_year" and "full_history". */
+  comparisons: DepthComparison[];
+  /** Each Overview tile in the mosaic's order, Inside last. */
+  tiles: DepthTile[];
+  /** Null when every comparison is shown or the archive is empty: no line. */
+  next_unlock: NextUnlock | null;
+}
+
+/** Whether a value is a "YYYY-MM-DD" day. */
+const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/**
+ * Check `record_depth`: absent (N−1) is fine; present, it holds its lists
+ * and a next unlock that is null or names a key and a day.
+ */
+function checkRecordDepth(depth: unknown): void {
+  if (depth === undefined) return;
+  const next = isRecord(depth) ? depth.next_unlock : undefined;
+  if (
+    !isRecord(depth) ||
+    !Array.isArray(depth.comparisons) ||
+    !Array.isArray(depth.tiles) ||
+    !(next === null || (isRecord(next) && typeof next.key === "string" && isDay(next.date)))
+  ) {
+    throw new SnapshotContractError("dashboard: record_depth malformed");
+  }
+}
+
+/** `temperature_context.full_history` may be absent or null; present, it is a period. */
+function checkFullHistory(period: unknown): void {
+  if (period === undefined || period === null) return;
+  if (!isRecord(period) || !isRecord(period.status)) {
+    throw new SnapshotContractError("dashboard: temperature_context.full_history malformed");
+  }
 }

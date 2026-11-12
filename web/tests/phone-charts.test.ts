@@ -588,8 +588,9 @@ describe("the period rows at phone width", () => {
     const names = [...chart.querySelectorAll("text.tc-row")];
     const bars = [...chart.querySelectorAll("rect.tc-iqr, rect.tc-hatch")];
 
-    expect(names).toHaveLength(6);
-    expect(bars).toHaveLength(6);
+    // Today, yesterday and Full history: the rows the record covers (#470).
+    expect(names).toHaveLength(3);
+    expect(bars).toHaveLength(3);
     const shift = (el: Element) =>
       Number(el.parentElement!.getAttribute("transform")!.match(/,([\d.]+)\)/)![1]);
     names.forEach((name, i) => {

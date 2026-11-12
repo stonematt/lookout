@@ -86,7 +86,8 @@ const PHONE = {
   overview: [
     "first-screen",
     "feature",
-    "rows: temperature-periods against-normal ten-days almanac rolling-rain",
+    // No rolling-window tile while the record covers no window (#470).
+    "rows: temperature-periods against-normal ten-days almanac",
     // The quick facts (#340): open tiles after the rows, two to a row.
     "wind",
     "pressure",
@@ -105,7 +106,12 @@ describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
     async (tab) => {
       await boot(parsed(scenario), tab);
       expect(document.documentElement.dataset.layout).toBe("phone");
-      expect(shape(tab)).toEqual(PHONE[tab]);
+      // Only the seasoned record covers a rolling window (#470).
+      const want: readonly string[] =
+        tab === "overview" && scenario === "seasoned"
+          ? PHONE.overview.map((s) => (s.startsWith("rows: ") ? `${s} rolling-rain` : s))
+          : PHONE[tab];
+      expect(shape(tab)).toEqual(want);
       for (const top of panel(tab).querySelectorAll("[data-phone-top]")) {
         expect(top.tagName).toBe("SECTION");
       }
