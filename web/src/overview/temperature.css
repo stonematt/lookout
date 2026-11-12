@@ -148,10 +148,3 @@
   color: var(--ink-2);
   text-wrap: pretty;
 }
-
-/* the strips and the ten-day list span two of four columns (#468), but still
-   share a row in the two-column grid */
-:root[data-layout="two"]
-  .tile[data-span="2"]:is([data-section="against-normal"], [data-section="ten-days"]) {
-  grid-column: span 1;
-}

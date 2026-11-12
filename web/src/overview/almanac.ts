@@ -1,6 +1,7 @@
 /**
- * The Overview's almanac grid and rolling-window rain table (#82), read from
- * the snapshot's `almanac` (built by `lookout/snapshot/almanac.py`).
+ * The almanac grid and rolling-window rain table (#82), read from the
+ * snapshot's `almanac` (built by `lookout/snapshot/almanac.py`). They left
+ * the Overview with the accordion (#472) for the rain zoom (#475).
  *
  * The grid follows DESIGN.md's "Almanac grid": water years as rows (Oct
  * through Sep, the ticket's season), months as columns, 44px cells with 4px

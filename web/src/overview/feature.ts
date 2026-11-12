@@ -37,6 +37,7 @@ import {
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
+import { temperatureTile } from "./mosaic-tiles.js";
 
 /** Where the tile's link goes, and the words that say so. */
 interface Target {
@@ -63,7 +64,7 @@ export interface FeatureView {
 const RAIN_EVENTS: Target = { href: "#events", words: "Open the Rain Events tab" };
 const RAIN: Target = { href: "#rain", words: "Open the Rain tab" };
 const TEMPERATURE: Target = {
-  href: "#overview-temperature",
+  href: `#overview-${temperatureTile.slug}`,
   words: "Go to Temperature",
 };
 

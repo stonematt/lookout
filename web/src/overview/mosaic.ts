@@ -4,7 +4,7 @@
  * chart, and each one link to its zoom at `#overview/<slug>`.
  *
  * A tile is a definition, not markup: `MosaicTile` names its zoom slug, its
- * record-depth key, its title, the view its link opens, and reads its number
+ * record-depth key, its title, the name of the zoom its link opens, and reads its number
  * and delta and draws its mini chart from the snapshot. `mosaicSection`
  * turns a definition into an Overview section; the tile definitions live in
  * `mosaic-tiles.ts`, in the mosaic's fixed order.
@@ -15,7 +15,8 @@
  *   accessible name of its own;
  * - inside it one link, `a.mosaic-link[href="#overview/<slug>"]`, holding the
  *   title (`h2`, the tile's heading), the number and its unit, the delta, the
- *   mini chart (`aria-hidden`) and, for screen readers only, "Open the …
+ *   mini chart (`aria-hidden`, with its "usual range" legend swatch when it
+ *   draws a band under bars) and, for screen readers only, "Open the …
  *   view". The link's name is its own text, so a screen reader hears the
  *   finding once and no `aria-label` repeats it.
  *
@@ -31,7 +32,7 @@
  */
 import "./mosaic.css";
 
-import { FALLBACK_WIDTH } from "../charts/svg.js";
+import { drawSized } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
@@ -60,8 +61,8 @@ export interface MosaicTile {
   depth: string;
   /** The tile's title, its heading: "Rain since Oct 1". */
   title: string;
-  /** The view the link opens, in "Open the <view> view": "temperature". */
-  view: string;
+  /** The zoom's name, in the link's "Open the <zoomName> view": "temperature". */
+  zoomName: string;
   /** The number and the delta. */
   read(snapshot: DashboardSnapshot): TileReading;
   /**
@@ -70,6 +71,11 @@ export interface MosaicTile {
    * carry the finding.
    */
   chart?(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null;
+  /**
+   * Whether the chart draws a usual band under bars: it then carries the
+   * "usual range" legend swatch under it (spec #460 Legends).
+   */
+  bandUnderBars?: boolean;
 }
 
 /**
@@ -103,22 +109,15 @@ export function miniChart(width: number, height = MINI_HEIGHT): SVGSVGElement {
   return el;
 }
 
-/** Draw a tile's chart into `host` now, and again when its width changes. */
-function mountChart(host: HTMLElement, draw: (width: number) => SVGSVGElement | null): void {
-  let drawn = -1;
-  const paint = () => {
-    const width = Math.floor(host.clientWidth) || FALLBACK_WIDTH;
-    if (width === drawn) return;
-    drawn = width;
-    const chart = draw(width);
-    host.replaceChildren(...(chart ? [chart] : []));
-  };
-  paint();
-  if (typeof ResizeObserver === "function") {
-    new ResizeObserver(() => {
-      if (host.clientWidth > 0) paint();
-    }).observe(host);
-  }
+/** The "usual range" legend: the band's swatch, then its name. */
+function bandLegend(): HTMLElement {
+  const legend = document.createElement("p");
+  legend.className = "mosaic-legend";
+  legend.dataset.part = "legend";
+  const swatch = document.createElement("span");
+  swatch.className = "mosaic-swatch";
+  legend.append(swatch, "usual range");
+  return legend;
 }
 
 /** Fill a mosaic tile: one link holding its title, number, delta and chart. */
@@ -162,11 +161,21 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   chart.setAttribute("aria-hidden", "true");
   const open = document.createElement("span");
   open.className = "ov-sr";
-  open.textContent = `Open the ${tile.view} view`;
+  open.textContent = `Open the ${tile.zoomName} view`;
   link.append(chart, open);
   host.replaceChildren(link);
   const draw = tile.chart;
-  if (draw) mountChart(chart, (width) => draw(snapshot, width));
+  if (!draw) return;
+  const plot = document.createElement("div");
+  chart.append(plot);
+  drawSized(plot, (width) => {
+    const svg = draw(snapshot, width);
+    plot.replaceChildren(...(svg ? [svg] : []));
+    // A band under bars carries its legend, never a label inside the plot.
+    const legend = chart.querySelector("[data-part=legend]");
+    if (svg && tile.bandUnderBars && !legend) chart.append(bandLegend());
+    if (!svg) legend?.remove();
+  });
 }
 
 /**

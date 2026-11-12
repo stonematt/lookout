@@ -118,7 +118,7 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
       const value = words(link.querySelector("[data-part=value]"));
       const delta = words(link.querySelector("[data-part=delta]"));
       expect(name.startsWith(`${def.title} `)).toBe(true);
-      expect(name.endsWith(`Open the ${def.view} view`)).toBe(true);
+      expect(name.endsWith(`Open the ${def.zoomName} view`)).toBe(true);
       if (value) expect(name).toContain(value);
       if (delta) expect(name).toContain(delta);
       expect(value ?? delta).toBeTruthy();
@@ -236,6 +236,11 @@ describe("the Last 10 days tile", () => {
     );
     // One bar a day the record covers.
     expect(tile("last-10-days").querySelectorAll("svg .mosaic-day")).toHaveLength(10);
+    // The band under the bars is named by a legend swatch, not in the plot.
+    const legend = tile("last-10-days").querySelector("[data-part=legend]")!;
+    expect(words(legend)).toBe("usual range");
+    expect(legend.closest("[aria-hidden=true]")).not.toBeNull();
+    expect(tile("last-10-days").querySelector("svg text")).toBeNull();
   });
 });
 
@@ -269,9 +274,7 @@ describe("the Dry spell tile", () => {
     );
     expect(days).toHaveLength(30);
     expect(svg.querySelectorAll(".mosaic-today")).toHaveLength(1);
-    expect(
-      svg.querySelectorAll(".mosaic-wet-1, .mosaic-wet-2, .mosaic-wet-3, .mosaic-wet-4").length,
-    ).toBe(2);
+    expect(svg.querySelectorAll(".mosaic-wet").length).toBe(2);
   });
 });
 

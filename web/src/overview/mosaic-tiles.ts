@@ -22,7 +22,7 @@
  * Offers `MOSAIC_TILES` and each tile's definition.
  */
 import { lastDays } from "../rain/charts.js";
-import { calmRule, currentYear, curveValue } from "../rain/text.js";
+import { calmRule, currentYear, earlierToDate } from "../rain/text.js";
 import { missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { WET_DAY_IN, degrees, formatDayCount, formatDays, inches } from "../format.js";
@@ -31,7 +31,7 @@ import type { DashboardSnapshot, TemperatureDay, TemperaturePeriod } from "../sn
 import { isShown } from "./history.js";
 import type { MosaicTile } from "./mosaic.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
-import { rampColour } from "./temperature.js";
+import { rampColour, shownDays } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
 
 const SHORT_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short" });
@@ -135,7 +135,7 @@ export const temperatureTile: MosaicTile = {
   slug: "temperature",
   depth: "temperature",
   title: "Temperature",
-  view: "temperature",
+  zoomName: "temperature",
   read(snapshot) {
     const t = snapshot.current.temperature_f;
     const today = todayPeriod(snapshot);
@@ -222,7 +222,7 @@ export const rainTile: MosaicTile = {
   slug: "rain",
   depth: "rain",
   title: "Rain since Oct 1",
-  view: "rain",
+  zoomName: "rain",
   read(snapshot) {
     const tab = snapshot.rain_tab;
     const current = currentYear(tab);
@@ -230,26 +230,18 @@ export const rainTile: MosaicTile = {
       return { value: null, delta: "not compared yet" };
     }
     const approx = current.prorated[tab.day_index] ? "≈ " : "";
-    const earlier = tab.water_years
-      .slice(0, -1)
-      .reverse()
-      .find((c) => c.to_date_in !== null);
-    const then = earlier ? curveValue(earlier, tab.day_index) : null;
+    // The newest year the Rain tab's year-over-year finding compares.
+    const earlier = earlierToDate(tab)[0];
     return {
       value: `${approx}${inches(current.to_date_in, { unit: false })}`,
       unit: "in",
-      delta: earlier && then !== null ? `${earlier.water_year} had ${then}` : null,
+      delta: earlier ? `${earlier.year} had ${earlier.text}` : null,
     };
   },
   chart: rainChart,
 };
 
 // ---------- Last 10 days ----------
-
-/** The ten-day list's days the record covers, oldest first. */
-function shownDays(snapshot: DashboardSnapshot): TemperatureDay[] {
-  return snapshot.temperature_context.ten_days.filter((d) => isShown(d.status));
-}
 
 /** Each day's low to high, standing over the usual for its date. */
 function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
@@ -313,7 +305,7 @@ export const tenDaysTile: MosaicTile = {
   slug: "last-10-days",
   depth: "last_10_days",
   title: "Last 10 days",
-  view: "last 10 days",
+  zoomName: "last 10 days",
   read(snapshot) {
     const newest = shownDays(snapshot).at(-1);
     if (!newest || newest.high === null) return { value: null, delta: "not compared yet" };
@@ -324,6 +316,7 @@ export const tenDaysTile: MosaicTile = {
     };
   },
   chart: tenDaysChart,
+  bandUnderBars: true,
 };
 
 // ---------- Dry spell ----------
@@ -339,14 +332,11 @@ function drySpellDays(snapshot: DashboardSnapshot): { since: number | null; usua
   return { since: calm?.value ?? null, usual: calm?.reference ?? null };
 }
 
-/** The rain step of a day's total, for its square. */
-function dayStep(rainIn: number): string {
-  if (rainIn < WET_DAY_IN) return "mosaic-dry";
-  if (rainIn < 0.1) return "mosaic-wet-1";
-  if (rainIn < 0.25) return "mosaic-wet-2";
-  if (rainIn < 0.5) return "mosaic-wet-3";
-  return "mosaic-wet-4";
-}
+/**
+ * A day's square: a rain day by the Rain tab's own threshold (`WET_DAY_IN`),
+ * else dry. One rain colour, with no second table of daily steps.
+ */
+const dayClass = (rainIn: number) => (rainIn < WET_DAY_IN ? "mosaic-dry" : "mosaic-wet");
 
 /** The last 30 days' rain, ten squares to a row, today outlined. */
 function dryChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
@@ -378,7 +368,7 @@ function dryChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | n
         svg.append(svgEl("rect", { ...attrs, class: "mosaic-gap", fill: hatch }));
       else svg.append(svgEl("rect", { ...attrs, class: "mosaic-blank" }));
     } else {
-      svg.append(svgEl("rect", { ...attrs, class: dayStep(v) }));
+      svg.append(svgEl("rect", { ...attrs, class: dayClass(v) }));
     }
     if (i === last) {
       svg.append(
@@ -401,7 +391,7 @@ export const drySpellTile: MosaicTile = {
   slug: "dry-spell",
   depth: "dry_spell",
   title: "Dry spell",
-  view: "dry spell",
+  zoomName: "dry spell",
   read(snapshot) {
     const { since, usual } = drySpellDays(snapshot);
     if (since === null) return { value: null, delta: "no last rain on record" };

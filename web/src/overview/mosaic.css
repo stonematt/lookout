@@ -144,8 +144,29 @@
   fill: var(--temp-band);
 }
 
-/* Dry spell: a square a day, dry in `rule`, rain in the first four ramp
-   steps, a day not in the record hatched, today outlined */
+/* the "usual range" legend under a chart with a band under bars (spec
+   #460 Legends): the band fill with its dashed edge, then the words */
+.mosaic-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: var(--s-1) 0 0;
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.mosaic-swatch {
+  flex: none;
+  width: 14px;
+  height: 10px;
+  border: 1px dashed var(--temp-band-edge);
+  border-radius: 2px;
+  background: var(--temp-band);
+}
+
+/* Dry spell: a square a day, dry in `rule`, a rain day in the rain bars'
+   colour, a day not in the record hatched, today outlined */
 .mosaic-dry {
   fill: var(--rule);
 }
@@ -156,20 +177,8 @@
   stroke-width: 1;
 }
 
-.mosaic-wet-1 {
-  fill: var(--rain-0);
-}
-
-.mosaic-wet-2 {
-  fill: var(--rain-1);
-}
-
-.mosaic-wet-3 {
-  fill: var(--rain-2);
-}
-
-.mosaic-wet-4 {
-  fill: var(--rain-3);
+.mosaic-wet {
+  fill: var(--rain-bar);
 }
 
 .mosaic-today {
