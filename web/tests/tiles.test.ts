@@ -81,7 +81,8 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       "against-normal",
       "ten-days",
       "almanac",
-      "rolling-rain",
+      // Only the seasoned record covers a rolling window (#470).
+      ...(scenario === "seasoned" ? ["rolling-rain"] : []),
       "wind",
       "pressure",
       "air",
@@ -187,18 +188,20 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       expect(m[1]).toBe(today?.toFixed(2));
   });
 
-  it("still hatches each invalid comparison in place, with its reason", async () => {
+  it("still hatches each invalid comparison the record covers, with its reason", async () => {
     const snapshot = parsed(scenario);
     const panel = await boot(snapshot);
-    const invalid = snapshot.temperature_context.periods.filter(
-      (p) => p.status.status === "invalid",
+    const ctx = snapshot.temperature_context;
+    const invalid = [...ctx.periods, ctx.full_history!].filter(
+      (p) => p.status.status === "invalid" && p.status.shown !== false,
     );
 
-    expect(invalid.length).toBeGreaterThan(0);
-    const hatched = panel.querySelectorAll(
-      "[data-part=periods-chart] .tc-hatch-label, [data-part=periods-chart] text",
-    );
-    expect([...hatched].map((el) => el.textContent).join(" ")).toMatch(/n\/a|not archived yet/);
+    // The raining golden's covered windows are all comparable (#470).
+    expect(invalid.length > 0).toBe(scenario !== "raining");
+    const reasons = [...panel.querySelectorAll("[data-part=periods-chart] .tc-reason")];
+    expect(reasons).toHaveLength(invalid.length);
+    for (const reason of reasons)
+      expect(reason.textContent).toMatch(/^(gap in record|not archived yet)$/);
   });
 });
 
@@ -223,11 +226,10 @@ describe("the hatched chip on a tile's closed source line", () => {
     // The raining golden, archive level with its reading: only gaps remain.
     const panel = await boot(level(parsed("raining")));
 
+    // The windows and days before its record began are not drawn, so not
+    // counted (#470); the strips with no earlier year still are.
     expect(chips(panel)).toEqual({
-      "temperature-periods": ["4 windows not compared"],
       "against-normal": ["2 strips not compared"],
-      "ten-days": ["5 days not compared"],
-      "rolling-rain": ["5 windows not compared"],
     });
   });
 

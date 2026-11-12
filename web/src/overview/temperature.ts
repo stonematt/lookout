@@ -2,15 +2,18 @@
  * The Overview's temperature context (#81), three tiles:
  *
  * 1. temperature across periods: one range bar per window (today, yesterday,
- *    7, 30, 90, 365 days), a whisker from the lowest to the highest reading,
- *    a bar over the middle half, and one "now" rule across every row;
+ *    7, 30, 90, 365 days, Full history), a whisker from the lowest to the
+ *    highest reading, a bar over the middle half, and one "now" rule across
+ *    every row; under it, the one next-unlock line (#470);
  * 2. the ten-day high-low list, each day's low-to-high bar over the usual
  *    low-to-high for its date, in miniature;
  * 3. "now against normal" strips for temperature and for rain so far today.
  *
  * Every number is the snapshot's (`lookout/snapshot/temperature.py`): this
- * module words and draws, it does not compute a comparison. A window or day
- * the gap status marks invalid is hatched with its reason and has no value
+ * module words and draws, it does not compute a comparison. History grows
+ * (#470): a window or day the record does not cover yet (`shown` false) is
+ * not drawn at all. A shown window or day the gap status marks invalid is
+ * hatched with its reason, without "n/a" (a gap stays visible), and has no value
  * under it; a prorated one shows `≈` (`gapValue`), and the tile's source note
  * carries a hatched chip counting what is not compared.
  */
@@ -19,7 +22,7 @@ import "./temperature.css";
 import { degrees, inches } from "../format.js";
 import { LABEL_CHAR_PX, NARROW, aboveDot, niceTicks, pillLabel, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import { gapLabel, gapSentence, gapValue, isComparable, svgHatch } from "../gaps.js";
+import { gapSentence, gapValue, isComparable, plainGapLabel, svgHatch } from "../gaps.js";
 import type {
   DashboardSnapshot,
   GapStatus,
@@ -28,6 +31,7 @@ import type {
   TemperaturePeriod,
 } from "../snapshot.js";
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
+import { isShown, nextUnlockLine } from "./history.js";
 import type { OverviewSection } from "./index.js";
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
@@ -60,7 +64,26 @@ const NAMES: Record<string, string> = {
   "30d": "30 days",
   "90d": "90 days",
   "365d": "365 days",
+  full_history: "Full history",
 };
+
+/**
+ * The window chart's rows: each window the record covers (every window, in
+ * a snapshot written before Release A), then Full history when the snapshot
+ * has it (#470).
+ */
+function periodRows(snapshot: DashboardSnapshot): TemperaturePeriod[] {
+  const ctx = snapshot.temperature_context;
+  const rows = ctx.periods.filter((p) => isShown(p.status));
+  const full = ctx.full_history;
+  if (full && isShown(full.status)) rows.push(full);
+  return rows;
+}
+
+/** The ten-day list's days the record covers, oldest first. */
+function shownDays(snapshot: DashboardSnapshot): TemperatureDay[] {
+  return snapshot.temperature_context.ten_days.filter((d) => isShown(d.status));
+}
 
 /**
  * The window's days, for a row label: "Jan 1 to Jan 6", or with the start
@@ -154,7 +177,7 @@ function hatchRow(
     }),
   );
   // On its pill, drawn after the now rule so the rule never crosses it.
-  const reason = gapLabel(status);
+  const reason = plainGapLabel(status);
   if (reason) g.append(pillLabel((x0 + x1) / 2, cy + 4, reason, "tc-reason", "middle"));
 }
 
@@ -192,26 +215,27 @@ export function periodSentence(p: TemperaturePeriod): string {
 function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const ctx = snapshot.temperature_context;
   const now = ctx.now;
+  const periods = periodRows(snapshot);
   // On a phone each row's label sits above its bar, so the bar gets the
   // whole width; from 520px of chart width the labels are a column.
   const narrow = width < NARROW;
   const rowH = narrow ? 50 : 46;
   // The label column fits the longest span ("Nov 1, 2025 to Oct 31"), so
   // a whisker at the plot's left edge never runs under it.
-  const longest = Math.max(0, ...ctx.periods.map((p) => spanText(p.status).length));
+  const longest = Math.max(0, ...periods.map((p) => spanText(p.status).length));
   const left = narrow ? 0 : Math.max(118, Math.ceil(longest * LABEL_CHAR_PX) + 8);
   const f = { l: left, r: narrow ? 0 : 12, t: 34, b: 26 };
   // A row's bar: centred in the row beside its label, under it on a phone.
   const barY = (i: number) => (narrow ? i * rowH + 36 : i * rowH + rowH / 2);
   const iw = width - f.l - f.r;
-  const ih = rowH * ctx.periods.length;
+  const ih = rowH * periods.length;
   const height = f.t + ih + f.b;
 
-  const numbers = ctx.periods.flatMap((p) =>
+  const numbers = periods.flatMap((p) =>
     isComparable(p.status) && p.low !== null && p.high !== null ? [p.low, p.high] : [],
   );
   if (now !== null) numbers.push(now);
-  if (numbers.length === 0 && ctx.periods.every((p) => isComparable(p.status) === false)) {
+  if (numbers.length === 0 && periods.every((p) => isComparable(p.status) === false)) {
     numbers.push(40, 60);
   }
   const { lo, hi, ticks } = padded(numbers, 3);
@@ -238,7 +262,7 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
       : { x: right ? nx - 8 : nx + 8, y: -14, anchor: right ? "end" : "start" };
     g.append(svgEl("text", { class: "tc-note", x: at.x, y: at.y, "text-anchor": at.anchor }, note));
   }
-  ctx.periods.forEach((p, i) => {
+  periods.forEach((p, i) => {
     const cy = barY(i);
     const name = NAMES[p.status.key] ?? p.status.key;
     if (narrow) {
@@ -333,9 +357,10 @@ export function daySentence(d: TemperatureDay): string {
 
 function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const ctx = snapshot.temperature_context;
-  if (ctx.ten_days.length === 0) return null;
+  const shown = shownDays(snapshot);
+  if (shown.length === 0) return null;
   // Newest first: today leads a phone's scroll.
-  const days = [...ctx.ten_days].reverse();
+  const days = [...shown].reverse();
   const narrow = width < NARROW;
   // On a phone each day's label sits above its bar, so the bar gets the
   // whole width, as in the periods chart; from 520px it is a column.
@@ -575,20 +600,22 @@ export function daysHeadline(snapshot: DashboardSnapshot): string {
 }
 
 function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
-  const ctx = snapshot.temperature_context;
+  const periods = periodRows(snapshot);
   host.dataset.block = "periods";
   const chart = chartHost("periods-chart");
+  const unlock = nextUnlockLine(snapshot);
   host.append(
     tileFinding(periodFinding(snapshot)),
     chart,
-    spoken(ctx.periods.map(periodSentence)),
+    ...(unlock ? [unlock] : []),
+    spoken(periods.map(periodSentence)),
     tileFolds(
       sourceNote(snapshot, {
         what: "five-minute readings, station time",
         method:
           "Each row runs from the lowest to the highest reading in the window; the bar covers the middle half of its readings. " +
           "Five-minute readings, station time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
-        gaps: gapReasons([[hatchedCount(ctx.periods.map((p) => p.status)), "window", "windows"]]),
+        gaps: gapReasons([[hatchedCount(periods.map((p) => p.status)), "window", "windows"]]),
         lag: false,
       }),
     ),
@@ -597,20 +624,20 @@ function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
 }
 
 function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
-  const ctx = snapshot.temperature_context;
+  const days = shownDays(snapshot);
   host.dataset.block = "ten-days";
   const chart = chartHost("days-chart");
   host.append(
     tileFinding(daysHeadline(snapshot)),
     chart,
-    spoken([...ctx.ten_days].reverse().map(daySentence)),
+    spoken([...days].reverse().map(daySentence)),
     tileFolds(
       sourceNote(snapshot, {
         what: "daily low and high",
         method:
           "Newest first. Each bar runs from the day's low to its high; the pale band behind it is the usual low to high for that date. " +
           "Usual is the median daily low and median daily high over the days within a week either side of the date, in each earlier year whose record there is complete. Today is the day so far.",
-        gaps: gapReasons([[hatchedCount(ctx.ten_days.map((d) => d.status)), "day", "days"]]),
+        gaps: gapReasons([[hatchedCount(days.map((d) => d.status)), "day", "days"]]),
         lag: false,
       }),
     ),

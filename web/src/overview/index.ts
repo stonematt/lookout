@@ -11,6 +11,10 @@
  * the finding rows, two to a row. A snapshot without a feature (published
  * before Release A, ADR-0008) draws no feature tile.
  *
+ * History grows (#470): rows the record does not cover are not drawn, one
+ * line under the window chart names the next unlock, and the rolling-window
+ * rain tile is not drawn while the record covers none of its windows.
+ *
  * Each tile or finding row carries the id `overview-<section>`, which the
  * feature tile's link reaches while the Overview has no zooms (Release B1).
  *
@@ -29,7 +33,7 @@
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
 import { renderTiles } from "../tiles.js";
-import { almanacGrid, rollingRain } from "./almanac.js";
+import { almanacGrid, rollingHasRows, rollingRain } from "./almanac.js";
 import { firstScreen } from "./first-screen.js";
 import { featureTile } from "./feature.js";
 import { airFact, pressureFact, sunMoonFact, windFact } from "./quick-facts.js";
@@ -67,7 +71,14 @@ export function renderOverview(
 ): void {
   // On a phone the finding rows sit under "In context" (DESIGN.md). Each
   // tile is named by its finding, for screen readers (#458).
-  const shown = snapshot.feature ? sections : sections.filter((s) => s !== featureTile);
+  const hidden = new Set<OverviewSection>();
+  if (!snapshot.feature) hidden.add(featureTile);
+  if (!rollingHasRows(snapshot)) hidden.add(rollingRain);
+  // The almanac takes the rolling tile's column when that tile is not
+  // drawn, so its four-column row stays whole.
+  const shown = sections
+    .filter((s) => !hidden.has(s))
+    .map((s) => (s === almanacGrid && hidden.has(rollingRain) ? { ...s, span: 4 as const } : s));
   const grid = renderTiles(panel, snapshot, shown, {
     rowsHeading: "In context",
     nameByFinding: true,
