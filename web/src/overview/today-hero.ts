@@ -54,6 +54,8 @@ const RAIN_H = 14;
 const X_LABELS_H = 22;
 /** The band's basis label, on its own row under the times of day, clear of every line. */
 const BASIS_H = 18;
+/** A text row's baseline, below the top of the row it sits in. */
+const ROW_BASELINE = 17;
 
 // ---------- the snapshot's today ----------
 
@@ -420,7 +422,7 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   svg.append(rain);
 
   // The times of day; the closing midnight once there is room for it.
-  const labelY = rainTop + RAIN_H + 17;
+  const labelY = rainTop + RAIN_H + ROW_BASELINE;
   for (const [hour, text] of [
     ...[0, 6, 12, 18].map((h) => [h, hourText(h)]),
     ...(narrow ? [] : [[24, hourText(0)]]),
@@ -442,7 +444,7 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
     svg.append(
       svgEl(
         "text",
-        { x: right, y: labelY + 17, class: "today-basis", "text-anchor": "end" },
+        { x: right, y: labelY + ROW_BASELINE, class: "today-basis", "text-anchor": "end" },
         bandBasisLabel(band),
       ),
     );
