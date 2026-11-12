@@ -457,13 +457,16 @@ def previous_feature(dashboard: Optional[Dict[str, Any]]) -> Optional[Feature]:
 
     :param dashboard: The last published dashboard document
         (`Snapshot.dashboard()`), or None when there is none.
-    :return: Its feature; None when there is no document, it has no feature,
-        or its feature has no `since_ms` (published before the hold) or a
-        kind or reading this rule does not know (an old "wind_gust"). None
+    :return: Its feature; None when there is no document, it is not a JSON
+        object, it has no feature, or its feature has no `since_ms`
+        (published before the hold) or a kind or reading this rule does not
+        know (an old "wind_gust"). None
         means no hold: a document that parsed as JSON is never a failed read
         (ADR-0004); only the hold is lost.
     """
-    published = (dashboard or {}).get("feature")
+    if not isinstance(dashboard, dict):
+        return None
+    published = dashboard.get("feature")
     if not isinstance(published, dict):
         return None
     since_ms = published.get("since_ms")

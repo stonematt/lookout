@@ -2294,3 +2294,17 @@ class TestTheHoldReadsTheLastSnapshot:
         ]
         assert warnings
         assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+
+    def test_a_last_snapshot_that_is_not_an_object_publishes_without_a_hold(
+        self, seed, fake_healthchecks
+    ):
+        # Valid JSON that is not an object is a found document the rule
+        # cannot read: only the hold is lost, the station never fails on it.
+        station = seed()
+        assert self.run_main(station) == 0
+        station.s3.put_object(Bucket=BUCKET, Key=DASHBOARD_KEY, Body=b"[1]")
+
+        assert self.run_main(station) == 0
+
+        assert stored_json(station, DASHBOARD_KEY)["feature"]["held"] is False
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
