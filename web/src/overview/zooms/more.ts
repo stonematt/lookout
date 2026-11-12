@@ -8,7 +8,7 @@
  * Following it changes the route to the tab, which closes the zoom; the
  * shell and the tab shell do the rest.
  *
- * Offers `morePanel`.
+ * Offers `morePanel` and `MoreTab`, the tab it links to.
  */
 import "./more.css";
 

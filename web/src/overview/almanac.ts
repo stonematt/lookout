@@ -57,7 +57,7 @@ import {
   wettestMonth,
 } from "./almanac-text.js";
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
-import type { SectionOptions } from "../rain/index.js";
+import type { SectionOptions } from "../tiles.js";
 import { isShown } from "./history.js";
 import type { OverviewSection } from "./index.js";
 

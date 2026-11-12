@@ -13,6 +13,7 @@ import { renderDry } from "../../rain/index.js";
 import { drySpellTile } from "../mosaic-tiles.js";
 import type { ZoomDefinition } from "../zoom.js";
 import { morePanel } from "./more.js";
+import { RAIN_TAB } from "./rain.js";
 
 /** The dry spell zoom. */
 export const drySpellZoom: ZoomDefinition = {
@@ -26,9 +27,6 @@ export const drySpellZoom: ZoomDefinition = {
       wide: true,
       render: (host, snapshot) => renderDry(host, snapshot, { notes: false }),
     },
-    morePanel(
-      { hash: "rain", name: "Rain" },
-      "The water year, each day of the last 90, rain by the hour",
-    ),
+    morePanel(RAIN_TAB, "The water year, each day of the last 90, rain by the hour"),
   ],
 };

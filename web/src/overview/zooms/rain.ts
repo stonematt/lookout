@@ -8,13 +8,17 @@
  * One home per chart: the water year is `rain/index.ts`'s `renderYears`,
  * the almanac and rolling table `almanac.ts`'s; this file only names them.
  *
- * Offers `rainZoom`.
+ * Offers `rainZoom`, and `RAIN_TAB`, the tab both rain zooms end in a link to.
  */
 import { renderYears } from "../../rain/index.js";
 import { renderGrid, renderRolling, rollingHasRows } from "../almanac.js";
 import { rainTile } from "../mosaic-tiles.js";
 import type { ZoomDefinition } from "../zoom.js";
+import type { MoreTab } from "./more.js";
 import { morePanel } from "./more.js";
+
+/** The Rain tab, which the rain and dry spell zooms end in a link to. */
+export const RAIN_TAB: MoreTab = { hash: "rain", name: "Rain" };
 
 /** The rain zoom. */
 export const rainZoom: ZoomDefinition = {
@@ -39,9 +43,6 @@ export const rainZoom: ZoomDefinition = {
       shown: rollingHasRows,
       render: (host, snapshot) => renderRolling(host, snapshot, { notes: false }),
     },
-    morePanel(
-      { hash: "rain", name: "Rain" },
-      "Each day of the last 90, dry spells, rain by the hour",
-    ),
+    morePanel(RAIN_TAB, "Each day of the last 90, dry spells, rain by the hour"),
   ],
 };

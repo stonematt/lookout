@@ -16,7 +16,8 @@
  * Offers `renderRain`, `SECTIONS`, and the two sections the Overview's
  * zooms draw too, one home per chart: `renderYears` (the rain zoom) and
  * `renderDry` (the dry spell zoom), each taking `SectionOptions` to leave
- * its source note out in a zoom (prototype decision 22).
+ * its source note out in a zoom (prototype decision 22; `SectionOptions`
+ * in `tiles.ts`).
  */
 import "./rain.css";
 
@@ -27,7 +28,7 @@ import { drawDays } from "../charts/days-switch.js";
 import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
 import { isShown } from "../overview/history.js";
-import type { TileSection } from "../tiles.js";
+import type { SectionOptions, TileSection } from "../tiles.js";
 import {
   gapReasons,
   hatchedCount,
@@ -60,16 +61,6 @@ const KEY_STEPS: [string, string][] = [
   ["steady", "up to 0.30 in"],
   ["heavy", "over 0.30 in"],
 ];
-
-/** How a section draws: as the Rain tab's tile, or in a zoom. */
-export interface SectionOptions {
-  /**
-   * Whether the section ends in its folded source note. Default true: the
-   * Rain tab keeps its notes. A zoom passes false, as the Overview's sources
-   * footer carries the tile's line (prototype decision 22).
-   */
-  notes?: boolean;
-}
 
 /** A chart figure with its live readout; returns both. */
 function figure(host: HTMLElement, name: string): { chart: HTMLElement; readout: HTMLElement } {
@@ -152,8 +143,6 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
   drawDays(chart, {
     all: tab.recent.rain_in.length,
     name: (days) => `Rain each day over the last ${days} days`,
-    standfirst: null,
-    lede: () => "",
     draw: (days, width) =>
       drawDailyBars(chart, lastDays(tab.recent, days), width, (t) => (readout.textContent = t)),
   });
@@ -163,7 +152,7 @@ function renderDaily(host: HTMLElement, snapshot: DashboardSnapshot): void {
     {},
     "daily rain counter",
     [
-      "Rain each day of the last 90, or the last 30 on a phone; the day marked today is the live total.",
+      "One bar for each day; the day marked today is the live total.",
       "The station archive, each day's highest daily rain counter, with today's live total.",
     ],
     gapReasons([[hatchedDays(tab), "day", "days"]]),
@@ -305,8 +294,6 @@ function renderHours(host: HTMLElement, snapshot: DashboardSnapshot): void {
   drawDays(chart, {
     all: tab.recent.rain_in.length,
     name: (days) => `Rain by the hour over the last ${days} days`,
-    standfirst: null,
-    lede: () => "",
     draw: (days, width) =>
       drawHourGrid(chart, lastDays(tab.recent, days), width, (t) => (readout.textContent = t)),
   });
@@ -330,7 +317,7 @@ function renderHours(host: HTMLElement, snapshot: DashboardSnapshot): void {
     {},
     "archive and live reading, hourly",
     [
-      "Each column is a day of the last 90 (30 on a phone) and each row an hour, midnight at the top; the key shows the rain each shade stands for.",
+      "Each column is a day and each row an hour, midnight at the top; the key shows the rain each shade stands for.",
       "The station archive and the live reading. Each hour's rain is the rise in the station's daily counter within it; rain counted during a gap lands in the hour after it.",
     ],
     gapReasons([[hatchedDays(tab), "day", "days"]]),

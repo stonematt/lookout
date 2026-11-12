@@ -11,6 +11,7 @@
  */
 import { dayText, formatDayCount, formatDaysSpoken, hourText, inches } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
+import { isShown } from "../overview/history.js";
 import type {
   DashboardSnapshot,
   GapStatus,
@@ -262,7 +263,7 @@ export function hoursHeadline(snapshot: DashboardSnapshot): string {
 export function windowsNote(snapshot: DashboardSnapshot): string | null {
   const groups = new Map<string, string[]>();
   for (const window of snapshot.rain_tab.windows) {
-    if (window.status.status !== "invalid" || window.status.shown === false) continue;
+    if (window.status.status !== "invalid" || !isShown(window.status)) continue;
     const reason = window.status.reason ?? "gap";
     groups.set(reason, [...(groups.get(reason) ?? []), WINDOW_NAMES[window.key] ?? window.key]);
   }

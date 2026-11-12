@@ -76,10 +76,10 @@ export interface DaysChart {
   all: number;
   /** The chart's accessible name, given the days it shows. */
   name: (days: number) => string;
-  /** The tile's standfirst, which follows the days shown; null for none. */
-  standfirst: HTMLElement | null;
-  /** The standfirst's words, given the days shown. */
-  lede: (days: number) => string;
+  /** The tile's standfirst, which follows the days shown; none by default. */
+  standfirst?: HTMLElement | null;
+  /** The standfirst's words, given the days shown; with `standfirst`. */
+  lede?: (days: number) => string;
   /** Draws the chart's last `days` at a width. */
   draw: (days: number, width: number) => void;
 }
@@ -98,7 +98,7 @@ export function drawDays(chart: HTMLElement, spec: DaysChart): () => void {
   const redraw = drawSized(chart, (width) => {
     const days = span.days(width);
     chart.setAttribute("aria-label", `${spec.name(days)}. Use the arrow keys to read each mark.`);
-    if (spec.standfirst) spec.standfirst.textContent = spec.lede(days);
+    if (spec.standfirst && spec.lede) spec.standfirst.textContent = spec.lede(days);
     spec.draw(days, width);
   });
   return redraw;
