@@ -388,13 +388,13 @@ function rollingShown(almanac: Almanac): { windows: RollingWindow[]; columns: nu
 }
 
 /**
- * Whether the rolling table has a row the record covers; the Overview draws
- * no rolling tile without one (#470).
+ * Whether the rolling table has a row the record covers; no rolling tile is
+ * drawn without one (#470).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns True when at least one cell is shown.
  */
-export function rollingHasRows(snapshot: DashboardSnapshot): boolean {
+function rollingHasRows(snapshot: DashboardSnapshot): boolean {
   return rollingShown(snapshot.almanac).windows.length > 0;
 }
 
@@ -485,5 +485,7 @@ export const rollingRain: OverviewSection = {
   id: "rolling-rain",
   label: "Rain over the last week, month and season",
   kicker: "Rain, rolling windows",
+  // Not drawn while the record covers none of its windows (#470).
+  shown: rollingHasRows,
   render: renderRolling,
 };

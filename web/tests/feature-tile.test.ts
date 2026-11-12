@@ -51,7 +51,7 @@ describe("the feature tile", () => {
       (t) => t.dataset.section,
     );
 
-    expect(ids.slice(0, 3)).toEqual(["first-screen", "feature", "temperature-periods"]);
+    expect(ids.slice(0, 3)).toEqual(["first-screen", "feature", "temperature"]);
     expect(panel.querySelector("[data-section=hero-lead]")).toBeNull();
     expect(panel.querySelector("details[data-part=why]")).toBeNull();
     expect(panel.textContent).not.toMatch(/What leads|Why this leads|Leading:/);
@@ -66,26 +66,35 @@ describe("the feature tile", () => {
     expect([...tile()!.children]).toEqual([links[0]]);
     const finding = words(tile()!.querySelector("[data-part=finding]"))!;
     const name = links[0]!.getAttribute("aria-label")!;
-    expect(name.startsWith(tile()!.getAttribute("aria-label")!)).toBe(true);
+    // The tile is no named region, so the link alone says the finding (#472).
+    expect(tile()!.hasAttribute("aria-label")).toBe(false);
     expect(name).toMatch(/\. (Open|Go to) .+\.$/);
     expect(name.toLowerCase()).toContain(finding.toLowerCase());
     // Nothing inside the link is interactive in its own right.
     expect(links[0]!.querySelector("a, button, details, input")).toBeNull();
   });
 
-  it("spans half the four-column grid beside temperature, so every row is whole", () => {
-    draw(parseDashboard(golden("seasoned", "dashboard")));
-    const spans = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
-      Number(t.dataset.span),
+  /** The four-column grid's cells the tiles fill: the feature 2×2, the rest their span. */
+  const cells = () =>
+    [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
+      t.dataset.section === "feature" ? 4 : Number(t.dataset.span),
     );
-    let row = 0;
-    for (const span of spans) {
-      row += span;
-      if (row > 4) throw new Error(`row overflows at ${spans.join(",")}`);
-      if (row === 4) row = 0;
-    }
-    expect(row).toBe(0);
+
+  it("spans two columns of the four-column grid, beside the first four mosaic tiles", () => {
+    draw(parseDashboard(golden("seasoned", "dashboard")));
+    const ids = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map(
+      (t) => t.dataset.section,
+    );
+
     expect(tile()!.dataset.span).toBe("2");
+    expect(ids.slice(1, 6)).toEqual([
+      "feature",
+      "temperature",
+      "rain",
+      "last-10-days",
+      "dry-spell",
+    ]);
+    expect(cells().reduce((a, b) => a + b, 0) % 4).toBe(0);
   });
 
   it.each(SCENARIOS)(
@@ -94,20 +103,9 @@ describe("the feature tile", () => {
       const withoutFeature = doc(s);
       delete withoutFeature.feature;
       draw(parseDashboard(withoutFeature));
-      const spans = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
-        Number(t.dataset.span),
-      );
-      let row = 0;
-      for (const span of spans) {
-        row += span;
-        if (row > 4) throw new Error(`row overflows at ${spans.join(",")}`);
-        if (row === 4) row = 0;
-      }
-      expect(row, `a row is left open at ${spans.join(",")}`).toBe(0);
+
       expect(tile()).toBeNull();
-      expect(
-        panel.querySelector<HTMLElement>("[data-section=temperature-periods]")!.dataset.span,
-      ).toBe("4");
+      expect(cells().reduce((a, b) => a + b, 0) % 4, cells().join(",")).toBe(0);
     },
   );
 
@@ -158,8 +156,8 @@ describe("the feature tile", () => {
       /^Temperature 72.0°, warmer than usual for (\d+ (am|pm)|noon|midnight): the 100th percentile/,
     );
     expect(name).toContain("in earlier years");
-    expect(name).toMatch(/\. Go to Now against this date\.$/);
-    expect(link().getAttribute("href")).toBe("#overview-against-normal");
+    expect(name).toMatch(/\. Go to Temperature\.$/);
+    expect(link().getAttribute("href")).toBe("#overview-temperature");
   });
 
   it.each([
@@ -215,28 +213,25 @@ describe("the feature tile", () => {
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Today");
     const t = dry.current.temperature_f!.toFixed(1);
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe(`${t}°`);
-    expect(link().getAttribute("aria-label")).toBe(
-      `A usual day, ${t}° now. Go to Now against this date.`,
-    );
-    expect(link().getAttribute("href")).toBe("#overview-against-normal");
+    expect(link().getAttribute("aria-label")).toBe(`A usual day, ${t}° now. Go to Temperature.`);
+    expect(link().getAttribute("href")).toBe("#overview-temperature");
   });
 
   it("gives every Overview tile an id the in-page links reach", () => {
     draw(parseDashboard(golden("dry", "dashboard")));
-    for (const id of ["against-normal", "wind", "pressure", "air"]) {
+    for (const id of ["temperature", "wind", "pressure", "air"]) {
       expect(panel.querySelector(`#overview-${id}`), id).not.toBeNull();
     }
   });
 
-  it("opens the finding row it points to on a phone", () => {
+  it("points at an open tile on a phone, the Overview having no finding rows", () => {
     setLayout("phone");
     draw(parseDashboard(golden("dry", "dashboard")));
-    const target = panel.querySelector<HTMLDetailsElement>("#overview-against-normal")!;
+    const target = panel.querySelector<HTMLElement>("#overview-temperature")!;
 
-    expect(target.tagName).toBe("DETAILS");
-    expect(target.open).toBe(false);
-    link().click();
-    expect(target.open).toBe(true);
+    expect(link().getAttribute("href")).toBe("#overview-temperature");
+    expect(target.tagName).toBe("SECTION");
+    expect(panel.querySelector("details.tile-row")).toBeNull();
   });
 
   it("is in the phone's fixed top, an open tile, never a finding row", () => {
@@ -259,7 +254,7 @@ describe("the feature in a snapshot before Release A (N−1, ADR-0008)", () => {
     expect(tile()).toBeNull();
     expect(panel.querySelector("[data-section=hero-lead]")).toBeNull();
     expect(panel.querySelector("[data-section=first-screen]")).not.toBeNull();
-    expect(panel.querySelector("[data-section=temperature-periods]")).not.toBeNull();
+    expect(panel.querySelector("[data-section=temperature]")).not.toBeNull();
   });
 
   it.each([

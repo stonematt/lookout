@@ -360,12 +360,12 @@ describe("the rolling-window table", () => {
   });
 });
 
-describe("on the Overview", () => {
-  it("follows the feature tile, the grid before the table", () => {
+describe("as tiles of their own", () => {
+  it("left the Overview with the accordion (#472), for the rain zoom", () => {
     const ids = SECTIONS.map((s) => s.id);
 
-    expect(ids.indexOf("almanac")).toBeGreaterThan(ids.indexOf("feature"));
-    expect(ids.indexOf("rolling-rain")).toBe(ids.indexOf("almanac") + 1);
+    expect(ids).not.toContain("almanac");
+    expect(ids).not.toContain("rolling-rain");
   });
 
   it.each([
@@ -374,7 +374,7 @@ describe("on the Overview", () => {
   ])("renders the grid from the %s golden, and no rolling table it cannot cover", (_, snapshot) => {
     document.body.innerHTML = "<div id=panel></div>";
     const panel = document.getElementById("panel")!;
-    renderOverview(panel, snapshot);
+    renderOverview(panel, snapshot, [almanacGrid, rollingRain]);
 
     const section = panel.querySelector("[data-section=almanac]")!;
     expect(text(section.querySelector("[data-part=finding]"))).toBeTruthy();

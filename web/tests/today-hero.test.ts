@@ -237,20 +237,20 @@ describe("the delta line on usual", () => {
     expect(line()).toBe("at usual for 4 pm");
   });
 
-  it("stands under the temperature, in the tile's name", () => {
+  it("stands under the temperature, read once with it (no tile name repeats it)", () => {
     renderOverview(panel, seasoned);
     const parts = [...hero().querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
     expect(parts.indexOf("delta")).toBe(parts.indexOf("temperature") + 1);
-    expect(hero().getAttribute("aria-label")).toContain(", +12° on usual for 3 pm.");
+    expect(line()).toBe("+12° on usual for 3 pm");
+    expect(hero().hasAttribute("aria-label")).toBe(false);
   });
 
   it("prints no line and no element for a null delta", () => {
     renderOverview(panel, parseDashboard(withDelta(null)));
     expect(hero().querySelector("[data-part=delta]")).toBeNull();
-    expect(hero().textContent).not.toContain("on usual for");
-    expect(hero().getAttribute("aria-label")).toMatch(/°F now\.$/);
+    expect(hero().textContent).not.toContain("on usual");
   });
 
   it("prints no line for an absent delta (N−1), the rest of the hero unchanged", () => {

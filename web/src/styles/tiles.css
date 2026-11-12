@@ -206,12 +206,7 @@
   padding-block: var(--s-1);
 }
 
-.tile-rows-heading {
-  margin: var(--s-2) 0 var(--s-1);
-}
-
-.tile-row + .tile-row,
-.tile-rows-heading + .tile-row {
+.tile-row + .tile-row {
   border-top: 1px solid var(--rule);
 }
 
@@ -276,14 +271,15 @@
   padding-bottom: var(--s-4);
 }
 
-/* ---------- phone: quick facts ---------- */
-/* DESIGN.md "Quick-fact tiles": on a phone the quick-fact tiles sit two to
-   a row (a 2×2 with sun and moon); every other tile keeps the full width */
+/* ---------- phone: half-width tiles ---------- */
+/* DESIGN.md "Quick-fact tiles" and the mosaic (#472): on a phone the
+   quick-fact and mosaic tiles sit two to a row; every other tile keeps the
+   full width */
 :root:not([data-layout="two"], [data-layout="four"]) .tile-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-fact]) {
+:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-fact], [data-mosaic]) {
   grid-column: 1 / -1;
 }
 

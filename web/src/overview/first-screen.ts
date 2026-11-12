@@ -12,7 +12,7 @@
  * source note carries no archive lag chip (#458): the header states
  * freshness once, and the chart hatches its unarchived end in place.
  *
- * Offers `firstScreen`, the section, and `nowFinding`, its finding in words.
+ * Offers `firstScreen`, the section.
  */
 import "./first-screen.css";
 
@@ -69,19 +69,6 @@ function firstScreenSource(snapshot: DashboardSnapshot): string {
   );
 }
 
-/**
- * The now tile's finding in words, its accessible name.
- *
- * @param snapshot - The dashboard snapshot.
- * @returns E.g. "59.3°F now."
- */
-export function nowFinding(snapshot: DashboardSnapshot): string {
-  const t = snapshot.current.temperature_f;
-  if (t === null) return "Temperature not known.";
-  const delta = nowDeltaText(snapshot);
-  return delta ? `${t.toFixed(1)}°F now, ${delta}.` : `${t.toFixed(1)}°F now.`;
-}
-
 /** The delta line under the temperature; none when the snapshot decided none. */
 function deltaLine(snapshot: DashboardSnapshot): HTMLElement | null {
   const text = nowDeltaText(snapshot);
@@ -131,6 +118,5 @@ export const firstScreen: OverviewSection = {
   span: 4,
   phoneTop: true,
   now: true,
-  finding: nowFinding,
   render,
 };

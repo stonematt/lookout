@@ -69,13 +69,17 @@ describe("the layout switch", () => {
 });
 
 describe("the Overview's grid under each layout", () => {
-  // The grid's rules, then the temperature tiles' two-column override.
-  const css = ["../src/styles/tiles.css", "../src/overview/temperature.css"]
+  // The grid's rules, then the mosaic's: the feature's two rows.
+  const css = ["../src/styles/tiles.css", "../src/overview/mosaic.css"]
     .map((path) => readFileSync(resolve(import.meta.dirname, path), "utf8"))
     .join("\n");
 
   /** The grid's columns and each tile's span, with the layout set before it renders. */
-  function grid(layout: "phone" | "two" | "four"): { columns: string; spans: string[] } {
+  function grid(layout: "phone" | "two" | "four"): {
+    columns: string;
+    spans: string[];
+    featureRows: string;
+  } {
     document.head.innerHTML = "";
     const style = document.createElement("style");
     style.textContent = css;
@@ -84,58 +88,37 @@ describe("the Overview's grid under each layout", () => {
     document.body.innerHTML = "<div id=panel></div>";
     renderOverview(document.getElementById("panel")!, raining);
     const tiles = [...document.querySelectorAll<HTMLElement>(".tile")];
+    const feature = document.querySelector<HTMLElement>(".tile[data-section=feature]")!;
     return {
       columns: getComputedStyle(document.querySelector(".tile-grid")!).gridTemplateColumns,
       spans: tiles.map((tile) => getComputedStyle(tile).gridColumn || "span 1"),
+      featureRows: getComputedStyle(feature).gridRow || "span 1",
     };
   }
 
-  it("is one column of tiles on a phone, the quick facts two to a row", () => {
+  /** The four mosaic tiles, then wind, pressure, air, and sun and moon. */
+  const halves = Array<string>(8).fill("span 1");
+
+  it("is two columns on a phone: now and feature full width, the mosaic two to a row", () => {
     const { columns, spans } = grid("phone");
     expect(columns).toBe("repeat(2, minmax(0, 1fr))");
-    // now, lead and the finding rows full width; wind, pressure, air, and
-    // sun and moon a 2×2.
-    expect(spans).toEqual(["1 / -1", "1 / -1", "1 / -1", "span 1", "span 1", "span 1", "span 1"]);
+    expect(spans).toEqual(["1 / -1", "1 / -1", ...halves]);
   });
 
-  it("is two columns of tiles at two-column, no tile wider than both", () => {
-    const { columns, spans } = grid("two");
+  it("is two columns at two-column: now and feature full width, one column a tile", () => {
+    const { columns, spans, featureRows } = grid("two");
     expect(columns).toBe("repeat(2, minmax(0, 1fr))");
-    // now, lead and periods full width; the two single tiles share a row;
-    // the almanac full width (the raining golden's record covers no rolling
-    // window, so that tile is not drawn, #470); the quick facts half each.
-    expect(spans).toEqual([
-      "span 2",
-      "span 2",
-      "span 2",
-      "span 1",
-      "span 1",
-      "span 2",
-      "span 1",
-      "span 1",
-      "span 1",
-      "span 1",
-    ]);
+    expect(spans).toEqual(["span 2", "span 2", ...halves]);
+    expect(featureRows).toBe("span 1");
   });
 
-  it("is four columns of tiles at four-column, each tile at its declared span", () => {
-    const { columns, spans } = grid("four");
+  it("is four columns at four-column, the feature 2×2 at the left (Desktop board)", () => {
+    const { columns, spans, featureRows } = grid("four");
     expect(columns).toBe("repeat(4, minmax(0, 1fr))");
-    // The now tile takes the whole first row (the Desktop board, #468), the
-    // strips and the ten-day list half a row each, so no row is left with a
-    // hole; the quick facts take a row of four one-column tiles.
-    // With no rolling-window tile (#470) the almanac takes the whole row.
-    expect(spans).toEqual([
-      "span 4",
-      "span 2",
-      "span 2",
-      "span 2",
-      "span 2",
-      "span 4",
-      "span 1",
-      "span 1",
-      "span 1",
-      "span 1",
-    ]);
+    // The now tile takes the whole first row; the feature two columns and
+    // two rows, so the first four mosaic tiles fill the 2×2 beside it, row
+    // first, and the rest flow one column each in the phone's order.
+    expect(spans).toEqual(["span 4", "span 2", ...halves]);
+    expect(featureRows).toBe("span 2");
   });
 });

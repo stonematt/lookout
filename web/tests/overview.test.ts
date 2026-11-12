@@ -67,7 +67,8 @@ describe("the Overview", () => {
     ]);
 
     expect(seen).toEqual(["a Kicker A", `b Kicker for ${dry.station.name}`]);
-    expect(all(".tile").map((el) => el.getAttribute("aria-label"))).toEqual(["A", "B"]);
+    // No tile is a named region: its content names it (#472).
+    expect(all(".tile").map((el) => el.getAttribute("aria-label"))).toEqual([null, null]);
     expect(all(".tile").map((el) => el.dataset.span)).toEqual(["1", "3"]);
   });
 
@@ -81,14 +82,6 @@ describe("the current temperature", () => {
     renderOverview(panel, raining);
 
     expect(text("[data-part=temperature]")).toBe("59.3°F");
-  });
-
-  it("names the now tile by its temperature and its delta on usual", () => {
-    renderOverview(panel, raining);
-
-    expect(panel.querySelector("[data-section=first-screen]")?.getAttribute("aria-label")).toBe(
-      "59.3°F now, at usual for 4 pm.",
-    );
   });
 
   it("shows n/a when the station reports no temperature", () => {

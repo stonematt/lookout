@@ -6,11 +6,11 @@
  * right now" and the browser rules that went with it.
  *
  * The tile is one link: kicker, value and finding all sit inside it, and its
- * accessible name is the finding, then where it goes. Release B1 has no
- * zooms (B2 builds `#overview/<tile>`), so the link goes where the evidence
- * is today: the Rain Events tab for rain, the Rain tab for a dry spell, the
- * Solar tab for unusual sun, and otherwise the Overview tile carrying the
- * reading (`#overview-<section>`, opened if it is a closed finding row).
+ * accessible name is the finding, then where it goes. Until the zooms land
+ * (`#overview/<tile>`, #474), the link goes where the evidence is today: the
+ * Rain Events tab for rain, the Rain tab for a dry spell, the Solar tab for
+ * unusual sun, and otherwise the Overview tile carrying the reading
+ * (`#overview-<section>`: the Temperature mosaic tile, or a quick fact).
  *
  * Every value is the snapshot's: this module words, formats and links; it
  * does not pick, rank or compare.
@@ -62,9 +62,9 @@ export interface FeatureView {
 
 const RAIN_EVENTS: Target = { href: "#events", words: "Open the Rain Events tab" };
 const RAIN: Target = { href: "#rain", words: "Open the Rain tab" };
-const AGAINST: Target = {
-  href: "#overview-against-normal",
-  words: "Go to Now against this date",
+const TEMPERATURE: Target = {
+  href: "#overview-temperature",
+  words: "Go to Temperature",
 };
 
 /** Per reading: its name, the two comparatives, its Overview target. */
@@ -72,7 +72,7 @@ const READINGS: Record<
   FeatureReading,
   { name: string; high: string; low: string; target: Target }
 > = {
-  temperature: { name: "temperature", high: "warmer", low: "cooler", target: AGAINST },
+  temperature: { name: "temperature", high: "warmer", low: "cooler", target: TEMPERATURE },
   humidity: {
     name: "humidity",
     high: "more humid",
@@ -235,7 +235,7 @@ function quietView(snapshot: DashboardSnapshot): FeatureView {
     finding: "a usual day",
     name: value === null ? "A usual day" : `A usual day, ${spoken(value)} now`,
     live: false,
-    target: AGAINST,
+    target: TEMPERATURE,
   };
 }
 
@@ -261,13 +261,6 @@ export function featureView(snapshot: DashboardSnapshot): FeatureView | null {
   }
 }
 
-/** Open the Overview finding row an in-page link points to, if it is one. */
-function openTarget(href: string): void {
-  if (!href.startsWith("#overview-")) return;
-  const target = document.getElementById(href.slice(1));
-  if (target instanceof HTMLDetailsElement) target.open = true;
-}
-
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const view = featureView(snapshot);
   if (!view) return;
@@ -277,7 +270,6 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   link.className = "feature-link";
   link.href = view.target.href;
   link.setAttribute("aria-label", `${view.name}. ${view.target.words}.`);
-  link.addEventListener("click", () => openTarget(view.target.href));
 
   // The kicker renderTiles put first moves into the link, with the chevron.
   const kicker = host.querySelector<HTMLElement>(":scope > [data-part=kicker]");
@@ -328,11 +320,13 @@ export const featureTile: OverviewSection = {
   id: "feature",
   label: "The feature",
   kicker: (snapshot) => featureView(snapshot)?.kicker ?? "The feature",
-  // Half the four-column grid, the feature's column of the desktop board,
-  // beside temperature in context, so every row stays whole; the whole
-  // width of the two-column grid and of a phone.
+  // Two columns and two rows of the four-column grid, at the left, with the
+  // first four mosaic tiles beside it (`mosaic.css`); the whole width of the
+  // two-column grid and of a phone.
   span: 2,
   phoneTop: true,
-  finding: (snapshot) => featureView(snapshot)?.name ?? "The feature",
+  // A snapshot without a feature (published before Release A, ADR-0008)
+  // draws no feature tile.
+  shown: (snapshot) => Boolean(snapshot.feature),
   render,
 };
