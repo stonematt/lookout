@@ -31,8 +31,12 @@ cd web && npm run format:check && npm run lint && npm run build && npm test
 
 ## Branches
 
-- Branch `feat/*`, `fix/*`, `docs/*` or `refactor/*` off `dev`, and open the PR into `dev`.
+The flow is: feature or lane branch → `goal/<slug>` → `uat/<slug>` (UAT only) → `dev` → `main`.
+
+- Branch `feat/*`, `fix/*`, `docs/*` or `refactor/*` off `dev`, and open the PR into `dev`. A release built by a swarm uses `lane/<slug>` branches that merge into `goal/<slug>`.
+- For UAT, the goal tip is pushed as `uat/<slug>`. Fixes land on the goal branch and are merged forward into it. On Matt's pass, the goal PR merges into `dev`. The steps are in [`.claude/swarm-profile.md`](.claude/swarm-profile.md) ("UAT branch per release").
 - A release is a PR from `dev` into `main`. Vercel deploys production from `main`, and the VPS checkout tracks `main`.
+- Only `main`, `dev` and `uat/**` deploy on Vercel. Every other branch creates no deployment. Why: [ADR-0010](docs/adr/0010-deploy-allowlist-and-uat-branch-per-release.md).
 - Commit and PR titles follow Conventional Commits (`fix(web): ...`, `docs(ops): ...`). The body says why.
 
 ## Standards
