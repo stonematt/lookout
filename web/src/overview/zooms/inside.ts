@@ -2,7 +2,7 @@
  * The Inside zoom (#477, spec #460; boards `Zoom`, `ZoomDark`): the Inside
  * tile's rows at full size, one per indoor sensor still reporting
  * (`indoor`, #466): its name, its temperature and humidity in the tile's
- * own words (`insideTile.rows`), then its last 24 hours, hourly, as a line
+ * own words (`sensorRow`), then its last 24 hours, hourly, as a line
  * the panel's width, its newest hour the now dot. No source note (prototype
  * decision 22).
  *
@@ -12,7 +12,7 @@ import { runs, scale } from "../../charts/svg.js";
 import { svgEl } from "../../dom.js";
 import { degrees } from "../../format.js";
 import type { DashboardSnapshot, IndoorSensor } from "../../snapshot.js";
-import { insideTile } from "../mosaic-conditions.js";
+import { insideTile, sensorRow } from "../mosaic-conditions.js";
 import { miniChart, spoken } from "../mosaic.js";
 import type { ZoomDefinition } from "../zoom.js";
 import { factValue, sizedChart } from "./parts.js";
@@ -72,9 +72,8 @@ function renderSensors(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const list = document.createElement("div");
   list.className = "zoom-sensors";
   host.append(list);
-  const sensors = snapshot.indoor ?? [];
-  insideTile.rows?.(snapshot).forEach((row, i) => {
-    const sensor = sensors[i]!;
+  for (const sensor of snapshot.indoor ?? []) {
+    const row = sensorRow(sensor);
     const item = document.createElement("section");
     item.className = "zoom-sensor";
     item.dataset.part = "sensor";
@@ -88,7 +87,7 @@ function renderSensors(host: HTMLElement, snapshot: DashboardSnapshot): void {
     item.append(name, reading);
     list.append(item);
     sizedChart(item, "sensor-line", (width) => sensorChart(sensor, width));
-  });
+  }
 }
 
 /** The Inside zoom. */

@@ -184,7 +184,7 @@ describe("the Daylight zoom", () => {
 
   it("lets its lead break between hours and minutes, never inside either", () => {
     const value = daylightZoom.lead!(parsed()).value!;
-    expect(value).toMatch(/^\d+ h \d+ m$/);
+    expect(value).toMatch(/^\d+\u00a0h \d+\u00a0m$/);
   });
 
   it("words the moon's full day and its last days", () => {

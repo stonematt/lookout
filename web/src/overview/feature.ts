@@ -80,7 +80,7 @@ const zoomTarget = (tile: MosaicTile): Target => ({
   href: `#overview/${tile.slug}`,
   words: `Open the ${tile.zoomName} view`,
 });
-// The temperature zoom (#474); the humidity and pressure zooms (#477).
+// The temperature zoom (#474).
 const TEMPERATURE = zoomTarget(temperatureTile);
 
 /** Per reading: its name, the two comparatives, its Overview target. */

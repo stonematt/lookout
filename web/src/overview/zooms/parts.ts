@@ -19,8 +19,18 @@ import { drawSized } from "../../charts/svg.js";
  * @returns The paragraph.
  */
 export function sentence(host: HTMLElement, text: string, part: string): HTMLParagraphElement {
+  return paragraph(host, "zoom-sentence", text, part);
+}
+
+/** A paragraph of one class appended to a panel. */
+function paragraph(
+  host: HTMLElement,
+  className: string,
+  text: string,
+  part: string,
+): HTMLParagraphElement {
   const p = document.createElement("p");
-  p.className = "zoom-sentence";
+  p.className = className;
   p.dataset.part = part;
   p.textContent = text;
   host.append(p);
@@ -36,12 +46,7 @@ export function sentence(host: HTMLElement, text: string, part: string): HTMLPar
  * @returns The paragraph.
  */
 export function factValue(host: HTMLElement, text: string, part: string): HTMLParagraphElement {
-  const p = document.createElement("p");
-  p.className = "zoom-fact";
-  p.dataset.part = part;
-  p.textContent = text;
-  host.append(p);
-  return p;
+  return paragraph(host, "zoom-fact", text, part);
 }
 
 /**

@@ -26,7 +26,8 @@
  * live reading reads "n/a", never zero.
  *
  * Offers `windClauses`, `windTile`, `pressureTile`, `humidityTile`, `sunTile`,
- * `daylightTile` and `insideTile`.
+ * `daylightTile`, `insideTile`, and `sensorRow` (one indoor sensor's
+ * words, which the Inside zoom shares).
  */
 import { runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -379,6 +380,25 @@ function indoorLine(sensor: IndoorSensor, width: number): SVGSVGElement | null {
   return svg;
 }
 
+/**
+ * One indoor sensor as a row: its name, temperature, humidity and line. The
+ * Inside zoom words its sensors with it too.
+ *
+ * @param sensor - The indoor sensor.
+ * @returns The row.
+ */
+export function sensorRow(sensor: IndoorSensor): MosaicRow {
+  return {
+    name: sensor.name,
+    value: degrees(sensor.temperature_f),
+    aside:
+      sensor.humidity_pct === null
+        ? null
+        : { text: percent(sensor.humidity_pct), spoken: "humidity" },
+    line: (width) => indoorLine(sensor, width),
+  };
+}
+
 /** Inside: one row per indoor sensor still reporting. */
 export const insideTile: MosaicTile = {
   slug: "inside",
@@ -387,16 +407,7 @@ export const insideTile: MosaicTile = {
   zoomName: "inside",
   shown: (snapshot) => (snapshot.indoor?.length ?? 0) > 0,
   read: () => ({ value: null, delta: null }),
-  rows: (snapshot): MosaicRow[] =>
-    (snapshot.indoor ?? []).map((sensor) => ({
-      name: sensor.name,
-      value: degrees(sensor.temperature_f),
-      aside:
-        sensor.humidity_pct === null
-          ? null
-          : { text: percent(sensor.humidity_pct), spoken: "humidity" },
-      line: (width) => indoorLine(sensor, width),
-    })),
+  rows: (snapshot): MosaicRow[] => (snapshot.indoor ?? []).map(sensorRow),
   source: () => ({
     what: "each indoor sensor's newest reading in the last 24 hours",
     method:

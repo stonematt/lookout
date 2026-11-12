@@ -61,7 +61,7 @@ export const daylightZoom: ZoomDefinition = {
     const reading = daylightTile.read(snapshot);
     // The tile keeps "9 h 23 m" on one line; at display size a 320px phone
     // cannot, so the zoom lets it break between the hours and the minutes.
-    const value = reading.value?.replace(/(h) (\d)/, "$1 $2") ?? null;
+    const value = reading.value?.replace(/(h)\u00a0(\d)/, "$1 $2") ?? null;
     return { ...reading, value };
   },
   panels: [
