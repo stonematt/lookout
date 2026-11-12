@@ -216,7 +216,14 @@ def _period(
 def _periods(
     coverage: ArchiveCoverage, readings: Optional[_Readings], now: Optional[float]
 ) -> Tuple[TemperaturePeriod, ...]:
-    """The range bar of each standard window, with where `now` sits."""
+    """
+    The range bar of each standard window, with where `now` sits.
+
+    :param coverage: The build's counted days.
+    :param readings: The stitched readings, or None when there are none.
+    :param now: The current temperature.
+    :return: One period per standard window, in order.
+    """
     windows = {w.key: w for w in coverage.standard_windows()}
     return tuple(
         _period(windows[key], coverage, readings, now) for key in standard_window_keys()
@@ -512,15 +519,15 @@ def temperature_context(
     readings = _Readings(stitched, coverage.tz) if not stitched.empty else None
     if readings is None:
         return TemperatureContext(
-            None,
-            None,
-            None,
-            _periods(coverage, None, None),
-            (),
-            (),
-            (),
-            usual_band(stitched, coverage),
-            _full_history(coverage, None, None),
+            now=None,
+            now_ms=None,
+            finding=None,
+            periods=_periods(coverage, None, None),
+            ten_days=(),
+            ten_day_years=(),
+            strips=(),
+            usual_band=usual_band(stitched, coverage),
+            full_history=_full_history(coverage, None, None),
         )
 
     periods = _periods(coverage, readings, current.temperature_f)

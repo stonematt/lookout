@@ -1,5 +1,5 @@
 """
-Full history and the history depth (#463), through `build_snapshot`.
+Full history and the record depth (#463), through `build_snapshot`.
 
 A comparison is shown once the record covers its first day: the archive's
 first station-local day is on or before it. One that is shown still reports
@@ -16,7 +16,7 @@ from typing import Dict, Sequence
 
 import pytest
 
-from lookout.snapshot.model import GapStatus, Snapshot
+from lookout.snapshot.model import DepthComparison, GapStatus, Snapshot
 from tests.fixtures.archive import Gap, build_archive
 from tests.snapshot_helpers import (
     build,
@@ -42,14 +42,14 @@ def periods(snapshot: Snapshot) -> Dict[str, GapStatus]:
     return {p.status.key: p.status for p in snapshot.temperature_context.periods}
 
 
-def comparisons(snapshot: Snapshot) -> Dict[str, object]:
-    """The history's comparisons by key."""
-    return {c.key: c for c in snapshot.history.comparisons}
+def comparisons(snapshot: Snapshot) -> Dict[str, DepthComparison]:
+    """The record depth's comparisons by key."""
+    return {c.key: c for c in snapshot.record_depth.comparisons}
 
 
 def tiles(snapshot: Snapshot) -> Dict[str, bool]:
     """Each tile's shown flag by key."""
-    return {t.key: t.shown for t in snapshot.history.tiles}
+    return {t.key: t.shown for t in snapshot.record_depth.tiles}
 
 
 class TestYoungStation:
@@ -103,11 +103,11 @@ class TestYoungStation:
         assert full.high == pytest.approx(archive["tempf"].max(), abs=0.05)
         assert full.readings == len(archive)
 
-    def test_the_history_names_the_record_s_first_day(self, salmon_run):
-        history = salmon_run.history
+    def test_the_depth_names_the_record_s_first_day(self, salmon_run):
+        depth = salmon_run.record_depth
 
-        assert history.first_day == "2026-11-03"
-        assert history.days == 9
+        assert depth.first_day == "2026-11-03"
+        assert depth.days == 9
 
     def test_each_comparison_not_shown_names_the_day_it_unlocks(self, salmon_run):
         found = {
@@ -127,11 +127,11 @@ class TestYoungStation:
         }
 
     def test_the_next_unlock_is_the_earliest(self, salmon_run):
-        unlock = salmon_run.history.next_unlock
+        unlock = salmon_run.record_depth.next_unlock
 
         assert (unlock.key, unlock.date) == ("30d", "2026-12-02")
 
-    def test_every_tile_has_its_history(self, salmon_run):
+    def test_every_tile_has_the_record_it_needs(self, salmon_run):
         assert tiles(salmon_run) == {
             "temperature": True,
             "rain": True,
@@ -173,7 +173,7 @@ class TestGapInsideTheRecord:
         assert full.reason == "gap"
 
     def test_the_gap_does_not_move_the_next_unlock(self, gapped):
-        unlock = gapped.history.next_unlock
+        unlock = gapped.record_depth.next_unlock
 
         assert (unlock.key, unlock.date) == ("30d", "2026-12-02")
 
@@ -189,7 +189,7 @@ class TestFirstDay:
         assert shown == ["today", "full_history"]
 
     def test_yesterday_unlocks_tomorrow(self, first_day):
-        unlock = first_day.history.next_unlock
+        unlock = first_day.record_depth.next_unlock
 
         assert (unlock.key, unlock.date) == ("yesterday", "2026-11-12")
 
@@ -206,12 +206,12 @@ class TestEmptyArchive:
         return build(archive, None, NOW)
 
     def test_nothing_is_shown_and_nothing_unlocks(self, empty):
-        history = empty.history
+        depth = empty.record_depth
 
-        assert history.first_day is None
-        assert history.days == 0
-        assert all(not c.shown and c.unlocks_on is None for c in history.comparisons)
-        assert history.next_unlock is None
+        assert depth.first_day is None
+        assert depth.days == 0
+        assert all(not c.shown and c.unlocks_on is None for c in depth.comparisons)
+        assert depth.next_unlock is None
         assert empty.temperature_context.full_history is None
 
     def test_only_daylight_needs_no_record(self, empty):
@@ -226,12 +226,12 @@ class TestSeasonedGolden:
         return seasoned_station()
 
     def test_every_comparison_is_shown_and_none_unlocks(self, seasoned):
-        history = seasoned.history
+        depth = seasoned.record_depth
 
-        assert history.first_day == "2024-05-04"
-        assert all(c.shown for c in history.comparisons)
+        assert depth.first_day == "2024-05-04"
+        assert all(c.shown for c in depth.comparisons)
         assert all(shown for shown in tiles(seasoned).values())
-        assert history.next_unlock is None
+        assert depth.next_unlock is None
 
     def test_the_long_windows_are_shown_with_their_gap(self, seasoned):
         found = periods(seasoned)
@@ -265,12 +265,12 @@ class TestSeasonedGolden:
 class TestDryGolden:
     def test_the_young_golden_names_a_next_unlock(self):
         snapshot = dry_station()
-        history = snapshot.history
-        first = date.fromisoformat(history.first_day)
-        unlock = history.next_unlock
+        depth = snapshot.record_depth
+        first = date.fromisoformat(depth.first_day)
+        unlock = depth.next_unlock
 
         assert (
-            history.first_day
+            depth.first_day
             == snapshot.temperature_context.full_history.status.first_day
         )
         assert unlock is not None

@@ -1,5 +1,5 @@
 """
-history.py: How deep the station's record is, and what that shows (#463).
+depth.py: How deep the station's record is, and what that shows (#463).
 
 Principle 4: a comparison appears only once the record supports it, and one
 line names the next unlock; a gap inside a shown period stays visible.
@@ -30,7 +30,7 @@ today against); the tiles of today's readings need "today"; daylight needs
 no record.
 
 Functions:
-- history_depth(coverage): The `HistoryDepth` section.
+- record_depth(coverage): The `RecordDepth` section.
 """
 
 from datetime import date, timedelta
@@ -39,9 +39,9 @@ from typing import Dict, List, Optional, Tuple
 from lookout.core.rainfall_analysis import water_year, water_year_start
 from lookout.snapshot.gaps import STANDARD_WINDOWS, ArchiveCoverage
 from lookout.snapshot.model import (
-    HistoryComparison,
-    HistoryDepth,
-    HistoryTile,
+    DepthComparison,
+    RecordDepth,
+    DepthTile,
     NextUnlock,
 )
 from lookout.snapshot.temperature import FULL_HISTORY, SPREAD_DAYS, same_date
@@ -60,21 +60,22 @@ TILES: Tuple[Tuple[str, Optional[str]], ...] = (
     ("sun", "today"),
     ("daylight", None),
 )
-"""Each Overview tile in the mosaic's order and the comparison it needs.
-Inside, the tenth, is decided with the indoor readings (#466)."""
+"""Each Overview tile in the mosaic's order, as (tile, the comparison it
+needs). The Inside tile is not listed: whether it shows depends on the
+station's indoor sensors, decided with the indoor readings (#466)."""
 
 
-def history_depth(coverage: ArchiveCoverage) -> HistoryDepth:
+def record_depth(coverage: ArchiveCoverage) -> RecordDepth:
     """
     The record's depth: each comparison, each tile and the next unlock.
 
     :param coverage: The build's counted days; its clock says which day is
         today.
-    :return: The `HistoryDepth` section.
+    :return: The `RecordDepth` section.
     """
     first = coverage.first_day
     windows = {status.key: status for status in coverage.standard_windows()}
-    comparisons: List[HistoryComparison] = []
+    comparisons: List[DepthComparison] = []
     for key, first_back, _ in STANDARD_WINDOWS:
         unlock = None if first is None else first + timedelta(days=first_back)
         comparisons.append(_comparison(key, windows[key].shown, unlock))
@@ -96,10 +97,10 @@ def history_depth(coverage: ArchiveCoverage) -> HistoryDepth:
 
     shown: Dict[str, bool] = {c.key: c.shown for c in comparisons}
     tiles = tuple(
-        HistoryTile(key, needs, True if needs is None else shown[needs])
+        DepthTile(key, needs, True if needs is None else shown[needs])
         for key, needs in TILES
     )
-    return HistoryDepth(
+    return RecordDepth(
         first_day=None if first is None else first.isoformat(),
         days=0 if first is None else (coverage.today - first).days + 1,
         comparisons=tuple(comparisons),
@@ -108,7 +109,7 @@ def history_depth(coverage: ArchiveCoverage) -> HistoryDepth:
     )
 
 
-def _comparison(key: str, shown: bool, unlock: Optional[date]) -> HistoryComparison:
+def _comparison(key: str, shown: bool, unlock: Optional[date]) -> DepthComparison:
     """
     One comparison, its unlock date named only while it is not shown.
 
@@ -118,8 +119,8 @@ def _comparison(key: str, shown: bool, unlock: Optional[date]) -> HistoryCompari
     :return: The comparison.
     """
     if shown or unlock is None:
-        return HistoryComparison(key, shown, None)
-    return HistoryComparison(key, shown, unlock.isoformat())
+        return DepthComparison(key, shown, None)
+    return DepthComparison(key, shown, unlock.isoformat())
 
 
 def _water_year_unlock(first: date) -> date:
@@ -158,7 +159,7 @@ def _earlier_year_unlock(first: date) -> date:
     return day
 
 
-def _next_unlock(comparisons: List[HistoryComparison]) -> Optional[NextUnlock]:
+def _next_unlock(comparisons: List[DepthComparison]) -> Optional[NextUnlock]:
     """
     The comparison not yet shown that unlocks first.
 
@@ -169,5 +170,6 @@ def _next_unlock(comparisons: List[HistoryComparison]) -> Optional[NextUnlock]:
     pending = [c for c in comparisons if c.unlocks_on is not None]
     if not pending:
         return None
-    soonest = min(pending, key=lambda c: c.unlocks_on or "")
-    return NextUnlock(key=soonest.key, date=soonest.unlocks_on or "")
+    # ISO dates sort as dates; `min` keeps the first of equal ones.
+    soonest = min(pending, key=lambda c: str(c.unlocks_on))
+    return NextUnlock(key=soonest.key, date=str(soonest.unlocks_on))

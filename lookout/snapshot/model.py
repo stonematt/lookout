@@ -1231,9 +1231,9 @@ class StaleCatalog:
 
 
 @dataclass(frozen=True)
-class HistoryComparison:
+class DepthComparison:
     """
-    One comparison's history depth (#463): whether the record supports it.
+    One comparison's record depth (#463): whether the record supports it.
 
     :param key: The comparison: a standard window ("today", "yesterday",
         "7d", "30d", "90d", "365d", "water_year", as `Gaps.windows` keys
@@ -1252,13 +1252,13 @@ class HistoryComparison:
 
 
 @dataclass(frozen=True)
-class HistoryTile:
+class DepthTile:
     """
-    Whether one Overview tile has the history it needs (#463).
+    Whether one Overview tile has the record it needs (#463).
 
     :param key: The tile: "temperature", "rain", "last_10_days",
         "dry_spell", "wind", "pressure", "humidity", "sun" or "daylight".
-    :param needs: The comparison it needs (a `HistoryComparison.key`); null
+    :param needs: The comparison it needs (a `DepthComparison.key`); null
         for a tile that needs no record (daylight).
     :param shown: Whether it is shown: its comparison is.
     """
@@ -1273,7 +1273,7 @@ class NextUnlock:
     """
     The comparison the record unlocks next (#463).
 
-    :param key: Its `HistoryComparison.key`.
+    :param key: Its `DepthComparison.key`.
     :param date: The station-local date, "YYYY-MM-DD", it is first shown.
     """
 
@@ -1282,13 +1282,13 @@ class NextUnlock:
 
 
 @dataclass(frozen=True)
-class HistoryDepth:
+class RecordDepth:
     """
     How deep the station's record is, and what that shows (#463).
 
     The site hides a window row, a tile or an almanac column the record does
     not support and prints one next-unlock line instead of hatched rows
-    (`lookout.snapshot.history`).
+    (`lookout.snapshot.depth`).
 
     :param first_day: The archive's first station-local day; null when it
         is empty.
@@ -1304,8 +1304,8 @@ class HistoryDepth:
 
     first_day: Optional[str]
     days: int
-    comparisons: Tuple[HistoryComparison, ...]
-    tiles: Tuple[HistoryTile, ...]
+    comparisons: Tuple[DepthComparison, ...]
+    tiles: Tuple[DepthTile, ...]
     next_unlock: Optional[NextUnlock]
 
 
@@ -1337,8 +1337,8 @@ class Snapshot:
         no coordinates.
     :param widget_view: Which view a widget shows now: "rain_event",
         "dry_spell" or "temperature_ranges" (`lookout.snapshot.widget`).
-    :param history: The record's depth: what each comparison and tile shows
-        and the next unlock (`lookout.snapshot.history`).
+    :param record_depth: The record's depth: what each comparison and tile shows
+        and the next unlock (`lookout.snapshot.depth`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1360,7 +1360,7 @@ class Snapshot:
     solar_tab: Optional[SolarTab]
     sun_moon: Optional[SunMoon]
     widget_view: WidgetView
-    history: HistoryDepth
+    record_depth: RecordDepth
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

@@ -13539,7 +13539,7 @@
     "days_to_full_moon": 15
   },
   "widget_view": "temperature_ranges",
-  "history": {
+  "record_depth": {
     "first_day": "2025-11-17",
     "days": 3,
     "comparisons": [

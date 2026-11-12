@@ -19258,7 +19258,7 @@
     "days_to_full_moon": 11
   },
   "widget_view": "temperature_ranges",
-  "history": {
+  "record_depth": {
     "first_day": "2024-05-04",
     "days": 747,
     "comparisons": [
