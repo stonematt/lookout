@@ -451,7 +451,9 @@ def hero_lead(
 
     newest = _newest_event(event_catalog, observed_at_ms)
     spell_lengths, spell_window = spells
-    spell_usual = _quartiles(spell_lengths or [], 2)
+    # The chart's quartiles; its median is the field's, so they never differ.
+    low, _, high = _quartiles(spell_lengths or [], 2)
+    spell_usual: _Usual = (low, dry.usual_days, high)
 
     rules = [
         _rain_rule(newest, active, observed_at_ms),

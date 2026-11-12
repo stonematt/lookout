@@ -11,8 +11,8 @@ order, and the first that holds is the view:
 2. **dry_spell**: the current dry spell is longer than the usual dry spell,
    in any month. Both are the snapshot's `dry_spell` field: `days_since_rain`
    is the days since `lastRain`, `usual_days` the median completed dry
-   spell over the last 365 days. Without a usual dry spell (an invalid window) it cannot
-   hold.
+   spell over the last 365 days. Without a usual dry spell (an invalid window)
+   it cannot hold.
 3. **temperature_ranges**, otherwise: now against today, 7, 30 and 365 days.
 
 Functions:
