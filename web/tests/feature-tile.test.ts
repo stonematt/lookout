@@ -174,12 +174,35 @@ describe("the feature tile", () => {
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Unusual · temperature");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("72.0°");
     const name = linkName();
-    expect(name).toMatch(
-      /^Temperature 72.0°, warmer than usual for (\d+ (am|pm)|noon|midnight): the 100th percentile/,
+    // The golden's reading sits at the 100th percentile: past every earlier
+    // reading for this hour, which is said in words, never as "100th" (#563).
+    expect(name).toBe(
+      "Temperature 72.0°, warmer than usual for 3 pm: highest for this hour on record. " +
+        "Open the temperature view.",
     );
-    expect(name).toContain("in earlier years");
-    expect(name).toMatch(/\. Open the temperature view\.$/);
     expect(link().getAttribute("href")).toBe("#overview/temperature");
+  });
+
+  it.each([
+    [100, "humidity", 99, "pct", "more humid than usual for 3 pm: highest for this hour on record"],
+    [0, "humidity", 22, "pct", "drier than usual for 3 pm: lowest for this hour on record"],
+    [0, "temperature", 31.0, "f", "cooler than usual for 3 pm: lowest for this hour on record"],
+  ])(
+    "words the %sth percentile as past every reading for this hour, never as a percentile",
+    (percentile, reading, value, unit, finding) => {
+      draw(edited("seasoned", unusual(reading, value, unit, percentile)));
+      expect(words(tile()!.querySelector(".tile-finding"))).toBe(finding);
+      expect(tile()!.textContent).not.toMatch(/\b(0th|100th)\b|percentile/);
+      expect(linkName()).not.toMatch(/\b(0th|100th)\b|percentile/);
+    },
+  );
+
+  it("names the reading's day when it is from before midnight", () => {
+    // The dry golden is built at midnight from yesterday's 11:55 pm reading.
+    draw(edited("dry", unusual("temperature", 31.0, "f", 4)));
+    expect(words(tile()!.querySelector(".tile-finding"))).toBe(
+      "cooler than usual for 11 pm yesterday: the 4th percentile around this date in earlier years",
+    );
   });
 
   it.each([
