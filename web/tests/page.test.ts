@@ -521,6 +521,6 @@ describe("a v2 snapshot (the refresh run before schema 3)", () => {
     expect(masthead.textContent).not.toContain(FAILED);
     expect(panel("overview").textContent).not.toContain(FAILED);
     expect(panel("overview").textContent).not.toContain(LOADING);
-    expect(panel("overview").querySelector(".ribbon-dot")).not.toBeNull();
+    expect(panel("overview").querySelector(".today-dot")).not.toBeNull();
   });
 });

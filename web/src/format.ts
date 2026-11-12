@@ -265,6 +265,29 @@ export function localHour(ms: number): number {
   return Number(hourOf().format(ms));
 }
 
+/** The hour-and-minute formatter in the station's zone. */
+const clockOf = () =>
+  stationFormat("en-US", { hour: "numeric", minute: "numeric", hourCycle: "h23" });
+
+/**
+ * A time's place on the station's wall clock, in hours since midnight.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns 0 up to 24.
+ */
+export function clockHours(ms: number): number {
+  const parts = clockOf().formatToParts(ms);
+  const value = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return value("hour") + value("minute") / 60;
+}
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st, 100th. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
+}
+
 /**
  * An hour of the day, e.g. `midnight`, `3 am`, `noon`, `9 pm`.
  *
@@ -349,7 +372,30 @@ export function daysBetween(first: string, day: string): number {
  * @returns The temperature.
  */
 export function degrees(value: number, digits = 1): string {
-  return `${digits ? value.toFixed(digits) : Math.round(value)}°`;
+  return `${signed(value, digits)}°`;
+}
+
+/** Options for `signed`. */
+export interface SignedOptions {
+  /** Write "+" before a positive number (a change, not a reading). */
+  plus?: boolean;
+}
+
+/**
+ * The one signed number: a negative prints with U+2212 (the true minus, which
+ * screen readers say as "minus"), never an ASCII hyphen. A value that rounds
+ * to zero prints "0" with no sign, so no "−0".
+ *
+ * @param value - The number.
+ * @param digits - Decimals; 0 rounds to whole numbers.
+ * @param options - `plus: true` marks a positive value with "+".
+ * @returns E.g. `52.3`, `−12`, `+3`.
+ */
+export function signed(value: number, digits = 1, options: SignedOptions = {}): string {
+  const text = Math.abs(value).toFixed(digits);
+  if (Number(text) === 0) return text;
+  if (value < 0) return `−${text}`;
+  return options.plus ? `+${text}` : text;
 }
 
 /** Options for `inches`. */

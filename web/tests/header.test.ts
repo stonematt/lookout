@@ -10,6 +10,7 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
+const seasoned = parseDashboard(golden("seasoned", "dashboard"));
 const RAINING_OBSERVED = 1767918300000; // Jan 8, 4:25 pm Pacific
 
 let host: HTMLElement;
@@ -351,5 +352,72 @@ describe("the details strip", () => {
     const salmon = { mac: SALMON_MAC, name: "Salmon Run" };
     header.showCurrent(live(RAINING_OBSERVED - 60 * MIN, salmon));
     expect(text(".masthead-reading .masthead-age")).toBe("Stale: 1 h 3 m old");
+  });
+});
+
+describe("the battery line", () => {
+  const lines = () =>
+    [...host.querySelectorAll(".masthead-battery")].map((el) => el.textContent?.trim());
+
+  it("names each low battery under the freshness line", () => {
+    const header = mountHeader(host, () => clock);
+    header.showSnapshot(seasoned);
+
+    expect(lines()).toEqual(["Sensor 1 battery low"]);
+    const ages = host.querySelector(".masthead-ages")!;
+    expect(ages.lastElementChild?.className).toBe("masthead-batteries");
+  });
+
+  it("is absent when every flag is OK", () => {
+    const header = mountHeader(host, () => clock);
+    header.showSnapshot(raining);
+    expect(lines()).toEqual([]);
+    header.showSnapshot(dry);
+    expect(lines()).toEqual([]);
+  });
+
+  it("clears when the next snapshot has no low flag, and on reset", () => {
+    const header = mountHeader(host, () => clock);
+    header.showSnapshot(seasoned);
+    header.showSnapshot(raining);
+    expect(lines()).toEqual([]);
+    header.showSnapshot(seasoned);
+    header.reset();
+    expect(lines()).toEqual([]);
+  });
+
+  it("draws one line per low sensor, in the snapshot's order", () => {
+    const doc = golden("seasoned", "dashboard") as { battery_flags: { low: boolean }[] };
+    for (const flag of doc.battery_flags) flag.low = true;
+    const header = mountHeader(host, () => clock);
+    header.showSnapshot(parseDashboard(doc));
+    expect(lines()).toEqual([
+      "Outdoor sensor battery low",
+      "Console battery low",
+      "Sensor 1 battery low",
+      "Rain gauge battery low",
+    ]);
+  });
+
+  it("escapes a sensor name", () => {
+    const doc = golden("seasoned", "dashboard") as { battery_flags: { name: string }[] };
+    doc.battery_flags[2]!.name = "<b>x</b>";
+    const header = mountHeader(host, () => clock);
+    header.showSnapshot(parseDashboard(doc));
+    expect(host.querySelector(".masthead-battery b")).toBeNull();
+  });
+
+  it("shows no line, and does not throw, for a snapshot without battery_flags", () => {
+    const doc = golden("seasoned", "dashboard") as Record<string, unknown>;
+    delete doc.battery_flags;
+    const header = mountHeader(host, () => clock);
+    expect(() => header.showSnapshot(parseDashboard(doc))).not.toThrow();
+    expect(lines()).toEqual([]);
+  });
+
+  it("rejects a malformed battery_flags", () => {
+    const doc = golden("seasoned", "dashboard") as Record<string, unknown>;
+    doc.battery_flags = [{ key: "batt1", name: 3, low: true }];
+    expect(() => parseDashboard(doc)).toThrow();
   });
 });

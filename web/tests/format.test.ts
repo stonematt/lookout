@@ -20,6 +20,7 @@ import {
   hourName,
   hourText,
   monthLongName,
+  signed,
   inches,
   inchesPerHour,
   localDay,
@@ -163,6 +164,20 @@ describe("units", () => {
   it("writes degrees", () => {
     expect(degrees(52.34)).toBe("52.3°");
     expect(degrees(59.6, 0)).toBe("60°");
+  });
+
+  it("writes a negative with the true minus, never a hyphen", () => {
+    expect(degrees(-12.34)).toBe("−12.3°");
+    expect(degrees(-11.6, 0)).toBe("−12°");
+    expect(signed(-3)).toBe("−3.0");
+    expect(signed(4, 0, { plus: true })).toBe("+4");
+    expect(signed(-4, 0, { plus: true })).toBe("−4");
+  });
+
+  it("writes no sign on a value that rounds to zero", () => {
+    expect(degrees(-0.04)).toBe("0.0°");
+    expect(degrees(-0.4, 0)).toBe("0°");
+    expect(signed(0, 0, { plus: true })).toBe("0");
   });
 
   it("writes inches, two decimals and one from 10 in", () => {
