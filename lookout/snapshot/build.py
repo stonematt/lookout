@@ -32,7 +32,8 @@ from lookout.snapshot.feature import feature
 from lookout.snapshot.gaps import snapshot_gaps
 from lookout.snapshot.indoor import battery_flags, indoor_sensors
 from lookout.snapshot.depth import record_depth
-from lookout.snapshot.lead import completed_dry_spells, dry_spell, hero_lead
+from lookout.snapshot.dry_spell import completed_dry_spells, dry_spell
+from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon

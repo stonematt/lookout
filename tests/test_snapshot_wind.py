@@ -258,7 +258,11 @@ def test_a_window_status_spans_the_station_local_days_it_touches():
     assert (day.status.first_day, day.status.last_day) == ("2026-02-04", "2026-02-05")
     assert week.status.first_day == "2026-01-29"
     assert month.status.first_day == "2026-01-06"
-    assert [w.status.key for w in (day, week, month)] == ["24h", "7d", "30d"]
+    assert [w.status.key for w in (day, week, month)] == [
+        "wind_24h",
+        "wind_7d",
+        "wind_30d",
+    ]
     assert all(w.status.status == "valid" for w in (day, week, month))
 
 
@@ -285,6 +289,18 @@ def test_the_rose_is_in_the_dashboard_and_not_the_context(name):
     assert [w["key"] for w in published["windows"]] == ["24h", "7d", "30d"]
     assert all(len(w["bins"]) == 16 for w in published["windows"])
     assert "wind_rose" not in snapshot.context()
+
+
+@pytest.mark.parametrize("name", sorted(GOLDEN_SCENARIOS))
+def test_no_wind_status_shares_a_key_with_a_standard_window(name):
+    # The rose's 7 days reach back 168 h, which touches 8 local days; the
+    # standard 7d spans 7. A shared key would name two different spans.
+    snapshot = GOLDEN_SCENARIOS[name]()
+    standard = {status.key for status in snapshot.gaps.windows}
+
+    wind = [w.status.key for w in snapshot.wind_rose.windows]
+    assert wind == ["wind_24h", "wind_7d", "wind_30d"]
+    assert standard.isdisjoint(wind)
 
 
 def test_the_seasoned_station_has_a_varied_rose():

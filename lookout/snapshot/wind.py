@@ -30,6 +30,12 @@ carries the record's depth as `shown` (#463) and is judged by the One Gap
 Status Rule: an invalid window has no values. The direction bin is derived
 on read here and never stored in the archive.
 
+The windows are rolling hours, not local days, so their gap statuses are
+keyed `STATUS_PREFIX` + the window's key (`wind_7d`): 168 h back touches 8
+local days, and the standard `7d` window spans 7 (#508). A window's
+`status.shown` says whether the record covers it; `record_depth` lists only
+the standard windows, so it names no unlock date for a wind window.
+
 Functions:
 - wind_rose(stitched, coverage): The `WindRose` section.
 """
@@ -48,12 +54,14 @@ from lookout.snapshot.model import (
     WindRoseWindow,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import local_time
-
-HOUR_MS = 3_600_000
+from lookout.utils.dateutc import HOUR_MS, local_time
 
 WINDOWS: Tuple[Tuple[str, int], ...] = (("24h", 24), ("7d", 7 * 24), ("30d", 30 * 24))
 """Each window as (key, hours back from the build time), shortest first."""
+
+STATUS_PREFIX = "wind_"
+"""Prefixed to a window's key to key its gap status apart from the standard
+windows, which span whole local days."""
 
 CALM_BELOW_MPH = 1.0
 """A reading under this wind speed is calm: Beaufort force 0."""
@@ -186,7 +194,7 @@ def _window(
     now_ms = coverage.now_ms
     start_ms = now_ms - hours * HOUR_MS
     first_day = local_time(start_ms, coverage.tz).date()
-    status = coverage.window(first_day, coverage.today, key)
+    status = coverage.window(first_day, coverage.today, STATUS_PREFIX + key)
     inside = readings[
         (readings["dateutc"] > start_ms) & (readings["dateutc"] <= now_ms)
     ]
