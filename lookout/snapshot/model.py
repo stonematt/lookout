@@ -1440,7 +1440,8 @@ class WindRoseWindow:
     readings have no direction, so they are left out of the bins and
     points and counted only in the calm share.
 
-    :param key: "24h", "7d" or "30d".
+    :param key: "24h", "7d" or "30d": the window's name. Find a window by
+        this key, not by `status.key`, which differs ("wind_7d").
     :param hours: Its span: the readings after the build time minus this
         many hours, through the build time.
     :param status: The gap status of the station-local days it touches,

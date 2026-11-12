@@ -32,7 +32,9 @@ on read here and never stored in the archive.
 
 The windows are rolling hours, not local days, so their gap statuses are
 keyed `STATUS_PREFIX` + the window's key (`wind_7d`): 168 h back touches 8
-local days, and the standard `7d` window spans 7 (#508).
+local days, and the standard `7d` window spans 7 (#508). A window's
+`status.shown` says whether the record covers it; `record_depth` lists only
+the standard windows, so it names no unlock date for a wind window.
 
 Functions:
 - wind_rose(stitched, coverage): The `WindRose` section.
