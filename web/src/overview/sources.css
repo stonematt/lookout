@@ -1,0 +1,46 @@
+/*
+ * The Overview's sources footer (prototype decision 22): at the page foot,
+ * on the ground, not a tile, in Source type and `ink-3`, the tile's name in
+ * `ink-2`. One column on a phone; two from 760px.
+ */
+.ov-sources {
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--type-source);
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.ov-sources-heading {
+  margin: 0 0 var(--s-3);
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.ov-sources-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-3) var(--s-6);
+  margin: 0;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .ov-sources-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ov-sources-list > div {
+  min-width: 0;
+  max-width: 62ch;
+}
+
+.ov-sources-list dt {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.ov-sources-list dd {
+  margin: 0;
+  text-wrap: pretty;
+}

@@ -1,5 +1,7 @@
 /**
- * The Overview's temperature context (#81), three tiles:
+ * The temperature context (#81), three sections. They left the Overview
+ * with the accordion (#472) and stay here as the temperature zoom's content
+ * (#474); the Temperature mosaic tile (`mosaic-tiles.ts`) crops the first.
  *
  * 1. temperature across periods: one range bar per window (today, yesterday,
  *    7, 30, 90, 365 days, Full history), a whisker from the lowest to the
@@ -71,7 +73,7 @@ function periodRows(snapshot: DashboardSnapshot): TemperaturePeriod[] {
 }
 
 /** The ten-day list's days the record covers, oldest first. */
-function shownDays(snapshot: DashboardSnapshot): TemperatureDay[] {
+export function shownDays(snapshot: DashboardSnapshot): TemperatureDay[] {
   return snapshot.temperature_context.ten_days.filter((d) => isShown(d.status));
 }
 

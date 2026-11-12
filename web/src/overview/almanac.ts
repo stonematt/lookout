@@ -1,6 +1,7 @@
 /**
- * The Overview's almanac grid and rolling-window rain table (#82), read from
- * the snapshot's `almanac` (built by `lookout/snapshot/almanac.py`).
+ * The almanac grid and rolling-window rain table (#82), read from the
+ * snapshot's `almanac` (built by `lookout/snapshot/almanac.py`). They left
+ * the Overview with the accordion (#472) for the rain zoom (#475).
  *
  * The grid follows DESIGN.md's "Almanac grid": water years as rows (Oct
  * through Sep, the ticket's season), months as columns, 44px cells with 4px
@@ -388,13 +389,13 @@ function rollingShown(almanac: Almanac): { windows: RollingWindow[]; columns: nu
 }
 
 /**
- * Whether the rolling table has a row the record covers; the Overview draws
- * no rolling tile without one (#470).
+ * Whether the rolling table has a row the record covers; no rolling tile is
+ * drawn without one (#470).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns True when at least one cell is shown.
  */
-export function rollingHasRows(snapshot: DashboardSnapshot): boolean {
+function rollingHasRows(snapshot: DashboardSnapshot): boolean {
   return rollingShown(snapshot.almanac).windows.length > 0;
 }
 
@@ -485,5 +486,7 @@ export const rollingRain: OverviewSection = {
   id: "rolling-rain",
   label: "Rain over the last week, month and season",
   kicker: "Rain, rolling windows",
+  // Not drawn while the record covers none of its windows (#470).
+  shown: rollingHasRows,
   render: renderRolling,
 };

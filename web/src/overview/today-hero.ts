@@ -22,7 +22,8 @@
  * Every value is the snapshot's: this module places and words, and decides
  * nothing. Offers `todayChart` (the chart block), `todayChartName` (its
  * accessible name), `nowDeltaText` (the one-line delta on usual under the
- * temperature), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
+ * temperature), `nowDeltaWords` (the same delta without its hour, for the
+ * Temperature tile), `bandBasisLabel` and `bandBasisWords`.
  */
 import { clockHours, degrees, formatStamp, hourText, localDay } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
@@ -118,21 +119,6 @@ function todaySlots(snapshot: DashboardSnapshot): Slot[] {
   return slots;
 }
 
-/**
- * How much of today the archive should hold but has no rain value for: a gap
- * in the record. The unarchived tail is the archive lag's, not a gap.
- *
- * @param snapshot - The dashboard snapshot.
- * @returns Milliseconds; 0 with no gap, no ribbon or nothing archived.
- */
-export function todayMissingMs(snapshot: DashboardSnapshot): number {
-  const ribbon = snapshot.condition_ribbon;
-  const archived = snapshot.archive_newest_ms;
-  if (!ribbon || archived === null) return 0;
-  const gaps = todaySlots(snapshot).filter((s) => s.rain === null && s.start <= archived);
-  return gaps.length * ribbon.slot_minutes * 60_000;
-}
-
 // ---------- words ----------
 
 /**
@@ -189,12 +175,26 @@ export function bandBasisWords(band: UsualBand): string {
  *   no fallback).
  */
 export function nowDeltaText(snapshot: DashboardSnapshot): string | null {
+  const words = nowDeltaWords(snapshot);
+  const delta = snapshot.temperature_context.usual_band?.now_delta ?? null;
+  return words === null || !delta ? null : `${words} for ${hourText(delta.hour)}`;
+}
+
+/**
+ * The same delta without its hour, for a tile too small for the hour: the
+ * Temperature tile (#472) prints this one value, so the hero and the tile
+ * never show two numbers for one reading.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "+12° on usual", "−1° on usual", "at usual"; null when the
+ *   snapshot has no delta.
+ */
+export function nowDeltaWords(snapshot: DashboardSnapshot): string | null {
   const delta = snapshot.temperature_context.usual_band?.now_delta ?? null;
   if (!delta) return null;
-  const hour = hourText(delta.hour);
-  if (delta.delta_f === 0) return `at usual for ${hour}`;
+  if (delta.delta_f === 0) return "at usual";
   const sign = delta.delta_f > 0 ? "+" : "−";
-  return `${sign}${Math.abs(delta.delta_f)}° on usual for ${hour}`;
+  return `${sign}${Math.abs(delta.delta_f)}° on usual`;
 }
 
 /**

@@ -2,8 +2,8 @@
 /**
  * Quiet tiles (#458, Mosaic Overview release 1), through `startPage` on the
  * goldens at phone and desktop width: no Overview tile carries a standfirst
- * or an archive lag chip, each tile's accessible name is its finding, and
- * the header states freshness once. The Rain, Solar and Rain events tabs
+ * or an archive lag chip, no tile carries an `aria-label` that repeats its
+ * finding (#472), and the header states freshness once. The Rain, Solar and Rain events tabs
  * keep their standfirsts and lag chips until a later release.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -48,7 +48,7 @@ async function boot(snapshot: DashboardSnapshot, width: number, tab = "overview"
 const panel = (tab: string) => document.getElementById(`panel-${tab}`)!;
 const words = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, " ").trim();
 
-/** Every section host on the Overview: a tile, or on a phone a finding row. */
+/** Every tile on the Overview. */
 const sections = () => [...panel("overview").querySelectorAll<HTMLElement>("[data-section]")];
 
 const WIDTHS = [390, 1440] as const;
@@ -77,40 +77,20 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     expect(words(panel("overview"))).not.toContain(lag!);
   });
 
-  it.each(WIDTHS)("keeps the gap chips, which are not the lag (at %ipx)", async (width) => {
-    await boot(snapshot, width);
+  it.each(WIDTHS)(
+    "names no tile with an aria-label at %ipx, so none repeats its finding",
+    async (width) => {
+      // Release 1 named each tile by its finding, which a screen reader then
+      // read twice, as the name and as the text (#492); the mosaic (#472)
+      // leaves each tile's content to name it.
+      await boot(snapshot, width);
 
-    const chips = [...panel("overview").querySelectorAll("[data-part=caveat]")].map(words);
-    expect(chips.some((chip) => /not compared|missing/.test(chip!))).toBe(true);
-  });
-
-  it.each(WIDTHS)("names each tile by its finding at %ipx", async (width) => {
-    await boot(snapshot, width);
-
-    for (const host of sections()) {
-      const name = host.getAttribute("aria-label");
-      const id = host.dataset.section;
-      expect(name, id).toBeTruthy();
-      const finding = host.querySelector("h2.tile-finding");
-      // The feature's name carries its value, which stands beside its finding.
-      if (finding && id === "feature")
-        expect(name!.toLowerCase(), id).toContain(words(finding)!.toLowerCase());
-      else if (finding) expect(name, id).toBe(words(finding));
-    }
-    const named = (id: string) =>
-      panel("overview").querySelector(`[data-section="${id}"]`)!.getAttribute("aria-label");
-    const c = snapshot.current;
-    // The delta line, when the snapshot decided one, follows the temperature in the name.
-    expect(named("first-screen")).toMatch(new RegExp(`^${c.temperature_f!.toFixed(1)}°F now[.,]`));
-    expect(named("wind")).toMatch(new RegExp(`^Wind ${c.wind_speed_mph!.toFixed(1)} mph, `));
-    expect(named("pressure")).toBe(
-      `Pressure ${c.barometer_inhg!.toFixed(2)} inHg, ${c.barometer_trend} over the last 3 hours.`,
-    );
-    expect(named("air")).toMatch(
-      new RegExp(`^Humidity ${Math.round(c.humidity_pct!)}%; dew point`),
-    );
-    expect(named("sun-moon")).toMatch(/^Sun up \d+:\d\d [ap]m to \d+:\d\d [ap]m; .+ of daylight/);
-  });
+      expect(sections().length).toBeGreaterThan(5);
+      for (const host of sections()) {
+        expect(host.hasAttribute("aria-label"), host.dataset.section).toBe(false);
+      }
+    },
+  );
 });
 
 describe("the other tabs, until their own release", () => {

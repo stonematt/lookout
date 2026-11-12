@@ -202,15 +202,27 @@ export function yearsHeadline(tab: RainTab): string {
   const name = `Water year ${current.water_year}`;
   const value = toDate(tab, current);
   if (value === null) return `${name} cannot be compared yet`;
-  const earlier = tab.water_years
-    .slice(0, -1)
-    .reverse()
-    .map((curve) => ({ year: curve.water_year, text: toDate(tab, curve) }))
-    .filter((item): item is { year: number; text: string } => item.text !== null);
+  const earlier = earlierToDate(tab);
   const lead = `${name} has ${value} of rain since Oct 1`;
   if (!earlier.length) return lead;
   const named = earlier.slice(0, NAMED_YEARS).map((item) => `${item.text} (${item.year})`);
   return `${lead}, against ${listText(named)} by this date`;
+}
+
+/**
+ * The earlier water years compared by this date, newest first, each with
+ * its value to date as shown: the years the year-over-year finding names,
+ * and the one the Overview's Rain tile quotes (the first).
+ *
+ * @param tab - The Rain tab's data.
+ * @returns E.g. [{ year: 2025, text: "3.10 in" }, { year: 2024, text: "≈ 5.02 in" }].
+ */
+export function earlierToDate(tab: RainTab): { year: number; text: string }[] {
+  return tab.water_years
+    .slice(0, -1)
+    .reverse()
+    .map((curve) => ({ year: curve.water_year, text: toDate(tab, curve) }))
+    .filter((item): item is { year: number; text: string } => item.text !== null);
 }
 
 /**

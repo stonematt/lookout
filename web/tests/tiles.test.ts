@@ -1,13 +1,18 @@
 // @vitest-environment happy-dom
 /**
  * The Overview as tiles (#334), through `startPage` on the goldens: each
- * tile opens with its kicker and finding, folds its source (the feature
- * tile, one link, folds nothing), carries a hatched chip only when a gap hides part of its chart
- * (never the archive lag on the Overview, #458), and states every number in
- * the live value.
+ * tile opens with its kicker and finding, folds its source (the feature and
+ * mosaic tiles, one link each, fold nothing), carries a hatched chip only
+ * when a gap hides part of its chart (never the archive lag on the Overview,
+ * #458), and states every number in the live value. The chip rule is also
+ * held on the sections that left the Overview for the zooms (#472).
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { setLayout } from "../src/layout.js";
+import { almanacGrid, rollingRain } from "../src/overview/almanac.js";
+import { renderOverview } from "../src/overview/index.js";
+import { againstNormal, temperaturePeriods, tenDays } from "../src/overview/temperature.js";
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
@@ -59,6 +64,24 @@ async function boot(snapshot: DashboardSnapshot, stations = false): Promise<HTML
 
 const words = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, " ").trim();
 
+/**
+ * The sections that left the Overview with the accordion (#472), the zooms'
+ * content, rendered as tiles in a panel of their own.
+ */
+function zoom(snapshot: DashboardSnapshot): HTMLElement {
+  setLayout("four");
+  const panel = document.createElement("div");
+  document.body.append(panel);
+  renderOverview(panel, snapshot, [
+    temperaturePeriods,
+    againstNormal,
+    tenDays,
+    almanacGrid,
+    rollingRain,
+  ]);
+  return panel;
+}
+
 /** Each tile's chips, by section id, for the tiles that have any. */
 function chips(panel: HTMLElement): Record<string, string[]> {
   const out: Record<string, string[]> = {};
@@ -77,12 +100,11 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     expect(tiles.map((t) => t.dataset.section)).toEqual([
       "first-screen",
       "feature",
-      "temperature-periods",
-      "against-normal",
-      "ten-days",
-      "almanac",
-      // Only the seasoned record covers a rolling window (#470).
-      ...(scenario === "seasoned" ? ["rolling-rain"] : []),
+      // The mosaic (#472), in its fixed order.
+      "temperature",
+      "rain",
+      "last-10-days",
+      "dry-spell",
       "wind",
       "pressure",
       "air",
@@ -97,6 +119,13 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
         expect(words(link.querySelector("[data-part=finding]"))).not.toBe("");
         continue;
       }
+      if (tile.dataset.mosaic) {
+        // A mosaic tile is one link holding its title first (mosaic.test).
+        const link = tile.querySelector("a")!;
+        expect([...tile.children]).toEqual([link]);
+        expect(link.firstElementChild!.getAttribute("data-part")).toBe("kicker");
+        continue;
+      }
       const [first, second] = [...tile.children];
       // A quick-fact tile's kicker sits over its one value (DESIGN.md "Quick-fact tiles").
       const next = tile.dataset.fact ? "fact" : "finding";
@@ -107,29 +136,15 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     }
   });
 
-  it("folds each tile's source, closed, its full method paragraph inside", async () => {
-    const snapshot = parsed(scenario);
-    const panel = await boot(snapshot);
+  it("folds no source on any tile: one footer lists them (prototype decision 22)", async () => {
+    const panel = await boot(parsed(scenario));
 
-    // A quick fact is the live reading, a value and a sentence: no source to fold.
-    for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
-      expect(tile.querySelector("details"), tile.dataset.section).toBeNull();
-    }
-    // The feature tile is one link, which holds no disclosure.
-    expect(panel.querySelector("[data-section=feature] details")).toBeNull();
-    for (const tile of panel.querySelectorAll<HTMLElement>(
-      ".tile:not([data-fact]):not([data-section=feature])",
-    )) {
-      const notes = tile.querySelectorAll<HTMLDetailsElement>("details[data-part=source-note]");
-      expect(notes.length, tile.dataset.section).toBe(1);
-      const note = notes[0]!;
-      expect(note.open).toBe(false);
-      expect(words(note.querySelector("summary"))).toMatch(/^Source · .+, archived /);
-      const method = note.querySelector("[data-part=source]")!;
-      // Inside the disclosure, not beside it: one tap away, never in view closed.
-      expect(method.closest("details")).toBe(note);
-      expect(words(method)!.length).toBeGreaterThan(40);
-    }
+    expect(panel.querySelector(".tile details, .tile .ov-source")).toBeNull();
+    const footer = panel.querySelector("footer.ov-sources")!;
+    expect(footer).not.toBeNull();
+    expect(footer.closest("main")).not.toBeNull();
+    // The tiles that draw lead the footer in their order (overview.test has the lines).
+    expect(footer.querySelectorAll("dt").length).toBeGreaterThanOrEqual(5);
   });
 
   it("holds the temperature, then today against the usual band, in the now tile", async () => {
@@ -180,28 +195,18 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
 
     // Every "now <temperature>" and "<temperature> now" on the Overview is the live one.
     const nows = [...text.matchAll(/now (\d+\.\d)°|(\d+\.\d)° now/g)].map((m) => m[1] ?? m[2]);
-    expect(nows.length).toBeGreaterThan(1);
-    expect(new Set(nows)).toEqual(new Set([t]));
+    expect(new Set(nows)).toEqual(new Set(nows.length ? [t] : []));
+    // The hero and the Temperature tile print the one live reading.
+    expect(words(panel.querySelector("[data-section=first-screen] [data-part=temperature]"))).toBe(
+      `${t}°F`,
+    );
+    expect(words(panel.querySelector("[data-section=temperature] [data-part=value]"))).toBe(
+      `${t}°`,
+    );
     // Every "<x> in so far today" is the live total.
     const today = snapshot.current.rain_today_in;
     for (const m of text.matchAll(/(\d+\.\d+) in so far today/g))
       expect(m[1]).toBe(today?.toFixed(2));
-  });
-
-  it("still hatches each invalid comparison the record covers, with its reason", async () => {
-    const snapshot = parsed(scenario);
-    const panel = await boot(snapshot);
-    const ctx = snapshot.temperature_context;
-    const invalid = [...ctx.periods, ctx.full_history!].filter(
-      (p) => p.status.status === "invalid" && p.status.shown !== false,
-    );
-
-    // The raining golden's covered windows are all comparable (#470).
-    expect(invalid.length > 0).toBe(scenario !== "raining");
-    const reasons = [...panel.querySelectorAll("[data-part=periods-chart] .tc-reason")];
-    expect(reasons).toHaveLength(invalid.length);
-    for (const reason of reasons)
-      expect(reason.textContent).toMatch(/^(gap in record|not archived yet)$/);
   });
 });
 
@@ -222,9 +227,9 @@ describe("the hatched chip on a tile's closed source line", () => {
     expect(lagCaveat(parsed("dry"))).toBe("archive 3 h behind");
   });
 
-  it("names a gap that hides part of a chart, on that tile alone", async () => {
+  it("names a gap that hides part of a chart, on that tile alone", () => {
     // The raining golden, archive level with its reading: only gaps remain.
-    const panel = await boot(level(parsed("raining")));
+    const panel = zoom(level(parsed("raining")));
 
     // The windows and days before its record began are not drawn, so not
     // counted (#470); the strips with no earlier year still are.
@@ -242,9 +247,9 @@ describe("the hatched chip on a tile's closed source line", () => {
     ctx.ten_days = ctx.ten_days.filter((d) => d.status.status === "valid");
     for (const w of snapshot.almanac.rolling) w.years = [];
     ctx.strips = ctx.strips.map((s) => ({ ...s, missing: "no_reading" as const }));
-    const panel = await boot(snapshot);
 
-    expect(chips(panel)).toEqual({});
+    expect(chips(await boot(snapshot))).toEqual({});
+    expect(chips(zoom(snapshot))).toEqual({});
   });
 
   it("names the one status changed in a copy of a golden, and only it", async () => {
@@ -257,7 +262,7 @@ describe("the hatched chip on a tile's closed source line", () => {
     // Yesterday's window gets a gap in the record.
     const yesterday = ctx.periods.find((p) => p.status.key === "yesterday")!;
     yesterday.status = { ...yesterday.status, status: "invalid", reason: "gap", missing_days: 1 };
-    const panel = await boot(snapshot);
+    const panel = zoom(snapshot);
 
     expect(chips(panel)).toEqual({ "temperature-periods": ["1 window not compared"] });
   });

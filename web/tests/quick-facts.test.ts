@@ -264,14 +264,16 @@ describe("a missing value reads as not known, never as zero", () => {
 });
 
 describe("the quick-fact tiles on a phone", () => {
-  it("sit after the finding rows, open, a 2×2 that sun and moon completes", async () => {
+  it("sit after the mosaic tiles, open, a 2×2 that sun and moon completes", async () => {
     viewport(390).install();
     const panel = await boot(parsed("raining"));
     expect(document.documentElement.dataset.layout).toBe("phone");
     const children = [...panel.querySelectorAll<HTMLElement>(".tile-grid > *")];
-    const rows = children.findIndex((el) => el.classList.contains("tile-rows"));
-    expect(rows).toBeGreaterThan(-1);
-    const after = children.slice(rows + 1);
+    // The Overview has no finding rows (#472): the facts follow the mosaic.
+    expect(children.some((el) => el.classList.contains("tile-rows"))).toBe(false);
+    const mosaic = children.findLastIndex((el) => el.dataset.mosaic === "true");
+    expect(mosaic).toBeGreaterThan(-1);
+    const after = children.slice(mosaic + 1);
     expect(after.map((el) => el.dataset.section)).toEqual(["wind", "pressure", "air", "sun-moon"]);
     for (const tile of after) {
       expect(tile.tagName).toBe("SECTION");

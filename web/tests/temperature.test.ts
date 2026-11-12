@@ -4,8 +4,14 @@ import { resolve } from "node:path";
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { renderOverview, SECTIONS } from "../src/overview/index.js";
-import { stripClaim, yearsText } from "../src/overview/temperature.js";
+import { renderOverview } from "../src/overview/index.js";
+import {
+  againstNormal,
+  stripClaim,
+  temperaturePeriods,
+  tenDays,
+  yearsText,
+} from "../src/overview/temperature.js";
 import type { DashboardSnapshot, TemperatureContext } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
@@ -25,17 +31,15 @@ const withYear = (ctx: TemperatureContext = year): DashboardSnapshot => ({
 
 let host: HTMLElement;
 
-/** The three temperature tiles, rendered through the Overview, in its grid. */
-const TEMPERATURE_TILES = ["temperature-periods", "against-normal", "ten-days"];
-
+/**
+ * The three temperature sections, which left the Overview with the
+ * accordion (#472) and stay as the temperature zoom's content, rendered in
+ * a tile grid of their own.
+ */
 function show(snapshot: DashboardSnapshot): void {
   document.body.innerHTML = "<div id=host></div>";
   host = document.getElementById("host")!;
-  renderOverview(
-    host,
-    snapshot,
-    SECTIONS.filter((s) => TEMPERATURE_TILES.includes(s.id)),
-  );
+  renderOverview(host, snapshot, [temperaturePeriods, againstNormal, tenDays]);
 }
 
 const text = (selector: string) =>
@@ -44,25 +48,12 @@ const all = (selector: string) => [...host.querySelectorAll(selector)];
 
 beforeEach(() => show(withYear()));
 
-describe("the temperature context's place", () => {
-  it("follows the feature tile, as three tiles in the board's order", () => {
-    expect(SECTIONS.map((s) => s.id).slice(0, 5)).toEqual([
-      "first-screen",
-      "feature",
-      "temperature-periods",
-      "against-normal",
-      "ten-days",
-    ]);
-  });
-
-  it("renders in the Overview for both golden scenarios", () => {
+describe("the temperature context", () => {
+  it("renders for both golden scenarios", () => {
     for (const snapshot of [dry, raining]) {
-      document.body.innerHTML = "<div id=panel></div>";
-      const panel = document.getElementById("panel")!;
-      renderOverview(panel, snapshot);
-      for (const id of TEMPERATURE_TILES) {
-        // A tile on the grids, a finding row on a phone.
-        expect(panel.querySelector(`[data-section=${id}]`)).not.toBeNull();
+      show(snapshot);
+      for (const id of ["temperature-periods", "against-normal", "ten-days"]) {
+        expect(host.querySelector(`[data-section=${id}]`)).not.toBeNull();
       }
     }
   });

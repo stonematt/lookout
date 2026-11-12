@@ -16,6 +16,9 @@ vi.mock("plotly.js-dist-min", () => ({ default: { react } }));
 import { LABEL_CHAR_PX, PILL_PAD } from "../src/charts/svg.js";
 import { drawEventChart } from "../src/events/charts.js";
 import { reasonLabel } from "../src/gaps.js";
+import { setLayout } from "../src/layout.js";
+import { renderOverview } from "../src/overview/index.js";
+import { temperaturePeriods, tenDays } from "../src/overview/temperature.js";
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type {
@@ -57,6 +60,20 @@ async function boot(scenario: Scenario, ...tabs: string[]): Promise<void> {
   }
 }
 
+/**
+ * The temperature sections that left the Overview for its zoom (#472), drawn
+ * as tiles after the page.
+ */
+function drawZoom(scenario: Scenario): void {
+  setLayout("four");
+  const host = document.createElement("div");
+  document.body.append(host);
+  renderOverview(host, parseDashboard(golden(scenario, "dashboard")), [
+    temperaturePeriods,
+    tenDays,
+  ]);
+}
+
 /** Each reason, and the Overview's plain wording of it, without "n/a" (#470). */
 const REASONS = new Set(
   (["gap", "low_coverage", "not_archived", "before_archive", "in_progress"] as GapReason[])
@@ -89,6 +106,7 @@ function expectPadded(text: SVGTextElement, rect: SVGRectElement): void {
 describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
   it("puts every reason over a hatch on a pill, on every SVG tab", async () => {
     await boot(scenario, "overview", "rain", "solar");
+    drawZoom(scenario);
     const reasons = texts(document).filter((t) => REASONS.has(t.textContent ?? ""));
 
     // The dry golden lags its archive, so some window reads "not archived
@@ -98,8 +116,8 @@ describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
     for (const reason of reasons) expectPadded(reason, pillOf(reason));
   });
 
-  it("draws the periods chart's reasons after its now rule and dot", async () => {
-    await boot(scenario, "overview");
+  it("draws the periods chart's reasons after its now rule and dot", () => {
+    drawZoom(scenario);
     const chart = document.querySelector("[data-part=periods-chart] svg")!;
     const marks = [...chart.querySelectorAll(".tc-now, .tc-now-dot")];
     const reasons = [...chart.querySelectorAll(".tc-reason")];
@@ -117,8 +135,8 @@ describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
     }
   });
 
-  it("ends each ten-day name clear of the hatch beside it", async () => {
-    await boot(scenario, "overview");
+  it("ends each ten-day name clear of the hatch beside it", () => {
+    drawZoom(scenario);
     const chart = document.querySelector("[data-part=days-chart] svg")!;
     const plot = chart.querySelector<SVGGElement>("g[transform]")!;
     const left = Number(/translate\(([\d.]+)/.exec(plot.getAttribute("transform")!)![1]);
