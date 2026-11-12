@@ -57,8 +57,6 @@ export function yearsText(years: readonly number[]): string {
   return `${years.slice(0, -1).join(", ")} and ${years.at(-1)}`;
 }
 
-const NAMES = WINDOW_NAMES;
-
 /**
  * The window chart's rows: each window the record covers (every window, in
  * a snapshot written before Release A), then Full history when the snapshot
@@ -97,7 +95,8 @@ function periodFinding(snapshot: DashboardSnapshot): string {
   if (now === null) return "No current temperature to place in context";
   const p = ctx.periods.find((x) => x.status.key === ctx.finding);
   if (p && p.position !== null) {
-    const name = p.status.key === "yesterday" ? "yesterday" : `the last ${NAMES[p.status.key]}`;
+    const name =
+      p.status.key === "yesterday" ? "yesterday" : `the last ${WINDOW_NAMES[p.status.key]}`;
     return `${degrees(now)} now is ${p.position} the middle half of readings over ${name}`;
   }
   return `${degrees(now)} now, with no window complete enough to compare`;
@@ -187,7 +186,7 @@ function padded(values: number[], pad: number): { lo: number; hi: number; ticks:
 
 /** The accessible text for the periods chart: one sentence per row. */
 export function periodSentence(p: TemperaturePeriod): string {
-  const name = NAMES[p.status.key] ?? p.status.key;
+  const name = WINDOW_NAMES[p.status.key] ?? p.status.key;
   if (
     !isComparable(p.status) ||
     p.low === null ||
@@ -256,7 +255,7 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   }
   periods.forEach((p, i) => {
     const cy = barY(i);
-    const name = NAMES[p.status.key] ?? p.status.key;
+    const name = WINDOW_NAMES[p.status.key] ?? p.status.key;
     if (narrow) {
       // The name and its span on one line above the bar. The row name is
       // 13px, a little wider than a 12.5px label.
@@ -465,8 +464,8 @@ function daysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
 export function stripClaim(strip: NormalStrip): string {
   if (strip.missing === "no_reading") {
     return strip.kind === "rain"
-      ? "No rain reading to place against normal."
-      : "No temperature reading to place against normal.";
+      ? "No rain reading to place against usual."
+      : "No temperature reading to place against usual.";
   }
   if (strip.missing === "no_comparison") {
     return "No earlier year is complete enough to set this against.";
@@ -639,7 +638,7 @@ function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
 
 function stripHeadline(strip: NormalStrip): string {
   const years = yearsText(strip.years);
-  return `Now against normal for this date in ${years}`;
+  return `Now against usual for this date in ${years}`;
 }
 
 function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
@@ -649,7 +648,7 @@ function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
     tileFinding(
       ctx.strips[0]?.missing === null && ctx.strips[0]
         ? stripHeadline(ctx.strips[0])
-        : "Now against normal",
+        : "Now against usual",
     ),
   );
   const stripHosts: [NormalStrip, HTMLElement][] = [];

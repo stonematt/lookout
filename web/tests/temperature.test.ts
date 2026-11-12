@@ -245,7 +245,7 @@ describe("now against normal", () => {
 
   it("names the years in the heading, newest first", () => {
     expect(text("[data-block=strips] [data-part=finding]")).toBe(
-      "Now against normal for this date in 2025 and 2024",
+      "Now against usual for this date in 2025 and 2024",
     );
   });
 

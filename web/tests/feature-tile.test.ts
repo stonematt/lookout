@@ -88,6 +88,29 @@ describe("the feature tile", () => {
     expect(tile()!.dataset.span).toBe("2");
   });
 
+  it.each(SCENARIOS)(
+    "leaves no hole in a four-column row on the %s golden without a feature (N-1)",
+    (s) => {
+      const withoutFeature = doc(s);
+      delete withoutFeature.feature;
+      draw(parseDashboard(withoutFeature));
+      const spans = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
+        Number(t.dataset.span),
+      );
+      let row = 0;
+      for (const span of spans) {
+        row += span;
+        if (row > 4) throw new Error(`row overflows at ${spans.join(",")}`);
+        if (row === 4) row = 0;
+      }
+      expect(row, `a row is left open at ${spans.join(",")}`).toBe(0);
+      expect(tile()).toBeNull();
+      expect(
+        panel.querySelector<HTMLElement>("[data-section=temperature-periods]")!.dataset.span,
+      ).toBe("4");
+    },
+  );
+
   it("draws a live rain event: its total so far against the usual event", () => {
     const raining = parseDashboard(golden("raining", "dashboard"));
     draw(raining);
