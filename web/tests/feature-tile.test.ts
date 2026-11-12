@@ -94,18 +94,31 @@ describe("the feature tile", () => {
       "last-10-days",
       "dry-spell",
     ]);
-    expect(cells().reduce((a, b) => a + b, 0) % 4).toBe(0);
+    lastRowIsDaylightAndInside();
   });
 
+  /**
+   * Every row of the four-column grid is full but the last, which holds
+   * Daylight and Inside with two empty cells (spec #460 "Overview layout").
+   */
+  function lastRowIsDaylightAndInside(): void {
+    const ids = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map(
+      (t) => t.dataset.section,
+    );
+    const before = cells().slice(0, -2);
+    expect(ids.slice(-2)).toEqual(["daylight", "inside"]);
+    expect(before.reduce((a, b) => a + b, 0) % 4, cells().join(",")).toBe(0);
+  }
+
   it.each(SCENARIOS)(
-    "leaves no hole in a four-column row on the %s golden without a feature (N-1)",
+    "fills each four-column row but the last, Daylight and Inside, on the %s golden without a feature (N-1)",
     (s) => {
       const withoutFeature = doc(s);
       delete withoutFeature.feature;
       draw(parseDashboard(withoutFeature));
 
       expect(tile()).toBeNull();
-      expect(cells().reduce((a, b) => a + b, 0) % 4, cells().join(",")).toBe(0);
+      lastRowIsDaylightAndInside();
     },
   );
 
@@ -219,7 +232,7 @@ describe("the feature tile", () => {
 
   it("gives every Overview tile an id the in-page links reach", () => {
     draw(parseDashboard(golden("dry", "dashboard")));
-    for (const id of ["temperature", "wind", "pressure", "air"]) {
+    for (const id of ["temperature", "wind", "pressure", "humidity", "daylight", "inside"]) {
       expect(panel.querySelector(`#overview-${id}`), id).not.toBeNull();
     }
   });

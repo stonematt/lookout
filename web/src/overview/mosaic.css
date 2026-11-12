@@ -186,3 +186,101 @@
   stroke: var(--now);
   stroke-width: 1.5;
 }
+
+/* Wind: the compass dial and the arrow the way the wind blows */
+.mosaic-dial {
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+}
+
+.mosaic-arrow {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.mosaic-arrow-head {
+  fill: var(--ink);
+}
+
+/* Sun: the last 24 hours over its usual range, as the Solar tab draws it */
+.mosaic-sun-band {
+  fill: var(--sun-band);
+  stroke: var(--sun-band-edge);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+.mosaic-sun-line {
+  fill: none;
+  stroke: var(--sun-line);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* Daylight: the arc from sunrise to sunset, the day so far in the sun's
+   line colour */
+.mosaic-arc {
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.mosaic-arc-day {
+  fill: none;
+  stroke: var(--sun-line);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+/* Inside: one row per sensor, its name, then its reading and humidity on
+   one line, then its 24-hour line */
+.mosaic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+}
+
+.mosaic-row-name {
+  margin: 0;
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.mosaic-row-reading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1);
+  margin: 0;
+}
+
+.mosaic-row-value {
+  font-size: var(--type-stat);
+  font-weight: 400;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.mosaic-row-aside {
+  font-size: var(--type-standfirst);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.mosaic-row-line {
+  min-width: 0;
+  margin-top: var(--s-1);
+}
+
+.mosaic-line {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}

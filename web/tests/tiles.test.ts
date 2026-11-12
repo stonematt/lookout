@@ -107,8 +107,10 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       "dry-spell",
       "wind",
       "pressure",
-      "air",
-      "sun-moon",
+      "humidity",
+      "sun",
+      "daylight",
+      "inside",
     ]);
     for (const tile of tiles) {
       if (tile.dataset.section === "feature") {
@@ -127,10 +129,8 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
         continue;
       }
       const [first, second] = [...tile.children];
-      // A quick-fact tile's kicker sits over its one value (DESIGN.md "Quick-fact tiles").
-      const next = tile.dataset.fact ? "fact" : "finding";
       expect(first!.getAttribute("data-part"), tile.dataset.section).toBe("kicker");
-      expect(second!.getAttribute("data-part"), tile.dataset.section).toBe(next);
+      expect(second!.getAttribute("data-part"), tile.dataset.section).toBe("finding");
       expect(words(first)).not.toBe("");
       expect(words(second)).not.toBe("");
     }

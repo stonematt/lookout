@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 /**
- * The mosaic (#472, spec #460 stories 18–22, 28, 52, 56), rendered from the
- * goldens: the four first tiles in their fixed order, a tile the record does
+ * The mosaic (#472, #473, spec #460 stories 18–28, 52, 56), rendered from
+ * the goldens: the ten tiles in their fixed order, a tile the record does
  * not cover left out with the later ones moving up, each tile one link to
  * `#overview/<slug>` named by its own text (the finding once, no
  * `aria-label`), its mini chart hidden from screen readers, and every number
- * the snapshot's: the Temperature tile's delta is the hero's.
+ * the snapshot's: the Temperature tile's delta is the hero's. Air's and Sun
+ * and moon's cards are gone, their content in Humidity, Sun and Daylight;
+ * Inside draws a row per indoor sensor and hides on a station with none.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -24,7 +26,18 @@ type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 const doc = (scenario: Scenario): Doc => structuredClone(golden(scenario, "dashboard")) as Doc;
 const parsed = (scenario: Scenario): DashboardSnapshot => parseDashboard(doc(scenario));
 
-const MOSAIC = ["temperature", "rain", "last-10-days", "dry-spell"];
+const MOSAIC = [
+  "temperature",
+  "rain",
+  "last-10-days",
+  "dry-spell",
+  "wind",
+  "pressure",
+  "humidity",
+  "sun",
+  "daylight",
+  "inside",
+];
 
 let panel: HTMLElement;
 
@@ -59,15 +72,12 @@ function nameFrom(el: Element): string {
 }
 
 describe("the mosaic's order", () => {
-  it.each(SCENARIOS)(
-    "follows the feature on the %s golden: Temperature, Rain, Last 10 days, Dry spell",
-    (s) => {
-      renderOverview(panel, parsed(s));
+  it.each(SCENARIOS)("follows the feature on the %s golden: all ten tiles, Inside last", (s) => {
+    renderOverview(panel, parsed(s));
 
-      expect(ids().slice(0, 6)).toEqual(["first-screen", "feature", ...MOSAIC]);
-      expect(MOSAIC_TILES.map((t) => t.slug)).toEqual(MOSAIC);
-    },
-  );
+    expect(ids()).toEqual(["first-screen", "feature", ...MOSAIC]);
+    expect(MOSAIC_TILES.map((t) => t.slug)).toEqual(MOSAIC);
+  });
 
   it.each(["phone", "two", "four"] as const)("keeps the phone's order at %s", (layout) => {
     setLayout(layout);
@@ -82,7 +92,7 @@ describe("the mosaic's order", () => {
       if (t.key === "rain" || t.key === "dry_spell") t.shown = false;
     renderOverview(panel, parseDashboard(d));
 
-    expect(mosaicIds()).toEqual(["temperature", "last-10-days"]);
+    expect(mosaicIds()).toEqual(MOSAIC.filter((slug) => slug !== "rain" && slug !== "dry-spell"));
     expect(ids().indexOf("last-10-days")).toBe(ids().indexOf("temperature") + 1);
     expect(panel.querySelector('[href="#overview/rain"]')).toBeNull();
   });
@@ -121,7 +131,10 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
       expect(name.endsWith(`Open the ${def.zoomName} view`)).toBe(true);
       if (value) expect(name).toContain(value);
       if (delta) expect(name).toContain(delta);
-      expect(value ?? delta).toBeTruthy();
+      const list = link.querySelector("[data-part=rows]");
+      const rows = list ? nameFrom(list) : null;
+      if (rows) expect(name).toContain(rows);
+      expect(value ?? delta ?? rows).toBeTruthy();
       // The finding is said once: the number appears once in the name.
       if (value) expect(name.split(value).length - 1).toBe(1);
       // The mini chart is drawn for sight alone.
@@ -275,6 +288,195 @@ describe("the Dry spell tile", () => {
     expect(days).toHaveLength(30);
     expect(svg.querySelectorAll(".mosaic-today")).toHaveLength(1);
     expect(svg.querySelectorAll(".mosaic-wet").length).toBe(2);
+  });
+});
+
+describe("the quick-fact cards are gone, their content in the tiles", () => {
+  it.each(SCENARIOS)("%s: no Wind, Pressure, Air or Sun and moon card", (s) => {
+    renderOverview(panel, parsed(s));
+
+    expect(panel.querySelector("[data-section=air], [data-section=sun-moon]")).toBeNull();
+    expect(panel.querySelector("[data-fact], .qf-value, .qf-sentence")).toBeNull();
+    expect(panel.querySelectorAll(".tile-grid > .tile:not([data-mosaic])")).toHaveLength(2);
+  });
+});
+
+const value = (slug: string) => words(tile(slug).querySelector("[data-part=value]"));
+const delta = (slug: string) => words(tile(slug).querySelector("[data-part=delta]"));
+
+describe("the Wind tile", () => {
+  it("prints the live speed, where it blows from and its gust (dry)", () => {
+    renderOverview(panel, parsed("dry"));
+
+    expect(value("wind")).toBe("1.8 mph");
+    expect(delta("wind")).toBe("from the SE, gusts to 2.5 mph");
+    expect(tile("wind").querySelectorAll("svg .mosaic-arrow-head")).toHaveLength(1);
+  });
+
+  it("reads a missing speed, direction and gust as not known, never zero", () => {
+    const d = doc("dry");
+    Object.assign(d.current, { wind_speed_mph: null, wind_dir_deg: null, wind_gust_mph: null });
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("wind")).toBe("n/a");
+    expect(delta("wind")).toBe("direction and gust not known");
+    expect(tile("wind").querySelector("svg")).toBeNull();
+  });
+
+  it("keeps a calm zero a zero", () => {
+    const d = doc("dry");
+    d.current.wind_speed_mph = 0;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("wind")).toBe("0.0 mph");
+  });
+});
+
+describe("the Pressure tile", () => {
+  it("prints the barometer and the snapshot's 3-hour trend word", () => {
+    const d = doc("dry");
+    d.current.barometer_trend = "falling";
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("pressure")).toBe("29.67 inHg");
+    expect(delta("pressure")).toBe("falling over the last 3 hours");
+  });
+
+  it("reads a missing reading and trend as not known", () => {
+    const d = doc("dry");
+    Object.assign(d.current, { barometer_inhg: null, barometer_trend: null });
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("pressure")).toBe("n/a");
+    expect(delta("pressure")).toBe("3-hour trend not known");
+  });
+});
+
+describe("the Humidity tile, which takes the Air card", () => {
+  it("prints the humidity and the dew point (dry)", () => {
+    renderOverview(panel, parsed("dry"));
+
+    expect(value("humidity")).toBe("99%");
+    expect(delta("humidity")).toBe("dew point 39.1°");
+  });
+
+  it("reads a missing humidity and dew point as not known", () => {
+    const d = doc("dry");
+    Object.assign(d.current, { humidity_pct: null, dew_point_f: null });
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("humidity")).toBe("n/a");
+    expect(delta("humidity")).toBe("dew point not known");
+  });
+});
+
+describe("the Sun tile", () => {
+  it("prints today's energy so far and yesterday's, from the Solar tab's windows", () => {
+    renderOverview(panel, parsed("seasoned"));
+
+    expect(words(tile("sun").querySelector("h2"))).toBe("Sun today");
+    expect(value("sun")).toBe("4.92 kWh/m²");
+    expect(delta("sun")).toBe("yesterday 6.11 kWh/m²");
+  });
+
+  it("draws the last 24 hours over the usual range, now as the dot", () => {
+    renderOverview(panel, parsed("seasoned"));
+    const svg = tile("sun").querySelector("svg")!;
+
+    expect(svg.querySelectorAll(".mosaic-sun-line").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
+  });
+
+  it("is not drawn without a solar record", () => {
+    const d = doc("dry");
+    d.solar_tab = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(mosaicIds()).not.toContain("sun");
+    expect(mosaicIds().at(-2)).toBe("daylight");
+  });
+});
+
+describe("the Daylight tile, which takes the sun and moon card's times", () => {
+  it("prints the day's length and its change, with sunrise and sunset in station time", () => {
+    renderOverview(panel, parsed("dry"));
+
+    expect(value("daylight")).toBe("9 h 23 m");
+    expect(delta("daylight")).toBe("2 m less than yesterday");
+    const labels = [...tile("daylight").querySelectorAll("svg .mosaic-label")].map(words);
+    expect(labels).toEqual(["7:15 am", "4:38 pm"]);
+    // Before sunrise: the arc, and no sun on it.
+    expect(tile("daylight").querySelector(".mosaic-now-dot")).toBeNull();
+  });
+
+  it("says a lengthening day, and puts the sun on the arc in daylight (seasoned)", () => {
+    renderOverview(panel, parsed("seasoned"));
+
+    expect(delta("daylight")).toBe("2 m more than yesterday");
+    expect(tile("daylight").querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
+    expect(tile("daylight").querySelectorAll(".mosaic-arc-day")).toHaveLength(1);
+  });
+
+  it("is not drawn for a station with no location", () => {
+    const d = doc("dry");
+    d.sun_moon = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(mosaicIds()).not.toContain("daylight");
+  });
+});
+
+describe("the Inside tile", () => {
+  it("draws one row per indoor sensor: its name, reading, humidity and line", () => {
+    renderOverview(panel, parsed("seasoned"));
+    const rows = [...tile("inside").querySelectorAll<HTMLElement>("[data-part=row]")];
+
+    expect(rows.map((r) => words(r.querySelector(".mosaic-row-name")))).toEqual([
+      "Console",
+      "Sensor 1",
+    ]);
+    expect(rows.map((r) => words(r.querySelector(".mosaic-row-reading")))).toEqual([
+      "68.0° humidity 45%",
+      "66.0° humidity 55%",
+    ]);
+    for (const row of rows) {
+      const line = row.querySelector(".mosaic-row-line")!;
+      expect(line.getAttribute("aria-hidden")).toBe("true");
+      expect(line.querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
+    }
+    expect(nameFrom(tile("inside").querySelector("a")!)).toBe(
+      "Inside Console 68.0° humidity 45% Sensor 1 66.0° humidity 55% Open the inside view",
+    );
+  });
+
+  it("keeps the row without humidity when a sensor reports none", () => {
+    const d = doc("raining");
+    d.indoor[0].humidity_pct = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("inside").querySelector(".mosaic-row-reading"))).toBe("68.0°");
+  });
+
+  it.each([
+    ["an empty list", []],
+    ["no indoor field (N−1)", undefined],
+  ])("hides on a station with no indoor sensor: %s", (_, indoor) => {
+    const d = doc("seasoned");
+    if (indoor === undefined) delete d.indoor;
+    else d.indoor = indoor;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(mosaicIds()).toEqual(MOSAIC.filter((slug) => slug !== "inside"));
+    expect(panel.querySelector('[href="#overview/inside"]')).toBeNull();
+  });
+});
+
+describe("the sources footer", () => {
+  it("lists a line for each of the ten tiles drawn", () => {
+    renderOverview(panel, parsed("seasoned"));
+    const names = [...panel.querySelectorAll("[data-part=sources] dt")].map(words);
+
+    for (const t of MOSAIC_TILES) expect(names).toContain(t.title);
   });
 });
 

@@ -105,6 +105,12 @@ describe("the Overview's sources footer (prototype decision 22)", () => {
       "Rain since Oct 1",
       "Last 10 days",
       "Dry spell",
+      "Wind",
+      "Pressure",
+      "Humidity",
+      "Sun today",
+      "Daylight",
+      "Inside",
     ]);
     for (const [, what, method] of lines()) {
       expect(what!.length).toBeGreaterThan(5);

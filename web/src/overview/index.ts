@@ -1,21 +1,21 @@
 /**
  * The Overview tab (spec #460): the now tile, the feature tile, then the
- * mosaic (#472), then the quick facts (wind, pressure, air, sun and moon)
- * until #473 turns them into mosaic tiles.
+ * mosaic's ten tiles (#472, #473).
  *
  * Layout, the same order on every width (DESIGN.md "Layout", README
  * decision 10): on a phone the now tile and the feature take the full
- * width and the mosaic and quick facts sit two to a row; on the
- * four-column grid the now tile takes the first row, the feature two
- * columns and two rows at the left, the first four mosaic tiles the 2×2
- * beside it, and the rest one column each, row first. The Overview has no
+ * width and the mosaic sits two to a row; on the four-column grid the now
+ * tile takes the first row, the feature two columns and two rows at the
+ * left, the first four mosaic tiles the 2×2 beside it, and the rest one
+ * column each, row first (Daylight and Inside alone on the last row). The Overview has no
  * finding rows: the accordion is gone (the Rain, Solar and Rain events tabs
  * keep theirs).
  *
  * A section the snapshot does not draw (`TileSection.shown`) is skipped and
  * the later ones move up: the feature without a `feature` (a snapshot
  * published before Release A, ADR-0008), a mosaic tile the record does not
- * cover yet (`record_depth.tiles`, #470).
+ * cover yet (`record_depth.tiles`, #470), Inside on a station with no
+ * indoor sensor, Daylight on one with no location.
  *
  * No Overview tile folds a source (prototype decision 22): under the grid,
  * one sources footer (`sources.ts`) lists each drawn section's `source`.
@@ -40,7 +40,6 @@ import { featureTile } from "./feature.js";
 import { firstScreen } from "./first-screen.js";
 import { mosaicSection } from "./mosaic.js";
 import { MOSAIC_TILES } from "./mosaic-tiles.js";
-import { airFact, pressureFact, sunMoonFact, windFact } from "./quick-facts.js";
 import { sourcesFooter } from "./sources.js";
 
 /** One tile of the Overview. */
@@ -50,11 +49,7 @@ export type OverviewSection = TileSection;
 export const SECTIONS: readonly OverviewSection[] = [
   firstScreen, // #468 the now tile
   featureTile, // #469 the feature tile
-  ...MOSAIC_TILES.map(mosaicSection), // #472 Temperature, Rain, Last 10 days, Dry spell
-  windFact, // #340 the quick facts, until #473
-  pressureFact, // #340
-  airFact, // #340
-  sunMoonFact, // #341
+  ...MOSAIC_TILES.map(mosaicSection), // #472, #473 the ten tiles
 ];
 
 /**

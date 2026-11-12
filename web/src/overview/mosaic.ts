@@ -27,8 +27,14 @@
  * Every value is the snapshot's: a tile words, formats and draws; it never
  * compares or decides.
  *
- * Offers `MosaicTile`, `TileReading`, `mosaicSection`, `depthShown` and
- * `miniChart` (the mini chart's SVG root).
+ * A tile with rows (Inside, #473) draws one row per entry under its title in
+ * place of one number: a name, a reading with an aside, and an
+ * `aria-hidden` line. A tile whose own `shown` says the snapshot holds
+ * nothing for it is not drawn either.
+ *
+ * Offers `MosaicTile`, `MosaicRow`, `TileReading`, `mosaicSection`,
+ * `depthShown`, `miniChart` (the mini chart's SVG root) and
+ * `ROW_LINE_HEIGHT`.
  */
 import "./mosaic.css";
 
@@ -82,7 +88,33 @@ export interface MosaicTile {
    * reads and how its comparison is made. The tile itself folds no source.
    */
   source(snapshot: DashboardSnapshot): TileSource;
+  /**
+   * Whether the snapshot holds what the tile draws, beside its record
+   * depth: Inside without an indoor sensor, Daylight without a location.
+   * Shown by default.
+   */
+  shown?(snapshot: DashboardSnapshot): boolean;
+  /**
+   * Rows in place of one number (Inside: one per sensor), each a name, a
+   * reading, an aside and a line; drawn under the title, before the delta.
+   */
+  rows?(snapshot: DashboardSnapshot): MosaicRow[];
 }
+
+/** One row of a tile that has rows in place of one number. */
+export interface MosaicRow {
+  /** The row's name: "Console". */
+  name: string;
+  /** Its reading, formatted: "68.0°". */
+  value: string;
+  /** A second reading set after it, with words for screen readers alone. */
+  aside: { text: string; spoken: string } | null;
+  /** Its line at a width (`aria-hidden`); null when there is nothing to draw. */
+  line?(width: number): SVGSVGElement | null;
+}
+
+/** A row's line height. */
+export const ROW_LINE_HEIGHT = 26;
 
 /**
  * Whether the record covers a tile, by `record_depth.tiles`.
@@ -126,6 +158,55 @@ function bandLegend(): HTMLElement {
   return legend;
 }
 
+/** A screen-reader-only span. */
+function spoken(text: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = "ov-sr";
+  span.textContent = text;
+  return span;
+}
+
+/** A tile's rows: each its name, its reading and aside, then its line. */
+function rowList(rows: MosaicRow[]): HTMLElement {
+  const list = document.createElement("div");
+  list.className = "mosaic-rows";
+  list.dataset.part = "rows";
+  for (const row of rows) {
+    const item = document.createElement("div");
+    item.className = "mosaic-row";
+    item.dataset.part = "row";
+    const name = document.createElement("p");
+    name.className = "mosaic-row-name";
+    name.textContent = row.name;
+    const reading = document.createElement("p");
+    reading.className = "mosaic-row-reading";
+    const value = document.createElement("span");
+    value.className = "mosaic-row-value";
+    value.textContent = row.value;
+    reading.append(value);
+    if (row.aside) {
+      const aside = document.createElement("span");
+      aside.className = "mosaic-row-aside";
+      aside.append(spoken(` ${row.aside.spoken} `), row.aside.text);
+      reading.append(aside);
+    }
+    item.append(name, reading);
+    const line = row.line;
+    if (line) {
+      const plot = document.createElement("div");
+      plot.className = "mosaic-row-line";
+      plot.setAttribute("aria-hidden", "true");
+      item.append(plot);
+      drawSized(plot, (width) => {
+        const svg = line(width);
+        plot.replaceChildren(...(svg ? [svg] : []));
+      });
+    }
+    list.append(item);
+  }
+  return list;
+}
+
 /** Fill a mosaic tile: one link holding its title, number, delta and chart. */
 function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot): void {
   const link = document.createElement("a");
@@ -139,6 +220,8 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
     link.append(title);
   }
 
+  const rows = tile.rows?.(snapshot) ?? [];
+  if (rows.length) link.append(rowList(rows));
   const reading = tile.read(snapshot);
   if (reading.value !== null) {
     const value = document.createElement("p");
@@ -165,10 +248,7 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   chart.className = "mosaic-chart";
   chart.dataset.part = "mini-chart";
   chart.setAttribute("aria-hidden", "true");
-  const open = document.createElement("span");
-  open.className = "ov-sr";
-  open.textContent = `Open the ${tile.zoomName} view`;
-  link.append(chart, open);
+  link.append(chart, spoken(`Open the ${tile.zoomName} view`));
   host.replaceChildren(link);
   const draw = tile.chart;
   if (!draw) return;
@@ -197,7 +277,8 @@ export function mosaicSection(tile: MosaicTile): OverviewSection {
     label: tile.title,
     kicker: tile.title,
     mosaic: true,
-    shown: (snapshot) => depthShown(snapshot, tile.depth),
+    shown: (snapshot) =>
+      depthShown(snapshot, tile.depth) && (tile.shown ? tile.shown(snapshot) : true),
     source: (snapshot) => tile.source(snapshot),
     render: (host, snapshot) => render(tile, host, snapshot),
   };
