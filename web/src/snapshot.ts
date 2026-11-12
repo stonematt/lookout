@@ -751,6 +751,80 @@ export interface DashboardSnapshot extends SnapshotHead {
    * before Release A, which the site reads as none (ADR-0008).
    */
   indoor?: IndoorSensor[];
+  /**
+   * Where the wind comes from over 24 hours, 7 days and 30 days (#465).
+   * Absent from snapshots published before Release A; the wind zoom then
+   * draws no rose (ADR-0008).
+   */
+  wind_rose?: WindRose;
+}
+
+/**
+ * One of the wind rose's 16 direction bins (#465). Directions are where the
+ * wind blows from, in degrees clockwise from north.
+ */
+export interface WindBin {
+  /** Its compass point: "N", "NNE", ... "NNW". */
+  direction: string;
+  /** Its centre: 0, 22.5, ... 337.5. */
+  centre_deg: number;
+  /** Its first degree, inclusive (348.75 for N). */
+  from_deg: number;
+  /** Its last degree, exclusive (11.25 for N). */
+  to_deg: number;
+  /** How many readings that were not calm came from it. */
+  readings: number;
+  /** Their average wind speed, mph; null with no readings. */
+  average_mph: number | null;
+  /** Their highest gust, mph; null with none. */
+  gust_mph: number | null;
+}
+
+/** One of the wind rose's 8 compass points (#465): 45° centred on it. */
+export interface WindPoint {
+  /** "N", "NE", ... "NW". */
+  direction: string;
+  /** Its centre: 0, 45, ... 315. */
+  centre_deg: number;
+  /** How many readings that were not calm came from it. */
+  readings: number;
+  /**
+   * Their share of the window's readings that were not calm, a whole
+   * percent; null when there are none or the window is invalid.
+   */
+  share_pct: number | null;
+}
+
+/**
+ * The wind rose over one window back from the build time (#465). A reading
+ * is calm when its speed is under `WindRose.calm_below_mph` or it has no
+ * direction; calm readings are left out of the bins and points.
+ */
+export interface WindRoseWindow {
+  /** "24h", "7d" or "30d". Find a window by this, not by `status.key`. */
+  key: string;
+  /** Its span in hours back from the build time. */
+  hours: number;
+  /** Its gap status, keyed "wind_" + `key`; every value is null when invalid. */
+  status: GapStatus;
+  /** How many readings with a wind speed it holds. */
+  readings: number;
+  /** How many of them are calm. */
+  calm_readings: number;
+  /** The calm share of `readings`, a whole percent; null with no readings. */
+  calm_pct: number | null;
+  /** The 16 direction bins, clockwise from N. */
+  bins: WindBin[];
+  /** The 8 compass points, clockwise from N. */
+  points: WindPoint[];
+}
+
+/** Where the wind comes from, over 24 hours, 7 days and 30 days (#465). */
+export interface WindRose {
+  /** A reading under this speed (mph) is calm. */
+  calm_below_mph: number;
+  /** The windows, shortest first. */
+  windows: WindRoseWindow[];
 }
 
 /** An indoor sensor's last 24 hours as hourly means (#466). */
@@ -924,6 +998,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkFeature(head.feature);
   checkDrySpell(head.dry_spell);
   checkRecordDepth(head.record_depth);
+  checkWindRose(head.wind_rose);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1431,6 +1506,42 @@ function checkRecordDepth(depth: unknown): void {
     !(next === null || (isRecord(next) && typeof next.key === "string" && isDay(next.date)))
   ) {
     throw new SnapshotContractError("dashboard: record_depth malformed");
+  }
+}
+
+/**
+ * Check `wind_rose`: absent (N−1) is fine; present, each window has its
+ * key, its gap status, its counts and its bin and point lists.
+ */
+function checkWindRose(rose: unknown): void {
+  if (rose === undefined) return;
+  if (
+    !isRecord(rose) ||
+    typeof rose.calm_below_mph !== "number" ||
+    !Array.isArray(rose.windows) ||
+    !rose.windows.every(
+      (w) =>
+        isRecord(w) &&
+        typeof w.key === "string" &&
+        typeof w.hours === "number" &&
+        isRecord(w.status) &&
+        typeof w.readings === "number" &&
+        (w.calm_pct === null || typeof w.calm_pct === "number") &&
+        Array.isArray(w.bins) &&
+        w.bins.every(
+          (b) =>
+            isRecord(b) &&
+            typeof b.direction === "string" &&
+            typeof b.centre_deg === "number" &&
+            typeof b.readings === "number",
+        ) &&
+        Array.isArray(w.points) &&
+        w.points.every(
+          (p) => isRecord(p) && typeof p.direction === "string" && typeof p.readings === "number",
+        ),
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: wind_rose malformed");
   }
 }
 

@@ -13,8 +13,10 @@
  */
 import type { ZoomDefinition } from "../zoom.js";
 import { temperatureZoom } from "./temperature.js";
+import { windZoom } from "./wind.js";
 
 /** The registered zooms, in the mosaic's order. */
 export const ZOOMS: readonly ZoomDefinition[] = [
   temperatureZoom, // #474
+  windZoom, // #476
 ];

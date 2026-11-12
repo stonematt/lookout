@@ -25,7 +25,7 @@
  * Every value is the snapshot's; these only word, format and draw. A missing
  * live reading reads "n/a", never zero.
  *
- * Offers `windTile`, `pressureTile`, `humidityTile`, `sunTile`,
+ * Offers `windClauses`, `windTile`, `pressureTile`, `humidityTile`, `sunTile`,
  * `daylightTile` and `insideTile`.
  */
 import { runs, scale } from "../charts/svg.js";
@@ -118,6 +118,24 @@ function windChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   return svg;
 }
 
+/**
+ * The live wind's two clauses, each null when not known: "from the SE" and
+ * "gusts to 2.5 mph". The tile's delta and the wind zoom's sentence share
+ * them.
+ *
+ * @param c - The current conditions.
+ * @returns The clauses.
+ */
+export function windClauses(c: DashboardSnapshot["current"]): {
+  from: string | null;
+  gust: string | null;
+} {
+  return {
+    from: c.wind_dir_deg === null ? null : `from the ${compassPoint(c.wind_dir_deg)}`,
+    gust: c.wind_gust_mph === null ? null : `gusts to ${mph(c.wind_gust_mph)}`,
+  };
+}
+
 /** Wind: the live speed, where it blows from and its gust. */
 export const windTile: MosaicTile = {
   slug: "wind",
@@ -126,8 +144,7 @@ export const windTile: MosaicTile = {
   zoomName: "wind",
   read(snapshot) {
     const c = snapshot.current;
-    const from = c.wind_dir_deg === null ? null : `from the ${compassPoint(c.wind_dir_deg)}`;
-    const gust = c.wind_gust_mph === null ? null : `gusts to ${mph(c.wind_gust_mph)}`;
+    const { from, gust } = windClauses(c);
     let delta: string;
     if (from && gust) delta = `${from}, ${gust}`;
     else if (from) delta = `${from}, gust not known`;
