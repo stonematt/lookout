@@ -13,7 +13,7 @@ noon and the build two minutes later, unless a test moves it.
 """
 
 from datetime import date, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Dict, Optional
 
 import numpy as np
@@ -76,11 +76,6 @@ def now_delta(snap: Snapshot) -> Optional[UsualNow]:
     return snap.temperature_context.usual_band.now_delta
 
 
-def whole(value: float) -> int:
-    """`value` rounded half away from zero, as the field states it."""
-    return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-
-
 @pytest.fixture(scope="module")
 def recent() -> pd.DataFrame:
     """20 counted days before today: the band's basis is recent days."""
@@ -108,25 +103,22 @@ class TestYoungStation:
         local = local.dt.tz_convert(TZ)
         at_noon = recent[local.dt.date.isin(days) & (local.dt.hour == 12)]
         median = round(float(np.median(at_noon["tempf"])), 1)
-        now = snap.current.temperature_f
 
         assert usual.basis == "recent_days"
-        assert usual.hours[12].median == median
-        assert now_delta(snap) == UsualNow(
-            hour=12, delta_f=whole(now - median), basis="recent_days"
-        )
+        # 54.8 now against a 59.2 noon median: -4.4, so -4.
+        assert usual.hours[12].median == median == 59.2
+        assert snap.current.temperature_f == 54.8
+        assert now_delta(snap) == UsualNow(hour=12, delta_f=-4, basis="recent_days")
 
     def test_a_median_only_band_still_gives_the_delta(self):
         snap = snapshot(station("2026-01-03T08:00:00Z"))
-        median = snap.temperature_context.usual_band.hours[12].median
+        usual = snap.temperature_context.usual_band
 
-        assert snap.temperature_context.usual_band.basis == "median_only"
-        assert median is not None
-        assert now_delta(snap) == UsualNow(
-            hour=12,
-            delta_f=whole(snap.current.temperature_f - median),
-            basis="median_only",
-        )
+        assert usual.basis == "median_only"
+        # 54.8 now against a 56.5 noon median: -1.7, so -2.
+        assert usual.hours[12].median == 56.5
+        assert snap.current.temperature_f == 54.8
+        assert now_delta(snap) == UsualNow(hour=12, delta_f=-2, basis="median_only")
 
 
 class TestNull:
@@ -170,14 +162,23 @@ class TestRounding:
 
 
 class TestGoldens:
-    def test_the_young_goldens_carry_the_median_only_delta(self):
-        for snap in (dry_station(), raining_station()):
-            found = now_delta(snap)
+    def test_the_dry_golden_carries_the_median_only_delta(self):
+        # 39.4 at 11:55 pm against the band's 40.4: -1.0. Built at local
+        # midnight, the reading's hour is read against today's band, the one
+        # the snapshot carries.
+        snap = dry_station()
 
-            assert found is not None
-            assert found.basis == "median_only"
-            median = snap.temperature_context.usual_band.hours[found.hour].median
-            assert found.delta_f == whole(snap.current.temperature_f - median)
+        assert snap.current.temperature_f == 39.4
+        assert snap.temperature_context.usual_band.hours[23].median == 40.4
+        assert now_delta(snap) == UsualNow(hour=23, delta_f=-1, basis="median_only")
+
+    def test_the_raining_golden_carries_the_median_only_delta(self):
+        # 59.3 at 4:25 pm against 59.2: +0.1, so 0.
+        snap = raining_station()
+
+        assert snap.current.temperature_f == 59.3
+        assert snap.temperature_context.usual_band.hours[16].median == 59.2
+        assert now_delta(snap) == UsualNow(hour=16, delta_f=0, basis="median_only")
 
     def test_the_field_is_in_the_dashboard_document(self):
         doc = seasoned_station().dashboard()

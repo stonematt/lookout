@@ -611,8 +611,10 @@ class UsualNow:
     such as "+8° on usual for 2 pm", decided here so the site only words it.
 
     :param hour: The current reading's station-local hour, 0 to 23.
-    :param delta_f: The current temperature minus the band's median for that
-        hour, in whole degrees F, rounded half away from zero.
+    :param delta_f: The current temperature minus this band's (today's)
+        median for that hour, in whole degrees F, rounded half away from
+        zero. Just after midnight a fresh reading from the evening before
+        is still read against today's band, the one the hero draws.
     :param basis: The band's basis, so the line can say when the usual
         comes from recent days.
     """
