@@ -12,6 +12,7 @@ import { setLayout } from "../src/layout.js";
 import { renderOverview } from "../src/overview/index.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
+import { nameFrom } from "./accessible-name.js";
 import { golden, SCENARIOS } from "./golden.js";
 
 type Doc = Record<string, unknown>;
@@ -40,26 +41,8 @@ const words = (node: Element | null | undefined) => node?.textContent?.replace(/
 const tile = () => panel.querySelector<HTMLElement>("[data-section=feature]");
 const link = () => tile()!.querySelector<HTMLAnchorElement>("a")!;
 
-/**
- * A link's accessible name from its content, as a browser computes it: the
- * text of every node not hidden by `aria-hidden`, element by element.
- */
-function nameOf(el: Element): string {
-  const parts: string[] = [];
-  const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) parts.push(node.textContent ?? "");
-    else if (node instanceof Element && node.getAttribute("aria-hidden") !== "true") {
-      for (const child of node.childNodes) walk(child);
-      parts.push(" ");
-    }
-  };
-  walk(el);
-  return parts
-    .join("")
-    .replace(/\s+/g, " ")
-    .replace(/ ([.,])/g, "$1")
-    .trim();
-}
+/** The link's accessible name; the hidden spans leave a space before a stop. */
+const nameOf = (el: Element) => nameFrom(el).replace(/ ([.,])/g, "$1");
 const linkName = () => nameOf(link());
 
 function draw(snapshot: DashboardSnapshot): void {

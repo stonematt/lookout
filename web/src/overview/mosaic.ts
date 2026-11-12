@@ -164,7 +164,7 @@ function bandLegend(): HTMLElement {
 }
 
 /** A screen-reader-only span. */
-function spoken(text: string): HTMLSpanElement {
+export function spoken(text: string): HTMLSpanElement {
   const span = document.createElement("span");
   span.className = "ov-sr";
   span.textContent = text;

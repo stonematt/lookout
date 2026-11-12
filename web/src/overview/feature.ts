@@ -40,6 +40,7 @@ import {
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
+import { spoken } from "./mosaic.js";
 import { temperatureTile } from "./mosaic-tiles.js";
 
 /** Where the tile's link goes, and the words that say so. */
@@ -110,7 +111,7 @@ const READINGS: Record<
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** A value as written in a sentence: "0.30 in", "72°". */
-const said = (value: [string, string | null]) =>
+const valueText = (value: [string, string | null]) =>
   value[1] === null ? value[0] : `${value[0]} ${value[1]}`;
 
 /** An unusual reading's value, number and unit apart. */
@@ -146,7 +147,7 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
       kicker: `Raining now · ${formatDuration(active.duration_minutes * 60_000)}`,
       value,
       finding,
-      spoken: { before: `Raining now: ${said(value)} `, after: "" },
+      spoken: { before: `Raining now: ${valueText(value)} `, after: "" },
       live: true,
       target: RAIN_EVENTS,
     };
@@ -174,7 +175,7 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
     value,
     finding,
     spoken: {
-      before: `Rain ended ${formatDurationSpoken(ago)} ago, after ${said(value)} `,
+      before: `Rain ended ${formatDurationSpoken(ago)} ago, after ${valueText(value)} `,
       after: "",
     },
     live: false,
@@ -199,7 +200,7 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
     kicker: `Unusual · ${reading.name}`,
     value,
     finding,
-    spoken: { before: `${upperFirst(reading.name)} ${said(value)}, `, after: "" },
+    spoken: { before: `${upperFirst(reading.name)} ${valueText(value)}, `, after: "" },
     live: false,
     target: reading.target,
   };
@@ -244,7 +245,7 @@ function quietView(snapshot: DashboardSnapshot): FeatureView {
     kicker: "Today",
     value,
     finding: "a usual day",
-    spoken: { before: "", after: value === null ? "" : `, ${said(value)} now` },
+    spoken: { before: "", after: value === null ? "" : `, ${valueText(value)} now` },
     live: false,
     target: TEMPERATURE,
   };
@@ -270,14 +271,6 @@ export function featureView(snapshot: DashboardSnapshot): FeatureView | null {
     case "quiet":
       return quietView(snapshot);
   }
-}
-
-/** Words for screen readers only. */
-function hidden(text: string): HTMLSpanElement {
-  const span = document.createElement("span");
-  span.className = "ov-sr";
-  span.textContent = text;
-  return span;
 }
 
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
@@ -332,9 +325,9 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
   // The finding is read once, as written; the hidden words round it carry
   // what the aria-hidden kicker and value show, and where the link goes.
-  if (view.spoken.before) body.append(hidden(view.spoken.before));
+  if (view.spoken.before) body.append(spoken(view.spoken.before));
   body.append(tileFinding(view.finding, { lead: true }));
-  body.append(hidden(`${view.spoken.after}. ${view.target.words}.`));
+  body.append(spoken(`${view.spoken.after}. ${view.target.words}.`));
 
   link.append(top, body);
   host.replaceChildren(link);
