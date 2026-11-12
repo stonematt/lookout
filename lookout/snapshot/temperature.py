@@ -333,6 +333,18 @@ def _ten_days(
     return tuple(rows), tuple(sorted(all_years, reverse=True))
 
 
+def _whole(value: Decimal) -> int:
+    """
+    `value` in whole degrees, half away from zero (+2.5 is +3, -2.5 is -3).
+
+    `int` of a decimal zero is 0, so a small negative value never reads -0.
+
+    :param value: A difference in degrees, taken in decimal.
+    :return: The whole-degree value.
+    """
+    return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
 def _ten_day_highs(rows: Sequence[TemperatureDay]) -> Optional[TenDayHighs]:
     """
     The ten-day list's highs against their usual highs (#540).
@@ -341,8 +353,7 @@ def _ten_day_highs(rows: Sequence[TemperatureDay]) -> Optional[TenDayHighs]:
     without earlier years never pulls either mean. The mean of the
     differences is the difference of the means over the same days; it is
     taken in decimal, as `_whole_degrees` does, so a one-decimal half rounds
-    half away from zero and never off by float error. `int` of a decimal
-    zero is 0, so a small negative mean never reads -0.
+    half away from zero and never off by float error.
 
     :param rows: The ten-day list.
     :return: The whole-degree delta and its day count, or None when no day
@@ -357,7 +368,7 @@ def _ten_day_highs(rows: Sequence[TemperatureDay]) -> Optional[TenDayHighs]:
         return None
     mean = sum(differences) / len(differences)
     return TenDayHighs(
-        delta_f=int(mean.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
+        delta_f=_whole(mean),
         days=len(differences),
     )
 
@@ -529,7 +540,7 @@ def _whole_degrees(now_f: float, median: float) -> int:
     :return: The whole-degree difference.
     """
     difference = Decimal(str(now_f)) - Decimal(str(median))
-    return int(difference.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return _whole(difference)
 
 
 def _usual_now(
