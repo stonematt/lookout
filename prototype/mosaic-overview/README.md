@@ -2,7 +2,9 @@
 
 The design round behind the visual-first Overview initiative. The issue holds the decisions to grill; this folder holds the evidence: the canvas boards, rendered images, and the site as it stood before.
 
-Nothing here is built into the site. Every number is a made-up sample shaped like the snapshot, and the boards do not fully agree with each other.
+**Status: final, and the implementation target (Matt, Nov 11, 2026).** This branch, `prototype/mosaic-overview`, stays unmerged and complete as the reference for building the Mosaic Overview. Never merge it, rebase it or delete it. The spec on the issue states what to build; these boards show what it should look like. Where they differ, the spec wins. A later design change lands as a new commit here, recorded as a numbered decision below.
+
+Nothing here is built into the site. Every number is a made-up sample shaped like the snapshot. Where the boards disagree, the second-pass decisions (10–21) win over the first pass (1–9). The boards to build from are `Main` and `MainDark` (phone), `Desktop`, `Zoom` and `ZoomDark` (temperature), `RainZoom` and `WindZoom` and `WindZoomDark`. `Raining` shows the rain feature and the battery line; its lower tiles are stubs.
 
 ## Live artifact (private until shared)
 
@@ -51,6 +53,8 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 19. **The wind zoom leads with a wind rose** (Matt, Nov 11). It has 16 directions over a window of 24 h, 7 days or 30 days. In each direction a dark wedge reaches the average wind and a lighter, edged wedge behind it reaches the highest gust. Rings sit every 5 mph, and now is the orange dot with a leader to its label. Calm readings have no direction, so they are left out, and a line under the rose gives their share. Under the rose, a bar chart gives the share of windy readings from each of the 8 compass points. The wind tile links to this zoom. Boards: `WindZoom`, `WindZoomDark`. Radial charts for time, such as the year in a circle, are tabled.
 
 20. **Matt's last calls (Nov 11).** He approves the Rain tab changes in decision 14. #252's selector is set aside: the rain zoom ships without it, and the board's period control is a placeholder. Wind stays in slate, with no new wind tokens.
+
+21. **This branch is the implementation target** (Matt, Nov 11). It stays complete and unmerged for reference; see Status at the top.
 
 ## Accessibility audit (Nov 11, `/impeccable audit`)
 
