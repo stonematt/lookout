@@ -130,16 +130,34 @@ function lowerFirst(sentence: string): string {
  * The air sentence: what the value is, then the dew point.
  *
  * @param c - The current conditions.
- * @returns E.g. "Humidity; dew point 39.1°."
+ * @param withValue - Name the humidity in the sentence, for the tile's
+ *   finding; the tile itself shows it as its value.
+ * @returns E.g. "Humidity; dew point 39.1°." or, with the value,
+ *   "Humidity 66%; dew point 39.1°."
  */
-function airSentence(c: SnapshotConditions): string {
+function airSentence(c: SnapshotConditions, withValue = false): string {
   const dew = c.dew_point_f === null ? "not known" : degrees(c.dew_point_f);
   if (c.humidity_pct === null) {
     return c.dew_point_f === null
       ? "Humidity and dew point not known."
       : `Humidity not known; dew point ${dew}.`;
   }
-  return `Humidity; dew point ${dew}.`;
+  const humidity = withValue ? `Humidity ${percent(c.humidity_pct)}` : "Humidity";
+  return `${humidity}; dew point ${dew}.`;
+}
+
+/**
+ * Sunrise to sunset in words, for the sun and moon finding.
+ *
+ * @param block - The snapshot's sun and moon.
+ * @returns E.g. "7:15 am to 4:38 pm" in station time.
+ */
+function sunTimesText(block: SunMoon): string {
+  const time = (ms: number): string => {
+    const { clock, period } = timeParts(ms);
+    return `${clock} ${period}`;
+  };
+  return `${time(block.sunrise_ms)} to ${time(block.sunset_ms)}`;
 }
 
 /**
@@ -243,11 +261,7 @@ export const airFact: OverviewSection = {
     renderFact(host, known(c.humidity_pct, percent), airSentence(c));
   },
   finding(snapshot: DashboardSnapshot): string {
-    const c = snapshot.current;
-    const sentence = airSentence(c);
-    return c.humidity_pct === null
-      ? sentence
-      : sentence.replace(/^Humidity;/, `Humidity ${percent(c.humidity_pct)};`);
+    return airSentence(snapshot.current, true);
   },
 };
 
@@ -268,7 +282,6 @@ export const sunMoonFact: OverviewSection = {
   finding(snapshot: DashboardSnapshot): string {
     const block = snapshot.sun_moon;
     if (block === null) return "Sun and moon not known: the station reports no location.";
-    const times = sunTimes(block).textContent!.replace(/\u00a0/g, " ");
-    return `Sun up ${times}; ${daylightClause(block)}; ${moonClause(block)}.`;
+    return `Sun up ${sunTimesText(block)}; ${daylightClause(block)}; ${moonClause(block)}.`;
   },
 };

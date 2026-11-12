@@ -107,7 +107,7 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     expect(named("air")).toMatch(
       new RegExp(`^Humidity ${Math.round(c.humidity_pct!)}%; dew point`),
     );
-    expect(named("sun-moon")).toMatch(/^Sun up .+ to .+; .+ of daylight/);
+    expect(named("sun-moon")).toMatch(/^Sun up \d+:\d\d [ap]m to \d+:\d\d [ap]m; .+ of daylight/);
   });
 });
 
