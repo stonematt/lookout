@@ -272,9 +272,7 @@ describe("the Rain tab", () => {
   it("hides a window the record does not cover, instead of n/a", () => {
     // Raining: 7 days to the water year start before the archive began.
     renderRain(panel, raining);
-    const names = [...section("years").querySelectorAll(".rain-windows dt")].map((dt) =>
-      text(dt),
-    );
+    const names = [...section("years").querySelectorAll(".rain-windows dt")].map((dt) => text(dt));
 
     expect(names).toEqual(["Today", "Yesterday"]);
   });

@@ -12,11 +12,15 @@
  * Offers `ZOOMS`.
  */
 import type { ZoomDefinition } from "../zoom.js";
+import { drySpellZoom } from "./dry-spell.js";
+import { rainZoom } from "./rain.js";
 import { temperatureZoom } from "./temperature.js";
 import { windZoom } from "./wind.js";
 
 /** The registered zooms, in the mosaic's order. */
 export const ZOOMS: readonly ZoomDefinition[] = [
   temperatureZoom, // #474
+  rainZoom, // #475
+  drySpellZoom, // #475
   windZoom, // #476
 ];
