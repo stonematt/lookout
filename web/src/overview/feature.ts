@@ -343,10 +343,10 @@ export const featureTile: OverviewSection = {
   id: "feature",
   label: "The feature",
   kicker: (snapshot) => featureView(snapshot)?.kicker ?? "The feature",
-  // Two columns and two rows of the four-column grid, at the left, with the
-  // first four mosaic tiles beside it (`mosaic.css`); the whole width of the
-  // two-column grid and of a phone.
-  span: 2,
+  // The whole row of the four-column grid, under the now tile and above the
+  // mosaic (prototype decision 23, #545); the whole width of the two-column
+  // grid and of a phone.
+  span: 4,
   phoneTop: true,
   // A snapshot without a feature (published before Release A, ADR-0008)
   // draws no feature tile.

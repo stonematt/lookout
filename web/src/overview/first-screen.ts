@@ -14,6 +14,7 @@
  */
 import "./first-screen.css";
 
+import { signed } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -30,7 +31,7 @@ function temperature(snapshot: DashboardSnapshot): HTMLElement {
   }
   const unit = document.createElement("sup");
   unit.textContent = "°F";
-  node.append(t.toFixed(1), unit);
+  node.append(signed(t), unit);
   return node;
 }
 

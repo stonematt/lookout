@@ -5,7 +5,7 @@
  * leaving the route closes it; a shared link opens it directly; Back, Close
  * and Escape close it; focus moves to the zoom's heading and back to the
  * link that opened it; on the grids the zoom is a full-width row under the
- * tapped tile's row (under the feature block for a tile beside it) and the
+ * tapped tile's row (the feature a row of its own above the mosaic) and the
  * tile carries `aria-expanded` and `aria-controls`; on a phone it takes the
  * screen. Reduced motion opens it without animation. A slug with no zoom yet falls back
  * to the Overview.
@@ -231,16 +231,16 @@ describe("a zoom on the four-column grid", () => {
     expect(document.activeElement).toBe(tileLink());
   });
 
-  it("sits under the feature block for a tile beside it", async () => {
-    // Lay the grid out as the four-column grid does: the now tile, the
-    // feature two rows deep with the first four tiles beside it, then rows of four.
+  it("sits under the tapped tile's row of four, the feature a row above it", async () => {
+    // Lay the grid out as the four-column grid does: the now tile and the
+    // feature a whole row each (prototype decision 23), then rows of four.
     const rows: Record<string, [number, number]> = {
-      now: [0, 200],
-      feature: [216, 616],
-      temperature: [216, 408],
-      rain: [216, 408],
-      "last-10-days": [424, 616],
-      "dry-spell": [424, 616],
+      "first-screen": [0, 200],
+      feature: [216, 416],
+      temperature: [432, 624],
+      rain: [432, 624],
+      "last-10-days": [432, 624],
+      "dry-spell": [432, 624],
     };
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
       this: Element,

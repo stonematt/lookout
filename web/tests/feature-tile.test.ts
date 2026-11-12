@@ -83,19 +83,19 @@ describe("the feature tile", () => {
     expect(links[0]!.querySelector("a, button, details, input")).toBeNull();
   });
 
-  /** The four-column grid's cells the tiles fill: the feature 2×2, the rest their span. */
+  /** The four-column grid's cells the tiles fill: each tile's span. */
   const cells = () =>
     [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
-      t.dataset.section === "feature" ? 4 : Number(t.dataset.span),
+      Number(t.dataset.span),
     );
 
-  it("spans two columns of the four-column grid, beside the first four mosaic tiles", () => {
+  it("spans the whole four-column row, the mosaic in rows of four under it", () => {
     draw(parseDashboard(golden("seasoned", "dashboard")));
     const ids = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map(
       (t) => t.dataset.section,
     );
 
-    expect(tile()!.dataset.span).toBe("2");
+    expect(tile()!.dataset.span).toBe("4");
     expect(ids.slice(1, 6)).toEqual([
       "feature",
       "temperature",

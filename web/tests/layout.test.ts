@@ -69,7 +69,7 @@ describe("the layout switch", () => {
 });
 
 describe("the Overview's grid under each layout", () => {
-  // The grid's rules, then the mosaic's: the feature's two rows.
+  // The grid's rules, then the mosaic's: the feature one row deep.
   const css = ["../src/styles/tiles.css", "../src/overview/mosaic.css"]
     .map((path) => readFileSync(resolve(import.meta.dirname, path), "utf8"))
     .join("\n");
@@ -112,13 +112,13 @@ describe("the Overview's grid under each layout", () => {
     expect(featureRows).toBe("span 1");
   });
 
-  it("is four columns at four-column, the feature 2×2 at the left (Desktop board)", () => {
+  it("is four columns at four-column: now and feature full width, the mosaic four to a row", () => {
     const { columns, spans, featureRows } = grid("four");
     expect(columns).toBe("repeat(4, minmax(0, 1fr))");
-    // The now tile takes the whole first row; the feature two columns and
-    // two rows, so the first four mosaic tiles fill the 2×2 beside it, row
-    // first, and the rest flow one column each in the phone's order.
-    expect(spans).toEqual(["span 4", "span 2", ...halves]);
-    expect(featureRows).toBe("span 2");
+    // The now tile and the feature each take a whole row (prototype decision
+    // 23, #545); the mosaic follows in rows of four, one column a tile, in
+    // the phone's order.
+    expect(spans).toEqual(["span 4", "span 4", ...halves]);
+    expect(featureRows).toBe("span 1");
   });
 });

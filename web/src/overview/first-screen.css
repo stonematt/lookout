@@ -110,7 +110,6 @@
   stroke-dasharray: 4 3;
 }
 
-.today-basis,
 .today-now {
   paint-order: stroke;
   stroke: var(--surface);

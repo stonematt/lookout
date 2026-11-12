@@ -163,6 +163,23 @@ describe("the usual band hero", () => {
 describe("the band's basis label, from the snapshot", () => {
   const label = () => words(one(".today-basis"));
 
+  it.each(SCENARIOS)("sits under the plot and the times of day on %s, clear of every line", (s) => {
+    renderOverview(panel, parsed(s));
+    const basis = one(".today-basis");
+    expect(basis).not.toBeNull();
+    const baseline = Number(basis!.getAttribute("y"));
+    const plot = one(".today-plot")!;
+    const plotFoot = Number(plot.getAttribute("y")) + Number(plot.getAttribute("height"));
+    const floor = Number(one(".today-rain-floor")!.getAttribute("y1"));
+    expect(baseline).toBeGreaterThan(plotFoot);
+    expect(baseline).toBeGreaterThan(floor);
+    for (const x of all(".today-x")) {
+      expect(baseline).toBeGreaterThan(Number(x.getAttribute("y")));
+    }
+    const svgHeight = Number(basis!.closest("svg")!.getAttribute("height"));
+    expect(svgHeight).toBeGreaterThan(baseline);
+  });
+
   it("names the earlier years for an earlier-years band", () => {
     renderOverview(panel, seasoned);
     expect(label()).toBe("usual, this week in 2025 and 2024");
@@ -229,6 +246,15 @@ describe("the delta line on usual", () => {
   it("says at usual for a delta of 0 (raining)", () => {
     renderOverview(panel, raining);
     expect(line()).toBe("at usual for 4 pm");
+  });
+
+  it("writes a below-zero reading and delta with the true minus, in the tile and its words", () => {
+    const doc = withDelta({ hour: 6, delta_f: -9, basis: "earlier_years" });
+    (doc.current as Record<string, unknown>).temperature_f = -4.26;
+    renderOverview(panel, parseDashboard(doc));
+    expect(words(hero().querySelector("[data-part=temperature]"))).toBe("−4.3°F");
+    expect(line()).toBe("−9° on usual for 6 am");
+    expect(hero().textContent).not.toMatch(/-\d/);
   });
 
   it("stands under the temperature, read once with it (no tile name repeats it)", () => {
