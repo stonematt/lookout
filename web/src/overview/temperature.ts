@@ -548,14 +548,6 @@ function stripChart(strip: NormalStrip, width: number): SVGSVGElement | null {
 
 // ---------- the tiles ----------
 
-function standfirst(text: string): HTMLElement {
-  const p = document.createElement("p");
-  p.className = "standfirst";
-  p.dataset.part = "standfirst";
-  p.textContent = text;
-  return p;
-}
-
 function spoken(sentences: string[]): HTMLElement {
   const list = document.createElement("ul");
   list.className = "ov-sr";
@@ -588,17 +580,16 @@ function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const chart = chartHost("periods-chart");
   host.append(
     tileFinding(periodFinding(snapshot)),
-    standfirst(
-      "Each row runs from the lowest to the highest reading in the window; the bar covers the middle half of its readings.",
-    ),
     chart,
     spoken(ctx.periods.map(periodSentence)),
     tileFolds(
       sourceNote(snapshot, {
         what: "five-minute readings, station time",
         method:
+          "Each row runs from the lowest to the highest reading in the window; the bar covers the middle half of its readings. " +
           "Five-minute readings, station time, with the live reading as now. A window with a few days missing from the record is marked ≈; one with too many is hatched and not compared.",
         gaps: gapReasons([[hatchedCount(ctx.periods.map((p) => p.status)), "window", "windows"]]),
+        lag: false,
       }),
     ),
   );
@@ -611,17 +602,16 @@ function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const chart = chartHost("days-chart");
   host.append(
     tileFinding(daysHeadline(snapshot)),
-    standfirst(
-      "Newest first. Each bar runs from the day's low to its high; the pale band behind it is the usual low to high for that date.",
-    ),
     chart,
     spoken([...ctx.ten_days].reverse().map(daySentence)),
     tileFolds(
       sourceNote(snapshot, {
         what: "daily low and high",
         method:
+          "Newest first. Each bar runs from the day's low to its high; the pale band behind it is the usual low to high for that date. " +
           "Usual is the median daily low and median daily high over the days within a week either side of the date, in each earlier year whose record there is complete. Today is the day so far.",
         gaps: gapReasons([[hatchedCount(ctx.ten_days.map((d) => d.status)), "day", "days"]]),
+        lag: false,
       }),
     ),
   );
@@ -642,7 +632,6 @@ function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
         ? stripHeadline(ctx.strips[0])
         : "Now against normal",
     ),
-    standfirst("Each dot is a past day within a week of this date; the rule is now."),
   );
   const stripHosts: [NormalStrip, HTMLElement][] = [];
   // Strips with no comparison share one sentence; say it once.
@@ -673,8 +662,10 @@ function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
       sourceNote(snapshot, {
         what: "past days at this hour",
         method:
+          "Each dot is a past day within a week of this date; the rule is now. " +
           "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
         gaps: gapReasons([[uncompared, "strip", "strips"]]),
+        lag: false,
       }),
     ),
   );

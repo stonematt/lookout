@@ -16,7 +16,8 @@
  * Offers `windFact`, `pressureFact`, `airFact` and `sunMoonFact`
  * (`OverviewSection`s with `fact: true`, which keeps them open tiles on a
  * phone, two to a row), and `renderFact`, the value-and-sentence body any
- * quick-fact tile renders.
+ * quick-fact tile renders. Each tile's `finding` puts its value and its
+ * sentence into one sentence, the tile's accessible name (#458).
  */
 import "./quick-facts.css";
 
@@ -116,19 +117,47 @@ function pressureSentence(c: SnapshotConditions): string {
 }
 
 /**
+ * A sentence with its first letter lowered, to follow a value.
+ *
+ * @param sentence - E.g. "From the SE, gusts to 2.5 mph."
+ * @returns E.g. "from the SE, gusts to 2.5 mph."
+ */
+function lowerFirst(sentence: string): string {
+  return sentence.charAt(0).toLowerCase() + sentence.slice(1);
+}
+
+/**
  * The air sentence: what the value is, then the dew point.
  *
  * @param c - The current conditions.
- * @returns E.g. "Humidity; dew point 39.1°."
+ * @param withValue - Name the humidity in the sentence, for the tile's
+ *   finding; the tile itself shows it as its value.
+ * @returns E.g. "Humidity; dew point 39.1°." or, with the value,
+ *   "Humidity 66%; dew point 39.1°."
  */
-function airSentence(c: SnapshotConditions): string {
+function airSentence(c: SnapshotConditions, withValue = false): string {
   const dew = c.dew_point_f === null ? "not known" : degrees(c.dew_point_f);
   if (c.humidity_pct === null) {
     return c.dew_point_f === null
       ? "Humidity and dew point not known."
       : `Humidity not known; dew point ${dew}.`;
   }
-  return `Humidity; dew point ${dew}.`;
+  const humidity = withValue ? `Humidity ${percent(c.humidity_pct)}` : "Humidity";
+  return `${humidity}; dew point ${dew}.`;
+}
+
+/**
+ * Sunrise to sunset in words, for the sun and moon finding.
+ *
+ * @param block - The snapshot's sun and moon.
+ * @returns E.g. "7:15 am to 4:38 pm" in station time.
+ */
+function sunTimesText(block: SunMoon): string {
+  const time = (ms: number): string => {
+    const { clock, period } = timeParts(ms);
+    return `${clock} ${period}`;
+  };
+  return `${time(block.sunrise_ms)} to ${time(block.sunset_ms)}`;
 }
 
 /**
@@ -193,6 +222,13 @@ export const windFact: OverviewSection = {
     if (speed === null) renderFact(host, "n/a", windSentence(c));
     else renderFact(host, mph(speed, { unit: false }), windSentence(c), "mph");
   },
+  finding(snapshot: DashboardSnapshot): string {
+    const c = snapshot.current;
+    const sentence = windSentence(c);
+    return c.wind_speed_mph === null
+      ? sentence
+      : `Wind ${mph(c.wind_speed_mph)}, ${lowerFirst(sentence)}`;
+  },
 };
 
 /** Pressure: the barometer reading and its 3-hour trend. */
@@ -205,6 +241,13 @@ export const pressureFact: OverviewSection = {
     const c = snapshot.current;
     renderFact(host, known(c.barometer_inhg, inHg), pressureSentence(c));
   },
+  finding(snapshot: DashboardSnapshot): string {
+    const c = snapshot.current;
+    const sentence = pressureSentence(c);
+    return c.barometer_inhg === null
+      ? `Pressure ${lowerFirst(sentence)}`
+      : `Pressure ${inHg(c.barometer_inhg)} ${sentence}`;
+  },
 };
 
 /** Air: humidity and dew point. */
@@ -216,6 +259,9 @@ export const airFact: OverviewSection = {
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const c = snapshot.current;
     renderFact(host, known(c.humidity_pct, percent), airSentence(c));
+  },
+  finding(snapshot: DashboardSnapshot): string {
+    return airSentence(snapshot.current, true);
   },
 };
 
@@ -232,5 +278,10 @@ export const sunMoonFact: OverviewSection = {
       return;
     }
     renderFact(host, sunTimes(block), `${daylightClause(block)}; ${moonClause(block)}.`);
+  },
+  finding(snapshot: DashboardSnapshot): string {
+    const block = snapshot.sun_moon;
+    if (block === null) return "Sun and moon not known: the station reports no location.";
+    return `Sun up ${sunTimesText(block)}; ${daylightClause(block)}; ${moonClause(block)}.`;
   },
 };
