@@ -6,7 +6,7 @@
  * and the per-water-year summaries are computed once in Python. The browser
  * only picks, sorts and words them.
  */
-import { formatDuration, formatStamp, inches, stationFormat } from "../format.js";
+import { formatDuration, formatStamp, inches, ordinal, stationFormat } from "../format.js";
 import { isComparable, notCompared } from "../gaps.js";
 import { listText } from "../rain/text.js";
 import type { EventSeason, EventStats, RainEventRow, RainEvents } from "../snapshot.js";
@@ -224,13 +224,6 @@ export function seasonNote(section: RainEvents, season: Season): string | null {
 /** A duration given in minutes, in the One Format Rule's words. */
 export function minutes(value: number): string {
   return formatDuration(value * 60_000);
-}
-
-/** `1st`, `2nd`, `3rd`, `4th`, `11th`, `22nd`. */
-function ordinal(n: number): string {
-  const teen = n % 100 >= 11 && n % 100 <= 13;
-  const suffix = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th");
-  return `${n}${suffix}`;
 }
 
 /** The year formatter in the station's zone. */

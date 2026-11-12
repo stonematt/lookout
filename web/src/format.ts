@@ -265,6 +265,29 @@ export function localHour(ms: number): number {
   return Number(hourOf().format(ms));
 }
 
+/** The hour-and-minute formatter in the station's zone. */
+const clockOf = () =>
+  stationFormat("en-US", { hour: "numeric", minute: "numeric", hourCycle: "h23" });
+
+/**
+ * A time's place on the station's wall clock, in hours since midnight.
+ *
+ * @param ms - Epoch milliseconds UTC.
+ * @returns 0 up to 24.
+ */
+export function clockHours(ms: number): number {
+  const parts = clockOf().formatToParts(ms);
+  const value = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return value("hour") + value("minute") / 60;
+}
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st, 100th. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
+}
+
 /**
  * An hour of the day, e.g. `midnight`, `3 am`, `noon`, `9 pm`.
  *

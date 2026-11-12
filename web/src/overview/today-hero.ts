@@ -24,7 +24,7 @@
  * accessible name), `nowDeltaText` (the one-line delta on usual under the
  * temperature), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
  */
-import { degrees, formatStamp, hourText, localDay, stationFormat } from "../format.js";
+import { clockHours, degrees, formatStamp, hourText, localDay } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
 import {
   NARROW,
@@ -54,22 +54,6 @@ const RAIN_H = 14;
 const X_LABELS_H = 22;
 
 // ---------- the snapshot's today ----------
-
-/** The clock-time formatter in the station's zone. */
-const clockOf = () =>
-  stationFormat("en-US", { hour: "numeric", minute: "numeric", hourCycle: "h23" });
-
-/**
- * A time's place on the station's wall clock, in hours since midnight.
- *
- * @param ms - Epoch milliseconds UTC.
- * @returns 0 up to 24.
- */
-function clockHours(ms: number): number {
-  const parts = clockOf().formatToParts(ms);
-  const value = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return value("hour") + value("minute") / 60;
-}
 
 /**
  * The snapshot's today: the "today" period's day, which Python's clock set.

@@ -31,6 +31,7 @@ import {
   inches,
   inHg,
   mph,
+  ordinal,
   percent,
 } from "../format.js";
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
@@ -103,13 +104,6 @@ const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 /** A value as written in a sentence: "0.30 in", "72°". */
 const spoken = (value: [string, string | null]) =>
   value[1] === null ? value[0] : `${value[0]} ${value[1]}`;
-
-/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st, 100th. */
-function ordinal(n: number): string {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 13) return `${n}th`;
-  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
-}
 
 /** An unusual reading's value, number and unit apart. */
 function readingValue(feature: Feature, value: number): [string, string | null] {
