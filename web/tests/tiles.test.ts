@@ -2,8 +2,9 @@
 /**
  * The Overview as tiles (#334), through `startPage` on the goldens: each
  * tile opens with its kicker and finding, folds its source and "Why this
- * leads", carries a hatched chip only when the archive lags or a gap hides
- * part of its chart, and states every number in the live value.
+ * leads", carries a hatched chip only when a gap hides part of its chart
+ * (never the archive lag on the Overview, #458), and states every number in
+ * the live value.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -235,19 +236,16 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
 });
 
 describe("the hatched chip on a tile's closed source line", () => {
-  it("names the archive lag on every tile of a golden that lags past 15 minutes", async () => {
-    // Every golden lags: dry by 3 h, raining and seasoned by 30 m.
+  it("names the archive lag on no Overview tile, though a golden lags past 15 minutes", async () => {
+    // Every golden lags: dry by 3 h, raining and seasoned by 30 m. The header
+    // states freshness once instead (#458); the other tabs keep the chip (tabs-tiles).
     for (const scenario of SCENARIOS) {
       const snapshot = parsed(scenario);
       expect(archiveLagMs(snapshot)).toBeGreaterThan(15 * 60_000);
       const panel = await boot(snapshot);
       const lag = lagCaveat(snapshot)!;
-      // A quick fact states the live reading alone, so the archive lag is not its to name.
-      for (const tile of panel.querySelectorAll<HTMLElement>(".tile:not([data-fact])")) {
-        expect(chips(panel)[tile.dataset.section!], tile.dataset.section).toContain(lag);
-      }
-      for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
-        expect(chips(panel)[tile.dataset.section!], tile.dataset.section).toBeUndefined();
+      for (const tile of panel.querySelectorAll<HTMLElement>(".tile")) {
+        expect(chips(panel)[tile.dataset.section!] ?? [], tile.dataset.section).not.toContain(lag);
       }
       page!.stop();
     }
