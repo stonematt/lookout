@@ -47,6 +47,21 @@ describe("the tabs", () => {
     expect(location.hash).toBe("#overview");
   });
 
+  it("keeps a sub-route the caller claims, opening its tab", () => {
+    history.replaceState(null, "", "/#overview/temperature");
+    const keeps = (hash: string) => hash === "overview/temperature";
+    mountTabs(host, undefined, { keeps });
+    expect(selected()?.textContent).toBe("Overview");
+    expect(location.hash).toBe("#overview/temperature");
+  });
+
+  it("rewrites a sub-route nobody claims to its tab", () => {
+    history.replaceState(null, "", "/#overview/wind");
+    mountTabs(host, undefined, { keeps: (hash) => hash === "overview/temperature" });
+    expect(selected()?.textContent).toBe("Overview");
+    expect(location.hash).toBe("#overview");
+  });
+
   it("tracks a clicked tab in the hash", () => {
     mountTabs(host);
     tabs()[3]!.click();

@@ -500,9 +500,9 @@ describe("the Overview's landmarks and headings, through the page", () => {
     for (const t of MOSAIC_TILES) expect(headings).toContain(t.title);
   });
 
-  it("keeps the Overview open on a zoom link nothing handles yet", async () => {
+  it("keeps the Overview open on a zoom link with no zoom yet", async () => {
     await boot(parsed("seasoned"));
-    location.hash = "#overview/temperature";
+    location.hash = "#overview/wind";
     window.dispatchEvent(new HashChangeEvent("hashchange"));
 
     expect(document.getElementById("panel-overview")!.hidden).toBe(false);

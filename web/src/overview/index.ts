@@ -32,6 +32,10 @@
  * The sections that left the Overview with the accordion (temperature across
  * periods, now against this date, the ten-day list, the almanac and the
  * rolling-window rain) stay in their modules as the zooms' content.
+ *
+ * Each tile's link opens its zoom at `#overview/<slug>` (#474): after every
+ * render the zoom shell (`zoom.ts`) draws the zoom the route names, from
+ * the registry in `zooms/index.ts`.
  */
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
@@ -41,6 +45,7 @@ import { firstScreen } from "./first-screen.js";
 import { mosaicSection } from "./mosaic.js";
 import { MOSAIC_TILES } from "./mosaic-tiles.js";
 import { sourcesFooter } from "./sources.js";
+import { drawZoom } from "./zoom.js";
 
 /** One tile of the Overview. */
 export type OverviewSection = TileSection;
@@ -72,4 +77,5 @@ export function renderOverview(
   const drawn = sections.filter((s) => !s.shown || s.shown(snapshot));
   const footer = sourcesFooter(snapshot, drawn);
   if (footer) panel.append(footer);
+  drawZoom(panel, snapshot);
 }

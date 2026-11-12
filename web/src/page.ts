@@ -22,7 +22,11 @@
  * the tabs drawn.
  *
  * The station index (`/stations`, read on the same cycle) feeds the header's
- * station selector (#273). Choosing a station writes `?station=<MAC>` to the
+ * station selector (#273).
+ *
+ * The tab shell keeps a zoom's route (`#overview/<slug>`, #474) in the URL,
+ * and each time a tab opens the Overview's zoom shell follows the route
+ * (`overview/zoom.ts`), opening or closing a zoom. Choosing a station writes `?station=<MAC>` to the
  * URL (a new history entry, so Back returns to the last station), and the
  * page starts over for it: every tab and the header's reading wait for the
  * new station's reads, and a read still under way for the last station is
@@ -35,6 +39,7 @@ import { mountHeader } from "./header.js";
 import { mountLayout } from "./layout.js";
 import { ReadError } from "./load.js";
 import { renderOverview } from "./overview/index.js";
+import { drawZoom, followZoom, isZoomRoute } from "./overview/zoom.js";
 import { renderRain } from "./rain/index.js";
 import type { CurrentReading, DashboardSnapshot } from "./snapshot.js";
 import { renderSolar } from "./solar/index.js";
@@ -116,7 +121,11 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
   const layout = mountLayout(undefined, undefined, (next) => {
     // A phone draws rows, the grids tiles: redraw only across that line.
     const phone = next === "phone";
-    if (phone === wasPhone) return;
+    if (phone === wasPhone) {
+      // Two and four columns break the rows differently: the zoom moves.
+      if (dashboard) drawZoom(tabs.panel("overview"), dashboard);
+      return;
+    }
     wasPhone = phone;
     rendered = new WeakMap();
     if (!dashboard) return;
@@ -151,7 +160,16 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
     rendered.set(panel, dashboard);
   }
 
-  const tabs = mountTabs(sections, renderTab, { barBeforeHost: true });
+  const tabs = mountTabs(
+    sections,
+    (id, panel) => {
+      renderTab(id, panel);
+      // Every hash change opens a tab: the Overview's zoom follows the route.
+      const overview = sections.querySelector<HTMLElement>("#panel-overview");
+      if (overview) followZoom(overview);
+    },
+    { barBeforeHost: true, keeps: isZoomRoute },
+  );
 
   /** The index's entry for the station shown, when the index is known. */
   function shownEntry() {

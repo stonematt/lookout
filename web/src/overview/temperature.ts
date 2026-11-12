@@ -72,6 +72,44 @@ function periodRows(snapshot: DashboardSnapshot): TemperaturePeriod[] {
   return rows;
 }
 
+/** The "today" window, when the record covers it. */
+export function todayPeriod(snapshot: DashboardSnapshot): TemperaturePeriod | null {
+  const today = snapshot.temperature_context.periods.find((p) => p.status.key === "today");
+  return today && isShown(today.status) ? today : null;
+}
+
+/**
+ * Today in the ten-day list, which holds the usual low and high for this
+ * date: the Usual row of the window range chart, in the zoom and on the
+ * Temperature tile.
+ */
+export function todayInList(snapshot: DashboardSnapshot): TemperatureDay | null {
+  const today = todayPeriod(snapshot);
+  if (!today) return null;
+  return (
+    snapshot.temperature_context.ten_days.find((d) => d.day === today.status.first_day) ?? null
+  );
+}
+
+/** The Usual row's low and high and its date, when the snapshot holds them. */
+function usualRow(snapshot: DashboardSnapshot): { low: number; high: number; day: string } | null {
+  const day = todayInList(snapshot);
+  if (!day || day.usual_low === null || day.usual_high === null) return null;
+  return { low: day.usual_low, high: day.usual_high, day: day.day };
+}
+
+/** The Usual row's span line: "Nov 10, earlier years". */
+function usualSpan(day: string): string {
+  return `${SHORT_DATE.format(dayDate(day))}, earlier years`;
+}
+
+/** The accessible sentence for the Usual row; null when there is no usual. */
+export function usualSentence(snapshot: DashboardSnapshot): string | null {
+  const usual = usualRow(snapshot);
+  if (!usual) return null;
+  return `Usual (${usualSpan(usual.day)}): low ${degrees(usual.low)} to high ${degrees(usual.high)}.`;
+}
+
 /** The ten-day list's days the record covers, oldest first. */
 export function shownDays(snapshot: DashboardSnapshot): TemperatureDay[] {
   return snapshot.temperature_context.ten_days.filter((d) => isShown(d.status));
@@ -205,29 +243,47 @@ export function periodSentence(p: TemperaturePeriod): string {
   );
 }
 
-function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
+/**
+ * The window range chart: one row per window, the now rule across them.
+ * With `withUsual` (the temperature zoom, spec #460 story 35) a Usual row
+ * leads, the usual low to high for this date in earlier years, ruled off
+ * from the windows under it.
+ */
+function periodsChart(
+  snapshot: DashboardSnapshot,
+  width: number,
+  withUsual = false,
+): SVGSVGElement | null {
   const ctx = snapshot.temperature_context;
   const now = ctx.now;
   const periods = periodRows(snapshot);
+  const usual = withUsual ? usualRow(snapshot) : null;
+  // The windows sit one row down under a Usual row.
+  const lead = usual ? 1 : 0;
   // On a phone each row's label sits above its bar, so the bar gets the
   // whole width; from 520px of chart width the labels are a column.
   const narrow = width < NARROW;
   const rowH = narrow ? 50 : 46;
   // The label column fits the longest span ("Nov 1, 2025 to Oct 31"), so
   // a whisker at the plot's left edge never runs under it.
-  const longest = Math.max(0, ...periods.map((p) => spanText(p.status).length));
+  const longest = Math.max(
+    0,
+    ...periods.map((p) => spanText(p.status).length),
+    usual ? usualSpan(usual.day).length : 0,
+  );
   const left = narrow ? 0 : Math.max(118, Math.ceil(longest * LABEL_CHAR_PX) + 8);
   const f = { l: left, r: narrow ? 0 : 12, t: 34, b: 26 };
   // A row's bar: centred in the row beside its label, under it on a phone.
   const barY = (i: number) => (narrow ? i * rowH + 36 : i * rowH + rowH / 2);
   const iw = width - f.l - f.r;
-  const ih = rowH * periods.length;
+  const ih = rowH * (periods.length + lead);
   const height = f.t + ih + f.b;
 
   const numbers = periods.flatMap((p) =>
     isComparable(p.status) && p.low !== null && p.high !== null ? [p.low, p.high] : [],
   );
   if (now !== null) numbers.push(now);
+  if (usual) numbers.push(usual.low, usual.high);
   if (numbers.length === 0 && periods.every((p) => isComparable(p.status) === false)) {
     numbers.push(40, 60);
   }
@@ -241,6 +297,29 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   const labels = svgEl("g", { transform: `translate(0,${f.t})` });
   el.append(g, labels);
   axis(g, ticks, x, ih, (v) => degrees(v, 0));
+  if (usual) {
+    const cy = barY(0);
+    const y = narrow ? 18 : cy - 2;
+    labels.append(
+      svgEl("text", { class: "tc-row", x: narrow ? 0 : 2, y }, "Usual"),
+      narrow
+        ? svgEl("text", { class: "tc-sub", x: 52, y }, usualSpan(usual.day))
+        : svgEl("text", { class: "tc-sub", x: 2, y: cy + 13 }, usualSpan(usual.day)),
+      // The rule between the usual and the windows under it.
+      svgEl("line", { class: "tc-divider", x1: 0, x2: width, y1: rowH, y2: rowH }),
+    );
+    g.append(
+      svgEl("rect", {
+        class: "tc-usual",
+        "data-row": "usual",
+        x: x(usual.low),
+        y: cy - 7,
+        width: Math.max(2, x(usual.high) - x(usual.low)),
+        height: 14,
+        rx: 4,
+      }),
+    );
+  }
 
   if (now !== null) {
     const nx = x(now);
@@ -255,7 +334,8 @@ function periodsChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
       : { x: right ? nx - 8 : nx + 8, y: -14, anchor: right ? "end" : "start" };
     g.append(svgEl("text", { class: "tc-note", x: at.x, y: at.y, "text-anchor": at.anchor }, note));
   }
-  periods.forEach((p, i) => {
+  periods.forEach((p, row) => {
+    const i = row + lead;
     const cy = barY(i);
     const name = WINDOW_NAMES[p.status.key] ?? p.status.key;
     if (narrow) {
@@ -592,16 +672,34 @@ export function daysHeadline(snapshot: DashboardSnapshot): string {
     : "The last ten days, with no earlier year to set them against";
 }
 
-function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
+/** How a temperature block is drawn: as a tile, or in the zoom. */
+interface BlockOptions {
+  /**
+   * The zoom's form: no source fold (prototype decision 22: the Overview's
+   * sources footer holds it) and, on the window range chart, the Usual row.
+   */
+  zoom?: boolean;
+}
+
+function renderPeriods(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: BlockOptions = {},
+): void {
   const periods = periodRows(snapshot);
   host.dataset.block = "periods";
   const chart = chartHost("periods-chart");
   const unlock = nextUnlockLine(snapshot);
+  const usual = options.zoom ? usualSentence(snapshot) : null;
   host.append(
     tileFinding(periodFinding(snapshot)),
     chart,
     ...(unlock ? [unlock] : []),
-    spoken(periods.map(periodSentence)),
+    spoken([...(usual ? [usual] : []), ...periods.map(periodSentence)]),
+  );
+  mountChart(chart, (w) => periodsChart(snapshot, w, options.zoom));
+  if (options.zoom) return;
+  host.append(
     tileFolds(
       sourceNote(snapshot, {
         what: "five-minute readings, station time",
@@ -613,7 +711,6 @@ function renderPeriods(host: HTMLElement, snapshot: DashboardSnapshot): void {
       }),
     ),
   );
-  mountChart(chart, (w) => periodsChart(snapshot, w));
 }
 
 function renderTenDays(host: HTMLElement, snapshot: DashboardSnapshot): void {
@@ -643,7 +740,11 @@ function stripHeadline(strip: NormalStrip): string {
   return `Now against usual for this date in ${years}`;
 }
 
-function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
+function renderStrips(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: BlockOptions = {},
+): void {
   const ctx = snapshot.temperature_context;
   host.dataset.block = "strips";
   host.append(
@@ -677,19 +778,34 @@ function renderStrips(host: HTMLElement, snapshot: DashboardSnapshot): void {
     host.append(figure);
   }
   const uncompared = ctx.strips.filter((strip) => strip.missing === "no_comparison").length;
-  host.append(
-    tileFolds(
-      sourceNote(snapshot, {
-        what: "past days at this hour",
-        method:
-          "Each dot is a past day within a week of this date; the rule is now. " +
-          "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
-        gaps: gapReasons([[uncompared, "strip", "strips"]]),
-        lag: false,
-      }),
-    ),
-  );
+  if (!options.zoom) {
+    host.append(
+      tileFolds(
+        sourceNote(snapshot, {
+          what: "past days at this hour",
+          method:
+            "Each dot is a past day within a week of this date; the rule is now. " +
+            "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
+          gaps: gapReasons([[uncompared, "strip", "strips"]]),
+          lag: false,
+        }),
+      ),
+    );
+  }
   for (const [strip, chart] of stripHosts) mountChart(chart, (w) => stripChart(strip, w));
+}
+
+/**
+ * The temperature zoom's window range chart (#474): the Usual row on top,
+ * then each window the record covers and Full history; no source fold.
+ */
+export function renderPeriodsZoom(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  renderPeriods(host, snapshot, { zoom: true });
+}
+
+/** The temperature zoom's now-against-this-date strips; no source fold. */
+export function renderStripsZoom(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  renderStrips(host, snapshot, { zoom: true });
 }
 
 /** Temperature across periods: one range bar per window, the now rule across them. */
@@ -698,7 +814,7 @@ export const temperaturePeriods: OverviewSection = {
   label: "Temperature in context",
   kicker: "Temperature, in context",
   span: 2,
-  render: renderPeriods,
+  render: (host, snapshot) => renderPeriods(host, snapshot),
 };
 
 /** "Now against normal": today's temperature and rain among past days of this date. */
@@ -709,7 +825,7 @@ export const againstNormal: OverviewSection = {
   // Half the four-column row each, with the ten-day list, under the
   // full-width now tile (#468), so the almanac row stays whole.
   span: 2,
-  render: renderStrips,
+  render: (host, snapshot) => renderStrips(host, snapshot),
 };
 
 /** The ten-day high-low list. */
