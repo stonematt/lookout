@@ -40,6 +40,7 @@ from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
+from lookout.snapshot.trace import outdoor_trace
 from lookout.snapshot.widget import widget_view
 from lookout.snapshot.wind import wind_rose
 
@@ -145,4 +146,5 @@ def build_snapshot(
         wind_rose=wind_rose(stitched, days.coverage),
         indoor=indoor,
         battery_flags=battery_flags(stitched),
+        outdoor_trace=outdoor_trace(stitched),
     )

@@ -1594,6 +1594,30 @@ class IndoorTrace:
 
 
 @dataclass(frozen=True)
+class OutdoorTrace:
+    """
+    The outdoor pressure and humidity over the last 24 hours, hourly (#554).
+
+    The Pressure and Humidity tiles' mini charts. The slots are the indoor
+    traces' (`IndoorTrace`): slot `i` covers `start_ms + i * slot_minutes`
+    minutes up to the next slot, and the last is the hour holding the
+    history's newest reading (`lookout.snapshot.trace`).
+
+    :param start_ms: When the first slot starts.
+    :param slot_minutes: Each slot's length: 60.
+    :param pressure_inhg: The mean relative pressure (`baromrelin`) in each
+        slot, to two decimals; null for a slot with no reading.
+    :param humidity_pct: The mean outdoor humidity (`humidity`) in each
+        slot, to whole percent; null for a slot with no reading.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    pressure_inhg: Tuple[Optional[float], ...]
+    humidity_pct: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
 class IndoorSensor:
     """
     One indoor sensor still reporting (#466): the console or a numbered one.
@@ -1682,6 +1706,9 @@ class Snapshot:
         (`lookout.snapshot.indoor`).
     :param battery_flags: Each sensor battery still reporting, OK or low,
         with the name the site prints (`lookout.snapshot.indoor`).
+    :param outdoor_trace: The outdoor pressure and humidity over the last 24
+        hours, hourly, for their tiles' mini charts; None without an
+        observation (`lookout.snapshot.trace`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1709,6 +1736,7 @@ class Snapshot:
     wind_rose: WindRose
     indoor: Tuple[IndoorSensor, ...]
     battery_flags: Tuple[BatteryFlag, ...]
+    outdoor_trace: Optional[OutdoorTrace]
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:
