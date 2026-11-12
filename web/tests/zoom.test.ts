@@ -7,7 +7,7 @@
  * link that opened it; on the grids the zoom is a full-width row under the
  * tapped tile's row (under the feature block for a tile beside it) and the
  * tile carries `aria-expanded` and `aria-controls`; on a phone it takes the
- * screen. Reduced motion opens it still. A slug with no zoom yet falls back
+ * screen. Reduced motion opens it without animation. A slug with no zoom yet falls back
  * to the Overview.
  */
 import { readFileSync } from "node:fs";
@@ -171,6 +171,30 @@ describe("a zoom on the four-column grid", () => {
     expect(zoom()).toBeNull();
     expect(location.hash).toBe("#overview");
     expect(document.activeElement).toBe(tileLink());
+  });
+
+  it("closes on Escape from the tile that controls it", async () => {
+    await boot("#overview");
+    tileLink().click();
+    tileLink().focus();
+    key(tileLink(), "Escape");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+
+    expect(zoom()).toBeNull();
+    expect(document.activeElement).toBe(tileLink());
+  });
+
+  it("replaces the route on Close when another part of the page pushed the entry", async () => {
+    await boot("#overview");
+    tileLink().click();
+    // A station chosen in the zoom pushes its own entry, with no zoom stamp.
+    history.pushState(null, "", location.href);
+    zoom()!.querySelector<HTMLButtonElement>(".zoom-close")!.click();
+
+    expect(history.go).not.toHaveBeenCalled();
+    expect(location.hash).toBe("#overview");
+    expect(zoom()).toBeNull();
+    expect(history.state).toBeNull();
   });
 
   it("closes on the browser's Back", async () => {
@@ -358,34 +382,30 @@ describe("a tile with no zoom yet", () => {
 });
 
 describe("reduced motion", () => {
-  it("opens the zoom still and scrolls to it without smoothing", async () => {
+  it("scrolls to the zoom without smoothing", async () => {
     const scrolled = vi.fn();
     Element.prototype.scrollIntoView = scrolled;
     await boot("#overview", 1440, true);
     tileLink().click();
 
-    expect(zoom()!.dataset.still).toBe("true");
     expect(scrolled).toHaveBeenCalledWith({ behavior: "auto", block: "start" });
   });
 
-  it("animates and smooths otherwise", async () => {
+  it("smooths the scroll otherwise", async () => {
     const scrolled = vi.fn();
     Element.prototype.scrollIntoView = scrolled;
     await boot("#overview", 1440, false);
     tileLink().click();
 
-    expect(zoom()!.hasAttribute("data-still")).toBe(false);
     expect(scrolled).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
   });
 
-  it("animates only under no-preference, and never under reduce, in the stylesheet", () => {
+  it("animates the opening only under no-preference, in the stylesheet", () => {
     const css = readFileSync(resolve(import.meta.dirname, "../src/overview/zoom.css"), "utf8");
     const noPref = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/.exec(css);
-    const reduce = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css);
     expect(noPref?.[1]).toContain("animation: zoom-open");
-    expect(reduce?.[1]).toContain("animation: none");
-    // No animation outside those two blocks.
-    const rest = css.replace(noPref![0], "").replace(reduce![0], "");
-    expect(rest).not.toMatch(/animation:/);
+    // No animation or transition outside that block, so reduce gets none.
+    const rest = css.replace(noPref![0], "");
+    expect(rest).not.toMatch(/animation:|transition:/);
   });
 });

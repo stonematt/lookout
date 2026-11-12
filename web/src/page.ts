@@ -22,16 +22,16 @@
  * the tabs drawn.
  *
  * The station index (`/stations`, read on the same cycle) feeds the header's
- * station selector (#273).
- *
- * The tab shell keeps a zoom's route (`#overview/<slug>`, #474) in the URL,
- * and each time a tab opens the Overview's zoom shell follows the route
- * (`overview/zoom.ts`), opening or closing a zoom. Choosing a station writes `?station=<MAC>` to the
+ * station selector (#273). Choosing a station writes `?station=<MAC>` to the
  * URL (a new history entry, so Back returns to the last station), and the
  * page starts over for it: every tab and the header's reading wait for the
  * new station's reads, and a read still under way for the last station is
  * dropped when it answers, so the page never mixes two stations. Every read
  * function takes the station from the page's URL.
+ *
+ * The tab shell keeps a zoom's route (`#overview/<slug>`, #474) in the URL,
+ * and each time a tab opens the Overview's zoom shell follows the route
+ * (`overview/zoom.ts`), opening or closing a zoom.
  */
 import { mountEvents } from "./events/tab.js";
 import { setStationZone } from "./format.js";

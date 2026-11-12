@@ -681,6 +681,7 @@ interface BlockOptions {
   zoom?: boolean;
 }
 
+/** The window range chart under its finding; the tile form folds its source. */
 function renderPeriods(
   host: HTMLElement,
   snapshot: DashboardSnapshot,
@@ -740,6 +741,7 @@ function stripHeadline(strip: NormalStrip): string {
   return `Now against usual for this date in ${years}`;
 }
 
+/** The now-against-this-date strips; the tile form folds its source. */
 function renderStrips(
   host: HTMLElement,
   snapshot: DashboardSnapshot,
@@ -814,7 +816,7 @@ export const temperaturePeriods: OverviewSection = {
   label: "Temperature in context",
   kicker: "Temperature, in context",
   span: 2,
-  render: (host, snapshot) => renderPeriods(host, snapshot),
+  render: renderPeriods,
 };
 
 /** "Now against normal": today's temperature and rain among past days of this date. */
@@ -825,7 +827,7 @@ export const againstNormal: OverviewSection = {
   // Half the four-column row each, with the ten-day list, under the
   // full-width now tile (#468), so the almanac row stays whole.
   span: 2,
-  render: (host, snapshot) => renderStrips(host, snapshot),
+  render: renderStrips,
 };
 
 /** The ten-day high-low list. */

@@ -11,7 +11,8 @@
  *   grid, under the tapped tile's row, Close at its top right, the panels
  *   two by two (`.zoom-panels`); a `[data-wide]` panel takes the row.
  *
- * It opens with a short fade and rise, and with none under reduced motion.
+ * It opens with a short fade and rise, only under
+ * `prefers-reduced-motion: no-preference`.
  */
 
 .zoom {
@@ -40,15 +41,10 @@
   display: none;
 }
 
+/* the one animation, only for a visitor who has not asked for less motion */
 @media (prefers-reduced-motion: no-preference) {
-  .zoom:not([data-still]) {
-    animation: zoom-open 180ms ease-out;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
   .zoom {
-    animation: none;
+    animation: zoom-open 180ms ease-out;
   }
 }
 
@@ -66,13 +62,16 @@
 
 /* ---------- the bar: Back on a phone, Close on the grids ---------- */
 .zoom-bar {
+  /* a button's least height (DESIGN.md "Chips and buttons") */
+  --zoom-button: 44px;
   display: flex;
   margin-bottom: var(--s-2);
 }
 
+/* Close floats at the top right, beside the heading, not over a row of its own */
 .zoom[data-mode="row"] .zoom-bar {
   justify-content: flex-end;
-  margin-bottom: calc(-44px + var(--s-1));
+  margin-bottom: calc(var(--s-1) - var(--zoom-button));
 }
 
 .zoom-back,
@@ -80,8 +79,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  min-height: 44px;
-  font-size: var(--type-standfirst);
+  min-height: var(--zoom-button);
   font-weight: 500;
   cursor: pointer;
 }
@@ -102,6 +100,7 @@
   position: relative;
   z-index: 1;
   padding: 0 var(--s-4);
+  font-size: var(--type-standfirst);
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-pill);
   background: var(--surface);

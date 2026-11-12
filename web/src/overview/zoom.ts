@@ -50,7 +50,8 @@
  *   (`[data-wide]`) takes the whole row.
  *
  * Offers `ZoomDefinition`, `ZoomPanel`, `zoomFor`, `isZoomRoute`,
- * `drawZoom` (the Overview calls it after each render) and `followZoom`
+ * `closeZoom` (Close, Back and Escape), `drawZoom` (the Overview calls it
+ * after each render) and `followZoom`
  * (the page calls it each time a tab opens or the hash moves).
  */
 import "./zoom.css";
@@ -205,7 +206,10 @@ function listen(panel: HTMLElement, state: ZoomState): void {
   panel.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || state.open === null) return;
     const target = event.target;
-    if (!(target instanceof Element) || !target.closest(".zoom")) return;
+    if (!(target instanceof Element)) return;
+    // From inside the zoom, or from the tile that controls it.
+    const control = target.closest(`a[href="#${PREFIX}${state.open}"]`);
+    if (!target.closest(".zoom") && !control) return;
     event.preventDefault();
     closeZoom(panel);
   });
@@ -221,12 +225,23 @@ function listen(panel: HTMLElement, state: ZoomState): void {
 export function closeZoom(panel: HTMLElement): void {
   const state = states.get(panel);
   if (!state || state.open === null) return;
-  if (state.back > 0) {
-    history.go(-state.back);
+  // The entry's own stamp, not a count kept here: an entry another part of
+  // the page pushed (a station chosen) carries none, and is replaced.
+  const back = stampedBack() ?? 0;
+  if (back > 0) {
+    history.go(-back);
     return;
   }
-  history.replaceState(history.state, "", `#overview`);
+  history.replaceState(unstamped(), "", `#overview`);
   followZoom(panel);
+}
+
+/** This entry's state without the zoom's stamp, for a route that is closed. */
+function unstamped(): unknown {
+  const state: unknown = history.state;
+  if (!state || typeof state !== "object" || !("zoomBack" in state)) return state;
+  const { zoomBack: _, ...rest } = state as Record<string, unknown>;
+  return Object.keys(rest).length ? rest : null;
 }
 
 /** Whether a grid layout draws the zoom in place. */
@@ -301,7 +316,6 @@ function shell(panel: HTMLElement, zoom: ZoomDefinition, snapshot: DashboardSnap
   el.dataset.zoom = zoom.slug;
   el.dataset.mode = inPlace() ? "row" : "screen";
   el.setAttribute("aria-labelledby", `zoom-${zoom.slug}-heading`);
-  if (reducedMotion()) el.dataset.still = "true";
   const panels = document.createElement("div");
   panels.className = "zoom-panels";
   el.append(bar(panel), head(zoom, snapshot), panels);
@@ -396,10 +410,15 @@ export function drawZoom(
   if (held) panel.querySelector<HTMLElement>(".zoom-heading")?.focus({ preventScroll: true });
 }
 
+/** A drawn tile, by slug, or null. */
+function tileOf(panel: HTMLElement, slug: string): HTMLElement | null {
+  return panel.querySelector<HTMLElement>(`[data-section="${CSS.escape(slug)}"]`);
+}
+
 /** The zoom the route names whose tile is drawn, or null. */
 function routed(panel: HTMLElement, state: ZoomState): ZoomDefinition | null {
   const zoom = zoomFor(location.hash, state.zooms);
-  return zoom && panel.querySelector(`[data-section="${CSS.escape(zoom.slug)}"]`) ? zoom : null;
+  return zoom && tileOf(panel, zoom.slug) ? zoom : null;
 }
 
 /** Draw the routed zoom (or none) from the state's snapshot. */
@@ -413,7 +432,7 @@ function render(panel: HTMLElement, state: ZoomState): void {
   markTiles(panel, state);
   if (!zoom || !state.snapshot) return;
   const el = shell(panel, zoom, state.snapshot);
-  const tile = panel.querySelector<HTMLElement>(`[data-section="${CSS.escape(zoom.slug)}"]`)!;
+  const tile = tileOf(panel, zoom.slug)!;
   const grid = tile.parentElement!;
   if (screen) grid.before(el);
   else place(grid, tile, el);
