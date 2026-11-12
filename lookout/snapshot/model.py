@@ -1077,6 +1077,23 @@ class RollingWindow:
 
 
 @dataclass(frozen=True)
+class GridFinding:
+    """
+    Which month leads the almanac grid's finding, and which earlier months
+    it is set against; the site words it, the grid's cells hold the rain.
+
+    :param month: The leading month's status key, "YYYY-MM": the newest
+        month with rain, found by walking the rows newest first and each
+        row from September back to October.
+    :param earlier: The same calendar month's status keys in older rows
+        that have rain, newest first, at most three.
+    """
+
+    month: str
+    earlier: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Almanac:
     """
     The Overview's almanac grid and rolling-window rain table (#82). Every
@@ -1084,10 +1101,13 @@ class Almanac:
 
     :param years: Water-year rows, newest first.
     :param rolling: The rolling windows, shortest first, the season last.
+    :param grid_finding: The grid's finding; None when no month has rain
+        to lead with.
     """
 
     years: Tuple[AlmanacYear, ...]
     rolling: Tuple[RollingWindow, ...]
+    grid_finding: Optional[GridFinding]
 
 
 @dataclass(frozen=True)

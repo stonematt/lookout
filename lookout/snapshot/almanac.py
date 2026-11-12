@@ -27,6 +27,7 @@ from lookout.snapshot.model import (
     Almanac,
     AlmanacMonth,
     AlmanacYear,
+    GridFinding,
     RollingWindow,
     RollingYear,
 )
@@ -42,6 +43,9 @@ follows them."""
 
 SEASON = "water_year"
 
+NAMED_YEARS = 3
+"""How many earlier months the grid's finding names."""
+
 
 def almanac(days: CountedDays) -> Almanac:
     """
@@ -51,7 +55,36 @@ def almanac(days: CountedDays) -> Almanac:
         are judged by its rain day kind.
     :return: The section.
     """
-    return Almanac(years=_years(days), rolling=_rolling(days))
+    years = _years(days)
+    return Almanac(
+        years=years, rolling=_rolling(days), grid_finding=grid_finding(years)
+    )
+
+
+def grid_finding(years: Tuple[AlmanacYear, ...]) -> Optional[GridFinding]:
+    """
+    The month that leads the grid's finding and the months it is set against.
+
+    Walks the rows newest first and each row from its last column back; the
+    first month with rain leads. It is compared with the same column in the
+    older rows that have rain, newest first, at most `NAMED_YEARS`.
+
+    :param years: The grid's rows, newest first.
+    :return: The finding; None when no month has rain.
+    """
+    for year in years:
+        for column in range(11, -1, -1):
+            month = year.months[column]
+            if month is None or month.rain_in is None:
+                continue
+            older = [o.months[column] for o in years if o.water_year < year.water_year]
+            earlier = [
+                m.status.key for m in older if m is not None and m.rain_in is not None
+            ]
+            return GridFinding(
+                month=month.status.key, earlier=tuple(earlier[:NAMED_YEARS])
+            )
+    return None
 
 
 def _years(days: CountedDays) -> Tuple[AlmanacYear, ...]:

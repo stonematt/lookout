@@ -26,7 +26,13 @@ import pandas as pd
 import pytest
 
 from lookout.snapshot import Station, build_snapshot
-from lookout.snapshot.model import Almanac, AlmanacYear, RollingWindow, Snapshot
+from lookout.snapshot.model import (
+    Almanac,
+    AlmanacYear,
+    GridFinding,
+    RollingWindow,
+    Snapshot,
+)
 from tests.fixtures.ambient import to_ambient_records
 from tests.fixtures.archive import STATION_TZ, Gap, RainSpell, build_archive
 
@@ -310,6 +316,56 @@ class TestEveryTotalIsAnArchiveSum:
         assert almanac.years == ()
         assert all(len(w.years) == 1 for w in almanac.rolling)
         assert all(w.years[0].rain_in is None for w in almanac.rolling)
+
+
+class TestGridFinding:
+    """Which month leads the grid's finding, and what it is set against."""
+
+    def test_the_newest_month_with_rain_leads_against_the_older_row(self, almanac):
+        # Oct 2025 is still running (no rain total), so Sep 2025 leads.
+        assert almanac.grid_finding == GridFinding(
+            month="2025-09", earlier=("2024-09",)
+        )
+
+    def test_a_newest_month_without_rain_total_is_skipped_for_an_older_one(self):
+        # Dec 2024 is the newest month with a total in a row whose later
+        # months have not begun.
+        snap = build(
+            build_archive(
+                "2024-10-01T07:00:00Z",
+                "2024-12-20T20:00:00Z",
+                rain=(RainSpell("2024-12-10T18:00:00Z", 1, 0.5),),
+            ),
+            "2024-12-20T20:00:00Z",
+        )
+
+        assert snap.almanac.grid_finding.month == "2024-11"
+        assert snap.almanac.grid_finding.earlier == ()
+
+    def test_earlier_months_are_capped_at_three_newest_first(self):
+        spells = tuple(
+            RainSpell(f"{year}-09-15T18:00:00Z", 1, 0.2) for year in range(2020, 2026)
+        )
+        snap = build(
+            build_archive(
+                "2020-09-01T07:00:00Z",
+                "2025-10-12T19:00:00Z",
+                rain=spells,
+            ),
+            NOW,
+        )
+
+        assert snap.almanac.grid_finding == GridFinding(
+            month="2025-09", earlier=("2024-09", "2023-09", "2022-09")
+        )
+
+    def test_a_month_before_the_archive_is_not_an_earlier_month(self, almanac):
+        # Aug 2024 began before the archive; it has no total to compare.
+        snap = october()
+        assert "2024-08" not in snap.almanac.grid_finding.earlier
+
+    def test_no_month_with_rain_means_no_finding(self):
+        assert build(build_archive(START, START), NOW).almanac.grid_finding is None
 
 
 def test_the_october_almanac_matches_its_golden_file(almanac):
