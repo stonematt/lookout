@@ -86,7 +86,7 @@ Stop it with Ctrl-C, or `kill` its PID.
 
 Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
 
-`ignoreCommand` in `vercel.json` runs `scripts/vercel-ignore.sh`, which skips the Vercel build for `shots/*` and `lane/*` branches; every other branch builds.
+Vercel deploys only `main`, `goal/**` and `preview/**` branches. `git.deploymentEnabled` in `vercel.json` stops the other named prefixes (`dev`, `feat/**`, `fix/**`, `docs/**`, `chore/**`, `lane/**`, `shots/**`, `prototype/**`) from creating a deployment, because a skipped build still counts toward the Hobby deployment budget. `ignoreCommand` then runs `scripts/vercel-ignore.sh`: `main` and `preview/**` always build, a `goal/**` push builds only when it changed `web/` since the last deployment, and any other branch skips. Push to `preview/<slug>` to get a preview of other work.
 
 ## Security headers
 

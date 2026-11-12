@@ -25,6 +25,7 @@ How an agent reaches Lookout's live services, and the gotchas each one hides. Se
   ```
 
   It replaces the current `/usr/bin/flock -n /home/mstone/log/cron/refresh.lock lookout/bin/cron_run.sh --sleep 30 lookout/cli/refresh.py` line. Swap order: #179's ops session installs it only after the repo lock is deployed to itri (the checkout's HEAD includes #244), never before. Until the swap both locks run, which is harmless.
+- **A merge to `main` reaches itri within 5 minutes.** `lookout/bin/cron_run.sh` runs `git pull --rebase` on the itri checkout (branch `main`) before every refresh run, and a failed pull fails that run before Python starts. So a `main` merge is a refresh-run deploy, with no separate step: order a Python release's merge with that in mind, and pause the cron first when the new code must not run yet (prior art: #179's cutover).
 
 ## Vercel
 
