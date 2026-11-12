@@ -2259,28 +2259,38 @@ class TestTheHoldReadsTheLastSnapshot:
         assert snapshot.feature.reading != "wind_gust"
         assert snapshot.feature.held is False
 
-    def test_a_failed_read_fails_the_station_and_keeps_the_last_snapshot(
-        self, seed, fake_healthchecks, monkeypatch
+    def test_a_failed_read_publishes_without_a_hold(
+        self, seed, fake_healthchecks, monkeypatch, caplog
     ):
         station = seed()
         assert self.run_main(station) == 0
-        before = stored_bytes(station, DASHBOARD_KEY)
-        context_before = stored_bytes(station, CONTEXT_KEY)
         flaky_storj(monkeypatch, station.s3, read=DASHBOARD_KEY)
 
-        assert self.run_main(station) == 1
+        with caplog.at_level("WARNING"):
+            assert self.run_main(station) == 0
 
-        assert stored_bytes(station, DASHBOARD_KEY) == before
-        assert stored_bytes(station, CONTEXT_KEY) == context_before
-        assert fake_healthchecks.pings[-1] == "lookout-refresh/1"
+        assert stored_json(station, DASHBOARD_KEY)["feature"]["held"] is False
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+        assert any(DASHBOARD_KEY in r.getMessage() for r in caplog.records)
 
-    def test_an_unreadable_last_snapshot_fails_the_station(
-        self, seed, fake_healthchecks
+    def test_a_corrupt_last_snapshot_publishes_without_a_hold(
+        self, seed, fake_healthchecks, caplog
     ):
+        # ADR-0009's narrow exception to ADR-0004: a corrupt document must
+        # not fail the station on every run, or it is never replaced.
         station = seed()
         assert self.run_main(station) == 0
         station.s3.put_object(Bucket=BUCKET, Key=DASHBOARD_KEY, Body=b"not json")
 
-        assert self.run_main(station) == 1
+        with caplog.at_level("WARNING"):
+            assert self.run_main(station) == 0
 
-        assert stored_bytes(station, DASHBOARD_KEY) == b"not json"
+        feature = stored_json(station, DASHBOARD_KEY)["feature"]
+        assert feature["held"] is False
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING" and DASHBOARD_KEY in r.getMessage()
+        ]
+        assert warnings
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
