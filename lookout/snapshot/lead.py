@@ -5,9 +5,10 @@ The rules are checked in order (spec #66 "Lead choice", DESIGN.md "The
 Adaptive Lead Rule"), and the first that holds leads:
 
 1. **rain**: an event is live, or the newest event ended at most
-   `RAIN_HOURS` ago. Its value is the hours since that event ended (0 while
-   one is live). The Event Catalog's `end_time` is the event's last
-   positive event counter reading, so "ended" means the station closed it.
+   `RAIN_HOURS` ago (`lookout.snapshot.events`). Its value is the hours
+   since that event ended (0 while one is live). The Event Catalog's
+   `end_time` is the event's last positive event counter reading, so
+   "ended" means the station closed it.
 2. **temperature**: the current temperature is at least `TEMPERATURE_F`
    either side of the month median. The month median is the median of every
    reading at this local hour in the same calendar month of earlier years:
@@ -16,13 +17,9 @@ Adaptive Lead Rule"), and the first that holds leads:
    none, the rule cannot hold ("no_comparison").
 3. **solar**: the current radiation is at least `SOLAR_WM2`.
 4. **calm**, otherwise: the days since it last rained (`lastRain`) against
-   the usual dry spell, the median completed dry spell in the last 365 days.
-   A dry spell is a run of dry days between two rain days
-   (`lookout.core.rainfall_analysis.dry_spells`), over the build's daily
-   rain series, the Rain tab's own; a day not counted for rain breaks the
-   run, so a gap never reads as dry. The 365-day window is judged by the
-   rain day kind (`lookout.snapshot.days`); with it invalid, calm still
-   leads, without a usual dry spell ("no_comparison").
+   the usual dry spell, the median completed dry spell in the last 365 days
+   (`lookout.snapshot.dry_spell`). With the 365-day window invalid, calm
+   still leads, without a usual dry spell ("no_comparison").
 
 Values are measured at the newest observation, read from the live-stitched
 history, so they agree with the first screen. Gap statuses are the build's
@@ -33,10 +30,6 @@ chart's data ("bold now over a soft usual range", DESIGN.md) is computed for
 the lead only.
 
 Functions:
-- newest_event(event_catalog, observed_at_ms): The catalog event that ended
-  last, up to a time; the Feature Rule's rain rule reads it too.
-- completed_dry_spells(days): Every completed dry spell in the 365-day window.
-- dry_spell(current, observed_at_ms, spells): The `DrySpellNow` field, once.
 - hero_lead(archive, stitched, event_catalog, active, current, observed_at_ms,
   days, dry, spells): The `HeroLead` section.
 """
@@ -47,9 +40,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from lookout.core.rainfall_analysis import dry_spells
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.days import CountedDays
+from lookout.snapshot.events import RAIN_HOURS, newest_event
 from lookout.snapshot.gaps import ArchiveCoverage, comparable
 from lookout.snapshot.model import (
     ActiveRainEvent,
@@ -62,10 +55,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import from_local_date, local_time, to_local
-
-RAIN_HOURS = 12.0
-"""Rain leads while an event is live or ended at most this many hours ago."""
+from lookout.utils.dateutc import HOUR_MS, from_local_date, local_time, to_local
 
 TEMPERATURE_F = 10.0
 """Temperature leads at least this far, either side, from the month median."""
@@ -73,11 +63,6 @@ TEMPERATURE_F = 10.0
 SOLAR_WM2 = 400.0
 """Solar leads at or above this radiation."""
 
-DRY_SPELL_WINDOW = "365d"
-"""The window the usual dry spell is measured over."""
-
-HOUR_MS = 3_600_000
-DAY_MS = 24 * HOUR_MS
 RAIN_SLOT_MINUTES = 15
 _RAIN_SLOT_MS = RAIN_SLOT_MINUTES * 60_000
 
@@ -104,26 +89,6 @@ def _quartiles(values: Sequence[float], digits: int) -> _Usual:
 
 
 # ---------- rain ----------
-
-
-def newest_event(
-    event_catalog: Optional[pd.DataFrame], observed_at_ms: Optional[int]
-) -> Optional[pd.Series]:
-    """
-    The catalog event that ended last, up to `observed_at_ms`.
-
-    :param event_catalog: The Event Catalog, or None.
-    :param observed_at_ms: The time to look back from: the newest
-        observation for the lead, the build time for the feature.
-    :return: The event's catalog row, or None when none has ended.
-    """
-    if event_catalog is None or event_catalog.empty or observed_at_ms is None:
-        return None
-    ends = event_catalog["end_time"].map(to_ms)
-    ended = ends[ends.notna() & (ends <= observed_at_ms)]
-    if ended.empty:
-        return None
-    return event_catalog.loc[ended.astype("int64").idxmax()]
 
 
 def _rain_rule(
@@ -355,51 +320,6 @@ def _day_trace(
 
 
 # ---------- calm: days since rain against the usual dry spell ----------
-
-
-def completed_dry_spells(
-    days: CountedDays,
-) -> Tuple[Optional[List[int]], Tuple[str, ...]]:
-    """
-    Every completed dry spell in the 365-day rain window, in days.
-
-    :param days: The counted days and the daily rain series.
-    :return: (spell lengths, or None when the window is invalid; its key when
-        comparable).
-    """
-    status = days.rain.rolling(365, DRY_SPELL_WINDOW)
-
-    def spells() -> List[int]:
-        series = days.rain_days(date.fromisoformat(status.first_day), days.clock.today)
-        return [int(length) for length in dry_spells(series)["days"]]
-
-    lengths = comparable(status, spells)
-    return lengths, ((status.key,) if lengths is not None else ())
-
-
-def dry_spell(
-    current: SnapshotConditions,
-    observed_at_ms: Optional[int],
-    spells: Optional[List[int]],
-) -> DrySpellNow:
-    """
-    The dry spell field: days since it last rained, and the usual dry spell.
-
-    Computed once per build; the calm rule and the widget view read it.
-
-    :param current: Current conditions, live stitched.
-    :param observed_at_ms: The newest observation, or None.
-    :param spells: Completed dry spell lengths from `completed_dry_spells`,
-        or None when the 365-day window is not comparable.
-    :return: The `DrySpellNow`; `usual_days` is None without a comparison set.
-    """
-    days_since_rain = None
-    if current.last_rain_ms is not None and observed_at_ms is not None:
-        days_since_rain = round((observed_at_ms - current.last_rain_ms) / DAY_MS, 2)
-    return DrySpellNow(
-        days_since_rain=days_since_rain,
-        usual_days=_quartiles(spells or [], 2)[1],
-    )
 
 
 def _calm_rule(dry: DrySpellNow, compared: Tuple[str, ...], met: bool) -> LeadRule:

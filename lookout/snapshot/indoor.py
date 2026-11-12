@@ -37,9 +37,9 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from lookout.snapshot.lead import HOUR_MS
 from lookout.snapshot.model import BatteryFlag, IndoorSensor, IndoorTrace
 from lookout.snapshot.values import number
+from lookout.utils.dateutc import HOUR_MS
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)

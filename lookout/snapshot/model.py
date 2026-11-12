@@ -1443,8 +1443,10 @@ class WindRoseWindow:
     :param key: "24h", "7d" or "30d".
     :param hours: Its span: the readings after the build time minus this
         many hours, through the build time.
-    :param status: The gap status of the station-local days it touches
-        (keyed as `key`); `status.shown` says whether the record covers it.
+    :param status: The gap status of the station-local days it touches,
+        keyed "wind_" + `key` ("wind_7d"): 168 h touches 8 local days, so it
+        is not the standard "7d" window. `status.shown` says whether the
+        record covers it.
         Every value below is null, and every count 0, when it is invalid.
     :param readings: How many readings with a wind speed it holds.
     :param calm_readings: How many of them are calm.

@@ -8,7 +8,7 @@ order, the first that holds is the feature:
 1. **rain**: an event is live (the build's `ActiveRainEvent`), or the
    newest Event Catalog event ended at most `RAIN_HOURS` before the build
    time (`StationClock.now_ms`). "Ended" is the catalog's `end_time`, as the
-   lead's rain rule reads it (`lookout.snapshot.lead.newest_event`).
+   lead's rain rule reads it (`lookout.snapshot.events.newest_event`).
 2. **unusual**: a current reading is below the `LOW`th or above the `HIGH`th
    percentile of its readings at the newest observation's station-local
    hour, over the usual window for that date (`usual_window`, the ±7 days
@@ -38,8 +38,8 @@ import pandas as pd
 
 from lookout.snapshot.clock import StationClock
 from lookout.snapshot.current import to_ms
+from lookout.snapshot.events import RAIN_HOURS, newest_event
 from lookout.snapshot.gaps import ArchiveCoverage
-from lookout.snapshot.lead import newest_event
 from lookout.snapshot.model import (
     ActiveRainEvent,
     DrySpellNow,
@@ -50,12 +50,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.temperature import usual_readings, usual_window
-from lookout.utils.dateutc import local_time
-
-RAIN_HOURS = 12.0
-"""Rain is the feature while an event is live or ended at most this long ago."""
-
-HOUR_MS = 3_600_000
+from lookout.utils.dateutc import HOUR_MS, local_time
 
 LOW = 10.0
 """A reading below this percentile of its usual is unusual."""

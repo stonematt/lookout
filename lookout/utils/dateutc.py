@@ -45,6 +45,12 @@ day-granularity reasoning. Persisting per-row tz is deferred work.
 INTERVAL_MS: int = 5 * 60 * 1000
 """The station's reading interval: one archived reading per 5-minute slot."""
 
+HOUR_MS: int = 60 * 60 * 1000
+"""One hour in epoch ms."""
+
+DAY_MS: int = 24 * HOUR_MS
+"""24 hours in epoch ms: a span of elapsed time, not a station-local day."""
+
 
 def _is_valid_archive(df: pd.DataFrame, min_ms: int) -> bool:
     """

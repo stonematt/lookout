@@ -13665,7 +13665,7 @@
         "key": "24h",
         "hours": 24,
         "status": {
-          "key": "24h",
+          "key": "wind_24h",
           "first_day": "2025-11-18",
           "last_day": "2025-11-19",
           "days": 2,
@@ -13878,7 +13878,7 @@
         "key": "7d",
         "hours": 168,
         "status": {
-          "key": "7d",
+          "key": "wind_7d",
           "first_day": "2025-11-12",
           "last_day": "2025-11-19",
           "days": 8,
@@ -14091,7 +14091,7 @@
         "key": "30d",
         "hours": 720,
         "status": {
-          "key": "30d",
+          "key": "wind_30d",
           "first_day": "2025-10-20",
           "last_day": "2025-11-19",
           "days": 31,

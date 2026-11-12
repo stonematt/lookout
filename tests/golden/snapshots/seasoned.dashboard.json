@@ -19381,7 +19381,7 @@
         "key": "24h",
         "hours": 24,
         "status": {
-          "key": "24h",
+          "key": "wind_24h",
           "first_day": "2026-05-19",
           "last_day": "2026-05-20",
           "days": 2,
@@ -19594,7 +19594,7 @@
         "key": "7d",
         "hours": 168,
         "status": {
-          "key": "7d",
+          "key": "wind_7d",
           "first_day": "2026-05-13",
           "last_day": "2026-05-20",
           "days": 8,
@@ -19807,7 +19807,7 @@
         "key": "30d",
         "hours": 720,
         "status": {
-          "key": "30d",
+          "key": "wind_30d",
           "first_day": "2026-04-20",
           "last_day": "2026-05-20",
           "days": 31,

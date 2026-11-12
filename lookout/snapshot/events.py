@@ -13,6 +13,9 @@ Functions:
   clock, year_status): The tab's section.
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
+- newest_event(event_catalog, observed_at_ms): The catalog event that ended
+  last, up to a time: the feature's and the hero lead's rain rules read it,
+  each against `RAIN_HOURS`.
 """
 
 from typing import Any, Callable, Collection, Iterator, List, Optional, Tuple
@@ -27,6 +30,7 @@ from lookout.core.rain_events import (
 )
 from lookout.core.rainfall_analysis import water_year, water_year_start
 from lookout.snapshot.clock import StationClock
+from lookout.snapshot.current import to_ms
 from lookout.snapshot.model import (
     ActiveRainEvent,
     EventCurve,
@@ -40,6 +44,11 @@ from lookout.snapshot.values import number
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
+
+RAIN_HOURS = 12.0
+"""An event live or ended at most this many hours ago is rain now: the rain
+rule of the feature (counted to the build time) and of the hero lead
+(counted to the newest observation)."""
 
 
 # A reading more than this many minutes after the one before follows a gap
@@ -319,3 +328,23 @@ def completed_curves(
             if failed is not None:
                 failed.append(start_ms)
     return curves
+
+
+def newest_event(
+    event_catalog: Optional[pd.DataFrame], observed_at_ms: Optional[int]
+) -> Optional[pd.Series]:
+    """
+    The catalog event that ended last, up to `observed_at_ms`.
+
+    :param event_catalog: The Event Catalog, or None.
+    :param observed_at_ms: The time to look back from: the newest
+        observation for the lead, the build time for the feature.
+    :return: The event's catalog row, or None when none has ended.
+    """
+    if event_catalog is None or event_catalog.empty or observed_at_ms is None:
+        return None
+    ends = event_catalog["end_time"].map(to_ms)
+    ended = ends[ends.notna() & (ends <= observed_at_ms)]
+    if ended.empty:
+        return None
+    return event_catalog.loc[ended.astype("int64").idxmax()]
