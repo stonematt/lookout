@@ -439,8 +439,9 @@ class Feature:
     :param percentile: For "unusual", where the value sits among its usual
         readings at this hour, 0 to 100: the share below it, a reading equal
         to it counting half, rounded to a whole number. Computed this build,
-        held or not. Outside 10 to 90 it stays outside when rounded; else
-        None.
+        held or not. Outside 10 to 90 it stays outside when rounded; a held
+        reading back inside the band still publishes its whole percentile,
+        with `outside_usual` false. None for every kind but "unusual".
     :param event_start_ms: For "rain", the `start_ms` of the event the rule
         held on, the key of its `rain_events` row: the live event when one
         is live, else the newest ended event. None for every other kind.

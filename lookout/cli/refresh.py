@@ -52,9 +52,9 @@ Usage:
       published dashboard snapshot, for the Feature Rule's hold (#533); a
       snapshot read, never the archive. Missing, published before the hold,
       or a feature the rule cannot read means no hold; a read that fails,
-      or a document that is not JSON, fails the station before its
-      snapshot is written (ADR-0004), so the last published snapshot stays
-      up. Then
+      or a document that is not JSON, logs a warning and builds with no
+      hold, so a corrupt document is replaced and the station still
+      publishes (#552, a narrow exception to ADR-0004). Then
       `build(station, live, archive, catalogs, now, previous)`:
       `build_snapshot`, with the stale catalogs marked on it.
    f. `publish(snapshot, bucket)`: both documents under `snapshot/`.

@@ -88,8 +88,8 @@ spell → `dry_spell`, anything else → `temperature_ranges`.
   releases.
 - A widget can only draw three views, so a feature it cannot draw
   (pressure, humidity, solar) maps to `temperature_ranges`.
-- The snapshot reads its own last published document: a failed read fails
-  the station (ADR-0004), so the last snapshot stays up rather than a
-  build that silently drops the hold. The hold adds fields only (no
-  version bump, ADR-0008 §4); a snapshot published before it carries no
-  choice time and holds nothing.
+- The snapshot reads its own last published document: a read that fails
+  or is not JSON logs a warning and holds nothing, and the station still
+  publishes (the narrow exception to ADR-0004 above). The hold adds
+  fields only (no version bump, ADR-0008 §4); a snapshot published before
+  it carries no choice time and holds nothing.

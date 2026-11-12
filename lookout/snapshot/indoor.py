@@ -39,6 +39,7 @@ import pandas as pd
 from lookout.snapshot.model import BatteryFlag, IndoorSensor, IndoorTrace
 from lookout.snapshot.trace import (
     SLOT_MINUTES,
+    TRACE_HOURS,
     column_readings,
     hourly_means,
     trace_start,
@@ -49,8 +50,11 @@ from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
-CURRENT_HOURS = 24
-"""A sensor is current with a reading this many hours back from the newest."""
+CURRENT_HOURS = TRACE_HOURS
+"""A sensor is current with a reading this many hours back from the newest.
+
+The same window as the trace slots, so `_recent` and `trace_start` agree.
+"""
 
 SENSOR_COUNT = 10
 """Ambient's numbered sensors: 1 to 10."""
