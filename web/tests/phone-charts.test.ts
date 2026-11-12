@@ -376,12 +376,12 @@ describe.each([
     expect(t.querySelector<HTMLElement>(".days-seg")!.hidden).toBe(false);
     expect(pressed(t)).toBe("30 days");
     expect(firstShown(chart)).toBe("Dec 10");
-    expect(t.querySelector("[data-part=standfirst]")!.textContent).toMatch(/of the last 30\b/);
+    expect(chart.getAttribute("aria-label")).toMatch(/the last 30 days/);
 
     press(t, 90);
     expect(pressed(t)).toBe("90 days");
     expect(firstShown(chart)).toBe("Oct 11");
-    expect(t.querySelector("[data-part=standfirst]")!.textContent).toMatch(/of the last 90\b/);
+    expect(chart.getAttribute("aria-label")).toMatch(/the last 90 days/);
 
     press(t, 30);
     expect(firstShown(chart)).toBe("Dec 10");

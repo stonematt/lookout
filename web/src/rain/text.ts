@@ -251,16 +251,18 @@ export function hoursHeadline(snapshot: DashboardSnapshot): string {
 }
 
 /**
- * Why some windows are not shown, in one sentence for the source line.
+ * Why some windows in the strip are hatched, in one sentence for the source
+ * line. A window the record does not cover yet is left out of the strip
+ * (#470), so it is left out here too.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "7 days to the water year start before the archive began."
- *   or null when every window can be compared.
+ * @returns E.g. "Not compared: Today and yesterday are not archived yet."
+ *   or null when every window shown can be compared.
  */
 export function windowsNote(snapshot: DashboardSnapshot): string | null {
   const groups = new Map<string, string[]>();
   for (const window of snapshot.rain_tab.windows) {
-    if (window.status.status !== "invalid") continue;
+    if (window.status.status !== "invalid" || window.status.shown === false) continue;
     const reason = window.status.reason ?? "gap";
     groups.set(reason, [...(groups.get(reason) ?? []), WINDOW_NAMES[window.key] ?? window.key]);
   }
