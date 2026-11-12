@@ -14,6 +14,11 @@ Three views, each fact computed once here (the One Number Rule):
   a past day's mean at this local hour; a rain dot is that day's rain by
   this time of day, so "so far" compares like with like. Past days are the
   same `SPREAD_DAYS` window around today's date in earlier years.
+- **Usual band** (#462): for each station-local hour of today, the median
+  and middle half of that hour's readings over the usual window
+  (`usual_window`): the same earlier-year windows when one is comparable,
+  else the station's own recent days, the median only while the station
+  has under `MIN_READING_DAYS` counted days.
 
 An earlier year is read only when its 15-day window is comparable
 (`lookout.snapshot.gaps.comparable`), and only over that window's counted
@@ -26,10 +31,17 @@ gaps, so they are not composed here.
 Functions:
 - temperature_context(stitched, current, observed_at_ms, coverage): The
   `TemperatureContext` section.
+- usual_band(stitched, coverage): Today's `UsualBand`, all 24 hours.
+- usual_window(coverage, day): The `UsualWindow`, the days the usual for
+  `day` is over, and its basis.
+- usual_readings(stitched, tz, days, column): Each station-local hour's
+  readings of any column on those days, for a usual band or a percentile
+  at an hour.
 """
 
+from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -41,15 +53,27 @@ from lookout.snapshot.model import (
     TemperatureContext,
     TemperatureDay,
     TemperaturePeriod,
+    UsualBand,
+    UsualBasis,
+    UsualHour,
 )
 from lookout.snapshot.values import number
-from lookout.utils.dateutc import local_time, to_local
+from lookout.utils.dateutc import from_local_date, local_time, to_local
 
 SPREAD_DAYS = 7
 """Past days within this many days either side of a date are its normal."""
 
 TEN_DAYS = 10
 """The list covers this many local days, today included."""
+
+RECENT_DAYS = 14
+"""Without an earlier year, the usual is over at most this many recent days."""
+
+MIN_READING_DAYS = 20
+"""Under this many counted days, a recent-days usual is the median only."""
+
+HOURS = tuple(range(24))
+"""The station-local wall-clock hours of a day."""
 
 
 def _same_date(year: int, day: date) -> date:
@@ -287,6 +311,139 @@ def _strip(
     )
 
 
+@dataclass(frozen=True)
+class UsualWindow:
+    """
+    The days a date's usual is over, and the basis that picked them.
+
+    :param basis: "earlier_years", "recent_days" or "median_only" (see
+        `lookout.snapshot.model.UsualBand`).
+    :param years: The earlier years used, newest first; empty otherwise.
+    :param days: The counted days, oldest first.
+    """
+
+    basis: UsualBasis
+    years: Tuple[int, ...]
+    days: Tuple[date, ...]
+
+
+def usual_window(coverage: ArchiveCoverage, day: date) -> UsualWindow:
+    """
+    The days the usual for `day` is over (the glossary's usual band).
+
+    An earlier year covers `day` when its `SPREAD_DAYS` window around the
+    same date is comparable (`_normal_years`, the ten-day list's and the
+    strips' rule); then every such year's counted days are used and recent
+    days are not. Else the counted days among the `RECENT_DAYS` before
+    `day`, as "recent_days" when the archive holds `MIN_READING_DAYS` or
+    more counted days before `day`, "median_only" when it holds fewer.
+    `day` itself is never in its own usual. Earlier years win even when the
+    station holds under `MIN_READING_DAYS` counted days: a comparable
+    15-day window is a fuller basis than the recent days.
+
+    :param coverage: The build's counted days.
+    :param day: The station-local date the usual is for.
+    :return: The window.
+    """
+    years = _normal_years(coverage, day)
+    if years:
+        return UsualWindow(
+            basis="earlier_years",
+            years=tuple(year for year, _ in years),
+            days=tuple(sorted(d for _, days in years for d in days)),
+        )
+    yesterday = day - timedelta(days=1)
+    first = coverage.first_day
+    reading_days = (
+        coverage.counted_days(first, yesterday)
+        if first is not None and first <= yesterday
+        else ()
+    )
+    recent = coverage.counted_days(day - timedelta(days=RECENT_DAYS), yesterday)
+    basis: UsualBasis = (
+        "recent_days" if len(reading_days) >= MIN_READING_DAYS else "median_only"
+    )
+    return UsualWindow(basis=basis, years=(), days=recent)
+
+
+def usual_readings(
+    stitched: pd.DataFrame, tz: str, days: Sequence[date], column: str
+) -> Dict[int, np.ndarray]:
+    """
+    Each station-local hour's readings of `column` on `days`.
+
+    Hours are wall-clock: on a 25-hour day both 1 am hours are hour 1, and
+    a 23-hour day has no hour 2.
+
+    :param stitched: `stitch_live` output (any row order).
+    :param tz: The station-local zone.
+    :param days: The station-local days, typically a `UsualWindow`'s.
+    :param column: The archive column, e.g. "tempf".
+    :return: Hour 0 to 23 -> its non-null readings; empty where none.
+    """
+    by_hour: Dict[int, np.ndarray] = {hour: np.empty(0) for hour in HOURS}
+    if stitched.empty or not days or column not in stitched:
+        return by_hour
+    stamps = stitched["dateutc"]
+    start = from_local_date(min(days), tz)
+    end = from_local_date(max(days) + timedelta(days=1), tz)
+    rows = stitched[(stamps >= start) & (stamps < end)]
+    local = to_local(rows["dateutc"], tz)
+    frame = pd.DataFrame(
+        {
+            "day": local.dt.date.to_numpy(),
+            "hour": local.dt.hour.to_numpy(),
+            "value": pd.to_numeric(rows[column], errors="coerce").to_numpy(),
+        }
+    )
+    frame = frame[frame["day"].isin(set(days))].dropna(subset=["value"])
+    for hour, group in frame.groupby("hour"):
+        by_hour[int(hour)] = group["value"].to_numpy(dtype=float)
+    return by_hour
+
+
+def _usual_hour(hour: int, values: np.ndarray, basis: UsualBasis) -> UsualHour:
+    """
+    One hour of the band.
+
+    :param hour: The station-local hour.
+    :param values: Its readings over the band's days.
+    :param basis: The band's basis; "median_only" leaves the middle half null.
+    :return: The hour's median, middle half and count.
+    """
+    if len(values) == 0:
+        return UsualHour(hour=hour, median=None, q1=None, q3=None, readings=0)
+    q1, median, q3 = np.quantile(values, [0.25, 0.5, 0.75])
+    middle_half = basis != "median_only"
+    return UsualHour(
+        hour=hour,
+        median=number(median, 1),
+        q1=number(q1, 1) if middle_half else None,
+        q3=number(q3, 1) if middle_half else None,
+        readings=int(len(values)),
+    )
+
+
+def usual_band(stitched: pd.DataFrame, coverage: ArchiveCoverage) -> UsualBand:
+    """
+    Today's usual temperature band by station-local hour.
+
+    :param stitched: `stitch_live` output.
+    :param coverage: The build's counted days; its clock says which day is
+        today.
+    :return: The `UsualBand`, all 24 hours.
+    """
+    window = usual_window(coverage, coverage.today)
+    by_hour = usual_readings(stitched, coverage.tz, window.days, "tempf")
+    return UsualBand(
+        basis=window.basis,
+        unit="f",
+        years=window.years,
+        days=len(window.days),
+        hours=tuple(_usual_hour(h, by_hour[h], window.basis) for h in HOURS),
+    )
+
+
 def temperature_context(
     stitched: pd.DataFrame,
     current: SnapshotConditions,
@@ -310,7 +467,9 @@ def temperature_context(
             TemperaturePeriod(by_key[key], None, None, None, None, 0, None)
             for key in standard_window_keys()
         )
-        return TemperatureContext(None, None, None, empty, (), (), ())
+        return TemperatureContext(
+            None, None, None, empty, (), (), (), usual_band(stitched, coverage)
+        )
 
     periods = _periods(coverage, readings, current.temperature_f)
     ten_days, ten_day_years = _ten_days(coverage, readings, coverage.today)
@@ -351,4 +510,5 @@ def temperature_context(
         ten_days=ten_days,
         ten_day_years=ten_day_years,
         strips=strips,
+        usual_band=usual_band(stitched, coverage),
     )

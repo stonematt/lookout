@@ -6233,7 +6233,186 @@
         ],
         "missing": null
       }
-    ]
+    ],
+    "usual_band": {
+      "basis": "earlier_years",
+      "unit": "f",
+      "years": [
+        2025,
+        2024
+      ],
+      "days": 30,
+      "hours": [
+        {
+          "hour": 0,
+          "median": 42.2,
+          "q1": 39.0,
+          "q3": 45.3,
+          "readings": 360
+        },
+        {
+          "hour": 1,
+          "median": 41.0,
+          "q1": 37.6,
+          "q3": 43.9,
+          "readings": 360
+        },
+        {
+          "hour": 2,
+          "median": 40.3,
+          "q1": 36.7,
+          "q3": 43.3,
+          "readings": 360
+        },
+        {
+          "hour": 3,
+          "median": 40.2,
+          "q1": 36.7,
+          "q3": 43.3,
+          "readings": 360
+        },
+        {
+          "hour": 4,
+          "median": 40.9,
+          "q1": 37.5,
+          "q3": 43.8,
+          "readings": 360
+        },
+        {
+          "hour": 5,
+          "median": 42.0,
+          "q1": 38.8,
+          "q3": 45.1,
+          "readings": 360
+        },
+        {
+          "hour": 6,
+          "median": 43.8,
+          "q1": 40.6,
+          "q3": 47.0,
+          "readings": 360
+        },
+        {
+          "hour": 7,
+          "median": 46.2,
+          "q1": 42.9,
+          "q3": 49.2,
+          "readings": 360
+        },
+        {
+          "hour": 8,
+          "median": 48.7,
+          "q1": 45.4,
+          "q3": 51.7,
+          "readings": 360
+        },
+        {
+          "hour": 9,
+          "median": 51.2,
+          "q1": 48.0,
+          "q3": 54.4,
+          "readings": 360
+        },
+        {
+          "hour": 10,
+          "median": 53.8,
+          "q1": 50.5,
+          "q3": 56.8,
+          "readings": 360
+        },
+        {
+          "hour": 11,
+          "median": 56.0,
+          "q1": 52.8,
+          "q3": 59.2,
+          "readings": 360
+        },
+        {
+          "hour": 12,
+          "median": 57.9,
+          "q1": 54.6,
+          "q3": 61.0,
+          "readings": 360
+        },
+        {
+          "hour": 13,
+          "median": 59.3,
+          "q1": 56.0,
+          "q3": 62.3,
+          "readings": 360
+        },
+        {
+          "hour": 14,
+          "median": 60.0,
+          "q1": 56.5,
+          "q3": 63.1,
+          "readings": 360
+        },
+        {
+          "hour": 15,
+          "median": 60.1,
+          "q1": 56.5,
+          "q3": 63.1,
+          "readings": 360
+        },
+        {
+          "hour": 16,
+          "median": 59.4,
+          "q1": 56.0,
+          "q3": 62.4,
+          "readings": 360
+        },
+        {
+          "hour": 17,
+          "median": 58.0,
+          "q1": 54.8,
+          "q3": 61.1,
+          "readings": 360
+        },
+        {
+          "hour": 18,
+          "median": 56.2,
+          "q1": 53.0,
+          "q3": 59.3,
+          "readings": 360
+        },
+        {
+          "hour": 19,
+          "median": 54.0,
+          "q1": 50.7,
+          "q3": 57.0,
+          "readings": 360
+        },
+        {
+          "hour": 20,
+          "median": 51.5,
+          "q1": 48.2,
+          "q3": 54.6,
+          "readings": 360
+        },
+        {
+          "hour": 21,
+          "median": 48.8,
+          "q1": 45.6,
+          "q3": 52.0,
+          "readings": 360
+        },
+        {
+          "hour": 22,
+          "median": 46.3,
+          "q1": 43.1,
+          "q3": 49.4,
+          "readings": 360
+        },
+        {
+          "hour": 23,
+          "median": 44.0,
+          "q1": 40.8,
+          "q3": 47.2,
+          "readings": 360
+        }
+      ]
+    }
   },
   "almanac": {
     "years": [

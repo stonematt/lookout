@@ -3865,7 +3865,183 @@
         "years": [],
         "missing": "no_reading"
       }
-    ]
+    ],
+    "usual_band": {
+      "basis": "median_only",
+      "unit": "f",
+      "years": [],
+      "days": 1,
+      "hours": [
+        {
+          "hour": 0,
+          "median": 48.7,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 1,
+          "median": 48.1,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 2,
+          "median": 47.7,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 3,
+          "median": 47.5,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 4,
+          "median": 46.9,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 5,
+          "median": 46.6,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 6,
+          "median": 46.2,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 7,
+          "median": 46.1,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 8,
+          "median": 46.2,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 9,
+          "median": 46.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 10,
+          "median": 47.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 11,
+          "median": 47.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 12,
+          "median": 49.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 13,
+          "median": 52.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 14,
+          "median": 50.4,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 15,
+          "median": 48.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 16,
+          "median": 48.1,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 17,
+          "median": 46.4,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 18,
+          "median": 46.0,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 19,
+          "median": 43.6,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 20,
+          "median": 43.1,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 21,
+          "median": 41.7,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 22,
+          "median": 40.8,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        },
+        {
+          "hour": 23,
+          "median": 40.4,
+          "q1": null,
+          "q3": null,
+          "readings": 12
+        }
+      ]
+    }
   },
   "almanac": {
     "years": [

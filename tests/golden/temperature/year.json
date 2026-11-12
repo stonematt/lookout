@@ -416,5 +416,184 @@
       ],
       "missing": null
     }
-  ]
+  ],
+  "usual_band": {
+    "basis": "earlier_years",
+    "unit": "f",
+    "years": [
+      2025,
+      2024
+    ],
+    "days": 30,
+    "hours": [
+      {
+        "hour": 0,
+        "median": 44.3,
+        "q1": 42.8,
+        "q3": 45.7,
+        "readings": 360
+      },
+      {
+        "hour": 1,
+        "median": 43.0,
+        "q1": 41.6,
+        "q3": 44.1,
+        "readings": 360
+      },
+      {
+        "hour": 2,
+        "median": 42.4,
+        "q1": 41.1,
+        "q3": 43.2,
+        "readings": 360
+      },
+      {
+        "hour": 3,
+        "median": 42.4,
+        "q1": 41.1,
+        "q3": 43.1,
+        "readings": 360
+      },
+      {
+        "hour": 4,
+        "median": 42.9,
+        "q1": 41.6,
+        "q3": 44.0,
+        "readings": 360
+      },
+      {
+        "hour": 5,
+        "median": 44.2,
+        "q1": 42.7,
+        "q3": 45.5,
+        "readings": 360
+      },
+      {
+        "hour": 6,
+        "median": 46.0,
+        "q1": 44.4,
+        "q3": 47.4,
+        "readings": 360
+      },
+      {
+        "hour": 7,
+        "median": 48.2,
+        "q1": 46.5,
+        "q3": 49.7,
+        "readings": 360
+      },
+      {
+        "hour": 8,
+        "median": 50.7,
+        "q1": 49.0,
+        "q3": 52.3,
+        "readings": 360
+      },
+      {
+        "hour": 9,
+        "median": 53.3,
+        "q1": 51.6,
+        "q3": 54.9,
+        "readings": 360
+      },
+      {
+        "hour": 10,
+        "median": 55.8,
+        "q1": 54.1,
+        "q3": 57.3,
+        "readings": 360
+      },
+      {
+        "hour": 11,
+        "median": 58.1,
+        "q1": 56.5,
+        "q3": 59.5,
+        "readings": 360
+      },
+      {
+        "hour": 12,
+        "median": 60.0,
+        "q1": 58.5,
+        "q3": 61.3,
+        "readings": 360
+      },
+      {
+        "hour": 13,
+        "median": 61.3,
+        "q1": 60.0,
+        "q3": 62.4,
+        "readings": 360
+      },
+      {
+        "hour": 14,
+        "median": 62.2,
+        "q1": 60.9,
+        "q3": 62.9,
+        "readings": 360
+      },
+      {
+        "hour": 15,
+        "median": 62.2,
+        "q1": 60.9,
+        "q3": 62.9,
+        "readings": 360
+      },
+      {
+        "hour": 16,
+        "median": 61.5,
+        "q1": 60.1,
+        "q3": 62.5,
+        "readings": 360
+      },
+      {
+        "hour": 17,
+        "median": 60.1,
+        "q1": 58.6,
+        "q3": 61.4,
+        "readings": 360
+      },
+      {
+        "hour": 18,
+        "median": 58.3,
+        "q1": 56.7,
+        "q3": 59.7,
+        "readings": 360
+      },
+      {
+        "hour": 19,
+        "median": 56.0,
+        "q1": 54.3,
+        "q3": 57.5,
+        "readings": 360
+      },
+      {
+        "hour": 20,
+        "median": 53.5,
+        "q1": 51.8,
+        "q3": 55.1,
+        "readings": 360
+      },
+      {
+        "hour": 21,
+        "median": 50.9,
+        "q1": 49.2,
+        "q3": 52.5,
+        "readings": 360
+      },
+      {
+        "hour": 22,
+        "median": 48.4,
+        "q1": 46.7,
+        "q3": 49.9,
+        "readings": 360
+      },
+      {
+        "hour": 23,
+        "median": 46.1,
+        "q1": 44.5,
+        "q3": 47.6,
+        "readings": 360
+      }
+    ]
+  }
 }
