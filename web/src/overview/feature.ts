@@ -213,6 +213,25 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
   const reading = READINGS[feature.reading!];
   const percentile = feature.percentile!;
   const value = readingValue(feature, feature.value!);
+  // A held reading back inside its usual band (Release A3's 3-hour hold,
+  // #533; #578): say it was outside and when, from `since_ms`, with no
+  // percentile as now. Absent `outside_usual` (a snapshot before Release A3)
+  // counts as outside. The snapshot carries no side (#584 adds one), so the
+  // wording names none.
+  const backInsideBand = feature.outside_usual === false;
+  if (backInsideBand) {
+    const when = feature.since_ms === undefined ? "" : ` at ${hourName(feature.since_ms)}`;
+    const finding = `${upperFirst(reading.name)} was outside its usual range${when}; back inside now`;
+    return {
+      kind: "unusual",
+      kicker: `Earlier · ${reading.name}`,
+      value,
+      finding,
+      spoken: { before: `${valueText(value)} now. `, after: "" },
+      live: false,
+      target: reading.target,
+    };
+  }
   // Python judges the newest observation's hour (`lookout.snapshot.feature`);
   // just after midnight that hour is yesterday's, and the words say so.
   const hour =
