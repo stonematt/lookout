@@ -4077,7 +4077,12 @@
           "q3": null,
           "readings": 12
         }
-      ]
+      ],
+      "now_delta": {
+        "hour": 23,
+        "delta_f": -1,
+        "basis": "median_only"
+      }
     },
     "full_history": {
       "status": {
