@@ -152,6 +152,7 @@ from lookout.snapshot.status import (
 from lookout.storage import archive_store
 from lookout.storage.station_inventory import load_inventory, read_inventory
 from lookout.storage.storj import (
+    StorageReadError,
     archive_newest_ms,
     backup_and_save_catalog,
     read_json_from_s3,
@@ -569,12 +570,18 @@ def read_previous(station: Station, bucket: str) -> Optional[Feature]:
     :return: The last published feature; None when there is no dashboard
         snapshot, or its feature predates the hold (no `since_ms`) or names
         a kind or reading the rule does not know.
-    :raises StorageReadError: If the read fails or the document is not JSON
-        (ADR-0004): the station fails before its snapshot is written, so
-        the last published one stays up.
+        A failed read, or a document that is not JSON, also gives None, with
+        a warning naming the key: a narrow exception to ADR-0004 (ADR-0009),
+        so a corrupt document cannot fail the station on every run and
+        block the fresh snapshot that replaces it.
     """
     key = snapshot_keys(station.mac)["dashboard"]
-    return previous_feature(read_json_from_s3(bucket, key))
+    try:
+        document = read_json_from_s3(bucket, key)
+    except StorageReadError as e:
+        logger.warning(f"Previous dashboard {key} unreadable, no hold: {e}")
+        return None
+    return previous_feature(document)
 
 
 def build(

@@ -46,7 +46,10 @@ already are its hold. A held feature's values are recomputed every build,
 so the tile never shows an old number; a held unusual reading back inside
 its band says so, and one that cannot be judged this build is not held.
 The refresh run reads the last subject from the last published snapshot;
-with none, nothing is held.
+with none, nothing is held. A previous document that cannot be read or
+is not JSON also holds nothing and the station still publishes, a narrow
+exception to ADR-0004 for this one read, so a corrupt document is replaced
+rather than failing the station on every run.
 
 The Overview's feature tile shows it. The widget view is derived from it,
 not decided apart, and follows a held feature: rain → `rain_event`, dry
