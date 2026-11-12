@@ -21,7 +21,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import type { StationIndex } from "../src/stations.js";
 import type { Scenario } from "./golden.js";
-import { golden, twoStations } from "./golden.js";
+import { SCENARIOS, golden, twoStations } from "./golden.js";
 import type { Viewport } from "./viewport.js";
 import { viewport } from "./viewport.js";
 
@@ -99,7 +99,7 @@ const PHONE = {
   events: ["catalog", "events"],
 } as const;
 
-describe.each(["dry", "raining"] as const)("the %s golden on a phone", (scenario) => {
+describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
   it.each(Object.keys(PHONE) as (keyof typeof PHONE)[])(
     "%s renders its fixed top first, then its other sections as closed finding rows",
     async (tab) => {

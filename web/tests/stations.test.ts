@@ -11,10 +11,12 @@ import { describe, expect, it, vi } from "vitest";
 import { fetchStations, readUrl } from "../src/load.js";
 import { SnapshotContractError } from "../src/snapshot.js";
 import { STATION_INDEX_SCHEMA_VERSION, findStation, parseStationIndex } from "../src/stations.js";
+import type { Scenario } from "./golden.js";
+import { SCENARIOS } from "./golden.js";
 
 const STATIONS_DIR = resolve(import.meta.dirname, "../../tests/golden/stations");
 
-function goldenIndex(scenario: "dry" | "raining"): Record<string, unknown> {
+function goldenIndex(scenario: Scenario): Record<string, unknown> {
   return JSON.parse(readFileSync(`${STATIONS_DIR}/${scenario}.stations.json`, "utf8")) as Record<
     string,
     unknown
@@ -22,10 +24,11 @@ function goldenIndex(scenario: "dry" | "raining"): Record<string, unknown> {
 }
 
 describe("the station index contract", () => {
-  it.each(["dry", "raining"] as const)("reads the %s golden", (scenario) => {
+  it.each(SCENARIOS)("reads the %s golden", (scenario) => {
     const index = parseStationIndex(goldenIndex(scenario));
     expect(index.schema_version).toBe(STATION_INDEX_SCHEMA_VERSION);
-    expect(index.stations.map((s) => s.name)).toEqual(["Fixture Station", "Salmon Run"]);
+    const first = scenario === "seasoned" ? "Seasoned Station" : "Fixture Station";
+    expect(index.stations.map((s) => s.name)).toEqual([first, "Salmon Run"]);
     expect(index.stations[1]!.newest_reading_ms).toBeNull();
   });
 

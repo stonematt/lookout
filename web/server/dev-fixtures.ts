@@ -5,7 +5,7 @@
  * `tests/golden/status/`; for `/stations`, `tests/golden/stations/`), with no
  * secrets and no network.
  *
- * - `?fixture=dry|raining` (or `LOOKOUT_FIXTURE`) picks the golden; `dry` by
+ * - `?fixture=dry|raining|seasoned` (or `LOOKOUT_FIXTURE`) picks the golden; `dry` by
  *   default.
  * - `?age=<minutes>` (or `LOOKOUT_AGE_MIN`) shifts every `_ms` time by one
  *   offset so the newest observation is that many minutes old, and every
@@ -52,7 +52,7 @@ const STATUS_DIR = resolve(import.meta.dirname, "../../tests/golden/status");
 /** Where the golden station indexes live (`tests/test_station_index.py`). */
 const STATIONS_DIR = resolve(import.meta.dirname, "../../tests/golden/stations");
 
-const SCENARIOS = ["dry", "raining"] as const;
+const SCENARIOS = ["dry", "raining", "seasoned"] as const;
 type Scenario = (typeof SCENARIOS)[number];
 
 /** One golden document, parsed. */
