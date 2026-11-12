@@ -241,7 +241,7 @@ describe("one number wherever it appears (story 53)", () => {
     const feature = panel("overview").querySelector("[data-section=feature] a");
 
     expect(since).toBe("1 d 14 h");
-    expect(feature?.getAttribute("aria-label")).toContain("About 39 hours since it last rained");
+    expect(feature?.textContent).toContain("About 39 hours since it last rained");
   });
 
   it("names the catalog's wettest event with the catalog's own total", async () => {

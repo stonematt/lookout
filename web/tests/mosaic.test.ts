@@ -18,6 +18,7 @@ import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
+import { nameFrom } from "./accessible-name.js";
 import type { Scenario } from "./golden.js";
 import { SCENARIOS, golden } from "./golden.js";
 
@@ -52,24 +53,6 @@ const tile = (slug: string) => panel.querySelector<HTMLElement>(`[data-section="
 const ids = () =>
   [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) => t.dataset.section);
 const mosaicIds = () => ids().filter((id) => MOSAIC.includes(id!));
-
-/**
- * An element's accessible name from its content, as a browser computes it
- * for a link: the text of every node not hidden by `aria-hidden`, element
- * by element.
- */
-function nameFrom(el: Element): string {
-  const parts: string[] = [];
-  const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) parts.push(node.textContent ?? "");
-    else if (node instanceof Element && node.getAttribute("aria-hidden") !== "true") {
-      for (const child of node.childNodes) walk(child);
-      parts.push(" ");
-    }
-  };
-  walk(el);
-  return parts.join("").replace(/\s+/g, " ").trim();
-}
 
 describe("the mosaic's order", () => {
   it.each(SCENARIOS)("follows the feature on the %s golden: all ten tiles, Inside last", (s) => {

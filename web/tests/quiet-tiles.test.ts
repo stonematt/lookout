@@ -89,6 +89,12 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       for (const host of sections()) {
         expect(host.hasAttribute("aria-label"), host.dataset.section).toBe(false);
       }
+      // Nor does any link on the Overview, the feature's included (#543): its
+      // content names it, and nothing replaces or repeats that content.
+      const links = [...panel("overview").querySelectorAll<HTMLAnchorElement>("a")];
+      expect(links.length).toBeGreaterThan(5);
+      for (const link of links) expect(link.hasAttribute("aria-label"), link.href).toBe(false);
+      expect(panel("overview").querySelector("a [aria-label]")).toBeNull();
     },
   );
 });
