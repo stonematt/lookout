@@ -1,7 +1,7 @@
 /**
  * The usual band hero (#468, spec #460 stories 1–8): the fixed top's chart
- * of today's temperature against the usual band for this date. Not the
- * leading tile (`hero.ts`, "What leads"), which the feature tile replaces.
+ * of today's temperature against the usual band for this date. Under it
+ * sits the feature tile (`feature.ts`).
  *
  * - The band is the middle half of each station-local hour's readings and
  *   the dashed median their median (`temperature_context.usual_band`), drawn

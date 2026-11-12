@@ -1,14 +1,18 @@
 /**
  * The Overview tab: a grid of tiles (spec #332, DESIGN.md "Layout"). The now
- * tile and the leading tile first, the phone's fixed top; then temperature
+ * tile and the feature tile first, the phone's fixed top; then temperature
  * across periods, now against this date, the last ten days, the rain almanac
  * and the rolling-window rain table, then the quick facts (wind, pressure,
- * air). The order and spans follow the desktop board: in the four-column
- * grid the now and leading tiles share the first row, temperature in context
- * takes half the second beside the two single tiles, the almanac takes three
- * columns beside the rolling windows, and the quick facts take a row of
- * one-column tiles whose fourth cell is sun and moon's. On a phone the quick
- * facts sit after the finding rows, two to a row.
+ * air). In the four-column grid the now tile takes the first row, the
+ * feature half the second beside temperature in context, now against this
+ * date and the last ten days half the third each, the almanac three columns
+ * beside the rolling windows, and the quick facts a row of one-column tiles
+ * whose fourth cell is sun and moon's. On a phone the quick facts sit after
+ * the finding rows, two to a row. A snapshot without a feature (published
+ * before Release A, ADR-0008) draws no feature tile.
+ *
+ * Each tile or finding row carries the id `overview-<section>`, which the
+ * feature tile's link reaches while the Overview has no zooms (Release B1).
  *
  * A section is a module under `web/src/overview/` exporting an
  * `OverviewSection` (a `TileSection`, `web/src/tiles.ts`): its id, label,
@@ -27,7 +31,7 @@ import type { TileSection } from "../tiles.js";
 import { renderTiles } from "../tiles.js";
 import { almanacGrid, rollingRain } from "./almanac.js";
 import { firstScreen } from "./first-screen.js";
-import { heroLead } from "./hero.js";
+import { featureTile } from "./feature.js";
 import { airFact, pressureFact, sunMoonFact, windFact } from "./quick-facts.js";
 import { againstNormal, temperaturePeriods, tenDays } from "./temperature.js";
 
@@ -37,7 +41,7 @@ export type OverviewSection = TileSection;
 /** The Overview's sections, in the board's order. */
 export const SECTIONS: readonly OverviewSection[] = [
   firstScreen, // #78 the now tile
-  heroLead, // #79 the leading tile and "Why this leads"
+  featureTile, // #469 the feature tile, in place of What leads
   temperaturePeriods, // #81 temperature across periods
   againstNormal, // #81 "now against normal" strips
   tenDays, // #81 the 10-day high-low list
@@ -63,5 +67,12 @@ export function renderOverview(
 ): void {
   // On a phone the finding rows sit under "In context" (DESIGN.md). Each
   // tile is named by its finding, for screen readers (#458).
-  renderTiles(panel, snapshot, sections, { rowsHeading: "In context", nameByFinding: true });
+  const shown = snapshot.feature ? sections : sections.filter((s) => s !== featureTile);
+  const grid = renderTiles(panel, snapshot, shown, {
+    rowsHeading: "In context",
+    nameByFinding: true,
+  });
+  for (const tile of grid.querySelectorAll<HTMLElement>("[data-section]")) {
+    tile.id = `overview-${tile.dataset.section}`;
+  }
 }

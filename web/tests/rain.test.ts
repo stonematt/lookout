@@ -224,13 +224,19 @@ describe("the Rain tab", () => {
     }
   });
 
-  it("states days since rain as the same number as the Overview's calm lead", () => {
-    renderRain(panel, dry);
+  it("states days since rain as the same number as the Overview's dry spell feature", () => {
+    // A golden copy whose feature is the dry spell (the dry golden's is quiet).
+    const doc = structuredClone(golden("dry", "dashboard")) as Record<string, unknown>;
+    doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
+    doc.dry_spell = { ...(doc.dry_spell as object), usual_days: 1 };
+    const spell = parseDashboard(doc);
+    renderRain(panel, spell);
     const overview = document.createElement("div");
-    renderOverview(overview, dry);
+    renderOverview(overview, spell);
 
-    expect(dry.hero_lead.kind).toBe("calm");
-    expect(text(overview)).toContain("about 39 hours since it last rained");
+    const feature = overview.querySelector("[data-section=feature] a")!;
+    expect(feature.getAttribute("aria-label")).toMatch(/^About 39 hours since it last rained/);
+    expect(text(feature.querySelector("[data-part=value]"))).toBe("1 d 14 h");
     expect(text(section("dry").querySelector("h2"))).toBe("about 39 hours since it last rained");
   });
 

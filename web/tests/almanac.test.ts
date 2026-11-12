@@ -345,10 +345,10 @@ describe("the rolling-window table", () => {
 });
 
 describe("on the Overview", () => {
-  it("follows the hero lead, the grid before the table", () => {
+  it("follows the feature tile, the grid before the table", () => {
     const ids = SECTIONS.map((s) => s.id);
 
-    expect(ids.indexOf("almanac")).toBeGreaterThan(ids.indexOf("hero-lead"));
+    expect(ids.indexOf("almanac")).toBeGreaterThan(ids.indexOf("feature"));
     expect(ids.indexOf("rolling-rain")).toBe(ids.indexOf("almanac") + 1);
   });
 

@@ -85,7 +85,7 @@ const rows = (tab: string) => [
 const PHONE = {
   overview: [
     "first-screen",
-    "hero-lead",
+    "feature",
     "rows: temperature-periods against-normal ten-days almanac rolling-rain",
     // The quick facts (#340): open tiles after the rows, two to a row.
     "wind",
