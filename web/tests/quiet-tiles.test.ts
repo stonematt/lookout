@@ -100,7 +100,8 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     const named = (id: string) =>
       panel("overview").querySelector(`[data-section="${id}"]`)!.getAttribute("aria-label");
     const c = snapshot.current;
-    expect(named("first-screen")).toBe(`${c.temperature_f!.toFixed(1)}°F now.`);
+    // The delta line, when the snapshot decided one, follows the temperature in the name.
+    expect(named("first-screen")).toMatch(new RegExp(`^${c.temperature_f!.toFixed(1)}°F now[.,]`));
     expect(named("wind")).toMatch(new RegExp(`^Wind ${c.wind_speed_mph!.toFixed(1)} mph, `));
     expect(named("pressure")).toBe(
       `Pressure ${c.barometer_inhg!.toFixed(2)} inHg, ${c.barometer_trend} over the last 3 hours.`,

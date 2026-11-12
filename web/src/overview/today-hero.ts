@@ -21,7 +21,8 @@
  *
  * Every value is the snapshot's: this module places and words, and decides
  * nothing. Offers `todayChart` (the chart block), `todayChartName` (its
- * accessible name), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
+ * accessible name), `nowDeltaText` (the one-line delta on usual under the
+ * temperature), `bandBasisLabel`, `bandBasisWords` and `todayMissingMs`.
  */
 import { degrees, formatStamp, hourText, localDay, stationFormat } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
@@ -192,6 +193,24 @@ export function bandBasisWords(band: UsualBand): string {
     case "median_only":
       return `the median of ${lastDays(band.days)}`;
   }
+}
+
+/**
+ * The one-line delta under the big temperature: the live reading against the
+ * usual for its own hour. Python decided the hour and the rounded degrees.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "+12° on usual for 3 pm", "−1° on usual for 11 pm", "at usual
+ *   for 4 pm" for a delta of 0; null when the snapshot has no delta (no line,
+ *   no fallback).
+ */
+export function nowDeltaText(snapshot: DashboardSnapshot): string | null {
+  const delta = snapshot.temperature_context.usual_band?.now_delta ?? null;
+  if (!delta) return null;
+  const hour = hourText(delta.hour);
+  if (delta.delta_f === 0) return `at usual for ${hour}`;
+  const sign = delta.delta_f > 0 ? "+" : "−";
+  return `${sign}${Math.abs(delta.delta_f)}° on usual for ${hour}`;
 }
 
 /**

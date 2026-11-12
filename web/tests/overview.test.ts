@@ -38,6 +38,7 @@ describe("the Overview", () => {
       "kicker",
       "finding",
       "temperature",
+      "delta",
       "today-chart",
       "source-note",
       // No lag chip (#458); the raining golden's today has no gap either.
@@ -82,11 +83,11 @@ describe("the current temperature", () => {
     expect(text("[data-part=temperature]")).toBe("59.3°F");
   });
 
-  it("names the now tile by its temperature", () => {
+  it("names the now tile by its temperature and its delta on usual", () => {
     renderOverview(panel, raining);
 
     expect(panel.querySelector("[data-section=first-screen]")?.getAttribute("aria-label")).toBe(
-      "59.3°F now.",
+      "59.3°F now, at usual for 4 pm.",
     );
   });
 

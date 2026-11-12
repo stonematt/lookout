@@ -78,6 +78,7 @@ describe("the usual band hero", () => {
       "kicker",
       "finding",
       "temperature",
+      "delta",
       "today-chart",
       "source-note",
       "source",
@@ -206,6 +207,68 @@ describe("the band's basis label, from the snapshot", () => {
     expect(one("svg[role=img]")!.getAttribute("aria-label")).toContain(
       "the median of your last 4 days",
     );
+  });
+});
+
+describe("the delta line on usual", () => {
+  const line = () => words(hero().querySelector("[data-part=delta]"));
+
+  /** A golden dashboard document with `now_delta` set (or deleted when undefined). */
+  function withDelta(delta: unknown): Record<string, unknown> {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, unknown>;
+    const band = (doc.temperature_context as { usual_band: Record<string, unknown> }).usual_band;
+    if (delta === undefined) delete band.now_delta;
+    else band.now_delta = delta;
+    return doc;
+  }
+
+  it("says how far the reading is above the usual for its hour (seasoned)", () => {
+    renderOverview(panel, seasoned);
+    expect(line()).toBe("+12° on usual for 3 pm");
+  });
+
+  it("says how far below, with a real minus sign (dry)", () => {
+    renderOverview(panel, dry);
+    expect(line()).toBe("−1° on usual for 11 pm");
+  });
+
+  it("says at usual for a delta of 0 (raining)", () => {
+    renderOverview(panel, raining);
+    expect(line()).toBe("at usual for 4 pm");
+  });
+
+  it("stands under the temperature, in the tile's name", () => {
+    renderOverview(panel, seasoned);
+    const parts = [...hero().querySelectorAll("[data-part]")].map((el) =>
+      el.getAttribute("data-part"),
+    );
+    expect(parts.indexOf("delta")).toBe(parts.indexOf("temperature") + 1);
+    expect(hero().getAttribute("aria-label")).toContain(", +12° on usual for 3 pm.");
+  });
+
+  it("prints no line and no element for a null delta", () => {
+    renderOverview(panel, parseDashboard(withDelta(null)));
+    expect(hero().querySelector("[data-part=delta]")).toBeNull();
+    expect(hero().textContent).not.toContain("on usual for");
+    expect(hero().getAttribute("aria-label")).toMatch(/°F now\.$/);
+  });
+
+  it("prints no line for an absent delta (N−1), the rest of the hero unchanged", () => {
+    renderOverview(panel, parseDashboard(withDelta(undefined)));
+    expect(hero().querySelector("[data-part=delta]")).toBeNull();
+    expect(one(".today-band")).not.toBeNull();
+  });
+
+  it("refuses a delta that is there but malformed", () => {
+    for (const bad of [
+      { hour: 24, delta_f: 3, basis: "earlier_years" },
+      { hour: 15, delta_f: "warm", basis: "earlier_years" },
+      { hour: 15, delta_f: 3, basis: "normal" },
+      { delta_f: 3, basis: "earlier_years" },
+      "hot",
+    ]) {
+      expect(() => parseDashboard(withDelta(bad))).toThrow(SnapshotContractError);
+    }
   });
 });
 

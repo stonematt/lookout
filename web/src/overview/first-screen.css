@@ -57,6 +57,16 @@
   letter-spacing: 0;
 }
 
+/* the live reading against the usual for its hour, one line under the temperature */
+.now-delta {
+  margin: 0;
+  font-size: var(--type-finding);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- today against the usual band ---------- */
 .today-chart {
   min-width: 0;
