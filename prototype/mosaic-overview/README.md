@@ -50,6 +50,8 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 
 19. **The wind zoom leads with a wind rose** (Matt, Nov 11). It has 16 directions over a window of 24 h, 7 days or 30 days. In each direction a dark wedge reaches the average wind and a lighter, edged wedge behind it reaches the highest gust. Rings sit every 5 mph, and now is the orange dot with a leader to its label. Calm readings have no direction, so they are left out, and a line under the rose gives their share. Under the rose, a bar chart gives the share of windy readings from each of the 8 compass points. The wind tile links to this zoom. Boards: `WindZoom`, `WindZoomDark`. Radial charts for time, such as the year in a circle, are tabled.
 
+20. **Matt's last calls (Nov 11).** He approves the Rain tab changes in decision 14. #252's selector is set aside: the rain zoom ships without it, and the board's period control is a placeholder. Wind stays in slate, with no new wind tokens.
+
 ## Accessibility audit (Nov 11, `/impeccable audit`)
 
 Axe-core 4.10 (WCAG 2.2 A/AA and best practice) on every board, light and dark, found no colour-contrast failures in text. The impeccable detector found no anti-patterns, only advisories that sizes and radii are off the DESIGN.md ramp (prototype drift; the build uses the tokens). Chart graphics were measured by hand, since axe does not check them.
@@ -70,7 +72,7 @@ For the spec to carry:
 
 ## Open questions
 
-- What is #252's selector for: narrowing the dates (drawn) or choosing which years to compare?
+None left for the prototype. Next: `/to-spec` on the issue.
 
 ## Contract impact
 
