@@ -69,7 +69,10 @@ describe("the layout switch", () => {
 });
 
 describe("the Overview's grid under each layout", () => {
-  const css = readFileSync(resolve(import.meta.dirname, "../src/styles/tiles.css"), "utf8");
+  // The grid's rules, then the temperature tiles' two-column override.
+  const css = ["../src/styles/tiles.css", "../src/overview/temperature.css"]
+    .map((path) => readFileSync(resolve(import.meta.dirname, path), "utf8"))
+    .join("\n");
 
   /** The grid's columns and each tile's span, with the layout set before it renders. */
   function grid(layout: "phone" | "two" | "four"): { columns: string; spans: string[] } {
@@ -119,14 +122,15 @@ describe("the Overview's grid under each layout", () => {
   it("is four columns of tiles at four-column, each tile at its declared span", () => {
     const { columns, spans } = grid("four");
     expect(columns).toBe("repeat(4, minmax(0, 1fr))");
-    // The now tile takes the whole first row (the Desktop board, #468); the
-    // quick facts take a row of four one-column tiles.
+    // The now tile takes the whole first row (the Desktop board, #468), the
+    // strips and the ten-day list half a row each, so no row is left with a
+    // hole; the quick facts take a row of four one-column tiles.
     expect(spans).toEqual([
       "span 4",
       "span 2",
       "span 2",
-      "span 1",
-      "span 1",
+      "span 2",
+      "span 2",
       "span 3",
       "span 1",
       "span 1",

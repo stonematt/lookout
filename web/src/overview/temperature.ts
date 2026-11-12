@@ -686,6 +686,9 @@ export const againstNormal: OverviewSection = {
   id: "against-normal",
   label: "Now against this date",
   kicker: "Now against this date",
+  // Half the four-column row each, with the ten-day list, under the
+  // full-width now tile (#468), so the almanac row stays whole.
+  span: 2,
   render: renderStrips,
 };
 
@@ -694,5 +697,6 @@ export const tenDays: OverviewSection = {
   id: "ten-days",
   label: "The last ten days",
   kicker: "The last ten days",
+  span: 2,
   render: renderTenDays,
 };
