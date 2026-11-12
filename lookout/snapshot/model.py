@@ -245,7 +245,8 @@ class GapStatus:
     Computed by `lookout.snapshot.gaps`, which holds the rules.
 
     :param key: Which one: "YYYY-MM" for a month, else the window's name
-        ("today", "yesterday", "7d", "30d", "90d", "365d", "water_year").
+        ("today", "yesterday", "7d", "30d", "90d", "365d", "water_year",
+        "full_history").
     :param first_day: Its first station-local day.
     :param last_day: Its last station-local day, inclusive.
     :param days: How many days it spans.
@@ -256,6 +257,10 @@ class GapStatus:
         is computed).
     :param reason: Why it is not valid: "gap", "low_coverage",
         "not_archived", "before_archive" or "in_progress"; None when valid.
+    :param shown: Whether the record is deep enough to show it (#463): the
+        archive's first station-local day is on or before `first_day`. A
+        window that is shown still reports its gaps by `status` and `reason`;
+        one that is not is hidden, not hatched. False for an empty archive.
     """
 
     key: str
@@ -265,6 +270,7 @@ class GapStatus:
     missing_days: int
     status: GapState
     reason: Optional[GapReason]
+    shown: bool
 
 
 @dataclass(frozen=True)
@@ -388,6 +394,58 @@ class LeadTrace:
     usual_low: Tuple[Optional[float], ...]
     usual_median: Tuple[Optional[float], ...]
     usual_high: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
+class DrySpellNow:
+    """
+    The current dry spell against the usual dry spell, computed once.
+
+    The calm rule in `HeroLead`, the widget view and the Feature Rule all read
+    this one value, so they never disagree.
+
+    :param days_since_rain: Days since `lastRain`, to the newest observation,
+        rounded to 0.01; None without a reading or a last rain.
+    :param usual_days: The usual dry spell: the median completed dry spell
+        over the last 365 days; None when that window is not comparable
+        (a young station). `days_since_rain` is still present then.
+    """
+
+    days_since_rain: Optional[float]
+    usual_days: Optional[float]
+
+
+FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
+FeatureReading = Literal["temperature", "humidity", "wind_gust", "pressure", "solar"]
+FeatureUnit = Literal["f", "pct", "mph", "inhg", "wm2"]
+
+
+@dataclass(frozen=True)
+class Feature:
+    """
+    The feature: what the Overview's feature tile shows and every widget's
+    view follows, picked by the Feature Rule (ADR-0009,
+    `lookout.snapshot.feature`).
+
+    :param kind: The first rule that holds: "rain", "unusual", "dry_spell"
+        or "quiet" (temperature, a usual day).
+    :param reading: For "unusual", the reading furthest out: "temperature",
+        "humidity", "wind_gust", "pressure" or "solar"; else None.
+    :param value: For "unusual", that reading's current value in `unit`;
+        else None.
+    :param unit: For "unusual", the value's unit: "f", "pct", "mph", "inhg"
+        or "wm2"; else None.
+    :param percentile: For "unusual", where the value sits among its usual
+        readings at this hour, 0 to 100: the share below it, a reading equal
+        to it counting half, rounded to a whole number that stays outside
+        10 to 90; else None.
+    """
+
+    kind: FeatureKind
+    reading: Optional[FeatureReading]
+    value: Optional[float]
+    unit: Optional[FeatureUnit]
+    percentile: Optional[int]
 
 
 @dataclass(frozen=True)
@@ -521,6 +579,65 @@ class NormalStrip:
 
 
 @dataclass(frozen=True)
+class UsualHour:
+    """
+    One station-local hour of the usual band.
+
+    :param hour: The local wall-clock hour, 0 to 23. On a 25-hour day both
+        1 am hours fall in hour 1; a 23-hour day adds nothing to hour 2.
+    :param median: The median of the hour's readings over the band's days;
+        null when there are none.
+    :param q1: The 25th percentile, the middle half's low edge; null with
+        no readings and always null for basis "median_only".
+    :param q3: The 75th percentile, its high edge.
+    :param readings: How many readings the values are over.
+    """
+
+    hour: int
+    median: Optional[float]
+    q1: Optional[float]
+    q3: Optional[float]
+    readings: int
+
+
+UsualBasis = Literal["earlier_years", "recent_days", "median_only"]
+"""Which days a usual band is over (see `UsualBand`)."""
+
+
+@dataclass(frozen=True)
+class UsualBand:
+    """
+    What temperature usually does at each hour around today's date (#462).
+
+    The basis is decided here, so the site labels the band without deciding
+    anything (`lookout.snapshot.temperature.usual_window`):
+
+    - "earlier_years": at least one earlier year's ±7-day window around
+      today is comparable; the band is over every such year's counted days,
+      and recent days are not used.
+    - "recent_days": no earlier year, and 20 or more counted days before
+      today; the band is over the counted days among the 14 before today.
+    - "median_only": no earlier year, under 20 counted days before today;
+      the same recent days, the median only.
+
+    Today is never in its own band.
+
+    :param basis: "earlier_years", "recent_days" or "median_only".
+    :param unit: "f".
+    :param years: The earlier years used, newest first; empty unless the
+        basis is "earlier_years".
+    :param days: N, how many counted days the band is over.
+    :param hours: The 24 station-local hours, 0 to 23 in order.
+    """
+
+    basis: UsualBasis
+    unit: Literal["f"]
+    years: Tuple[int, ...]
+    days: int
+    hours: Tuple[UsualHour, ...]
+
+
+@dataclass(frozen=True)
 class TemperatureContext:
     """
     The Overview's temperature context (#81).
@@ -535,6 +652,13 @@ class TemperatureContext:
     :param ten_day_years: Every earlier year the list's normal is over,
         newest first.
     :param strips: The temperature strip, then the rain strip.
+    :param usual_band: Today's usual band by station-local hour, which the
+        Overview hero draws today against.
+    :param full_history: The Full history window (#463), keyed
+        "full_history": the archive's first station-local day through today,
+        its range read like any period's (null values when its gap status is
+        invalid); null for an empty archive. Kept out of `periods`, which
+        holds the standard windows.
     """
 
     now: Optional[float]
@@ -544,6 +668,8 @@ class TemperatureContext:
     ten_days: Tuple[TemperatureDay, ...]
     ten_day_years: Tuple[int, ...]
     strips: Tuple[NormalStrip, ...]
+    usual_band: UsualBand
+    full_history: Optional[TemperaturePeriod]
 
 
 @dataclass(frozen=True)
@@ -951,6 +1077,23 @@ class RollingWindow:
 
 
 @dataclass(frozen=True)
+class GridFinding:
+    """
+    Which month leads the almanac grid's finding, and which earlier months
+    it is set against; the site words it, the grid's cells hold the rain.
+
+    :param month: The leading month's status key, "YYYY-MM": the newest
+        month with rain, found by walking the rows newest first and each
+        row from September back to October.
+    :param earlier: The same calendar month's status keys in older rows
+        that have rain, newest first, at most three.
+    """
+
+    month: str
+    earlier: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Almanac:
     """
     The Overview's almanac grid and rolling-window rain table (#82). Every
@@ -958,10 +1101,13 @@ class Almanac:
 
     :param years: Water-year rows, newest first.
     :param rolling: The rolling windows, shortest first, the season last.
+    :param grid_finding: The grid's finding; None when no month has rain
+        to lead with.
     """
 
     years: Tuple[AlmanacYear, ...]
     rolling: Tuple[RollingWindow, ...]
+    grid_finding: Optional[GridFinding]
 
 
 @dataclass(frozen=True)
@@ -1157,6 +1303,254 @@ class StaleCatalog:
 
 
 @dataclass(frozen=True)
+class DepthComparison:
+    """
+    One comparison's record depth (#463): whether the record supports it.
+
+    :param key: The comparison: a standard window ("today", "yesterday",
+        "7d", "30d", "90d", "365d", "water_year", as `Gaps.windows` keys
+        them), "earlier_year" (today's date in an earlier year, ±7 days: the
+        usual band's earlier years, the strips, the ten-day usual and the
+        almanac's earlier-year columns) or "full_history".
+    :param shown: Whether the record covers it. A window's is its gap
+        status's `shown`.
+    :param unlocks_on: The station-local date, "YYYY-MM-DD", it is first
+        shown; null when it is shown already or the archive is empty.
+    """
+
+    key: str
+    shown: bool
+    unlocks_on: Optional[str]
+
+
+@dataclass(frozen=True)
+class DepthTile:
+    """
+    Whether one Overview tile has the record it needs (#463).
+
+    :param key: The tile: "temperature", "rain", "last_10_days",
+        "dry_spell", "wind", "pressure", "humidity", "sun", "daylight" or
+        "inside".
+    :param needs: The comparison it needs (a `DepthComparison.key`); null
+        for a tile that needs no record (daylight, inside).
+    :param shown: Whether it is shown: its comparison is. Inside is shown
+        while the station has a current indoor sensor (#466), whatever the
+        record's depth.
+    """
+
+    key: str
+    needs: Optional[str]
+    shown: bool
+
+
+@dataclass(frozen=True)
+class NextUnlock:
+    """
+    The comparison the record unlocks next (#463).
+
+    :param key: Its `DepthComparison.key`.
+    :param date: The station-local date, "YYYY-MM-DD", it is first shown.
+    """
+
+    key: str
+    date: str
+
+
+@dataclass(frozen=True)
+class RecordDepth:
+    """
+    How deep the station's record is, and what that shows (#463).
+
+    The site hides a window row, a tile or an almanac column the record does
+    not support and prints one next-unlock line instead of hatched rows
+    (`lookout.snapshot.depth`).
+
+    :param first_day: The archive's first station-local day; null when it
+        is empty.
+    :param days: Station-local days from `first_day` through today; 0 when
+        empty.
+    :param comparisons: Each comparison, the standard windows first, then
+        "earlier_year" and "full_history".
+    :param tiles: Each Overview tile in the mosaic's order, Inside last.
+    :param next_unlock: The comparison not yet shown that unlocks first;
+        null when every comparison is shown or the archive is empty.
+    """
+
+    first_day: Optional[str]
+    days: int
+    comparisons: Tuple[DepthComparison, ...]
+    tiles: Tuple[DepthTile, ...]
+    next_unlock: Optional[NextUnlock]
+
+
+@dataclass(frozen=True)
+class WindBin:
+    """
+    One of the wind rose's 16 direction bins (#465).
+
+    Directions are where the wind blows from, in degrees clockwise from
+    north. A bin holds readings from `from_deg` up to, not including,
+    `to_deg`; the N bin wraps through 0.
+
+    :param direction: Its compass point: "N", "NNE", ... "NNW".
+    :param centre_deg: Its centre: 0, 22.5, ... 337.5.
+    :param from_deg: Its first degree, inclusive (348.75 for N).
+    :param to_deg: Its last degree, exclusive (11.25 for N).
+    :param readings: How many windy readings came from it.
+    :param average_mph: Their average wind speed (`windspeedmph`), to one
+        decimal; null with no readings.
+    :param gust_mph: Their highest gust (`windgustmph`); null with none.
+    """
+
+    direction: str
+    centre_deg: float
+    from_deg: float
+    to_deg: float
+    readings: int
+    average_mph: Optional[float]
+    gust_mph: Optional[float]
+
+
+@dataclass(frozen=True)
+class WindPoint:
+    """
+    One of the wind rose's 8 compass points (#465): 45° centred on it.
+
+    :param direction: "N", "NE", "E", "SE", "S", "SW", "W" or "NW".
+    :param centre_deg: Its centre: 0, 45, ... 315.
+    :param readings: How many windy readings came from it.
+    :param share_pct: Their share of the window's windy readings, as a whole
+        percent; null when the window has no windy reading or is invalid.
+        Rounded each on its own, so the eight may not sum to exactly 100.
+    """
+
+    direction: str
+    centre_deg: float
+    readings: int
+    share_pct: Optional[int]
+
+
+@dataclass(frozen=True)
+class WindRoseWindow:
+    """
+    The wind rose over one window back from the build time (#465).
+
+    A reading is calm when its speed is under `WindRose.calm_below_mph` or
+    it has no direction; every other reading with a speed is windy. Calm
+    readings have no direction, so they are left out of the bins and
+    points and counted only in the calm share.
+
+    :param key: "24h", "7d" or "30d": the window's name. Find a window by
+        this key, not by `status.key`, which differs ("wind_7d").
+    :param hours: Its span: the readings after the build time minus this
+        many hours, through the build time.
+    :param status: The gap status of the station-local days it touches,
+        keyed "wind_" + `key` ("wind_7d"): 168 h touches 8 local days, so it
+        is not the standard "7d" window. `status.shown` says whether the
+        record covers it.
+        Every value below is null, and every count 0, when it is invalid.
+    :param readings: How many readings with a wind speed it holds.
+    :param calm_readings: How many of them are calm.
+    :param calm_pct: The calm share of `readings`, as a whole percent; null
+        with no readings.
+    :param bins: The 16 direction bins, clockwise from N.
+    :param points: The 8 compass points, clockwise from N.
+    """
+
+    key: str
+    hours: int
+    status: GapStatus
+    readings: int
+    calm_readings: int
+    calm_pct: Optional[int]
+    bins: Tuple[WindBin, ...]
+    points: Tuple[WindPoint, ...]
+
+
+@dataclass(frozen=True)
+class WindRose:
+    """
+    Where the wind comes from, over 24 h, 7 days and 30 days (#465).
+
+    Built by `lookout.snapshot.wind`, from the live-stitched readings.
+
+    :param calm_below_mph: The calm threshold: a reading under this speed is
+        calm (Beaufort force 0).
+    :param windows: The windows, shortest first.
+    """
+
+    calm_below_mph: float
+    windows: Tuple[WindRoseWindow, ...]
+
+
+@dataclass(frozen=True)
+class IndoorTrace:
+    """
+    An indoor sensor's last 24 hours as hourly means (#466).
+
+    Slot `i` covers `start_ms + i * slot_minutes` minutes up to the next
+    slot; the last slot is the hour holding the history's newest reading.
+
+    :param start_ms: When the first slot starts.
+    :param slot_minutes: Each slot's length: 60.
+    :param temperature_f: The mean temperature in each slot, to one decimal;
+        null for a slot with no reading.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    temperature_f: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
+class IndoorSensor:
+    """
+    One indoor sensor still reporting (#466): the console or a numbered one.
+
+    A sensor is current while its temperature has a reading in the last 24
+    hours of the history, measured back from the newest reading
+    (`lookout.snapshot.indoor`).
+
+    :param key: "in" for the console (`tempinf`, `humidityin`), else the
+        sensor's number as text ("1" for `temp1f`, `humidity1`).
+    :param name: The name the site prints: "Console", "Sensor 1", ...
+    :param temperature_f: Its newest temperature in that window, to one
+        decimal.
+    :param humidity_pct: Its newest humidity in that window; null when it
+        reports none.
+    :param observed_at_ms: When its newest temperature was read.
+    :param trace: Its last 24 hours, hourly.
+    """
+
+    key: str
+    name: str
+    temperature_f: float
+    humidity_pct: Optional[float]
+    observed_at_ms: int
+    trace: IndoorTrace
+
+
+@dataclass(frozen=True)
+class BatteryFlag:
+    """
+    One sensor's battery, while the sensor still reports it (#466).
+
+    Ambient sends 1 for OK and 0 for low. A flag with no reading in the last
+    24 hours of the history, or with any other value, is not listed
+    (`lookout.snapshot.indoor`).
+
+    :param key: The Ambient column: "battout", "battin", "batt1", ...
+    :param name: The sensor's name the site prints: "Outdoor sensor",
+        "Console", "Sensor 1", "Rain gauge", ...
+    :param low: Whether the battery reads low.
+    """
+
+    key: str
+    name: str
+    low: bool
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -1174,6 +1568,8 @@ class Snapshot:
         an observation.
     :param rain_events: The Rain Events tab's list and summaries.
     :param hero_lead: The hero lead and every lead rule's live value.
+    :param dry_spell: Days since it last rained and the usual dry spell; the
+        calm rule's value and reference, computed once.
     :param rain_tab: The Rain tab's data.
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
@@ -1182,8 +1578,19 @@ class Snapshot:
         catalog.
     :param sun_moon: The sun and moon today, or None when the station has
         no coordinates.
+    :param feature: The feature, by the Feature Rule (ADR-0009).
     :param widget_view: Which view a widget shows now: "rain_event",
-        "dry_spell" or "temperature_ranges" (`lookout.snapshot.widget`).
+        "dry_spell" or "temperature_ranges", the feature mapped
+        (`lookout.snapshot.widget`).
+    :param record_depth: The record's depth: what each comparison and tile shows
+        and the next unlock (`lookout.snapshot.depth`).
+    :param wind_rose: Where the wind comes from over 24 h, 7 days and 30
+        days (`lookout.snapshot.wind`).
+    :param indoor: Each indoor sensor still reporting, the console first,
+        then by number; empty when the station has none
+        (`lookout.snapshot.indoor`).
+    :param battery_flags: Each sensor battery still reporting, OK or low,
+        with the name the site prints (`lookout.snapshot.indoor`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1199,12 +1606,18 @@ class Snapshot:
     condition_ribbon: Optional[ConditionRibbon]
     rain_events: RainEvents
     hero_lead: HeroLead
+    dry_spell: DrySpellNow
     rain_tab: RainTab
     temperature_context: TemperatureContext
     almanac: Almanac
     solar_tab: Optional[SolarTab]
     sun_moon: Optional[SunMoon]
+    feature: Feature
     widget_view: WidgetView
+    record_depth: RecordDepth
+    wind_rose: WindRose
+    indoor: Tuple[IndoorSensor, ...]
+    battery_flags: Tuple[BatteryFlag, ...]
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

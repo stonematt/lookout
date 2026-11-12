@@ -420,5 +420,6 @@ class TestSnapshotGaps:
             "missing_days": 2,
             "status": "prorated",
             "reason": "gap",
+            "shown": True,
         }
         assert "gaps" not in context

@@ -14,7 +14,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { lagCaveat } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
-import { golden } from "./golden.js";
+import { SCENARIOS, golden } from "./golden.js";
 
 let page: Page | null = null;
 
@@ -77,7 +77,7 @@ const TABS = {
   events: { sections: ["catalog", "events"], top: ["catalog"] },
 } as const;
 
-describe.each(["dry", "raining"] as const)("the %s golden's other tabs", (scenario) => {
+describe.each(SCENARIOS)("the %s golden's other tabs", (scenario) => {
   it.each(Object.keys(TABS) as (keyof typeof TABS)[])(
     "renders every %s section as a tile whose first text is its kicker, then its finding",
     async (tab) => {

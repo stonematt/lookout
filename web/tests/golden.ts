@@ -9,8 +9,15 @@ import { resolve } from "node:path";
 import type { StationIndex } from "../src/stations.js";
 import { parseStationIndex } from "../src/stations.js";
 
-/** The golden scenarios `tests/test_snapshot.py` writes. */
-export type Scenario = "dry" | "raining";
+/**
+ * The golden scenarios `tests/test_snapshot.py` writes: `dry` (a young
+ * station, no earlier year), `raining` (mid event) and `seasoned` (two
+ * earlier years around its date, #461).
+ */
+export const SCENARIOS = ["dry", "raining", "seasoned"] as const;
+
+/** One golden scenario. */
+export type Scenario = (typeof SCENARIOS)[number];
 
 /**
  * The documents a refresh run publishes per station: the snapshot's two, and
@@ -27,7 +34,7 @@ export const STATUS_DIR = `${resolve(import.meta.dirname, "../../tests/golden/st
 /**
  * The raw text of one golden document.
  *
- * @param scenario - "dry" or "raining".
+ * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard", "context" or "status".
  * @returns The file's text, as Storj would serve it.
  */
@@ -39,7 +46,7 @@ export function goldenText(scenario: Scenario, kind: DocumentKind): string {
 /**
  * One golden document, parsed.
  *
- * @param scenario - "dry" or "raining".
+ * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard", "context" or "status".
  * @returns The parsed JSON, untyped: the code under test types it.
  */
@@ -50,7 +57,7 @@ export function golden(scenario: Scenario, kind: DocumentKind): unknown {
 /**
  * The raw text of one golden event curve file, as Storj would serve it.
  *
- * @param scenario - "dry" or "raining".
+ * @param scenario - One of `SCENARIOS`.
  * @param startMs - The event's start.
  * @returns The file's text.
  */
@@ -61,7 +68,7 @@ export function goldenCurveText(scenario: Scenario, startMs: number): string {
 /**
  * One golden event curve file, parsed.
  *
- * @param scenario - "dry" or "raining".
+ * @param scenario - One of `SCENARIOS`.
  * @param startMs - The event's start.
  * @returns The parsed JSON, untyped.
  */
@@ -108,7 +115,7 @@ export const PREVIOUS_SCHEMA_VERSION = 2;
  * version added removed (v3 added the `sun_moon` block). Built here, never by
  * editing a golden file (#351).
  *
- * @param scenario - "dry" or "raining".
+ * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard" or "context".
  * @returns The parsed JSON, untyped.
  */
