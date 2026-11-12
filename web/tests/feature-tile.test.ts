@@ -177,7 +177,7 @@ describe("the feature tile", () => {
     );
 
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
-    expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 days");
+    expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 d 9 h");
     expect(link().getAttribute("aria-label")).toBe(
       "About 9 days since it last rained, against a usual dry spell of 3 days. Open the Rain tab.",
     );

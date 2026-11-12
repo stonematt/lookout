@@ -3,8 +3,8 @@
  * "Source note", "Layout", spec #332).
  *
  * A tile runs kicker, finding, standfirst, chart or stats, then its folded
- * lines, ending with "Source". This module
- * offers the parts and the grid they sit in:
+ * lines, ending with "Source". This module offers the parts and the grid
+ * they sit in:
  *
  * - `TileSection`: what a tab declares per section, in its registry: its id,
  *   accessible name, kicker, column span, whether it belongs to a phone tab's

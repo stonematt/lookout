@@ -22,6 +22,7 @@ import "./feature.css";
 
 import {
   degrees,
+  formatDays,
   formatDaysSpoken,
   formatDayCount,
   formatDuration,
@@ -148,15 +149,16 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
       target: RAIN_EVENTS,
     };
   }
-  // The rule held on an event that ended: the catalog's newest (newest first).
+  // The rule held on an event that ended: the catalog's newest, the list's
+  // first row (newest first), as Python's rain rule reads it.
   const event = snapshot.rain_events.events.find((row) => !row.live);
   if (!event) {
     return {
       kind: "rain",
       kicker: "Rain",
       value: null,
-      finding: "Rain in the last 12 hours",
-      name: "Rain in the last 12 hours",
+      finding: "Rain lately",
+      name: "Rain lately",
       live: false,
       target: RAIN_EVENTS,
     };
@@ -176,10 +178,14 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
 }
 
 function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView {
-  const reading = READINGS[feature.reading ?? "temperature"];
-  const percentile = feature.percentile ?? 50;
-  const value = readingValue(feature, feature.value ?? 0);
+  // The parse guarantees an unusual feature its reading, value and percentile.
+  const reading = READINGS[feature.reading!];
+  const percentile = feature.percentile!;
+  const value = readingValue(feature, feature.value!);
+  // Python judges the newest observation's hour (`lookout.snapshot.feature`).
   const hour = hourName(snapshot.observed_at_ms ?? snapshot.built_at_ms);
+  // The percentile is the share of usual readings below the value and always
+  // lies outside 10 to 90, so above the middle it reads high, below it low.
   const finding =
     `${percentile > 50 ? reading.high : reading.low} than usual for ${hour}: ` +
     `the ${ordinal(percentile)} percentile around this date in earlier years`;
@@ -211,17 +217,15 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
       target: RAIN,
     };
   }
-  // The value is the spoken duration's number, so the tile and its name (and
-  // the Rain tab's finding) say one number: "about 39 hours" shows "39 hours".
-  const said = formatDaysSpoken(days);
-  const parts = said.replace(/^about /, "").split(" ");
+  // The value and the name say it as the Rain tab does: its stat ("1 d 14 h")
+  // and its finding ("about 39 hours since it last rained").
   const finding = `since it last rained${usual}`;
   return {
     kind: "dry_spell",
     kicker: "Dry spell",
-    value: parts.length === 2 ? [parts[0]!, parts[1]!] : [said, null],
+    value: [formatDays(days), null],
     finding,
-    name: `${upperFirst(said)} ${finding}`,
+    name: `${upperFirst(formatDaysSpoken(days))} ${finding}`,
     live: false,
     target: RAIN,
   };

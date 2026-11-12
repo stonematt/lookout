@@ -79,7 +79,7 @@
 .feature-value {
   margin: 0;
   font-size: var(--type-fact);
-  font-weight: 400;
+  font-weight: 300;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

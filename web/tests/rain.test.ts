@@ -236,7 +236,7 @@ describe("the Rain tab", () => {
 
     const feature = overview.querySelector("[data-section=feature] a")!;
     expect(feature.getAttribute("aria-label")).toMatch(/^About 39 hours since it last rained/);
-    expect(text(feature.querySelector("[data-part=value]"))).toBe("39 hours");
+    expect(text(feature.querySelector("[data-part=value]"))).toBe("1 d 14 h");
     expect(text(section("dry").querySelector("h2"))).toBe("about 39 hours since it last rained");
   });
 
