@@ -1,10 +1,11 @@
 /**
  * The small parts the conditions zooms draw in their panels (#477): a
- * sentence, a large value line, a chart box drawn at the panel's width, and
- * a link on to a tab. Every part is content only; the zoom shell
- * (`../zoom.ts`) owns the heading, Close, focus and the route.
+ * sentence, a large value line and a chart box drawn at the panel's width.
+ * Every part is content only; the zoom shell (`../zoom.ts`) owns the
+ * heading, Close, focus and the route. A zoom's link on to a tab is its
+ * "More in" panel (`more.ts`).
  *
- * Offers `sentence`, `factValue`, `sizedChart` and `onwardLink`.
+ * Offers `sentence`, `factValue` and `sizedChart`.
  */
 import "./parts.css";
 
@@ -73,27 +74,4 @@ export function sizedChart(
     box.replaceChildren(...(svg ? [svg] : []));
   });
   return box;
-}
-
-/**
- * A link on from a zoom to the tab that holds more ("More in Solar").
- *
- * @param host - The panel.
- * @param href - The tab's hash: "#solar".
- * @param words - The link's words.
- * @returns The link.
- */
-export function onwardLink(host: HTMLElement, href: string, words: string): HTMLAnchorElement {
-  const link = document.createElement("a");
-  link.className = "zoom-onward";
-  link.dataset.part = "onward";
-  link.href = href;
-  link.textContent = words;
-  const glyph = document.createElement("span");
-  glyph.className = "zoom-onward-glyph";
-  glyph.setAttribute("aria-hidden", "true");
-  glyph.textContent = "›";
-  link.append(glyph);
-  host.append(link);
-  return link;
 }

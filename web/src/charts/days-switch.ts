@@ -5,7 +5,9 @@
  * 520px the chart shows 90 and the switch is hidden. The switch slices the
  * days the snapshot sent; it is display state, never a decision.
  *
- * Offers `drawDays`, which draws a chart of days through one switch.
+ * Offers `drawDays`, which draws a chart of days through one switch, and
+ * `segmented`, the segmented control under it, which the wind zoom's
+ * window control shares.
  */
 import "./days-switch.css";
 
@@ -26,6 +28,60 @@ interface DaysSwitch {
   chosen(): number;
 }
 
+/** One segment of a segmented control. */
+export interface Segment {
+  /** What it picks: "30", "24h". */
+  key: string;
+  /** Its words: "30 days", "24 h". */
+  text: string;
+}
+
+/**
+ * A segmented control (DESIGN.md "Segmented control and select"): a named
+ * group of buttons, each carrying its key as a data attribute, the chosen
+ * one `aria-pressed`. Pressing another chooses it; the caller redraws.
+ *
+ * @param className - The group's class: "days-seg", and any of the caller's.
+ * @param label - The group's accessible name.
+ * @param data - The data attribute each button's key goes in: "days" for
+ *   `data-days`.
+ * @param segments - The buttons, in order.
+ * @param chosen - The key chosen now.
+ * @param choose - Called with a newly pressed segment's key.
+ * @returns The group.
+ */
+export function segmented(
+  className: string,
+  label: string,
+  data: string,
+  segments: readonly Segment[],
+  chosen: () => string,
+  choose: (key: string) => void,
+): HTMLElement {
+  const el = make("div", className);
+  el.setAttribute("role", "group");
+  el.setAttribute("aria-label", label);
+  const press = () => {
+    buttons.forEach((b, i) =>
+      b.setAttribute("aria-pressed", String(segments[i]!.key === chosen())),
+    );
+  };
+  const buttons = segments.map(({ key, text }) => {
+    const button = make("button", "", text);
+    button.type = "button";
+    button.dataset[data] = key;
+    button.onclick = () => {
+      if (chosen() === key) return;
+      choose(key);
+      press();
+    };
+    el.append(button);
+    return button;
+  });
+  press();
+  return el;
+}
+
 /**
  * A 30 / 90 switch for one chart.
  *
@@ -36,28 +92,18 @@ interface DaysSwitch {
  */
 function daysSwitch(label: string, onChange: () => void, all = 90): DaysSwitch {
   let chosen = Math.min(PHONE_DAYS, all);
-  const el = make("div", "days-seg");
-  el.setAttribute("role", "group");
-  el.setAttribute("aria-label", label);
-  el.hidden = true;
-  const buttons = [PHONE_DAYS, all].map((days) => {
-    const button = make("button", "", `${days} days`);
-    button.type = "button";
-    button.dataset.days = String(days);
-    button.onclick = () => {
-      if (chosen === days) return;
-      chosen = days;
-      press();
+  const el = segmented(
+    "days-seg",
+    label,
+    "days",
+    [PHONE_DAYS, all].map((days) => ({ key: String(days), text: `${days} days` })),
+    () => String(chosen),
+    (key) => {
+      chosen = Number(key);
       onChange();
-    };
-    el.append(button);
-    return button;
-  });
-  const press = () => {
-    for (const b of buttons)
-      b.setAttribute("aria-pressed", String(b.dataset.days === String(chosen)));
-  };
-  press();
+    },
+  );
+  el.hidden = true;
   return {
     el,
     days(width: number): number {

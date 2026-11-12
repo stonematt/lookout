@@ -177,8 +177,8 @@
 }
 
 /* ---------- a stat strip beside its chart ---------- */
-/* on the four-column grid a tile's window strip stands beside its daily
-   bars (the Rain and Solar boards); stacked, strip above bars, below it */
+/* on the four-column grid the Solar tab's window strip stands beside its
+   daily bars (the Solar board); stacked, strip above bars, below it */
 :root[data-layout="four"] .tile-split {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);

@@ -115,6 +115,29 @@ describe("parseDashboard", () => {
     expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
   });
 
+  it.each<[string, (s: Record<string, unknown>) => void]>([
+    ["no key", (s) => delete s.key],
+    ["a text humidity", (s) => (s.humidity_pct = "45")],
+    ["no humidity field", (s) => delete s.humidity_pct],
+    ["no read time", (s) => delete s.observed_at_ms],
+    ["a fractional read time", (s) => (s.observed_at_ms = 1.5)],
+  ])("refuses an indoor sensor with %s", (_case, spoil) => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as {
+      indoor: Record<string, unknown>[];
+    };
+    expect(doc.indoor.length).toBeGreaterThan(0);
+    spoil(doc.indoor[0]!);
+    expect(() => parseDashboard(doc)).toThrow("dashboard: indoor malformed");
+  });
+
+  it("reads an indoor sensor with no humidity", () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as {
+      indoor: Record<string, unknown>[];
+    };
+    doc.indoor[0]!.humidity_pct = null;
+    expect(parseDashboard(doc).indoor?.[0]?.humidity_pct).toBeNull();
+  });
+
   it("refuses a context block", () => {
     expect(() => parseDashboard(golden("dry", "context"))).toThrow(SnapshotContractError);
   });

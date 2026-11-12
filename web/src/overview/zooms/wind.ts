@@ -1,7 +1,7 @@
 /**
  * The wind zoom (#476, spec #460; boards `WindZoom`, `WindZoomDark`): under
  * the Wind tile's speed, direction and gust, the wind rose, then the live
- * wind sentence the quick-fact card used to carry (#473).
+ * wind sentence: where it blows from and its gust, in full.
  *
  * The rose panel reads the snapshot's `wind_rose` (#465):
  *
@@ -26,9 +26,9 @@
  *
  * Offers `windZoom`.
  */
-import "../../charts/days-switch.css";
 import "./wind.css";
 
+import { segmented } from "../../charts/days-switch.js";
 import { drawSized } from "../../charts/svg.js";
 import { make, svgEl } from "../../dom.js";
 import { mph } from "../../format.js";
@@ -39,7 +39,7 @@ import type {
   WindRose,
   WindRoseWindow,
 } from "../../snapshot.js";
-import { windClauses, windTile } from "../mosaic-conditions.js";
+import { calmThreshold, windClauses, windTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
 
 /** The window the rose opens on when the record covers it (the board's). */
@@ -71,14 +71,21 @@ function shownWindows(rose: WindRose | undefined): WindRoseWindow[] {
   return rose?.windows.filter((w) => w.status.shown !== false) ?? [];
 }
 
+/** A window's length in its unit: 24 hours, or 7 days from 48 hours. */
+function windowLength(w: WindRoseWindow): { count: number; unit: "hours" | "days" } {
+  return w.hours < 48 ? { count: w.hours, unit: "hours" } : { count: w.hours / 24, unit: "days" };
+}
+
 /** A window's segment label: "24 h", "7 days". */
 function segmentLabel(w: WindRoseWindow): string {
-  return w.hours < 48 ? `${w.hours} h` : `${w.hours / 24} days`;
+  const { count, unit } = windowLength(w);
+  return `${count} ${unit === "hours" ? "h" : unit}`;
 }
 
 /** A window as a caption's tail: "last 24 hours", "last 7 days". */
 function spanShort(w: WindRoseWindow): string {
-  return w.hours < 48 ? `last ${w.hours} hours` : `last ${w.hours / 24} days`;
+  const { count, unit } = windowLength(w);
+  return `last ${count} ${unit}`;
 }
 
 /** A window as a phrase: "the last 24 hours", "the last 7 days". */
@@ -86,15 +93,10 @@ function spanPhrase(w: WindRoseWindow): string {
   return `the ${spanShort(w)}`;
 }
 
-/** A threshold in mph as words: "1 mph", "0.5 mph". */
-function threshold(value: number): string {
-  return `${Number.isInteger(value) ? value : value.toFixed(1)} mph`;
-}
-
 // ---------- the control ----------
 
 /**
- * The segmented control over the windows (DESIGN.md "Segmented control",
+ * The segmented control over the windows (DESIGN.md "Segmented control and select",
  * the 30 / 90 switch's look, 44px tall at every width).
  */
 function windowControl(
@@ -102,26 +104,14 @@ function windowControl(
   chosen: () => string,
   choose: (key: string) => void,
 ): HTMLElement {
-  const el = make("div", "days-seg wind-seg");
-  el.setAttribute("role", "group");
-  el.setAttribute("aria-label", "Window shown");
-  const buttons = windows.map((w) => {
-    const button = make("button", "", segmentLabel(w));
-    button.type = "button";
-    button.dataset.window = w.key;
-    button.onclick = () => {
-      if (chosen() === w.key) return;
-      choose(w.key);
-      press();
-    };
-    el.append(button);
-    return button;
-  });
-  const press = () => {
-    for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.window === chosen()));
-  };
-  press();
-  return el;
+  return segmented(
+    "days-seg wind-seg",
+    "Window shown",
+    "window",
+    windows.map((w) => ({ key: w.key, text: segmentLabel(w) })),
+    chosen,
+    choose,
+  );
 }
 
 // ---------- the rose ----------
@@ -309,7 +299,7 @@ function calmLine(w: WindRoseWindow, calmBelow: number): string {
   if (w.calm_pct === null) return `No wind readings in ${spanPhrase(w)}.`;
   return (
     `Calm ${w.calm_pct}% of readings in ${spanPhrase(w)}: ` +
-    `under ${threshold(calmBelow)} or no direction. ` +
+    `under ${calmThreshold(calmBelow)} or no direction. ` +
     "Calm readings have no direction, so the rose and the bars leave them out."
   );
 }
@@ -415,8 +405,7 @@ function renderRose(host: HTMLElement, snapshot: DashboardSnapshot): void {
 // ---------- the live wind ----------
 
 /**
- * The live wind sentence: where it blows from and its gust (the quick-fact
- * card's, #473).
+ * The live wind sentence: where it blows from and its gust.
  *
  * @param c - The current conditions.
  * @returns E.g. "From the SE, gusts to 2.5 mph."

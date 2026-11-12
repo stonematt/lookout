@@ -374,6 +374,17 @@ th.alm-season {
   border-top: 0;
 }
 
+/* the hatch stays inside its column: the cell's side padding is drawn in
+   the surface, so neighbouring gaps stand apart and clear of the numbers */
 .alm-table td.gap-hatch {
   text-align: left;
+  box-shadow:
+    inset var(--s-1) 0 0 var(--surface),
+    inset calc(-1 * var(--s-1)) 0 0 var(--surface);
+}
+
+/* one rule between the table and the zoom panel under it: the panel draws
+   it (`zoom.css`), so the table's last row draws none there */
+:root:not([data-layout="four"]) .zoom .alm-table tbody tr:last-child > * {
+  border-bottom: 0;
 }

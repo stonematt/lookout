@@ -25,7 +25,7 @@ export const drySpellZoom: ZoomDefinition = {
       id: "dry-spells",
       title: "Dry spells",
       wide: true,
-      render: (host, snapshot) => renderDry(host, snapshot, { notes: false }),
+      render: (host, snapshot) => renderDry(host, snapshot, { zoom: true }),
     },
     morePanel(RAIN_TAB, "The water year, each day of the last 90, rain by the hour"),
   ],

@@ -126,6 +126,8 @@
 }
 
 .zoom-heading {
+  /* as wide as its words, so its focus ring stays clear of Close */
+  align-self: flex-start;
   font-size: var(--type-kicker);
   font-weight: 500;
   line-height: 1.4;

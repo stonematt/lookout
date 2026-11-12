@@ -1,7 +1,6 @@
 /*
- * The conditions zooms' panel parts (#477): a sentence, a large value, a
- * chart box and a link on to a tab. The shell's own hooks are in
- * `../zoom.css`.
+ * The conditions zooms' panel parts (#477): a sentence, a large value and
+ * a chart box. The shell's own hooks are in `../zoom.css`.
  */
 
 .zoom-sentence {
@@ -26,28 +25,6 @@
 .zoom-chart {
   min-width: 0;
   margin: var(--s-3) 0;
-}
-
-/* a link on to a tab: plain words and a chevron, a button's least height */
-.zoom-onward {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  align-self: flex-start;
-  min-height: 44px;
-  margin-top: var(--s-3);
-  font-size: var(--type-standfirst);
-  font-weight: 500;
-  color: var(--ink);
-}
-
-.zoom-onward:hover {
-  color: var(--ink-2);
-}
-
-.zoom-onward-glyph {
-  font-size: 1.25em;
-  line-height: 1;
 }
 
 /* Inside: one row per sensor, its name, its reading, then its 24 hours */

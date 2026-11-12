@@ -9,13 +9,12 @@
  * accessible name comes from its content, as the mosaic tiles' does (#543):
  * the visible finding, read once, with hidden words round it that say the
  * kicker and value in full (both `aria-hidden`) and where the link goes
- * ("Open the Rain tab"). No `aria-label` replaces the content. A temperature
- * feature (unusual, or a usual day) opens the temperature zoom
- * (`#overview/temperature`, #474), and an unusual humidity or pressure its
- * reading's zoom (`#overview/humidity`, `#overview/pressure`, #477). Until
- * the other zooms land, the link goes where the evidence is today: the Rain
- * Events tab for rain, the Rain tab for a dry spell, the Solar tab for
- * unusual sun, and the Wind tile (`#overview-wind`) for an unusual gust.
+ * ("Open the dry spell view"). No `aria-label` replaces the content. A
+ * feature opens the zoom of the tile that holds its evidence: a temperature
+ * feature (unusual, or a usual day) the temperature zoom (#474), a long dry
+ * spell the dry spell zoom (#475), an unusual gust the wind zoom (#476), and
+ * unusual humidity, pressure or sun that reading's zoom (#477). A rain event
+ * has no zoom: it opens the Rain Events tab.
  *
  * Every value is the snapshot's: this module words, formats and links; it
  * does not pick, rank or compare.
@@ -25,6 +24,7 @@
  */
 import "./feature.css";
 
+import { spoken } from "../dom.js";
 import {
   degrees,
   formatDays,
@@ -43,14 +43,13 @@ import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js"
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 import type { MosaicTile } from "./mosaic.js";
-import { spoken } from "./mosaic.js";
-import { humidityTile, pressureTile } from "./mosaic-conditions.js";
-import { temperatureTile } from "./mosaic-tiles.js";
+import { humidityTile, pressureTile, sunTile, windTile } from "./mosaic-conditions.js";
+import { drySpellTile, temperatureTile } from "./mosaic-tiles.js";
 
 /** Where the tile's link goes, and the words that say so. */
 interface Target {
   href: string;
-  /** E.g. "Open the Rain tab", the end of the link's name. */
+  /** E.g. "Open the Rain Events tab", the end of the link's name. */
   words: string;
 }
 
@@ -74,14 +73,13 @@ export interface FeatureView {
 }
 
 const RAIN_EVENTS: Target = { href: "#events", words: "Open the Rain Events tab" };
-const RAIN: Target = { href: "#rain", words: "Open the Rain tab" };
 /** A mosaic tile's zoom as a target, in the tile's own words. */
 const zoomTarget = (tile: MosaicTile): Target => ({
   href: `#overview/${tile.slug}`,
   words: `Open the ${tile.zoomName} view`,
 });
-// The temperature zoom (#474).
 const TEMPERATURE = zoomTarget(temperatureTile);
+const DRY_SPELL = zoomTarget(drySpellTile);
 
 /** Per reading: its name, the two comparatives, its Overview target. */
 const READINGS: Record<
@@ -99,7 +97,7 @@ const READINGS: Record<
     name: "wind gust",
     high: "gustier",
     low: "calmer",
-    target: { href: "#overview-wind", words: "Go to Wind" },
+    target: zoomTarget(windTile),
   },
   pressure: {
     name: "pressure",
@@ -111,7 +109,7 @@ const READINGS: Record<
     name: "sun",
     high: "brighter",
     low: "duller",
-    target: { href: "#solar", words: "Open the Solar tab" },
+    target: zoomTarget(sunTile),
   },
 };
 
@@ -227,7 +225,7 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
       finding,
       spoken: { before: "", after: "" },
       live: false,
-      target: RAIN,
+      target: DRY_SPELL,
     };
   }
   // The value and the name say it as the Rain tab does: its stat ("1 d 14 h")
@@ -240,7 +238,7 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
     finding,
     spoken: { before: `${upperFirst(formatDaysSpoken(days))} `, after: "" },
     live: false,
-    target: RAIN,
+    target: DRY_SPELL,
   };
 }
 

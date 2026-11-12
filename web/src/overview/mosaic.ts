@@ -33,13 +33,12 @@
  * nothing for it is not drawn either.
  *
  * Offers `MosaicTile`, `MosaicRow`, `TileReading`, `mosaicSection`,
- * `depthShown`, `miniChart` (the mini chart's SVG root) and
- * `ROW_LINE_HEIGHT`.
+ * `miniChart` (the mini chart's SVG root) and `ROW_LINE_HEIGHT`.
  */
 import "./mosaic.css";
 
 import { drawSized } from "../charts/svg.js";
-import { svgEl } from "../dom.js";
+import { spoken, svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -133,7 +132,7 @@ export const ROW_LINE_HEIGHT = 26;
  * @param key - The tile's record-depth key.
  * @returns False only when the snapshot lists the tile as not shown.
  */
-export function depthShown(snapshot: DashboardSnapshot, key: string): boolean {
+function depthShown(snapshot: DashboardSnapshot, key: string): boolean {
   const tile = snapshot.record_depth?.tiles.find((t) => t.key === key);
   return tile?.shown ?? true;
 }
@@ -166,14 +165,6 @@ function bandLegend(): HTMLElement {
   swatch.className = "mosaic-swatch";
   legend.append(swatch, "usual range");
   return legend;
-}
-
-/** A screen-reader-only span. */
-export function spoken(text: string): HTMLSpanElement {
-  const span = document.createElement("span");
-  span.className = "ov-sr";
-  span.textContent = text;
-  return span;
 }
 
 /**
