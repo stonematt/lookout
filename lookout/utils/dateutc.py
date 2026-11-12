@@ -18,7 +18,7 @@ Streamlit/config side effects.
 from __future__ import annotations
 
 import datetime as _dt
-from typing import List, Union
+from typing import List, Optional, Union
 
 import pandas as pd
 
@@ -50,6 +50,32 @@ HOUR_MS: int = 60 * 60 * 1000
 
 DAY_MS: int = 24 * HOUR_MS
 """24 hours in epoch ms: a span of elapsed time, not a station-local day."""
+
+STATION_FRESH_MINUTES: int = 15
+"""A live reading this old or older is stale: the station has stopped reporting.
+
+Three missed 5-minute reports. The same age as the site's `STALE_AFTER_MS`.
+The station heartbeat (`lookout.utils.healthchecks`) and the snapshot's
+unusual rule (`lookout.snapshot.feature`) both read it through `is_fresh`.
+"""
+
+
+def is_fresh(
+    observed_at_ms: Optional[int],
+    now_ms: int,
+    max_age_minutes: int = STATION_FRESH_MINUTES,
+) -> bool:
+    """
+    Whether a reading is recent enough to count as the station reporting.
+
+    :param observed_at_ms: The reading's time, epoch ms UTC; None if unknown.
+    :param now_ms: The current time, epoch ms UTC.
+    :param max_age_minutes: The oldest age that still counts.
+    :return: True when the reading is under `max_age_minutes` old.
+    """
+    if observed_at_ms is None:
+        return False
+    return now_ms - observed_at_ms < max_age_minutes * 60_000
 
 
 def _is_valid_archive(df: pd.DataFrame, min_ms: int) -> bool:

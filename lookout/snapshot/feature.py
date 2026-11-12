@@ -21,7 +21,10 @@ order, the first that holds is the feature:
    published is rounded to a whole number, but never into the band (at
    most `LOW` - 1 below it, at least `HIGH` + 1 above it). Skipped entirely unless the
    window's basis is "earlier_years": a recent-days band is too thin to call
-   anything unusual.
+   anything unusual. Skipped too unless the newest observation is fresh at
+   the build time (`lookout.utils.dateutc.is_fresh` against
+   `StationClock.now_ms`), so a silent station's last reading is never
+   judged; the rule then falls through to dry spell, then quiet.
 3. **dry_spell**: the snapshot's `DrySpellNow`, `days_since_rain` longer
    than `usual_days`; it cannot hold while either is None.
 4. **quiet**: otherwise, temperature as a usual day.
@@ -50,7 +53,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.temperature import usual_readings, usual_window
-from lookout.utils.dateutc import HOUR_MS, local_time
+from lookout.utils.dateutc import HOUR_MS, is_fresh, local_time
 
 LOW = 10.0
 """A reading below this percentile of its usual is unusual."""
@@ -142,6 +145,7 @@ def _unusual(
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
     coverage: ArchiveCoverage,
+    clock: StationClock,
 ) -> Optional[Feature]:
     """
     The unusual rule: the reading furthest outside its usual, if any is.
@@ -150,10 +154,12 @@ def _unusual(
     :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
     :param coverage: The build's counted days.
+    :param clock: The build's clock; the observation's age is counted to its
+        `now`.
     :return: The feature, or None when no reading is unusual or the rule is
-        skipped (no observation, no earlier year).
+        skipped (no observation, a stale one, no earlier year).
     """
-    if observed_at_ms is None:
+    if observed_at_ms is None or not is_fresh(observed_at_ms, clock.now_ms):
         return None
     observed = local_time(observed_at_ms, coverage.tz)
     window = usual_window(coverage, observed.date())
@@ -226,7 +232,7 @@ def feature(
     """
     if _rain(event_catalog, active, clock):
         return _bare("rain")
-    unusual = _unusual(stitched, current, observed_at_ms, coverage)
+    unusual = _unusual(stitched, current, observed_at_ms, coverage, clock)
     if unusual is not None:
         return unusual
     if _dry_spell(dry):

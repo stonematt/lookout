@@ -31,6 +31,7 @@ import pandas as pd
 
 from lookout.snapshot.build import build_snapshot
 from lookout.snapshot.model import Snapshot
+from lookout.utils.dateutc import DAY_MS, STATION_FRESH_MINUTES
 from tests.fixtures.archive import (
     SEASONED_NOW,
     SEASONED_PUSHED_TEMPF,
@@ -62,6 +63,9 @@ USUAL_DAYS = [
 ]
 """The seasoned usual window: 13-27 May in 2024 and 2025."""
 
+FRESH_MS = STATION_FRESH_MINUTES * 60_000
+"""The oldest observation the unusual rule still judges, exclusive."""
+
 
 def hour_readings(
     archive: pd.DataFrame, days: Sequence[date], hour: int, column: str
@@ -76,6 +80,7 @@ def seasoned(
     changes: Optional[Dict[str, float]] = None,
     rain: Sequence[RainSpell] = SEASONED_RAIN,
     ordinary: bool = True,
+    built: str = SEASONED_BUILT,
 ) -> Snapshot:
     """
     The seasoned station, its live reading changed.
@@ -84,6 +89,7 @@ def seasoned(
     :param rain: The station's rain spells.
     :param ordinary: Set the live temperature and solar to their usual median
         first, so neither is unusual unless `changes` says so.
+    :param built: The build time; the live reading stays at `SEASONED_NOW`.
     :return: The snapshot.
     """
     full = seasoned_archive(rain=rain)
@@ -103,8 +109,15 @@ def seasoned(
         event_catalog=event_catalog(archive),
         energy_catalog=None,
         station=SEASONED_STATION,
-        now=pd.Timestamp(SEASONED_BUILT),
+        now=pd.Timestamp(built),
     )
+
+
+def after_live(milliseconds: int) -> str:
+    """The build time `milliseconds` after the seasoned live reading."""
+    return pd.Timestamp(
+        ms(SEASONED_NOW) + milliseconds, unit="ms", tz="UTC"
+    ).isoformat()
 
 
 def usual_tempf(share: float) -> float:
@@ -219,6 +232,48 @@ class TestUnusual:
         snapshot = seasoned({"tempf": None, "humidity": 40.0})
 
         assert snapshot.feature.reading == "humidity"
+
+
+class TestStale:
+    """
+    The unusual rule judges only a fresh observation: one under
+    `STATION_FRESH_MINUTES` (15) old at the build time, the age at which the
+    site calls the live reading stale and the station heartbeat stops.
+    """
+
+    def test_a_station_silent_for_days_is_not_unusual(self):
+        # Ambient keeps handing back the last reading; the build runs on.
+        snapshot = seasoned(ordinary=False, built=after_live(10 * DAY_MS))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.reading is None
+        assert snapshot.widget_view == "temperature_ranges"
+
+    def test_just_inside_the_limit_it_is_still_unusual(self):
+        snapshot = seasoned(ordinary=False, built=after_live(FRESH_MS - 1))
+
+        assert snapshot.feature.kind == "unusual"
+        assert snapshot.feature.reading == "temperature"
+        assert snapshot.feature.value == SEASONED_PUSHED_TEMPF
+        assert snapshot.feature.percentile == 100
+
+    def test_at_the_limit_it_falls_through(self):
+        snapshot = seasoned(ordinary=False, built=after_live(FRESH_MS))
+
+        assert snapshot.feature.kind == "quiet"
+
+    def test_a_stale_unusual_reading_falls_through_to_a_dry_spell(self):
+        full = rain_every_fifth_day(DRY_END)
+        archive = full[full["dateutc"] < ms(DRY_LAST)]
+        live = live_row(full, DRY_LAST)
+        live["tempf"] = 99.0
+        built = pd.Timestamp(ms(DRY_LAST) + FRESH_MS, unit="ms", tz="UTC")
+
+        snapshot = build(archive, live, built.isoformat())
+
+        assert snapshot.dry_spell.days_since_rain > snapshot.dry_spell.usual_days
+        assert snapshot.feature.kind == "dry_spell"
+        assert snapshot.widget_view == "dry_spell"
 
 
 class TestRain:
