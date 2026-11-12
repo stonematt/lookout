@@ -45,6 +45,9 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 15. **Matt's review (Nov 11): the flow is fine and dark looks OK.** A tile hidden for missing history shifts the later tiles; that is accepted. The dark tokens stay as they are; the #38444f inset stays on the board as a reference only.
 16. **The band's label goes in the legend, not the plot.** Bars cover a label drawn inside the band, in both themes. Every chart with a band under bars gets a legend swatch, "usual range" (the band fill with its dashed edge), and no label inside the plot. The "today" label sits above the plot with a leader line down to today's bar.
 
+17. **Ten tiles: Inside is the tenth** (Matt, Nov 11). It has one row for each indoor sensor: the reading, its humidity and a 24-hour line. Lookout Post has two sensors, Salmon Run one. The tile hides on a station with no indoor sensor. On the phone it pairs with Daylight; on desktop row 4 holds Daylight and Inside, with two cells empty.
+18. **Battery health is a header warning, not a tile** (Matt, Nov 11). Ambient reports each sensor's battery only as OK or low. A line under the freshness note names the sensor, for example "Rain gauge battery low", and appears only while a flag reads low. It is drawn in ink, not orange, because orange means now. The Raining board shows it.
+
 ## Accessibility audit (Nov 11, `/impeccable audit`)
 
 Axe-core 4.10 (WCAG 2.2 A/AA and best practice) on every board, light and dark, found no colour-contrast failures in text. The impeccable detector found no anti-patterns, only advisories that sizes and radii are off the DESIGN.md ramp (prototype drift; the build uses the tokens). Chart graphics were measured by hand, since axe does not check them.
@@ -65,12 +68,11 @@ For the spec to carry:
 
 ## Open questions
 
-- The tenth tile, to fill Daylight's empty row. Matt's candidates: the moon phase, an Inside tile with one row per indoor sensor (temperature and humidity; Lookout Post has two, Salmon Run one), or battery health. Ambient sends `tempinf`/`humidityin`, `temp1f`/`humidity1` and the battery flags `battout`, `battin`, `batt1` (1 is OK); none reach the snapshot today.
 - What is #252's selector for: narrowing the dates (drawn) or choosing which years to compare?
 
 ## Contract impact
 
-New snapshot fields, so schema bumps shipped in two releases each (ADR-0008): the usual band by hour, the Full history window, each comparison's history depth and next-unlock date, and the feature choice. The ten-day list and the this-hour strips already compute the ±7-day usual, so the band reuses their code.
+New snapshot fields, so schema bumps shipped in two releases each (ADR-0008): the usual band by hour, the Full history window, each comparison's history depth and next-unlock date, and the feature choice. Release A also adds the indoor readings (`tempinf`/`humidityin`, `temp1f`/`humidity1`, and more by sensor) and each sensor's battery flag (`battout`, `battin`, `batt1`; 1 is OK), which no snapshot field carries today. The ten-day list and the this-hour strips already compute the ±7-day usual, so the band reuses their code.
 
 ## Files
 
