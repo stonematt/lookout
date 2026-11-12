@@ -20,7 +20,7 @@ import { formatDuration, formatStamp } from "../format.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import { sourceNote, tileFolds } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
-import { bandBasisWords, todayChart, todayMissingMs } from "./today-hero.js";
+import { bandBasisWords, nowDeltaText, todayChart, todayMissingMs } from "./today-hero.js";
 
 function temperature(snapshot: DashboardSnapshot): HTMLElement {
   const node = document.createElement("p");
@@ -77,7 +77,20 @@ function firstScreenSource(snapshot: DashboardSnapshot): string {
  */
 export function nowFinding(snapshot: DashboardSnapshot): string {
   const t = snapshot.current.temperature_f;
-  return t === null ? "Temperature not known." : `${t.toFixed(1)}°F now.`;
+  if (t === null) return "Temperature not known.";
+  const delta = nowDeltaText(snapshot);
+  return delta ? `${t.toFixed(1)}°F now, ${delta}.` : `${t.toFixed(1)}°F now.`;
+}
+
+/** The delta line under the temperature; none when the snapshot decided none. */
+function deltaLine(snapshot: DashboardSnapshot): HTMLElement | null {
+  const text = nowDeltaText(snapshot);
+  if (!text) return null;
+  const node = document.createElement("p");
+  node.className = "now-delta";
+  node.dataset.part = "delta";
+  node.textContent = text;
+  return node;
 }
 
 /** The chip's short reason when a gap in the record hides part of today. */
@@ -93,6 +106,8 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   line.className = "now-line";
   line.dataset.part = "finding";
   line.append(temperature(snapshot));
+  const delta = deltaLine(snapshot);
+  if (delta) line.append(delta);
   const chart = todayChart(snapshot);
   host.append(line, chart.block);
   chart.start();

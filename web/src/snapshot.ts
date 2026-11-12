@@ -1076,6 +1076,18 @@ export interface UsualBand {
   days: number;
   /** The 24 station-local hours, 0 to 23 in order. */
   hours: UsualHour[];
+  /** The live reading against its own hour's median; absent before it, null with no reading. */
+  now_delta?: UsualNowDelta | null;
+}
+
+/** How far the live reading is from the usual median at its own station-local hour. */
+export interface UsualNowDelta {
+  /** The reading's wall-clock hour, 0 to 23. */
+  hour: number;
+  /** Degrees F above (positive) or below the median, rounded in Python. */
+  delta_f: number;
+  /** Which days the median is over. */
+  basis: UsualBasis;
 }
 
 const USUAL_BASES: readonly string[] = ["earlier_years", "recent_days", "median_only"];
@@ -1101,8 +1113,19 @@ function checkUsualBand(band: unknown): void {
         isValueOrNull(h.q1) &&
         isValueOrNull(h.q3),
     );
+  const delta = isRecord(band) ? band.now_delta : undefined;
+  const deltaOk =
+    delta === undefined ||
+    delta === null ||
+    (isRecord(delta) &&
+      Number.isInteger(delta.hour) &&
+      (delta.hour as number) >= 0 &&
+      (delta.hour as number) <= 23 &&
+      Number.isFinite(delta.delta_f) &&
+      USUAL_BASES.includes(delta.basis as string));
   if (
     !hoursOk ||
+    !deltaOk ||
     !USUAL_BASES.includes(band.basis as string) ||
     !Array.isArray(band.years) ||
     !Number.isInteger(band.days)
