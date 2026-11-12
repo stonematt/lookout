@@ -86,7 +86,7 @@ Stop it with Ctrl-C, or `kill` its PID.
 
 Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
 
-Vercel deploys only `main`, `goal/**` and `preview/**` branches. `git.deploymentEnabled` in `vercel.json` stops the other named prefixes (`dev`, `feat/**`, `fix/**`, `docs/**`, `chore/**`, `lane/**`, `shots/**`, `prototype/**`) from creating a deployment, because a skipped build still counts toward the Hobby deployment budget. `ignoreCommand` then runs `scripts/vercel-ignore.sh`: `main` and `preview/**` always build, a `goal/**` push builds only when it changed `web/` since the last deployment, and any other branch skips. Push to `preview/<slug>` to get a preview of other work.
+Vercel deploys only `main`, `dev` and `uat/**` branches. `git.deploymentEnabled` in `vercel.json` is an allowlist: a catch-all `"**": false`, and true for those three. Vercel deploys a branch when at least one matching rule is true, so every other branch creates no deployment. `ignoreCommand` runs `scripts/vercel-ignore.sh`, which repeats the allowlist as a backstop. A release's UAT preview is a `uat/<slug>` branch pushed from its goal branch tip; `.claude/swarm-profile.md` has the flow.
 
 ## Security headers
 

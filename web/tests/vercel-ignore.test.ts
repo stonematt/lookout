@@ -1,16 +1,15 @@
 /**
- * Which branches Vercel deploys. `git.deploymentEnabled` in `vercel.json`
- * stops a deployment being created for branches nobody previews. The
- * `ignoreCommand` script then decides the rest: main and preview/* build,
- * goal/** builds only when web/ changed, anything else skips (exit 0 skips,
+ * Which branches Vercel deploys. `git.deploymentEnabled` in `vercel.json` is
+ * an allowlist: a catch-all false, and true for main, dev and uat/**. Vercel
+ * deploys a branch when at least one matching rule is true. The
+ * `ignoreCommand` script repeats the allowlist as a backstop (exit 0 skips,
  * exit 1 builds).
  */
-import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { minimatch } from "minimatch";
+import { describe, expect, it } from "vitest";
 
 const script = new URL("../scripts/vercel-ignore.sh", import.meta.url).pathname;
 const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8")) as {
@@ -18,11 +17,38 @@ const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url
   git?: { deploymentEnabled?: Record<string, boolean> };
 };
 
-/** The script's exit status for a branch and environment, run from `cwd`. */
-function exitFor(branch: string, env: Record<string, string> = {}, cwd?: string): number | null {
+const deployed = ["main", "dev", "uat/mosaic-r1", "uat/a/b"];
+const skipped = [
+  "goal/mosaic-r1",
+  "goal/a/b",
+  "preview/x",
+  "feat/x",
+  "fix/x",
+  "docs/x",
+  "chore/x",
+  "lane/x",
+  "shots/x",
+  "prototype/mosaic-overview",
+  "refactor/x",
+  "mainline",
+  "uat",
+];
+
+/**
+ * Vercel's documented rule: a branch deploys when at least one matching
+ * `deploymentEnabled` pattern is true, and a branch no pattern matches deploys.
+ */
+function vercelDeploys(branch: string): boolean {
+  const rules = Object.entries(config.git?.deploymentEnabled ?? {}).filter(([pattern]) =>
+    minimatch(branch, pattern),
+  );
+  return rules.length === 0 || rules.some(([, enabled]) => enabled);
+}
+
+/** The script's exit status for a branch name. */
+function exitFor(branch: string): number | null {
   return spawnSync("sh", [script], {
-    cwd,
-    env: { PATH: process.env.PATH ?? "", VERCEL_GIT_COMMIT_REF: branch, ...env },
+    env: { PATH: process.env.PATH ?? "", VERCEL_GIT_COMMIT_REF: branch },
   }).status;
 }
 
@@ -31,107 +57,34 @@ describe("vercel.json", () => {
     expect(config.ignoreCommand).toBe("sh scripts/vercel-ignore.sh");
   });
 
-  it("deploys only main, goal/** and preview/**", () => {
+  it("allowlists main, dev and uat/** behind a catch-all false", () => {
     expect(config.git?.deploymentEnabled).toEqual({
+      "**": false,
       main: true,
-      "goal/**": true,
-      "preview/**": true,
-      dev: false,
-      "feat/**": false,
-      "fix/**": false,
-      "docs/**": false,
-      "chore/**": false,
-      "lane/**": false,
-      "shots/**": false,
-      "prototype/**": false,
+      dev: true,
+      "uat/**": true,
     });
+  });
+
+  it.each(deployed)("deploys %s", (branch) => {
+    expect(vercelDeploys(branch)).toBe(true);
+  });
+
+  it.each(skipped)("creates no deployment for %s", (branch) => {
+    expect(vercelDeploys(branch)).toBe(false);
   });
 });
 
 describe("vercel ignoreCommand", () => {
-  it("builds main", () => {
-    expect(exitFor("main")).toBe(1);
-  });
-
-  it.each(["preview/new-header", "preview/a/b"])("builds %s", (branch) => {
+  it.each(deployed)("builds %s", (branch) => {
     expect(exitFor(branch)).toBe(1);
   });
 
-  it.each([
-    "dev",
-    "docs/x",
-    "lane/x",
-    "shots/x",
-    "fix/x",
-    "feat/x",
-    "chore/x",
-    "prototype/x",
-    "refactor/x",
-    "mainline",
-  ])("skips %s", (branch) => {
+  it.each(skipped)("skips %s", (branch) => {
     expect(exitFor(branch)).toBe(0);
   });
 
-  it("skips fix/x even with [preview] in the commit message", () => {
-    expect(exitFor("fix/x", { VERCEL_GIT_COMMIT_MESSAGE: "fix: thing [preview]" })).toBe(0);
-  });
-
-  describe("goal branches", () => {
-    let repo: string;
-    let web: string;
-    let base: string;
-    let webChange: string;
-    let pythonChange: string;
-
-    /** Run git in the temp repo and return its trimmed output. */
-    const git = (...args: string[]): string =>
-      execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: repo })
-        .toString()
-        .trim();
-
-    /** Commit one file and return the new HEAD SHA. */
-    const commit = (path: string, body: string): string => {
-      writeFileSync(join(repo, path), body);
-      git("add", "-A");
-      git("commit", "-q", "-m", `change ${path}`);
-      return git("rev-parse", "HEAD");
-    };
-
-    beforeAll(() => {
-      repo = mkdtempSync(join(tmpdir(), "vercel-ignore-"));
-      web = join(repo, "web");
-      mkdirSync(web);
-      git("init", "-q");
-      writeFileSync(join(repo, "app.py"), "a = 1\n");
-      base = commit("web/index.html", "<p>one</p>\n");
-      webChange = commit("web/index.html", "<p>two</p>\n");
-      pythonChange = commit("app.py", "a = 2\n");
-    });
-
-    afterAll(() => {
-      rmSync(repo, { recursive: true, force: true });
-    });
-
-    it("builds when the push changed web/", () => {
-      git("checkout", "-q", webChange);
-      expect(exitFor("goal/x", { VERCEL_GIT_PREVIOUS_SHA: base }, web)).toBe(1);
-    });
-
-    it("skips when the push changed nothing under web/", () => {
-      git("checkout", "-q", pythonChange);
-      expect(exitFor("goal/x", { VERCEL_GIT_PREVIOUS_SHA: webChange }, web)).toBe(0);
-    });
-
-    it("builds when there is no previous SHA", () => {
-      git("checkout", "-q", pythonChange);
-      expect(exitFor("goal/x", {}, web)).toBe(1);
-      expect(exitFor("goal/x", { VERCEL_GIT_PREVIOUS_SHA: "" }, web)).toBe(1);
-    });
-
-    it("builds when the previous SHA is not in the clone", () => {
-      git("checkout", "-q", pythonChange);
-      const missing = "0123456789abcdef0123456789abcdef01234567";
-      expect(exitFor("goal/x", { VERCEL_GIT_PREVIOUS_SHA: missing }, web)).toBe(1);
-    });
+  it("skips a branch with no name", () => {
+    expect(exitFor("")).toBe(0);
   });
 });
