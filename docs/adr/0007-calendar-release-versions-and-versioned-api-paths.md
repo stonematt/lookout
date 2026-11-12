@@ -58,5 +58,19 @@ Root Directory `web` and does not read `../VERSION`. The refresh
 provenance work (#268) can add the version to `snapshot/<MAC>.context.json`
 later, and a site footer can follow from there.
 
+Amended 2026-11-12 (#536): the site now shows its own release version.
+`web/vite.config.ts` reads `../VERSION` at build time (`releaseDefine` in
+`web/server/release.ts`) and bakes it into the page with the short
+`VERCEL_GIT_COMMIT_SHA` ("local" outside a Vercel build). A missing or
+malformed `VERSION` fails the build. This works because a Vercel build
+with a Root Directory can read files outside it, unless the project turns
+off "Include files outside the root directory in the Build Step". The page
+reads the values from `web/src/release.ts`. debug.html sets them beside
+the refresh run's version and SHA from `/status`, and says when they
+differ. `/api/v1/version` is the first versioned API: it answers
+`{version, sha}` from the same `VERSION` file, which Vercel's function
+trace ships with the function, and from the SHA Vercel sets at run time.
+A `VERSION` bump changes all three with no other edit.
+
 Every release now has one more step before the release PR, and one after
 production is verified.
