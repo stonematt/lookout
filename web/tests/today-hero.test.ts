@@ -169,6 +169,23 @@ describe("the usual band hero", () => {
 describe("the band's basis label, from the snapshot", () => {
   const label = () => words(one(".today-basis"));
 
+  it.each(SCENARIOS)("sits under the plot and the times of day on %s, clear of every line", (s) => {
+    renderOverview(panel, parsed(s));
+    const basis = one(".today-basis");
+    expect(basis).not.toBeNull();
+    const baseline = Number(basis!.getAttribute("y"));
+    const plot = one(".today-plot")!;
+    const plotFoot = Number(plot.getAttribute("y")) + Number(plot.getAttribute("height"));
+    const floor = Number(one(".today-rain-floor")!.getAttribute("y1"));
+    expect(baseline).toBeGreaterThan(plotFoot);
+    expect(baseline).toBeGreaterThan(floor);
+    for (const x of all(".today-x")) {
+      expect(baseline).toBeGreaterThan(Number(x.getAttribute("y")));
+    }
+    const svgHeight = Number(basis!.closest("svg")!.getAttribute("height"));
+    expect(svgHeight).toBeGreaterThan(baseline);
+  });
+
   it("names the earlier years for an earlier-years band", () => {
     renderOverview(panel, seasoned);
     expect(label()).toBe("usual, this week in 2025 and 2024");
