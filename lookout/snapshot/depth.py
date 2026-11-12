@@ -27,10 +27,11 @@ date; on a tie, the earlier in that order. Each tile shows when the one
 comparison it needs does: the temperature tile and the last ten days need an
 earlier day ("yesterday", or the usual band and the list have nothing to set
 today against); the tiles of today's readings need "today"; daylight needs
-no record.
+no record. The Inside tile, last, needs no record either: it shows while the
+station has a current indoor sensor (#466, `lookout.snapshot.indoor`).
 
 Functions:
-- record_depth(coverage): The `RecordDepth` section.
+- record_depth(coverage, inside): The `RecordDepth` section.
 """
 
 from datetime import date, timedelta
@@ -61,16 +62,20 @@ TILES: Tuple[Tuple[str, Optional[str]], ...] = (
     ("daylight", None),
 )
 """Each Overview tile in the mosaic's order, as (tile, the comparison it
-needs). The Inside tile is not listed: whether it shows depends on the
-station's indoor sensors, decided with the indoor readings (#466)."""
+needs). The Inside tile, `INSIDE`, follows them: whether it shows depends on
+the station's indoor sensors, not the record (#466)."""
+
+INSIDE = "inside"
 
 
-def record_depth(coverage: ArchiveCoverage) -> RecordDepth:
+def record_depth(coverage: ArchiveCoverage, inside: bool) -> RecordDepth:
     """
     The record's depth: each comparison, each tile and the next unlock.
 
     :param coverage: The build's counted days; its clock says which day is
         today.
+    :param inside: Whether the station has a current indoor sensor: the
+        Inside tile's `shown`.
     :return: The `RecordDepth` section.
     """
     first = coverage.first_day
@@ -99,6 +104,8 @@ def record_depth(coverage: ArchiveCoverage) -> RecordDepth:
     tiles = tuple(
         DepthTile(key, needs, True if needs is None else shown[needs])
         for key, needs in TILES
+    ) + (
+        DepthTile(INSIDE, None, inside),
     )
     return RecordDepth(
         first_day=None if first is None else first.isoformat(),

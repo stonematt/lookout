@@ -142,6 +142,7 @@ class TestYoungStation:
             "humidity": True,
             "sun": True,
             "daylight": True,
+            "inside": True,
         }
 
     def test_ten_day_rows_before_the_record_are_not_shown(self, salmon_run):
@@ -215,6 +216,7 @@ class TestEmptyArchive:
         assert empty.temperature_context.full_history is None
 
     def test_only_daylight_needs_no_record(self, empty):
+        # Inside needs no record either, but an empty archive has no sensor.
         shown = [key for key, shown in tiles(empty).items() if shown]
 
         assert shown == ["daylight"]

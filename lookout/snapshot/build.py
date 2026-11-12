@@ -30,6 +30,7 @@ from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
 from lookout.snapshot.feature import feature
 from lookout.snapshot.gaps import snapshot_gaps
+from lookout.snapshot.indoor import battery_flags, indoor_sensors
 from lookout.snapshot.depth import record_depth
 from lookout.snapshot.lead import completed_dry_spells, dry_spell, hero_lead
 from lookout.snapshot.model import Snapshot, Station
@@ -102,6 +103,7 @@ def build_snapshot(
         dry,
         clock,
     )
+    indoor = indoor_sensors(stitched)
 
     return Snapshot(
         station=station,
@@ -133,6 +135,8 @@ def build_snapshot(
         sun_moon=sun_moon(station, clock),
         feature=picked,
         widget_view=widget_view(picked),
-        record_depth=record_depth(days.coverage),
+        record_depth=record_depth(days.coverage, inside=bool(indoor)),
         wind_rose=wind_rose(stitched, days.coverage),
+        indoor=indoor,
+        battery_flags=battery_flags(stitched),
     )

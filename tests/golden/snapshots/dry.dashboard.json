@@ -13645,6 +13645,11 @@
         "key": "daylight",
         "needs": null,
         "shown": true
+      },
+      {
+        "key": "inside",
+        "needs": null,
+        "shown": true
       }
     ],
     "next_unlock": {
@@ -14296,5 +14301,108 @@
       }
     ]
   },
+  "indoor": [
+    {
+      "key": "in",
+      "name": "Console",
+      "temperature_f": 65.1,
+      "humidity_pct": 58.0,
+      "observed_at_ms": 1763538900000,
+      "trace": {
+        "start_ms": 1763452800000,
+        "slot_minutes": 60,
+        "temperature_f": [
+          64.8,
+          64.6,
+          64.3,
+          64.2,
+          64.0,
+          64.2,
+          64.4,
+          64.4,
+          64.2,
+          64.2,
+          64.2,
+          64.2,
+          64.2,
+          64.1,
+          64.2,
+          64.1,
+          64.2,
+          64.1,
+          64.5,
+          64.6,
+          64.7,
+          null,
+          null,
+          65.1
+        ]
+      }
+    },
+    {
+      "key": "1",
+      "name": "Sensor 1",
+      "temperature_f": 63.5,
+      "humidity_pct": 56.0,
+      "observed_at_ms": 1763538900000,
+      "trace": {
+        "start_ms": 1763452800000,
+        "slot_minutes": 60,
+        "temperature_f": [
+          64.7,
+          64.4,
+          64.1,
+          63.9,
+          63.6,
+          63.5,
+          63.2,
+          63.3,
+          63.6,
+          63.9,
+          64.0,
+          64.2,
+          64.5,
+          64.7,
+          64.9,
+          64.9,
+          64.9,
+          64.7,
+          64.5,
+          64.2,
+          64.0,
+          null,
+          null,
+          63.5
+        ]
+      }
+    }
+  ],
+  "battery_flags": [
+    {
+      "key": "battout",
+      "name": "Outdoor sensor",
+      "low": false
+    },
+    {
+      "key": "battin",
+      "name": "Console",
+      "low": false
+    },
+    {
+      "key": "batt1",
+      "name": "Sensor 1",
+      "low": false
+    },
+    {
+      "key": "battrain",
+      "name": "Rain gauge",
+      "low": false
+    },
+    {
+      "key": "batt_co2",
+      "name": "CO2 sensor",
+      "low": false
+    }
+  ],
   "stale_catalogs": []
 }

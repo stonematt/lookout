@@ -13944,6 +13944,11 @@
         "key": "daylight",
         "needs": null,
         "shown": true
+      },
+      {
+        "key": "inside",
+        "needs": null,
+        "shown": true
       }
     ],
     "next_unlock": {
@@ -14595,5 +14600,56 @@
       }
     ]
   },
+  "indoor": [
+    {
+      "key": "in",
+      "name": "Console",
+      "temperature_f": 68.0,
+      "humidity_pct": 45.0,
+      "observed_at_ms": 1767918300000,
+      "trace": {
+        "start_ms": 1767834000000,
+        "slot_minutes": 60,
+        "temperature_f": [
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0,
+          68.0
+        ]
+      }
+    }
+  ],
+  "battery_flags": [
+    {
+      "key": "battout",
+      "name": "Outdoor sensor",
+      "low": false
+    },
+    {
+      "key": "battin",
+      "name": "Console",
+      "low": false
+    }
+  ],
   "stale_catalogs": []
 }
