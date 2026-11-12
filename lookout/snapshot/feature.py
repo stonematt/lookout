@@ -9,6 +9,9 @@ order, the first that holds is the feature:
    newest Event Catalog event ended at most `RAIN_HOURS` before the build
    time (`StationClock.now_ms`). "Ended" is the catalog's `end_time`, as the
    lead's rain rule reads it (`lookout.snapshot.events.newest_event`).
+   The feature names the event it holds on by `event_start_ms`, the key of
+   its `rain_events` row: the live event when one is live, else that newest
+   ended event, so the site never picks the event itself (ADR-0003).
 2. **unusual**: a current reading is below the `LOW`th or above the `HIGH`th
    percentile of its readings at the newest observation's station-local
    hour, over the usual window for that date (`usual_window`, the ±7 days
@@ -88,30 +91,46 @@ READINGS: Tuple[Judged, ...] = (
 """Every judged reading, in tie-break order: on an exact tie the first wins."""
 
 
-def _bare(kind: FeatureKind) -> Feature:
-    """A feature of `kind` without a reading: every rule but unusual."""
-    return Feature(kind=kind, reading=None, value=None, unit=None, percentile=None)
+def _bare(kind: FeatureKind, event_start_ms: Optional[int] = None) -> Feature:
+    """
+    A feature of `kind` without a reading: every rule but unusual.
+
+    :param kind: The rule that holds.
+    :param event_start_ms: For "rain", its event's `start_ms`.
+    :return: The feature.
+    """
+    return Feature(
+        kind=kind,
+        reading=None,
+        value=None,
+        unit=None,
+        percentile=None,
+        event_start_ms=event_start_ms,
+    )
 
 
 def _rain(
     event_catalog: Optional[pd.DataFrame],
     active: Optional[ActiveRainEvent],
     clock: StationClock,
-) -> bool:
+) -> Optional[int]:
     """
     The rain rule: an event is live, or the newest ended within `RAIN_HOURS`.
 
     :param event_catalog: The Event Catalog, or None.
     :param active: The active rain event, or None.
     :param clock: The build's clock; the hours are counted to its `now`.
-    :return: Whether the rule holds.
+    :return: The `start_ms` of the event the rule holds on (the live event,
+        else the newest ended one), or None when it does not hold.
     """
     if active is not None:
-        return True
+        return active.start_ms
     newest = newest_event(event_catalog, clock.now_ms)
     if newest is None:
-        return False
-    return (clock.now_ms - to_ms(newest["end_time"])) / HOUR_MS <= RAIN_HOURS
+        return None
+    if (clock.now_ms - to_ms(newest["end_time"])) / HOUR_MS > RAIN_HOURS:
+        return None
+    return to_ms(newest["start_time"])
 
 
 def _percentile(value: float, usual: np.ndarray) -> float:
@@ -186,6 +205,7 @@ def _unusual(
                     value=value,
                     unit=judged.unit,
                     percentile=_published(rank),
+                    event_start_ms=None,
                 ),
             )
         )
@@ -230,8 +250,9 @@ def feature(
     :param clock: The build's clock.
     :return: The feature.
     """
-    if _rain(event_catalog, active, clock):
-        return _bare("rain")
+    rain_start_ms = _rain(event_catalog, active, clock)
+    if rain_start_ms is not None:
+        return _bare("rain", rain_start_ms)
     unusual = _unusual(stitched, current, observed_at_ms, coverage, clock)
     if unusual is not None:
         return unusual
