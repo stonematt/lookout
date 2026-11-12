@@ -32,7 +32,7 @@ Functions:
 - battery_flags(stitched): The `BatteryFlag` entries.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -68,15 +68,24 @@ order the flags are listed (#466)."""
 BATTERY_OK = 1.0
 BATTERY_LOW = 0.0
 
-INDOOR_SENSORS: Tuple[Tuple[str, str, str, str], ...] = (
-    ("in", BATTERY_NAMES["battin"], "tempinf", "humidityin"),
+
+class IndoorColumns(NamedTuple):
+    """One indoor sensor's key, printable name and Ambient columns."""
+
+    key: str
+    name: str
+    temperature: str
+    humidity: str
+
+
+INDOOR_SENSORS: Tuple[IndoorColumns, ...] = (
+    IndoorColumns("in", BATTERY_NAMES["battin"], "tempinf", "humidityin"),
     *(
-        (str(n), BATTERY_NAMES[f"batt{n}"], f"temp{n}f", f"humidity{n}")
+        IndoorColumns(str(n), BATTERY_NAMES[f"batt{n}"], f"temp{n}f", f"humidity{n}")
         for n in range(1, SENSOR_COUNT + 1)
     ),
 )
-"""Each indoor sensor as (key, name, temperature column, humidity column),
-the console first."""
+"""Each indoor sensor, the console first, named as its battery is."""
 
 
 def indoor_sensors(stitched: pd.DataFrame) -> Tuple[IndoorSensor, ...]:
@@ -129,7 +138,7 @@ def battery_flags(stitched: pd.DataFrame) -> Tuple[BatteryFlag, ...]:
     for column, name in BATTERY_NAMES.items():
         if column not in recent:
             continue
-        held = recent[column][recent[column].notna()]
+        held = recent[column].dropna()
         if held.empty:
             continue
         low = _low(column, held.iloc[0])
