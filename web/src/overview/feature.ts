@@ -17,7 +17,10 @@
  * has no zoom: it opens the Rain Events tab.
  *
  * Every value is the snapshot's: this module words, formats and links; it
- * does not pick, rank or compare.
+ * does not pick, rank or compare. A percentile at either end reads as past
+ * every reading for this hour ("highest for this hour on record"), never
+ * "0th" or "100th" (#563); an unusual reading's hour names its day when it
+ * is from before midnight (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
  * carries a feature) and `featureTile` (the Overview section).

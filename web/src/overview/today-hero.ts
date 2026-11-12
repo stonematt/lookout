@@ -242,7 +242,7 @@ export function nowDeltaWords(snapshot: DashboardSnapshot): string | null {
  * @returns E.g. " (the newest is 39.4° at 11:55 pm yesterday)"; "" when the
  *   newest reading is today's, or there is none.
  */
-function newestBefore(snapshot: DashboardSnapshot): string {
+function newestReadingNote(snapshot: DashboardSnapshot): string {
   const at = snapshot.observed_at_ms;
   const t = snapshot.current.temperature_f;
   const day = readingDayWords(snapshot);
@@ -265,7 +265,7 @@ export function todayChartName(snapshot: DashboardSnapshot): string {
     : "; no usual band in this snapshot yet.";
   const known = slots.some((s) => s.temperature !== null);
   const line = !known
-    ? `Today's temperature has no reading yet${newestBefore(snapshot)}`
+    ? `Today's temperature has no reading yet${newestReadingNote(snapshot)}`
     : live && snapshot.observed_at_ms !== null
       ? `Today's temperature from midnight to ${degrees(live.temperature!)} at ${formatStamp(snapshot.observed_at_ms)}`
       : "Today's temperature from midnight";
