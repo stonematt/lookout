@@ -68,6 +68,18 @@ describe("no n/a row on the Overview", () => {
     expect(panel.querySelector("[data-section=almanac]")).not.toBeNull();
   });
 
+  it("hatches no almanac month or season the record does not cover (dry)", () => {
+    renderOverview(panel, parsed(doc("dry")));
+
+    const almanac = panel.querySelector("[data-section=almanac]")!;
+    expect(almanac.querySelectorAll(".gap-hatch")).toHaveLength(0);
+    // Oct, and Nov so far (it began before the record), as before the archive.
+    const kinds = [...almanac.querySelectorAll<HTMLElement>("button.alm-cell")].map(
+      (m) => `${m.dataset.month} ${m.dataset.kind}`,
+    );
+    expect(kinds).toEqual(["2025-10 before", "2025-11 before"]);
+  });
+
   it("hides the rolling table's columns the record does not cover (seasoned)", () => {
     setLayout("four");
     renderOverview(panel, parsed(doc("seasoned")));

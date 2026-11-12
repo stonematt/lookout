@@ -59,12 +59,15 @@ const CELL_GAP: HatchOptions = { compact: true, plain: true };
 
 /**
  * A month's cell kind, with a month the record does not cover yet drawn
- * as one before the archive, never hatched (#470).
+ * as one before the archive, never hatched (#470). The current month is
+ * judged by its days so far, and keeps any total it has.
  */
 function monthKind(month: AlmanacMonth | null): CellKind {
   const kind = cellKind(month);
-  if (month && kind !== "current" && !isShown(month.status)) return "before";
-  return kind;
+  if (!month) return kind;
+  if (kind !== "current") return isShown(month.status) ? kind : "before";
+  const covered = !month.to_date || isShown(month.to_date) || month.to_date_in !== null;
+  return covered ? kind : "before";
 }
 
 /**
