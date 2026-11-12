@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /**
  * The window range chart keeps its low and high value labels inside the
- * SVG (#534): a three-digit "≈ 102°" and a below-zero "≈ -12°" at the end of
+ * SVG (#534): a three-digit "≈ 102°" and a below-zero "≈ −12°" at the end of
  * the Full history row fit at a phone's width. Text cannot be measured in
  * happy-dom, so a label's extent is its characters at the chart's label size.
  */
@@ -49,7 +49,7 @@ function wide(): Doc {
 
 describe("the window range chart's value labels", () => {
   it.each([256, 326, 1000, 1360])(
-    "stay inside a %ipx SVG with 102° and -12° at the ends",
+    "stay inside a %ipx SVG with 102° and −12° at the ends",
     (width) => {
       widthOf = width;
       renderOverview(panel, parseDashboard(wide()));
@@ -58,7 +58,7 @@ describe("the window range chart's value labels", () => {
       expect(Number(svg.getAttribute("width"))).toBe(width);
       const values = [...svg.querySelectorAll<SVGTextElement>(".tc-value")];
       expect(values.map((v) => v.textContent)).toContain("≈ 102°");
-      expect(values.map((v) => v.textContent)).toContain("≈ -12°");
+      expect(values.map((v) => v.textContent)).toContain("≈ −12°");
 
       // The plot group's left edge is its translate; a phone has none.
       const plot = svg.querySelector("g[transform]")!;
