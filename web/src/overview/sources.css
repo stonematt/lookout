@@ -44,3 +44,8 @@
   margin: 0;
   text-wrap: pretty;
 }
+
+.ov-sources-version {
+  margin: var(--s-4) 0 0;
+  font-variant-numeric: tabular-nums;
+}

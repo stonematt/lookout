@@ -10,13 +10,14 @@
  * `tiles.ts`); a mosaic tile declares it in its definition
  * (`MosaicTile.source`, `mosaic.ts`), so a new tile brings its own line.
  *
- * The footer ends with the release version line (#536), appended after the
- * list as `p.ov-sources-version`; until that lands there is none.
+ * The footer ends with the release version line (#536): `releaseLine()` as
+ * `p.ov-sources-version`, after the list.
  *
  * Offers `sourcesFooter`.
  */
 import "./sources.css";
 
+import { releaseLine } from "../release.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
 
@@ -59,6 +60,9 @@ export function sourcesFooter(
     item.append(term, what, method);
     list.append(item);
   }
-  footer.append(heading, list);
+  const version = document.createElement("p");
+  version.className = "ov-sources-version";
+  version.textContent = releaseLine();
+  footer.append(heading, list, version);
   return footer;
 }
