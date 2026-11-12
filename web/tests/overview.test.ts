@@ -43,7 +43,7 @@ describe("the Overview", () => {
       "right-now",
       "ribbon",
       "source-note",
-      "caveat",
+      // No lag chip (#458); the raining golden's ribbon has no gap either.
       "source",
     ]);
   });
@@ -331,14 +331,15 @@ describe("the 48-hour condition ribbon", () => {
     expect(all(".ribbon-tick-hidden")).toHaveLength(0);
   });
 
-  it("names the archive lag in the source line, not in a headline", () => {
+  it("explains the ribbon's hatched end in the source line, not in a headline", () => {
     renderOverview(panel, raining);
 
+    // The lag itself is not named (#458): the header states freshness once.
     expect(text(".ov-source")).toBe(
       "Temperature, feels like, wind and rain today are the station's reading at " +
         "Jan 8, 4:25 pm. " +
         "The ribbon is the archive in 15-minute slots, to Jan 8, 3:55 pm; " +
-        "the 30 m after it is hatched, as only the live total is known there.",
+        "after it the ribbon is hatched, as only the live total is known there.",
     );
     expect(panel.querySelector("[data-part=condition]")?.textContent).not.toMatch(/archive/);
   });

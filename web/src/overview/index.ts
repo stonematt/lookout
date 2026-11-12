@@ -17,6 +17,10 @@
  * line and one list line. Each section renders into its own tile, already
  * attached to the page and holding its kicker, so a chart can measure its
  * width when it draws.
+ *
+ * Release 1 of the Mosaic Overview (#458): no Overview tile carries a
+ * standfirst or an archive lag chip (the header states freshness once), and
+ * each tile's accessible name is its finding.
  */
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
@@ -57,6 +61,7 @@ export function renderOverview(
   snapshot: DashboardSnapshot,
   sections: readonly OverviewSection[] = SECTIONS,
 ): void {
-  // On a phone the finding rows sit under "In context" (DESIGN.md).
-  renderTiles(panel, snapshot, sections, { rowsHeading: "In context" });
+  // On a phone the finding rows sit under "In context" (DESIGN.md). Each
+  // tile is named by its finding, for screen readers (#458).
+  renderTiles(panel, snapshot, sections, { rowsHeading: "In context", nameByFinding: true });
 }
