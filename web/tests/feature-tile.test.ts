@@ -237,10 +237,24 @@ describe("the feature tile", () => {
     });
 
     it.each([
-      ["temperature", 64, "f", 62, "Temperature was above usual at 1 pm", "64.0°"],
-      ["humidity", 48, "pct", 30, "Humidity was below usual at 1 pm", "48%"],
+      [
+        "temperature",
+        64,
+        "f",
+        62,
+        "Temperature was outside its usual range at 1 pm; back inside now",
+        "64.0°",
+      ],
+      [
+        "humidity",
+        48,
+        "pct",
+        30,
+        "Humidity was outside its usual range at 1 pm; back inside now",
+        "48%",
+      ],
     ])(
-      "says a held %s back inside its band was unusual, and when",
+      "says a held %s back inside its band was outside, and when, naming no side",
       (reading, value, unit, percentile, finding, shown) => {
         draw(
           edited("seasoned", {
@@ -256,9 +270,10 @@ describe("the feature tile", () => {
 
         expect(text.finding).toBe(finding);
         expect(text.value).toBe(shown);
-        expect(text.name!.startsWith(`${finding}, ${shown} now. `)).toBe(true);
+        expect(text.kicker).toBe(`Earlier · ${reading}`);
+        expect(text.name!.startsWith(`${finding}. `)).toBe(true);
         const all = `${text.kicker} ${text.finding} ${text.name}`;
-        expect(all).not.toMatch(/unusual|than usual|percentile|held/i);
+        expect(all).not.toMatch(/unusual|than usual|percentile|held|above|below/i);
       },
     );
   });
