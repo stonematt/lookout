@@ -122,7 +122,7 @@ describe("the zoom registry", () => {
   });
 
   it("claims no route a zoom has not registered", () => {
-    expect(isZoomRoute("overview/wind")).toBe(false);
+    expect(isZoomRoute("overview/nowhere")).toBe(false);
     expect(isZoomRoute("overview")).toBe(false);
     expect(isZoomRoute("rain/temperature")).toBe(false);
   });
@@ -365,15 +365,29 @@ describe("a zoom on a phone", () => {
   });
 });
 
+describe("the wind zoom in the page", () => {
+  it("opens from a shared link with the rose and the live wind", async () => {
+    await boot("#overview/wind", 390);
+    expect(zoom()!.dataset.zoom).toBe("wind");
+    const panels = [...zoom()!.querySelectorAll<HTMLElement>(".zoom-panel")];
+    expect(panels.map((p) => p.dataset.panel)).toEqual(["rose", "now"]);
+    expect(zoom()!.querySelector(".wind-rose svg")).not.toBeNull();
+  });
+});
+
 describe("a tile with no zoom yet", () => {
   it("keeps its link, and its route falls back to the Overview", async () => {
     await boot("#overview");
-    const wind = tileLink("wind");
-    expect(wind.getAttribute("href")).toBe("#overview/wind");
-    expect(wind.hasAttribute("data-zoom")).toBe(false);
-    expect(wind.hasAttribute("aria-expanded")).toBe(false);
+    // Any tile whose zoom has not landed yet; none once every zoom has.
+    const link = [...overview().querySelectorAll<HTMLAnchorElement>("a.mosaic-link")].find(
+      (a) => !ZOOMS.some((z) => a.getAttribute("href") === `#overview/${z.slug}`),
+    );
+    if (!link) return;
+    expect(link.getAttribute("href")).toMatch(/^#overview\/[a-z0-9-]+$/);
+    expect(link.hasAttribute("data-zoom")).toBe(false);
+    expect(link.hasAttribute("aria-expanded")).toBe(false);
 
-    wind.click();
+    link.click();
 
     expect(location.hash).toBe("#overview");
     expect(overview().hidden).toBe(false);
