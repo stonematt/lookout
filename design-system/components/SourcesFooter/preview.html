@@ -1,4 +1,4 @@
-<!-- @dsCard group="Surfaces" height=560 subtitle="A kicker, one large value, one sentence; a 2x2 on a phone" -->
+<!-- @dsCard group="Overview" height=520 subtitle="The Overview's method and provenance, once, with the release line" -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -16,12 +16,8 @@ html,body{margin:0;background:transparent}
 .theme-name{font-size:12px;color:var(--ink-3);margin:0 0 12px}
 .tile{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
 .tile+.tile{margin-top:16px}
-.tile[data-surface="now"]{--surface:var(--now-surface);--hatch:var(--ink-3)}
 .tile-kicker{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
-.tile-lead-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--now)}
 .tile-finding{margin:0;font-size:var(--type-finding);font-weight:500;line-height:1.4;max-width:44ch;text-wrap:pretty}
-.tile-finding-lead{font-size:var(--type-finding-lead);line-height:1.33;max-width:52ch}
-.standfirst{margin-top:8px;font-size:var(--type-standfirst);line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty}
 .tile-folds{display:flex;flex-direction:column;margin-top:auto;padding-top:16px}
 .fold{border-top:1px solid var(--rule);font-size:var(--type-source);line-height:1.55;color:var(--ink-3)}
 .fold-line{display:block;min-height:32px;padding:6px 0;list-style:none;cursor:pointer}
@@ -35,14 +31,17 @@ html,body{margin:0;background:transparent}
 .hatch-chip{display:inline-flex;margin:2px 0 2px 8px;vertical-align:middle;align-items:center;gap:4px;padding:0 7px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2);font-size:var(--type-label);line-height:20px;white-space:nowrap}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
-.qf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.qf-grid .tile+.tile{margin-top:0}
-.qf-value{margin:4px 0 0;font-size:var(--type-fact);font-weight:300;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--ink)}
-.qf-unit{font-size:var(--type-stat);font-weight:400}
-.qf-sentence{margin:8px 0 0;font-size:var(--type-standfirst);line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty}
+
+.ov-sources{padding-top:16px;border-top:1px solid var(--rule);font-size:var(--type-source);line-height:1.55;color:var(--ink-3)}
+.ov-sources-heading{margin:0 0 12px;font-size:var(--type-kicker);font-weight:500;color:var(--ink-3)}
+.ov-sources-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 32px;margin:0}
+.ov-sources-list>div{min-width:0;max-width:62ch}
+.ov-sources-list dt{font-weight:500;color:var(--ink-2)}
+.ov-sources-list dd{margin:0}
+.ov-sources-version{margin:16px 0 0 !important;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
-<div class="row"><section class="panel" data-theme="dark"><p class="theme-name">Dark</p><div class="qf-grid"><article class="tile" data-fact ><p class="tile-kicker">Wind</p><p class="qf-value">6 <span class="qf-unit">mph</span></p><p class="qf-sentence">Gusting to 14 mph, from the west-northwest.</p></article><article class="tile" data-fact ><p class="tile-kicker">Pressure</p><p class="qf-value">30.12 <span class="qf-unit">inHg</span></p><p class="qf-sentence">Steady over the last 3 hours.</p></article><article class="tile" data-fact ><p class="tile-kicker">Air</p><p class="qf-value">88% <span class="qf-unit">humidity</span></p><p class="qf-sentence">The dew point is 44°, 3° under the air.</p></article><article class="tile" data-fact data-section="sun-moon"><p class="tile-kicker">Sun and moon</p><p class="qf-value">7:09 am <span class="qf-unit">to 4:49 pm</span></p><p class="qf-sentence">9 h 40 m of daylight. The moon is 38% lit.</p></article></div></section><section class="panel" data-theme="light"><p class="theme-name">Light</p><div class="qf-grid"><article class="tile" data-fact ><p class="tile-kicker">Wind</p><p class="qf-value">6 <span class="qf-unit">mph</span></p><p class="qf-sentence">Gusting to 14 mph, from the west-northwest.</p></article><article class="tile" data-fact ><p class="tile-kicker">Pressure</p><p class="qf-value">30.12 <span class="qf-unit">inHg</span></p><p class="qf-sentence">Steady over the last 3 hours.</p></article><article class="tile" data-fact ><p class="tile-kicker">Air</p><p class="qf-value">88% <span class="qf-unit">humidity</span></p><p class="qf-sentence">The dew point is 44°, 3° under the air.</p></article><article class="tile" data-fact data-section="sun-moon"><p class="tile-kicker">Sun and moon</p><p class="qf-value">7:09 am <span class="qf-unit">to 4:49 pm</span></p><p class="qf-sentence">9 h 40 m of daylight. The moon is 38% lit.</p></article></div></section></div>
+<div class="row"><section class="panel" data-theme="dark"><p class="theme-name">Dark</p><footer class="ov-sources" aria-labelledby="dark-src-h"><h2 class="ov-sources-heading" id="dark-src-h">Sources and method</h2><dl class="ov-sources-list"><div><dt>Right now</dt><dd>the station's live reading, and today's archive</dd><dd>Today's line is the archive in 15-minute slots. The band is the usual for each hour of the day.</dd></div><div><dt>The feature</dt><dd>the refresh run's choice, by the Feature Rule</dd><dd>A rain event that is live or ended in the last 12 hours leads; then a reading outside its usual; then a long dry spell; otherwise a usual day.</dd></div><div><dt>Rain since Oct 1</dt><dd>daily totals with today's live total</dd><dd>One line per water year, this year bold, set against the newest earlier year by the same date.</dd></div><div><dt>Daylight</dt><dd>sunrise and sunset at the station's location, station time</dd><dd>Daylight runs from sunrise to sunset, against yesterday's.</dd></div></dl><p class="ov-sources-version">Lookout 2026.11.12 · 93e95b8</p></footer></section><section class="panel" data-theme="light"><p class="theme-name">Light</p><footer class="ov-sources" aria-labelledby="light-src-h"><h2 class="ov-sources-heading" id="light-src-h">Sources and method</h2><dl class="ov-sources-list"><div><dt>Right now</dt><dd>the station's live reading, and today's archive</dd><dd>Today's line is the archive in 15-minute slots. The band is the usual for each hour of the day.</dd></div><div><dt>The feature</dt><dd>the refresh run's choice, by the Feature Rule</dd><dd>A rain event that is live or ended in the last 12 hours leads; then a reading outside its usual; then a long dry spell; otherwise a usual day.</dd></div><div><dt>Rain since Oct 1</dt><dd>daily totals with today's live total</dd><dd>One line per water year, this year bold, set against the newest earlier year by the same date.</dd></div><div><dt>Daylight</dt><dd>sunrise and sunset at the station's location, station time</dd><dd>Daylight runs from sunrise to sunset, against yesterday's.</dd></div></dl><p class="ov-sources-version">Lookout 2026.11.12 · 93e95b8</p></footer></section></div>
 </body>
 </html>
