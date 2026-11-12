@@ -1362,6 +1362,103 @@ class RecordDepth:
 
 
 @dataclass(frozen=True)
+class WindBin:
+    """
+    One of the wind rose's 16 direction bins (#465).
+
+    Directions are where the wind blows from, in degrees clockwise from
+    north. A bin holds readings from `from_deg` up to, not including,
+    `to_deg`; the N bin wraps through 0.
+
+    :param direction: Its compass point: "N", "NNE", ... "NNW".
+    :param centre_deg: Its centre: 0, 22.5, ... 337.5.
+    :param from_deg: Its first degree, inclusive (348.75 for N).
+    :param to_deg: Its last degree, exclusive (11.25 for N).
+    :param readings: How many windy readings came from it.
+    :param average_mph: Their average wind speed (`windspeedmph`), to one
+        decimal; null with no readings.
+    :param gust_mph: Their highest gust (`windgustmph`); null with none.
+    """
+
+    direction: str
+    centre_deg: float
+    from_deg: float
+    to_deg: float
+    readings: int
+    average_mph: Optional[float]
+    gust_mph: Optional[float]
+
+
+@dataclass(frozen=True)
+class WindPoint:
+    """
+    One of the wind rose's 8 compass points (#465): 45° centred on it.
+
+    :param direction: "N", "NE", "E", "SE", "S", "SW", "W" or "NW".
+    :param centre_deg: Its centre: 0, 45, ... 315.
+    :param readings: How many windy readings came from it.
+    :param share_pct: Their share of the window's windy readings, as a whole
+        percent; null when the window has no windy reading or is invalid.
+        Rounded each on its own, so the eight may not sum to exactly 100.
+    """
+
+    direction: str
+    centre_deg: float
+    readings: int
+    share_pct: Optional[int]
+
+
+@dataclass(frozen=True)
+class WindRoseWindow:
+    """
+    The wind rose over one window back from the build time (#465).
+
+    A reading is calm when its speed is under `WindRose.calm_below_mph` or
+    it has no direction; every other reading with a speed is windy. Calm
+    readings have no direction, so they are left out of the bins and
+    points and counted only in the calm share.
+
+    :param key: "24h", "7d" or "30d".
+    :param hours: Its span: the readings after the build time minus this
+        many hours, through the build time.
+    :param status: The gap status of the station-local days it touches
+        (keyed as `key`); `status.shown` says whether the record covers it.
+        Every value below is null, and every count 0, when it is invalid.
+    :param readings: How many readings with a wind speed it holds.
+    :param calm_readings: How many of them are calm.
+    :param calm_pct: The calm share of `readings`, as a whole percent; null
+        with no readings.
+    :param bins: The 16 direction bins, clockwise from N.
+    :param points: The 8 compass points, clockwise from N.
+    """
+
+    key: str
+    hours: int
+    status: GapStatus
+    readings: int
+    calm_readings: int
+    calm_pct: Optional[int]
+    bins: Tuple[WindBin, ...]
+    points: Tuple[WindPoint, ...]
+
+
+@dataclass(frozen=True)
+class WindRose:
+    """
+    Where the wind comes from, over 24 h, 7 days and 30 days (#465).
+
+    Built by `lookout.snapshot.wind`, from the live-stitched readings.
+
+    :param calm_below_mph: The calm threshold: a reading under this speed is
+        calm (Beaufort force 0).
+    :param windows: The windows, shortest first.
+    """
+
+    calm_below_mph: float
+    windows: Tuple[WindRoseWindow, ...]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """
     Everything one refresh run publishes for one station.
@@ -1395,6 +1492,8 @@ class Snapshot:
         (`lookout.snapshot.widget`).
     :param record_depth: The record's depth: what each comparison and tile shows
         and the next unlock (`lookout.snapshot.depth`).
+    :param wind_rose: Where the wind comes from over 24 h, 7 days and 30
+        days (`lookout.snapshot.wind`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1419,6 +1518,7 @@ class Snapshot:
     feature: Feature
     widget_view: WidgetView
     record_depth: RecordDepth
+    wind_rose: WindRose
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:
