@@ -91,46 +91,50 @@ READINGS: Tuple[Judged, ...] = (
 """Every judged reading, in tie-break order: on an exact tie the first wins."""
 
 
-def _bare(kind: FeatureKind, event_start_ms: Optional[int] = None) -> Feature:
-    """
-    A feature of `kind` without a reading: every rule but unusual.
-
-    :param kind: The rule that holds.
-    :param event_start_ms: For "rain", its event's `start_ms`.
-    :return: The feature.
-    """
+def _bare(kind: FeatureKind) -> Feature:
+    """A feature of `kind` without a reading or an event: dry spell, quiet."""
     return Feature(
         kind=kind,
         reading=None,
         value=None,
         unit=None,
         percentile=None,
-        event_start_ms=event_start_ms,
+        event_start_ms=None,
     )
 
 
-def _rain(
+def _rain_feature(
     event_catalog: Optional[pd.DataFrame],
     active: Optional[ActiveRainEvent],
     clock: StationClock,
-) -> Optional[int]:
+) -> Optional[Feature]:
     """
     The rain rule: an event is live, or the newest ended within `RAIN_HOURS`.
 
     :param event_catalog: The Event Catalog, or None.
     :param active: The active rain event, or None.
     :param clock: The build's clock; the hours are counted to its `now`.
-    :return: The `start_ms` of the event the rule holds on (the live event,
-        else the newest ended one), or None when it does not hold.
+    :return: The rain feature, naming the event the rule holds on (the live
+        event, else the newest ended one) by its `start_ms`; None when the
+        rule does not hold.
     """
     if active is not None:
-        return active.start_ms
-    newest = newest_event(event_catalog, clock.now_ms)
-    if newest is None:
-        return None
-    if (clock.now_ms - to_ms(newest["end_time"])) / HOUR_MS > RAIN_HOURS:
-        return None
-    return to_ms(newest["start_time"])
+        start_ms: Optional[int] = active.start_ms
+    else:
+        newest = newest_event(event_catalog, clock.now_ms)
+        if newest is None:
+            return None
+        if (clock.now_ms - to_ms(newest["end_time"])) / HOUR_MS > RAIN_HOURS:
+            return None
+        start_ms = to_ms(newest["start_time"])
+    return Feature(
+        kind="rain",
+        reading=None,
+        value=None,
+        unit=None,
+        percentile=None,
+        event_start_ms=start_ms,
+    )
 
 
 def _percentile(value: float, usual: np.ndarray) -> float:
@@ -250,9 +254,9 @@ def feature(
     :param clock: The build's clock.
     :return: The feature.
     """
-    rain_start_ms = _rain(event_catalog, active, clock)
-    if rain_start_ms is not None:
-        return _bare("rain", rain_start_ms)
+    rain = _rain_feature(event_catalog, active, clock)
+    if rain is not None:
+        return rain
     unusual = _unusual(stitched, current, observed_at_ms, coverage, clock)
     if unusual is not None:
         return unusual
