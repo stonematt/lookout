@@ -32,7 +32,7 @@ import "./styles/debug.css";
 import { make } from "./dom.js";
 import { mountLayout } from "./layout.js";
 import { READ_TIMEOUT_MS, fetchStations, readUrl } from "./load.js";
-import { SITE_RELEASE, type SiteRelease } from "./release.js";
+import { LOCAL_SHA, SITE_RELEASE, type SiteRelease } from "./release.js";
 import type { StationIndex } from "./stations.js";
 import { applyThemeOverride } from "./theme.js";
 
@@ -265,7 +265,7 @@ export function renderRelease(
   }
   const runSha = run.sha?.slice(0, 7) ?? "unknown";
   line.append(make("span", "debug-release-run", `Refresh run ${run.version} · ${runSha}`));
-  const shaDiffers = site.sha !== "local" && run.sha !== null && !run.sha.startsWith(site.sha);
+  const shaDiffers = site.sha !== LOCAL_SHA && run.sha !== null && !run.sha.startsWith(site.sha);
   const match = run.version === site.version && !shaDiffers;
   if (!match) line.append(make("span", "debug-release-differs", "differ"));
   line.dataset.match = String(match);

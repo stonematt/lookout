@@ -68,7 +68,7 @@ cd web && npm run dev -- --port <port>
 
 This serves this worktree's `web/` on that port. `/dashboard`, `/current` and
 `/event` come from the golden snapshot documents in `tests/golden/snapshots/`,
-and `/status` from `tests/golden/status/`, run through the real handlers. It needs no secrets and makes no network calls.
+and `/status` from `tests/golden/status/`, run through the real handlers. `/api/v1/version` answers the checkout's `VERSION` with the SHA `local`. It needs no secrets and makes no network calls.
 Stop it with Ctrl-C, or `kill` its PID.
 
 - `?fixture=dry|raining|seasoned` on the page picks the golden (`seasoned` has
@@ -164,10 +164,17 @@ built_at_ms}`. The refresh run writes it at the end of every run, success or
   failure: `outcome` is `ok` or `failed`, `error` the failure's exception
   class name (never its message), `sha` the checkout's `git rev-parse HEAD`
   (null when git cannot say) and `built_at_ms` the published snapshot's (null
-  when the run published none). It is outside the snapshot contract and the
-  page never reads it. Cached `s-maxage=60, stale-if-error=300`; 404 before
+  when the run published none). It is outside the snapshot contract; the
+  dashboard never reads it, and debug.html reads only its `version` and `sha`. Cached `s-maxage=60, stale-if-error=300`; 404 before
   any run has written one, 502 when Storj fails or holds something other than
   a status document (both `s-maxage=15`).
+- `GET /api/v1/version`: the deployed release, `{version, sha}`: the root
+  `VERSION` (`YYYY.MM.N`) and the first 7 of `VERCEL_GIT_COMMIT_SHA`
+  (`local` without it). The first versioned client API (ADR-0007), served by
+  `api/v1/version.ts` at its own path, with no rewrite. It takes no
+  parameters (any is a 400). Cached `s-maxage=60`; 500 (`no-store`) when
+  `VERSION` cannot be read. The page itself never calls it: the build bakes
+  the same values in (`src/release.ts`), and fails when `VERSION` cannot be read.
 
 Vercel's CDN does not cache a 5xx response, so a 502's `s-maxage=15` holds
 only for other caches; there, `stale-if-error` lets the CDN keep serving the

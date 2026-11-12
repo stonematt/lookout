@@ -49,6 +49,12 @@ export const VERSION_CACHE = "s-maxage=60";
 /** `YYYY.MM.N`: the month without a leading zero, N from 1 (ADR-0007). */
 const VERSION_PATTERN = /^\d{4}\.(?:[1-9]|1[0-2])\.[1-9]\d*$/;
 
+/**
+ * The SHA outside a Vercel build. `src/release.ts` spells it too (as
+ * `LOCAL_SHA`): neither module can import the other.
+ */
+const LOCAL_SHA = "local";
+
 /** A git SHA, short or full. */
 const SHA_PATTERN = /^[0-9a-f]{7,40}$/i;
 
@@ -76,7 +82,7 @@ export function parseVersion(text: string): string {
  */
 export function shortSha(env: Env): string {
   const sha = env.VERCEL_GIT_COMMIT_SHA?.trim() ?? "";
-  return SHA_PATTERN.test(sha) ? sha.slice(0, 7).toLowerCase() : "local";
+  return SHA_PATTERN.test(sha) ? sha.slice(0, 7).toLowerCase() : LOCAL_SHA;
 }
 
 /**

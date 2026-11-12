@@ -21,7 +21,7 @@ import {
   releaseDefine,
   shortSha,
 } from "../server/release.js";
-import { SITE_RELEASE, releaseLine } from "../src/release.js";
+import { LOCAL_SHA, SITE_RELEASE, releaseLine } from "../src/release.js";
 
 const REPO_VERSION = readFileSync(VERSION_FILE, "utf8").trim();
 const FULL_SHA = "93e95b8a0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f";
@@ -109,7 +109,7 @@ describe("shortSha", () => {
   });
 
   it("is local without one, or with something that is not a SHA", () => {
-    expect(shortSha({})).toBe("local");
+    expect(shortSha({})).toBe(LOCAL_SHA);
     expect(shortSha({ VERCEL_GIT_COMMIT_SHA: "" })).toBe("local");
     expect(shortSha({ VERCEL_GIT_COMMIT_SHA: "not-a-sha" })).toBe("local");
   });
