@@ -294,8 +294,8 @@ def _usual_to_date(curves: Tuple[WaterYearCurve, ...]) -> Optional[UsualToDate]:
         return None
     # The percent is of the published values, so it reads from them exactly;
     # Python's round (half to even), as the feature's percentile is.
-    usual_in = float(number(median(by_date)))
+    usual_in = round(median(by_date), 3)  # as `number` rounds; never None here
     percent = None
     if current.to_date_in is not None and usual_in > 0:
-        percent = int(round(100 * current.to_date_in / usual_in))
+        percent = round(100 * current.to_date_in / usual_in)
     return UsualToDate(usual_in=usual_in, years=len(by_date), percent=percent)

@@ -9,13 +9,13 @@ years run from Oct 1. Archives are synthetic five-minute stations from
 """
 
 from datetime import date
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Sequence
 
 import pandas as pd
 import pytest
 
 from lookout.snapshot import Station, build_snapshot
-from lookout.snapshot.model import Snapshot
+from lookout.snapshot.model import Snapshot, UsualToDate
 from tests.fixtures.archive import STATION_TZ, Gap, RainSpell, build_archive
 from tests.snapshot_helpers import raining_station, seasoned_station
 
@@ -386,6 +386,14 @@ class TestRainToDateAgainstUsual:
     def snapshot(self) -> Snapshot:
         return build(build_archive(self.START, self.END, rain=self.RAIN), self.NOW)
 
+    def usual(
+        self, rain: Optional[List[RainSpell]] = None, gaps: Sequence[Gap] = ()
+    ) -> Optional[UsualToDate]:
+        """`usual_to_date` for this station with other rain or gaps."""
+        rain = self.RAIN if rain is None else rain
+        archive = build_archive(self.START, self.END, rain=rain, gaps=gaps)
+        return build(archive, self.NOW).rain_tab.usual_to_date
+
     def test_two_years_meet_at_the_mean_of_their_middle_pair(self, snapshot):
         usual = snapshot.rain_tab.usual_to_date
 
@@ -398,10 +406,7 @@ class TestRainToDateAgainstUsual:
     def test_an_earlier_year_with_too_many_missing_days_is_left_out(self):
         # Two weeks missing in Nov 2023: WY2024's Oct 1 - Jan 9 misses over
         # 10% of its days, so it cannot be read by this date.
-        gaps = [Gap("2023-11-01T07:00:00Z", "2023-11-15T08:00:00Z")]
-        archive = build_archive(self.START, self.END, rain=self.RAIN, gaps=gaps)
-
-        usual = build(archive, self.NOW).rain_tab.usual_to_date
+        usual = self.usual(gaps=[Gap("2023-11-01T07:00:00Z", "2023-11-15T08:00:00Z")])
 
         assert usual.years == 1
         assert usual.usual_in == approx(1.0)
@@ -410,20 +415,14 @@ class TestRainToDateAgainstUsual:
     def test_an_earlier_year_with_a_few_missing_days_counts_prorated(self):
         # Nov 1-2 2023 missing: 2 of WY2024's 101 days by Jan 9, so its rain
         # by this date is prorated to 0.5 * 101 / 99 and still counts.
-        gaps = [Gap("2023-11-01T07:00:00Z", "2023-11-03T07:00:00Z")]
-        archive = build_archive(self.START, self.END, rain=self.RAIN, gaps=gaps)
-
-        usual = build(archive, self.NOW).rain_tab.usual_to_date
+        usual = self.usual(gaps=[Gap("2023-11-01T07:00:00Z", "2023-11-03T07:00:00Z")])
 
         assert usual.years == 2
         assert usual.usual_in == approx((0.5 * 101 / 99 + 1.0) / 2)
 
     def test_a_usual_of_nothing_has_no_percent(self):
         # Only WY2026 rains by Jan 9: the usual is 0 in, and no percent of it.
-        rain = [s for s in self.RAIN if s.start >= "2025-01-01"]
-        archive = build_archive(self.START, self.END, rain=rain)
-
-        usual = build(archive, self.NOW).rain_tab.usual_to_date
+        usual = self.usual(rain=[s for s in self.RAIN if s.start >= "2025-01-01"])
 
         assert usual.years == 2
         assert usual.usual_in == 0.0
@@ -432,10 +431,7 @@ class TestRainToDateAgainstUsual:
     def test_this_year_unreadable_by_this_date_has_no_percent(self):
         # Two weeks missing in Nov 2025: this year cannot be read by Jan 9,
         # though the usual still can.
-        gaps = [Gap("2025-11-10T08:00:00Z", "2025-11-24T08:00:00Z")]
-        archive = build_archive(self.START, self.END, rain=self.RAIN, gaps=gaps)
-
-        usual = build(archive, self.NOW).rain_tab.usual_to_date
+        usual = self.usual(gaps=[Gap("2025-11-10T08:00:00Z", "2025-11-24T08:00:00Z")])
 
         assert usual.years == 2
         assert usual.usual_in == approx(0.75)
@@ -444,7 +440,7 @@ class TestRainToDateAgainstUsual:
     def test_a_young_station_has_no_usual(self):
         assert raining_station().rain_tab.usual_to_date is None
 
-    def test_the_seasoned_station_rests_on_its_one_whole_earlier_year(self):
+    def test_the_seasoned_station_rests_on_its_one_earlier_year(self):
         usual = seasoned_station().rain_tab.usual_to_date
 
         # WY2025 rains 0.3 in by May 20 with May 1-3 missing, prorated over
