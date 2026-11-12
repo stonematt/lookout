@@ -69,7 +69,10 @@ describe("the layout switch", () => {
 });
 
 describe("the Overview's grid under each layout", () => {
-  const css = readFileSync(resolve(import.meta.dirname, "../src/styles/tiles.css"), "utf8");
+  // The grid's rules, then the temperature tiles' two-column override.
+  const css = ["../src/styles/tiles.css", "../src/overview/temperature.css"]
+    .map((path) => readFileSync(resolve(import.meta.dirname, path), "utf8"))
+    .join("\n");
 
   /** The grid's columns and each tile's span, with the layout set before it renders. */
   function grid(layout: "phone" | "two" | "four"): { columns: string; spans: string[] } {
@@ -99,8 +102,8 @@ describe("the Overview's grid under each layout", () => {
     const { columns, spans } = grid("two");
     expect(columns).toBe("repeat(2, minmax(0, 1fr))");
     // now, lead and periods full width; the two single tiles share a row;
-    // the almanac full width, the rolling windows half; the quick facts
-    // half each.
+    // the almanac full width (the raining golden's record covers no rolling
+    // window, so that tile is not drawn, #470); the quick facts half each.
     expect(spans).toEqual([
       "span 2",
       "span 2",
@@ -108,7 +111,6 @@ describe("the Overview's grid under each layout", () => {
       "span 1",
       "span 1",
       "span 2",
-      "span 1",
       "span 1",
       "span 1",
       "span 1",
@@ -119,15 +121,18 @@ describe("the Overview's grid under each layout", () => {
   it("is four columns of tiles at four-column, each tile at its declared span", () => {
     const { columns, spans } = grid("four");
     expect(columns).toBe("repeat(4, minmax(0, 1fr))");
-    // The quick facts take a row of four one-column tiles.
+    // The now tile, the feature and the temperature periods each take a whole
+    // row (the Desktop board, #468, #545), the strips and the ten-day list
+    // half a row each, so no row is left with a hole; the quick facts take a
+    // row of four one-column tiles. With no rolling-window tile (#470) the
+    // almanac takes the whole row.
     expect(spans).toEqual([
+      "span 4",
+      "span 4",
+      "span 4",
       "span 2",
       "span 2",
-      "span 2",
-      "span 1",
-      "span 1",
-      "span 3",
-      "span 1",
+      "span 4",
       "span 1",
       "span 1",
       "span 1",

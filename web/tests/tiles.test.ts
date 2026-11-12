@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 /**
  * The Overview as tiles (#334), through `startPage` on the goldens: each
- * tile opens with its kicker and finding, folds its source and "Why this
- * leads", carries a hatched chip only when a gap hides part of its chart
+ * tile opens with its kicker and finding, folds its source (the feature
+ * tile, one link, folds nothing), carries a hatched chip only when a gap hides part of its chart
  * (never the archive lag on the Overview, #458), and states every number in
  * the live value.
  */
@@ -12,7 +12,6 @@ import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
-import { heroGaps } from "../src/overview/hero.js";
 import { archiveLagMs, gapReasons, lagCaveat, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
 import { SCENARIOS, golden, twoStations } from "./golden.js";
@@ -77,18 +76,27 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
 
     expect(tiles.map((t) => t.dataset.section)).toEqual([
       "first-screen",
-      "hero-lead",
+      "feature",
       "temperature-periods",
       "against-normal",
       "ten-days",
       "almanac",
-      "rolling-rain",
+      // Only the seasoned record covers a rolling window (#470).
+      ...(scenario === "seasoned" ? ["rolling-rain"] : []),
       "wind",
       "pressure",
       "air",
       "sun-moon",
     ]);
     for (const tile of tiles) {
+      if (tile.dataset.section === "feature") {
+        // The feature tile is one link holding its kicker first, then its finding.
+        const link = tile.querySelector("a")!;
+        expect([...tile.children]).toEqual([link]);
+        expect(link.querySelector("[data-part]")!.getAttribute("data-part")).toBe("kicker");
+        expect(words(link.querySelector("[data-part=finding]"))).not.toBe("");
+        continue;
+      }
       const [first, second] = [...tile.children];
       // A quick-fact tile's kicker sits over its one value (DESIGN.md "Quick-fact tiles").
       const next = tile.dataset.fact ? "fact" : "finding";
@@ -107,7 +115,11 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
       expect(tile.querySelector("details"), tile.dataset.section).toBeNull();
     }
-    for (const tile of panel.querySelectorAll<HTMLElement>(".tile:not([data-fact])")) {
+    // The feature tile is one link, which holds no disclosure.
+    expect(panel.querySelector("[data-section=feature] details")).toBeNull();
+    for (const tile of panel.querySelectorAll<HTMLElement>(
+      ".tile:not([data-fact]):not([data-section=feature])",
+    )) {
       const notes = tile.querySelectorAll<HTMLDetailsElement>("details[data-part=source-note]");
       expect(notes.length, tile.dataset.section).toBe(1);
       const note = notes[0]!;
@@ -120,48 +132,24 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     }
   });
 
-  it('folds "Why this leads" closed, listing every rule with its live value', async () => {
-    const snapshot = parsed(scenario);
-    const panel = await boot(snapshot);
-    const why = panel.querySelector<HTMLDetailsElement>(
-      "[data-section=hero-lead] details[data-part=why]",
-    )!;
-
-    expect(why.open).toBe(false);
-    expect(words(why.querySelector("summary"))).toBe("Why this leads");
-    const rules = [...why.querySelectorAll("li")];
-    expect(rules.map((li) => li.dataset.rule)).toEqual(snapshot.hero_lead.rules.map((r) => r.kind));
-    for (const li of rules) expect(words(li)).toMatch(/\d/);
-    // "Why this leads" comes before the source note, both at the tile's foot.
-    const folds = why.parentElement!;
-    expect(folds.className).toBe("tile-folds");
-    expect([...folds.children].map((el) => el.getAttribute("data-part"))).toEqual([
-      "why",
-      "source-note",
-    ]);
-  });
-
-  it("holds the four Right-now stats, then the ribbon, in the now tile", async () => {
+  it("holds the temperature, then today against the usual band, in the now tile", async () => {
     const panel = await boot(parsed(scenario));
     const now = panel.querySelector<HTMLElement>("[data-section=first-screen]")!;
 
     expect(now.dataset.surface).toBe("now");
-    expect([...now.querySelectorAll("[data-part=right-now] dt")].map(words)).toEqual([
-      "feels like",
-      "wind",
-      "rain today",
-      "humidity",
-    ]);
-    const strip = now.querySelector("[data-part=right-now]")!;
-    const ribbon = now.querySelector("[data-part=ribbon]")!;
-    expect(strip.compareDocumentPosition(ribbon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(now.querySelector("[data-part=right-now], [data-part=ribbon]")).toBeNull();
+    const temperature = now.querySelector("[data-part=temperature]")!;
+    const chart = now.querySelector("[data-part=today-chart]")!;
+    expect(
+      temperature.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
-  it("marks the now and leading tiles as the phone's fixed top, and no other", async () => {
+  it("marks the now and feature tiles as the phone's fixed top, and no other", async () => {
     const panel = await boot(parsed(scenario));
     const top = [...panel.querySelectorAll<HTMLElement>(".tile[data-phone-top]")];
 
-    expect(top.map((t) => t.dataset.section)).toEqual(["first-screen", "hero-lead"]);
+    expect(top.map((t) => t.dataset.section)).toEqual(["first-screen", "feature"]);
   });
 
   it("states findings in the live value, never the archive (story 54)", async () => {
@@ -194,44 +182,26 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     const nows = [...text.matchAll(/now (\d+\.\d)°|(\d+\.\d)° now/g)].map((m) => m[1] ?? m[2]);
     expect(nows.length).toBeGreaterThan(1);
     expect(new Set(nows)).toEqual(new Set([t]));
-    // The Right-now stats are the live reading's.
-    const stat = (label: string) =>
-      words(
-        [...panel.querySelectorAll("[data-part=right-now] > div")]
-          .find((d) => words(d.querySelector("dt")) === label)
-          ?.querySelector("dd"),
-      );
-    const c = snapshot.current;
-    expect(stat("humidity")).toBe(`${Math.round(c.humidity_pct!)}%`);
-    expect(stat("wind")).toBe(`${c.wind_speed_mph!.toFixed(1)} mph`);
-    expect(stat("feels like")).toBe(`${c.feels_like_f!.toFixed(1)}°`);
-    // Rain today: the stat, and every "<x> in so far today".
+    // Every "<x> in so far today" is the live total.
     const today = snapshot.current.rain_today_in;
-    const strip = words(
-      [...panel.querySelectorAll("[data-part=right-now] > div")]
-        .find((d) => words(d.querySelector("dt")) === "rain today")
-        ?.querySelector("dd"),
-    );
-    if (today === null) expect(strip).toBe("n/a");
-    else {
-      expect(strip).toBe(`${today.toFixed(2)} in`);
-      for (const m of text.matchAll(/(\d+\.\d+) in so far today/g))
-        expect(m[1]).toBe(today.toFixed(2));
-    }
+    for (const m of text.matchAll(/(\d+\.\d+) in so far today/g))
+      expect(m[1]).toBe(today?.toFixed(2));
   });
 
-  it("still hatches each invalid comparison in place, with its reason", async () => {
+  it("still hatches each invalid comparison the record covers, with its reason", async () => {
     const snapshot = parsed(scenario);
     const panel = await boot(snapshot);
-    const invalid = snapshot.temperature_context.periods.filter(
-      (p) => p.status.status === "invalid",
+    const ctx = snapshot.temperature_context;
+    const invalid = [...ctx.periods, ctx.full_history!].filter(
+      (p) => p.status.status === "invalid" && p.status.shown !== false,
     );
 
-    expect(invalid.length).toBeGreaterThan(0);
-    const hatched = panel.querySelectorAll(
-      "[data-part=periods-chart] .tc-hatch-label, [data-part=periods-chart] text",
-    );
-    expect([...hatched].map((el) => el.textContent).join(" ")).toMatch(/n\/a|not archived yet/);
+    // The raining golden's covered windows are all comparable (#470).
+    expect(invalid.length > 0).toBe(scenario !== "raining");
+    const reasons = [...panel.querySelectorAll("[data-part=periods-chart] .tc-reason")];
+    expect(reasons).toHaveLength(invalid.length);
+    for (const reason of reasons)
+      expect(reason.textContent).toMatch(/^(gap in record|not archived yet)$/);
   });
 });
 
@@ -256,11 +226,10 @@ describe("the hatched chip on a tile's closed source line", () => {
     // The raining golden, archive level with its reading: only gaps remain.
     const panel = await boot(level(parsed("raining")));
 
+    // The windows and days before its record began are not drawn, so not
+    // counted (#470); the strips with no earlier year still are.
     expect(chips(panel)).toEqual({
-      "temperature-periods": ["4 windows not compared"],
       "against-normal": ["2 strips not compared"],
-      "ten-days": ["5 days not compared"],
-      "rolling-rain": ["5 windows not compared"],
     });
   });
 
@@ -303,21 +272,6 @@ describe("the chip's conditions at their edges", () => {
     expect(at(15 * 60_000)).toBeNull();
     expect(at(15 * 60_000 + 60_000)).toBe("archive 16 m behind");
     expect(lagCaveat({ ...snapshot, archive_newest_ms: null })).toBeNull();
-  });
-
-  it("names a lead whose usual band has no comparison set", async () => {
-    const raining = level(parsed("raining"));
-    expect(heroGaps(raining)).toBeNull();
-    const bare = structuredClone(raining);
-    bare.hero_lead = { ...bare.hero_lead, usual_low: null, usual_median: null, usual_high: null };
-    expect(heroGaps(bare)).toBe("usual range not compared");
-
-    const panel = await boot(bare);
-    expect(chips(panel)["hero-lead"]).toEqual(["usual range not compared"]);
-  });
-
-  it("names the calm lead's usual dry spell when it is not compared", () => {
-    expect(heroGaps(parsed("dry"))).toBe("usual dry spell not compared");
   });
 });
 

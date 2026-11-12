@@ -45,10 +45,10 @@ const all = (selector: string) => [...host.querySelectorAll(selector)];
 beforeEach(() => show(withYear()));
 
 describe("the temperature context's place", () => {
-  it("follows the hero lead, as three tiles in the board's order", () => {
+  it("follows the feature tile, as three tiles in the board's order", () => {
     expect(SECTIONS.map((s) => s.id).slice(0, 5)).toEqual([
       "first-screen",
-      "hero-lead",
+      "feature",
       "temperature-periods",
       "against-normal",
       "ten-days",
@@ -77,11 +77,19 @@ describe("the temperature context's place", () => {
 });
 
 describe("temperature across periods", () => {
-  it("draws one range bar per window, in order, with a now rule", () => {
+  it("draws one range bar per window, in order, then Full history, with a now rule", () => {
     const rows = all("[data-part=periods-chart] .tc-row").map((el) => el.textContent);
-    expect(rows).toEqual(["Today", "Yesterday", "7 days", "30 days", "90 days", "365 days"]);
-    expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(6);
-    expect(all("[data-part=periods-chart] .tc-iqr")).toHaveLength(6);
+    expect(rows).toEqual([
+      "Today",
+      "Yesterday",
+      "7 days",
+      "30 days",
+      "90 days",
+      "365 days",
+      "Full history",
+    ]);
+    expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(7);
+    expect(all("[data-part=periods-chart] .tc-iqr")).toHaveLength(7);
     expect(all("[data-part=periods-chart] .tc-now")).toHaveLength(1);
     expect(text("[data-part=periods-chart] .tc-note")).toBe("now 55.0°");
     expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(0);
@@ -97,6 +105,7 @@ describe("temperature across periods", () => {
       "Dec 8, 2025 to Jan 6",
       "Oct 9, 2025 to Jan 6",
       "Jan 7, 2025 to Jan 6",
+      "Dec 1, 2023 to Jan 6",
     ]);
   });
 
@@ -114,10 +123,11 @@ describe("temperature across periods", () => {
     show(withYear(ctx));
 
     expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(1);
+    // A gap inside a shown window stays visible, worded without "n/a" (#470).
     expect(all("[data-part=periods-chart] .tc-reason").map((el) => el.textContent)).toEqual([
-      "n/a: gap in record",
+      "gap in record",
     ]);
-    expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(5);
+    expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(6);
     expect(text("[data-block=periods] .ov-sr")).toContain(
       "7 days: Dec 31, 2025 to Jan 6, 2026: 5 of 7 days",
     );
@@ -133,10 +143,26 @@ describe("temperature across periods", () => {
     expect(values.filter((v) => v.startsWith("≈ "))).toHaveLength(2);
   });
 
-  it("hatches every row when the archive lags, as in the dry golden", () => {
+  it("writes a below-zero low with the true minus, in the chart and its words", () => {
+    const ctx = structuredClone(year);
+    const month = ctx.periods[3]!;
+    Object.assign(month, { low: -12.4, q1: -3 });
+    month.status = { ...month.status, status: "prorated", reason: "gap", missing_days: 2 };
+    show(withYear(ctx));
+
+    const values = all("[data-part=periods-chart] .tc-value").map((el) => el.textContent!);
+    expect(values).toContain("≈ −12°");
+    const spoken = text("[data-block=periods] .ov-sr")!;
+    expect(spoken).toContain("low −12.4°");
+    expect(spoken).toContain("middle half −3.0° to");
+    expect(`${values.join(" ")} ${spoken}`).not.toMatch(/-\d/);
+  });
+
+  it("hatches every row the record covers when the archive lags, as in the dry golden", () => {
     show(dry);
 
-    expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(6);
+    // Today, yesterday and Full history; the windows before the record are not drawn (#470).
+    expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(3);
     expect(
       all("[data-part=periods-chart] .tc-reason").every(
         (el) => el.textContent === "not archived yet",
@@ -234,7 +260,7 @@ describe("now against normal", () => {
 
   it("names the years in the heading, newest first", () => {
     expect(text("[data-block=strips] [data-part=finding]")).toBe(
-      "Now against normal for this date in 2025 and 2024",
+      "Now against usual for this date in 2025 and 2024",
     );
   });
 

@@ -41,7 +41,7 @@ import {
 } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { dayStatus, gapSentence } from "../gaps.js";
-import { rainStep } from "../overview/ribbon.js";
+import { rainStep } from "../charts/rain-step.js";
 import type { RainTab, RecentRain, WaterYearCurve } from "../snapshot.js";
 import { curveValue } from "./text.js";
 

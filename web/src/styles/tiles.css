@@ -75,15 +75,6 @@
   color: var(--ink-3);
 }
 
-/* the leading tile's dot: `now` on the tile, standing off any data */
-.tile-lead-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--now);
-}
-
 .tile-finding {
   margin: 0;
   font-size: var(--type-finding);

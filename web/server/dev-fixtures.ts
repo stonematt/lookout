@@ -9,7 +9,8 @@
  *   default.
  * - `?age=<minutes>` (or `LOOKOUT_AGE_MIN`) shifts every `_ms` time by one
  *   offset so the newest observation is that many minutes old, and every
- *   ISO day (a `_day` or `day` field, a day `key` or a `first..last` span)
+ *   ISO day (a `_day`, `day`, `unlocks_on` or `date` field, a day `key` or
+ *   a `first..last` span)
  *   by the station days that offset crosses, so day labels agree with the
  *   times. Month keys ("YYYY-MM"), water years and day indexes are not
  *   moved. Without `age` the goldens are served as recorded, which is long
@@ -103,6 +104,12 @@ function shiftTime(item: unknown, shift: Shift): unknown {
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Keys that hold an ISO day besides `*_day`: a day row's `day`, a day's
+ * `key`, and the record depth's `unlocks_on` and next unlock `date` (#470).
+ */
+const DAY_KEYS = new Set(["day", "key", "unlocks_on", "date"]);
 const DAY_SPAN = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/;
 
 /** An ISO day, or a `first..last` span of them, moved; anything else as is. */
@@ -122,7 +129,7 @@ function shiftTimes(value: unknown, shift: Shift): unknown {
       key,
       key.endsWith("_ms")
         ? shiftTime(item, shift)
-        : key.endsWith("_day") || key === "day" || key === "key"
+        : key.endsWith("_day") || DAY_KEYS.has(key)
           ? shiftDay(item, shift)
           : shiftTimes(item, shift),
     ]),

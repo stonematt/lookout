@@ -137,3 +137,21 @@
 .tc-strip .tc-chart {
   margin-top: var(--s-2);
 }
+
+/* the one next-unlock line under the window chart (#470): label-sized ink-2,
+   a plain statement, not a chip or a hatch */
+.ov-unlock {
+  margin: var(--s-2) 0 0;
+  max-width: 62ch;
+  font-size: var(--type-label);
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* the strips and the ten-day list span two of four columns (#468), but still
+   share a row in the two-column grid */
+:root[data-layout="two"]
+  .tile[data-span="2"]:is([data-section="against-normal"], [data-section="ten-days"]) {
+  grid-column: span 1;
+}
