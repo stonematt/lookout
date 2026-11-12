@@ -37,7 +37,12 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 import pandas as pd
 
 from lookout.snapshot.model import BatteryFlag, IndoorSensor, IndoorTrace
-from lookout.snapshot.trace import SLOT_MINUTES, hourly_means, numbers, trace_start
+from lookout.snapshot.trace import (
+    SLOT_MINUTES,
+    column_readings,
+    hourly_means,
+    trace_start,
+)
 from lookout.snapshot.values import number
 from lookout.utils.dateutc import HOUR_MS
 from lookout.utils.log_util import app_logger
@@ -103,11 +108,13 @@ def indoor_sensors(stitched: pd.DataFrame) -> Tuple[IndoorSensor, ...]:
     for key, name, temperature, humidity in INDOOR_SENSORS:
         if temperature not in recent:
             continue
-        readings = numbers(recent, temperature)
+        readings = column_readings(recent, temperature)
         if readings.empty:
             continue
         newest = readings.index[0]
-        humid = numbers(recent, humidity) if humidity in recent else readings[:0]
+        humid = (
+            column_readings(recent, humidity) if humidity in recent else readings[:0]
+        )
         sensors.append(
             IndoorSensor(
                 key=key,

@@ -13,7 +13,7 @@ store some columns as int64 and some as double (#466 column read).
 
 Functions:
 - trace_start(newest_ms): The first slot's start.
-- numbers(frame, column): One column's readings as floats, by `dateutc`.
+- column_readings(frame, column): One column's readings as floats, by `dateutc`.
 - hourly_means(readings, start_ms, digits): The slots' rounded means.
 - outdoor_trace(stitched): The outdoor pressure and humidity series.
 """
@@ -48,7 +48,7 @@ def trace_start(newest_ms: int) -> int:
     return (newest_ms // HOUR_MS - (TRACE_HOURS - 1)) * HOUR_MS
 
 
-def numbers(frame: pd.DataFrame, column: str) -> pd.Series:
+def column_readings(frame: pd.DataFrame, column: str) -> pd.Series:
     """
     One column's readings as floats, unreadable and null dropped.
 
@@ -94,7 +94,7 @@ def outdoor_trace(stitched: pd.DataFrame) -> Optional[OutdoorTrace]:
     def series(column: str, digits: int) -> Tuple[Optional[float], ...]:
         if column not in rows:
             return (None,) * TRACE_HOURS
-        return hourly_means(numbers(rows, column), start_ms, digits)
+        return hourly_means(column_readings(rows, column), start_ms, digits)
 
     return OutdoorTrace(
         start_ms=start_ms,
