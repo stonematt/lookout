@@ -22,7 +22,7 @@ order, the first that holds is the feature:
    most `LOW` - 1 below it, at least `HIGH` + 1 above it). Skipped entirely unless the
    window's basis is "earlier_years": a recent-days band is too thin to call
    anything unusual. Skipped too unless the newest observation is fresh at
-   the build time (`is_fresh`: under `STATION_FRESH_MINUTES`, 15, old at
+   the build time (`lookout.utils.dateutc.is_fresh` against
    `StationClock.now_ms`), so a silent station's last reading is never
    judged; the rule then falls through to dry spell, then quiet.
 3. **dry_spell**: the snapshot's `DrySpellNow`, `days_since_rain` longer
@@ -53,8 +53,7 @@ from lookout.snapshot.model import (
     SnapshotConditions,
 )
 from lookout.snapshot.temperature import usual_readings, usual_window
-from lookout.utils.dateutc import HOUR_MS, local_time
-from lookout.utils.healthchecks import is_fresh
+from lookout.utils.dateutc import HOUR_MS, is_fresh, local_time
 
 LOW = 10.0
 """A reading below this percentile of its usual is unusual."""

@@ -7,8 +7,8 @@ a slug (`https://hc-ping.com/<ping key>/<slug>?create=1`):
 - the cron check (`CRON_SLUG`): `/start` when a run begins, then the exit
   status when it ends. A non-zero status fails the check at once.
 - the station check (`station-<slugified station name>`): pinged only while
-  the live reading is under `STATION_FRESH_MINUTES` old, so a station that
-  stops reporting stops pinging and the check goes late.
+  the live reading is fresh (`lookout.utils.dateutc.is_fresh`), so a
+  station that stops reporting stops pinging and the check goes late.
 
 Period and grace are set on the Healthchecks side, not in the ping (cron: 5
 min period, 10 min grace; station: 5 min period, 30 min grace).
@@ -23,13 +23,13 @@ from typing import Callable, Optional
 import requests
 
 from lookout.secrets_loader import get_secret
+from lookout.utils.dateutc import is_fresh
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__, log_file="refresh.log")
 
 PING_BASE = "https://hc-ping.com"
 CRON_SLUG = "lookout-refresh"
-STATION_FRESH_MINUTES = 15
 PING_TIMEOUT_SECONDS = 10
 
 
@@ -52,24 +52,6 @@ def station_slug(name: Optional[str], mac: str) -> str:
     :return: The slug.
     """
     return f"station-{slugify(name or '') or slugify(mac)}"
-
-
-def is_fresh(
-    observed_at_ms: Optional[int],
-    now_ms: int,
-    max_age_minutes: int = STATION_FRESH_MINUTES,
-) -> bool:
-    """
-    Whether a reading is recent enough to count as the station reporting.
-
-    :param observed_at_ms: The reading's time, epoch ms UTC; None if unknown.
-    :param now_ms: The current time, epoch ms UTC.
-    :param max_age_minutes: The oldest age that still counts.
-    :return: True when the reading is under `max_age_minutes` old.
-    """
-    if observed_at_ms is None:
-        return False
-    return now_ms - observed_at_ms < max_age_minutes * 60_000
 
 
 class Heartbeat:

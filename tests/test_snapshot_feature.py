@@ -31,8 +31,7 @@ import pandas as pd
 
 from lookout.snapshot.build import build_snapshot
 from lookout.snapshot.model import Snapshot
-from lookout.utils.dateutc import DAY_MS
-from lookout.utils.healthchecks import STATION_FRESH_MINUTES
+from lookout.utils.dateutc import DAY_MS, STATION_FRESH_MINUTES
 from tests.fixtures.archive import (
     SEASONED_NOW,
     SEASONED_PUSHED_TEMPF,
@@ -63,6 +62,9 @@ USUAL_DAYS = [
     date(year, 5, 13) + timedelta(days=n) for year in (2024, 2025) for n in range(15)
 ]
 """The seasoned usual window: 13-27 May in 2024 and 2025."""
+
+FRESH_MS = STATION_FRESH_MINUTES * 60_000
+"""The oldest observation the unusual rule still judges, exclusive."""
 
 
 def hour_readings(
@@ -123,9 +125,6 @@ def usual_tempf(share: float) -> float:
     values = hour_readings(seasoned_archive(), USUAL_DAYS, HOUR, "tempf")
     return float(np.quantile(values, share))
 
-
-FRESH_MS = STATION_FRESH_MINUTES * 60_000
-"""The oldest observation the unusual rule still judges, exclusive."""
 
 # Thu Jan 8, 10:30 pm local: mid-hour, so no reading sits at its hour's edge.
 DRY_END = "2026-01-09T06:35:00Z"
