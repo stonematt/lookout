@@ -46,7 +46,10 @@ afterEach(() => {
 
 describe("the wind zoom's registration", () => {
   it("is registered under the wind tile's slug, after temperature", () => {
-    expect(ZOOMS.map((z) => z.slug).slice(0, 2)).toEqual(["temperature", "wind"]);
+    // In the mosaic's order: after temperature, rain and dry spell (#475).
+    const slugs = ZOOMS.map((z) => z.slug);
+    expect(slugs.indexOf("wind")).toBeGreaterThan(slugs.indexOf("temperature"));
+    expect(slugs.indexOf("wind")).toBeGreaterThan(slugs.indexOf("dry-spell"));
     expect(isZoomRoute("overview/wind")).toBe(true);
     expect(zoomFor("#overview/wind")?.title).toBe("Wind");
   });
