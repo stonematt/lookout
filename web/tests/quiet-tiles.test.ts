@@ -12,7 +12,6 @@ import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
-import { conditionSentence } from "../src/overview/condition.js";
 import { SECTIONS as RAIN_SECTIONS } from "../src/rain/index.js";
 import { lagCaveat } from "../src/tiles.js";
 import { SCENARIOS, golden } from "./golden.js";
@@ -93,12 +92,16 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       const id = host.dataset.section;
       expect(name, id).toBeTruthy();
       const finding = host.querySelector("h2.tile-finding");
-      if (finding) expect(name, id).toBe(words(finding));
+      // The feature's name carries its value, which stands beside its finding.
+      if (finding && id === "feature")
+        expect(name!.toLowerCase(), id).toContain(words(finding)!.toLowerCase());
+      else if (finding) expect(name, id).toBe(words(finding));
     }
     const named = (id: string) =>
       panel("overview").querySelector(`[data-section="${id}"]`)!.getAttribute("aria-label");
     const c = snapshot.current;
-    expect(named("first-screen")).toBe(`${c.temperature_f!.toFixed(1)}°F. ${conditionSentence(c)}`);
+    // The delta line, when the snapshot decided one, follows the temperature in the name.
+    expect(named("first-screen")).toMatch(new RegExp(`^${c.temperature_f!.toFixed(1)}°F now[.,]`));
     expect(named("wind")).toMatch(new RegExp(`^Wind ${c.wind_speed_mph!.toFixed(1)} mph, `));
     expect(named("pressure")).toBe(
       `Pressure ${c.barometer_inhg!.toFixed(2)} inHg, ${c.barometer_trend} over the last 3 hours.`,

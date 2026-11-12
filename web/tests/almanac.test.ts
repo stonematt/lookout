@@ -212,7 +212,8 @@ describe("the almanac grid", () => {
 
     expect(text(cell("2024-11").querySelector(".alm-value"))).toBe("≈0.00");
     expect(cell("2025-01").classList).toContain("gap-hatch");
-    expect(text(cell("2025-01").querySelector(".gap-label"))).toBe("n/a");
+    // A gap inside a shown month stays visible, worded without "n/a" (#470).
+    expect(text(cell("2025-01").querySelector(".gap-label"))).toBe("gap");
     expect(cell("2025-01").title).toBe(
       "Jan 1 to Jan 31, 2025: 5 of 31 days are missing from the record, so it is not compared.",
     );
@@ -225,7 +226,9 @@ describe("the almanac grid", () => {
     expect(text(season(2025))).toBe("1.95");
     expect(season(2026).dataset.kind).toBe("current");
     expect(text(season(2026))).toBe("0.30");
-    expect(season(2024).classList).toContain("gap-hatch");
+    // 2024's season starts before the record: not shown, so not hatched (#470).
+    expect(season(2024).classList).not.toContain("gap-hatch");
+    expect(text(season(2024))).toBe("");
   });
 
   it("starts the readout on the newest month with a value", () => {
@@ -330,11 +333,24 @@ describe("the rolling-window table", () => {
     expect(host.querySelector("tr[data-part=water-years]")).toBeNull();
   });
 
-  it("hatches a window that reaches before the archive", () => {
+  it("leaves a window that reaches before the record empty, not hatched (#470)", () => {
     const earlier = host.querySelectorAll('tr[data-window="365d"] td')[1] as HTMLElement;
 
-    expect(earlier.classList).toContain("gap-hatch");
-    expect(text(earlier.querySelector(".gap-label"))).toBe("n/a");
+    expect(earlier.classList).not.toContain("gap-hatch");
+    expect(text(earlier)).toBe("");
+  });
+
+  it("hatches a gap inside a shown window, worded without n/a", () => {
+    const gappy = copy(october);
+    const cell = gappy.rolling.find((w) => w.key === "30d")!.years[1]!;
+    Object.assign(cell, { rain_in: null });
+    Object.assign(cell.status, { status: "invalid", reason: "gap", missing_days: 4 });
+    host.replaceChildren();
+    rollingRain.render(host, withAlmanac(gappy));
+
+    const td = host.querySelectorAll('tr[data-window="30d"] td')[1] as HTMLElement;
+    expect(td.classList).toContain("gap-hatch");
+    expect(text(td.querySelector(".gap-label"))).toBe("gap");
   });
 
   it("says when each window ends, in its caption and method, with no standfirst", () => {
@@ -345,26 +361,26 @@ describe("the rolling-window table", () => {
 });
 
 describe("on the Overview", () => {
-  it("follows the hero lead, the grid before the table", () => {
+  it("follows the feature tile, the grid before the table", () => {
     const ids = SECTIONS.map((s) => s.id);
 
-    expect(ids.indexOf("almanac")).toBeGreaterThan(ids.indexOf("hero-lead"));
+    expect(ids.indexOf("almanac")).toBeGreaterThan(ids.indexOf("feature"));
     expect(ids.indexOf("rolling-rain")).toBe(ids.indexOf("almanac") + 1);
   });
 
   it.each([
     ["dry", dry],
     ["raining", raining],
-  ])("renders both sections from the %s golden", (_, snapshot) => {
+  ])("renders the grid from the %s golden, and no rolling table it cannot cover", (_, snapshot) => {
     document.body.innerHTML = "<div id=panel></div>";
     const panel = document.getElementById("panel")!;
     renderOverview(panel, snapshot);
 
-    for (const id of ["almanac", "rolling-rain"]) {
-      const section = panel.querySelector(`[data-section=${id}]`)!;
-      expect(text(section.querySelector("[data-part=finding]"))).toBeTruthy();
-      expect(section.querySelector("table")).not.toBeNull();
-    }
+    const section = panel.querySelector("[data-section=almanac]")!;
+    expect(text(section.querySelector("[data-part=finding]"))).toBeTruthy();
+    expect(section.querySelector("table")).not.toBeNull();
+    // A young record covers no rolling window yet (#470).
+    expect(panel.querySelector("[data-section=rolling-rain]")).toBeNull();
   });
 
   it("rejects an almanac row that is not twelve months", () => {

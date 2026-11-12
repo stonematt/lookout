@@ -303,6 +303,22 @@ a {
   );
 }
 
+/* a low battery: one plain line per sensor, in ink, never the orange */
+.masthead-battery {
+  margin: 0;
+  font-size: var(--type-standfirst);
+  color: var(--ink);
+}
+
+.masthead-batteries:empty {
+  display: none;
+}
+
+:root:not([data-layout="two"], [data-layout="four"]) .masthead-battery {
+  font-size: var(--type-annotation);
+  text-align: right;
+}
+
 .masthead-line[hidden] {
   display: none;
 }

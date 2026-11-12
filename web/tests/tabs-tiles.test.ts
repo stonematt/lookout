@@ -227,36 +227,21 @@ describe("an empty Event Catalog", () => {
 });
 
 describe("one number wherever it appears (story 53)", () => {
-  it("keeps the Rain tab stat exact while the Overview calm rule speaks it", async () => {
-    await boot(parsed("dry"), "rain", "overview");
+  it("keeps the Rain tab stat exact while the Overview's dry spell feature speaks it", async () => {
+    // A golden copy whose feature is the dry spell (the dry golden's is quiet).
+    const doc = structuredClone(golden("dry", "dashboard")) as Record<string, unknown>;
+    doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
+    doc.dry_spell = { ...(doc.dry_spell as object), usual_days: 1 };
+    await boot(parseDashboard(doc), "rain", "overview");
     const since = words(
       [...panel("rain").querySelectorAll("[data-section=dry] dl > div")]
         .find((d) => words(d.querySelector("dt")) === "Since it last rained")
         ?.querySelector("dd"),
     );
-    const why = words(
-      panel("overview").querySelector("[data-section=hero-lead] details[data-part=why]"),
-    );
+    const feature = panel("overview").querySelector("[data-section=feature] a");
 
     expect(since).toBe("1 d 14 h");
-    expect(why).toContain("calm: about 39 hours since it last rained");
-  });
-
-  it("shows today's rain on the Rain tab as the Overview does", async () => {
-    const snapshot = parsed("raining");
-    await boot(snapshot, "rain", "overview");
-    const today = snapshot.current.rain_today_in!.toFixed(2);
-
-    const rainToday = words(
-      panel("rain").querySelector("[data-section=daily] .rain-windows div dd"),
-    );
-    expect(rainToday).toBe(`${today} in`);
-    const overview = words(
-      [...panel("overview").querySelectorAll("[data-part=right-now] > div")]
-        .find((d) => words(d.querySelector("dt")) === "rain today")
-        ?.querySelector("dd"),
-    );
-    expect(overview).toBe(rainToday);
+    expect(feature?.getAttribute("aria-label")).toContain("About 39 hours since it last rained");
   });
 
   it("names the catalog's wettest event with the catalog's own total", async () => {

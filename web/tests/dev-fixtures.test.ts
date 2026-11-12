@@ -64,6 +64,24 @@ describe("the lane server's read functions", () => {
     expect(dayKeys(body)).not.toContain('"key":"2026-01-08"');
   });
 
+  it("shifts the record depth's unlock days with the rest (#470)", async () => {
+    type Depth = {
+      record_depth: {
+        comparisons: { key: string; unlocks_on: string | null }[];
+        next_unlock: { key: string; date: string };
+      };
+    };
+    const recorded = golden("raining", "dashboard") as unknown as Depth;
+    const response = await devResponse("/dashboard?fixture=raining&age=3", {}, NOW);
+    const body = (await response!.json()) as Depth;
+
+    // Recorded Jan 10, 2026; 295 days later with the shift.
+    expect(recorded.record_depth.next_unlock).toEqual({ key: "7d", date: "2026-01-10" });
+    expect(body.record_depth.next_unlock).toEqual({ key: "7d", date: "2026-11-01" });
+    const week = body.record_depth.comparisons.find((c) => c.key === "7d")!;
+    expect(week.unlocks_on).toBe("2026-11-01");
+  });
+
   it("serves /current from the context golden, with no live reading", async () => {
     const response = await devResponse("/current?fixture=raining", {}, NOW);
     const body = (await response!.json()) as Record<string, unknown>;

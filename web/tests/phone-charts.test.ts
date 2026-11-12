@@ -7,7 +7,7 @@
  * a finding. Under 520px of chart width (the Chart Width Rule) every chart
  * draws its phone layout: the daily bars and the rain-by-hour grid show
  * the last 30 days with a switch to 90, the period rows put each label
- * above its bar, the ribbon ticks name the days, a chart has three y
+ * above its bar, the hero drops its closing midnight, a chart has three y
  * ticks and its now label above its dot, nothing is drawn scaled, and an
  * event chart redraws at its real width and in a new colour scheme.
  */
@@ -19,7 +19,6 @@ vi.mock("plotly.js-dist-min", () => ({ default: { react } }));
 import { LABEL_CHAR_PX } from "../src/charts/svg.js";
 import { drawEventChart, timeTicks } from "../src/events/charts.js";
 import { renderOverview } from "../src/overview/index.js";
-import { fitRibbon } from "../src/overview/ribbon.js";
 import { renderRain } from "../src/rain/index.js";
 import { renderSolar } from "../src/solar/index.js";
 import { listFinding } from "../src/events/model.js";
@@ -541,9 +540,7 @@ describe("every hand-drawn chart at phone width", () => {
   }
 
   it("is drawn at its width, never scaled, so its text keeps its 12px and up", () => {
-    const svgs = rendered().flatMap((h) => [
-      ...h.querySelectorAll<SVGSVGElement>("svg[viewBox]:not(.ribbon-band svg)"),
-    ]);
+    const svgs = rendered().flatMap((h) => [...h.querySelectorAll<SVGSVGElement>("svg[viewBox]")]);
     const charts = svgs.filter((svg) => svg.querySelector("text"));
 
     expect(charts.length).toBeGreaterThan(8);
@@ -558,7 +555,7 @@ describe("every hand-drawn chart at phone width", () => {
     }
   });
 
-  it("draws three y ticks on the daily bars, the sun trace and the hero lead", () => {
+  it("draws three y ticks on the daily bars, the sun trace and the usual band hero", () => {
     const hosts = rendered();
     // The y ticks end at the axis and read as numbers ("0.4 in", "40°").
     const yTicks = (svg: Element, cls: string) =>
@@ -569,10 +566,10 @@ describe("every hand-drawn chart at phone width", () => {
       ["[data-section=daily] .rain-chart svg", "rain-tick"],
       ["[data-section=daily] .solar-chart svg", "solar-tick"],
       ["[data-section=now] .solar-chart svg", "solar-tick"],
-      ["[data-section=hero-lead] .hero-svg", "hero-tick"],
+      ["[data-section=first-screen] .today-svg", "today-tick"],
     ];
     for (const [sel, cls] of charts) {
-      // Charts with a y axis (the dry golden leads with the dry spell's bar).
+      // Charts with a y axis.
       const found = hosts
         .flatMap((h) => [...h.querySelectorAll(sel)])
         .filter((svg) => svg.querySelector("line[class$=-grid]"));
@@ -591,8 +588,9 @@ describe("the period rows at phone width", () => {
     const names = [...chart.querySelectorAll("text.tc-row")];
     const bars = [...chart.querySelectorAll("rect.tc-iqr, rect.tc-hatch")];
 
-    expect(names).toHaveLength(6);
-    expect(bars).toHaveLength(6);
+    // Today, yesterday and Full history: the rows the record covers (#470).
+    expect(names).toHaveLength(3);
+    expect(bars).toHaveLength(3);
     const shift = (el: Element) =>
       Number(el.parentElement!.getAttribute("transform")!.match(/,([\d.]+)\)/)![1]);
     names.forEach((name, i) => {
@@ -616,36 +614,28 @@ describe("the period rows at phone width", () => {
   });
 });
 
-describe("the now label at phone width", () => {
-  it("sits above its dot on the hero lead", () => {
+describe("the usual band hero at phone width", () => {
+  const times = (host: HTMLElement) =>
+    [...host.querySelectorAll("[data-section=first-screen] .today-x")].map((t) => t.textContent);
+
+  it("names midnight, 6 am, noon and 6 pm under 520px, and the closing midnight from 520px", () => {
     layOut(PHONE);
     const host = panel();
-    renderOverview(host, dashboard("raining"));
-    const svg = host.querySelector("[data-section=hero-lead] .hero-svg")!;
-    const dot = svg.querySelector("circle.hero-dot")!;
-    const note = svg.querySelector("text.hero-note")!;
+    renderOverview(host, dashboard("seasoned"));
+    expect(times(host)).toEqual(["midnight", "6 am", "noon", "6 pm"]);
 
-    expect(Number(note.getAttribute("y"))).toBeLessThan(Number(dot.getAttribute("cy")) - 5);
-    const anchor = note.getAttribute("text-anchor");
-    const x = Number(note.getAttribute("x"));
-    const cx = Number(dot.getAttribute("cx"));
-    // Centred over the dot, or ending (starting) just past it.
-    expect(Math.abs(x - cx), anchor!).toBeLessThanOrEqual(6);
+    layOut(DESKTOP);
+    renderOverview(host, dashboard("seasoned"));
+    expect(times(host)).toEqual(["midnight", "6 am", "noon", "6 pm", "midnight"]);
   });
-});
 
-describe("the ribbon at phone width", () => {
-  it("names only the days under 520px of band, every six hours from 520px", () => {
+  it("keeps its now label inside the chart", () => {
+    layOut(PHONE);
     const host = panel();
-    renderOverview(host, dashboard("raining"));
-    const ribbon = host.querySelector<HTMLElement>("[data-part=ribbon]")!;
-    const days = [...ribbon.querySelectorAll(".ribbon-tick-day")].map((t) => t.textContent);
-
-    expect(days).toEqual(["Wed", "Thu"]);
-    fitRibbon(ribbon, PHONE);
-    expect(ribbon.dataset.narrow).toBe("true");
-    fitRibbon(ribbon, 600);
-    expect(ribbon.dataset.narrow).toBe("false");
+    renderOverview(host, dashboard("seasoned"));
+    const label = host.querySelector("[data-section=first-screen] .today-now")!;
+    expect(Number(label.getAttribute("x"))).toBeLessThanOrEqual(PHONE);
+    expect(Number(label.getAttribute("y"))).toBeGreaterThan(0);
   });
 });
 
