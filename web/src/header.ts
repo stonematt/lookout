@@ -16,6 +16,10 @@
  *   are fresher than they are: the reading is fresh, or more than 15
  *   minutes newer. When the two agree there is one line, as before.
  *
+ * Under them, one line per sensor whose battery reads low (#471), from the
+ * snapshot's `battery_flags`, in ink; none when every flag is OK or the
+ * snapshot predates the field.
+ *
  * Each line turns to the stale style past 15 minutes on its own clock.
  *
  * With the station index (#273) the header is also the station's details
@@ -142,6 +146,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
           <span class="masthead-when"></span>
           <span class="masthead-age"></span>
         </p>
+        <div class="masthead-batteries"></div>
       </div>
       <p class="masthead-archive" hidden></p>
     </header>`;
@@ -152,6 +157,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
   let picker: HTMLSelectElement | null = null;
   let listed = "";
   let choose: (mac: string) => void = () => undefined;
+  const batteries = host.querySelector<HTMLElement>(".masthead-batteries")!;
   const reading = ageLine(host.querySelector<HTMLElement>(".masthead-reading")!);
   const figures = ageLine(host.querySelector<HTMLElement>(".masthead-figures")!);
 
@@ -179,6 +185,19 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       const label = figures.root.hidden ? "Reading" : "Station last reported";
       stamp(reading, label, observedAtMs);
     }
+  }
+
+  /** One line per sensor whose battery reads low; the snapshot decides and names. */
+  function showBatteries(snapshot: DashboardSnapshot): void {
+    const lines = (snapshot.battery_flags ?? [])
+      .filter((flag) => flag.low)
+      .map((flag) => {
+        const line = document.createElement("p");
+        line.className = "masthead-battery";
+        line.textContent = `${flag.name} battery low`;
+        return line;
+      });
+    batteries.replaceChildren(...lines);
   }
 
   function render(): void {
@@ -248,6 +267,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
       station = null;
       observedAtMs = null;
       figuresAtMs = null;
+      batteries.replaceChildren();
       shown = false;
       failed = false;
       name.textContent = FALLBACK_NAME;
@@ -260,6 +280,7 @@ export function mountHeader(host: HTMLElement, now: () => number = Date.now): He
     showSnapshot(snapshot) {
       failed = false;
       figuresAtMs = figuresTime(snapshot);
+      showBatteries(snapshot);
       take(snapshot.station, snapshot.observed_at_ms);
     },
     showCurrent(current) {
