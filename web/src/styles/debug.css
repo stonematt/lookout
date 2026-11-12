@@ -31,6 +31,18 @@
   color: var(--now);
 }
 
+/* the site's release beside the refresh run's; "differ" when they do */
+.debug-release > span + span::before {
+  content: "·";
+  margin-right: var(--s-2);
+  color: var(--ink-3);
+}
+
+.debug-release-differs {
+  color: var(--now);
+  font-weight: 600;
+}
+
 /* ---------- the key/value tree ---------- */
 .json-tree {
   margin: 0;
