@@ -435,7 +435,6 @@ The layout switches on the root's `data-layout` (`phone`, `two`, `four`), set fr
 - **Overview:** the now tile (the current temperature, its delta on usual for this hour, and today against the usual band), then the feature tile, full width, then the mosaic, two tiles to a row. Nothing on the Overview folds: the context is visible without a tap, and a tap zooms a tile. The sources footer ends the page.
 - **Rain, Solar:** the tab's top finding with its stats and its main chart, always open; the tab's other sections as finding rows.
 - **Rain events:** see Event list.
-The Overview is about two phone screens before its footer.
 
 **The Overview grid.** The now tile and the feature tile each take a full row; the mosaic tiles follow in a fixed order, one column each: Temperature, Rain since Oct 1, Last 10 days, Dry spell, Wind, Pressure, Humidity, Sun today, Daylight, Inside. A phone sets them two to a row; two columns from 760px; four from 1180px, where they run in rows of four in the phone's order (Temperature to Dry spell, Wind to Sun today, Daylight and Inside with two cells empty). Nothing reorders between phone and desktop. On the Overview and in its zooms a hatch only marks a gap inside a period the record covers, so its reason reads without "n/a" ("gap in record", "gap" in a cell); a period the record does not cover yet is not drawn (#470). A tile the snapshot says is not shown (`record_depth.tiles`: the record does not cover it yet; Inside with no indoor sensor; Daylight with no location) is not drawn, and the later tiles move up.
 
@@ -449,7 +448,7 @@ Flat. No shadows. Depth is tile on ground, and the one tinted now tile. Inside c
 
 ## Shapes
 
-Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 2px on a 12px repeat (2px on a 6px repeat in a chip swatch, which is 12px square). Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
+Tiles 22px (20px on a phone). Event rows 16px. Pills for tabs, segments, chips and buttons. Ramp cells 3px. The `ribbon` radius (6px) has no current use; it stays in the set with the ribbon tokens. Data dots are circles (r 4 to 5.5). Strokes: axes and baselines 1px, thin marks 1.5px, the bold now line 3.5px with round caps and joins. Hatching is always 135° stripes, `hatch` over the tile colour (`ink-3` over the now surface), 2px on a 12px repeat (2px on a 6px repeat in a chip swatch, which is 12px square). Text never sits on the stripes: a reason over a hatched span sits on a 4px halo in the surface colour, and a hatched chip carries its hatch in a swatch beside its text.
 
 ## Components
 
