@@ -120,15 +120,12 @@ describe("a gap inside a shown period", () => {
       "365 days",
       "Full history",
     ]);
-    // Every shown period with days missing, Full history last, reads the gap.
-    const context = doc("seasoned").temperature_context as Doc;
-    const gapped = [...(context.periods as Doc[]), context.full_history as Doc].filter(
-      (p) => p.status.shown && p.status.reason === "gap",
-    );
-    expect(gapped.length).toBeGreaterThan(0);
-    expect(texts("[data-part=periods-chart] .tc-reason")).toEqual(
-      gapped.map(() => "gap in record"),
-    );
+    // 365 days and Full history: shown, with days missing. 90 days is whole
+    // since the seasoned fixture spans water years 2025–26 (#539).
+    expect(texts("[data-part=periods-chart] .tc-reason")).toEqual([
+      "gap in record",
+      "gap in record",
+    ]);
   });
 
   it("keeps the dry golden's shown but unarchived days hatched", () => {
