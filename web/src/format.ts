@@ -372,7 +372,30 @@ export function daysBetween(first: string, day: string): number {
  * @returns The temperature.
  */
 export function degrees(value: number, digits = 1): string {
-  return `${digits ? value.toFixed(digits) : Math.round(value)}°`;
+  return `${signed(value, digits)}°`;
+}
+
+/** Options for `signed`. */
+export interface SignedOptions {
+  /** Write "+" before a positive number (a change, not a reading). */
+  plus?: boolean;
+}
+
+/**
+ * The one signed number: a negative prints with U+2212 (the true minus, which
+ * screen readers say as "minus"), never an ASCII hyphen. A value that rounds
+ * to zero prints "0" with no sign, so no "−0".
+ *
+ * @param value - The number.
+ * @param digits - Decimals; 0 rounds to whole numbers.
+ * @param options - `plus: true` marks a positive value with "+".
+ * @returns E.g. `52.3`, `−12`, `+3`.
+ */
+export function signed(value: number, digits = 1, options: SignedOptions = {}): string {
+  const text = Math.abs(value).toFixed(digits);
+  if (Number(text) === 0) return text;
+  if (value < 0) return `−${text}`;
+  return options.plus ? `+${text}` : text;
 }
 
 /** Options for `inches`. */

@@ -1,17 +1,13 @@
 /*
  * The mosaic (#472, spec #460, boards Main, MainDark, Desktop). On a phone
  * the mosaic tiles sit two to a row (`tiles.css`, "phone: half-width
- * tiles"); on the four-column grid the feature takes two columns and two
- * rows at the left, so the first four tiles fill the 2×2 beside it, row
- * first, in the phone's order.
+ * tiles"); on the four-column grid the feature takes the whole row above
+ * them (prototype decision 23) and they follow in rows of four, one column
+ * a tile, in the phone's order.
  *
  * A tile is one link: its title (an h2 in kicker type), the number in Fact
  * type, the delta in `ink-2`, then the mini chart at the tile's foot.
  */
-
-:root[data-layout="four"] .mosaic-grid > .tile[data-section="feature"] {
-  grid-row: span 2;
-}
 
 .mosaic-link {
   display: flex;

@@ -5,11 +5,11 @@
  * Layout, the same order on every width (DESIGN.md "Layout", README
  * decision 10): on a phone the now tile and the feature take the full
  * width and the mosaic sits two to a row; on the four-column grid the now
- * tile takes the first row, the feature two columns and two rows at the
- * left, the first four mosaic tiles the 2×2 beside it, and the rest one
- * column each, row first (Daylight and Inside alone on the last row). The Overview has no
- * finding rows: the accordion is gone (the Rain, Solar and Rain events tabs
- * keep theirs).
+ * tile takes the first row, the feature the whole second (prototype
+ * decision 23, as Release B1 shipped it, #545), and the mosaic follows in
+ * rows of four, one column a tile, in the phone's order (Daylight and
+ * Inside alone on the last row). The Overview has no finding rows: the
+ * accordion is gone (the Rain, Solar and Rain events tabs keep theirs).
  *
  * A section the snapshot does not draw (`TileSection.shown`) is skipped and
  * the later ones move up: the feature without a `feature` (a snapshot

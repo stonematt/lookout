@@ -159,6 +159,19 @@ describe("the Temperature tile", () => {
     );
   });
 
+  it("writes a below-zero reading and delta with the true minus, never a hyphen", () => {
+    const d = doc("seasoned");
+    d.current.temperature_f = -4.26;
+    d.temperature_context.usual_band.now_delta.delta_f = -9;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("temperature").querySelector("[data-part=value]"))).toBe("−4.3°");
+    expect(words(tile("temperature").querySelector("[data-part=delta]"))).toMatch(
+      /, −9° on usual$/,
+    );
+    expect(words(tile("temperature"))).not.toMatch(/-\d/);
+  });
+
   it.each([null, undefined])("prints no delta for a %s now_delta, never one of its own", (gone) => {
     const d = doc("seasoned");
     if (gone === null) d.temperature_context.usual_band.now_delta = null;

@@ -24,9 +24,9 @@
  *   the sources footer and the bottom tab bar step aside; the header stays,
  *   with its one freshness line), with "Overview" at its top to go back.
  * - two and four columns: in place, a full-width row under the tapped
- *   tile's row (under the feature block for a tile beside it), its panels
- *   two by two, with Close. Each tile with a zoom carries `aria-expanded`
- *   and `aria-controls`.
+ *   tile's row (prototype decision 23: the feature is a row of its own, so
+ *   no tile sits beside it), its panels two by two, with Close. Each tile
+ *   with a zoom carries `aria-expanded` and `aria-controls`.
  *
  * Focus moves to the zoom's heading when it opens, and back to the link
  * that opened it (else its tile) when it closes. Close, Back and Escape
@@ -343,25 +343,13 @@ function fill(el: HTMLElement, zoom: ZoomDefinition, snapshot: DashboardSnapshot
 
 /**
  * Put an in-place zoom under the tapped tile's row: after the last tile
- * that starts above the row's foot, where the row runs as deep as any tile
- * beside it (the feature's two rows, for a tile in its 2×2). With no
- * layout to measure (a test), it goes straight after the tile.
+ * that starts above the tile's foot. With no layout to measure (a test),
+ * it goes straight after the tile.
  */
 function place(grid: HTMLElement, tile: HTMLElement, el: HTMLElement): void {
   el.remove();
   const tiles = [...grid.children].filter((child): child is HTMLElement => child !== el);
-  const top = tile.getBoundingClientRect().top;
-  let foot = tile.getBoundingClientRect().bottom;
-  for (let grew = true; grew;) {
-    grew = false;
-    for (const other of tiles) {
-      const box = other.getBoundingClientRect();
-      if (box.top < foot - 1 && box.bottom > top + 1 && box.bottom > foot + 1) {
-        foot = box.bottom;
-        grew = true;
-      }
-    }
-  }
+  const foot = tile.getBoundingClientRect().bottom;
   let after = tile;
   for (const other of tiles.slice(tiles.indexOf(tile) + 1)) {
     if (other.getBoundingClientRect().top < foot - 1) after = other;

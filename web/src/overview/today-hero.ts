@@ -25,7 +25,7 @@
  * temperature), `nowDeltaWords` (the same delta without its hour, for the
  * Temperature tile), `bandBasisLabel` and `bandBasisWords`.
  */
-import { clockHours, degrees, formatStamp, hourText, localDay } from "../format.js";
+import { clockHours, degrees, formatStamp, hourText, localDay, signed } from "../format.js";
 import { RAIN_STEP_COUNT, rainStep } from "../charts/rain-step.js";
 import {
   NARROW,
@@ -53,6 +53,10 @@ const RAIN_GAP = 6;
 const RAIN_H = 14;
 /** The time-of-day labels under the rain track. */
 const X_LABELS_H = 22;
+/** The band's basis label, on its own row under the times of day, clear of every line. */
+const BASIS_H = 18;
+/** A text row's baseline, below the top of the row it sits in. */
+const ROW_BASELINE = 17;
 
 // ---------- the snapshot's today ----------
 
@@ -193,8 +197,7 @@ export function nowDeltaWords(snapshot: DashboardSnapshot): string | null {
   const delta = snapshot.temperature_context.usual_band?.now_delta ?? null;
   if (!delta) return null;
   if (delta.delta_f === 0) return "at usual";
-  const sign = delta.delta_f > 0 ? "+" : "−";
-  return `${sign}${Math.abs(delta.delta_f)}° on usual`;
+  return `${signed(delta.delta_f, 0, { plus: true })}° on usual`;
 }
 
 /**
@@ -300,7 +303,8 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   const plotH = narrow ? PLOT_H.narrow : PLOT_H.wide;
   const plotBottom = TOP + plotH;
   const rainTop = plotBottom + RAIN_GAP;
-  const height = rainTop + RAIN_H + X_LABELS_H;
+  const basisRow = band ? BASIS_H : 0;
+  const height = rainTop + RAIN_H + X_LABELS_H + basisRow;
   const left = LEFT;
   const right = width - RIGHT_PAD;
   const { svg, hatch } = canvas(width, height, todayChartName(snapshot), "today-svg");
@@ -355,13 +359,6 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
       const points = run.map((p) => at(p, p.hour.median!)).join(" ");
       svg.append(svgEl("polyline", { points, class: "today-median" }));
     }
-    svg.append(
-      svgEl(
-        "text",
-        { x: right, y: plotBottom - 6, class: "today-basis", "text-anchor": "end" },
-        bandBasisLabel(band),
-      ),
-    );
   }
 
   // Today's line, joined to the live reading.
@@ -424,7 +421,7 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   svg.append(rain);
 
   // The times of day; the closing midnight once there is room for it.
-  const labelY = rainTop + RAIN_H + 17;
+  const labelY = rainTop + RAIN_H + ROW_BASELINE;
   for (const [hour, text] of [
     ...[0, 6, 12, 18].map((h) => [h, hourText(h)]),
     ...(narrow ? [] : [[24, hourText(0)]]),
@@ -437,6 +434,17 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
         "text",
         { x: fixed(x(hour)), y: labelY, class: "today-x", "text-anchor": anchor },
         text,
+      ),
+    );
+  }
+
+  // The band's basis, under the times of day: no line or band edge reaches this row.
+  if (band) {
+    svg.append(
+      svgEl(
+        "text",
+        { x: right, y: labelY + ROW_BASELINE, class: "today-basis", "text-anchor": "end" },
+        bandBasisLabel(band),
       ),
     );
   }
