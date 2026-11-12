@@ -16,7 +16,8 @@
  * Offers `windFact`, `pressureFact`, `airFact` and `sunMoonFact`
  * (`OverviewSection`s with `fact: true`, which keeps them open tiles on a
  * phone, two to a row), and `renderFact`, the value-and-sentence body any
- * quick-fact tile renders.
+ * quick-fact tile renders. Each tile's `finding` puts its value and its
+ * sentence into one sentence, the tile's accessible name (#458).
  */
 import "./quick-facts.css";
 
@@ -116,6 +117,16 @@ function pressureSentence(c: SnapshotConditions): string {
 }
 
 /**
+ * A sentence with its first letter lowered, to follow a value.
+ *
+ * @param sentence - E.g. "From the SE, gusts to 2.5 mph."
+ * @returns E.g. "from the SE, gusts to 2.5 mph."
+ */
+function lowerFirst(sentence: string): string {
+  return sentence.charAt(0).toLowerCase() + sentence.slice(1);
+}
+
+/**
  * The air sentence: what the value is, then the dew point.
  *
  * @param c - The current conditions.
@@ -193,6 +204,13 @@ export const windFact: OverviewSection = {
     if (speed === null) renderFact(host, "n/a", windSentence(c));
     else renderFact(host, mph(speed, { unit: false }), windSentence(c), "mph");
   },
+  finding(snapshot: DashboardSnapshot): string {
+    const c = snapshot.current;
+    const sentence = windSentence(c);
+    return c.wind_speed_mph === null
+      ? sentence
+      : `Wind ${mph(c.wind_speed_mph)}, ${lowerFirst(sentence)}`;
+  },
 };
 
 /** Pressure: the barometer reading and its 3-hour trend. */
@@ -205,6 +223,13 @@ export const pressureFact: OverviewSection = {
     const c = snapshot.current;
     renderFact(host, known(c.barometer_inhg, inHg), pressureSentence(c));
   },
+  finding(snapshot: DashboardSnapshot): string {
+    const c = snapshot.current;
+    const sentence = pressureSentence(c);
+    return c.barometer_inhg === null
+      ? `Pressure ${lowerFirst(sentence)}`
+      : `Pressure ${inHg(c.barometer_inhg)} ${sentence}`;
+  },
 };
 
 /** Air: humidity and dew point. */
@@ -216,6 +241,13 @@ export const airFact: OverviewSection = {
   render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const c = snapshot.current;
     renderFact(host, known(c.humidity_pct, percent), airSentence(c));
+  },
+  finding(snapshot: DashboardSnapshot): string {
+    const c = snapshot.current;
+    const sentence = airSentence(c);
+    return c.humidity_pct === null
+      ? sentence
+      : sentence.replace(/^Humidity;/, `Humidity ${percent(c.humidity_pct)};`);
   },
 };
 
@@ -232,5 +264,11 @@ export const sunMoonFact: OverviewSection = {
       return;
     }
     renderFact(host, sunTimes(block), `${daylightClause(block)}; ${moonClause(block)}.`);
+  },
+  finding(snapshot: DashboardSnapshot): string {
+    const block = snapshot.sun_moon;
+    if (block === null) return "Sun and moon not known: the station reports no location.";
+    const times = sunTimes(block).textContent!.replace(/\u00a0/g, " ");
+    return `Sun up ${times}; ${daylightClause(block)}; ${moonClause(block)}.`;
   },
 };
