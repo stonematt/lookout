@@ -15,6 +15,7 @@ Ambient's year, month and week counters are never read.
 
 Functions:
 - almanac(days): the `Almanac` section.
+- grid_finding(years): which month leads the grid's finding (#467).
 """
 
 from datetime import date, timedelta

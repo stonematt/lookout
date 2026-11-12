@@ -359,7 +359,7 @@ class TestGridFinding:
             month="2025-09", earlier=("2024-09", "2023-09", "2022-09")
         )
 
-    def test_a_month_before_the_archive_is_not_an_earlier_month(self, almanac):
+    def test_a_month_before_the_archive_is_not_an_earlier_month(self):
         # Aug 2024 began before the archive; it has no total to compare.
         snap = october()
         assert "2024-08" not in snap.almanac.grid_finding.earlier
