@@ -1298,6 +1298,7 @@ export function newestObservation(
 export interface DepthComparison {
   /** A standard window ("today" ... "365d", "water_year"), "earlier_year" or "full_history". */
   key: string;
+  /** Whether the record covers it: a window's is its gap status's `shown`. */
   shown: boolean;
   /** The station-local day it is first shown, "YYYY-MM-DD"; null once shown. */
   unlocks_on: string | null;
@@ -1305,8 +1306,11 @@ export interface DepthComparison {
 
 /** Whether one Overview tile has the record it needs. */
 export interface DepthTile {
+  /** The tile: "temperature", "rain", "last_10_days" ... "inside". */
   key: string;
+  /** The comparison it needs (a `DepthComparison.key`); null for none. */
   needs: string | null;
+  /** Whether it is shown; the mosaic that reads it is Release B2's. */
   shown: boolean;
 }
 
@@ -1324,14 +1328,19 @@ export interface NextUnlock {
  * not shown and prints the one next-unlock line.
  */
 export interface RecordDepth {
+  /** The archive's first station-local day; null when it is empty. */
   first_day: string | null;
+  /** Station-local days from `first_day` through today; 0 when empty. */
   days: number;
+  /** Each comparison, the standard windows first, then "earlier_year" and "full_history". */
   comparisons: DepthComparison[];
+  /** Each Overview tile in the mosaic's order, Inside last. */
   tiles: DepthTile[];
   /** Null when every comparison is shown or the archive is empty: no line. */
   next_unlock: NextUnlock | null;
 }
 
+/** Whether a value is a "YYYY-MM-DD" day. */
 const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /**

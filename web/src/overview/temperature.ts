@@ -31,7 +31,7 @@ import type {
   TemperaturePeriod,
 } from "../snapshot.js";
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
-import { isShown, nextUnlockLine } from "./history.js";
+import { WINDOW_NAMES, isShown, nextUnlockLine } from "./history.js";
 import type { OverviewSection } from "./index.js";
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
@@ -57,15 +57,7 @@ export function yearsText(years: readonly number[]): string {
   return `${years.slice(0, -1).join(", ")} and ${years.at(-1)}`;
 }
 
-const NAMES: Record<string, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  "7d": "7 days",
-  "30d": "30 days",
-  "90d": "90 days",
-  "365d": "365 days",
-  full_history: "Full history",
-};
+const NAMES = WINDOW_NAMES;
 
 /**
  * The window chart's rows: each window the record covers (every window, in

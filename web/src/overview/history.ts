@@ -8,6 +8,7 @@
  * comparison the record unlocks next and the day it does. This module only
  * reads those and words the line:
  *
+ * - `WINDOW_NAMES`: each comparison's name, shared with the window chart.
  * - `isShown`: whether a month's or window's status is shown. A status
  *   without `shown` (a snapshot written before Release A, ADR-0008) is
  *   shown, so such a snapshot draws today's view.
@@ -30,8 +31,11 @@ export function isShown(status: GapStatus): boolean {
   return status.shown !== false;
 }
 
-/** Each comparison's name in the line, as the window chart's rows read. */
-const UNLOCK_NAMES: Record<string, string> = {
+/**
+ * Each comparison's name, by its `record_depth` key: the window chart's row
+ * labels and the next-unlock line's.
+ */
+export const WINDOW_NAMES: Readonly<Record<string, string>> = {
   today: "Today",
   yesterday: "Yesterday",
   "7d": "7 days",
@@ -54,7 +58,7 @@ export function nextUnlockText(snapshot: DashboardSnapshot): string | null {
   const next = snapshot.record_depth?.next_unlock;
   if (!next) return null;
   const on = dayText(next.date, true);
-  const name = UNLOCK_NAMES[next.key];
+  const name = WINDOW_NAMES[next.key];
   return name ? `Next to unlock: ${name}, on ${on}.` : `More of the record unlocks on ${on}.`;
 }
 

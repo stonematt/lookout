@@ -223,13 +223,7 @@ export function hatchGap(el: HTMLElement, status: GapStatus, options: HatchOptio
   const label = document.createElement("span");
   label.className = "gap-label";
   label.setAttribute("aria-hidden", "true");
-  label.textContent = options.plain
-    ? options.compact
-      ? COMPACT_PLAIN_LABEL
-      : plainGapLabel(status)
-    : options.compact
-      ? COMPACT_LABEL
-      : gapLabel(status);
+  label.textContent = inPlaceLabel(status, options);
   el.replaceChildren(label, spokenSentence(status));
   el.classList.add("gap-hatch", "gap");
   el.dataset.gap = status.reason ?? "gap";
@@ -250,6 +244,12 @@ export function gapElement(status: GapStatus, options: HatchOptions = {}): HTMLE
   block.classList.add("gap-block");
   hatchGap(block, status, options);
   return block;
+}
+
+/** The reason a hatch shows in place, by its options. */
+function inPlaceLabel(status: GapStatus, { compact, plain }: HatchOptions): string | null {
+  if (compact) return plain ? COMPACT_PLAIN_LABEL : COMPACT_LABEL;
+  return plain ? plainGapLabel(status) : gapLabel(status);
 }
 
 /** The sentence as screen-reader text. */

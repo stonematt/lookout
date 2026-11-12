@@ -71,14 +71,16 @@ export function renderOverview(
 ): void {
   // On a phone the finding rows sit under "In context" (DESIGN.md). Each
   // tile is named by its finding, for screen readers (#458).
-  const hidden = new Set<OverviewSection>();
-  if (!snapshot.feature) hidden.add(featureTile);
-  if (!rollingHasRows(snapshot)) hidden.add(rollingRain);
+  const hiddenSections = new Set<OverviewSection>();
+  if (!snapshot.feature) hiddenSections.add(featureTile);
+  if (!rollingHasRows(snapshot)) hiddenSections.add(rollingRain);
   // The almanac takes the rolling tile's column when that tile is not
   // drawn, so its four-column row stays whole.
   const shown = sections
-    .filter((s) => !hidden.has(s))
-    .map((s) => (s === almanacGrid && hidden.has(rollingRain) ? { ...s, span: 4 as const } : s));
+    .filter((s) => !hiddenSections.has(s))
+    .map((s) =>
+      s === almanacGrid && hiddenSections.has(rollingRain) ? { ...s, span: 4 as const } : s,
+    );
   const grid = renderTiles(panel, snapshot, shown, {
     rowsHeading: "In context",
     nameByFinding: true,
