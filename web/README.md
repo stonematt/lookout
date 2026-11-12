@@ -86,7 +86,7 @@ Stop it with Ctrl-C, or `kill` its PID.
 
 Example: `http://localhost:5177/?fixture=raining&age=3#rain`.
 
-`ignoreCommand` in `vercel.json` runs `scripts/vercel-ignore.sh`, which skips the Vercel build for `shots/*` and `lane/*` branches; every other branch builds.
+Vercel deploys only `main`, `dev` and `uat/**` branches. `git.deploymentEnabled` in `vercel.json` is an allowlist: a catch-all `"**": false`, and true for those three. Vercel deploys a branch when at least one matching rule is true, so every other branch creates no deployment. `ignoreCommand` runs `scripts/vercel-ignore.sh`, which repeats the allowlist as a backstop. A release's UAT preview is a `uat/<slug>` branch pushed from its goal branch tip; `.claude/swarm-profile.md` has the flow.
 
 ## Security headers
 
