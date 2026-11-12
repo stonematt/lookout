@@ -84,7 +84,8 @@ POINTS: Tuple[str, ...] = DIRECTIONS[::2]
 BIN_DEG = 360 / len(DIRECTIONS)
 POINT_DEG = 360 / len(POINTS)
 
-_SPEED_DIGITS = 1
+SPEED_DIGITS = 1
+"""Decimals kept on a bin's average wind and highest gust (mph)."""
 
 
 def wind_rose(stitched: pd.DataFrame, coverage: ArchiveCoverage) -> WindRose:
@@ -145,15 +146,15 @@ def _readings(stitched: pd.DataFrame) -> pd.DataFrame:
     speed = speed[known]
     direction = _column(stitched, "winddir")[known]
     calm = direction.isna() | (speed < CALM_BELOW_MPH)
-    turned = direction.fillna(0.0) % 360
+    bearing = direction.fillna(0.0) % 360
     return pd.DataFrame(
         {
             "dateutc": stitched.loc[known, "dateutc"].astype("int64"),
             "speed": speed,
             "gust": _column(stitched, "windgustmph")[known],
             "calm": calm,
-            "bin": np.where(calm, -1, _sector(turned, BIN_DEG)),
-            "point": np.where(calm, -1, _sector(turned, POINT_DEG)),
+            "bin": np.where(calm, -1, _sector(bearing, BIN_DEG)),
+            "point": np.where(calm, -1, _sector(bearing, POINT_DEG)),
         }
     )
 
@@ -190,11 +191,11 @@ def _window(
         (readings["dateutc"] > start_ms) & (readings["dateutc"] <= now_ms)
     ]
     held = comparable(status, lambda: inside)
-    return _summarise(key, hours, status, held)
+    return _summarise(key, hours, status, inside.iloc[:0] if held is None else held)
 
 
 def _summarise(
-    key: str, hours: int, status: GapStatus, held: Optional[pd.DataFrame]
+    key: str, hours: int, status: GapStatus, held: pd.DataFrame
 ) -> WindRoseWindow:
     """
     Count and summarise one window's readings.
@@ -202,18 +203,34 @@ def _summarise(
     :param key: The window's key.
     :param hours: Its span in hours.
     :param status: Its gap status.
-    :param held: Its readings, or None when it is invalid.
+    :param held: Its readings; none when it is invalid.
     :return: The window.
     """
-    if held is None:
-        held = pd.DataFrame(columns=["speed", "gust", "calm", "bin", "point"])
-    windy = held[~held["calm"].astype(bool)]
+    windy = held[~held["calm"]]
     total = len(held)
     calm = total - len(windy)
+    return WindRoseWindow(
+        key=key,
+        hours=hours,
+        status=status,
+        readings=total,
+        calm_readings=calm,
+        calm_pct=_percent(calm, total),
+        bins=_bins(windy),
+        points=_points(windy),
+    )
 
+
+def _bins(windy: pd.DataFrame) -> Tuple[WindBin, ...]:
+    """
+    The 16 direction bins of a window's windy readings.
+
+    :param windy: The window's windy readings.
+    :return: The bins, clockwise from N.
+    """
     bins = []
     for index, direction in enumerate(DIRECTIONS):
-        within = windy[windy["bin"] == index]
+        from_bin = windy[windy["bin"] == index]
         centre = index * BIN_DEG
         bins.append(
             WindBin(
@@ -221,12 +238,21 @@ def _summarise(
                 centre_deg=centre,
                 from_deg=(centre - BIN_DEG / 2) % 360,
                 to_deg=centre + BIN_DEG / 2,
-                readings=len(within),
-                average_mph=number(within["speed"].mean(), _SPEED_DIGITS),
-                gust_mph=number(within["gust"].max(), _SPEED_DIGITS),
+                readings=len(from_bin),
+                average_mph=number(from_bin["speed"].mean(), SPEED_DIGITS),
+                gust_mph=number(from_bin["gust"].max(), SPEED_DIGITS),
             )
         )
+    return tuple(bins)
 
+
+def _points(windy: pd.DataFrame) -> Tuple[WindPoint, ...]:
+    """
+    The 8 compass points' shares of a window's windy readings.
+
+    :param windy: The window's windy readings.
+    :return: The points, clockwise from N.
+    """
     points = []
     for index, direction in enumerate(POINTS):
         count = int((windy["point"] == index).sum())
@@ -238,17 +264,7 @@ def _summarise(
                 share_pct=_percent(count, len(windy)),
             )
         )
-
-    return WindRoseWindow(
-        key=key,
-        hours=hours,
-        status=status,
-        readings=total,
-        calm_readings=calm,
-        calm_pct=_percent(calm, total),
-        bins=tuple(bins),
-        points=tuple(points),
-    )
+    return tuple(points)
 
 
 def _percent(part: int, whole: int) -> Optional[int]:
