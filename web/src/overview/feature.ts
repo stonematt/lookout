@@ -17,7 +17,10 @@
  * has no zoom: it opens the Rain Events tab.
  *
  * Every value is the snapshot's: this module words, formats and links; it
- * does not pick, rank or compare.
+ * does not pick, rank or compare. A percentile at either end reads as past
+ * every reading for this hour ("highest for this hour on record"), never
+ * "0th" or "100th" (#563); an unusual reading's hour names its day when it
+ * is from before midnight (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
  * carries a feature) and `featureTile` (the Overview section).
@@ -45,6 +48,7 @@ import type { OverviewSection } from "./index.js";
 import type { MosaicTile } from "./mosaic.js";
 import { humidityTile, pressureTile, sunTile, windTile } from "./mosaic-conditions.js";
 import { drySpellTile, temperatureTile } from "./mosaic-tiles.js";
+import { readingDayWords } from "./today-hero.js";
 
 /** Where the tile's link goes, and the words that say so. */
 interface Target {
@@ -188,18 +192,34 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
   };
 }
 
+/**
+ * Where an unusual reading sits among its usual readings at this hour, in
+ * words. At either end it is past every one of them, which "0th" or "100th
+ * percentile" would misstate (#563). The feature carries no count of the
+ * years it compared with, so an end reads "on record".
+ *
+ * @param percentile - The feature's percentile, 0 to 100.
+ * @returns E.g. "the 95th percentile around this date in earlier years",
+ *   "highest for this hour on record", "lowest for this hour on record".
+ */
+function percentileWords(percentile: number): string {
+  if (percentile >= 100) return "highest for this hour on record";
+  if (percentile <= 0) return "lowest for this hour on record";
+  return `the ${ordinal(percentile)} percentile around this date in earlier years`;
+}
+
 function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView {
   // The parse guarantees an unusual feature its reading, value and percentile.
   const reading = READINGS[feature.reading!];
   const percentile = feature.percentile!;
   const value = readingValue(feature, feature.value!);
-  // Python judges the newest observation's hour (`lookout.snapshot.feature`).
-  const hour = hourName(snapshot.observed_at_ms ?? snapshot.built_at_ms);
+  // Python judges the newest observation's hour (`lookout.snapshot.feature`);
+  // just after midnight that hour is yesterday's, and the words say so.
+  const hour =
+    hourName(snapshot.observed_at_ms ?? snapshot.built_at_ms) + readingDayWords(snapshot);
   // The percentile is the share of usual readings below the value and always
   // lies outside 10 to 90, so above the middle it reads high, below it low.
-  const finding =
-    `${percentile > 50 ? reading.high : reading.low} than usual for ${hour}: ` +
-    `the ${ordinal(percentile)} percentile around this date in earlier years`;
+  const finding = `${percentile > 50 ? reading.high : reading.low} than usual for ${hour}: ${percentileWords(percentile)}`;
   return {
     kind: "unusual",
     kicker: `Unusual · ${reading.name}`,

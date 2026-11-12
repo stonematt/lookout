@@ -322,6 +322,19 @@ export function dayText(iso: string, withYear = false): string {
   return withYear ? `${text}, ${iso.slice(0, 4)}` : text;
 }
 
+/**
+ * A station-local day said against today, as words to follow a time:
+ * "11 pm yesterday", "11 pm on Nov 17".
+ *
+ * @param day - "YYYY-MM-DD", e.g. a reading's `localDay`.
+ * @param today - "YYYY-MM-DD", the snapshot's today.
+ * @returns null for today, "yesterday", or "on Nov 17" for any other day.
+ */
+export function relativeDay(day: string, today: string): string | null {
+  if (day === today) return null;
+  return daysBetween(day, today) === 1 ? "yesterday" : `on ${dayText(day)}`;
+}
+
 /** The calendar-day formatter in the station's zone. */
 const dayOf = () => stationFormat("en-CA", {});
 

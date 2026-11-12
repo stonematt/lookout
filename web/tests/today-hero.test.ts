@@ -160,6 +160,58 @@ describe("the usual band hero", () => {
   });
 });
 
+describe("the hero just after midnight, before today's first reading (#563)", () => {
+  /**
+   * The dry golden (built at midnight from yesterday's 11:55 pm reading),
+   * carrying the seasoned golden's earlier-years band and the dry golden's
+   * own delta for that reading's hour.
+   */
+  function afterMidnight(): DashboardSnapshot {
+    const doc = structuredClone(golden("dry", "dashboard")) as {
+      temperature_context: { usual_band: Record<string, unknown> };
+    };
+    const band = structuredClone(
+      (golden("seasoned", "dashboard") as typeof doc).temperature_context.usual_band,
+    );
+    band.now_delta = { hour: 23, delta_f: 3, basis: "earlier_years" };
+    doc.temperature_context.usual_band = band;
+    return parseDashboard(doc);
+  }
+
+  it("is built from a reading of the day before", () => {
+    const s = afterMidnight();
+    expect(localDay(s.observed_at_ms!)).not.toBe(localDay(s.built_at_ms));
+  });
+
+  it("draws the usual band for today, its median and its basis: never an empty plot", () => {
+    renderOverview(panel, afterMidnight());
+    expect(one(".today-band")).not.toBeNull();
+    expect(xs(one(".today-median"))).toHaveLength(24 + 2);
+    expect(words(one(".today-basis"))).toBe("usual, this week in 2025 and 2024");
+    expect(one(".today-line")).toBeNull();
+    expect(one(".today-dot")).toBeNull();
+  });
+
+  it("names the newest reading's hour and day in the delta line", () => {
+    renderOverview(panel, afterMidnight());
+    expect(words(hero().querySelector("[data-part=delta]"))).toBe(
+      "+3° on usual for 11 pm yesterday",
+    );
+  });
+
+  it("names the newest reading's time and day in the chart's accessible name", () => {
+    renderOverview(panel, afterMidnight());
+    expect(one("svg[role=img]")!.getAttribute("aria-label")).toMatch(
+      /^Today's temperature has no reading yet \(the newest is 39\.4° at 11:55 pm yesterday\), against the usual for each hour/,
+    );
+  });
+
+  it("names no day for a reading from today", () => {
+    renderOverview(panel, seasoned);
+    expect(words(hero().querySelector("[data-part=delta]"))).toBe("+12° on usual for 3 pm");
+  });
+});
+
 describe("the band's basis label, from the snapshot", () => {
   const label = () => words(one(".today-basis"));
 
@@ -240,7 +292,7 @@ describe("the delta line on usual", () => {
 
   it("says how far below, with a real minus sign (dry)", () => {
     renderOverview(panel, dry);
-    expect(line()).toBe("−1° on usual for 11 pm");
+    expect(line()).toBe("−1° on usual for 11 pm yesterday");
   });
 
   it("says at usual for a delta of 0 (raining)", () => {

@@ -20,6 +20,7 @@ import {
   hourName,
   hourText,
   monthLongName,
+  relativeDay,
   signed,
   inches,
   inchesPerHour,
@@ -157,6 +158,12 @@ describe("months and days", () => {
   it("writes an ISO day", () => {
     expect(dayText("2026-01-08")).toBe("Jan 8");
     expect(dayText("2025-12-30", true)).toBe("Dec 30, 2025");
+  });
+
+  it("says a day against today, to follow a time", () => {
+    expect(relativeDay("2026-01-08", "2026-01-08")).toBeNull();
+    expect(relativeDay("2025-12-31", "2026-01-01")).toBe("yesterday");
+    expect(relativeDay("2026-01-05", "2026-01-08")).toBe("on Jan 5");
   });
 });
 
