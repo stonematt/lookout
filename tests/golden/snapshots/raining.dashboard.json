@@ -13853,7 +13853,10 @@
     "value": null,
     "unit": null,
     "percentile": null,
-    "event_start_ms": 1767909600000
+    "event_start_ms": 1767909600000,
+    "since_ms": 1767918420000,
+    "held": false,
+    "outside_usual": null
   },
   "widget_view": "rain_event",
   "record_depth": {

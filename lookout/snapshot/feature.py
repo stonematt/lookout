@@ -16,28 +16,48 @@ order, the first that holds is the feature:
    percentile of its readings at the newest observation's station-local
    hour, over the usual window for that date (`usual_window`, the ±7 days
    around it in every comparable earlier year). The readings and their
-   archive columns are `READINGS`. A reading's percentile is its percentile
+   archive columns are `READINGS`: temperature, humidity, pressure and
+   solar. Wind gust is not one (#533): it stays in the snapshot for the wind
+   tile but cannot win the feature. A reading's percentile is its percentile
    rank: the share of the usual readings below it, a reading equal to it
    counting half, times 100 (so a gauge that never moves sits at 50). The
    reading furthest from the 50th wins; on an exact tie the first in
    `READINGS` wins. The rule is decided on the exact percentile; the one
    published is rounded to a whole number, but never into the band (at
-   most `LOW` - 1 below it, at least `HIGH` + 1 above it). Skipped entirely unless the
-   window's basis is "earlier_years": a recent-days band is too thin to call
-   anything unusual. Skipped too unless the newest observation is fresh at
-   the build time (`lookout.utils.dateutc.is_fresh` against
+   most `LOW` - 1 below it, at least `HIGH` + 1 above it). Skipped entirely
+   unless the window's basis is "earlier_years": a recent-days band is too
+   thin to call anything unusual. Skipped too unless the newest observation
+   is fresh at the build time (`lookout.utils.dateutc.is_fresh` against
    `StationClock.now_ms`), so a silent station's last reading is never
    judged; the rule then falls through to dry spell, then quiet.
 3. **dry_spell**: the snapshot's `DrySpellNow`, `days_since_rain` longer
    than `usual_days`; it cannot hold while either is None.
 4. **quiet**: otherwise, temperature as a usual day.
 
+**The hold** (#533). A feature's subject is its kind, and for unusual its
+reading; `since_ms` is the build time of the build that first chose it.
+When the rule picks a different subject from the last published feature's,
+and that subject was chosen under `HOLD_HOURS` before the build time, the
+last subject is kept and marked `held`, unless the rule now picks rain,
+which takes over at once. Rain itself is never held: its rule's
+`RAIN_HOURS` after an event already is its hold. A held feature's values
+are recomputed this build: a held unusual reading carries its value and
+percentile as judged now (rounded plainly when back inside the band, with
+`outside_usual` False), and a held unusual reading that cannot be judged
+this build (no value, a stale observation, no earlier year, no usual
+readings at the hour) is not held: the rule's own pick stands. A last
+feature without `since_ms` (published before the hold) is no last feature.
+
 Functions:
 - feature(event_catalog, active, stitched, current, observed_at_ms, coverage,
-  dry, clock): The `Feature` for one snapshot.
+  dry, clock, previous): The `Feature` for one snapshot.
+- previous_feature(dashboard): The last published feature, from the last
+  published dashboard document, or None.
 """
 
-from typing import List, NamedTuple, Optional, Tuple
+from dataclasses import replace
+from datetime import date
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, get_args
 
 import numpy as np
 import pandas as pd
@@ -64,6 +84,9 @@ LOW = 10.0
 HIGH = 90.0
 """A reading above this percentile of its usual is unusual."""
 
+HOLD_HOURS = 3
+"""A subject chosen under this many hours ago is kept (#533)."""
+
 
 class Judged(NamedTuple):
     """
@@ -84,15 +107,33 @@ class Judged(NamedTuple):
 READINGS: Tuple[Judged, ...] = (
     Judged("temperature", "tempf", "temperature_f", "f"),
     Judged("humidity", "humidity", "humidity_pct", "pct"),
-    Judged("wind_gust", "windgustmph", "wind_gust_mph", "mph"),
     Judged("pressure", "baromrelin", "barometer_inhg", "inhg"),
     Judged("solar", "solarradiation", "solar_wm2", "wm2"),
 )
 """Every judged reading, in tie-break order: on an exact tie the first wins."""
 
 
-def _bare(kind: FeatureKind) -> Feature:
-    """A feature of `kind` without a reading or an event: dry spell, quiet."""
+class Judging(NamedTuple):
+    """
+    What the unusual rule judges against this build.
+
+    :param hour: The newest observation's station-local hour.
+    :param days: The usual window's days.
+    """
+
+    hour: int
+    days: Tuple[date, ...]
+
+
+def _bare(kind: FeatureKind, since_ms: int, held: bool) -> Feature:
+    """
+    A feature of `kind` without a reading or an event: dry spell, quiet.
+
+    :param kind: "dry_spell" or "quiet".
+    :param since_ms: When its subject was first chosen.
+    :param held: Whether the hold keeps it.
+    :return: The feature.
+    """
     return Feature(
         kind=kind,
         reading=None,
@@ -100,6 +141,9 @@ def _bare(kind: FeatureKind) -> Feature:
         unit=None,
         percentile=None,
         event_start_ms=None,
+        since_ms=since_ms,
+        held=held,
+        outside_usual=None,
     )
 
 
@@ -114,9 +158,9 @@ def _rain_feature(
     :param event_catalog: The Event Catalog, or None.
     :param active: The active rain event, or None.
     :param clock: The build's clock; the hours are counted to its `now`.
-    :return: The rain feature, naming the event the rule holds on (the live
-        event, else the newest ended one) by its `start_ms`; None when the
-        rule does not hold.
+    :return: The rain feature, chosen now, naming the event the rule holds
+        on (the live event, else the newest ended one) by its `start_ms`;
+        None when the rule does not hold.
     """
     if active is not None:
         start_ms: Optional[int] = active.start_ms
@@ -134,6 +178,9 @@ def _rain_feature(
         unit=None,
         percentile=None,
         event_start_ms=start_ms,
+        since_ms=clock.now_ms,
+        held=False,
+        outside_usual=None,
     )
 
 
@@ -150,37 +197,46 @@ def _percentile(value: float, usual: np.ndarray) -> float:
     return 100.0 * (below + equal / 2) / len(usual)
 
 
+def _outside(rank: float) -> bool:
+    """
+    Whether a percentile rank is outside the usual band.
+
+    :param rank: The exact percentile rank.
+    :return: True below `LOW` or above `HIGH`.
+    """
+    return rank < LOW or rank > HIGH
+
+
 def _published(rank: float) -> int:
     """
-    An unusual rank as published: whole, and still outside the band.
+    A percentile rank as published: whole, and on the side of the band it is.
 
-    :param rank: The exact percentile rank, below `LOW` or above `HIGH`.
-    :return: It rounded, kept below `LOW` or above `HIGH` (9.6 is 9, not 10).
+    :param rank: The exact percentile rank.
+    :return: It rounded; below `LOW` or above `HIGH` it is kept outside the
+        band (9.6 is 9, not 10), inside it it is rounded plainly.
     """
     whole = int(round(rank))
     if rank < LOW:
         return min(whole, int(LOW) - 1)
-    return max(whole, int(HIGH) + 1)
+    if rank > HIGH:
+        return max(whole, int(HIGH) + 1)
+    return whole
 
 
-def _unusual(
-    stitched: pd.DataFrame,
-    current: SnapshotConditions,
+def _judging(
     observed_at_ms: Optional[int],
     coverage: ArchiveCoverage,
     clock: StationClock,
-) -> Optional[Feature]:
+) -> Optional[Judging]:
     """
-    The unusual rule: the reading furthest outside its usual, if any is.
+    The hour and window the unusual rule judges against, when it applies.
 
-    :param stitched: `stitch_live` output.
-    :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
     :param coverage: The build's counted days.
     :param clock: The build's clock; the observation's age is counted to its
         `now`.
-    :return: The feature, or None when no reading is unusual or the rule is
-        skipped (no observation, a stale one, no earlier year).
+    :return: The judging; None when nothing can be judged this build (no
+        observation, a stale one, no earlier year).
     """
     if observed_at_ms is None or not is_fresh(observed_at_ms, clock.now_ms):
         return None
@@ -188,31 +244,83 @@ def _unusual(
     window = usual_window(coverage, observed.date())
     if window.basis != "earlier_years":
         return None
+    return Judging(hour=observed.hour, days=window.days)
+
+
+def _judge(
+    judged: Judged,
+    stitched: pd.DataFrame,
+    current: SnapshotConditions,
+    coverage: ArchiveCoverage,
+    judging: Judging,
+    since_ms: int,
+    held: bool,
+) -> Optional[Tuple[float, Feature]]:
+    """
+    One reading judged against its usual readings at the hour.
+
+    :param judged: The reading.
+    :param stitched: `stitch_live` output.
+    :param current: Current conditions, live stitched.
+    :param coverage: The build's counted days.
+    :param judging: The hour and window.
+    :param since_ms: When its subject was first chosen.
+    :param held: Whether the hold keeps it.
+    :return: Its exact percentile rank and its unusual feature; None when it
+        has no current value or no usual readings at the hour.
+    """
+    value = getattr(current, judged.field)
+    if value is None:
+        return None
+    usual = usual_readings(stitched, coverage.tz, judging.days, judged.column)
+    at_hour = usual[judging.hour]
+    if len(at_hour) == 0:
+        return None
+    rank = _percentile(float(value), at_hour)
+    return (
+        rank,
+        Feature(
+            kind="unusual",
+            reading=judged.reading,
+            value=value,
+            unit=judged.unit,
+            percentile=_published(rank),
+            event_start_ms=None,
+            since_ms=since_ms,
+            held=held,
+            outside_usual=_outside(rank),
+        ),
+    )
+
+
+def _unusual(
+    stitched: pd.DataFrame,
+    current: SnapshotConditions,
+    coverage: ArchiveCoverage,
+    judging: Optional[Judging],
+    clock: StationClock,
+) -> Optional[Feature]:
+    """
+    The unusual rule: the reading furthest outside its usual, if any is.
+
+    :param stitched: `stitch_live` output.
+    :param current: Current conditions, live stitched.
+    :param coverage: The build's counted days.
+    :param judging: The hour and window, or None when the rule is skipped.
+    :param clock: The build's clock; a feature it picks is chosen now.
+    :return: The feature, or None when no reading is unusual or the rule is
+        skipped.
+    """
+    if judging is None:
+        return None
     found: List[Tuple[float, Feature]] = []
     for judged in READINGS:
-        value = getattr(current, judged.field)
-        if value is None:
-            continue
-        usual = usual_readings(stitched, coverage.tz, window.days, judged.column)
-        at_hour = usual[observed.hour]
-        if len(at_hour) == 0:
-            continue
-        rank = _percentile(float(value), at_hour)
-        if LOW <= rank <= HIGH:
-            continue
-        found.append(
-            (
-                abs(rank - 50.0),
-                Feature(
-                    kind="unusual",
-                    reading=judged.reading,
-                    value=value,
-                    unit=judged.unit,
-                    percentile=_published(rank),
-                    event_start_ms=None,
-                ),
-            )
+        result = _judge(
+            judged, stitched, current, coverage, judging, clock.now_ms, False
         )
+        if result is None or not _outside(result[0]):
+            continue
+        found.append((abs(result[0] - 50.0), result[1]))
     if not found:
         return None
     # `max` keeps the first of equals, so a tie goes to the earlier reading.
@@ -231,6 +339,47 @@ def _dry_spell(dry: DrySpellNow) -> bool:
     return dry.days_since_rain > dry.usual_days
 
 
+def _subject(picked: Feature) -> Tuple[str, Optional[str]]:
+    """
+    A feature's subject: its kind, and for unusual its reading.
+
+    :param picked: The feature.
+    :return: (kind, reading).
+    """
+    return (picked.kind, picked.reading)
+
+
+def _held(
+    previous: Feature,
+    stitched: pd.DataFrame,
+    current: SnapshotConditions,
+    coverage: ArchiveCoverage,
+    judging: Optional[Judging],
+) -> Optional[Feature]:
+    """
+    The last subject, kept by the hold, with this build's values.
+
+    :param previous: The last published feature.
+    :param stitched: `stitch_live` output.
+    :param current: Current conditions, live stitched.
+    :param coverage: The build's counted days.
+    :param judging: The unusual rule's hour and window, or None.
+    :return: The held feature; None when the subject cannot be held: rain,
+        or an unusual reading that cannot be judged this build.
+    """
+    if previous.kind in ("dry_spell", "quiet"):
+        return _bare(previous.kind, previous.since_ms, True)
+    if previous.kind != "unusual" or judging is None:
+        return None
+    for judged in READINGS:
+        if judged.reading == previous.reading:
+            result = _judge(
+                judged, stitched, current, coverage, judging, previous.since_ms, True
+            )
+            return None if result is None else result[1]
+    return None
+
+
 def feature(
     event_catalog: Optional[pd.DataFrame],
     active: Optional[ActiveRainEvent],
@@ -240,9 +389,10 @@ def feature(
     coverage: ArchiveCoverage,
     dry: DrySpellNow,
     clock: StationClock,
+    previous: Optional[Feature] = None,
 ) -> Feature:
     """
-    Pick the feature by the Feature Rule.
+    Pick the feature by the Feature Rule, then apply the hold.
 
     :param event_catalog: The Event Catalog, or None.
     :param active: The active rain event, or None.
@@ -251,15 +401,59 @@ def feature(
     :param observed_at_ms: The newest observation, or None.
     :param coverage: The build's counted days.
     :param dry: The snapshot's dry spell field, computed once in the build.
-    :param clock: The build's clock.
+    :param clock: The build's clock; the hold counts to its `now`.
+    :param previous: The last published feature (`previous_feature`), or
+        None: no hold.
     :return: The feature.
     """
-    rain = _rain_feature(event_catalog, active, clock)
-    if rain is not None:
-        return rain
-    unusual = _unusual(stitched, current, observed_at_ms, coverage, clock)
-    if unusual is not None:
-        return unusual
-    if _dry_spell(dry):
-        return _bare("dry_spell")
-    return _bare("quiet")
+    judging = _judging(observed_at_ms, coverage, clock)
+    picked = _rain_feature(event_catalog, active, clock)
+    if picked is None:
+        picked = _unusual(stitched, current, coverage, judging, clock)
+    if picked is None:
+        kind: FeatureKind = "dry_spell" if _dry_spell(dry) else "quiet"
+        picked = _bare(kind, clock.now_ms, False)
+    if previous is None:
+        return picked
+    if _subject(picked) == _subject(previous):
+        return replace(picked, since_ms=previous.since_ms)
+    if picked.kind == "rain" or clock.now_ms - previous.since_ms >= (
+        HOLD_HOURS * HOUR_MS
+    ):
+        return picked
+    held = _held(previous, stitched, current, coverage, judging)
+    return picked if held is None else held
+
+
+def previous_feature(dashboard: Optional[Dict[str, Any]]) -> Optional[Feature]:
+    """
+    The last published feature, as the hold reads it.
+
+    :param dashboard: The last published dashboard document
+        (`Snapshot.dashboard()`), or None when there is none.
+    :return: Its feature; None when there is no document, it has no feature,
+        or its feature has no `since_ms` (published before the hold) or a
+        kind or reading this rule does not know. None means no hold.
+    """
+    published = (dashboard or {}).get("feature")
+    if not isinstance(published, dict):
+        return None
+    since_ms = published.get("since_ms")
+    if not isinstance(since_ms, int) or isinstance(since_ms, bool):
+        return None
+    if published.get("kind") not in get_args(FeatureKind):
+        return None
+    reading = published.get("reading")
+    if reading is not None and reading not in [j.reading for j in READINGS]:
+        return None
+    return Feature(
+        kind=published["kind"],
+        reading=reading,
+        value=published.get("value"),
+        unit=published.get("unit"),
+        percentile=published.get("percentile"),
+        event_start_ms=published.get("event_start_ms"),
+        since_ms=since_ms,
+        held=bool(published.get("held")),
+        outside_usual=published.get("outside_usual"),
+    )
