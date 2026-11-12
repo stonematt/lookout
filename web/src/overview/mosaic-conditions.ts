@@ -103,9 +103,10 @@ function windChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   // The wind blows toward the point opposite where it comes from.
   const to = ((from + 180) * Math.PI) / 180;
   const [dx, dy] = [Math.sin(to), -Math.cos(to)];
-  const head = [cx + dx * (r - 6), cy + dy * (r - 6)] as const;
-  const tail = [cx - dx * (r - 10), cy - dy * (r - 10)] as const;
-  const base = [cx + dx * (r - 16), cy + dy * (r - 16)] as const;
+  // The head stops short of the rim, clear of the N.
+  const head = [cx + dx * (r - 15), cy + dy * (r - 15)] as const;
+  const tail = [cx - dx * (r - 12), cy - dy * (r - 12)] as const;
+  const base = [cx + dx * (r - 24), cy + dy * (r - 24)] as const;
   const [px, py] = [-dy * 5, dx * 5];
   svg.append(
     svgEl("line", { class: "mosaic-arrow", x1: tail[0], y1: tail[1], x2: base[0], y2: base[1] }),
