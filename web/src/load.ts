@@ -28,7 +28,7 @@ const LANE_PASSED_ON = ["fixture", "age"] as const;
 /**
  * The URL of a read function, carrying the page's passed-on parameters.
  *
- * @param path - "/dashboard", "/current", "/event" or "/stations" (which is
+ * @param path - "/dashboard", "/current", "/event", "/status" or "/stations" (which is
  *   not passed `station`).
  * @param pageSearch - The page's `location.search`.
  * @param own - The call's own parameters, e.g. `/event`'s `start`.
@@ -36,7 +36,7 @@ const LANE_PASSED_ON = ["fixture", "age"] as const;
  * @returns The path with its query.
  */
 export function readUrl(
-  path: "/dashboard" | "/current" | "/event" | "/stations",
+  path: "/dashboard" | "/current" | "/event" | "/status" | "/stations",
   pageSearch: string,
   own: Record<string, string> = {},
   laneServer: boolean = LANE_SERVER,

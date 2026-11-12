@@ -16,7 +16,12 @@
  * chosen `?station=` to the URL (a new history entry, so Back returns to the
  * last station) and reads `/current` again.
  *
- * Offers `renderDump`, `renderTree` and `stationPicker`.
+ * The header also sets the site's release (version and SHA, baked in at
+ * build) beside the refresh run's, read from the station's `/status`, and
+ * says when they differ, so a site and a refresh run on different code show
+ * it (#536).
+ *
+ * Offers `renderDump`, `renderRelease`, `renderTree` and `stationPicker`.
  */
 import "@fontsource-variable/lexend/wght.css";
 import "./styles/tokens.css";
@@ -27,6 +32,7 @@ import "./styles/debug.css";
 import { make } from "./dom.js";
 import { mountLayout } from "./layout.js";
 import { READ_TIMEOUT_MS, fetchStations, readUrl } from "./load.js";
+import { SITE_RELEASE, type SiteRelease } from "./release.js";
 import type { StationIndex } from "./stations.js";
 import { applyThemeOverride } from "./theme.js";
 
@@ -217,6 +223,55 @@ export function renderDump(
   return [header, grid];
 }
 
+/**
+ * The refresh run's release from a `/status` body: its `version` and `sha`
+ * (null when the run could not tell); null when the body is not a status
+ * document.
+ */
+function runRelease(statusText: string | null): { version: string; sha: string | null } | null {
+  let doc: unknown;
+  try {
+    doc = statusText === null ? null : JSON.parse(statusText);
+  } catch {
+    return null;
+  }
+  if (!isObject(doc) || doc.kind !== "status" || typeof doc.version !== "string") return null;
+  return { version: doc.version, sha: typeof doc.sha === "string" ? doc.sha : null };
+}
+
+/**
+ * The header line setting the site's release beside the refresh run's.
+ *
+ * They differ when the versions do, or when both SHAs are known (the site's
+ * is not "local") and the run's does not start with the site's.
+ *
+ * @param statusText - The station's `/status` body; null when it could not
+ *   be read.
+ * @param site - The site's release; this build's by default.
+ * @returns The line; `data-match` is "true", "false", or "unknown" when the
+ *   run's release could not be read.
+ */
+export function renderRelease(
+  statusText: string | null,
+  site: SiteRelease = SITE_RELEASE,
+): HTMLElement {
+  const run = runRelease(statusText);
+  const line = make("p", "masthead-line debug-release");
+  line.append(make("span", "debug-release-site", `Site ${site.version} · ${site.sha}`));
+  if (!run) {
+    line.append(make("span", "debug-release-run", "Refresh run unknown"));
+    line.dataset.match = "unknown";
+    return line;
+  }
+  const runSha = run.sha?.slice(0, 7) ?? "unknown";
+  line.append(make("span", "debug-release-run", `Refresh run ${run.version} · ${runSha}`));
+  const shaDiffers = site.sha !== "local" && run.sha !== null && !run.sha.startsWith(site.sha);
+  const match = run.version === site.version && !shaDiffers;
+  if (!match) line.append(make("span", "debug-release-differs", "differ"));
+  line.dataset.match = String(match);
+  return line;
+}
+
 /** A block's place among the tiles: `LEAD_BLOCKS` first, the rest after. */
 function rank(key: string): number {
   const at = LEAD_BLOCKS.indexOf(key);
@@ -230,6 +285,7 @@ let index: Promise<StationIndex | null> | null = null;
 async function show(root: HTMLElement): Promise<void> {
   index ??= fetchStations(location.search).catch(() => null);
   const url = readUrl("/current", location.search);
+  const runStatus = readStatus(readUrl("/status", location.search));
   let status = 0;
   let text: string;
   try {
@@ -243,9 +299,25 @@ async function show(root: HTMLElement): Promise<void> {
     text = `GET ${url} failed: ${String(error)}`;
   }
   const stations = await index;
+  const statusText = await runStatus;
   // A later choice already started over: drop this answer.
   if (url !== readUrl("/current", location.search)) return;
-  root.replaceChildren(...renderDump(url, status, text, stations, (mac) => choose(root, mac)));
+  const [header, grid] = renderDump(url, status, text, stations, (mac) => choose(root, mac));
+  header!.append(renderRelease(statusText));
+  root.replaceChildren(header!, grid!);
+}
+
+/** A `/status` body, or null when the read fails or answers non-2xx. */
+async function readStatus(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+    });
+    return response.ok ? await response.text() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A visitor chose a station: put it in the URL (Back returns) and show it. */
