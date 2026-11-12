@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 /**
  * The Overview as tiles (#334), through `startPage` on the goldens: each
- * tile opens with its kicker and finding, folds its source and "Why this
- * leads", carries a hatched chip only when a gap hides part of its chart
+ * tile opens with its kicker and finding, folds its source (the feature
+ * tile, one link, folds nothing), carries a hatched chip only when a gap hides part of its chart
  * (never the archive lag on the Overview, #458), and states every number in
  * the live value.
  */
@@ -12,7 +12,6 @@ import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
-import { heroGaps } from "../src/overview/hero.js";
 import { archiveLagMs, gapReasons, lagCaveat, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
 import { SCENARIOS, golden, twoStations } from "./golden.js";
@@ -77,7 +76,7 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
 
     expect(tiles.map((t) => t.dataset.section)).toEqual([
       "first-screen",
-      "hero-lead",
+      "feature",
       "temperature-periods",
       "against-normal",
       "ten-days",
@@ -89,6 +88,14 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       "sun-moon",
     ]);
     for (const tile of tiles) {
+      if (tile.dataset.section === "feature") {
+        // The feature tile is one link holding its kicker first, then its finding.
+        const link = tile.querySelector("a")!;
+        expect([...tile.children]).toEqual([link]);
+        expect(link.querySelector("[data-part]")!.getAttribute("data-part")).toBe("kicker");
+        expect(words(link.querySelector("[data-part=finding]"))).not.toBe("");
+        continue;
+      }
       const [first, second] = [...tile.children];
       // A quick-fact tile's kicker sits over its one value (DESIGN.md "Quick-fact tiles").
       const next = tile.dataset.fact ? "fact" : "finding";
@@ -107,7 +114,11 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     for (const tile of panel.querySelectorAll<HTMLElement>(".tile[data-fact]")) {
       expect(tile.querySelector("details"), tile.dataset.section).toBeNull();
     }
-    for (const tile of panel.querySelectorAll<HTMLElement>(".tile:not([data-fact])")) {
+    // The feature tile is one link, which holds no disclosure.
+    expect(panel.querySelector("[data-section=feature] details")).toBeNull();
+    for (const tile of panel.querySelectorAll<HTMLElement>(
+      ".tile:not([data-fact]):not([data-section=feature])",
+    )) {
       const notes = tile.querySelectorAll<HTMLDetailsElement>("details[data-part=source-note]");
       expect(notes.length, tile.dataset.section).toBe(1);
       const note = notes[0]!;
@@ -118,27 +129,6 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       expect(method.closest("details")).toBe(note);
       expect(words(method)!.length).toBeGreaterThan(40);
     }
-  });
-
-  it('folds "Why this leads" closed, listing every rule with its live value', async () => {
-    const snapshot = parsed(scenario);
-    const panel = await boot(snapshot);
-    const why = panel.querySelector<HTMLDetailsElement>(
-      "[data-section=hero-lead] details[data-part=why]",
-    )!;
-
-    expect(why.open).toBe(false);
-    expect(words(why.querySelector("summary"))).toBe("Why this leads");
-    const rules = [...why.querySelectorAll("li")];
-    expect(rules.map((li) => li.dataset.rule)).toEqual(snapshot.hero_lead.rules.map((r) => r.kind));
-    for (const li of rules) expect(words(li)).toMatch(/\d/);
-    // "Why this leads" comes before the source note, both at the tile's foot.
-    const folds = why.parentElement!;
-    expect(folds.className).toBe("tile-folds");
-    expect([...folds.children].map((el) => el.getAttribute("data-part"))).toEqual([
-      "why",
-      "source-note",
-    ]);
   });
 
   it("holds the temperature, then today against the usual band, in the now tile", async () => {
@@ -154,11 +144,11 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     ).toBeTruthy();
   });
 
-  it("marks the now and leading tiles as the phone's fixed top, and no other", async () => {
+  it("marks the now and feature tiles as the phone's fixed top, and no other", async () => {
     const panel = await boot(parsed(scenario));
     const top = [...panel.querySelectorAll<HTMLElement>(".tile[data-phone-top]")];
 
-    expect(top.map((t) => t.dataset.section)).toEqual(["first-screen", "hero-lead"]);
+    expect(top.map((t) => t.dataset.section)).toEqual(["first-screen", "feature"]);
   });
 
   it("states findings in the live value, never the archive (story 54)", async () => {
@@ -280,21 +270,6 @@ describe("the chip's conditions at their edges", () => {
     expect(at(15 * 60_000)).toBeNull();
     expect(at(15 * 60_000 + 60_000)).toBe("archive 16 m behind");
     expect(lagCaveat({ ...snapshot, archive_newest_ms: null })).toBeNull();
-  });
-
-  it("names a lead whose usual band has no comparison set", async () => {
-    const raining = level(parsed("raining"));
-    expect(heroGaps(raining)).toBeNull();
-    const bare = structuredClone(raining);
-    bare.hero_lead = { ...bare.hero_lead, usual_low: null, usual_median: null, usual_high: null };
-    expect(heroGaps(bare)).toBe("usual range not compared");
-
-    const panel = await boot(bare);
-    expect(chips(panel)["hero-lead"]).toEqual(["usual range not compared"]);
-  });
-
-  it("names the calm lead's usual dry spell when it is not compared", () => {
-    expect(heroGaps(parsed("dry"))).toBe("usual dry spell not compared");
   });
 });
 

@@ -3,7 +3,7 @@
  * "Source note", "Layout", spec #332).
  *
  * A tile runs kicker, finding, standfirst, chart or stats, then its folded
- * lines: "Why this leads" where a tile has one, then "Source". This module
+ * lines, ending with "Source". This module
  * offers the parts and the grid they sit in:
  *
  * - `TileSection`: what a tab declares per section, in its registry: its id,
@@ -58,7 +58,7 @@ export interface TileSection {
   label: string;
   /**
    * The tile's subject, sentence case, shown above its finding: fixed, or
-   * read from the snapshot (the leading tile names what leads).
+   * read from the snapshot (the feature tile names its feature).
    */
   kicker: string | ((snapshot: DashboardSnapshot) => string);
   /**
@@ -88,8 +88,6 @@ export interface TileSection {
    * readers only, as the temperature beside its condition is its finding.
    */
   now?: boolean;
-  /** The leading tile: its kicker carries the leading-tile `now` dot. */
-  leading?: boolean;
   /**
    * The tile's finding as words, for a tab that names its tiles by their
    * findings (`TileOptions.nameByFinding`): for a tile whose finding is not
@@ -128,12 +126,6 @@ function renderKicker(
   const node = document.createElement(section.now ? "h2" : tag);
   node.className = section.now ? "tile-kicker ov-sr" : "tile-kicker";
   node.dataset.part = "kicker";
-  if (section.leading) {
-    const dot = document.createElement("span");
-    dot.className = "tile-lead-dot";
-    dot.setAttribute("aria-hidden", "true");
-    node.append(dot);
-  }
   node.append(kickerText(section, snapshot));
   return node;
 }
@@ -304,7 +296,7 @@ export function renderTiles(
  * A tile's finding: what the data shows, with the number in it.
  *
  * @param text - The finding the section composes.
- * @param options - `lead`: the leading tile's or a tab's top finding, in
+ * @param options - `lead`: the feature tile's or a tab's top finding, in
  *   Finding, lead type.
  * @returns The `h2`.
  */
@@ -474,7 +466,7 @@ export function gapReasons(counts: readonly [number, string, string][]): string 
  * The folded lines at a tile's foot, in a group pushed to the tile's
  * bottom edge so tiles in a row line their source notes up.
  *
- * @param folds - "Why this leads", then "Source".
+ * @param folds - The folds, "Source" last.
  * @returns The group.
  */
 export function tileFolds(...folds: readonly HTMLElement[]): HTMLElement {

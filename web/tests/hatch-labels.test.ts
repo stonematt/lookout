@@ -2,8 +2,7 @@
 /**
  * Chart text over a hatch sits on a pill (#372, DESIGN.md Shapes: "Text
  * never sits on the stripes"). Through `startPage` on the goldens: every
- * reason over a hatched span, the hero's live-span label and the now
- * labels that can land on a hatch draw on a `pillLabel` pill of the
+ * reason over a hatched span and the now labels that can land on a hatch draw on a `pillLabel` pill of the
  * surface, 4px past the text; the periods chart draws its reasons after
  * the now rule, so the rule never crosses them; the ten-day list's day
  * names end clear of the hatch. The Rain events charts (Plotly) give each
@@ -154,22 +153,6 @@ describe("the dry golden's solar daily bars", () => {
         ).toBeTruthy();
       }
     }
-  });
-});
-
-describe("the raining golden's lead chart", () => {
-  it("puts the live-span label and the now label on pills", async () => {
-    await boot("raining", "overview");
-    const labels = texts(document.getElementById("panel-overview")!);
-    const live = labels.find((t) =>
-      /^only the live (total|reading) is known$/.test(t.textContent!),
-    );
-    const now = labels.find((t) => t.classList.contains("hero-note"));
-
-    expect(live).toBeDefined();
-    expect(now).toBeDefined();
-    expectPadded(live!, pillOf(live!));
-    pillOf(now!);
   });
 });
 

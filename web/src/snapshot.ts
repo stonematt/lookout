@@ -716,6 +716,17 @@ export interface DashboardSnapshot extends SnapshotHead {
    * none to show (ADR-0008).
    */
   battery_flags?: BatteryFlag[];
+  /**
+   * What the Overview's feature tile shows, by the Feature Rule (ADR-0009).
+   * Absent from snapshots published before Release A; the site then draws
+   * no feature tile (ADR-0008).
+   */
+  feature?: Feature;
+  /**
+   * The current dry spell against the usual one. Absent from snapshots
+   * published before Release A.
+   */
+  dry_spell?: DrySpellNow;
 }
 
 /** One sensor's battery: its Ambient column, the name printed, and whether it reads low. */
@@ -859,6 +870,8 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkSunMoon(sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
   checkBatteryFlags(head.battery_flags);
+  checkFeature(head.feature);
+  checkDrySpell(head.dry_spell);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1075,6 +1088,87 @@ function checkUsualBand(band: unknown): void {
     !Number.isInteger(band.days)
   ) {
     throw new SnapshotContractError("dashboard: temperature_context.usual_band malformed");
+  }
+}
+
+// ---------- the feature (#464, drawn by the Overview's feature tile, #469) ----------
+
+/** The Feature Rule's rules, in order (ADR-0009, `Feature` in model.py). */
+export type FeatureKind = "rain" | "unusual" | "dry_spell" | "quiet";
+
+/** The readings the unusual rule judges. */
+export type FeatureReading = "temperature" | "humidity" | "wind_gust" | "pressure" | "solar";
+
+/** The unit of an unusual reading's value. */
+export type FeatureUnit = "f" | "pct" | "mph" | "inhg" | "wm2";
+
+/**
+ * The feature: the first rule of the Feature Rule that holds. Only
+ * "unusual" carries a reading; every other kind has its four fields null.
+ */
+export interface Feature {
+  kind: FeatureKind;
+  /** For "unusual", the reading furthest out; else null. */
+  reading: FeatureReading | null;
+  /** For "unusual", its current value in `unit`; else null. */
+  value: number | null;
+  unit: FeatureUnit | null;
+  /**
+   * For "unusual", the share of its usual readings at this hour below it
+   * (an equal one counting half), 0 to 100, always outside 10 to 90.
+   */
+  percentile: number | null;
+}
+
+/** The current dry spell against the usual dry spell (`DrySpellNow`). */
+export interface DrySpellNow {
+  /** Days since it last rained; null without a reading or a last rain. */
+  days_since_rain: number | null;
+  /** The usual dry spell in days; null when the 365 days are not comparable. */
+  usual_days: number | null;
+}
+
+const FEATURE_KINDS: readonly string[] = ["rain", "unusual", "dry_spell", "quiet"];
+const FEATURE_READINGS: readonly string[] = [
+  "temperature",
+  "humidity",
+  "wind_gust",
+  "pressure",
+  "solar",
+];
+const FEATURE_UNITS: readonly string[] = ["f", "pct", "mph", "inhg", "wm2"];
+
+/**
+ * Check `feature`: absent (a snapshot written before Release A) is fine,
+ * and the Overview draws no feature tile; present, it must name its kind,
+ * and an "unusual" one its reading, value, unit and percentile.
+ */
+function checkFeature(feature: unknown): void {
+  if (feature === undefined) return;
+  const ok =
+    isRecord(feature) &&
+    FEATURE_KINDS.includes(feature.kind as string) &&
+    (feature.kind === "unusual"
+      ? FEATURE_READINGS.includes(feature.reading as string) &&
+        typeof feature.value === "number" &&
+        FEATURE_UNITS.includes(feature.unit as string) &&
+        typeof feature.percentile === "number"
+      : feature.reading === null &&
+        feature.value === null &&
+        feature.unit === null &&
+        feature.percentile === null);
+  if (!ok) throw new SnapshotContractError("dashboard: feature malformed");
+}
+
+/** `dry_spell` may be absent (N−1); present, it holds two numbers or nulls. */
+function checkDrySpell(spell: unknown): void {
+  if (spell === undefined) return;
+  if (
+    !isRecord(spell) ||
+    !isValueOrNull(spell.days_since_rain) ||
+    !isValueOrNull(spell.usual_days)
+  ) {
+    throw new SnapshotContractError("dashboard: dry_spell malformed");
   }
 }
 

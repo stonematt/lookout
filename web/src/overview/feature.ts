@@ -1,0 +1,340 @@
+/**
+ * The feature tile (#469, spec #460 stories 10–17, 52–53): one tile under
+ * the now tile showing the snapshot's `feature`, picked by the Feature Rule
+ * in Python (ADR-0009): the rain event, the unusual reading with its
+ * percentile, the long dry spell, or a usual day. It replaces "What leads
+ * right now" and the browser rules that went with it.
+ *
+ * The tile is one link: kicker, value and finding all sit inside it, and its
+ * accessible name is the finding, then where it goes. Release B1 has no
+ * zooms (B2 builds `#overview/<tile>`), so the link goes where the evidence
+ * is today: the Rain Events tab for rain, the Rain tab for a dry spell, the
+ * Solar tab for unusual sun, and otherwise the Overview tile carrying the
+ * reading (`#overview-<section>`, opened if it is a closed finding row).
+ *
+ * Every value is the snapshot's: this module words, formats and links; it
+ * does not pick, rank or compare.
+ *
+ * Offers `featureView` (the tile's words and link, for a snapshot that
+ * carries a feature) and `featureTile` (the Overview section).
+ */
+import "./feature.css";
+
+import {
+  degrees,
+  formatDaysSpoken,
+  formatDayCount,
+  formatDuration,
+  formatDurationSpoken,
+  hourName,
+  inches,
+  inHg,
+  mph,
+  percent,
+} from "../format.js";
+import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
+import { tileFinding } from "../tiles.js";
+import type { OverviewSection } from "./index.js";
+
+/** Where the tile's link goes, and the words that say so. */
+interface Target {
+  href: string;
+  /** E.g. "Open the Rain tab", the end of the link's name. */
+  words: string;
+}
+
+/** What the feature tile shows. */
+export interface FeatureView {
+  kind: Feature["kind"];
+  kicker: string;
+  /** The value's number and its unit (null when the number carries it). */
+  value: [string, string | null] | null;
+  /** The finding beside the value. */
+  finding: string;
+  /** The finding as one sentence, value included: the tile's name. */
+  name: string;
+  /** Whether a rain event is live: the kicker carries the rain dot. */
+  live: boolean;
+  target: Target;
+}
+
+const RAIN_EVENTS: Target = { href: "#events", words: "Open the Rain Events tab" };
+const RAIN: Target = { href: "#rain", words: "Open the Rain tab" };
+const AGAINST: Target = {
+  href: "#overview-against-normal",
+  words: "Go to Now against this date",
+};
+
+/** Per reading: its name, the two comparatives, its Overview target. */
+const READINGS: Record<
+  FeatureReading,
+  { name: string; high: string; low: string; target: Target }
+> = {
+  temperature: { name: "temperature", high: "warmer", low: "cooler", target: AGAINST },
+  humidity: {
+    name: "humidity",
+    high: "more humid",
+    low: "drier",
+    target: { href: "#overview-air", words: "Go to Air" },
+  },
+  wind_gust: {
+    name: "wind gust",
+    high: "gustier",
+    low: "calmer",
+    target: { href: "#overview-wind", words: "Go to Wind" },
+  },
+  pressure: {
+    name: "pressure",
+    high: "higher",
+    low: "lower",
+    target: { href: "#overview-pressure", words: "Go to Pressure" },
+  },
+  solar: {
+    name: "sun",
+    high: "brighter",
+    low: "duller",
+    target: { href: "#solar", words: "Open the Solar tab" },
+  },
+};
+
+const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** A value as written in a sentence: "0.30 in", "72°". */
+const spoken = (value: [string, string | null]) =>
+  value[1] === null ? value[0] : `${value[0]} ${value[1]}`;
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st, 100th. */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
+}
+
+/** An unusual reading's value, number and unit apart. */
+function readingValue(feature: Feature, value: number): [string, string | null] {
+  switch (feature.unit) {
+    case "pct":
+      return [percent(value), null];
+    case "mph":
+      return [mph(value, { unit: false }), "mph"];
+    case "inhg":
+      return [inHg(value), "inHg"];
+    case "wm2":
+      return [String(Math.round(value)), "W/m²"];
+    default:
+      return [degrees(value), null];
+  }
+}
+
+/** The usual event, as the end of a rain finding: ", against 0.42 in for a usual event". */
+function againstUsualEvent(snapshot: DashboardSnapshot): string {
+  const median = snapshot.rain_events.all_time.median_in;
+  return median === null ? "" : `, against ${inches(median, { digits: 2 })} for a usual event`;
+}
+
+function rainView(snapshot: DashboardSnapshot): FeatureView {
+  const usual = againstUsualEvent(snapshot);
+  const active = snapshot.active_rain_event;
+  if (active) {
+    const value: [string, string] = [inches(active.total_in, { digits: 2, unit: false }), "in"];
+    const finding = `so far${usual}`;
+    return {
+      kind: "rain",
+      kicker: `Raining now · ${formatDuration(active.duration_minutes * 60_000)}`,
+      value,
+      finding,
+      name: `Raining now: ${spoken(value)} ${finding}`,
+      live: true,
+      target: RAIN_EVENTS,
+    };
+  }
+  // The rule held on an event that ended: the catalog's newest (newest first).
+  const event = snapshot.rain_events.events.find((row) => !row.live);
+  if (!event) {
+    return {
+      kind: "rain",
+      kicker: "Rain",
+      value: null,
+      finding: "Rain in the last 12 hours",
+      name: "Rain in the last 12 hours",
+      live: false,
+      target: RAIN_EVENTS,
+    };
+  }
+  const ago = Math.max(0, snapshot.built_at_ms - event.end_ms);
+  const value: [string, string] = [inches(event.total_in, { digits: 2, unit: false }), "in"];
+  const finding = `over ${formatDuration(event.duration_minutes * 60_000)}${usual}`;
+  return {
+    kind: "rain",
+    kicker: `Rain ended ${formatDuration(ago)} ago`,
+    value,
+    finding,
+    name: `Rain ended ${formatDurationSpoken(ago)} ago, after ${spoken(value)}${usual}`,
+    live: false,
+    target: RAIN_EVENTS,
+  };
+}
+
+function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView {
+  const reading = READINGS[feature.reading ?? "temperature"];
+  const percentile = feature.percentile ?? 50;
+  const value = readingValue(feature, feature.value ?? 0);
+  const hour = hourName(snapshot.observed_at_ms ?? snapshot.built_at_ms);
+  const finding =
+    `${percentile > 50 ? reading.high : reading.low} than usual for ${hour}: ` +
+    `the ${ordinal(percentile)} percentile around this date in earlier years`;
+  return {
+    kind: "unusual",
+    kicker: `Unusual · ${reading.name}`,
+    value,
+    finding,
+    name: `${upperFirst(reading.name)} ${spoken(value)}, ${finding}`,
+    live: false,
+    target: reading.target,
+  };
+}
+
+function drySpellView(snapshot: DashboardSnapshot): FeatureView {
+  const days = snapshot.dry_spell?.days_since_rain ?? null;
+  const usualDays = snapshot.dry_spell?.usual_days ?? null;
+  const usual =
+    usualDays === null ? "" : `, against a usual dry spell of ${formatDayCount(usualDays)}`;
+  if (days === null) {
+    const finding = "No last rain on record";
+    return {
+      kind: "dry_spell",
+      kicker: "Dry spell",
+      value: null,
+      finding,
+      name: finding,
+      live: false,
+      target: RAIN,
+    };
+  }
+  // The value is the spoken duration's number, so the tile and its name (and
+  // the Rain tab's finding) say one number: "about 39 hours" shows "39 hours".
+  const said = formatDaysSpoken(days);
+  const parts = said.replace(/^about /, "").split(" ");
+  const finding = `since it last rained${usual}`;
+  return {
+    kind: "dry_spell",
+    kicker: "Dry spell",
+    value: parts.length === 2 ? [parts[0]!, parts[1]!] : [said, null],
+    finding,
+    name: `${upperFirst(said)} ${finding}`,
+    live: false,
+    target: RAIN,
+  };
+}
+
+function quietView(snapshot: DashboardSnapshot): FeatureView {
+  const t = snapshot.current.temperature_f;
+  const value: [string, null] | null = t === null ? null : [degrees(t), null];
+  return {
+    kind: "quiet",
+    kicker: "Today",
+    value,
+    finding: "a usual day",
+    name: value === null ? "A usual day" : `A usual day, ${spoken(value)} now`,
+    live: false,
+    target: AGAINST,
+  };
+}
+
+/**
+ * What the feature tile shows for a snapshot.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The tile's words and link; null when the snapshot carries no
+ *   feature (one published before Release A).
+ */
+export function featureView(snapshot: DashboardSnapshot): FeatureView | null {
+  const feature = snapshot.feature;
+  if (!feature) return null;
+  switch (feature.kind) {
+    case "rain":
+      return rainView(snapshot);
+    case "unusual":
+      return unusualView(snapshot, feature);
+    case "dry_spell":
+      return drySpellView(snapshot);
+    case "quiet":
+      return quietView(snapshot);
+  }
+}
+
+/** Open the Overview finding row an in-page link points to, if it is one. */
+function openTarget(href: string): void {
+  if (!href.startsWith("#overview-")) return;
+  const target = document.getElementById(href.slice(1));
+  if (target instanceof HTMLDetailsElement) target.open = true;
+}
+
+function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
+  const view = featureView(snapshot);
+  if (!view) return;
+  host.dataset.kind = view.kind;
+
+  const link = document.createElement("a");
+  link.className = "feature-link";
+  link.href = view.target.href;
+  link.setAttribute("aria-label", `${view.name}. ${view.target.words}.`);
+  link.addEventListener("click", () => openTarget(view.target.href));
+
+  // The kicker renderTiles put first moves into the link, with the chevron.
+  const kicker = host.querySelector<HTMLElement>(":scope > [data-part=kicker]");
+  const top = document.createElement("div");
+  top.className = "feature-top";
+  if (kicker) {
+    if (view.live) {
+      const dot = document.createElement("span");
+      dot.className = "feature-live-dot";
+      dot.dataset.part = "live";
+      dot.setAttribute("aria-hidden", "true");
+      kicker.prepend(dot);
+    }
+    top.append(kicker);
+  }
+  const chevron = document.createElement("span");
+  chevron.className = "feature-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  top.append(chevron);
+
+  const body = document.createElement("div");
+  body.className = "feature-body";
+  if (view.value) {
+    const value = document.createElement("p");
+    value.className = "feature-value";
+    value.dataset.part = "value";
+    const number = document.createElement("span");
+    number.className = "feature-number";
+    number.textContent = view.value[0];
+    value.append(number);
+    if (view.value[1] !== null) {
+      const unit = document.createElement("span");
+      unit.className = "feature-unit";
+      // A no-break space, so the unit never wraps from its number.
+      unit.textContent = `${String.fromCharCode(160)}${view.value[1]}`;
+      value.append(unit);
+    }
+    body.append(value);
+  }
+  body.append(tileFinding(view.finding, { lead: true }));
+
+  link.append(top, body);
+  host.replaceChildren(link);
+}
+
+/** The feature tile, as an Overview section. */
+export const featureTile: OverviewSection = {
+  id: "feature",
+  label: "The feature",
+  kicker: (snapshot) => featureView(snapshot)?.kicker ?? "The feature",
+  // Half the four-column grid, the feature's column of the desktop board,
+  // beside temperature in context, so every row stays whole; the whole
+  // width of the two-column grid and of a phone.
+  span: 2,
+  phoneTop: true,
+  finding: (snapshot) => featureView(snapshot)?.name ?? "The feature",
+  render,
+};

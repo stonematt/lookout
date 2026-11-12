@@ -92,7 +92,10 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
       const id = host.dataset.section;
       expect(name, id).toBeTruthy();
       const finding = host.querySelector("h2.tile-finding");
-      if (finding) expect(name, id).toBe(words(finding));
+      // The feature's name carries its value, which stands beside its finding.
+      if (finding && id === "feature")
+        expect(name!.toLowerCase(), id).toContain(words(finding)!.toLowerCase());
+      else if (finding) expect(name, id).toBe(words(finding));
     }
     const named = (id: string) =>
       panel("overview").querySelector(`[data-section="${id}"]`)!.getAttribute("aria-label");

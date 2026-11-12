@@ -45,10 +45,10 @@ const all = (selector: string) => [...host.querySelectorAll(selector)];
 beforeEach(() => show(withYear()));
 
 describe("the temperature context's place", () => {
-  it("follows the hero lead, as three tiles in the board's order", () => {
+  it("follows the feature tile, as three tiles in the board's order", () => {
     expect(SECTIONS.map((s) => s.id).slice(0, 5)).toEqual([
       "first-screen",
-      "hero-lead",
+      "feature",
       "temperature-periods",
       "against-normal",
       "ten-days",

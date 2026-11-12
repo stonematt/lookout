@@ -555,7 +555,7 @@ describe("every hand-drawn chart at phone width", () => {
     }
   });
 
-  it("draws three y ticks on the daily bars, the sun trace and the hero lead", () => {
+  it("draws three y ticks on the daily bars, the sun trace and the usual band hero", () => {
     const hosts = rendered();
     // The y ticks end at the axis and read as numbers ("0.4 in", "40°").
     const yTicks = (svg: Element, cls: string) =>
@@ -566,11 +566,10 @@ describe("every hand-drawn chart at phone width", () => {
       ["[data-section=daily] .rain-chart svg", "rain-tick"],
       ["[data-section=daily] .solar-chart svg", "solar-tick"],
       ["[data-section=now] .solar-chart svg", "solar-tick"],
-      ["[data-section=hero-lead] .hero-svg", "hero-tick"],
       ["[data-section=first-screen] .today-svg", "today-tick"],
     ];
     for (const [sel, cls] of charts) {
-      // Charts with a y axis (the dry golden leads with the dry spell's bar).
+      // Charts with a y axis.
       const found = hosts
         .flatMap((h) => [...h.querySelectorAll(sel)])
         .filter((svg) => svg.querySelector("line[class$=-grid]"));
@@ -611,24 +610,6 @@ describe("the period rows at phone width", () => {
     const plot = chart.querySelector("g[transform]")!.getAttribute("transform")!;
 
     expect(Number(plot.match(/translate\(([\d.]+),/)![1])).toBeGreaterThanOrEqual(118);
-  });
-});
-
-describe("the now label at phone width", () => {
-  it("sits above its dot on the hero lead", () => {
-    layOut(PHONE);
-    const host = panel();
-    renderOverview(host, dashboard("raining"));
-    const svg = host.querySelector("[data-section=hero-lead] .hero-svg")!;
-    const dot = svg.querySelector("circle.hero-dot")!;
-    const note = svg.querySelector("text.hero-note")!;
-
-    expect(Number(note.getAttribute("y"))).toBeLessThan(Number(dot.getAttribute("cy")) - 5);
-    const anchor = note.getAttribute("text-anchor");
-    const x = Number(note.getAttribute("x"));
-    const cx = Number(dot.getAttribute("cx"));
-    // Centred over the dot, or ending (starting) just past it.
-    expect(Math.abs(x - cx), anchor!).toBeLessThanOrEqual(6);
   });
 });
 
