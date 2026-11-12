@@ -6,7 +6,10 @@
  * right now" and the browser rules that went with it.
  *
  * The tile is one link: kicker, value and finding all sit inside it, and its
- * accessible name is the finding, then where it goes. Until the zooms land
+ * accessible name comes from its content, as the mosaic tiles' does (#543):
+ * the visible finding, read once, with hidden words round it that say the
+ * kicker and value in full (both `aria-hidden`) and where the link goes
+ * ("Open the Rain tab"). No `aria-label` replaces the content. Until the zooms land
  * (`#overview/<tile>`, #474), the link goes where the evidence is today: the
  * Rain Events tab for rain, the Rain tab for a dry spell, the Solar tab for
  * unusual sun, and otherwise the Overview tile carrying the reading
@@ -54,8 +57,12 @@ export interface FeatureView {
   value: [string, string | null] | null;
   /** The finding beside the value. */
   finding: string;
-  /** The finding as one sentence, value included: the tile's name. */
-  name: string;
+  /**
+   * The words a screen reader hears around the visible finding, which it
+   * reads once. The kicker and the value are `aria-hidden`; their spoken
+   * forms are here.
+   */
+  spoken: { before: string; after: string };
   /** Whether a rain event is live: the kicker carries the rain dot. */
   live: boolean;
   target: Target;
@@ -103,7 +110,7 @@ const READINGS: Record<
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** A value as written in a sentence: "0.30 in", "72°". */
-const spoken = (value: [string, string | null]) =>
+const said = (value: [string, string | null]) =>
   value[1] === null ? value[0] : `${value[0]} ${value[1]}`;
 
 /** An unusual reading's value, number and unit apart. */
@@ -139,7 +146,7 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
       kicker: `Raining now · ${formatDuration(active.duration_minutes * 60_000)}`,
       value,
       finding,
-      name: `Raining now: ${spoken(value)} ${finding}`,
+      spoken: { before: `Raining now: ${said(value)} `, after: "" },
       live: true,
       target: RAIN_EVENTS,
     };
@@ -153,7 +160,7 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
       kicker: "Rain",
       value: null,
       finding: "Rain lately",
-      name: "Rain lately",
+      spoken: { before: "", after: "" },
       live: false,
       target: RAIN_EVENTS,
     };
@@ -166,7 +173,10 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
     kicker: `Rain ended ${formatDuration(ago)} ago`,
     value,
     finding,
-    name: `Rain ended ${formatDurationSpoken(ago)} ago, after ${spoken(value)}${usual}`,
+    spoken: {
+      before: `Rain ended ${formatDurationSpoken(ago)} ago, after ${said(value)} `,
+      after: "",
+    },
     live: false,
     target: RAIN_EVENTS,
   };
@@ -189,7 +199,7 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
     kicker: `Unusual · ${reading.name}`,
     value,
     finding,
-    name: `${upperFirst(reading.name)} ${spoken(value)}, ${finding}`,
+    spoken: { before: `${upperFirst(reading.name)} ${said(value)}, `, after: "" },
     live: false,
     target: reading.target,
   };
@@ -207,7 +217,7 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
       kicker: "Dry spell",
       value: null,
       finding,
-      name: finding,
+      spoken: { before: "", after: "" },
       live: false,
       target: RAIN,
     };
@@ -220,7 +230,7 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
     kicker: "Dry spell",
     value: [formatDays(days), null],
     finding,
-    name: `${upperFirst(formatDaysSpoken(days))} ${finding}`,
+    spoken: { before: `${upperFirst(formatDaysSpoken(days))} `, after: "" },
     live: false,
     target: RAIN,
   };
@@ -234,7 +244,7 @@ function quietView(snapshot: DashboardSnapshot): FeatureView {
     kicker: "Today",
     value,
     finding: "a usual day",
-    name: value === null ? "A usual day" : `A usual day, ${spoken(value)} now`,
+    spoken: { before: "", after: value === null ? "" : `, ${said(value)} now` },
     live: false,
     target: TEMPERATURE,
   };
@@ -262,6 +272,14 @@ export function featureView(snapshot: DashboardSnapshot): FeatureView | null {
   }
 }
 
+/** Words for screen readers only. */
+function hidden(text: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = "ov-sr";
+  span.textContent = text;
+  return span;
+}
+
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const view = featureView(snapshot);
   if (!view) return;
@@ -270,7 +288,6 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const link = document.createElement("a");
   link.className = "feature-link";
   link.href = view.target.href;
-  link.setAttribute("aria-label", `${view.name}. ${view.target.words}.`);
 
   // The kicker renderTiles put first moves into the link, with the chevron.
   const kicker = host.querySelector<HTMLElement>(":scope > [data-part=kicker]");
@@ -284,6 +301,8 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
       dot.setAttribute("aria-hidden", "true");
       kicker.prepend(dot);
     }
+    // Its spoken form is the hidden words before the finding.
+    kicker.setAttribute("aria-hidden", "true");
     top.append(kicker);
   }
   const chevron = document.createElement("span");
@@ -297,6 +316,7 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     const value = document.createElement("p");
     value.className = "feature-value";
     value.dataset.part = "value";
+    value.setAttribute("aria-hidden", "true");
     const number = document.createElement("span");
     number.className = "feature-number";
     number.textContent = view.value[0];
@@ -310,7 +330,11 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     }
     body.append(value);
   }
+  // The finding is read once, as written; the hidden words round it carry
+  // what the aria-hidden kicker and value show, and where the link goes.
+  if (view.spoken.before) body.append(hidden(view.spoken.before));
   body.append(tileFinding(view.finding, { lead: true }));
+  body.append(hidden(`${view.spoken.after}. ${view.target.words}.`));
 
   link.append(top, body);
   host.replaceChildren(link);

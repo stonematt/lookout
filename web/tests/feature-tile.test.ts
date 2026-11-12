@@ -40,6 +40,28 @@ const words = (node: Element | null | undefined) => node?.textContent?.replace(/
 const tile = () => panel.querySelector<HTMLElement>("[data-section=feature]");
 const link = () => tile()!.querySelector<HTMLAnchorElement>("a")!;
 
+/**
+ * A link's accessible name from its content, as a browser computes it: the
+ * text of every node not hidden by `aria-hidden`, element by element.
+ */
+function nameOf(el: Element): string {
+  const parts: string[] = [];
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) parts.push(node.textContent ?? "");
+    else if (node instanceof Element && node.getAttribute("aria-hidden") !== "true") {
+      for (const child of node.childNodes) walk(child);
+      parts.push(" ");
+    }
+  };
+  walk(el);
+  return parts
+    .join("")
+    .replace(/\s+/g, " ")
+    .replace(/ ([.,])/g, "$1")
+    .trim();
+}
+const linkName = () => nameOf(link());
+
 function draw(snapshot: DashboardSnapshot): void {
   renderOverview(panel, snapshot);
 }
@@ -65,11 +87,15 @@ describe("the feature tile", () => {
     // The whole tile is the link: the kicker, value and finding sit inside it.
     expect([...tile()!.children]).toEqual([links[0]]);
     const finding = words(tile()!.querySelector("[data-part=finding]"))!;
-    const name = links[0]!.getAttribute("aria-label")!;
+    const name = nameOf(links[0]!);
     // The tile is no named region, so the link alone says the finding (#472).
     expect(tile()!.hasAttribute("aria-label")).toBe(false);
+    // The content names the link: no aria-label replaces it, and the finding
+    // is read once, the words round it being hidden text (#543).
+    expect(tile()!.querySelector("[aria-label]")).toBeNull();
     expect(name).toMatch(/\. (Open|Go to) .+\.$/);
     expect(name.toLowerCase()).toContain(finding.toLowerCase());
+    expect(name.toLowerCase().split(finding.toLowerCase())).toHaveLength(2);
     // Nothing inside the link is interactive in its own right.
     expect(links[0]!.querySelector("a, button, details, input")).toBeNull();
   });
@@ -130,7 +156,7 @@ describe("the feature tile", () => {
     expect(tile()!.dataset.kind).toBe("rain");
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Raining now · 2 h 25 m");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("0.30 in");
-    expect(link().getAttribute("aria-label")).toBe(
+    expect(linkName()).toBe(
       "Raining now: 0.30 in so far, against 0.42 in for a usual event. Open the Rain Events tab.",
     );
     expect(link().getAttribute("href")).toBe("#events");
@@ -150,8 +176,8 @@ describe("the feature tile", () => {
     draw(snapshot);
 
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Rain ended 3 h ago");
-    expect(link().getAttribute("aria-label")).toMatch(
-      /^Rain ended (about )?3 hours ago, after \d\.\d\d in(, against 0\.42 in for a usual event)?\. Open the Rain Events tab\.$/,
+    expect(linkName()).toMatch(
+      /^Rain ended (about )?3 hours ago, after \d\.\d\d in over [^,]+(, against 0\.42 in for a usual event)?\. Open the Rain Events tab\.$/,
     );
     expect(link().getAttribute("href")).toBe("#events");
     expect(tile()!.querySelector("[data-part=live]")).toBeNull();
@@ -164,7 +190,7 @@ describe("the feature tile", () => {
     expect(seasoned.feature).toMatchObject({ kind: "unusual", reading: "temperature" });
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Unusual · temperature");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("72.0°");
-    const name = link().getAttribute("aria-label")!;
+    const name = linkName();
     expect(name).toMatch(
       /^Temperature 72.0°, warmer than usual for (\d+ (am|pm)|noon|midnight): the 100th percentile/,
     );
@@ -194,7 +220,7 @@ describe("the feature tile", () => {
       draw(edited("seasoned", unusual(reading, value, unit, percentile)));
 
       expect(words(tile()!.querySelector("[data-part=value]"))).toBe(shown);
-      const name = link().getAttribute("aria-label")!;
+      const name = linkName();
       expect(name).toContain(`${shown}, ${word} than usual for `);
       expect(name).toContain(`the ${ordinal} percentile`);
       expect(name.endsWith(`. ${open}.`)).toBe(true);
@@ -212,7 +238,7 @@ describe("the feature tile", () => {
 
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 d 9 h");
-    expect(link().getAttribute("aria-label")).toBe(
+    expect(linkName()).toBe(
       "About 9 days since it last rained, against a usual dry spell of 3 days. Open the Rain tab.",
     );
     expect(link().getAttribute("href")).toBe("#rain");
@@ -226,7 +252,7 @@ describe("the feature tile", () => {
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Today");
     const t = dry.current.temperature_f!.toFixed(1);
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe(`${t}°`);
-    expect(link().getAttribute("aria-label")).toBe(`A usual day, ${t}° now. Go to Temperature.`);
+    expect(linkName()).toBe(`a usual day, ${t}° now. Go to Temperature.`);
     expect(link().getAttribute("href")).toBe("#overview-temperature");
   });
 
