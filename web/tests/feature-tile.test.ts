@@ -191,6 +191,87 @@ describe("the feature tile", () => {
     },
   );
 
+  // The hold (#533, #578): Release A3 adds `since_ms`, `held` and
+  // `outside_usual`. The tile keys its "unusual" wording on `outside_usual`,
+  // absent counting as outside, so snapshots from before A3 read as today.
+  describe("an unusual reading and the hold", () => {
+    const built = 1779314460000; // the seasoned golden's build, 3 pm Pacific
+    const since = built - 2 * 3_600_000; // 1 pm Pacific
+    const tileText = () => ({
+      kicker: words(tile()!.querySelector("[data-part=kicker]")),
+      value: words(tile()!.querySelector("[data-part=value]")),
+      finding: words(tile()!.querySelector("[data-part=finding]")),
+      name: link().getAttribute("aria-label"),
+    });
+    const today = () => {
+      draw(parseDashboard(golden("seasoned", "dashboard")));
+      return tileText();
+    };
+
+    it("reads exactly as today with none of the hold's fields", () => {
+      const expected = today();
+      draw(edited("seasoned", unusual("temperature", 72, "f", 100)));
+
+      expect(tileText()).toEqual(expected);
+      expect(expected.kicker).toBe("Unusual · temperature");
+    });
+
+    it.each([
+      ["held", true],
+      ["not held", false],
+    ])("reads as today while outside usual, %s, with no since", (_label, held) => {
+      const expected = today();
+      draw(
+        edited("seasoned", {
+          feature: {
+            ...unusual("temperature", 72, "f", 100).feature,
+            since_ms: since,
+            held,
+            outside_usual: true,
+          },
+        }),
+      );
+
+      expect(tileText()).toEqual(expected);
+      expect(tileText().name).not.toMatch(/ was | at 1 pm/);
+    });
+
+    it.each([
+      ["temperature", 64, "f", 62, "Temperature was above usual at 1 pm", "64.0°"],
+      ["humidity", 48, "pct", 30, "Humidity was below usual at 1 pm", "48%"],
+    ])(
+      "says a held %s back inside its band was unusual, and when",
+      (reading, value, unit, percentile, finding, shown) => {
+        draw(
+          edited("seasoned", {
+            feature: {
+              ...unusual(reading, value, unit, percentile).feature,
+              since_ms: since,
+              held: true,
+              outside_usual: false,
+            },
+          }),
+        );
+        const text = tileText();
+
+        expect(text.finding).toBe(finding);
+        expect(text.value).toBe(shown);
+        expect(text.name!.startsWith(`${finding}, ${shown} now. `)).toBe(true);
+        const all = `${text.kicker} ${text.finding} ${text.name}`;
+        expect(all).not.toMatch(/unusual|than usual|percentile|held/i);
+      },
+    );
+  });
+
+  it("refuses the hold's fields present but malformed", () => {
+    const base = unusual("temperature", 72, "f", 100).feature;
+    for (const patch of [{ since_ms: "1" }, { held: 1 }, { outside_usual: "no" }]) {
+      expect(() => edited("seasoned", { feature: { ...base, ...patch } })).toThrow(
+        SnapshotContractError,
+      );
+    }
+  });
+
   it("draws a long dry spell from a golden copy: its days against the usual spell", () => {
     draw(
       edited("dry", {

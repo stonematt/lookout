@@ -176,6 +176,26 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
   const reading = READINGS[feature.reading!];
   const percentile = feature.percentile!;
   const value = readingValue(feature, feature.value!);
+  // A held reading back inside its usual band (Release A3's 3-hour hold,
+  // #533; #578): say what was unusual and when, from `since_ms`, with no
+  // percentile as now. Absent `outside_usual` (a snapshot before Release A3)
+  // counts as outside. The snapshot carries no side, so the recomputed
+  // percentile picks it.
+  const backInsideBand = feature.outside_usual === false;
+  if (backInsideBand) {
+    const side = percentile > 50 ? "above" : "below";
+    const when = feature.since_ms === undefined ? "" : ` at ${hourName(feature.since_ms)}`;
+    const finding = `${upperFirst(reading.name)} was ${side} usual${when}`;
+    return {
+      kind: "unusual",
+      kicker: `Earlier · ${reading.name}`,
+      value,
+      finding,
+      name: `${finding}, ${spoken(value)} now`,
+      live: false,
+      target: reading.target,
+    };
+  }
   // Python judges the newest observation's hour (`lookout.snapshot.feature`).
   const hour = hourName(snapshot.observed_at_ms ?? snapshot.built_at_ms);
   // The percentile is the share of usual readings below the value and always
