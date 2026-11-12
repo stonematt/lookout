@@ -17,7 +17,7 @@ so its first day counts.
 """
 
 from datetime import date, timedelta
-from typing import Iterable
+from typing import Iterable, List, Sequence
 
 import numpy as np
 import pandas as pd
@@ -33,7 +33,7 @@ LAST_ROW = "2026-01-06T20:00:00Z"
 TODAY = date(2026, 1, 6)
 
 
-def station(start: str, end: str = LAST_ROW, gaps=()) -> pd.DataFrame:
+def station(start: str, end: str = LAST_ROW, gaps: Sequence[Gap] = ()) -> pd.DataFrame:
     """A station from `start` to `end`, its temperature varied day by day."""
     archive = build_archive(start, end, gaps=gaps)
     local = pd.to_datetime(archive["dateutc"], unit="ms", utc=True).dt.tz_convert(TZ)
@@ -54,7 +54,7 @@ def hour_readings(archive: pd.DataFrame, days: Iterable[date], hour: int) -> np.
     return rows["tempf"].dropna().to_numpy(dtype=float)
 
 
-def span(first: date, last: date) -> list:
+def span(first: date, last: date) -> List[date]:
     """The days `first` to `last`, inclusive."""
     return [first + timedelta(days=n) for n in range((last - first).days + 1)]
 
@@ -95,6 +95,15 @@ class TestEarlierYears:
         assert usual.basis == "recent_days"
         assert usual.years == ()
         assert usual.days == 14
+
+    def test_an_earlier_year_wins_over_a_thin_record(self):
+        # 2025's window, then nothing until Jan 4: 17 counted days in all.
+        gone = Gap("2025-01-14T08:00:00Z", "2026-01-04T08:00:00Z")
+        usual = band(station("2024-12-30T08:00:00Z", gaps=(gone,)))
+
+        assert usual.basis == "earlier_years"
+        assert usual.years == (2025,)
+        assert usual.days == 15
 
     def test_every_comparable_earlier_year_newest_first(self):
         usual = seasoned_station().temperature_context.usual_band

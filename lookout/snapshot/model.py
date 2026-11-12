@@ -542,6 +542,10 @@ class UsualHour:
     readings: int
 
 
+UsualBasis = Literal["earlier_years", "recent_days", "median_only"]
+"""Which days a usual band is over (see `UsualBand`)."""
+
+
 @dataclass(frozen=True)
 class UsualBand:
     """
@@ -568,7 +572,7 @@ class UsualBand:
     :param hours: The 24 station-local hours, 0 to 23 in order.
     """
 
-    basis: Literal["earlier_years", "recent_days", "median_only"]
+    basis: UsualBasis
     unit: Literal["f"]
     years: Tuple[int, ...]
     days: int

@@ -31,8 +31,9 @@ gaps, so they are not composed here.
 Functions:
 - temperature_context(stitched, current, observed_at_ms, coverage): The
   `TemperatureContext` section.
-- usual_window(coverage, day): The days the usual for `day` is over, and
-  its basis.
+- usual_band(stitched, coverage): Today's `UsualBand`, all 24 hours.
+- usual_window(coverage, day): The `UsualWindow`, the days the usual for
+  `day` is over, and its basis.
 - usual_readings(stitched, tz, days, column): Each station-local hour's
   readings of any column on those days, for a usual band or a percentile
   at an hour.
@@ -40,7 +41,7 @@ Functions:
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -53,6 +54,7 @@ from lookout.snapshot.model import (
     TemperatureDay,
     TemperaturePeriod,
     UsualBand,
+    UsualBasis,
     UsualHour,
 )
 from lookout.snapshot.values import number
@@ -309,9 +311,6 @@ def _strip(
     )
 
 
-UsualBasis = Literal["earlier_years", "recent_days", "median_only"]
-
-
 @dataclass(frozen=True)
 class UsualWindow:
     """
@@ -338,7 +337,9 @@ def usual_window(coverage: ArchiveCoverage, day: date) -> UsualWindow:
     days are not. Else the counted days among the `RECENT_DAYS` before
     `day`, as "recent_days" when the archive holds `MIN_READING_DAYS` or
     more counted days before `day`, "median_only" when it holds fewer.
-    `day` itself is never in its own usual.
+    `day` itself is never in its own usual. Earlier years win even when the
+    station holds under `MIN_READING_DAYS` counted days: a comparable
+    15-day window is a fuller basis than the recent days.
 
     :param coverage: The build's counted days.
     :param day: The station-local date the usual is for.
@@ -351,16 +352,16 @@ def usual_window(coverage: ArchiveCoverage, day: date) -> UsualWindow:
             years=tuple(year for year, _ in years),
             days=tuple(sorted(d for _, days in years for d in days)),
         )
-    before = day - timedelta(days=1)
+    yesterday = day - timedelta(days=1)
     first = coverage.first_day
-    held = (
-        coverage.counted_days(first, before)
-        if first is not None and first <= before
+    reading_days = (
+        coverage.counted_days(first, yesterday)
+        if first is not None and first <= yesterday
         else ()
     )
-    recent = coverage.counted_days(day - timedelta(days=RECENT_DAYS), before)
+    recent = coverage.counted_days(day - timedelta(days=RECENT_DAYS), yesterday)
     basis: UsualBasis = (
-        "recent_days" if len(held) >= MIN_READING_DAYS else "median_only"
+        "recent_days" if len(reading_days) >= MIN_READING_DAYS else "median_only"
     )
     return UsualWindow(basis=basis, years=(), days=recent)
 
@@ -401,11 +402,19 @@ def usual_readings(
     return by_hour
 
 
-def _usual_hour(hour: int, values: np.ndarray, middle_half: bool) -> UsualHour:
-    """One hour of the band: its median and, when asked, middle half."""
+def _usual_hour(hour: int, values: np.ndarray, basis: UsualBasis) -> UsualHour:
+    """
+    One hour of the band.
+
+    :param hour: The station-local hour.
+    :param values: Its readings over the band's days.
+    :param basis: The band's basis; "median_only" leaves the middle half null.
+    :return: The hour's median, middle half and count.
+    """
     if len(values) == 0:
-        return UsualHour(hour, None, None, None, 0)
+        return UsualHour(hour=hour, median=None, q1=None, q3=None, readings=0)
     q1, median, q3 = np.quantile(values, [0.25, 0.5, 0.75])
+    middle_half = basis != "median_only"
     return UsualHour(
         hour=hour,
         median=number(median, 1),
@@ -426,13 +435,12 @@ def usual_band(stitched: pd.DataFrame, coverage: ArchiveCoverage) -> UsualBand:
     """
     window = usual_window(coverage, coverage.today)
     by_hour = usual_readings(stitched, coverage.tz, window.days, "tempf")
-    middle_half = window.basis != "median_only"
     return UsualBand(
         basis=window.basis,
         unit="f",
         years=window.years,
         days=len(window.days),
-        hours=tuple(_usual_hour(h, by_hour[h], middle_half) for h in HOURS),
+        hours=tuple(_usual_hour(h, by_hour[h], window.basis) for h in HOURS),
     )
 
 
