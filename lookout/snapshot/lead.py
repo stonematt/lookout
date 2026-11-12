@@ -33,8 +33,10 @@ chart's data ("bold now over a soft usual range", DESIGN.md) is computed for
 the lead only.
 
 Functions:
+- completed_dry_spells(days): Every completed dry spell in the 365-day window.
+- dry_spell(current, observed_at_ms, spells): The `DrySpellNow` field, once.
 - hero_lead(archive, stitched, event_catalog, active, current, observed_at_ms,
-  days): The `HeroLead` section.
+  days, dry, spells): The `HeroLead` section.
 """
 
 from datetime import date, timedelta
@@ -49,6 +51,7 @@ from lookout.snapshot.days import CountedDays
 from lookout.snapshot.gaps import ArchiveCoverage, comparable
 from lookout.snapshot.model import (
     ActiveRainEvent,
+    DrySpellNow,
     HeroLead,
     LeadChartUnit,
     LeadKind,
@@ -345,7 +348,7 @@ def _day_trace(
 # ---------- calm: days since rain against the usual dry spell ----------
 
 
-def _dry_spells(
+def completed_dry_spells(
     days: CountedDays,
 ) -> Tuple[Optional[List[int]], Tuple[str, ...]]:
     """
@@ -365,30 +368,46 @@ def _dry_spells(
     return lengths, ((status.key,) if lengths is not None else ())
 
 
-def _calm_rule(
+def dry_spell(
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
-    usual: _Usual,
-    compared: Tuple[str, ...],
-    met: bool,
-) -> LeadRule:
-    """The calm rule: days since it last rained, against the usual spell."""
-    value = None
+    spells: Optional[List[int]],
+) -> DrySpellNow:
+    """
+    The dry spell field: days since it last rained, and the usual dry spell.
+
+    Computed once per build; the calm rule and the widget view read it.
+
+    :param current: Current conditions, live stitched.
+    :param observed_at_ms: The newest observation, or None.
+    :param spells: Completed dry spell lengths from `completed_dry_spells`,
+        or None when the 365-day window is not comparable.
+    :return: The `DrySpellNow`; `usual_days` is None without a comparison set.
+    """
+    days_since_rain = None
     if current.last_rain_ms is not None and observed_at_ms is not None:
-        value = round((observed_at_ms - current.last_rain_ms) / DAY_MS, 2)
+        days_since_rain = round((observed_at_ms - current.last_rain_ms) / DAY_MS, 2)
+    return DrySpellNow(
+        days_since_rain=days_since_rain,
+        usual_days=_quartiles(spells or [], 2)[1],
+    )
+
+
+def _calm_rule(dry: DrySpellNow, compared: Tuple[str, ...], met: bool) -> LeadRule:
+    """The calm rule: days since it last rained, against the usual spell."""
     missing = None
-    if value is None:
+    if dry.days_since_rain is None:
         missing = "no_reading"
-    elif usual[1] is None:
+    elif dry.usual_days is None:
         missing = "no_comparison"
     return LeadRule(
         kind="calm",
         met=met,
-        value=value,
+        value=dry.days_since_rain,
         unit="days",
         threshold=None,
-        reference=usual[1],
-        compared=compared if usual[1] is not None else (),
+        reference=dry.usual_days,
+        compared=compared if dry.usual_days is not None else (),
         missing=missing,
     )
 
@@ -404,6 +423,8 @@ def hero_lead(
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
     days: CountedDays,
+    dry: DrySpellNow,
+    spells: Tuple[Optional[List[int]], Tuple[str, ...]],
 ) -> HeroLead:
     """
     The hero lead: every lead rule's value, the lead, and its chart data.
@@ -415,6 +436,8 @@ def hero_lead(
     :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
     :param days: The build's counted days and daily rain series.
+    :param dry: The dry spell field, which the calm rule restates.
+    :param spells: `completed_dry_spells(days)`: the lengths and window key.
     :return: The `HeroLead` section.
     """
     coverage, clock = days.coverage, days.clock
@@ -427,8 +450,10 @@ def hero_lead(
     temperature_by_hour = month_hours.by_hour("tempf", 1)
 
     newest = _newest_event(event_catalog, observed_at_ms)
-    spells, spell_window = _dry_spells(days)
-    spell_usual = _quartiles(spells or [], 2)
+    spell_lengths, spell_window = spells
+    # The chart's quartiles; its median is the field's, so they never differ.
+    low, _, high = _quartiles(spell_lengths or [], 2)
+    spell_usual: _Usual = (low, dry.usual_days, high)
 
     rules = [
         _rain_rule(newest, active, observed_at_ms),
@@ -437,13 +462,7 @@ def hero_lead(
         ),
         _solar_rule(current),
     ]
-    calm = _calm_rule(
-        current,
-        observed_at_ms,
-        spell_usual,
-        spell_window,
-        not any(r.met for r in rules),
-    )
+    calm = _calm_rule(dry, spell_window, not any(r.met for r in rules))
     rules.append(calm)
     kind: LeadKind = next(r.kind for r in rules if r.met)
 
@@ -454,7 +473,7 @@ def hero_lead(
         unit = "in"
     elif kind == "calm":
         now_value, usual, trace = calm.value, spell_usual, None
-        sample = len(spells or [])
+        sample = len(spell_lengths or [])
         unit = "days"
     else:
         column, digits, unit, field = _DAY_CHARTS[kind]

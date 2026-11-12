@@ -5,7 +5,7 @@ The rules are checked in order and the first that holds is the view:
 
 1. rain_event, if an event is live with more than 0.04 in in it;
 2. dry_spell, if the current dry spell is longer than the usual dry spell
-   (the calm lead's comparison), in any month;
+   (the snapshot's `dry_spell` field), in any month;
 3. otherwise temperature_ranges.
 
 The view is in the dashboard and in the context block, so a widget reading
@@ -37,9 +37,9 @@ def rain_every_fifth_day(end: str) -> pd.DataFrame:
     return build_archive("2025-01-01T08:00:00Z", end, rain=spells)
 
 
-def calm(snapshot):
-    """The calm rule: days since it last rained, against the usual dry spell."""
-    return next(r for r in snapshot.hero_lead.rules if r.kind == "calm")
+def spell(snapshot):
+    """The dry spell field: days since it last rained, the usual dry spell."""
+    return snapshot.dry_spell
 
 
 def test_a_live_event_over_four_hundredths_shows_the_rain_event():
@@ -68,7 +68,7 @@ def test_a_dry_spell_longer_than_usual_shows_the_dry_spell_in_any_month():
     end = "2026-01-09T07:00:00Z"
     snapshot = build(rain_every_fifth_day(end), None, end)
 
-    assert calm(snapshot).value > calm(snapshot).reference == 4.0
+    assert spell(snapshot).days_since_rain > spell(snapshot).usual_days == 4.0
     assert snapshot.widget_view == "dry_spell"
 
 
@@ -77,7 +77,7 @@ def test_a_dry_spell_shorter_than_usual_shows_temperature_ranges():
     end = "2026-01-06T07:00:00Z"
     snapshot = build(rain_every_fifth_day(end), None, end)
 
-    assert calm(snapshot).value < calm(snapshot).reference == 4.0
+    assert spell(snapshot).days_since_rain < spell(snapshot).usual_days == 4.0
     assert snapshot.widget_view == "temperature_ranges"
 
 
@@ -91,8 +91,8 @@ def test_without_a_usual_dry_spell_a_long_dry_run_shows_temperature_ranges():
 
     snapshot = build(archive, None, NOW)
 
-    assert calm(snapshot).value > 7
-    assert calm(snapshot).reference is None
+    assert spell(snapshot).days_since_rain > 7
+    assert spell(snapshot).usual_days is None
     assert snapshot.widget_view == "temperature_ranges"
 
 

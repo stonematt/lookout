@@ -803,6 +803,10 @@
     "sample": 0,
     "trace": null
   },
+  "dry_spell": {
+    "days_since_rain": 1.62,
+    "usual_days": null
+  },
   "rain_tab": {
     "windows": [
       {

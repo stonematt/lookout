@@ -397,6 +397,25 @@ class LeadTrace:
 
 
 @dataclass(frozen=True)
+class DrySpellNow:
+    """
+    The current dry spell against the usual dry spell, computed once.
+
+    The calm rule in `HeroLead`, the widget view and the Feature Rule all read
+    this one value, so they never disagree.
+
+    :param days_since_rain: Days since `lastRain`, to the newest observation,
+        rounded to 0.01; None without a reading or a last rain.
+    :param usual_days: The usual dry spell: the median completed dry spell
+        over the last 365 days; None when that window is not comparable
+        (a young station). `days_since_rain` is still present then.
+    """
+
+    days_since_rain: Optional[float]
+    usual_days: Optional[float]
+
+
+@dataclass(frozen=True)
 class HeroLead:
     """
     The Overview's hero lead: the most notable thing right now, and why.
@@ -1327,6 +1346,8 @@ class Snapshot:
         an observation.
     :param rain_events: The Rain Events tab's list and summaries.
     :param hero_lead: The hero lead and every lead rule's live value.
+    :param dry_spell: Days since it last rained and the usual dry spell; the
+        calm rule's value and reference, computed once.
     :param rain_tab: The Rain tab's data.
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
@@ -1354,6 +1375,7 @@ class Snapshot:
     condition_ribbon: Optional[ConditionRibbon]
     rain_events: RainEvents
     hero_lead: HeroLead
+    dry_spell: DrySpellNow
     rain_tab: RainTab
     temperature_context: TemperatureContext
     almanac: Almanac
