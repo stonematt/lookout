@@ -54,6 +54,11 @@
   .mosaic-value {
     font-size: var(--type-stat);
   }
+
+  /* and its unit one step under it, so "4.92 kWh/m²" keeps to its tile */
+  .mosaic-value .mosaic-unit {
+    font-size: var(--type-standfirst);
+  }
 }
 
 .mosaic-unit {
