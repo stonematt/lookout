@@ -111,6 +111,13 @@ export interface GapStatus {
   status: GapState;
   /** Null when valid; for a prorated one, why days are missing. */
   reason: GapReason | null;
+  /**
+   * Whether the record is deep enough to show it (#463): a shown one still
+   * reports a gap inside it by `status`; one not shown is hidden, not
+   * hatched. Absent from snapshots written before Release A, which the site
+   * reads as shown (ADR-0008).
+   */
+  shown?: boolean;
 }
 
 /** The gap status of every archive month and every standard window. */
@@ -466,6 +473,13 @@ export interface TemperatureContext {
   ten_day_years: number[];
   /** The temperature strip, then the rain strip. */
   strips: NormalStrip[];
+  /** Today's usual band by hour (#462); absent from a snapshot written before it. */
+  usual_band?: UsualBand | null;
+  /**
+   * The Full history window, the archive's first day to today (#463), as
+   * one more range-bar row. Absent from a snapshot written before Release A.
+   */
+  full_history?: TemperaturePeriod | null;
 }
 
 /**
@@ -708,6 +722,36 @@ export interface DashboardSnapshot extends SnapshotHead {
    * from documents published before #118, which the parse reads as empty.
    */
   stale_catalogs: StaleCatalog[];
+  /**
+   * Each sensor battery still reporting, with the name the site prints.
+   * Absent from snapshots published before #466; the site reads that as
+   * none to show (ADR-0008).
+   */
+  battery_flags?: BatteryFlag[];
+  /**
+   * What the Overview's feature tile shows, by the Feature Rule (ADR-0009).
+   * Absent from snapshots published before Release A; the site then draws
+   * no feature tile (ADR-0008).
+   */
+  feature?: Feature;
+  /**
+   * The current dry spell against the usual one. Absent from snapshots
+   * published before Release A.
+   */
+  dry_spell?: DrySpellNow;
+  /**
+   * How deep the station's record is: which comparisons it supports and
+   * the one it unlocks next (#463). Absent from snapshots published before
+   * Release A; the site then draws today's view.
+   */
+  record_depth?: RecordDepth;
+}
+
+/** One sensor's battery: its Ambient column, the name printed, and whether it reads low. */
+export interface BatteryFlag {
+  key: string;
+  name: string;
+  low: boolean;
 }
 
 /** `snapshot/<MAC>.context.json`: what `/current` serves with `lastData`. */
@@ -843,7 +887,28 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   const sun_moon = head.schema_version === 2 && !("sun_moon" in head) ? null : head.sun_moon;
   checkSunMoon(sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
+  checkBatteryFlags(head.battery_flags);
+  checkFeature(head.feature);
+  checkDrySpell(head.dry_spell);
+  checkRecordDepth(head.record_depth);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
+}
+
+/** `battery_flags` may be absent (N-1); when present it must be a list of flags. */
+function checkBatteryFlags(list: unknown): void {
+  if (list === undefined) return;
+  if (
+    !Array.isArray(list) ||
+    !list.every(
+      (f) =>
+        isRecord(f) &&
+        typeof f.key === "string" &&
+        typeof f.name === "string" &&
+        typeof f.low === "boolean",
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: battery_flags malformed");
+  }
 }
 
 function checkStaleCatalogs(list: unknown): StaleCatalog[] {
@@ -976,6 +1041,178 @@ function checkTemperature(context: unknown): void {
   ) {
     throw new SnapshotContractError("dashboard: temperature_context missing");
   }
+  checkUsualBand(context.usual_band);
+  checkFullHistory(context.full_history);
+}
+
+// ---------- the usual band (#462, drawn by the Overview hero, #468) ----------
+
+/** Which days a usual band is over; Python decides it (`UsualBand` in model.py). */
+export type UsualBasis = "earlier_years" | "recent_days" | "median_only";
+
+/** One station-local hour of the usual band. */
+export interface UsualHour {
+  /** The wall-clock hour, 0 to 23. */
+  hour: number;
+  /** The hour's median; null with no readings. */
+  median: number | null;
+  /** The middle half's edges; always null for "median_only". */
+  q1: number | null;
+  q3: number | null;
+  readings: number;
+}
+
+/**
+ * What temperature usually does at each hour around today's date: over
+ * earlier years' days within a week of it, or the station's own recent days,
+ * or (under 20 days of readings) those days' median only.
+ */
+export interface UsualBand {
+  basis: UsualBasis;
+  unit: "f";
+  /** The earlier years used, newest first; empty unless "earlier_years". */
+  years: number[];
+  /** How many counted days the band is over. */
+  days: number;
+  /** The 24 station-local hours, 0 to 23 in order. */
+  hours: UsualHour[];
+  /** The live reading against its own hour's median; absent before it, null with no reading. */
+  now_delta?: UsualNowDelta | null;
+}
+
+/** How far the live reading is from the usual median at its own station-local hour. */
+export interface UsualNowDelta {
+  /** The reading's wall-clock hour, 0 to 23. */
+  hour: number;
+  /** Degrees F above (positive) or below the median, rounded in Python. */
+  delta_f: number;
+  /** Which days the median is over. */
+  basis: UsualBasis;
+}
+
+const USUAL_BASES: readonly string[] = ["earlier_years", "recent_days", "median_only"];
+
+const isValueOrNull = (v: unknown) => v === null || typeof v === "number";
+
+/**
+ * Check `temperature_context.usual_band`: absent (a snapshot written before
+ * Release A) or null is fine, and the hero draws without it; present, it must
+ * hold its basis and 24 hours of numbers.
+ */
+function checkUsualBand(band: unknown): void {
+  if (band === undefined || band === null) return;
+  const hoursOk =
+    isRecord(band) &&
+    Array.isArray(band.hours) &&
+    band.hours.length === 24 &&
+    band.hours.every(
+      (h, i) =>
+        isRecord(h) &&
+        h.hour === i &&
+        isValueOrNull(h.median) &&
+        isValueOrNull(h.q1) &&
+        isValueOrNull(h.q3),
+    );
+  const delta = isRecord(band) ? band.now_delta : undefined;
+  const deltaOk =
+    delta === undefined ||
+    delta === null ||
+    (isRecord(delta) &&
+      Number.isInteger(delta.hour) &&
+      (delta.hour as number) >= 0 &&
+      (delta.hour as number) <= 23 &&
+      Number.isFinite(delta.delta_f) &&
+      USUAL_BASES.includes(delta.basis as string));
+  if (
+    !hoursOk ||
+    !deltaOk ||
+    !USUAL_BASES.includes(band.basis as string) ||
+    !Array.isArray(band.years) ||
+    !Number.isInteger(band.days)
+  ) {
+    throw new SnapshotContractError("dashboard: temperature_context.usual_band malformed");
+  }
+}
+
+// ---------- the feature (#464, drawn by the Overview's feature tile, #469) ----------
+
+/** The Feature Rule's rules, in order (ADR-0009, `Feature` in model.py). */
+export type FeatureKind = "rain" | "unusual" | "dry_spell" | "quiet";
+
+/** The readings the unusual rule judges. */
+export type FeatureReading = "temperature" | "humidity" | "wind_gust" | "pressure" | "solar";
+
+/** The unit of an unusual reading's value. */
+export type FeatureUnit = "f" | "pct" | "mph" | "inhg" | "wm2";
+
+/**
+ * The feature: the first rule of the Feature Rule that holds. Only
+ * "unusual" carries a reading; every other kind has its four fields null.
+ */
+export interface Feature {
+  kind: FeatureKind;
+  /** For "unusual", the reading furthest out; else null. */
+  reading: FeatureReading | null;
+  /** For "unusual", its current value in `unit`; else null. */
+  value: number | null;
+  unit: FeatureUnit | null;
+  /**
+   * For "unusual", the share of its usual readings at this hour below it
+   * (an equal one counting half), 0 to 100, always outside 10 to 90.
+   */
+  percentile: number | null;
+}
+
+/** The current dry spell against the usual dry spell (`DrySpellNow`). */
+export interface DrySpellNow {
+  /** Days since it last rained; null without a reading or a last rain. */
+  days_since_rain: number | null;
+  /** The usual dry spell in days; null when the 365 days are not comparable. */
+  usual_days: number | null;
+}
+
+const FEATURE_KINDS: readonly string[] = ["rain", "unusual", "dry_spell", "quiet"];
+const FEATURE_READINGS: readonly string[] = [
+  "temperature",
+  "humidity",
+  "wind_gust",
+  "pressure",
+  "solar",
+];
+const FEATURE_UNITS: readonly string[] = ["f", "pct", "mph", "inhg", "wm2"];
+
+/**
+ * Check `feature`: absent (a snapshot written before Release A) is fine,
+ * and the Overview draws no feature tile; present, it must name its kind,
+ * and an "unusual" one its reading, value, unit and percentile.
+ */
+function checkFeature(feature: unknown): void {
+  if (feature === undefined) return;
+  const ok =
+    isRecord(feature) &&
+    FEATURE_KINDS.includes(feature.kind as string) &&
+    (feature.kind === "unusual"
+      ? FEATURE_READINGS.includes(feature.reading as string) &&
+        typeof feature.value === "number" &&
+        FEATURE_UNITS.includes(feature.unit as string) &&
+        typeof feature.percentile === "number"
+      : feature.reading === null &&
+        feature.value === null &&
+        feature.unit === null &&
+        feature.percentile === null);
+  if (!ok) throw new SnapshotContractError("dashboard: feature malformed");
+}
+
+/** `dry_spell` may be absent (N−1); present, it holds two numbers or nulls. */
+function checkDrySpell(spell: unknown): void {
+  if (spell === undefined) return;
+  if (
+    !isRecord(spell) ||
+    !isValueOrNull(spell.days_since_rain) ||
+    !isValueOrNull(spell.usual_days)
+  ) {
+    throw new SnapshotContractError("dashboard: dry_spell malformed");
+  }
 }
 
 function checkLead(lead: unknown): void {
@@ -1076,4 +1313,80 @@ export function newestObservation(
 ): number | null {
   const times = [a, b].filter((t): t is number => typeof t === "number");
   return times.length ? Math.max(...times) : null;
+}
+
+// ---------- history grows: record depth and Full history (#463, drawn by #470) ----------
+
+/** One comparison's record depth: whether the record supports it yet. */
+export interface DepthComparison {
+  /** A standard window ("today" ... "365d", "water_year"), "earlier_year" or "full_history". */
+  key: string;
+  /** Whether the record covers it: a window's is its gap status's `shown`. */
+  shown: boolean;
+  /** The station-local day it is first shown, "YYYY-MM-DD"; null once shown. */
+  unlocks_on: string | null;
+}
+
+/** Whether one Overview tile has the record it needs. */
+export interface DepthTile {
+  /** The tile: "temperature", "rain", "last_10_days" ... "inside". */
+  key: string;
+  /** The comparison it needs (a `DepthComparison.key`); null for none. */
+  needs: string | null;
+  /** Whether it is shown; the mosaic that reads it is Release B2's. */
+  shown: boolean;
+}
+
+/** The comparison the record unlocks next. */
+export interface NextUnlock {
+  /** Its `DepthComparison.key`. */
+  key: string;
+  /** The station-local day it is first shown, "YYYY-MM-DD". */
+  date: string;
+}
+
+/**
+ * How deep the station's record is (`lookout/snapshot/depth.py`). Python
+ * decides what is shown and which unlock is next; the site hides what is
+ * not shown and prints the one next-unlock line.
+ */
+export interface RecordDepth {
+  /** The archive's first station-local day; null when it is empty. */
+  first_day: string | null;
+  /** Station-local days from `first_day` through today; 0 when empty. */
+  days: number;
+  /** Each comparison, the standard windows first, then "earlier_year" and "full_history". */
+  comparisons: DepthComparison[];
+  /** Each Overview tile in the mosaic's order, Inside last. */
+  tiles: DepthTile[];
+  /** Null when every comparison is shown or the archive is empty: no line. */
+  next_unlock: NextUnlock | null;
+}
+
+/** Whether a value is a "YYYY-MM-DD" day. */
+const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/**
+ * Check `record_depth`: absent (N−1) is fine; present, it holds its lists
+ * and a next unlock that is null or names a key and a day.
+ */
+function checkRecordDepth(depth: unknown): void {
+  if (depth === undefined) return;
+  const next = isRecord(depth) ? depth.next_unlock : undefined;
+  if (
+    !isRecord(depth) ||
+    !Array.isArray(depth.comparisons) ||
+    !Array.isArray(depth.tiles) ||
+    !(next === null || (isRecord(next) && typeof next.key === "string" && isDay(next.date)))
+  ) {
+    throw new SnapshotContractError("dashboard: record_depth malformed");
+  }
+}
+
+/** `temperature_context.full_history` may be absent or null; present, it is a period. */
+function checkFullHistory(period: unknown): void {
+  if (period === undefined || period === null) return;
+  if (!isRecord(period) || !isRecord(period.status)) {
+    throw new SnapshotContractError("dashboard: temperature_context.full_history malformed");
+  }
 }

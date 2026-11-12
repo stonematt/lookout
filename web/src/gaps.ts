@@ -39,6 +39,13 @@ const LABELS: Record<GapReason, string> = {
 /** What a compact cell (an almanac square, a narrow table cell) reads. */
 const COMPACT_LABEL = "n/a";
 
+/**
+ * What a compact cell reads for a gap inside a shown period (`plain`): the
+ * Overview hides what the record does not cover, so what it still hatches
+ * is a gap, not "n/a" (#470, PRODUCT.md Principle 4).
+ */
+const COMPACT_PLAIN_LABEL = "gap";
+
 /** The hatch's repeat and its stripe (DESIGN.md: 2px on a 12px repeat). */
 const HATCH_REPEAT_PX = 12;
 const HATCH_STRIPE_PX = 2;
@@ -66,6 +73,11 @@ export function dayStatus(day: string, reason: GapReason): GapStatus {
 export interface HatchOptions {
   /** Show just "n/a" in place, for a cell too small for the reason. */
   compact?: boolean;
+  /**
+   * Word the reason without "n/a" ("gap in record", compact "gap"): the
+   * Overview's gaps inside a shown period (#470).
+   */
+  plain?: boolean;
 }
 
 /**
@@ -88,6 +100,18 @@ export function isComparable(status: GapStatus): boolean {
 export function gapLabel(status: GapStatus): string | null {
   if (isComparable(status)) return null;
   return reasonLabel(status.reason ?? "gap");
+}
+
+/**
+ * The short reason a gap inside a shown period shows in place, without
+ * "n/a" (#470): the Overview hides what the record does not cover.
+ *
+ * @param status - A month's or window's gap status.
+ * @returns "gap in record", "low coverage", "not archived yet" and so on;
+ *   null when it can be compared.
+ */
+export function plainGapLabel(status: GapStatus): string | null {
+  return gapLabel(status)?.replace(/^n\/a: /, "") ?? null;
 }
 
 /**
@@ -199,7 +223,7 @@ export function hatchGap(el: HTMLElement, status: GapStatus, options: HatchOptio
   const label = document.createElement("span");
   label.className = "gap-label";
   label.setAttribute("aria-hidden", "true");
-  label.textContent = options.compact ? COMPACT_LABEL : gapLabel(status);
+  label.textContent = inPlaceLabel(status, options);
   el.replaceChildren(label, spokenSentence(status));
   el.classList.add("gap-hatch", "gap");
   el.dataset.gap = status.reason ?? "gap";
@@ -220,6 +244,12 @@ export function gapElement(status: GapStatus, options: HatchOptions = {}): HTMLE
   block.classList.add("gap-block");
   hatchGap(block, status, options);
   return block;
+}
+
+/** The reason a hatch shows in place, by its options. */
+function inPlaceLabel(status: GapStatus, { compact, plain }: HatchOptions): string | null {
+  if (compact) return plain ? COMPACT_PLAIN_LABEL : COMPACT_LABEL;
+  return plain ? plainGapLabel(status) : gapLabel(status);
 }
 
 /** The sentence as screen-reader text. */

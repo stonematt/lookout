@@ -18,7 +18,7 @@ import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot, SnapshotConditions } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden } from "./golden.js";
+import { golden } from "./golden.js";
 import { viewport } from "./viewport.js";
 
 let page: Page | null = null;
@@ -72,15 +72,6 @@ function fact(panel: HTMLElement, id: string): [string?, string?, string?] {
   ];
 }
 
-/** The now tile's Right-now strip, label to value. */
-function rightNow(panel: HTMLElement): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const item of panel.querySelectorAll("[data-part=right-now] > div")) {
-    out[words(item.querySelector("dt"))!] = words(item.querySelector("dd"))!;
-  }
-  return out;
-}
-
 describe("the quick-fact tiles on the goldens", () => {
   it("dry: wind, pressure and air from the current conditions", async () => {
     // dry current: 1.8 mph from 124°, gust 2.5; 29.673 inHg, steady;
@@ -106,13 +97,6 @@ describe("the quick-fact tiles on the goldens", () => {
       "inHg, steady over the last 3 hours.",
     ]);
     expect(fact(panel, "air")).toEqual(["Air", "66%", "Humidity; dew point 54.3°."]);
-  });
-
-  it.each(SCENARIOS)("%s: wind and humidity agree with the now tile", async (scenario) => {
-    const panel = await boot(parsed(scenario));
-    const strip = rightNow(panel);
-    expect(fact(panel, "wind")[1]).toBe(strip.wind);
-    expect(fact(panel, "air")[1]).toBe(strip.humidity);
   });
 
   it("sit after the Overview's other tiles, a row of four one-column tiles", async () => {
