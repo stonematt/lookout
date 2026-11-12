@@ -288,13 +288,11 @@ _Avoid_: lead (once the feature ships), hero, featured stat, highlight.
 ### widget view
 
 Which view a widget shows now, picked in the snapshot so every widget shows
-the same one (`lookout.snapshot.widget`). Checked in order: **rain_event**
-while an event is live with more than 0.04 in in it; **dry_spell** while the
-current dry spell is longer than the usual dry spell, in any month; otherwise
+the same one (`lookout.snapshot.widget`). It has no rules of its own: it is
+the **feature** mapped to a widget's three views (ADR-0009). Rain gives
+**rain_event**, a long dry spell **dry_spell**, anything else
 **temperature_ranges**, now against today, 7, 30 and 365 days. It is not the
-lead: the lead ranks the Overview's hero, the widget view picks a widget's
-picture. Once the **feature** ships, the widget view is the feature mapped
-to these three views (ADR-0009).
+lead: the lead ranks the Overview's hero until the feature replaces it.
 _Avoid_: widget mode, widget state.
 
 ### dry spell

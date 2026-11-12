@@ -15,7 +15,7 @@ import { parseDashboard } from "../src/snapshot.js";
 import { conditionSentence } from "../src/overview/condition.js";
 import { SECTIONS as RAIN_SECTIONS } from "../src/rain/index.js";
 import { lagCaveat } from "../src/tiles.js";
-import { golden } from "./golden.js";
+import { SCENARIOS, golden } from "./golden.js";
 import { viewport } from "./viewport.js";
 
 let page: Page | null = null;
@@ -52,7 +52,6 @@ const words = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/
 /** Every section host on the Overview: a tile, or on a phone a finding row. */
 const sections = () => [...panel("overview").querySelectorAll<HTMLElement>("[data-section]")];
 
-const SCENARIOS = ["dry", "raining"] as const;
 const WIDTHS = [390, 1440] as const;
 
 describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
@@ -68,7 +67,7 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
   });
 
   it.each(WIDTHS)("renders no archive lag chip at %ipx", async (width) => {
-    // Both goldens lag past 15 minutes, so every tile would have one.
+    // Every golden lags past 15 minutes, so every tile would have one.
     const lag = lagCaveat(snapshot);
     expect(lag).not.toBeNull();
     await boot(snapshot, width);

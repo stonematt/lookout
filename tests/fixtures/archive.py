@@ -27,6 +27,10 @@ over overlapping ranges with the same spells agree row for row.
 
 `scenario_archive()` builds `SCENARIO`: a week with three rain events (one of
 two spells), a carryover gap and a plain gap.
+
+`seasoned_archive()` builds the seasoned station (#461): 2024 and 2025 around
+20 May and a recent 45-day run to `SEASONED_NOW`, a temperature pushed past
+its usual 90th percentile, two indoor sensors and a low sensor 1 battery.
 """
 
 from dataclasses import dataclass, field
@@ -307,3 +311,111 @@ def text_as_category(dtypes: pd.Series, text: Sequence[str]) -> dict:
     return {
         col: "category" if col in text else str(dtype) for col, dtype in dtypes.items()
     }
+
+
+# ---------- the seasoned station (#461) ----------
+
+SEASONED_MAC = "00:11:22:33:44:77"
+SEASONED_NOW = "2026-05-20T22:00:00Z"
+"""The seasoned station's newest reading: Wednesday 2026-05-20 15:00 PDT."""
+
+SEASONED_PUSHED_TEMPF = 72.0
+"""The temperature at `SEASONED_NOW`, past the 90th percentile of its usual."""
+
+SEASONED_BLOCKS = (
+    # Each earlier year: local 2024-05-04 to 2024-05-28 (PDT), so the window
+    # `SPREAD_DAYS` either side of every day in the ten-day list is whole.
+    ("2024-05-04T07:00:00Z", "2024-05-29T07:00:00Z"),
+    ("2025-05-04T07:00:00Z", "2025-05-29T07:00:00Z"),
+    # The recent run: 45 local days up to and including `SEASONED_NOW`.
+    ("2026-04-05T07:00:00Z", "2026-05-20T22:05:00Z"),
+)
+
+SEASONED_RAIN = (
+    RainSpell("2024-05-12T15:00:00Z", hours=3, inches_per_hour=0.08),
+    RainSpell("2025-05-23T18:00:00Z", hours=2, inches_per_hour=0.1),
+    RainSpell("2026-05-01T16:00:00Z", hours=4, inches_per_hour=0.05),
+    RainSpell("2026-05-17T19:00:00Z", hours=2, inches_per_hour=0.12),
+)
+
+SEASONED_LOW_BATTERY_FROM = "2026-05-20T19:00:00Z"
+"""Sensor 1's battery (`batt1`) reads low (0) from here to the newest row."""
+
+
+def _day_offset(local: pd.Series) -> np.ndarray:
+    """
+    A deterministic per-day temperature offset in [-5, 5] °F.
+
+    Each local day's ordinal times the golden angle, so neighbouring days
+    differ and the earlier-year readings at one hour spread into a band.
+    """
+    ordinal = np.array([ts.toordinal() for ts in local.dt.date])
+    return np.round(5 * np.sin(ordinal * 2.399963), 1)
+
+
+def _seasoned_wind(local: pd.Series) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    A varied, deterministic wind for the seasoned station (#465).
+
+    The wind swings from the south-east before dawn to the west in the
+    afternoon and dies to calm on some nights; each day shifts its direction
+    and strength (the day's ordinal times two irrational steps), so the wind
+    rose fills many bins with different averages.
+
+    :param local: The rows' station-local times.
+    :return: `winddir` (whole degrees), `windspeedmph` and `windgustmph`.
+    """
+    hour = (local.dt.hour + local.dt.minute / 60.0).to_numpy()
+    ordinal = np.array([ts.toordinal() for ts in local.dt.date])
+    swing = np.sin(2 * np.pi * (hour - 9) / 24)
+    direction = np.round(200 + 70 * swing + 40 * np.sin(ordinal * 1.7)) % 360
+    speed = np.clip(np.round(3 + 3 * swing + 1.5 * np.sin(ordinal * 2.9), 1), 0, None)
+    gust = np.where(speed > 0, np.round(1.5 * speed + 1, 1), 0.0)
+    return direction, speed, gust
+
+
+def seasoned_archive(
+    newest_first: bool = True, rain: Sequence[RainSpell] = SEASONED_RAIN
+) -> pd.DataFrame:
+    """
+    Build the seasoned station: two earlier years around 20 May and a recent run.
+
+    The earlier years 2024 and 2025 hold local 4-28 May, so `SPREAD_DAYS`
+    either side of each of the last ten days is whole; the recent run holds
+    the 45 local days to `SEASONED_NOW`. Between the blocks the archive has
+    no rows. Each day's temperature is the builder's diurnal curve plus
+    `_day_offset`, and the reading at `SEASONED_NOW` is `SEASONED_PUSHED_TEMPF`.
+
+    The archive also holds the indoor and battery columns the live archives
+    hold (#466): the console (`tempinf`, `humidityin`) and sensor 1
+    (`temp1f`, `humidity1`), and battery flags `battout`, `battin`, `batt1`
+    and `battrain`, the last as a text category ("1") as stored. Ambient
+    sends 1 for OK; `batt1` reads 0 from `SEASONED_LOW_BATTERY_FROM`.
+
+    :param newest_first: Sort newest row first, as the Storj archive is.
+    :param rain: The rain spells; `SEASONED_RAIN` unless a test adds one.
+    :return: The archive DataFrame, index reset.
+    """
+    blocks = [
+        build_archive(start, end, rain=rain, newest_first=False)
+        for start, end in SEASONED_BLOCKS
+    ]
+    df = pd.concat(blocks, ignore_index=True)
+    offset = _day_offset(df["date"])
+    hour = df["date"].dt.hour + df["date"].dt.minute / 60.0
+    df["tempf"] = np.round(df["tempf"] + offset, 1)
+    df["feelsLike"] = df["tempf"]
+    df["dewPoint"] = np.round(df["tempf"] - 5, 1)
+    df["winddir"], df["windspeedmph"], df["windgustmph"] = _seasoned_wind(df["date"])
+    df["temp1f"] = np.round(64 + 2 * np.sin(2 * np.pi * (hour - 9) / 24), 1)
+    df["humidity1"] = np.full(len(df), 55.0)
+    df["batt1"] = np.where(
+        df["dateutc"] >= pd.Timestamp(SEASONED_LOW_BATTERY_FROM).value // 10**6,
+        0.0,
+        1.0,
+    )
+    df["battrain"] = pd.Series(["1"] * len(df), dtype="category")
+    at_now = df["dateutc"] == pd.Timestamp(SEASONED_NOW).value // 10**6
+    df.loc[at_now, ["tempf", "feelsLike"]] = SEASONED_PUSHED_TEMPF
+    df = df.sort_values("dateutc", ascending=not newest_first)
+    return df.reset_index(drop=True)

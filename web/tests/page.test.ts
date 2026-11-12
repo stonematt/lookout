@@ -398,8 +398,11 @@ describe("the station selector", () => {
     // No panel reads those sensors: the snapshot carries none of their
     // fields, so a WS-2902's snapshot has every field a panel draws. A field
     // added for one must be decided in the snapshot for a station without it.
+    // `battery_flags` (#466) names each Ambient column as a value, not a key.
     const fields = JSON.stringify(golden("raining", "dashboard"));
-    expect(fields).not.toMatch(/"(soil\w*|pm25\w*|aqi\w*|temp[1-8]f|humidity[1-8]|batt\w*)"/);
+    expect(fields).not.toMatch(
+      /"(soil\w*|pm25\w*|aqi\w*|temp[1-8]f|humidity[1-8]|batt(?!ery_flags")\w*)":/,
+    );
     history.replaceState(null, "", `/${SALMON_QUERY}`);
     const errors = vi.spyOn(console, "error");
     await startPage(masthead, sections, byStation()).booted;

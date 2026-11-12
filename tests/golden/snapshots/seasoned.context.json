@@ -1,0 +1,31 @@
+{
+  "schema_version": 3,
+  "kind": "context",
+  "station": {
+    "mac": "00:11:22:33:44:77",
+    "name": "Seasoned Station",
+    "tz": "America/Los_Angeles"
+  },
+  "built_at_ms": 1779314460000,
+  "observed_at_ms": 1779314400000,
+  "current": {
+    "temperature_f": 72.0,
+    "feels_like_f": 72.0,
+    "dew_point_f": 51.5,
+    "humidity_pct": 65.0,
+    "barometer_inhg": 30.0,
+    "wind_speed_mph": 5.0,
+    "wind_gust_mph": 8.5,
+    "wind_dir_deg": 247.0,
+    "rain_rate_in_hr": 0.0,
+    "rain_today_in": 0.0,
+    "rain_event_in": 0.0,
+    "solar_wm2": 565.69,
+    "uv_index": 5.0,
+    "last_rain_ms": 1779051300000,
+    "temp_trend": "rising",
+    "barometer_trend": "steady"
+  },
+  "active_rain_event": null,
+  "widget_view": "temperature_ranges"
+}

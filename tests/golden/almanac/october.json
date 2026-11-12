@@ -13,7 +13,8 @@
               "days": 31,
               "missing_days": 19,
               "status": "invalid",
-              "reason": "in_progress"
+              "reason": "in_progress",
+              "shown": true
             },
             "rain_in": null,
             "to_date": {
@@ -23,7 +24,8 @@
               "days": 12,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "to_date_in": 0.3
           },
@@ -46,7 +48,8 @@
           "days": 365,
           "missing_days": 353,
           "status": "invalid",
-          "reason": "in_progress"
+          "reason": "in_progress",
+          "shown": true
         },
         "season_in": null
       },
@@ -61,7 +64,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.25,
             "to_date": null,
@@ -75,7 +79,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -89,7 +94,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 1.0,
             "to_date": null,
@@ -103,7 +109,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -117,7 +124,8 @@
               "days": 28,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -131,7 +139,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -145,7 +154,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -159,7 +169,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -173,7 +184,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -187,7 +199,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -201,7 +214,8 @@
               "days": 31,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "to_date": null,
@@ -215,7 +229,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.7,
             "to_date": null,
@@ -229,7 +244,8 @@
           "days": 365,
           "missing_days": 0,
           "status": "valid",
-          "reason": null
+          "reason": null,
+          "shown": true
         },
         "season_in": 1.95
       },
@@ -244,7 +260,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -258,7 +275,8 @@
               "days": 30,
               "missing_days": 30,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -272,7 +290,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -286,7 +305,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -300,7 +320,8 @@
               "days": 29,
               "missing_days": 29,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -314,7 +335,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -328,7 +350,8 @@
               "days": 30,
               "missing_days": 30,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -342,7 +365,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -356,7 +380,8 @@
               "days": 30,
               "missing_days": 30,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -370,7 +395,8 @@
               "days": 31,
               "missing_days": 31,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -384,7 +410,8 @@
               "days": 31,
               "missing_days": 19,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "to_date": null,
@@ -398,7 +425,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.5,
             "to_date": null,
@@ -412,7 +440,8 @@
           "days": 366,
           "missing_days": 324,
           "status": "invalid",
-          "reason": "before_archive"
+          "reason": "before_archive",
+          "shown": false
         },
         "season_in": null
       }
@@ -430,7 +459,8 @@
               "days": 7,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.1,
             "water_year": 2026
@@ -444,7 +474,8 @@
               "days": 7,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.0,
             "water_year": 2025
@@ -463,7 +494,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 1.0,
             "water_year": 2026
@@ -477,7 +509,8 @@
               "days": 30,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.75,
             "water_year": 2025
@@ -496,7 +529,8 @@
               "days": 90,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 1.0,
             "water_year": 2026
@@ -510,7 +544,8 @@
               "days": 90,
               "missing_days": 36,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2025
@@ -529,7 +564,8 @@
               "days": 365,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 2.0,
             "water_year": 2026
@@ -543,7 +579,8 @@
               "days": 365,
               "missing_days": 311,
               "status": "invalid",
-              "reason": "before_archive"
+              "reason": "before_archive",
+              "shown": false
             },
             "rain_in": null,
             "water_year": 2025
@@ -562,7 +599,8 @@
               "days": 12,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.3,
             "water_year": 2026
@@ -576,13 +614,20 @@
               "days": 12,
               "missing_days": 0,
               "status": "valid",
-              "reason": null
+              "reason": null,
+              "shown": true
             },
             "rain_in": 0.25,
             "water_year": 2025
           }
         ]
       }
-    ]
+    ],
+    "grid_finding": {
+      "month": "2025-09",
+      "earlier": [
+        "2024-09"
+      ]
+    }
   }
 }

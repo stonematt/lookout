@@ -70,7 +70,8 @@ This serves this worktree's `web/` on that port. `/dashboard`, `/current` and
 and `/status` from `tests/golden/status/`, run through the real handlers. It needs no secrets and makes no network calls.
 Stop it with Ctrl-C, or `kill` its PID.
 
-- `?fixture=dry|raining` on the page picks the golden. The default is `dry`,
+- `?fixture=dry|raining|seasoned` on the page picks the golden (`seasoned` has
+  two earlier years around its date). The default is `dry`,
   or whatever `LOOKOUT_FIXTURE` names.
 - `?age=<minutes>` shifts every `_ms` time so that the newest observation is
   that many minutes old (or set `LOOKOUT_AGE_MIN`). Without it the goldens are

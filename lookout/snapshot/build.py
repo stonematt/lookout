@@ -28,7 +28,11 @@ from lookout.snapshot.current import (
 )
 from lookout.snapshot.days import count_days
 from lookout.snapshot.events import rain_events_section
+from lookout.snapshot.feature import feature
 from lookout.snapshot.gaps import snapshot_gaps
+from lookout.snapshot.indoor import battery_flags, indoor_sensors
+from lookout.snapshot.depth import record_depth
+from lookout.snapshot.dry_spell import completed_dry_spells, dry_spell
 from lookout.snapshot.lead import hero_lead
 from lookout.snapshot.model import Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
@@ -37,6 +41,7 @@ from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
 from lookout.snapshot.widget import widget_view
+from lookout.snapshot.wind import wind_rose
 
 
 def build_snapshot(
@@ -76,9 +81,30 @@ def build_snapshot(
     current = current_conditions(stitched, clock)
     active = active_rain_event(event_catalog, current, observed_at_ms)
     days = count_days(archive, current, clock)
+    spells = completed_dry_spells(days)
+    dry = dry_spell(current, observed_at_ms, spells[0])
     lead = hero_lead(
-        archive, stitched, event_catalog, active, current, observed_at_ms, days
+        archive,
+        stitched,
+        event_catalog,
+        active,
+        current,
+        observed_at_ms,
+        days,
+        dry,
+        spells,
     )
+    picked = feature(
+        event_catalog,
+        active,
+        stitched,
+        current,
+        observed_at_ms,
+        days.coverage,
+        dry,
+        clock,
+    )
+    indoor = indoor_sensors(stitched)
 
     return Snapshot(
         station=station,
@@ -98,6 +124,7 @@ def build_snapshot(
             days.rain.water_year_status,
         ),
         hero_lead=lead,
+        dry_spell=dry,
         rain_tab=rain_tab(stitched, days),
         temperature_context=temperature_context(
             stitched, current, observed_at_ms, days.coverage
@@ -107,5 +134,10 @@ def build_snapshot(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
         ),
         sun_moon=sun_moon(station, clock),
-        widget_view=widget_view(active, lead),
+        feature=picked,
+        widget_view=widget_view(picked),
+        record_depth=record_depth(days.coverage, inside=bool(indoor)),
+        wind_rose=wind_rose(stitched, days.coverage),
+        indoor=indoor,
+        battery_flags=battery_flags(stitched),
     )

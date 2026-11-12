@@ -20,11 +20,10 @@ import pytest
 
 import lookout
 from lookout.snapshot.status import RunStatus, code_version
-from tests.snapshot_helpers import FIXED_CODE, REGENERATE, dry_station
-from tests.snapshot_helpers import raining_station
+from tests.snapshot_helpers import FIXED_CODE, GOLDEN_SCENARIOS, REGENERATE
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "status"
-SCENARIOS = {"dry": dry_station, "raining": raining_station}
+SCENARIOS = GOLDEN_SCENARIOS
 
 
 def git(root: Path, *args: str) -> str:

@@ -28,9 +28,9 @@ from lookout.snapshot.station_index import (
 )
 from lookout.storage import storj
 from tests.fixtures.ambient import to_ambient_records
-from tests.fixtures.archive import FAKE_MAC, SCENARIO, build_archive
+from tests.fixtures.archive import FAKE_MAC, SCENARIO, SEASONED_MAC, build_archive
 from tests.fixtures.storage import BUCKET, flaky_storj, seed_inventory
-from tests.snapshot_helpers import REGENERATE, dry_station, raining_station
+from tests.snapshot_helpers import GOLDEN_SCENARIOS, REGENERATE
 from tests.test_catchup import CatchupStation, ms, reporting
 from tests.test_refresh import (  # noqa: F401 (seed, catchup_station, fixed_code)
     EVENT_CATALOG_KEY,
@@ -281,7 +281,13 @@ GOLDEN_SECOND = {
     "newest_reading_ms": None,
     "archive_start_ms": None,
 }
-SCENARIOS = {"dry": dry_station, "raining": raining_station}
+# Each golden index's first station: the scenario's own.
+GOLDEN_FIRST = {
+    "dry": {"mac": FAKE_MAC, "name": "Fixture Station"},
+    "raining": {"mac": FAKE_MAC, "name": "Fixture Station"},
+    "seasoned": {"mac": SEASONED_MAC, "name": "Seasoned Station"},
+}
+SCENARIOS = GOLDEN_SCENARIOS
 
 
 class TestTheReaderRefusesWhatTheSiteRefuses:
@@ -345,8 +351,7 @@ def test_station_indexes_match_the_golden_files(scenario):
         "built_at_ms": snapshot.built_at_ms,
         "stations": [
             {
-                "mac": FAKE_MAC,
-                "name": "Fixture Station",
+                **GOLDEN_FIRST[scenario],
                 "tz": TZ,
                 "newest_reading_ms": snapshot.observed_at_ms,
                 "archive_start_ms": GOLDEN_ARCHIVE_START,

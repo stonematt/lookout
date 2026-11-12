@@ -18,7 +18,7 @@ import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot, SnapshotConditions } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import type { Scenario } from "./golden.js";
-import { golden } from "./golden.js";
+import { SCENARIOS, golden } from "./golden.js";
 import { viewport } from "./viewport.js";
 
 let page: Page | null = null;
@@ -108,15 +108,12 @@ describe("the quick-fact tiles on the goldens", () => {
     expect(fact(panel, "air")).toEqual(["Air", "66%", "Humidity; dew point 54.3°."]);
   });
 
-  it.each(["dry", "raining"] as const)(
-    "%s: wind and humidity agree with the now tile",
-    async (scenario) => {
-      const panel = await boot(parsed(scenario));
-      const strip = rightNow(panel);
-      expect(fact(panel, "wind")[1]).toBe(strip.wind);
-      expect(fact(panel, "air")[1]).toBe(strip.humidity);
-    },
-  );
+  it.each(SCENARIOS)("%s: wind and humidity agree with the now tile", async (scenario) => {
+    const panel = await boot(parsed(scenario));
+    const strip = rightNow(panel);
+    expect(fact(panel, "wind")[1]).toBe(strip.wind);
+    expect(fact(panel, "air")[1]).toBe(strip.humidity);
+  });
 
   it("sit after the Overview's other tiles, a row of four one-column tiles", async () => {
     const panel = await boot(parsed("dry"));
