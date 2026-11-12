@@ -13652,5 +13652,649 @@
       "date": "2025-11-23"
     }
   },
+  "wind_rose": {
+    "calm_below_mph": 1.0,
+    "windows": [
+      {
+        "key": "24h",
+        "hours": 24,
+        "status": {
+          "key": "24h",
+          "first_day": "2025-11-18",
+          "last_day": "2025-11-19",
+          "days": 2,
+          "missing_days": 2,
+          "status": "invalid",
+          "reason": "not_archived",
+          "shown": true
+        },
+        "readings": 0,
+        "calm_readings": 0,
+        "calm_pct": null,
+        "bins": [
+          {
+            "direction": "N",
+            "centre_deg": 0.0,
+            "from_deg": 348.75,
+            "to_deg": 11.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NNE",
+            "centre_deg": 22.5,
+            "from_deg": 11.25,
+            "to_deg": 33.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NE",
+            "centre_deg": 45.0,
+            "from_deg": 33.75,
+            "to_deg": 56.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "ENE",
+            "centre_deg": 67.5,
+            "from_deg": 56.25,
+            "to_deg": 78.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "E",
+            "centre_deg": 90.0,
+            "from_deg": 78.75,
+            "to_deg": 101.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "ESE",
+            "centre_deg": 112.5,
+            "from_deg": 101.25,
+            "to_deg": 123.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SE",
+            "centre_deg": 135.0,
+            "from_deg": 123.75,
+            "to_deg": 146.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SSE",
+            "centre_deg": 157.5,
+            "from_deg": 146.25,
+            "to_deg": 168.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "S",
+            "centre_deg": 180.0,
+            "from_deg": 168.75,
+            "to_deg": 191.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SSW",
+            "centre_deg": 202.5,
+            "from_deg": 191.25,
+            "to_deg": 213.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SW",
+            "centre_deg": 225.0,
+            "from_deg": 213.75,
+            "to_deg": 236.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "WSW",
+            "centre_deg": 247.5,
+            "from_deg": 236.25,
+            "to_deg": 258.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "W",
+            "centre_deg": 270.0,
+            "from_deg": 258.75,
+            "to_deg": 281.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "WNW",
+            "centre_deg": 292.5,
+            "from_deg": 281.25,
+            "to_deg": 303.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NW",
+            "centre_deg": 315.0,
+            "from_deg": 303.75,
+            "to_deg": 326.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NNW",
+            "centre_deg": 337.5,
+            "from_deg": 326.25,
+            "to_deg": 348.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          }
+        ],
+        "points": [
+          {
+            "direction": "N",
+            "centre_deg": 0.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "NE",
+            "centre_deg": 45.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "E",
+            "centre_deg": 90.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "SE",
+            "centre_deg": 135.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "S",
+            "centre_deg": 180.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "SW",
+            "centre_deg": 225.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "W",
+            "centre_deg": 270.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "NW",
+            "centre_deg": 315.0,
+            "readings": 0,
+            "share_pct": null
+          }
+        ]
+      },
+      {
+        "key": "7d",
+        "hours": 168,
+        "status": {
+          "key": "7d",
+          "first_day": "2025-11-12",
+          "last_day": "2025-11-19",
+          "days": 8,
+          "missing_days": 7,
+          "status": "invalid",
+          "reason": "not_archived",
+          "shown": false
+        },
+        "readings": 0,
+        "calm_readings": 0,
+        "calm_pct": null,
+        "bins": [
+          {
+            "direction": "N",
+            "centre_deg": 0.0,
+            "from_deg": 348.75,
+            "to_deg": 11.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NNE",
+            "centre_deg": 22.5,
+            "from_deg": 11.25,
+            "to_deg": 33.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NE",
+            "centre_deg": 45.0,
+            "from_deg": 33.75,
+            "to_deg": 56.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "ENE",
+            "centre_deg": 67.5,
+            "from_deg": 56.25,
+            "to_deg": 78.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "E",
+            "centre_deg": 90.0,
+            "from_deg": 78.75,
+            "to_deg": 101.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "ESE",
+            "centre_deg": 112.5,
+            "from_deg": 101.25,
+            "to_deg": 123.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SE",
+            "centre_deg": 135.0,
+            "from_deg": 123.75,
+            "to_deg": 146.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SSE",
+            "centre_deg": 157.5,
+            "from_deg": 146.25,
+            "to_deg": 168.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "S",
+            "centre_deg": 180.0,
+            "from_deg": 168.75,
+            "to_deg": 191.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SSW",
+            "centre_deg": 202.5,
+            "from_deg": 191.25,
+            "to_deg": 213.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SW",
+            "centre_deg": 225.0,
+            "from_deg": 213.75,
+            "to_deg": 236.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "WSW",
+            "centre_deg": 247.5,
+            "from_deg": 236.25,
+            "to_deg": 258.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "W",
+            "centre_deg": 270.0,
+            "from_deg": 258.75,
+            "to_deg": 281.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "WNW",
+            "centre_deg": 292.5,
+            "from_deg": 281.25,
+            "to_deg": 303.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NW",
+            "centre_deg": 315.0,
+            "from_deg": 303.75,
+            "to_deg": 326.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NNW",
+            "centre_deg": 337.5,
+            "from_deg": 326.25,
+            "to_deg": 348.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          }
+        ],
+        "points": [
+          {
+            "direction": "N",
+            "centre_deg": 0.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "NE",
+            "centre_deg": 45.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "E",
+            "centre_deg": 90.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "SE",
+            "centre_deg": 135.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "S",
+            "centre_deg": 180.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "SW",
+            "centre_deg": 225.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "W",
+            "centre_deg": 270.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "NW",
+            "centre_deg": 315.0,
+            "readings": 0,
+            "share_pct": null
+          }
+        ]
+      },
+      {
+        "key": "30d",
+        "hours": 720,
+        "status": {
+          "key": "30d",
+          "first_day": "2025-10-20",
+          "last_day": "2025-11-19",
+          "days": 31,
+          "missing_days": 30,
+          "status": "invalid",
+          "reason": "not_archived",
+          "shown": false
+        },
+        "readings": 0,
+        "calm_readings": 0,
+        "calm_pct": null,
+        "bins": [
+          {
+            "direction": "N",
+            "centre_deg": 0.0,
+            "from_deg": 348.75,
+            "to_deg": 11.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NNE",
+            "centre_deg": 22.5,
+            "from_deg": 11.25,
+            "to_deg": 33.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NE",
+            "centre_deg": 45.0,
+            "from_deg": 33.75,
+            "to_deg": 56.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "ENE",
+            "centre_deg": 67.5,
+            "from_deg": 56.25,
+            "to_deg": 78.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "E",
+            "centre_deg": 90.0,
+            "from_deg": 78.75,
+            "to_deg": 101.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "ESE",
+            "centre_deg": 112.5,
+            "from_deg": 101.25,
+            "to_deg": 123.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SE",
+            "centre_deg": 135.0,
+            "from_deg": 123.75,
+            "to_deg": 146.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SSE",
+            "centre_deg": 157.5,
+            "from_deg": 146.25,
+            "to_deg": 168.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "S",
+            "centre_deg": 180.0,
+            "from_deg": 168.75,
+            "to_deg": 191.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SSW",
+            "centre_deg": 202.5,
+            "from_deg": 191.25,
+            "to_deg": 213.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "SW",
+            "centre_deg": 225.0,
+            "from_deg": 213.75,
+            "to_deg": 236.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "WSW",
+            "centre_deg": 247.5,
+            "from_deg": 236.25,
+            "to_deg": 258.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "W",
+            "centre_deg": 270.0,
+            "from_deg": 258.75,
+            "to_deg": 281.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "WNW",
+            "centre_deg": 292.5,
+            "from_deg": 281.25,
+            "to_deg": 303.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NW",
+            "centre_deg": 315.0,
+            "from_deg": 303.75,
+            "to_deg": 326.25,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          },
+          {
+            "direction": "NNW",
+            "centre_deg": 337.5,
+            "from_deg": 326.25,
+            "to_deg": 348.75,
+            "readings": 0,
+            "average_mph": null,
+            "gust_mph": null
+          }
+        ],
+        "points": [
+          {
+            "direction": "N",
+            "centre_deg": 0.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "NE",
+            "centre_deg": 45.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "E",
+            "centre_deg": 90.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "SE",
+            "centre_deg": 135.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "S",
+            "centre_deg": 180.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "SW",
+            "centre_deg": 225.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "W",
+            "centre_deg": 270.0,
+            "readings": 0,
+            "share_pct": null
+          },
+          {
+            "direction": "NW",
+            "centre_deg": 315.0,
+            "readings": 0,
+            "share_pct": null
+          }
+        ]
+      }
+    ]
+  },
   "stale_catalogs": []
 }

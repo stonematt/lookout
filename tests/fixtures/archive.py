@@ -353,6 +353,27 @@ def _day_offset(local: pd.Series) -> np.ndarray:
     return np.round(5 * np.sin(ordinal * 2.399963), 1)
 
 
+def _seasoned_wind(local: pd.Series) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    A varied, deterministic wind for the seasoned station (#465).
+
+    The wind swings from the south-east before dawn to the west in the
+    afternoon and dies to calm on some nights; each day shifts its direction
+    and strength (the day's ordinal times two irrational steps), so the wind
+    rose fills many bins with different averages.
+
+    :param local: The rows' station-local times.
+    :return: `winddir` (whole degrees), `windspeedmph` and `windgustmph`.
+    """
+    hour = (local.dt.hour + local.dt.minute / 60.0).to_numpy()
+    ordinal = np.array([ts.toordinal() for ts in local.dt.date])
+    swing = np.sin(2 * np.pi * (hour - 9) / 24)
+    direction = np.round(200 + 70 * swing + 40 * np.sin(ordinal * 1.7)) % 360
+    speed = np.clip(np.round(3 + 3 * swing + 1.5 * np.sin(ordinal * 2.9), 1), 0, None)
+    gust = np.where(speed > 0, np.round(1.5 * speed + 1, 1), 0.0)
+    return direction, speed, gust
+
+
 def seasoned_archive(
     newest_first: bool = True, rain: Sequence[RainSpell] = SEASONED_RAIN
 ) -> pd.DataFrame:
@@ -385,6 +406,7 @@ def seasoned_archive(
     df["tempf"] = np.round(df["tempf"] + offset, 1)
     df["feelsLike"] = df["tempf"]
     df["dewPoint"] = np.round(df["tempf"] - 5, 1)
+    df["winddir"], df["windspeedmph"], df["windgustmph"] = _seasoned_wind(df["date"])
     df["temp1f"] = np.round(64 + 2 * np.sin(2 * np.pi * (hour - 9) / 24), 1)
     df["humidity1"] = np.full(len(df), 55.0)
     df["batt1"] = np.where(

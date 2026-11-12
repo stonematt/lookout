@@ -39,6 +39,7 @@ from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
 from lookout.snapshot.widget import widget_view
+from lookout.snapshot.wind import wind_rose
 
 
 def build_snapshot(
@@ -133,4 +134,5 @@ def build_snapshot(
         feature=picked,
         widget_view=widget_view(picked),
         record_depth=record_depth(days.coverage),
+        wind_rose=wind_rose(stitched, days.coverage),
     )
