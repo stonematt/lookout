@@ -247,6 +247,48 @@ class TestTenDays:
         assert today.usual_years == () and today.usual_days == 0
 
 
+class TestTenDayHighs:
+    """The last ten days' highs against their usual highs (#540)."""
+
+    @staticmethod
+    def expected(rows) -> int:
+        """Mean high minus mean usual high over the paired days, whole F."""
+        paired = [r for r in rows if r.high is not None and r.usual_high is not None]
+        highs = np.mean([r.high for r in paired])
+        usual = np.mean([r.usual_high for r in paired])
+        return int(np.sign(highs - usual) * np.floor(abs(highs - usual) + 0.5))
+
+    def test_the_mean_high_against_the_mean_usual_high(self, snapshot):
+        context = section(snapshot)
+
+        highs = context.ten_day_highs
+
+        # 2025 and 2026 run 4 and 8 degrees over the years their usual is
+        # over, so the ten days sit well over usual.
+        assert highs.days == 10
+        assert highs.delta_f == self.expected(context.ten_days)
+        assert highs.delta_f > 0
+
+    def test_only_days_with_a_high_and_a_usual_high_count(self):
+        gone = Gap("2026-01-02T08:00:00Z", "2026-01-03T08:00:00Z")
+        archive = station(gaps=(gone,))
+
+        context = build(archive, None, NOW).temperature_context
+
+        assert context.ten_day_highs.days == 9
+        assert context.ten_day_highs.delta_f == self.expected(context.ten_days)
+
+    def test_a_young_archive_has_no_delta(self):
+        archive = station(start="2025-12-01T08:00:00Z")
+
+        assert build(archive, None, NOW).temperature_context.ten_day_highs is None
+
+    def test_an_empty_archive_has_no_delta(self):
+        empty = station().iloc[0:0]
+
+        assert build(empty, None, NOW).temperature_context.ten_day_highs is None
+
+
 class TestStrips:
     def strips(self, snapshot) -> Dict:
         return {s.kind: s for s in section(snapshot).strips}

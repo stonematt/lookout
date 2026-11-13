@@ -34,12 +34,13 @@ from lookout.snapshot.indoor import battery_flags, indoor_sensors
 from lookout.snapshot.depth import record_depth
 from lookout.snapshot.dry_spell import completed_dry_spells, dry_spell
 from lookout.snapshot.lead import hero_lead
-from lookout.snapshot.model import Snapshot, Station
+from lookout.snapshot.model import Feature, Snapshot, Station
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
+from lookout.snapshot.trace import outdoor_trace
 from lookout.snapshot.widget import widget_view
 from lookout.snapshot.wind import wind_rose
 
@@ -51,6 +52,7 @@ def build_snapshot(
     energy_catalog: Optional[pd.DataFrame],
     station: Station,
     now: datetime,
+    previous_feature: Optional[Feature] = None,
 ) -> Snapshot:
     """
     Build the dashboard snapshot for one station.
@@ -68,6 +70,9 @@ def build_snapshot(
     :param station: The station; its zone is the build's (ADR-0005), and
         its coordinates (when Ambient sent them) place the sun and moon.
     :param now: The build time, timezone-aware.
+    :param previous_feature: The feature of the last published snapshot
+        (`lookout.snapshot.feature.previous_feature`), for the Feature
+        Rule's hold (#533); None when there is none, so nothing is held.
     :return: The snapshot.
     :raises ValueError: If `now` has no timezone.
     """
@@ -103,6 +108,7 @@ def build_snapshot(
         days.coverage,
         dry,
         clock,
+        previous_feature,
     )
     indoor = indoor_sensors(stitched)
 
@@ -140,4 +146,5 @@ def build_snapshot(
         wind_rose=wind_rose(stitched, days.coverage),
         indoor=indoor,
         battery_flags=battery_flags(stitched),
+        outdoor_trace=outdoor_trace(stitched),
     )

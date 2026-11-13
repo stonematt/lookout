@@ -238,9 +238,12 @@ class TestSeasonedGolden:
     def test_the_long_windows_are_shown_with_their_gap(self, seasoned):
         found = periods(seasoned)
 
-        for key in ("90d", "365d"):
-            assert found[key].shown is True
-            assert (found[key].status, found[key].reason) == ("invalid", "gap")
+        # The recent run holds water year 2026 from Oct 1 (#539), so 90 days
+        # are whole; 365 days reach back into the summer 2025 gap.
+        assert found["90d"].shown is True
+        assert found["90d"].status == "valid"
+        assert found["365d"].shown is True
+        assert (found["365d"].status, found["365d"].reason) == ("invalid", "gap")
 
     def test_full_history_spans_the_record_and_reports_its_gap(self, seasoned):
         full = seasoned.temperature_context.full_history

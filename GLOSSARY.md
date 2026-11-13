@@ -279,11 +279,16 @@ To be replaced by the **feature** (ADR-0009).
 The one reading the Overview's full-width feature tile shows, and the one
 every widget's view follows. Picked by the Feature Rule (ADR-0009), first
 that holds: rain while an event is live or ended in the last 12 h; a reading
-outside its usual band for this hour (below the 10th or above the 90th
-percentile), the furthest out winning; a dry spell longer than the usual dry
-spell; otherwise temperature, as a usual day. Replaces the **lead** and
-decides the **widget view**.
-_Avoid_: lead (once the feature ships), hero, featured stat, highlight.
+(temperature, humidity, pressure or solar; never wind gust) outside its usual
+band for this hour (below the 10th or above the 90th percentile), the
+furthest out winning; a dry spell longer than the usual dry spell; otherwise
+temperature, as a usual day. Its subject is its kind, and for an unusual
+reading which reading. A subject is held for 3 hours from when it was first
+chosen, unless rain starts: a held feature keeps its subject while the
+rule picks another, with its values as they are now. Replaces the **lead**
+and decides the **widget view**.
+_Avoid_: lead (once the feature ships), hero, featured stat, highlight;
+sticky (for the hold).
 
 ### widget view
 
@@ -311,6 +316,17 @@ part of the median it is measured against. The Overview's rain lead and the
 Rain events catalog (all-time and per water year) use this one rule (#375).
 _Avoid_: median event (for a median that counts the live event).
 
+### usual rain to date
+
+The median, over earlier **water years**, of each year's rain from Oct 1 to
+this date, read at the same place the Rain tab's year-over-year finding
+compares; an even count takes the mean of the middle two. A year counts when
+its window to this date is valid or prorated. This water year's rain to date
+is published as a whole percent of it, as in "74% of usual", with the count
+of years it rests on (`rain_tab.usual_to_date`, #539). There is none before
+an earlier year covers the date, and no percent of a usual of 0.
+_Avoid_: normal rainfall, average to date.
+
 ### usual band
 
 What a reading usually does at each hour of the day around this date: the
@@ -330,3 +346,13 @@ snapshot decides the hour, the difference and the band's basis
 Feature Rule's 15-minute test) or the band has no median for that hour.
 One value serves the Overview's top line and the Temperature tile (#518).
 _Avoid_: anomaly, departure, delta from normal.
+
+### highs against usual
+
+The mean of the last ten days' highs minus the mean of their usual highs
+(each day's median daily high over ±7 days in earlier years), in whole
+degrees F, as in "+5° highs over usual". Only days with both a high and a
+usual high count, and the count is published with it
+(`temperature_context.ten_day_highs`, #540). There is none when no day has
+both, as before a station's first earlier year.
+_Avoid_: ten-day anomaly, average departure.
