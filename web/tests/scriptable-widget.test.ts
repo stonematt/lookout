@@ -5,7 +5,7 @@
  */
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { FIXTURE_MAC, SALMON_MAC, golden } from "./golden.js";
+import { FIXTURE_MAC, SALMON_MAC, golden, goldenNext } from "./golden.js";
 
 interface Station {
   mac: string;
@@ -158,10 +158,7 @@ describe("widgetModel", () => {
   it("draws the spell against the usual and the longest for dry_spell", () => {
     const doc = dashboard("dry");
     doc.widget_view = "dry_spell";
-    const lead = doc.hero_lead as { rules: { kind: string; value: number; reference: number }[] };
-    const calm = lead.rules.find((r) => r.kind === "calm")!;
-    calm.value = 9.4;
-    calm.reference = 4;
+    doc.dry_spell = { days_since_rain: 9.4, usual_days: 4 };
 
     const model = widget.widgetModel(doc);
 
@@ -169,6 +166,26 @@ describe("widgetModel", () => {
     expect(model.daysDry).toBe(9);
     expect(model.usualDays).toBe(4);
     expect(model.sentence).toBe("Dry for 9 days, longer than the usual 4");
+  });
+
+  it("draws the dry spell from a v4 snapshot, which has no hero_lead", () => {
+    const doc = goldenNext("dry", "dashboard") as Record<string, unknown>;
+    doc.widget_view = "dry_spell";
+    doc.dry_spell = { days_since_rain: 9.4, usual_days: 4 };
+
+    const model = widget.widgetModel(doc);
+
+    expect(model.view).toBe("dry_spell");
+    expect(model.daysDry).toBe(9);
+    expect(model.usualDays).toBe(4);
+  });
+
+  it("falls back to temperature_ranges when the usual dry spell is unknown", () => {
+    const doc = goldenNext("dry", "dashboard") as Record<string, unknown>;
+    doc.widget_view = "dry_spell";
+    doc.dry_spell = { days_since_rain: 9.4, usual_days: null };
+
+    expect(widget.widgetModel(doc).view).toBe("temperature_ranges");
   });
 
   it("falls back to temperature_ranges for a snapshot without widget_view", () => {

@@ -20,7 +20,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden } from "./golden.js";
+import { SCENARIOS, golden, goldenNext } from "./golden.js";
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -408,15 +408,25 @@ describe("the Dry spell tile", () => {
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 3 days");
   });
 
-  it("reads the calm lead rule in a snapshot without dry_spell (N−1)", () => {
-    const d = doc("seasoned");
-    delete d.dry_spell;
-    const calm = d.hero_lead.rules.find((r: Doc) => r.kind === "calm");
-    calm.reference = 2;
+  it("reads dry_spell in a v4 snapshot, with no hero_lead", () => {
+    const d = goldenNext("seasoned", "dashboard") as Doc;
+    d.dry_spell = { days_since_rain: 3.05, usual_days: 2 };
     renderOverview(panel, parseDashboard(d));
 
     expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("3 d 1 h");
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 2 days");
+  });
+
+  it("ignores the calm lead rule a v3 snapshot still carries", () => {
+    const d = doc("seasoned");
+    d.dry_spell = { days_since_rain: 9.4, usual_days: 3 };
+    const calm = d.hero_lead.rules.find((r: Doc) => r.kind === "calm");
+    calm.value = 1;
+    calm.reference = 99;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("9 d 9 h");
+    expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 3 days");
   });
 
   it("draws the last 30 days, today outlined", () => {
