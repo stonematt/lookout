@@ -14,6 +14,8 @@
  * - Last 10 days: the ten days' highs against their usual highs, a mean
  *   (`temperature_context.ten_day_highs`, #540); its mini chart is each
  *   day's low to high over the usual for its date.
+ * - With nothing to compare yet (a new station), Rain and Last 10 days show
+ *   the snapshot's 7-day window instead, named "last 7 days" (#605).
  * - Dry spell: the days since it last rained against the usual dry spell
  *   (`dry_spell`, Release A; the calm lead rule for an older snapshot, the
  *   same numbers the Rain tab shows); its mini chart is the last 30 days'
@@ -47,6 +49,7 @@ import {
   sunTile,
   windTile,
 } from "./mosaic-conditions.js";
+import { isShown } from "./history.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
 import { rampColour, shownDays, todayInList, todayPeriod } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
@@ -55,6 +58,9 @@ const SHORT_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "
 
 /** A mini chart's row label width: "usual", "today" in label type. */
 const ROW_LABEL_PX = 46;
+
+/** The delta naming a number as the 7-day window's, when nothing compares (#605). */
+const LAST_7_DAYS = "last 7 days";
 
 // ---------- Temperature ----------
 
@@ -229,7 +235,9 @@ function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
 /**
  * Rain since Oct 1: this water year to date, as a percent of the usual rain
  * by this date (`rain_tab.usual_to_date`, #539); the total alone when the
- * snapshot has no percent (null, or N−1).
+ * snapshot has no percent (null, or N−1). With no total to date (a new
+ * station), the last 7 days' total (`rain_tab.windows` `7d`, #605), named
+ * so; "not compared yet" when that is not shown either.
  */
 export const rainTile: MosaicTile = {
   slug: "rain",
@@ -240,7 +248,15 @@ export const rainTile: MosaicTile = {
     const tab = snapshot.rain_tab;
     const current = currentYear(tab);
     if (!current || current.to_date_in === null) {
-      return { value: null, delta: "not compared yet" };
+      // Nothing to compare yet (a new station): the last 7 days' total (#605).
+      const week = tab.windows.find((w) => w.key === "7d");
+      const total =
+        week && isShown(week.status) && week.total_in !== null
+          ? gapValue(week.status, inches(week.total_in, { unit: false }))
+          : null;
+      return total === null
+        ? { value: null, delta: "not compared yet" }
+        : { value: total, unit: "in", delta: LAST_7_DAYS };
     }
     const approx = current.prorated[tab.day_index] ? "≈ " : "";
     const share = tab.usual_to_date?.percent ?? null;
@@ -330,8 +346,9 @@ function highsWords(deltaF: number): string {
 
 /**
  * Last 10 days: the last ten days' highs against their usual highs, a mean
- * (`temperature_context.ten_day_highs`, #540); not compared when the
- * snapshot has none (null, or N−1).
+ * (`temperature_context.ten_day_highs`, #540). When the snapshot has none
+ * (null, or N−1), the last 7 days' low to high (`temperature_context.periods`
+ * `7d`, #605), named so; "not compared yet" when that is not shown either.
  */
 export const tenDaysTile: MosaicTile = {
   slug: "last-10-days",
@@ -340,7 +357,18 @@ export const tenDaysTile: MosaicTile = {
   zoomName: "last 10 days",
   read(snapshot) {
     const highs = snapshot.temperature_context.ten_day_highs ?? null;
-    if (highs === null) return { value: null, delta: "not compared yet" };
+    if (highs === null) {
+      // Nothing to compare yet (a new station): the last 7 days' low to
+      // high, the temperature window the snapshot already holds (#605).
+      const week = snapshot.temperature_context.periods.find((p) => p.status.key === "7d");
+      if (!week || !isShown(week.status) || week.low === null || week.high === null) {
+        return { value: null, delta: "not compared yet" };
+      }
+      return {
+        value: `${degrees(week.low, 0)}–${degrees(week.high, 0)}`,
+        delta: `low to high, ${LAST_7_DAYS}`,
+      };
+    }
     return {
       value: `${signed(highs.delta_f, 0, { plus: true })}°`,
       delta: highsWords(highs.delta_f),
