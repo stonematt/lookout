@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Layout check (#402): open every tab of the built site in its own headless
- * Chromium and fail, naming the view, on three layout facts.
+ * Chromium and fail, naming the view, on three layout facts (and the footer's height below).
  *
  *   npm run layout-check            # builds with VITE_LANE_SERVER=1, then checks
  *   node scripts/layout-check.mjs <base-url>  # check a running build instead
@@ -24,7 +24,9 @@
  * measured the same way: the zooms are found from the Overview's tile
  * links (`a[data-zoom]`, set by `src/overview/zoom.ts` for each slug in
  * `src/overview/zooms/index.ts`), so a new zoom needs no change here.
- * Layout facts only; taste stays with the design-compliance pass.
+ * At 320px the Overview's closed sources footer must also be shorter than a
+ * 320px phone's screen (#604). Layout facts only; taste stays with the
+ * design-compliance pass.
  *
  * It serves `dist/` with `vite preview` itself (the lane server's read
  * functions, so no secrets and no network), on a free port. `--prove` adds
@@ -179,6 +181,29 @@ async function inspectTab(page) {
   return problems;
 }
 
+/**
+ * The Overview's sources footer, closed, is shorter than one screen (#604).
+ * The 844px check viewport is a tall phone, so the bar is the shortest common
+ * one: 568px, a 320px-wide phone's height.
+ */
+const FOOTER_MAX_PX = 568;
+
+/** The closed sources footer's height against `FOOTER_MAX_PX`, as a problem. */
+async function footerFits(page) {
+  const height = await page.evaluate(() => {
+    const footer = document.querySelector("[role=tabpanel]:not([hidden]) footer.ov-sources");
+    if (!footer) return null;
+    const how = footer.querySelector("details");
+    if (how?.open) return -1;
+    return footer.getBoundingClientRect().height;
+  });
+  if (height === null) return ["no sources footer"];
+  if (height === -1) return ["sources footer disclosure open on load"];
+  return height < FOOTER_MAX_PX
+    ? []
+    : [`closed sources footer ${Math.round(height)}px, not under ${FOOTER_MAX_PX}px`];
+}
+
 const root = fileURLToPath(new URL("..", import.meta.url));
 // An optional base URL checks a server already running (as `shots.mjs` does);
 // without one the script serves `dist/` itself.
@@ -228,7 +253,9 @@ try {
             await page.waitForSelector(".ev-chart.js-plotly-plot", { timeout: 10000 });
           }
           await page.waitForTimeout(300);
-          report(`${kase.name} #${tab} ${width}px ${colorScheme}`, await inspectTab(page), kase);
+          const found = await inspectTab(page);
+          if (tab === "overview" && width === 320) found.push(...(await footerFits(page)));
+          report(`${kase.name} #${tab} ${width}px ${colorScheme}`, found, kase);
         }
         // Every zoom the Overview registers (#474): its tiles' links carry
         // `data-zoom`, so a zoom a lane registers is measured with no change here.

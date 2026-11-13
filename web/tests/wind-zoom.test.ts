@@ -252,8 +252,8 @@ describe("the Wind tile's line in the sources footer", () => {
   it("describes the rose and its calm threshold, from the snapshot", () => {
     const snapshot = parsed("seasoned");
     snapshot.wind_rose!.calm_below_mph = 0.5;
-    const { what, method } = windTile.source(snapshot);
-    expect(what).toBe("the live reading, and each window's readings for the rose");
+    const { line, method } = windTile.source(snapshot);
+    expect(line).toBe("live speed, direction and gust; the rose from each window's readings.");
     expect(method).toContain("each direction's average wind and its highest gust");
     expect(method).toContain("A reading under 0.5 mph, or with no direction, is calm");
   });
@@ -261,7 +261,7 @@ describe("the Wind tile's line in the sources footer", () => {
   it("describes the live reading alone before the rose (N-1)", () => {
     const snapshot = parsed("seasoned");
     delete snapshot.wind_rose;
-    expect(windTile.source(snapshot).what).toBe("the live reading: speed, direction and gust");
+    expect(windTile.source(snapshot).line).toBe("live speed, direction and gust.");
     expect(windTile.source(snapshot).method).not.toContain("rose");
   });
 });

@@ -49,7 +49,9 @@ function firstScreenSource(snapshot: DashboardSnapshot): TileSource {
     : "";
   const slots = snapshot.condition_ribbon?.slot_minutes ?? 15;
   return {
-    what: "the station's live reading, and today's archive",
+    line: band
+      ? "live reading and today's archive, against each hour's usual."
+      : "live reading and today's archive.",
     method:
       `Today's line is the archive in ${slots}-minute slots; where the archive has not caught up, ` +
       `the live reading is joined by a dotted line, and a stretch missing from the record is hatched.${usual}`,

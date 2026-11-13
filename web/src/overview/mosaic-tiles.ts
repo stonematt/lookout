@@ -149,7 +149,7 @@ export const temperatureTile: MosaicTile = {
   },
   chart: temperatureChart,
   source: () => ({
-    what: "five-minute readings, station time, with the live reading as now",
+    line: "outdoor sensor, against ±7 days around this date in earlier years.",
     method:
       "The delta is the hero's: the live reading against the usual median for its hour. " +
       "The usual row runs from the median daily low to the median daily high for this date in " +
@@ -252,7 +252,7 @@ export const rainTile: MosaicTile = {
   },
   chart: rainChart,
   source: () => ({
-    what: "daily totals with today's live total",
+    line: "daily totals, against the usual rain to this date in earlier years.",
     method:
       "Rain since Oct 1, one line per water year, this year bold. The percent is this year's " +
       "total as a percent of the usual rain by this date: the median, over the earlier water " +
@@ -349,7 +349,7 @@ export const tenDaysTile: MosaicTile = {
   chart: tenDaysChart,
   bandUnderBars: (snapshot) => shownDays(snapshot).some(hasUsual),
   source: () => ({
-    what: "daily low and high",
+    line: "lows and highs, against ±7 days of each date in earlier years.",
     method:
       "The number is the mean of the last ten days' highs against their usual highs, over the " +
       "days that have both. Each bar runs from the day's low to its high, over the usual range " +
@@ -442,7 +442,7 @@ export const drySpellTile: MosaicTile = {
   },
   chart: dryChart,
   source: () => ({
-    what: "daily totals; the last rain is the station's own record",
+    line: "daily rain totals, against the usual dry spell of the last year.",
     method:
       `The time since the last rain day (at least ${WET_DAY_IN} in), against the usual dry spell: ` +
       "the median completed spell in the last 365 days. The squares are the last 30 days; a day " +
