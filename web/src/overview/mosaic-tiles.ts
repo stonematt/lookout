@@ -28,7 +28,7 @@ import { missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { WET_DAY_IN, degrees, formatDayCount, formatDays, inches } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
-import type { DashboardSnapshot } from "../snapshot.js";
+import type { DashboardSnapshot, TemperatureDay } from "../snapshot.js";
 import type { MosaicTile } from "./mosaic.js";
 import {
   daylightTile,
@@ -250,6 +250,9 @@ export const rainTile: MosaicTile = {
 
 // ---------- Last 10 days ----------
 
+/** Whether a day has a usual range to draw under its bar. */
+const hasUsual = (d: TemperatureDay): boolean => d.usual_low !== null && d.usual_high !== null;
+
 /** Each day's low to high, standing over the usual for its date. */
 function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const days = shownDays(snapshot);
@@ -323,7 +326,7 @@ export const tenDaysTile: MosaicTile = {
     };
   },
   chart: tenDaysChart,
-  bandUnderBars: true,
+  bandUnderBars: (snapshot) => shownDays(snapshot).some(hasUsual),
   source: () => ({
     what: "daily low and high",
     method:
