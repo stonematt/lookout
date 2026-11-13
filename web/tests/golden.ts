@@ -103,25 +103,48 @@ export function oneStation(): StationIndex {
 }
 
 /**
- * The schema version after `SCHEMA_VERSION`: the one the site reads before
- * the refresh run writes it (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`). Version 4
- * removes `hero_lead` (#479 reads it, #480 writes it). When the refresh run
- * moves to 4 the goldens are 4 and this builder goes.
+ * The schema version the refresh run wrote before the goldens' version, which
+ * the site still reads (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`): a v3 document
+ * carries `hero_lead`, which v4 removed (#480). When the site stops reading 3
+ * this builder goes.
  */
-export const NEXT_SCHEMA_VERSION = 4;
+export const PREVIOUS_SCHEMA_VERSION = 3;
 
 /**
- * One golden document as the refresh run will write it at `NEXT_SCHEMA_VERSION`:
- * the current golden with `schema_version` set forward and the fields the next
- * version removes taken out (v4 removes `hero_lead`). Built here, never by
- * editing a golden file (#351).
+ * One golden document as the refresh run wrote it at
+ * `PREVIOUS_SCHEMA_VERSION`: the golden with `schema_version` set back and,
+ * on a dashboard, a v3 `hero_lead` whose calm rule restates `dry_spell`, as
+ * the refresh run wrote it. Built here, never by editing a golden file (#351).
  *
  * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard" or "context".
  * @returns The parsed JSON, untyped.
  */
-export function goldenNext(scenario: Scenario, kind: "dashboard" | "context"): unknown {
+export function goldenPrevious(scenario: Scenario, kind: "dashboard" | "context"): unknown {
   const doc = golden(scenario, kind) as Record<string, unknown>;
-  delete doc.hero_lead;
-  return { ...doc, schema_version: NEXT_SCHEMA_VERSION };
+  if (kind === "context") return { ...doc, schema_version: PREVIOUS_SCHEMA_VERSION };
+  const dry = doc.dry_spell as { days_since_rain: number | null; usual_days: number | null };
+  const calm = {
+    kind: "calm",
+    met: true,
+    value: dry.days_since_rain,
+    unit: "days",
+    threshold: null,
+    reference: dry.usual_days,
+    compared: [],
+    missing: null,
+  };
+  const heroLead = {
+    kind: "calm",
+    rules: [calm],
+    unit: "days",
+    now: dry.days_since_rain,
+    now_ms: doc.observed_at_ms,
+    usual_low: null,
+    usual_median: dry.usual_days,
+    usual_high: null,
+    sample: 0,
+    trace: null,
+  };
+  return { ...doc, schema_version: PREVIOUS_SCHEMA_VERSION, hero_lead: heroLead };
 }

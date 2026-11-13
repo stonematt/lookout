@@ -13,7 +13,7 @@ the same day two ways:
   counter when that reading is today's (`SnapshotConditions.rain_today_in`).
 - The rain day kind: a view over the two in which a counted day with no
   counter value is a gap. The Rain tab, the almanac, rain events and the
-  calm lead judge rain windows by it, so one outage reads the same in each,
+  dry spell judge rain windows by it, so one outage reads the same in each,
   and a dead rain gauge never hatches a temperature or solar window.
 
 A day the archive cannot count, a counted day with no counter value and an

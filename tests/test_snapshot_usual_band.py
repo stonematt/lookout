@@ -231,4 +231,4 @@ class TestContract:
 
         assert set(usual) == {"basis", "unit", "years", "days", "hours", "now_delta"}
         assert set(usual["hours"][0]) == {"hour", "median", "q1", "q3", "readings"}
-        assert doc["schema_version"] == 3
+        assert doc["schema_version"] == 4

@@ -10,7 +10,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import { fetchCurrent } from "../src/load.js";
-import { NEXT_SCHEMA_VERSION, SCENARIOS, golden, goldenNext } from "./golden.js";
+import { PREVIOUS_SCHEMA_VERSION, SCENARIOS, golden, goldenPrevious } from "./golden.js";
 
 describe("the contract version", () => {
   it("is the version the Python builder writes (read from the goldens)", () => {
@@ -20,6 +20,7 @@ describe("the contract version", () => {
         expect(doc.schema_version).toBe(SCHEMA_VERSION);
       }
     }
+    expect(SCHEMA_VERSION).toBe(4);
   });
 });
 
@@ -191,13 +192,13 @@ describe("parseDashboard", () => {
   it("refuses another schema version", () => {
     const doc = {
       ...(golden("dry", "dashboard") as object),
-      schema_version: NEXT_SCHEMA_VERSION + 1,
+      schema_version: 5,
     };
-    expect(() => parseDashboard(doc)).toThrow(`schema_version ${NEXT_SCHEMA_VERSION + 1}`);
+    expect(() => parseDashboard(doc)).toThrow("schema_version 5");
   });
 
   it("accepts a v3 dashboard that still carries hero_lead, and ignores the key", () => {
-    const doc = golden("seasoned", "dashboard") as Record<string, unknown>;
+    const doc = goldenPrevious("seasoned", "dashboard") as Record<string, unknown>;
     expect(doc).toHaveProperty("hero_lead");
     expect(doc.schema_version).toBe(3);
     expect(() => parseDashboard(doc)).not.toThrow();
@@ -273,13 +274,18 @@ describe("parseCurrent", () => {
   });
 
   it("keeps a v4 context: the envelope is this site's, the context is the refresh run's", () => {
-    const body = parseCurrent(current(goldenNext("raining", "context")));
-    expect(body.context?.schema_version).toBe(NEXT_SCHEMA_VERSION);
+    const body = parseCurrent(current(golden("raining", "context")));
+    expect(body.context?.schema_version).toBe(SCHEMA_VERSION);
   });
 
-  it("refuses a body at schema_version 2: this site's own server writes 3", () => {
-    expect(() => parseCurrent({ ...current(null), schema_version: 2 })).toThrow(
-      "current: schema_version 2, this site reads 3",
+  it("keeps a v3 context the refresh run wrote before #480", () => {
+    const body = parseCurrent(current(goldenPrevious("raining", "context")));
+    expect(body.context?.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
+  });
+
+  it("refuses a body at schema_version 3: this site's own server writes 4", () => {
+    expect(() => parseCurrent({ ...current(null), schema_version: 3 })).toThrow(
+      "current: schema_version 3, this site reads 4",
     );
   });
 
@@ -298,26 +304,34 @@ describe("newestObservation", () => {
   });
 });
 
-describe("the next schema version (ADR-0008)", () => {
-  // The site reads a version before the refresh run writes it, so the two
-  // need not switch at the same moment (#351). Release C1 (#479) reads 3 and
-  // 4; C2 (#480) makes the refresh run write 4, which drops hero_lead.
-  it("reads SCHEMA_VERSION and the next version, and no older one", () => {
-    expect(NEXT_SCHEMA_VERSION).toBe(SCHEMA_VERSION + 1);
-    expect(SNAPSHOT_SCHEMA_VERSIONS).toEqual([SCHEMA_VERSION, NEXT_SCHEMA_VERSION]);
+describe("the schema versions (ADR-0008)", () => {
+  // The site read 4 before the refresh run wrote it, so the two need not
+  // switch at the same moment (#351). Release C1 (#479) reads 3 and 4; C2
+  // (#480) makes the refresh run write 4, which drops hero_lead. The site
+  // still reads 3 until a later release.
+  it("reads SCHEMA_VERSION and the version before it, and no other", () => {
+    expect(PREVIOUS_SCHEMA_VERSION).toBe(SCHEMA_VERSION - 1);
+    expect(SNAPSHOT_SCHEMA_VERSIONS).toEqual([PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION]);
   });
 
   it("reads a v4 dashboard without hero_lead", () => {
     for (const scenario of SCENARIOS) {
-      const snap = parseDashboard(goldenNext(scenario, "dashboard"));
-      expect(snap.schema_version).toBe(NEXT_SCHEMA_VERSION);
+      const snap = parseDashboard(golden(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(4);
       expect(snap).not.toHaveProperty("hero_lead");
     }
   });
 
-  it("reads a v4 context", () => {
-    const block = parseContext(goldenNext("raining", "context"));
-    expect(block.schema_version).toBe(NEXT_SCHEMA_VERSION);
+  it("reads a v3 dashboard with hero_lead", () => {
+    for (const scenario of SCENARIOS) {
+      const snap = parseDashboard(goldenPrevious(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
+    }
+  });
+
+  it("reads a v3 context", () => {
+    const block = parseContext(goldenPrevious("raining", "context"));
+    expect(block.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
     expect(block.kind).toBe("context");
   });
 
@@ -339,7 +353,7 @@ describe("the next schema version (ADR-0008)", () => {
   }
 
   it("still refuses a v3 dashboard without sun_moon", () => {
-    const doc = { ...(golden("raining", "dashboard") as Record<string, unknown>) };
+    const doc = { ...(goldenPrevious("raining", "dashboard") as Record<string, unknown>) };
     delete doc.sun_moon;
     expect(doc.schema_version).toBe(3);
     expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");

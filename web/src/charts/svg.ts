@@ -3,7 +3,7 @@
  * grammar"): elements, a canvas with its own hatch, haloed labels, labels
  * on a pill of the surface (`pillLabel`, for a reason over a hatch), the y
  * axis, round ticks, scales, scrubbing for the live readout, and drawing at
- * the host's real width. The Overview's hero lead and temperature context,
+ * the host's real width. The Overview's usual band hero and temperature context,
  * the Rain tab and the Solar tab draw with it; each passes its own class
  * prefix, so its stylesheet keeps its own look.
  */

@@ -17,8 +17,12 @@
  * DOM and no Node APIs.
  */
 
-/** The schema version this site reads. A breaking change bumps both sides. */
-export const SCHEMA_VERSION = 3;
+/**
+ * The schema version the refresh run writes, N in ADR-0008. This site's own
+ * `/current` body carries it and is checked strictly against it; dashboard
+ * and context documents are checked against `SNAPSHOT_SCHEMA_VERSIONS`.
+ */
+export const SCHEMA_VERSION = 4;
 
 /**
  * The versions a curve file may carry. Its shape has not changed since 2,
@@ -29,8 +33,8 @@ export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4];
 
 /**
  * The versions a dashboard or context document may carry (ADR-0008). The
- * site reads version 4 before the refresh run writes it (#479), so the two
- * need not switch at the same moment (#351). Version 4 drops `hero_lead`,
+ * site read version 4 before the refresh run wrote it (#479, #480), so the
+ * two need not switch at the same moment (#351). Version 4 drops `hero_lead`,
  * which this site no longer reads; a v3 document that still carries it is
  * read with the key ignored. Version 2 is no longer live.
  */

@@ -3,8 +3,8 @@ Rain numbers that must agree across the snapshot (#122).
 
 - Rain today belongs to today: just after local midnight, with no live
   reading newer than yesterday's last row, yesterday's total is not today's.
-- One "live event" decision (`Snapshot.active_rain_event`) feeds the hero
-  and the Rain Events tab.
+- One "live event" decision (`Snapshot.active_rain_event`) feeds the
+  Overview and the Rain Events tab.
 - The Rain Events tab's water-year totals are events-only sums, not the
   water year's rain (`RainTab.water_years` holds that).
 - A day whose rain counter has no reading is unknown for every rain window,
@@ -105,10 +105,8 @@ def dry_live_snapshot():
 class TestOneLiveDecision:
     def test_catalog_open_and_live_dry_is_not_live_anywhere(self):
         snapshot = dry_live_snapshot()
-        rain_rule = next(r for r in snapshot.hero_lead.rules if r.kind == "rain")
 
         assert snapshot.active_rain_event is None
-        assert rain_rule.value > 0  # the hero: the event has ended
         assert not any(row.live for row in snapshot.rain_events.events)
 
     def test_an_event_the_live_reading_has_ended_is_not_open(self):
@@ -319,13 +317,8 @@ def december_year():
     return without_counter(archive, "2025-12-20", "2025-12-20")
 
 
-def calm(snapshot):
-    """The calm lead rule."""
-    return next(r for r in snapshot.hero_lead.rules if r.kind == "calm")
-
-
-class TestTheLeadAndTheRainTabAgree:
-    def test_the_calm_leads_spells_are_the_rain_tabs(self, december_year):
+class TestTheDrySpellAndTheRainTabAgree:
+    def test_the_dry_spells_are_the_rain_tabs(self, december_year):
         snapshot = build(december_year, None, YEAR_NOW)
         longest = snapshot.rain_tab.dry_spells.longest
 
@@ -335,9 +328,8 @@ class TestTheLeadAndTheRainTabAgree:
             "2025-12-10",
             9,
         )
-        assert snapshot.hero_lead.kind == "calm"
-        assert snapshot.hero_lead.sample == 1
-        assert calm(snapshot).reference == longest.days
+        # The one completed spell in the window is the usual dry spell.
+        assert snapshot.dry_spell.usual_days == longest.days
 
     def test_the_unread_day_hatches_rain_windows_only(self, december_year):
         snapshot = build(
@@ -373,8 +365,7 @@ class TestTheLeadAndTheRainTabAgree:
 
         assert {w.key: w.status for w in snapshot.gaps.windows}["365d"] == "valid"
         assert rain_window(snapshot, "365d").status.status == "invalid"
-        assert calm(snapshot).reference is None
-        assert calm(snapshot).missing == "no_comparison"
+        assert snapshot.dry_spell.usual_days is None
 
     def test_the_same_archive_with_its_counter_has_the_usual_dry_spell(self):
         archive = build_archive(YEAR_START, YEAR_END, rain=DECEMBER_RAIN)
@@ -382,8 +373,7 @@ class TestTheLeadAndTheRainTabAgree:
         snapshot = build(archive, None, YEAR_NOW)
 
         assert rain_window(snapshot, "365d").status.status == "valid"
-        assert calm(snapshot).reference is not None
-        assert calm(snapshot).missing is None
+        assert snapshot.dry_spell.usual_days is not None
 
 
 class TestRainEventsAgreeOnTheUnreadDay:
