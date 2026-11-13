@@ -7,8 +7,10 @@
  * - Wind: the live speed, where it blows from and its gust; its mini chart
  *   a compass whose arrow points the way the wind blows.
  * - Pressure: the live barometer reading and the snapshot's 3-hour trend
- *   word (`barometer_trend`, decided in Python).
- * - Humidity: the live humidity and the dew point.
+ *   word (`barometer_trend`, decided in Python); its mini chart the last 24
+ *   hours (`outdoor_trace`, #554), hourly, the newest hour as the now dot.
+ * - Humidity: the live humidity and the dew point; its mini chart the last
+ *   24 hours of humidity, the same way.
  * - Sun today: today's solar energy so far and yesterday's; its mini chart
  *   is the Solar tab's lead chart cropped, the last 24 hours over the usual
  *   range at each time of day.
@@ -18,16 +20,19 @@
  * - Inside: one row per indoor sensor (`indoor`, #466): its temperature,
  *   humidity and 24-hour line. Not drawn for a station with none.
  *
- * Pressure and Humidity have no mini chart: the snapshot holds no 24-hour
- * series or usual band for either yet.
+ * Pressure and Humidity draw no usual band: the snapshot holds none for
+ * either yet. A snapshot without `outdoor_trace` (null, or N−1) draws no
+ * chart for them.
  *
  * Every value is the snapshot's; these only word, format and draw. A missing
  * live reading reads "n/a", never zero.
  *
  * Offers `windClauses`, `calmThreshold`, `windTile`, `pressureTile`,
  * `humidityTile`, `sunTile`, `daylightTile`, `insideTile`, `sensorRow` (one
- * indoor sensor's words), and `lastIndex` and `traceMarks` (a series' line
- * and now dot), which the Inside zoom shares.
+ * indoor sensor's words), `lastIndex` and `traceMarks` (a series' line and
+ * now dot), which the Inside zoom shares, and `outdoorChart` with
+ * `PRESSURE_PAD` and `HUMIDITY_PAD` (an `outdoor_trace` series as a mini
+ * chart), which the Pressure and Humidity zooms share.
  */
 import { runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
@@ -207,6 +212,45 @@ export const windTile: MosaicTile = {
   },
 };
 
+// ---------- Pressure and Humidity: the last 24 hours ----------
+
+/** The least room above and below the pressure line: 0.05 inHg. */
+export const PRESSURE_PAD = 0.05;
+
+/** The least room above and below the humidity line: 3 points. */
+export const HUMIDITY_PAD = 3;
+
+/**
+ * One series of `outdoor_trace` (#554), the last 24 hours hourly, as a
+ * mini chart: its line and its newest hour as the now dot, over "24 h" and
+ * "now". The y range is the series' own, widened by `pad` either side, so a
+ * steady day reads as a flat line in the middle.
+ *
+ * @param values - The series, or undefined when the snapshot has no trace.
+ * @param width - The width to draw at.
+ * @param pad - The least room above and below the line, in the series' unit.
+ * @returns The chart, or null with no trace or no reading in it.
+ */
+export function outdoorChart(
+  values: (number | null)[] | undefined,
+  width: number,
+  pad: number,
+): SVGSVGElement | null {
+  if (!values || values.length < 2) return null;
+  const last = lastIndex(values);
+  if (last < 0) return null;
+  const numbers = values.filter((v): v is number => v !== null);
+  const x = scale(0, values.length - 1, 2, width - 6);
+  const y = scale(Math.min(...numbers) - pad, Math.max(...numbers) + pad, PLOT_BOTTOM - 4, 6);
+  const svg = miniChart(width);
+  svg.append(
+    svgEl("line", { class: "mosaic-base", x1: 0, x2: width, y1: PLOT_BOTTOM, y2: PLOT_BOTTOM }),
+  );
+  svg.append(...traceMarks(values, x, y, 4));
+  endLabels(svg, width, "24 h", "now");
+  return svg;
+}
+
 // ---------- Pressure ----------
 
 /** Pressure: the live barometer reading and its 3-hour trend word. */
@@ -223,9 +267,13 @@ export const pressureTile: MosaicTile = {
       ? { value: "n/a", delta }
       : { value: inHg(c.barometer_inhg), unit: "inHg", delta };
   },
+  chart: (snapshot, width) =>
+    outdoorChart(snapshot.outdoor_trace?.pressure_inhg, width, PRESSURE_PAD),
   source: () => ({
-    what: "the live barometer reading, relative to sea level",
-    method: "The trend is the change over the last 3 hours: rising, falling or steady.",
+    what: "the live barometer reading, relative to sea level, and the last 24 hours' readings",
+    method:
+      "The trend is the change over the last 3 hours: rising, falling or steady. The line is " +
+      "the last 24 hours, each hour's mean.",
   }),
 };
 
@@ -244,11 +292,13 @@ export const humidityTile: MosaicTile = {
       delta: c.dew_point_f === null ? "dew point not known" : `dew point ${degrees(c.dew_point_f)}`,
     };
   },
+  chart: (snapshot, width) =>
+    outdoorChart(snapshot.outdoor_trace?.humidity_pct, width, HUMIDITY_PAD),
   source: () => ({
-    what: "the live outdoor humidity and dew point",
+    what: "the live outdoor humidity and dew point, and the last 24 hours' readings",
     method:
       "Relative humidity outdoors, and the dew point: the temperature at which that air would " +
-      "be saturated.",
+      "be saturated. The line is the last 24 hours, each hour's mean.",
   }),
 };
 

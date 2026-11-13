@@ -179,6 +179,7 @@ class TestRefreshRun:
             "correct_rain",
             "load_catalogs",
             "update_catalogs",
+            "read_previous",
             "build",
             "publish",
             "publish_curves",
@@ -2159,3 +2160,151 @@ class TestEveryStation:
         assert dashboard["observed_at_ms"] == ms("2025-11-19T07:55:00Z")
         stored = station.stored(SECOND_ARCHIVE_KEY)
         assert not set(WS2902_MISSING) & set(stored.columns)
+
+
+# ---------- the feature hold reads the last published snapshot (#533) ----------
+
+
+class TestTheHoldReadsTheLastSnapshot:
+    """
+    #533: the refresh run reads the last published dashboard snapshot and
+    passes its feature to `build_snapshot`, so a subject chosen under three
+    hours ago is held. Missing means no hold; a failed read fails the
+    station (ADR-0004) and the last published snapshot stays up.
+    """
+
+    def run_main(self, station: CatchupStation) -> int:
+        return refresh.main(["--bucket", BUCKET], clock=lambda: station.now)
+
+    def publish_feature(self, station: CatchupStation, feature: Dict) -> None:
+        """Rewrite the stored dashboard's feature, as an earlier run left it."""
+        dashboard = stored_json(station, DASHBOARD_KEY)
+        dashboard["feature"] = feature
+        station.s3.put_object(
+            Bucket=BUCKET, Key=DASHBOARD_KEY, Body=json.dumps(dashboard).encode()
+        )
+
+    def other_subject(self, snapshot: Snapshot) -> str:
+        """A bare kind the rule did not pick: the one a hold would keep."""
+        assert snapshot.feature.kind in ("quiet", "dry_spell", "unusual")
+        return "dry_spell" if snapshot.feature.kind != "dry_spell" else "quiet"
+
+    def bare(self, kind: str, since_ms: Optional[int]) -> Dict:
+        """A published bare feature; without `since_ms`, one from before #533."""
+        feature = {
+            "kind": kind,
+            "reading": None,
+            "value": None,
+            "unit": None,
+            "percentile": None,
+            "event_start_ms": None,
+        }
+        if since_ms is not None:
+            feature.update(since_ms=since_ms, held=False, outside_usual=None)
+        return feature
+
+    def test_with_no_last_snapshot_the_subject_is_chosen_now(self, seed):
+        station = seed()
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == snapshot.built_at_ms
+        published = stored_json(station, DASHBOARD_KEY)["feature"]
+        assert published["since_ms"] == snapshot.built_at_ms
+
+    def test_a_subject_chosen_an_hour_ago_is_held(self, seed):
+        station = seed()
+        first = run_refresh(station)
+        kept = self.other_subject(first)
+        since = first.built_at_ms - 3_600_000
+        self.publish_feature(station, self.bare(kept, since))
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.feature.kind == kept
+        assert snapshot.feature.held is True
+        assert snapshot.feature.since_ms == since
+        assert stored_json(station, DASHBOARD_KEY)["feature"]["held"] is True
+
+    def test_a_snapshot_from_before_the_hold_holds_nothing(self, seed):
+        # The first run after the deploy: the stored feature has no since_ms.
+        station = seed()
+        first = run_refresh(station)
+        self.publish_feature(station, self.bare(self.other_subject(first), None))
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.feature.kind == first.feature.kind
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == snapshot.built_at_ms
+
+    def test_a_held_wind_gust_from_before_the_change_holds_nothing(self, seed):
+        # Wind gust can no longer win, so a stored one is not kept either.
+        station = seed()
+        first = run_refresh(station)
+        gust = {
+            **self.bare("unusual", first.built_at_ms - 3_600_000),
+            "reading": "wind_gust",
+            "value": 30.0,
+            "unit": "mph",
+            "percentile": 100,
+            "outside_usual": True,
+        }
+        self.publish_feature(station, gust)
+
+        snapshot = run_refresh(station)
+
+        assert snapshot.feature.kind == first.feature.kind
+        assert snapshot.feature.reading != "wind_gust"
+        assert snapshot.feature.held is False
+
+    def test_a_failed_read_publishes_without_a_hold(
+        self, seed, fake_healthchecks, monkeypatch, caplog
+    ):
+        station = seed()
+        assert self.run_main(station) == 0
+        flaky_storj(monkeypatch, station.s3, read=DASHBOARD_KEY)
+
+        with caplog.at_level("WARNING"):
+            assert self.run_main(station) == 0
+
+        assert stored_json(station, DASHBOARD_KEY)["feature"]["held"] is False
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+        assert any(DASHBOARD_KEY in r.getMessage() for r in caplog.records)
+
+    def test_a_corrupt_last_snapshot_publishes_without_a_hold(
+        self, seed, fake_healthchecks, caplog
+    ):
+        # ADR-0009's narrow exception to ADR-0004: a corrupt document must
+        # not fail the station on every run, or it is never replaced.
+        station = seed()
+        assert self.run_main(station) == 0
+        station.s3.put_object(Bucket=BUCKET, Key=DASHBOARD_KEY, Body=b"not json")
+
+        with caplog.at_level("WARNING"):
+            assert self.run_main(station) == 0
+
+        feature = stored_json(station, DASHBOARD_KEY)["feature"]
+        assert feature["held"] is False
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING" and DASHBOARD_KEY in r.getMessage()
+        ]
+        assert warnings
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"
+
+    def test_a_last_snapshot_that_is_not_an_object_publishes_without_a_hold(
+        self, seed, fake_healthchecks
+    ):
+        # Valid JSON that is not an object is a found document the rule
+        # cannot read: only the hold is lost, the station never fails on it.
+        station = seed()
+        assert self.run_main(station) == 0
+        station.s3.put_object(Bucket=BUCKET, Key=DASHBOARD_KEY, Body=b"[1]")
+
+        assert self.run_main(station) == 0
+
+        assert stored_json(station, DASHBOARD_KEY)["feature"]["held"] is False
+        assert fake_healthchecks.pings[-1] == "lookout-refresh/0"

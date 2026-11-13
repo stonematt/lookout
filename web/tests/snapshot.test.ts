@@ -130,6 +130,52 @@ describe("parseDashboard", () => {
     expect(() => parseDashboard(doc)).toThrow("dashboard: indoor malformed");
   });
 
+  // Release A3's fields (#539, #540, #554): read when present, null or absent.
+  type Raw = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  it.each<[string, (d: Raw) => void, string]>([
+    [
+      "a usual to date with a text percent",
+      (d) => (d.rain_tab.usual_to_date = { usual_in: 1, years: 1, percent: "74" }),
+      "dashboard: rain_tab.usual_to_date malformed",
+    ],
+    [
+      "ten-day highs without a delta",
+      (d) => (d.temperature_context.ten_day_highs = { days: 10 }),
+      "dashboard: temperature_context.ten_day_highs malformed",
+    ],
+    [
+      "an outdoor trace with a text reading",
+      (d) => (d.outdoor_trace.humidity_pct[0] = "65"),
+      "dashboard: outdoor_trace malformed",
+    ],
+    [
+      "an outdoor trace whose series differ in length",
+      (d) => d.outdoor_trace.pressure_inhg.pop(),
+      "dashboard: outdoor_trace malformed",
+    ],
+  ])("refuses %s", (_case, spoil, message) => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
+    spoil(doc);
+    expect(() => parseDashboard(doc)).toThrow(message);
+  });
+
+  it("reads Release A3's fields, and a snapshot without them (N−1)", () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
+    const read = parseDashboard(doc);
+    expect(read.rain_tab.usual_to_date).toEqual({ usual_in: 0.304, years: 1, percent: 145 });
+    expect(read.temperature_context.ten_day_highs).toEqual({ delta_f: 2, days: 10 });
+    expect(read.outdoor_trace?.pressure_inhg).toHaveLength(24);
+
+    delete doc.rain_tab.usual_to_date;
+    delete doc.temperature_context.ten_day_highs;
+    delete doc.outdoor_trace;
+    delete doc.feature.event_start_ms;
+    const older = parseDashboard(doc);
+    expect(older.rain_tab.usual_to_date).toBeUndefined();
+    expect(older.temperature_context.ten_day_highs).toBeUndefined();
+    expect(older.outdoor_trace).toBeUndefined();
+  });
+
   it("reads an indoor sensor with no humidity", () => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as {
       indoor: Record<string, unknown>[];

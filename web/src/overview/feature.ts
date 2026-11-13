@@ -161,9 +161,15 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
       target: RAIN_EVENTS,
     };
   }
-  // The rule held on an event that ended: the catalog's newest, the list's
-  // first row (newest first), as Python's rain rule reads it.
-  const event = snapshot.rain_events.events.find((row) => !row.live);
+  // The rule held on an event that ended: the one the feature names by its
+  // start (`event_start_ms`, #523). A snapshot before A3 names none; then
+  // the catalog's newest, the list's first row (newest first), as Python's
+  // rain rule read it.
+  const start = snapshot.feature?.event_start_ms;
+  const event =
+    typeof start === "number"
+      ? snapshot.rain_events.events.find((row) => row.start_ms === start)
+      : snapshot.rain_events.events.find((row) => !row.live);
   if (!event) {
     return {
       kind: "rain",

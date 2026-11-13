@@ -294,7 +294,8 @@ describe("the Rain tab", () => {
   });
 
   it("hatches each window the record covers but cannot compare, with its reason", () => {
-    // Seasoned: 90 days to the water year are covered, with a gap in them.
+    // Seasoned: 365 days is covered, with a gap in it; the rest are whole
+    // since the fixture spans water years 2025 and 2026 (#539).
     renderRain(panel, seasoned);
     const cells = [...section("years").querySelectorAll(".rain-windows dd")];
 
@@ -303,12 +304,12 @@ describe("the Rain tab", () => {
       false,
       false,
       false,
+      false,
       true,
-      true,
-      true,
+      false,
     ]);
-    expect(text(cells[4]?.querySelector(".gap-label"))).toBe("n/a");
-    expect(cells[4]?.querySelector(".gap-sr")?.textContent).toBeTruthy();
+    expect(text(cells[5]?.querySelector(".gap-label"))).toBe("n/a");
+    expect(cells[5]?.querySelector(".gap-sr")?.textContent).toBeTruthy();
   });
 
   it("hatches today while only the live total is known, and says so", () => {

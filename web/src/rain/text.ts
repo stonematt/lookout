@@ -212,8 +212,7 @@ export function yearsHeadline(tab: RainTab): string {
 
 /**
  * The earlier water years compared by this date, newest first, each with
- * its value to date as shown: the years the year-over-year finding names,
- * and the one the Overview's Rain tile quotes (the first).
+ * its value to date as shown: the years the year-over-year finding names.
  *
  * @param tab - The Rain tab's data.
  * @returns E.g. [{ year: 2025, text: "3.10 in" }, { year: 2024, text: "≈ 5.02 in" }].

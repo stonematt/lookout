@@ -19,6 +19,10 @@ the new site's rules:
   its own status.
 - Year-over-year accumulation runs over the water year from Oct 1
   (GLOSSARY.md), where Streamlit used the calendar year.
+- This year's rain to date is set against the usual (#539): the median of
+  the earlier water years' rain by this date, each read at the same place
+  the year-over-year finding compares (`WaterYearCurve.to_date_in`), so a
+  year counts exactly when the finding can name it.
 
 Functions:
 - rain_tab(history, days): the `RainTab` section.
@@ -30,6 +34,7 @@ everywhere (the One Number Rule).
 """
 
 from datetime import timedelta
+from statistics import median
 from typing import List, Optional, Tuple
 
 import pandas as pd
@@ -53,6 +58,7 @@ from lookout.snapshot.model import (
     RainTab,
     RainWindow,
     RecentRain,
+    UsualToDate,
     WaterYearCurve,
 )
 from lookout.snapshot.values import iso_day, number
@@ -81,6 +87,7 @@ def rain_tab(history: pd.DataFrame, days: CountedDays) -> RainTab:
     windows = days.rain.standard_windows()
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     water_year_status = next(s for s in windows if s.key == "water_year")
+    water_years = _water_years(days)
     return RainTab(
         windows=tuple(
             RainWindow(key=s.key, status=s, total_in=days.rain_total(s))
@@ -89,7 +96,8 @@ def rain_tab(history: pd.DataFrame, days: CountedDays) -> RainTab:
         recent=_recent(recent_status, history, days),
         dry_spells=_dry_spells(water_year_status, days),
         day_index=water_year_day_index(days.clock.today),
-        water_years=_water_years(days),
+        water_years=water_years,
+        usual_to_date=_usual_to_date(water_years),
     )
 
 
@@ -268,3 +276,26 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
             )
         )
     return tuple(curves)
+
+
+def _usual_to_date(curves: Tuple[WaterYearCurve, ...]) -> Optional[UsualToDate]:
+    """
+    This water year's rain to date against the usual rain by this date.
+
+    :param curves: The water-year curves, oldest first; the last is this one.
+    :return: The usual and this year's percent of it; None when no earlier
+        year has a value by this date (`to_date_in`).
+    """
+    if not curves:
+        return None
+    *earlier, current = curves
+    by_date = [c.to_date_in for c in earlier if c.to_date_in is not None]
+    if not by_date:
+        return None
+    # The percent is of the published values, so it reads from them exactly;
+    # Python's round (half to even), as the feature's percentile is.
+    usual_in = round(median(by_date), 3)  # as `number` rounds; never None here
+    percent = None
+    if current.to_date_in is not None and usual_in > 0:
+        percent = round(100 * current.to_date_in / usual_in)
+    return UsualToDate(usual_in=usual_in, years=len(by_date), percent=percent)

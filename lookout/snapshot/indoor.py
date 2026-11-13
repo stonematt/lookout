@@ -25,7 +25,7 @@ Indoor sensors are the console (`tempinf`, `humidityin`) and the numbered
 sensors (`temp<n>f`, `humidity<n>`, 1 to `SENSOR_COUNT`), named as their
 batteries are in `BATTERY_NAMES`. Each carries its newest temperature and
 humidity in the window and its hourly mean temperature over the 24 hours
-ending in the newest reading's hour.
+ending in the newest reading's hour (`lookout.snapshot.trace`).
 
 Functions:
 - indoor_sensors(stitched): The `IndoorSensor` entries.
@@ -34,18 +34,27 @@ Functions:
 
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 from lookout.snapshot.model import BatteryFlag, IndoorSensor, IndoorTrace
+from lookout.snapshot.trace import (
+    SLOT_MINUTES,
+    TRACE_HOURS,
+    column_readings,
+    hourly_means,
+    trace_start,
+)
 from lookout.snapshot.values import number
 from lookout.utils.dateutc import HOUR_MS
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
 
-CURRENT_HOURS = 24
-"""A sensor is current with a reading this many hours back from the newest."""
+CURRENT_HOURS = TRACE_HOURS
+"""A sensor is current with a reading this many hours back from the newest.
+
+The same window as the trace slots, so `_recent` and `trace_start` agree.
+"""
 
 SENSOR_COUNT = 10
 """Ambient's numbered sensors: 1 to 10."""
@@ -98,16 +107,18 @@ def indoor_sensors(stitched: pd.DataFrame) -> Tuple[IndoorSensor, ...]:
     recent, newest_ms = _recent(stitched)
     if newest_ms is None:
         return ()
-    start_ms = (newest_ms // HOUR_MS - (CURRENT_HOURS - 1)) * HOUR_MS
+    start_ms = trace_start(newest_ms)
     sensors: List[IndoorSensor] = []
     for key, name, temperature, humidity in INDOOR_SENSORS:
         if temperature not in recent:
             continue
-        readings = _numbers(recent, temperature)
+        readings = column_readings(recent, temperature)
         if readings.empty:
             continue
         newest = readings.index[0]
-        humid = _numbers(recent, humidity) if humidity in recent else readings[:0]
+        humid = (
+            column_readings(recent, humidity) if humidity in recent else readings[:0]
+        )
         sensors.append(
             IndoorSensor(
                 key=key,
@@ -115,7 +126,11 @@ def indoor_sensors(stitched: pd.DataFrame) -> Tuple[IndoorSensor, ...]:
                 temperature_f=float(number(readings.iloc[0], TEMPERATURE_DIGITS)),
                 humidity_pct=None if humid.empty else number(humid.iloc[0], 1),
                 observed_at_ms=int(newest),
-                trace=_trace(readings, start_ms),
+                trace=IndoorTrace(
+                    start_ms=start_ms,
+                    slot_minutes=SLOT_MINUTES,
+                    temperature_f=hourly_means(readings, start_ms, TEMPERATURE_DIGITS),
+                ),
             )
         )
     return tuple(sensors)
@@ -163,38 +178,6 @@ def _recent(stitched: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[int]]:
     recent = stitched[dateutc > newest_ms - CURRENT_HOURS * HOUR_MS]
     recent = recent.set_index(recent["dateutc"].astype("int64"), drop=False)
     return recent.sort_index(ascending=False), newest_ms
-
-
-def _numbers(recent: pd.DataFrame, column: str) -> pd.Series:
-    """
-    One column's readings as floats, newest first, unreadable and null dropped.
-
-    :param recent: The window's rows, newest first, indexed by `dateutc`.
-    :param column: The Ambient column.
-    :return: The readings.
-    """
-    values = pd.to_numeric(recent[column].astype(object), errors="coerce")
-    return values.astype("float64").dropna()
-
-
-def _trace(readings: pd.Series, start_ms: int) -> IndoorTrace:
-    """
-    Hourly mean temperatures from `start_ms` over `CURRENT_HOURS` slots.
-
-    :param readings: The sensor's temperatures, indexed by `dateutc`.
-    :param start_ms: The first slot's start, on the hour.
-    :return: The trace; a slot with no reading is None.
-    """
-    inside = readings[readings.index >= start_ms]
-    slot = (np.asarray(inside.index, dtype="int64") - start_ms) // HOUR_MS
-    means = inside.groupby(slot).mean()
-    return IndoorTrace(
-        start_ms=start_ms,
-        slot_minutes=HOUR_MS // 60_000,
-        temperature_f=tuple(
-            number(means.get(i), TEMPERATURE_DIGITS) for i in range(CURRENT_HOURS)
-        ),
-    )
 
 
 def _low(column: str, value: Any) -> Optional[bool]:
