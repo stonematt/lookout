@@ -300,7 +300,7 @@ describe("the feature tile", () => {
       "pressure",
     ],
     ["solar", 910, "wm2", 62, "910 W/m²", "Sun 910 W/m²", "Brighter than usual", "sun"],
-    ["solar", 140, "wm2", 2, "140 W/m²", "Sun 140 W/m²", "Duller than usual", "sun"],
+    ["solar", 140, "wm2", 2, "140 W/m²", "Sun 140 W/m²", "Dimmer than usual", "sun"],
     // Wind gust is no longer judged (#533) but the site still reads it.
     ["wind_gust", 31.5, "mph", 98, "31.5 mph", "Wind gust 31.5 mph", "Gustier than usual", "wind"],
     ["wind_gust", 2.5, "mph", 5, "2.5 mph", "Wind gust 2.5 mph", "Calmer than usual", "wind"],

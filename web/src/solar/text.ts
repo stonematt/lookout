@@ -150,6 +150,38 @@ function change(now: number, before: number): string {
 }
 
 /**
+ * A solar window's energy as its gap status allows, bare: "2.41", "≈ 6.11";
+ * or null. The Sun tile and the Sun zoom's finding both word it (#607).
+ */
+export function windowEnergy(snapshot: DashboardSnapshot, key: string): string | null {
+  const window = snapshot.solar_tab?.windows.find((w) => w.key === key);
+  if (!window || window.energy_kwh_m2 === null) return null;
+  return gapValue(window.status, kwhPerM2(window.energy_kwh_m2, { unit: false }));
+}
+
+/**
+ * The 24-hour view's finding in the Overview's Sun zoom: today so far and
+ * all of yesterday, the Sun tile's own two numbers and days (#607), where
+ * the Solar tab says the last 24 hours and the 24 before (`traceHeadline`).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @param liveWm2 - The live solar reading, when neither day has a total.
+ * @returns E.g. "4.92 kWh/m² of sun today so far, 6.11 all of yesterday".
+ */
+export function todayHeadline(snapshot: DashboardSnapshot, liveWm2: number | null): string {
+  const today = windowEnergy(snapshot, "today");
+  const yesterday = windowEnergy(snapshot, "yesterday");
+  if (today !== null) {
+    const head = `${today} kWh/m² of sun today so far`;
+    return yesterday === null ? head : `${head}, ${yesterday} all of yesterday`;
+  }
+  if (yesterday !== null) return `${yesterday} kWh/m² of sun all of yesterday`;
+  return liveWm2 === null
+    ? "Today's sun cannot be totalled yet"
+    : `Solar radiation is ${wattsPerM2(liveWm2)} now`;
+}
+
+/**
  * The 24-hour view's finding.
  *
  * @param trace - The 24-hour view.
@@ -230,7 +262,7 @@ export function dailyHeadline(snapshot: DashboardSnapshot): string {
         ? "A usual week for sun"
         : week.now > usual
           ? "Brighter than this week in earlier years"
-          : "Duller than this week in earlier years";
+          : "Dimmer than this week in earlier years";
     const against = named.map((y) => `${kwhPerM2(y.perDay, { unit: false })} (${y.year})`);
     const list =
       against.length > 1

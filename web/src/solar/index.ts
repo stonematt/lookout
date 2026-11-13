@@ -58,6 +58,7 @@ import {
   openingDay,
   readDay,
   slotText,
+  todayHeadline,
   traceHeadline,
   wh,
   windowValue,
@@ -156,7 +157,8 @@ interface Mount {
  * The Solar tab's top section, Sunlight now: its finding, standfirst, the
  * last 24 hours against the usual range, and its live readout, then the
  * folded source note on the Solar tab. The Solar tab and the Overview's Sun
- * zoom (`options.zoom`: no source note, prototype decision 22) both draw it.
+ * zoom (`options.zoom`: no source note, prototype decision 22; its finding
+ * names today and yesterday as the Sun tile does, #607) both draw it.
  *
  * @param host - The tile or zoom panel to fill.
  * @param snapshot - The dashboard snapshot.
@@ -172,7 +174,11 @@ export function renderSunlightNow(
   const live = snapshot.current.solar_wm2;
   heading(
     host,
-    trace ? traceHeadline(trace, live) : "No solar reading yet",
+    !trace
+      ? "No solar reading yet"
+      : options.zoom
+        ? todayHeadline(snapshot, live)
+        : traceHeadline(trace, live),
     "The bold line is solar radiation over the last 24 hours; 1 kWh/m² is an hour of full midday sun. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
     options,
   );

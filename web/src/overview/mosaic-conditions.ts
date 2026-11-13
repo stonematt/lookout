@@ -36,18 +36,9 @@
  */
 import { runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import {
-  compassPoint,
-  degrees,
-  formatHours,
-  formatTime,
-  inHg,
-  kwhPerM2,
-  mph,
-  percent,
-} from "../format.js";
-import { gapValue } from "../gaps.js";
-import type { DashboardSnapshot, IndoorSensor, SolarWindow, SunMoon } from "../snapshot.js";
+import { compassPoint, degrees, formatHours, formatTime, inHg, mph, percent } from "../format.js";
+import type { DashboardSnapshot, IndoorSensor, SunMoon } from "../snapshot.js";
+import { windowEnergy } from "../solar/text.js";
 import type { MosaicRow, MosaicTile } from "./mosaic.js";
 import { MINI_HEIGHT, ROW_LINE_HEIGHT, miniChart } from "./mosaic.js";
 
@@ -337,17 +328,6 @@ export const humidityTile: MosaicTile = {
 
 // ---------- Sun ----------
 
-/** A solar window by key. */
-function solarWindow(snapshot: DashboardSnapshot, key: string): SolarWindow | null {
-  return snapshot.solar_tab?.windows.find((w) => w.key === key) ?? null;
-}
-
-/** A window's energy as its gap status allows, bare: "2.41", "≈ 61.2"; or null. */
-function energyText(window: SolarWindow | null): string | null {
-  if (!window || window.energy_kwh_m2 === null) return null;
-  return gapValue(window.status, kwhPerM2(window.energy_kwh_m2, { unit: false }));
-}
-
 /** The last 24 hours of solar radiation over its usual range, now as the dot. */
 function sunChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const trace = snapshot.solar_tab?.last_24h;
@@ -394,8 +374,8 @@ export const sunTile: MosaicTile = {
   zoomName: "sun",
   shown: (snapshot) => snapshot.solar_tab !== null,
   read(snapshot) {
-    const today = energyText(solarWindow(snapshot, "today"));
-    const yesterday = energyText(solarWindow(snapshot, "yesterday"));
+    const today = windowEnergy(snapshot, "today");
+    const yesterday = windowEnergy(snapshot, "yesterday");
     const delta = yesterday === null ? null : `all of yesterday ${yesterday} kWh/m²`;
     return today === null
       ? { value: null, delta: delta ?? "not compared yet" }

@@ -242,9 +242,39 @@ describe("the Rain tile", () => {
     expect(tile("rain").querySelector("[data-part=delta]")).toBeNull();
   });
 
-  it("says not compared yet when this water year has no total to date", () => {
+  it("shows the last 7 days' total when this water year has no total to date (#605)", () => {
     const d = doc("seasoned");
     d.rain_tab.water_years.at(-1).to_date_in = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("rain")).toBe("0.24 in");
+    expect(delta("rain")).toBe("last 7 days");
+  });
+
+  it("marks a 7-day total scaled up over missing days with ≈ (#605)", () => {
+    const d = doc("seasoned");
+    d.rain_tab.water_years.at(-1).to_date_in = null;
+    d.rain_tab.windows.find((w: { key: string }) => w.key === "7d").status.status = "prorated";
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("rain")).toBe("≈ 0.24 in");
+    expect(delta("rain")).toBe("last 7 days");
+  });
+
+  it("says not compared yet when the 7 days are not shown either (dry golden)", () => {
+    const d = doc("dry");
+    expect(d.rain_tab.windows.find((w: { key: string }) => w.key === "7d").status.shown).toBe(
+      false,
+    );
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("rain").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("rain")).toBe("not compared yet");
+  });
+
+  it("says not compared yet when the 7-day window is shown with no total (#605)", () => {
+    const d = doc("dry");
+    d.rain_tab.windows.find((w: { key: string }) => w.key === "7d").status.shown = true;
     renderOverview(panel, parseDashboard(d));
 
     expect(tile("rain").querySelector("[data-part=value]")).toBeNull();
@@ -308,15 +338,40 @@ describe("the Last 10 days tile", () => {
     expect(delta("last-10-days")).toBe("not compared yet");
   });
 
-  it("prints no delta from a snapshot without the field (N−1)", () => {
+  it("shows the last 7 days' low to high from a snapshot without the field (N−1, #605)", () => {
     const d = doc("seasoned");
     delete d.temperature_context.ten_day_highs;
     renderOverview(panel, parseDashboard(d));
 
-    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
-    expect(delta("last-10-days")).toBe("not compared yet");
+    expect(value("last-10-days")).toBe("35°–72°");
+    expect(delta("last-10-days")).toBe("low to high, last 7 days");
     // The bars still draw: they are the ten-day list's own.
     expect(tile("last-10-days").querySelectorAll("svg .mosaic-day")).toHaveLength(10);
+  });
+
+  it("shows the last 7 days' low to high when the mean is null, true minus (#605)", () => {
+    const d = doc("seasoned");
+    d.temperature_context.ten_day_highs = null;
+    const week = d.temperature_context.periods.find(
+      (p: { status: { key: string } }) => p.status.key === "7d",
+    );
+    week.low = -3.4;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("last-10-days")).toBe("−3°–72°");
+    expect(delta("last-10-days")).toBe("low to high, last 7 days");
+  });
+
+  it("says not compared yet when the 7 days have no low and high either (#605)", () => {
+    const d = doc("dry");
+    const week = d.temperature_context.periods.find(
+      (p: { status: { key: string } }) => p.status.key === "7d",
+    );
+    week.status.shown = true;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("last-10-days")).toBe("not compared yet");
   });
 
   it("sets the legend above the chart, so the chart keeps the row's baseline", () => {
