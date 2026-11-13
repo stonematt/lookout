@@ -103,24 +103,25 @@ export function oneStation(): StationIndex {
 }
 
 /**
- * The schema version before `SCHEMA_VERSION`: the one the site still reads
- * (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`). The next schema bump changes this
- * constant and `goldenPrevious`'s removals below; every N-1 test follows.
+ * The schema version after `SCHEMA_VERSION`: the one the site reads before
+ * the refresh run writes it (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`). Version 4
+ * removes `hero_lead` (#479 reads it, #480 writes it). When the refresh run
+ * moves to 4 the goldens are 4 and this builder goes.
  */
-export const PREVIOUS_SCHEMA_VERSION = 2;
+export const NEXT_SCHEMA_VERSION = 4;
 
 /**
- * One golden document as the refresh run wrote it at `PREVIOUS_SCHEMA_VERSION`:
- * the current golden with `schema_version` set back and the fields the current
- * version added removed (v3 added the `sun_moon` block). Built here, never by
+ * One golden document as the refresh run will write it at `NEXT_SCHEMA_VERSION`:
+ * the current golden with `schema_version` set forward and the fields the next
+ * version removes taken out (v4 removes `hero_lead`). Built here, never by
  * editing a golden file (#351).
  *
  * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard" or "context".
  * @returns The parsed JSON, untyped.
  */
-export function goldenPrevious(scenario: Scenario, kind: "dashboard" | "context"): unknown {
+export function goldenNext(scenario: Scenario, kind: "dashboard" | "context"): unknown {
   const doc = golden(scenario, kind) as Record<string, unknown>;
-  delete doc.sun_moon;
-  return { ...doc, schema_version: PREVIOUS_SCHEMA_VERSION };
+  delete doc.hero_lead;
+  return { ...doc, schema_version: NEXT_SCHEMA_VERSION };
 }

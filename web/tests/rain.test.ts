@@ -20,7 +20,7 @@ import {
 } from "../src/rain/text.js";
 import type { DashboardSnapshot, RainTab, WaterYearCurve } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
-import { golden } from "./golden.js";
+import { golden, goldenNext } from "./golden.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
@@ -113,17 +113,18 @@ describe("the Rain tab's words", () => {
     );
   });
 
-  it("states the dry spell with the calm lead's own numbers", () => {
+  it("states the dry spell with the snapshot's dry_spell numbers", () => {
     const calm = structuredClone(dry);
-    Object.assign(
-      calm.hero_lead.rules.find((r) => r.kind === "calm")!,
-      { value: 12.5, reference: 4 },
-    );
+    calm.dry_spell = { days_since_rain: 12.5, usual_days: 4 };
     expect(dryHeadline(calm)).toBe(
       "about 13 days since it last rained, against a usual dry spell of 4 days",
     );
     // The 365 days are not archived, so there is no usual spell to compare.
     expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
+    // A v4 snapshot has no hero_lead; the Rain tab reads the same words.
+    expect(dryHeadline(parseDashboard(goldenNext("dry", "dashboard")))).toBe(
+      "about 39 hours since it last rained",
+    );
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -290,7 +291,9 @@ describe("the Rain tab", () => {
     const feature = overview.querySelector("[data-section=feature] a")!;
     expect(feature.textContent).toContain("About 39 hours since it last rained");
     expect(text(feature.querySelector("[data-part=value]"))).toBe("1 d 14 h");
-    expect(text(section("dry").querySelector("h2"))).toBe("about 39 hours since it last rained");
+    expect(text(section("dry").querySelector("h2"))).toBe(
+      "about 39 hours since it last rained, against a usual dry spell of 1 day",
+    );
   });
 
   it("hatches each window the record covers but cannot compare, with its reason", () => {
