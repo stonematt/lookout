@@ -39,9 +39,9 @@ interface Col {
   prior: { year: number; v: number }[];
 }
 
-/** PROTOTYPE: "B" when the gauge is asked for, else null. */
+/** PROTOTYPE: the gauge is always drawn (no ?variant= gate any more). */
 export function protoVariant(): string | null {
-  return new URLSearchParams(location.search).get("variant")?.toUpperCase() === "B" ? "B" : null;
+  return "B";
 }
 
 /** PROTOTYPE: the `?rainwindows=` override, or null. */
