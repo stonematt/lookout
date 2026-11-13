@@ -25,16 +25,16 @@ export const SCHEMA_VERSION = 3;
  * and stored curve files are never rewritten, so a version bump that leaves
  * the curve alone adds to this list rather than replacing it.
  */
-export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3];
+export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4];
 
 /**
- * The versions a dashboard or context document may carry. The site reads the
- * version before `SCHEMA_VERSION` too, so it can ship before the refresh run
- * writes the new version (#351). A v2 dashboard has no `sun_moon`, read as
- * null. Narrowing this back to `SCHEMA_VERSION` waits until no v2 document is
- * live.
+ * The versions a dashboard or context document may carry (ADR-0008). The
+ * site reads version 4 before the refresh run writes it (#479), so the two
+ * need not switch at the same moment (#351). Version 4 drops `hero_lead`,
+ * which this site no longer reads; a v3 document that still carries it is
+ * read with the key ignored. Version 2 is no longer live.
  */
-export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [2, 3];
+export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [3, 4];
 
 /** Which station a document is about. */
 export interface StationId {
@@ -249,69 +249,6 @@ export interface EventCurveDocument extends EventCurve {
   station: StationId;
 }
 
-/** Which rule of the Adaptive Lead Rule leads. */
-export type LeadKind = "rain" | "temperature" | "solar" | "calm";
-
-/** Why a lead rule's value or reference is not known. */
-export type LeadMissing = "no_event" | "no_reading" | "no_comparison";
-
-/**
- * One lead rule with its live value, for "Why this leads". Built by
- * `lookout/snapshot/lead.py`, which documents each rule.
- */
-export interface LeadRule {
-  kind: LeadKind;
-  /** Whether it holds; calm holds only when no rule before it does. */
-  met: boolean;
-  /**
-   * In `unit`: rain, hours since the newest event ended (0 while one is
-   * live); temperature, degrees from the month median (signed); solar,
-   * W/m²; calm, days since it last rained.
-   */
-  value: number | null;
-  unit: "hours" | "degrees_f" | "wm2" | "days";
-  /** 12 h, 10°, 400 W/m²; null for calm. */
-  threshold: number | null;
-  /** The month median at this hour (temperature), the usual dry spell (calm). */
-  reference: number | null;
-  /** The `GapStatus` keys in `gaps` the reference was computed over, newest first. */
-  compared: string[];
-  missing: LeadMissing | null;
-}
-
-/**
- * The hero chart's bold line in slots from `start_ms`, with a usual band per
- * slot for temperature and solar (empty for rain). Null is no reading.
- */
-export interface LeadTrace {
-  start_ms: number;
-  slot_minutes: number;
-  values: (number | null)[];
-  usual_low: (number | null)[];
-  usual_median: (number | null)[];
-  usual_high: (number | null)[];
-}
-
-/** The Overview's hero lead and every rule's value. */
-export interface HeroLead {
-  kind: LeadKind;
-  /** Rain, temperature, solar, calm, in that order. */
-  rules: LeadRule[];
-  /** The chart's unit. */
-  unit: "in" | "f" | "wm2" | "days";
-  /** The bold "now" value, observed at `now_ms`. */
-  now: number | null;
-  now_ms: number | null;
-  /** The usual range now: quartiles of the comparison set. */
-  usual_low: number | null;
-  usual_median: number | null;
-  usual_high: number | null;
-  /** How many days, events or dry spells the usual range is over. */
-  sample: number;
-  /** The bold line over time; null for calm. */
-  trace: LeadTrace | null;
-}
-
 /** The rain over one standard window, with its own rain gap status. */
 export interface RainWindow {
   key: string;
@@ -376,7 +313,7 @@ export interface DrySpell {
 
 /**
  * Dry spells and rain days in the record. The days since it last rained and
- * the usual dry spell are the calm lead rule's (`HeroLead.rules`).
+ * the usual dry spell are the dashboard's `dry_spell`.
  */
 export interface DrySpells {
   longest: DrySpell | null;
@@ -734,8 +671,6 @@ export interface DashboardSnapshot extends SnapshotHead {
   condition_ribbon: ConditionRibbon | null;
 
   rain_events: RainEvents;
-  /** The hero lead and every lead rule's live value. */
-  hero_lead: HeroLead;
   /** The Rain tab's data. */
   rain_tab: RainTab;
   /** Temperature across periods, the ten-day list and the strips. */
@@ -1032,14 +967,11 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   ) {
     throw new SnapshotContractError("dashboard: rain_events.seasons without a gap status");
   }
-  checkLead(head.hero_lead);
   checkRainTab(head.rain_tab);
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
   checkSolarTab(head.solar_tab);
-  // v2 predates the sun and moon block: its absence there means unknown.
-  const sun_moon = head.schema_version === 2 && !("sun_moon" in head) ? null : head.sun_moon;
-  checkSunMoon(sun_moon);
+  checkSunMoon(head.sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
   checkBatteryFlags(head.battery_flags);
   checkIndoor(head.indoor);
@@ -1048,7 +980,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkRecordDepth(head.record_depth);
   checkWindRose(head.wind_rose);
   checkOutdoorTrace(head.outdoor_trace);
-  return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
+  return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
 /** `battery_flags` may be absent (N-1); when present it must be a list of flags. */
@@ -1463,12 +1395,6 @@ function checkDrySpell(spell: unknown): void {
     !isValueOrNull(spell.usual_days)
   ) {
     throw new SnapshotContractError("dashboard: dry_spell malformed");
-  }
-}
-
-function checkLead(lead: unknown): void {
-  if (!isRecord(lead) || typeof lead.kind !== "string" || !Array.isArray(lead.rules)) {
-    throw new SnapshotContractError("dashboard: hero_lead missing");
   }
 }
 

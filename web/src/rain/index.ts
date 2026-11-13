@@ -33,10 +33,10 @@ import { gapReasons, hatchedCount, renderTiles, sectionSource, tileFinding } fro
 import { drawDailyBars, drawHourGrid, drawYearCurves, lastDays } from "./charts.js";
 import {
   WINDOW_NAMES,
-  calmRule,
   dailyHeadline,
   daysText,
   dryHeadline,
+  drySpellNow,
   hoursHeadline,
   rainStatus,
   windowStatus,
@@ -145,14 +145,18 @@ export function renderDry(
   const strip = make("dl", "rain-stats rain-dry-stats");
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
-  const calm = calmRule(snapshot);
-  stat(strip, "Since it last rained", calm?.value == null ? null : formatDays(calm.value));
+  const spell = drySpellNow(snapshot);
+  stat(
+    strip,
+    "Since it last rained",
+    spell.days_since_rain === null ? null : formatDays(spell.days_since_rain),
+  );
   const usualDd = stat(
     strip,
     "Usual dry spell",
-    calm?.reference == null ? null : formatDayCount(calm.reference),
+    spell.usual_days === null ? null : formatDayCount(spell.usual_days),
   );
-  if (calm?.reference == null) hatchGap(usualDd, windowStatus(snapshot, "365d"));
+  if (spell.usual_days === null) hatchGap(usualDd, windowStatus(snapshot, "365d"));
   const longest = spells.longest;
   stat(
     strip,
@@ -189,7 +193,7 @@ export function renderDry(
       "How long it has been since it last rained, against the dry spells of the last 365 days, and the longest in the record.",
       "The station archive's daily totals; the last rain is the station's own record.",
       `A rain day has at least ${WET_DAY_IN} in. Spells with a day missing from the record are left out, so a missing day is never read as dry.`,
-      "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
+      "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's Dry spell tile makes.",
     ],
     gapReasons([[strip.querySelectorAll("dd.gap-hatch").length, "figure", "figures"]]),
   );

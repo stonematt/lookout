@@ -169,9 +169,9 @@ function rainEventModel(dashboard) {
 }
 
 function drySpellModel(dashboard) {
-  const calm = dashboard.hero_lead.rules.find((r) => r.kind === "calm");
-  const daysDry = Math.floor(calm.value);
-  const usual = calm.reference;
+  const spell = dashboard.dry_spell;
+  const daysDry = Math.floor(spell.days_since_rain);
+  const usual = spell.usual_days;
   const longest = dashboard.rain_tab.dry_spells.longest;
   return {
     view: "dry_spell",
@@ -191,14 +191,14 @@ function drySpellModel(dashboard) {
  */
 function widgetModel(dashboard) {
   const view = viewOf(dashboard);
-  const calm = dashboard.hero_lead?.rules?.find((r) => r.kind === "calm");
+  const spell = dashboard.dry_spell;
   let model;
   if (view === "rain_event" && dashboard.active_rain_event)
     model = rainEventModel(dashboard);
   else if (
     view === "dry_spell" &&
-    calm?.value != null &&
-    calm?.reference != null
+    spell?.days_since_rain != null &&
+    spell?.usual_days != null
   )
     model = drySpellModel(dashboard);
   else model = temperatureModel(dashboard);

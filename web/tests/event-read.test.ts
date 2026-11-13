@@ -292,6 +292,12 @@ describe("the curve contract", () => {
     expect(curve.t_ms.length).toBeGreaterThan(0);
   });
 
+  it("reads a curve file at schema version 4, the version the refresh run writes next", () => {
+    const doc = { ...(goldenCurve("raining", EVENT_2) as object), schema_version: 4 };
+
+    expect(parseEventCurve(doc).start_ms).toBe(EVENT_2);
+  });
+
   it("refuses a curve file of a version it does not know", () => {
     const doc = { ...(goldenCurve("raining", EVENT_2) as object), schema_version: 1 };
 
