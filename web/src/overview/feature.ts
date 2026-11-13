@@ -1,8 +1,8 @@
 /**
  * The feature tile (#469, spec #460 stories 10–17, 52–53): one tile under
  * the now tile showing the snapshot's `feature`, picked by the Feature Rule
- * in Python (ADR-0009): the rain event, the unusual reading with its
- * percentile, the long dry spell, or a usual day. It replaces "What leads
+ * in Python (ADR-0009): the rain event, the unusual reading, the long dry
+ * spell, or a usual day. It replaces "What leads
  * right now" and the browser rules that went with it.
  *
  * The tile is one link: kicker, value and finding all sit inside it, and its
@@ -17,10 +17,12 @@
  * has no zoom: it opens the Rain Events tab.
  *
  * Every value is the snapshot's: this module words, formats and links; it
- * does not pick, rank or compare. A percentile at either end reads as past
- * every reading for this hour ("highest for this hour on record"), never
- * "0th" or "100th" (#563); an unusual reading's hour names its day when it
- * is from before midnight (`readingDayWords`, the hero's).
+ * does not pick, rank or compare. An unusual reading says its side of usual
+ * in plain words ("Warmer than usual for 3 pm"), never its percentile: that
+ * is the method, which the sources footer states once (#595). At either end
+ * it reads as past every reading for this hour ("highest for this hour on
+ * record", #563); its hour names its day when it is from before midnight
+ * (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
  * carries a feature) and `featureTile` (the Overview section).
@@ -39,7 +41,6 @@ import {
   inches,
   inHg,
   mph,
-  ordinal,
   percent,
 } from "../format.js";
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
@@ -85,10 +86,14 @@ const zoomTarget = (tile: MosaicTile): Target => ({
 const TEMPERATURE = zoomTarget(temperatureTile);
 const DRY_SPELL = zoomTarget(drySpellTile);
 
-/** Per reading: its name, the two comparatives, its Overview target. */
+/**
+ * Per reading: its name, its two sides of usual in words, its Overview
+ * target. A side that names its reading ("pressure lower", since "lower"
+ * alone says nothing) sets `named`, and the spoken lead then drops the name.
+ */
 const READINGS: Record<
   FeatureReading,
-  { name: string; high: string; low: string; target: Target }
+  { name: string; high: string; low: string; named?: true; target: Target }
 > = {
   temperature: { name: "temperature", high: "warmer", low: "cooler", target: TEMPERATURE },
   humidity: {
@@ -105,8 +110,9 @@ const READINGS: Record<
   },
   pressure: {
     name: "pressure",
-    high: "higher",
-    low: "lower",
+    high: "pressure higher",
+    low: "pressure lower",
+    named: true,
     target: zoomTarget(pressureTile),
   },
   solar: {
@@ -199,19 +205,19 @@ function rainView(snapshot: DashboardSnapshot): FeatureView {
 }
 
 /**
- * Where an unusual reading sits among its usual readings at this hour, in
- * words. At either end it is past every one of them, which "0th" or "100th
- * percentile" would misstate (#563). The feature carries no count of the
- * years it compared with, so an end reads "on record".
+ * An unusual reading at either end of its usual readings at this hour, in
+ * words: past every one of them, which "0th" or "100th percentile" would
+ * misstate (#563). The feature carries no count of the years it compared
+ * with, so an end reads "on record". Between the ends, nothing: the side
+ * says the finding, and the percentile is the method (#595).
  *
  * @param percentile - The feature's percentile, 0 to 100.
- * @returns E.g. "the 95th percentile around this date in earlier years",
- *   "highest for this hour on record", "lowest for this hour on record".
+ * @returns ": highest for this hour on record", ": lowest …", or "".
  */
-function percentileWords(percentile: number): string {
-  if (percentile >= 100) return "highest for this hour on record";
-  if (percentile <= 0) return "lowest for this hour on record";
-  return `the ${ordinal(percentile)} percentile around this date in earlier years`;
+function endWords(percentile: number): string {
+  if (percentile >= 100) return ": highest for this hour on record";
+  if (percentile <= 0) return ": lowest for this hour on record";
+  return "";
 }
 
 function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView {
@@ -244,13 +250,15 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
     hourName(snapshot.observed_at_ms ?? snapshot.built_at_ms) + readingDayWords(snapshot);
   // The percentile is the share of usual readings below the value and always
   // lies outside 10 to 90, so above the middle it reads high, below it low.
-  const finding = `${percentile > 50 ? reading.high : reading.low} than usual for ${hour}: ${percentileWords(percentile)}`;
+  const side = percentile > 50 ? reading.high : reading.low;
+  const finding = `${upperFirst(side)} than usual for ${hour}${endWords(percentile)}`;
+  const lead = reading.named ? "" : `${upperFirst(reading.name)} `;
   return {
     kind: "unusual",
     kicker: `Unusual · ${reading.name}`,
     value,
     finding,
-    spoken: { before: `${upperFirst(reading.name)} ${valueText(value)}, `, after: "" },
+    spoken: { before: `${lead}${valueText(value)}. `, after: "" },
     live: false,
     target: reading.target,
   };
@@ -401,11 +409,16 @@ export const featureTile: OverviewSection = {
   shown: (snapshot) => Boolean(snapshot.feature),
   source: () => ({
     what: "the refresh run's choice, by the Feature Rule",
+    // The unusual rule's method, stated once on the Overview (#595): the
+    // feature tile's finding says only the side. The window is Python's
+    // `temperature.SPREAD_DAYS`, the band `feature.LOW` and `feature.HIGH`.
     method:
-      "A rain event that is live or ended in the last 12 hours leads; then a reading below the 10th " +
-      "or above the 90th percentile of its readings at this hour within a week of this date in " +
-      "earlier years, the furthest out winning; " +
-      "then a dry spell longer than the usual one; otherwise a usual day.",
+      "A rain event that is live or ended in the last 12 hours leads; then an unusual " +
+      "reading, the one furthest out winning; then a dry spell longer than the usual one; " +
+      "otherwise a usual day. A reading is unusual below the 10th or above the 90th " +
+      "percentile of its readings at the same hour within 7 days either side of this date " +
+      "in earlier years (its percentile is the share of those readings below it): above " +
+      "the 90th it is higher than usual, below the 10th lower.",
   }),
   render,
 };
