@@ -13,6 +13,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { airSentence } from "../src/overview/zooms/humidity.js";
+import { dayTrace } from "../src/overview/zooms/parts.js";
 import { pressureSentence } from "../src/overview/zooms/pressure.js";
 import { daylightZoom, moonSentence } from "../src/overview/zooms/daylight.js";
 import { isZoomRoute } from "../src/overview/zoom.js";
@@ -183,6 +184,17 @@ describe("the Pressure and Humidity zooms", () => {
     const now = svg.querySelectorAll(".zoom-now-label");
     expect(now).toHaveLength(1);
     expect(words(now[0])).toMatch(slug === "pressure" ? /^now \d\d\.\d\d$/ : /^now \d+%$/);
+  });
+
+  it("puts the now label on the side the line is not (#598)", () => {
+    const at = (values: number[]) => {
+      const svg = dayTrace(values, 400, (v) => v.toFixed(2), 0.05)!;
+      const label = svg.querySelector(".zoom-now-label")!;
+      const dot = svg.querySelector(".mosaic-now-dot")!;
+      return Number(label.getAttribute("y")) - Number(dot.getAttribute("cy"));
+    };
+    expect(at([30, 30.1, 30.2, 30.0, 29.9, 29.95])).toBeLessThan(0);
+    expect(at([30, 29.9, 29.8, 30.0, 30.1, 29.95])).toBeGreaterThan(0);
   });
 
   it.each([

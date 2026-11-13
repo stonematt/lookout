@@ -224,6 +224,8 @@ describe("the live wind sentence", () => {
     expect(windZoom.lead!(snapshot)).toEqual({ value: "calm", delta: "no gusts" });
     snapshot.current.wind_gust_mph = 2.5;
     expect(words(render("now", snapshot))).toBe("Calm; gusts to 2.5 mph.");
+    snapshot.current.wind_gust_mph = null;
+    expect(words(render("now", snapshot))).toBe("Calm; gust not known.");
   });
 
   it("draws no now dot on the rose at 0 mph, and does at a non-zero speed (#598)", () => {

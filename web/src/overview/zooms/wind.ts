@@ -39,7 +39,7 @@ import type {
   WindRose,
   WindRoseWindow,
 } from "../../snapshot.js";
-import { calmThreshold, isCalm, windClauses, windTile } from "../mosaic-conditions.js";
+import { calmGust, calmThreshold, isCalm, windClauses, windTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
 
 /** The window the rose opens on when the record covers it (the board's). */
@@ -414,7 +414,10 @@ function renderRose(host: HTMLElement, snapshot: DashboardSnapshot): void {
 function windSentence(c: SnapshotConditions): string {
   const { calm, from: fromClause, gust } = windClauses(c);
   // Calm: no direction (#598).
-  if (calm) return c.wind_gust_mph ? `Calm; ${gust}.` : "Calm.";
+  if (calm) {
+    const rest = calmGust(c, gust);
+    return rest === "no gusts" ? "Calm." : `Calm; ${rest}.`;
+  }
   const from = fromClause && `F${fromClause.slice(1)}`;
   let rest: string;
   if (from && gust) rest = `${from}, ${gust}.`;

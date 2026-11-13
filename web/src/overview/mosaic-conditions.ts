@@ -163,6 +163,19 @@ export function isCalm(c: DashboardSnapshot["current"]): boolean {
 }
 
 /**
+ * A calm wind's gust clause: "no gusts" at a gust of 0, the gust when it is
+ * above 0, "gust not known" with none.
+ *
+ * @param c - The current conditions.
+ * @param gust - The `gust` clause from `windClauses`.
+ * @returns The clause.
+ */
+export function calmGust(c: DashboardSnapshot["current"], gust: string | null): string {
+  if (c.wind_gust_mph === null) return "gust not known";
+  return c.wind_gust_mph > 0 && gust ? gust : "no gusts";
+}
+
+/**
  * The live wind's two clauses, each null when not known: "from the SE" and
  * "gusts to 2.5 mph". The tile's delta and the wind zoom's sentence share
  * them. A calm wind has no direction: `from` is null and `calm` is true.
@@ -203,7 +216,7 @@ export const windTile: MosaicTile = {
     const c = snapshot.current;
     const { calm, from, gust } = windClauses(c);
     // Calm: the word, no direction and no unit (#598).
-    if (calm) return { value: "calm", delta: c.wind_gust_mph ? gust : "no gusts" };
+    if (calm) return { value: "calm", delta: calmGust(c, gust) };
     let delta: string;
     if (from && gust) delta = `${from}, ${gust}`;
     else if (from) delta = `${from}, gust not known`;
