@@ -40,9 +40,19 @@ beforeEach(() => {
 const words = (node: Element | null | undefined) => node?.textContent?.replace(/\s+/g, " ").trim();
 const tile = () => panel.querySelector<HTMLElement>("[data-section=feature]");
 const link = () => tile()!.querySelector<HTMLAnchorElement>("a")!;
+/** The finding as it shows, without the hidden words that run on from it. */
+function findingWords(): string | undefined {
+  const finding = tile()!.querySelector("[data-part=finding]")?.cloneNode(true) as Element;
+  finding?.querySelectorAll(".ov-sr-run").forEach((run) => run.remove());
+  return words(finding);
+}
 
-/** The link's accessible name; the hidden spans leave a space before a stop. */
-const nameOf = (el: Element) => nameFrom(el).replace(/ ([.,])/g, "$1");
+/**
+ * The link's accessible name, exactly: the hidden words that follow the
+ * finding run on from it inside its own element, so no space comes before
+ * their stop or comma.
+ */
+const nameOf = (el: Element) => nameFrom(el);
 const linkName = () => nameOf(link());
 
 function draw(snapshot: DashboardSnapshot): void {
@@ -69,7 +79,7 @@ describe("the feature tile", () => {
     expect(links).toHaveLength(1);
     // The whole tile is the link: the kicker, value and finding sit inside it.
     expect([...tile()!.children]).toEqual([links[0]]);
-    const finding = words(tile()!.querySelector("[data-part=finding]"))!;
+    const finding = findingWords()!;
     const name = nameOf(links[0]!);
     // The tile is no named region, so the link alone says the finding (#472).
     expect(tile()!.hasAttribute("aria-label")).toBe(false);
@@ -191,7 +201,7 @@ describe("the feature tile", () => {
     "words the %sth percentile as past every reading for this hour, never as a percentile",
     (percentile, reading, value, unit, finding) => {
       draw(edited("seasoned", unusual(reading, value, unit, percentile)));
-      expect(words(tile()!.querySelector(".tile-finding"))).toBe(finding);
+      expect(findingWords()).toBe(finding);
       expect(tile()!.textContent).not.toMatch(/\b(0th|100th)\b|percentile/);
       expect(linkName()).not.toMatch(/\b(0th|100th)\b|percentile/);
     },
@@ -200,7 +210,7 @@ describe("the feature tile", () => {
   it("names the reading's day when it is from before midnight", () => {
     // The dry golden is built at midnight from yesterday's 11:55 pm reading.
     draw(edited("dry", unusual("temperature", 31.0, "f", 4)));
-    expect(words(tile()!.querySelector(".tile-finding"))).toBe(
+    expect(findingWords()).toBe(
       "cooler than usual for 11 pm yesterday: the 4th percentile around this date in earlier years",
     );
   });
@@ -264,7 +274,7 @@ describe("the feature tile", () => {
     const tileText = () => ({
       kicker: words(tile()!.querySelector("[data-part=kicker]")),
       value: words(tile()!.querySelector("[data-part=value]")),
-      finding: words(tile()!.querySelector("[data-part=finding]")),
+      finding: findingWords(),
       name: linkName(),
     });
     const today = () => {
