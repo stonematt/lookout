@@ -96,7 +96,7 @@ describe("the Rain tab's words", () => {
     window.total_in = 0.85;
 
     expect(dailyHeadline(week)).toBe(
-      "0.30 in of rain so far today, and ≈ 0.85 in over the last 7 days",
+      "0.30 in of rain so far today, and ≈\u00a00.85 in over the last 7 days",
     );
   });
 
@@ -184,7 +184,7 @@ describe("the Rain tab's words", () => {
       reason: "gap",
     });
     expect(hoursHeadline(wet)).toBe(
-      "Rain fell in ≈ 18 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
+      "Rain fell in ≈\u00a018 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
     );
   });
 

@@ -9,24 +9,28 @@
  * bar in the rain colour, its total on top. For 7, 30, 90 and 365 days the
  * same days in earlier years (`almanac.rolling`) stand left of it as thin
  * grey bars, oldest first, each year under its bar and this year's in bold;
- * an earlier year with no total leaves a gap and keeps its label. Today and
- * Yesterday, and every window of a station with no earlier year, are plain
- * bars. A window whose status is not ok (no total, or not shown under the
- * history-grows rule) is left out, and a panel with none left is too.
+ * an earlier year with no total keeps its label over a hatched column, so a
+ * missing year never reads as a dry one. Today and Yesterday, and every
+ * window of a station with no earlier year, are plain bars. A window whose
+ * status is not ok (no total, or not shown under the history-grows rule) is
+ * left out, and a panel with none left is too. When neither today nor
+ * yesterday had rain, their panel folds to one line.
  *
  * Across from 560 px of width, the Today and yesterday panel a third
- * narrower than the others; stacked below that. Window names are the short
- * ones ("7 days"), so nothing breaks.
+ * narrower than the others, and no panel wider than its share of a full
+ * row, so one drawn alone keeps its bars close; stacked below that. Window
+ * names are the short ones ("7 days"), so nothing breaks.
  *
- * The title states numbers the snapshot holds, with no comparison of its
- * own: deciding "wetter" or "drier" is a rule, and rules are Python's
- * (ADR-0003).
+ * The title leads with the window it speaks to, as that panel's heading
+ * names it ("Last 90 days: ..."), and states numbers the snapshot holds,
+ * with no comparison of its own: deciding "wetter" or "drier" is a rule,
+ * and rules are Python's (ADR-0003).
  *
- * Offers `gaugeColumns`, `gaugeShown`, `gaugeHeadline` and `renderGauge`.
+ * Offers `gaugeView`, `gaugeShown`, `gaugeHeadline` and `renderGauge`.
  */
 import "./gauge.css";
 
-import { drawSized } from "../charts/svg.js";
+import { canvas, drawSized } from "../charts/svg.js";
 import { make, svgEl } from "../dom.js";
 import { inches } from "../format.js";
 import { gapValue } from "../gaps.js";
@@ -53,6 +57,13 @@ export interface GaugeColumn {
   prior: GaugeYear[];
 }
 
+/** What the gauge draws: its columns, and whether today and yesterday folded to a line. */
+export interface GaugeView {
+  columns: GaugeColumn[];
+  /** Today and yesterday were both drawn at 0, so their panel is one line instead. */
+  quiet: boolean;
+}
+
 /** The panels, each on one axis, and the windows each holds. */
 const PANELS: readonly { keys: readonly string[]; weight: number }[] = [
   { keys: ["today", "yesterday"], weight: 2 },
@@ -62,16 +73,18 @@ const PANELS: readonly { keys: readonly string[]; weight: number }[] = [
 
 /** The windows with earlier years in `almanac.rolling`. */
 const ROLLING = new Set(["7d", "30d", "90d", "365d"]);
+/** The day windows, which share the first panel. */
+const DAYS = new Set(["today", "yesterday"]);
 
 /**
  * The windows the gauge draws, in panel order, with their earlier years.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns One column per window whose status is ok.
+ * @returns One column per window whose status is ok, less today and
+ *   yesterday when both are 0 (`quiet`).
  */
-export function gaugeColumns(snapshot: DashboardSnapshot): GaugeColumn[] {
+export function gaugeView(snapshot: DashboardSnapshot): GaugeView {
   const rolling = snapshot.almanac?.rolling ?? [];
-  const fallbackYear = new Date(snapshot.built_at_ms).getFullYear();
   const out: GaugeColumn[] = [];
   for (const key of PANELS.flatMap((p) => p.keys)) {
     const window = snapshot.rain_tab.windows.find((w) => w.key === key);
@@ -85,11 +98,14 @@ export function gaugeColumns(snapshot: DashboardSnapshot): GaugeColumn[] {
       key,
       status: window.status,
       total: window.total_in,
-      year: years[0]?.year ?? fallbackYear,
+      // The window's own last day is station-local (ADR-0002), unlike the browser's clock.
+      year: years[0]?.year ?? Number(window.status.last_day.slice(0, 4)),
       prior,
     });
   }
-  return out;
+  const days = out.filter((c) => DAYS.has(c.key));
+  const quiet = days.length > 0 && days.every((c) => c.total === 0);
+  return { columns: quiet ? out.filter((c) => !DAYS.has(c.key)) : out, quiet };
 }
 
 /**
@@ -99,7 +115,8 @@ export function gaugeColumns(snapshot: DashboardSnapshot): GaugeColumn[] {
  * @returns False when no window's status is ok.
  */
 export function gaugeShown(snapshot: DashboardSnapshot): boolean {
-  return gaugeColumns(snapshot).length > 0;
+  const view = gaugeView(snapshot);
+  return view.columns.length > 0 || view.quiet;
 }
 
 /** A total as its status shows it: "0.44 in", "≈ 0.44 in". */
@@ -108,24 +125,26 @@ function shown(status: GapStatus, value: number, unit = true): string {
   return gapValue(status, text) ?? text;
 }
 
-/** "today", "yesterday", "over the last 90 days". */
-function span(key: string): string {
-  if (key === "today" || key === "yesterday") return key;
-  return `over the last ${WINDOW_NAMES[key] ?? key}`;
-}
+/** A rolling window's name as its panel's heading reads it: "Last 90 days". */
+const lastName = (key: string): string => `Last ${WINDOW_NAMES[key] ?? key}`;
 
 /**
- * The gauge's finding: the longest window drawn, named, with its earlier
- * years' totals, newest first.
+ * The gauge's finding: the longest window drawn, named first as its panel
+ * names it, with its earlier years' totals, newest first. With only today
+ * and yesterday drawn, both days.
  *
- * @param columns - The gauge's columns.
- * @returns E.g. "38.2 in over the last 365 days, against 41.0 in (2025) and
- *   30.4 in (2024) over the same days".
+ * @param view - What the gauge draws.
+ * @returns E.g. "Last 365 days: 38.2 in, against 41.0 in (2025) and 30.4 in
+ *   (2024) over the same days"; "Today 0.30 in, yesterday 0.24 in".
  */
-export function gaugeHeadline(columns: GaugeColumn[]): string {
-  const last = columns.at(-1);
-  if (!last) return "Rain over each window";
-  const lead = `${shown(last.status, last.total)} ${span(last.key)}`;
+export function gaugeHeadline(view: GaugeView): string {
+  const last = view.columns.at(-1);
+  if (!last) return view.quiet ? "No rain today or yesterday" : "Rain over each window";
+  if (DAYS.has(last.key)) {
+    const days = view.columns.map((c) => `${c.key} ${shown(c.status, c.total)}`).join(", ");
+    return days.charAt(0).toUpperCase() + days.slice(1);
+  }
+  const lead = `${lastName(last.key)}: ${shown(last.status, last.total)}`;
   const earlier = last.prior
     .filter((y) => y.value !== null)
     .reverse()
@@ -140,6 +159,7 @@ function heading(columns: GaugeColumn[]): string {
   if (keys[0] === "today" || keys[0] === "yesterday") {
     return keys.length === 2 ? "Today and yesterday" : (WINDOW_NAMES[keys[0]] ?? keys[0]);
   }
+  if (keys.length === 1) return lastName(keys[0]!);
   return `Last ${keys.map((k) => k.replace("d", "")).join(" and ")} days`;
 }
 
@@ -163,6 +183,8 @@ const STACK_GAP = 12;
 const ACROSS = 560;
 /** The smallest axis top: a dry panel still has a scale. */
 const MIN_TOP = 0.1;
+/** The widest a panel grows, per unit of its weight. */
+const MAX_PER_WEIGHT = 150;
 
 /** Append a text. */
 function text(
@@ -191,7 +213,14 @@ function bar(x: number, width: number, height: number, base: number, cls: string
 }
 
 /** One panel at (px, py), pw wide, on one axis. */
-function panel(svg: SVGSVGElement, px: number, py: number, pw: number, cols: GaugeColumn[]): void {
+function panel(
+  svg: SVGSVGElement,
+  hatch: string,
+  px: number,
+  py: number,
+  pw: number,
+  cols: GaugeColumn[],
+): void {
   const g = svgEl("g", { class: "gauge-panel" });
   const top = Math.max(
     MIN_TOP,
@@ -224,11 +253,20 @@ function panel(svg: SVGSVGElement, px: number, py: number, pw: number, cols: Gau
       const full = unit * 2 - 3;
       let x = gx + (gw - unit * (n + 2)) / 2;
       for (const p of c.prior) {
-        if (p.value !== null) {
-          const rect = bar(x, thin, h(p.value), base, "gauge-prior");
-          rect.dataset.year = String(p.year);
-          col.append(rect);
-        }
+        // A year with no total is hatched the plot's height: not known, not 0.
+        const rect =
+          p.value === null
+            ? svgEl("rect", {
+                x: +x.toFixed(1),
+                y: plotTop,
+                width: +thin.toFixed(1),
+                height: PLOT,
+                fill: hatch,
+                class: "gauge-missing",
+              })
+            : bar(x, thin, h(p.value), base, "gauge-prior");
+        rect.dataset.year = String(p.year);
+        col.append(rect);
         text(col, x + thin / 2, base + 14, yy(p.year), "gauge-year");
         x += unit;
       }
@@ -251,26 +289,22 @@ function draw(host: HTMLElement, columns: GaugeColumn[], width: number): void {
   const across = width >= ACROSS;
   const n = panels.length;
   const height = across ? PANEL_H : n * PANEL_H + (n - 1) * STACK_GAP;
-  const svg = svgEl("svg", {
-    class: "gauge-svg",
-    width,
-    height,
-    viewBox: `0 0 ${width} ${height}`,
-    role: "img",
-    "aria-label": `Rain over each window: ${columns
-      .map((c) => `${WINDOW_NAMES[c.key] ?? c.key} ${shown(c.status, c.total)}`)
-      .join(", ")}`,
-  });
-  const weights = panels.reduce((sum, p) => sum + p.weight, 0);
-  const room = width - GAP * (n - 1);
+  const label = `Rain over each window: ${columns
+    .map((c) => `${WINDOW_NAMES[c.key] ?? c.key} ${shown(c.status, c.total)}`)
+    .join(", ")}`;
+  const { svg, hatch } = canvas(width, height, label, "gauge-svg");
+  // Weights over the full row of panels, so a panel drawn alone keeps its share.
+  const weights = PANELS.reduce((sum, p) => sum + p.weight, 0);
+  const room = width - GAP * (PANELS.length - 1);
   let px = 0;
   panels.forEach((p, i) => {
+    const cap = p.weight * MAX_PER_WEIGHT;
     if (across) {
-      const pw = (room * p.weight) / weights;
-      panel(svg, px, 0, pw, p.cols);
+      const pw = Math.min(cap, (room * p.weight) / weights);
+      panel(svg, hatch, px, 0, pw, p.cols);
       px += pw + GAP;
     } else {
-      panel(svg, 0, i * (PANEL_H + STACK_GAP), width, p.cols);
+      panel(svg, hatch, 0, i * (PANEL_H + STACK_GAP), Math.min(cap, width), p.cols);
     }
   });
   host.replaceChildren(svg);
@@ -284,12 +318,24 @@ function draw(host: HTMLElement, columns: GaugeColumn[], width: number): void {
  * @param snapshot - The dashboard snapshot.
  */
 export function renderGauge(host: HTMLElement, snapshot: DashboardSnapshot): void {
-  const columns = gaugeColumns(snapshot);
-  host.append(tileFinding(gaugeHeadline(columns), { zoom: true }));
+  const view = gaugeView(snapshot);
+  const { columns } = view;
+  host.append(tileFinding(gaugeHeadline(view), { zoom: true }));
+  if (view.quiet) {
+    const quiet = make("p", "gauge-quiet", "No rain today or yesterday.");
+    quiet.dataset.part = "quiet";
+    host.append(quiet);
+  }
+  if (!columns.length) return;
   const fig = make("figure", "gauge-fig");
   host.append(fig);
   if (columns.some((c) => c.prior.length)) {
-    const key = make("p", "gauge-key", "Grey: the same window in earlier years");
+    const missing = columns.some((c) => c.prior.some((p) => p.value === null));
+    const key = make(
+      "p",
+      "gauge-key",
+      `Grey: the same window in earlier years.${missing ? " Hatched: no total that year." : ""}`,
+    );
     key.dataset.part = "key";
     host.append(key);
   }

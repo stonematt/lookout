@@ -21,24 +21,29 @@ import { todayFrame } from "../overview/today-hero.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import { isShown } from "../overview/history.js";
 
-/** Rain today and yesterday, in inches. */
+/** Rain today and yesterday, in inches; null for a total not known. */
 export interface HeroRain {
-  today: number;
-  yesterday: number;
+  today: number | null;
+  yesterday: number | null;
 }
 
 /**
  * Rain today and yesterday, or null when neither is above 0.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns The two totals; a missing one reads 0.
+ * @returns The two totals. Today is null after midnight until the day's
+ *   first reading, and yesterday when its window is not shown: an unknown
+ *   total stays unknown, never 0.
  */
 export function heroRain(snapshot: DashboardSnapshot): HeroRain | null {
   const window = snapshot.rain_tab.windows.find((w) => w.key === "yesterday");
-  const today = snapshot.current.rain_today_in ?? 0;
-  const yesterday = (window && isShown(window.status) ? window.total_in : null) ?? 0;
-  return today > 0 || yesterday > 0 ? { today, yesterday } : null;
+  const today = snapshot.current.rain_today_in;
+  const yesterday = window && isShown(window.status) ? window.total_in : null;
+  return (today ?? 0) > 0 || (yesterday ?? 0) > 0 ? { today, yesterday } : null;
 }
+
+/** A total with its unit, "n/a" when it is not known. */
+const shown = (value: number | null): string => (value === null ? "n/a" : inches(value));
 
 /**
  * The one-line form, under the temperature's caption below 760 px.
@@ -50,7 +55,7 @@ export function heroRainLine(rain: HeroRain): HTMLElement {
   const node = make(
     "p",
     "hero-rain-line",
-    `Rain today ${inches(rain.today)} · yesterday ${inches(rain.yesterday)}`,
+    `Rain today ${shown(rain.today)} · yesterday ${shown(rain.yesterday)}`,
   );
   node.dataset.part = "rain-line";
   return node;
@@ -69,7 +74,7 @@ const VALUE_ROOM = 20;
 /** Draw the column on the chart's rows at the chart's width. */
 function paint(box: HTMLElement, snapshot: DashboardSnapshot, rain: HeroRain, width: number): void {
   const { height, top, floor, labelY } = todayFrame(snapshot, width);
-  const label = `Rain today ${inches(rain.today)}, yesterday ${inches(rain.yesterday)}, on one scale`;
+  const label = `Rain today ${shown(rain.today)}, yesterday ${shown(rain.yesterday)}, on one scale`;
   const svg = svgEl("svg", {
     class: "hero-rain-svg",
     width: WIDTH,
@@ -85,23 +90,28 @@ function paint(box: HTMLElement, snapshot: DashboardSnapshot, rain: HeroRain, wi
       "Rain",
     ),
   );
-  const max = Math.max(rain.today, rain.yesterday);
+  const max = Math.max(rain.today ?? 0, rain.yesterday ?? 0);
   const room = floor - top - VALUE_ROOM;
   for (const bar of BARS) {
     const value = rain[bar.key];
-    const h = value > 0 ? Math.max(2, Math.round((value / max) * room)) : 0;
+    const h = value !== null && value > 0 ? Math.max(2, Math.round((value / max) * room)) : 0;
+    // A total not known draws no bar, only its "n/a".
+    if (value !== null) {
+      svg.append(
+        svgEl("rect", {
+          x: bar.mid - BAR_W / 2,
+          y: floor - h,
+          width: BAR_W,
+          height: h,
+          class: "hero-rain-bar",
+        }),
+      );
+    }
     svg.append(
-      svgEl("rect", {
-        x: bar.mid - BAR_W / 2,
-        y: floor - h,
-        width: BAR_W,
-        height: h,
-        class: "hero-rain-bar",
-      }),
       svgEl(
         "text",
         { x: bar.mid, y: floor - h - 6, class: "hero-rain-value", "text-anchor": "middle" },
-        inches(value, { unit: false }),
+        shown(value),
       ),
       svgEl(
         "text",

@@ -61,3 +61,10 @@
   font-size: var(--type-label);
   color: var(--ink-2);
 }
+
+/* today and yesterday folded to one line when neither had rain */
+.gauge-quiet {
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-label);
+  color: var(--ink-2);
+}

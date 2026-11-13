@@ -38,7 +38,7 @@ describe("the hero Rain column", () => {
     renderOverview(panel, snapshot);
     expect(words(line())).toBe("Rain today 0.30 in · yesterday 0.24 in");
     expect(words(columnBox()?.querySelector("text.hero-rain-head"))).toBe("Rain");
-    expect(texts("hero-rain-value")).toEqual(["0.30", "0.24"]);
+    expect(texts("hero-rain-value")).toEqual(["0.30 in", "0.24 in"]);
     expect(texts("hero-rain-name")).toEqual(["Today", "Yesterday"]);
     expect(hero().dataset.rain).toBe("true");
   });
@@ -58,14 +58,32 @@ describe("the hero Rain column", () => {
     snapshot.rain_tab.windows.find((w) => w.key === "yesterday")!.total_in = 0.12;
     renderOverview(panel, snapshot);
     expect(words(line())).toBe("Rain today 0.00 in · yesterday 0.12 in");
-    expect(texts("hero-rain-value")).toEqual(["0.00", "0.12"]);
+    expect(texts("hero-rain-value")).toEqual(["0.00 in", "0.12 in"]);
+  });
+
+  it("shows Today as n/a, with no bar, when the live total is not known yet", () => {
+    const snapshot = parsed("seasoned");
+    snapshot.current.rain_today_in = null;
+    snapshot.rain_tab.windows.find((w) => w.key === "yesterday")!.total_in = 0.12;
+    renderOverview(panel, snapshot);
+    expect(words(line())).toBe("Rain today n/a · yesterday 0.12 in");
+    expect(texts("hero-rain-value")).toEqual(["n/a", "0.12 in"]);
+    expect(columnBox()!.querySelectorAll("rect.hero-rain-bar")).toHaveLength(1);
+  });
+
+  it("is removed when today is not known and yesterday was dry", () => {
+    const snapshot = parsed("seasoned");
+    snapshot.current.rain_today_in = null;
+    renderOverview(panel, snapshot);
+    expect(line()).toBeNull();
+    expect(columnBox()).toBeNull();
   });
 
   it("keeps Today as the live rain today during a rain event", () => {
     const snapshot = parsed("raining");
     snapshot.current.rain_today_in = 0.41;
     renderOverview(panel, snapshot);
-    expect(texts("hero-rain-value")[0]).toBe("0.41");
+    expect(texts("hero-rain-value")[0]).toBe("0.41 in");
   });
 
   it("stands its bars on the ribbon chart's x-axis line, names on its x-label line", () => {
