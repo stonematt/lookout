@@ -1,0 +1,59 @@
+<!-- @dsCard group="Overview" height=1100 subtitle="A tile's full view at #overview/<tile>: in place on desktop, full screen on a phone" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:transparent}
+:root{--type-display:7.5rem;--type-finding-lead:1.5rem;--type-finding:1.1875rem;--type-condition:1.25rem;--type-fact:2.5rem;--type-stat:1.375rem;--type-body:1rem;--type-standfirst:.875rem;--type-kicker:.8125rem;--type-source:.8125rem;--type-axis:12px;--type-label:12px;--type-annotation:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:12px}
+.col{display:grid;gap:16px;padding:12px}
+.panel{--surface:var(--ground);background:var(--ground);color:var(--ink);padding:16px;border-radius:var(--r-tile);font-family:var(--font-sans, Lexend, system-ui, sans-serif);font-size:1rem;line-height:1.55;letter-spacing:.01em;text-align:left;min-width:0}
+.panel h2,.panel p,.panel dl,.panel dd{margin:0}
+.theme-name{font-size:12px;color:var(--ink-3);margin:0 0 12px}
+.tile{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
+.tile+.tile{margin-top:16px}
+.tile-kicker{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
+.tile-finding{margin:0;font-size:var(--type-finding);font-weight:500;line-height:1.4;max-width:44ch;text-wrap:pretty}
+.tile-folds{display:flex;flex-direction:column;margin-top:auto;padding-top:16px}
+.fold{border-top:1px solid var(--rule);font-size:var(--type-source);line-height:1.55;color:var(--ink-3)}
+.fold-line{display:block;min-height:32px;padding:6px 0;list-style:none;cursor:pointer}
+.fold-line::-webkit-details-marker{display:none}
+.fold-line::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;vertical-align:1px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(-45deg)}
+.fold[open]>.fold-line::before{transform:translateY(-1px) rotate(45deg)}
+.fold-body{padding-bottom:8px}
+.ov-source{margin:0;font-size:var(--type-source);line-height:1.55;color:var(--ink-3);max-width:62ch}
+.gap-hatch{background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-stripe),var(--surface) var(--hatch-stripe) var(--hatch-repeat))}
+.hatch-swatch{display:inline-block;flex:none;width:12px;height:12px;border-radius:var(--r-cell);vertical-align:-1px;background:repeating-linear-gradient(135deg,var(--hatch) 0 var(--hatch-chip-stripe),var(--surface) var(--hatch-chip-stripe) var(--hatch-chip-repeat))}
+.hatch-chip{display:inline-flex;margin:2px 0 2px 8px;vertical-align:middle;align-items:center;gap:4px;padding:0 7px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2);font-size:var(--type-label);line-height:20px;white-space:nowrap}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.zoom{--surface:var(--tile);display:flex;flex-direction:column;min-width:0;padding:var(--tile-pad);border-radius:var(--r-tile);background:var(--surface)}
+.zoom+.zoom{margin-top:16px}
+.zoom-bar{display:flex;justify-content:flex-end}
+.zoom[data-mode="screen"] .zoom-bar{justify-content:flex-start}
+.zoom-close,.zoom-back{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border:1px solid var(--rule-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2);font:inherit;cursor:pointer}
+.zoom-close{font-size:var(--type-standfirst)}
+.zoom-back{padding:0;border:0;font-size:var(--type-finding);font-weight:500;color:var(--ink)}
+.zoom-glyph{font-size:1.25em;line-height:1}
+.zoom-heading{margin:0;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
+.zoom-value{margin:4px 0 0;font-size:var(--type-display);font-weight:300;line-height:.88;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.zoom-delta{margin:8px 0 0;font-size:var(--type-finding);line-height:1.45;color:var(--ink-2)}
+.zoom-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:32px;margin-top:24px}
+.zoom[data-mode="screen"] .zoom-panels{grid-template-columns:minmax(0,1fr)}
+.zoom[data-mode="screen"] .zoom-panel+.zoom-panel{padding-top:24px;border-top:1px solid var(--rule)}
+.zoom-panel-title{margin:0 0 8px;font-size:var(--type-kicker);font-weight:500;line-height:1.4;color:var(--ink-3)}
+.zoom-panel h4{margin:0;font-size:var(--type-finding);font-weight:500;line-height:1.4;max-width:44ch}
+.zoom-panel p{margin:8px 0 0;font-size:var(--type-source);color:var(--ink-3)}
+.mode{margin:0 0 8px;font-size:12px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="row"><section class="panel" data-theme="dark"><p class="theme-name">Dark</p><p class="mode">Desktop: a full-width row under the tapped tile's row</p><section class="zoom" data-mode="row" aria-labelledby="dark-zr"><div class="zoom-bar"><button class="zoom-close" type="button">Close <span class="zoom-glyph" aria-hidden="true">×</span></button></div><h2 class="zoom-heading" tabindex="-1" id="dark-zr">Temperature</h2><p class="zoom-value">60°</p><p class="zoom-delta">+7° on usual</p><div class="zoom-panels"><section class="zoom-panel"><h3 class="zoom-panel-title">Temperature, in context</h3><h4>60° now, above the middle half of every window</h4><p>(the window range chart)</p></section><section class="zoom-panel"><h3 class="zoom-panel-title">Now against this date</h3><h4>Warmer than 9 in 10 of these days in 2025 and 2024</h4><p>(the strips)</p></section></div></section><p class="mode" style="margin-top:16px">Phone: full screen, panels one under the other</p><section class="zoom" data-mode="screen" aria-labelledby="dark-zs"><div class="zoom-bar"><button class="zoom-back" type="button"><span class="zoom-glyph" aria-hidden="true">‹</span><span class="sr">Back to the </span>Overview</button></div><h2 class="zoom-heading" tabindex="-1" id="dark-zs">Temperature</h2><p class="zoom-value">60°</p><p class="zoom-delta">+7° on usual</p><div class="zoom-panels"><section class="zoom-panel"><h3 class="zoom-panel-title">Temperature, in context</h3><h4>60° now, above the middle half of every window</h4><p>(the window range chart)</p></section><section class="zoom-panel"><h3 class="zoom-panel-title">Now against this date</h3><h4>Warmer than 9 in 10 of these days in 2025 and 2024</h4><p>(the strips)</p></section></div></section></section><section class="panel" data-theme="light"><p class="theme-name">Light</p><p class="mode">Desktop: a full-width row under the tapped tile's row</p><section class="zoom" data-mode="row" aria-labelledby="light-zr"><div class="zoom-bar"><button class="zoom-close" type="button">Close <span class="zoom-glyph" aria-hidden="true">×</span></button></div><h2 class="zoom-heading" tabindex="-1" id="light-zr">Temperature</h2><p class="zoom-value">60°</p><p class="zoom-delta">+7° on usual</p><div class="zoom-panels"><section class="zoom-panel"><h3 class="zoom-panel-title">Temperature, in context</h3><h4>60° now, above the middle half of every window</h4><p>(the window range chart)</p></section><section class="zoom-panel"><h3 class="zoom-panel-title">Now against this date</h3><h4>Warmer than 9 in 10 of these days in 2025 and 2024</h4><p>(the strips)</p></section></div></section><p class="mode" style="margin-top:16px">Phone: full screen, panels one under the other</p><section class="zoom" data-mode="screen" aria-labelledby="light-zs"><div class="zoom-bar"><button class="zoom-back" type="button"><span class="zoom-glyph" aria-hidden="true">‹</span><span class="sr">Back to the </span>Overview</button></div><h2 class="zoom-heading" tabindex="-1" id="light-zs">Temperature</h2><p class="zoom-value">60°</p><p class="zoom-delta">+7° on usual</p><div class="zoom-panels"><section class="zoom-panel"><h3 class="zoom-panel-title">Temperature, in context</h3><h4>60° now, above the middle half of every window</h4><p>(the window range chart)</p></section><section class="zoom-panel"><h3 class="zoom-panel-title">Now against this date</h3><h4>Warmer than 9 in 10 of these days in 2025 and 2024</h4><p>(the strips)</p></section></div></section></section></div>
+</body>
+</html>

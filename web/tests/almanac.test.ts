@@ -360,12 +360,12 @@ describe("the rolling-window table", () => {
   });
 });
 
-describe("on the Overview", () => {
-  it("follows the feature tile, the grid before the table", () => {
+describe("as tiles of their own", () => {
+  it("left the Overview with the accordion (#472), for the rain zoom", () => {
     const ids = SECTIONS.map((s) => s.id);
 
-    expect(ids.indexOf("almanac")).toBeGreaterThan(ids.indexOf("feature"));
-    expect(ids.indexOf("rolling-rain")).toBe(ids.indexOf("almanac") + 1);
+    expect(ids).not.toContain("almanac");
+    expect(ids).not.toContain("rolling-rain");
   });
 
   it.each([
@@ -374,7 +374,7 @@ describe("on the Overview", () => {
   ])("renders the grid from the %s golden, and no rolling table it cannot cover", (_, snapshot) => {
     document.body.innerHTML = "<div id=panel></div>";
     const panel = document.getElementById("panel")!;
-    renderOverview(panel, snapshot);
+    renderOverview(panel, snapshot, [almanacGrid, rollingRain]);
 
     const section = panel.querySelector("[data-section=almanac]")!;
     expect(text(section.querySelector("[data-part=finding]"))).toBeTruthy();
@@ -412,4 +412,28 @@ describe("text on a ramp cell", () => {
       }
     },
   );
+});
+
+describe("the rolling table's scroll cue (#596)", () => {
+  const css = readFileSync(`${ROOT}/web/src/overview/almanac.css`, "utf8");
+  const frame = /\.alm-table-frame \{([^}]*)\}/.exec(css)?.[1] ?? "";
+
+  it("scrolls sideways inside its tile and shades its right edge while more lies beyond", () => {
+    expect(frame).toMatch(/overflow-x: auto;/);
+    // a `local` cover over a `scroll` shadow, on the right: the shadow shows
+    // only while content lies beyond that edge
+    expect(frame.match(/\blocal\b/g)).toHaveLength(1);
+    expect(frame.match(/\bscroll\b/g)).toHaveLength(1);
+  });
+
+  it("draws its edge in a token that meets the graphics minimum on the tile, both themes (#606)", () => {
+    const token = /--alm-shadow: var\(--([a-z0-9-]+)\);/.exec(frame)?.[1];
+    expect(token).toBeDefined();
+    // the edge itself is solid, before it fades
+    expect(frame).toMatch(/var\(--alm-shadow\) 0 2px/);
+    for (const theme of ["light", "dark"] as const) {
+      const t = themeTokens(theme);
+      expect(ratio(t[token!]!, t.tile!), theme).toBeGreaterThanOrEqual(3);
+    }
+  });
 });

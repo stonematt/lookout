@@ -1,6 +1,7 @@
 /**
- * The Overview's almanac grid and rolling-window rain table (#82), read from
- * the snapshot's `almanac` (built by `lookout/snapshot/almanac.py`).
+ * The almanac grid and rolling-window rain table (#82), read from the
+ * snapshot's `almanac` (built by `lookout/snapshot/almanac.py`), drawn in
+ * the rain zoom (#475).
  *
  * The grid follows DESIGN.md's "Almanac grid": water years as rows (Oct
  * through Sep, the ticket's season), months as columns, 44px cells with 4px
@@ -20,11 +21,17 @@
  * archive, its season cell stays empty; a table cell it does not cover
  * stays empty, and a row or column with no cell it covers is not drawn. A
  * gap inside a shown period stays hatched, worded without "n/a" ("gap").
+ *
+ * Offers the two as sections (`almanacGrid`, `rollingRain`), and their
+ * renders for the rain zoom, which draws them in its panels (no source
+ * notes, findings under the panel titles; `SectionOptions` in `tiles.ts`):
+ * `renderGrid`, `renderRolling`, and `rollingHasRows` (whether the table
+ * has a row to draw).
  */
 import "./almanac.css";
 
 import { WATER_MONTHS, dayText, inches } from "../format.js";
-import { make } from "../dom.js";
+import { make, spoken } from "../dom.js";
 import { hatchGap } from "../gaps.js";
 import type { HatchOptions } from "../gaps.js";
 import { NAMED_YEARS } from "../rain/text.js";
@@ -50,7 +57,8 @@ import {
   tableValue,
   wettestMonth,
 } from "./almanac-text.js";
-import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
+import { gapReasons, hatchedCount, sectionSource, tileFinding } from "../tiles.js";
+import type { SectionOptions } from "../tiles.js";
 import { isShown } from "./history.js";
 import type { OverviewSection } from "./index.js";
 
@@ -68,20 +76,6 @@ function monthKind(month: AlmanacMonth | null): CellKind {
   if (kind !== "current") return isShown(month.status) ? kind : "before";
   const covered = !month.to_date || isShown(month.to_date) || month.to_date_in !== null;
   return covered ? kind : "before";
-}
-
-/**
- * The folded source note: the method, with the archive time on its closed
- * line. No lag chip: the header states freshness once (#458).
- */
-function source(
-  host: HTMLElement,
-  snapshot: DashboardSnapshot,
-  what: string,
-  method: string,
-  gaps: string | null,
-): void {
-  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps, lag: false })));
 }
 
 // ---------- the almanac grid ----------
@@ -173,7 +167,7 @@ function seasonCell(year: AlmanacYear, almanac: Almanac): HTMLElement {
 /** The grid as a table: water years down, months across, season last. */
 function gridTable(almanac: Almanac, max: number): HTMLTableElement {
   const table = make("table", "alm-grid");
-  const caption = make("caption", "ov-sr", "Rain each month, inches, by water year, newest first");
+  const caption = spoken("Rain each month, inches, by water year, newest first", "caption");
   const head = make("thead", "");
   const headRow = document.createElement("tr");
   headRow.append(make("td", "alm-corner"));
@@ -297,10 +291,22 @@ function wire(table: HTMLTableElement, readout: HTMLElement, almanac: Almanac): 
   show(startingMark(rows)!);
 }
 
-function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
+/**
+ * The almanac grid under its finding, with its source note unless told
+ * otherwise (the rain zoom).
+ *
+ * @param host - The tile, or the zoom's panel.
+ * @param snapshot - The dashboard snapshot.
+ * @param options - Whether it draws in a zoom panel.
+ */
+export function renderGrid(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: SectionOptions = {},
+): void {
   const { almanac } = snapshot;
   const max = wettestMonth(almanac);
-  host.append(tileFinding(gridHeadline(almanac)));
+  host.append(tileFinding(gridHeadline(almanac), options));
   const figure = make("figure", "alm-figure");
   figure.dataset.part = "chart";
   figure.append(rampKey(max));
@@ -315,14 +321,17 @@ function renderGrid(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const hatched = almanac.years
     .flatMap((year) => year.months)
     .filter((month) => month !== null && monthKind(month) === "invalid").length;
-  source(
+  sectionSource(
     host,
     snapshot,
+    options,
     "daily rain counter, summed by month",
-    "Each row is a water year, Oct through Sep, named by the year it ends in. " +
-      "The more rain, the stronger a cell's fill, on a square-root scale so drier months still differ; the key reads it. " +
-      "The station archive, each day's highest daily rain counter summed by month, with today's live total. " +
+    [
+      "Each row is a water year, Oct through Sep, named by the year it ends in.",
+      "The more rain, the stronger a cell's fill, on a square-root scale so drier months still differ; the key reads it.",
+      "The station archive, each day's highest daily rain counter summed by month, with today's live total.",
       "≈ marks a month scaled up over a few missing days.",
+    ],
     gapReasons([[hatched, "month", "months"]]),
   );
 }
@@ -333,7 +342,7 @@ export const almanacGrid: OverviewSection = {
   label: "Rain by month, each water year",
   kicker: "Rain almanac",
   span: 3,
-  render: renderGrid,
+  render: (host, snapshot) => renderGrid(host, snapshot),
 };
 
 // ---------- the rolling-window table ----------
@@ -388,8 +397,8 @@ function rollingShown(almanac: Almanac): { windows: RollingWindow[]; columns: nu
 }
 
 /**
- * Whether the rolling table has a row the record covers; the Overview draws
- * no rolling tile without one (#470).
+ * Whether the rolling table has a row the record covers; no rolling tile is
+ * drawn without one (#470).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns True when at least one cell is shown.
@@ -398,11 +407,23 @@ export function rollingHasRows(snapshot: DashboardSnapshot): boolean {
   return rollingShown(snapshot.almanac).windows.length > 0;
 }
 
-function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
+/**
+ * The rolling-window table under its finding, with its source note unless
+ * told otherwise (the rain zoom).
+ *
+ * @param host - The tile, or the zoom's panel.
+ * @param snapshot - The dashboard snapshot.
+ * @param options - Whether it draws in a zoom panel.
+ */
+export function renderRolling(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: SectionOptions = {},
+): void {
   const { almanac } = snapshot;
   const { windows, columns } = rollingShown(almanac);
   const today = almanac.rolling[0]?.years[0]?.status.last_day;
-  host.append(tileFinding(rollingHeadline(almanac)));
+  host.append(tileFinding(rollingHeadline(almanac), options));
   // The day the windows end, once the standfirst is gone (#458): in the
   // table's caption and the method paragraph.
   const ending = today ? `ending ${dayText(today)}` : "ending today";
@@ -410,7 +431,7 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const table = make("table", "alm-table");
   table.dataset.part = "table";
   table.append(
-    make("caption", "ov-sr", `Rain over rolling windows ${ending}, inches, by year, newest first`),
+    spoken(`Rain over rolling windows ${ending}, inches, by year, newest first`, "caption"),
   );
   const head = document.createElement("thead");
   const headRow = document.createElement("tr");
@@ -467,15 +488,18 @@ function renderRolling(host: HTMLElement, snapshot: DashboardSnapshot): void {
     .map((year) => year.status)
     .filter(isShown);
   const hatched = hatchedCount(statuses);
-  source(
+  sectionSource(
     host,
     snapshot,
+    options,
     "daily rain counter with today's live total",
-    `Rain in inches over each window ${ending}, against the same days in earlier years; ` +
-      "since Oct 1 is the water year so far. " +
+    [
+      `Rain in inches over each window ${ending}, against the same days in earlier years; ` +
+        "since Oct 1 is the water year so far.",
       "The station archive, each day's highest daily rain counter, with today's live total" +
-      (live === null ? "." : ` (${inches(live)}).`) +
-      " ≈ marks a window scaled up over a few missing days.",
+        (live === null ? "." : ` (${inches(live)}).`),
+      "≈ marks a window scaled up over a few missing days.",
+    ],
     gapReasons([[hatched, "window", "windows"]]),
   );
 }
@@ -485,5 +509,7 @@ export const rollingRain: OverviewSection = {
   id: "rolling-rain",
   label: "Rain over the last week, month and season",
   kicker: "Rain, rolling windows",
-  render: renderRolling,
+  // Not drawn while the record covers none of its windows (#470).
+  shown: rollingHasRows,
+  render: (host, snapshot) => renderRolling(host, snapshot),
 };

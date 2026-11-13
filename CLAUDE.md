@@ -48,7 +48,7 @@ Python: type hints on every parameter and return; a module docstring stating pur
 
 ## Where practice lives
 
-- **Branching**: feature (`feat/*`, `fix/*`, `docs/*`) → `dev` → `main`. `dev` is the default branch; Vercel deploys production from `main`. Release flow: `docs/product-lead/brief.md`.
+- **Branching**: feature (`feat/*`, `fix/*`, `docs/*`) or lane → `goal/<slug>` → `uat/<slug>` (UAT only) → `dev` → `main`; the flow and which branches deploy are in `CONTRIBUTING.md`. `dev` is the default branch; Vercel deploys production from `main`. Release flow: `docs/product-lead/brief.md`.
 - **Domain terms**: `GLOSSARY.md`, using its terms exactly. Decisions: `docs/adr/`. See `docs/agents/domain.md`.
 - **Live services** (Storj, `itri`, Vercel, Healthchecks, Ambient) and every live CLI command: `docs/agents/operations.md` first.
 - **Issues**: GitHub `stonematt/lookout` via `gh`; read an issue's brief before working it: a ticket's body, or a triaged issue's Agent Brief comment. `docs/agents/issue-tracker.md`, labels in `docs/agents/triage-labels.md`.

@@ -1,0 +1,206 @@
+/*
+ * The wind zoom (#476; boards WindZoom, WindZoomDark). Slate only, no
+ * tokens of its own (DESIGN.md "The Data Owns the Hue Rule"): the average
+ * wind is an `ink-2` wedge; the highest gust a pale slate wedge, mixed from
+ * `rule-strong` on the surface, with a `rule-strong` edge that meets 3:1 in
+ * both themes; rings and spokes are `rule` gridlines; the one `now` mark is
+ * the dot, its leader and its label.
+ */
+
+/* the window control: the 30 / 90 switch's segments, 44px at every width */
+.wind-seg {
+  margin-top: 0;
+  margin-bottom: var(--s-4);
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .wind-seg button {
+  min-height: 44px;
+}
+
+/* the rose and its words; the bars beside it on the grids */
+.wind-body {
+  /* the gust wedge's pale slate, shared by the wedge and its key swatch */
+  --wind-gust-fill: color-mix(in srgb, var(--rule-strong) 35%, var(--surface));
+  display: grid;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .wind-body {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.wind-rose,
+.wind-side {
+  min-width: 0;
+}
+
+.wind-rose svg {
+  display: block;
+  max-width: 100%;
+  margin-inline: auto;
+  overflow: visible;
+  font-family: var(--sans);
+}
+
+.wind-ring,
+.wind-spoke {
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.wind-tick {
+  font-size: var(--type-axis);
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.wind-compass {
+  font-size: var(--type-label);
+  fill: var(--ink-2);
+}
+
+.wind-gust {
+  fill: var(--wind-gust-fill);
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.wind-average {
+  fill: var(--ink-2);
+}
+
+/* the now dot stands off the wedges on a ring of the surface */
+.wind-now-dot {
+  fill: var(--now);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.wind-now-halo {
+  stroke: var(--surface);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.wind-now-leader {
+  stroke: var(--now);
+  stroke-width: 1.5;
+}
+
+.wind-now-label {
+  font-size: var(--type-annotation);
+  font-weight: 600;
+  fill: var(--now);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the key and the calm line */
+.wind-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  margin: var(--s-3) 0 0;
+  font-size: var(--type-standfirst);
+  color: var(--ink-2);
+}
+
+.wind-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wind-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-cell);
+}
+
+.wind-swatch-average {
+  background: var(--ink-2);
+}
+
+.wind-swatch-gust {
+  background: var(--wind-gust-fill);
+  border: 1px solid var(--rule-strong);
+}
+
+.wind-calm {
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-standfirst);
+  color: var(--ink-2);
+}
+
+/* the share by compass point */
+.wind-bars-title {
+  margin: 0 0 var(--s-3);
+  font-size: var(--type-finding);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.wind-bars-none {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.wind-bar-list {
+  display: grid;
+  gap: var(--s-2);
+  max-width: 32rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wind-bar {
+  display: grid;
+  grid-template-columns: 2.5em minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--type-standfirst);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the bar, then its percent just past its end; the bar's width is its
+   share of the track, kept clear of the percent at 100% */
+.wind-bar-track {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.wind-bar-fill {
+  flex: none;
+  max-width: calc(100% - 3.5em);
+  height: 18px;
+  border-radius: var(--r-cell);
+  background: var(--ink-2);
+}
+
+/* the live sentence */
+.wind-now-sentence {
+  margin: 0;
+  font-size: var(--type-finding);
+  color: var(--ink);
+}
+
+/* the rose's table, for screen readers only */
+.wind-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

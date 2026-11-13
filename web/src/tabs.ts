@@ -5,7 +5,9 @@
  * stop; ArrowLeft and ArrowRight move (and wrap), Home and End jump to the
  * ends. Moving opens the tab. The open tab is tracked in the URL hash, so a
  * link or bookmark opens the same tab, and a hash change (back button, a
- * pasted link) opens the tab it names.
+ * pasted link) opens the tab it names. A tab's own route (`#overview/<slug>`,
+ * a zoom, #474) opens that tab and stays in the URL when the caller keeps it
+ * (`TabsOptions.keeps`).
  */
 
 /** One tab: its id is its URL hash. */
@@ -48,6 +50,13 @@ export interface TabsOptions {
    * tabs"), while the panels stay in `host`.
    */
   barBeforeHost?: boolean;
+  /**
+   * Whether a hash (without its `#`) of the form `<tab>/<rest>` is a route
+   * inside that tab to keep in the URL: the Overview's zooms,
+   * `overview/<slug>` (#474). A sub-route nobody keeps is rewritten to its
+   * tab's own hash, or to Overview's when the tab is unknown.
+   */
+  keeps?: (hash: string) => boolean;
 }
 
 /**
@@ -112,7 +121,9 @@ export function mountTabs(
 
   /** Open a tab: selection, tab stop, panel, hash, then the caller. */
   function select(id: string, focus = false): void {
-    open = isTabId(id) ? id : "overview";
+    const tab = id.split("/")[0]!;
+    open = isTabId(tab) ? tab : "overview";
+    const hash = tab === open && id !== tab && options.keeps?.(id) ? id : open;
     for (const { id: tab } of TABS) {
       const on = tab === open;
       const button = buttons.get(tab)!;
@@ -121,8 +132,8 @@ export function mountTabs(
       panels.get(tab)!.hidden = !on;
     }
     if (focus) buttons.get(open)!.focus();
-    if (location.hash !== `#${open}`) {
-      history.replaceState(history.state, "", `#${open}`);
+    if (location.hash !== `#${hash}`) {
+      history.replaceState(history.state, "", `#${hash}`);
     }
     onSelect?.(open, panels.get(open)!);
   }

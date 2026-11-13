@@ -1,4 +1,4 @@
-A finding row is a closed accordion row on a phone: its kicker over its finding sentence, with a chevron in a `rule-strong` ring, at least 56px tall. Closed, the rows read as a list of findings; opening one closes any other row in the same group and shows its standfirst, chart and folded source.
+A finding row is a closed row on a phone, on the Rain and Solar tabs: its kicker over its finding sentence, with a chevron in a `rule-strong` ring, at least 56px tall. Closed, the rows read as a list of findings; opening one closes any other row in the same group and shows its chart and folded source. The Overview has no finding rows: its context is the mosaic.
 
 **Consumer provides.** A kicker and a finding per row, and the opened row's chart and source. All rows of a tab sit in one tile, split by `rule` hairlines, with an `In context` heading in `kicker` type.
 

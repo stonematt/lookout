@@ -2,7 +2,8 @@
 /**
  * The phone layout (#337), through `startPage` on the goldens: under 760px
  * each tab opens with its fixed top, then its other sections as closed
- * finding rows in one exclusive group; the tabs are the bottom tab bar and
+ * finding rows in one exclusive group (the Overview has none since the
+ * mosaic, #472: its sections are all open tiles); the tabs are the bottom tab bar and
  * the header is the compact one, holding the station selector and the stale
  * mark. From 760px the tile grid is unchanged.
  *
@@ -83,18 +84,23 @@ const rows = (tab: string) => [
 
 /** Each tab's phone shape: its fixed top first, then one group of rows. */
 const PHONE = {
+  // The Overview has no rows (#472): the mosaic's ten tiles (#473), two to
+  // a row.
   overview: [
     "first-screen",
     "feature",
-    // No rolling-window tile while the record covers no window (#470).
-    "rows: temperature-periods against-normal ten-days almanac",
-    // The quick facts (#340): open tiles after the rows, two to a row.
+    "temperature",
+    "rain",
+    "last-10-days",
+    "dry-spell",
     "wind",
     "pressure",
-    "air",
-    "sun-moon", // #341
+    "humidity",
+    "sun",
+    "daylight",
+    "inside",
   ],
-  rain: ["daily", "rows: years dry hours"],
+  rain: ["years", "rows: daily dry hours"],
   solar: ["now", "rows: daily day heatmaps"],
   // The event list is itself an accordion (#339): open, never a row.
   events: ["catalog", "events"],
@@ -106,12 +112,7 @@ describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
     async (tab) => {
       await boot(parsed(scenario), tab);
       expect(document.documentElement.dataset.layout).toBe("phone");
-      // Only the seasoned record covers a rolling window (#470).
-      const want: readonly string[] =
-        tab === "overview" && scenario === "seasoned"
-          ? PHONE.overview.map((s) => (s.startsWith("rows: ") ? `${s} rolling-rain` : s))
-          : PHONE[tab];
-      expect(shape(tab)).toEqual(want);
+      expect(shape(tab)).toEqual(PHONE[tab]);
       for (const top of panel(tab).querySelectorAll("[data-phone-top]")) {
         expect(top.tagName).toBe("SECTION");
       }
@@ -121,14 +122,13 @@ describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
     },
   );
 
-  it("puts the Overview's finding rows under an In context heading", async () => {
+  it("draws no accordion on the Overview: every section an open tile (#472)", async () => {
     await boot(parsed(scenario));
-    const group = panel("overview").querySelector(".tile-rows")!;
-    expect(words(group.querySelector("h2.tile-rows-heading"))).toBe("In context");
-    expect(group.getAttribute("aria-label")).toBe("In context");
+    expect(panel("overview").querySelector(".tile-rows, details.tile-row")).toBeNull();
+    expect(panel("overview").textContent).not.toContain("In context");
   });
 
-  it.each(["overview", "rain", "solar"])(
+  it.each(["rain", "solar"])(
     "%s: a closed row reads as its kicker and finding; opening it shows its chart and folded source",
     async (tab) => {
       await boot(parsed(scenario), tab);
@@ -142,14 +142,17 @@ describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
         expect(line.textContent).toBe(`${kicker!.textContent}${finding!.textContent}`);
         expect(line.querySelector(".tile-row-chevron")?.getAttribute("aria-hidden")).toBe("true");
         const body = row.querySelector(":scope > .tile-row-body")!;
-        expect(body.querySelector("svg, figure, table, .gap-hatch")).not.toBeNull();
+        // The dry golden opens Solar on a day the archive has not reached: its
+        // chart is not drawn, not hatched (#606).
+        const chartless = scenario === "dry" && row.dataset.section === "day";
+        expect(body.querySelector("svg, figure, table, .gap-hatch") === null).toBe(chartless);
         expect(body.querySelector("details[data-part=source-note]")).not.toBeNull();
         expect(body.querySelector("[data-part=finding]")).toBeNull();
       }
     },
   );
 
-  it.each(["overview", "rain", "solar"])(
+  it.each(["rain", "solar"])(
     "%s: opening a finding row closes the one open before it",
     async (tab) => {
       await boot(parsed(scenario), tab);
@@ -235,7 +238,7 @@ describe("from 760px", () => {
     view = viewport(at).install();
     await boot(parsed("raining"), "rain");
     expect(panel("rain").querySelector("details.tile-row, .tile-rows")).toBeNull();
-    expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
+    expect(shape("rain")).toEqual(["years", "daily", "dry", "hours"]);
   });
 
   it("redraws the open tab as tiles when the viewport crosses 760px, and as rows again under it", async () => {
@@ -243,10 +246,10 @@ describe("from 760px", () => {
     expect(shape("rain")).toEqual(PHONE.rain);
     view.resize(1280);
     expect(document.documentElement.dataset.layout).toBe("four");
-    expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
-    expect(shape("overview")).toContain("temperature-periods");
+    expect(shape("rain")).toEqual(["years", "daily", "dry", "hours"]);
+    expect(shape("overview")).toContain("temperature");
     view.resize(900);
-    expect(shape("rain")).toEqual(["daily", "years", "dry", "hours"]);
+    expect(shape("rain")).toEqual(["years", "daily", "dry", "hours"]);
     view.resize(390);
     expect(shape("rain")).toEqual(PHONE.rain);
   });

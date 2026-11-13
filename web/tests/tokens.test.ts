@@ -144,6 +144,19 @@ describe("text on a ramp cell", () => {
   });
 });
 
+describe("the dry spell's dry squares (#606)", () => {
+  it.each(THEMES)("meet the graphics minimum on the tile in %s", (theme) => {
+    const css = readFileSync(join(WEB, "src/overview/mosaic.css"), "utf8");
+    const token = /\.mosaic-dry \{\s*fill: var\(--([a-z0-9-]+)\);/.exec(css)?.[1];
+    expect(token).toBeDefined();
+    const t = tokens[theme];
+    expect(ratio(t[token!]!, t.tile!)).toBeGreaterThanOrEqual(3);
+    // and the token is the one the Contrast table holds to it
+    const pairs = contrastPairs();
+    expect(pairs.some((p) => p.fg.includes(token!) && p.bg === "tile" && p.min === 3)).toBe(true);
+  });
+});
+
 describe("the site's stylesheets", () => {
   const css = sources(".css");
 

@@ -19,7 +19,7 @@
  "lastChange": {
   "by": "Matt Stone",
   "via": "Claude Code",
-  "at": "2026-11-07T02:57:19Z",
-  "note": "First build from DESIGN.md and web/src/styles"
+  "at": "2026-11-12T23:30:00Z",
+  "note": "The mosaic Overview: Hero rewritten as the now tile; FeatureTile, MosaicTile, Zoom and SourcesFooter added; QuickFacts and Ribbon retired"
  }
 }

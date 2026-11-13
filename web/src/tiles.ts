@@ -6,9 +6,12 @@
  * lines, ending with "Source". This module offers the parts and the grid
  * they sit in:
  *
+ * - `SectionOptions`: how a section shared with a zoom draws there (no
+ *   source note, its finding a level under the zoom panel's title).
  * - `TileSection`: what a tab declares per section, in its registry: its id,
  *   accessible name, kicker, column span, whether it belongs to a phone tab's
- *   fixed top, whether it is the now tile, and its `render`.
+ *   fixed top, whether it is the now tile or a mosaic tile,
+ *   whether this snapshot draws it, and its `render`.
  * - `renderTiles`: renders a registry into a tab panel as a `.tile-grid` of
  *   `.tile` hosts, each opening with its kicker. The grid's columns follow
  *   the page layout switch (`layout.ts`): one on a phone, two from 760px,
@@ -20,13 +23,14 @@
  *   over its finding with a chevron; open, the rest of the section. The page
  *   keeps one row open at a time in script too, where a browser does not
  *   honour `details name=`.
- * - `tileFinding`: the tile's finding, its `h2`, which a section's `render`
- *   appends first.
+ * - `tileFinding`: the tile's finding, its `h2` (an `h4` in a zoom panel),
+ *   which a section's `render` appends first.
  * - `fold`: a closed native disclosure in Source type, a 32px target.
  * - `sourceNote`: the folded source: closed, "Source · <what>, archived
  *   <time>", with a hatched chip (one per reason) when the archive lags the
  *   live reading by more than 15 minutes or a gap hides part of the chart;
- *   open, the full method paragraph (`.ov-source`).
+ *   open, the full method paragraph (`.ov-source`). `sectionSource` ends a
+ *   section shared with a zoom in it, on its tab only.
  *
  * `tiles.css` also carries `.ov-source` and `.ov-sr` (screen-reader-only
  * text), so a tab that renders tiles needs no other stylesheet for them.
@@ -43,12 +47,28 @@
  */
 import "./styles/tiles.css";
 
+import { make, spoken } from "./dom.js";
 import { STALE_AFTER_MS, formatDuration, formatStamp } from "./format.js";
 import { currentLayout } from "./layout.js";
 import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
 
 /** How many of the four-column grid's columns a tile spans. */
 export type TileSpan = 1 | 2 | 3 | 4;
+
+/** A section's entry in a sources footer (#604). */
+export interface TileSource {
+  /**
+   * The footer's one line for the tile, after its name: the source and the
+   * comparison, at most 12 words, ending in a full stop. "outdoor sensor,
+   * against ±7 days around this date in earlier years."
+   */
+  line: string;
+  /**
+   * How it is worked out, in a sentence or a few: shown only inside the
+   * footer's closed "How these are worked out" disclosure.
+   */
+  method: string;
+}
 
 /** One section of a tab, declared in that tab's registry. */
 export interface TileSection {
@@ -78,23 +98,36 @@ export interface TileSection {
    */
   phoneOpen?: boolean;
   /**
-   * A quick-fact tile (DESIGN.md "Quick-fact tiles"): a kicker, one value
-   * and one sentence. On a phone it stays an open tile, never a finding
-   * row, and takes half the grid's width, two to a row.
+   * A mosaic tile (the Overview, #472): one link to its zoom. On a phone it
+   * stays an open tile, never a finding row, and takes half the grid's
+   * width, two to a row; on the grids, one column. Its kicker is its title,
+   * an `h2`.
    */
-  fact?: boolean;
+  mosaic?: boolean;
+  /**
+   * Whether the tab draws the section for this snapshot; drawn by default.
+   * A section not drawn is skipped, and the later ones move up.
+   */
+  shown?(snapshot: DashboardSnapshot): boolean;
+  /**
+   * The section's short source line and its method paragraph, for a tab
+   * that gathers its sources in one footer instead of a fold on each tile
+   * (the Overview, prototype decision 22, #604). No archive time: the header
+   * says it.
+   */
+  source?(snapshot: DashboardSnapshot): TileSource;
+  /**
+   * For a section not drawn because the snapshot holds nothing for it, why,
+   * in a sentence: the sources footer gives it in the section's place
+   * (Daylight: "not known, as the station reports no location."). Null when
+   * there is nothing to say.
+   */
+  absent?(snapshot: DashboardSnapshot): string | null;
   /**
    * The now tile: the one tile on `now-surface`. Its kicker is for screen
    * readers only, as the temperature beside its condition is its finding.
    */
   now?: boolean;
-  /**
-   * The tile's finding as words, for a tab that names its tiles by their
-   * findings (`TileOptions.nameByFinding`): for a tile whose finding is not
-   * one `tileFinding` heading (the now tile, a quick fact). By default the
-   * rendered finding's text.
-   */
-  finding?(snapshot: DashboardSnapshot): string;
   /**
    * Fill the tile from the snapshot, after its kicker: the finding first
    * (`tileFinding`), then standfirst (not on the Overview), chart and folded
@@ -104,6 +137,21 @@ export interface TileSection {
    * @param snapshot - The dashboard snapshot.
    */
   render(host: HTMLElement, snapshot: DashboardSnapshot): void;
+}
+
+/**
+ * How a section's render draws: as its tab's tile, or in an Overview zoom
+ * that shows the same section (one home per chart, #475).
+ */
+export interface SectionOptions {
+  /**
+   * Drawn in a zoom panel. The section then ends in no folded source note,
+   * as the Overview's sources footer carries the tile's line (prototype
+   * decision 22), and its finding is an `h4` under the panel's `h3` title,
+   * so the zoom's headings nest (spec #460 story 56). Default false: the
+   * tab's tile, its finding the `h2`.
+   */
+  zoom?: boolean;
 }
 
 /**
@@ -122,46 +170,24 @@ function renderKicker(
   snapshot: DashboardSnapshot,
   tag: "p" | "span" = "p",
 ): HTMLElement {
-  // The now tile's kicker is its heading for screen readers alone.
-  const node = document.createElement(section.now ? "h2" : tag);
-  node.className = section.now ? "tile-kicker ov-sr" : "tile-kicker";
+  const text = kickerText(section, snapshot);
+  // The now tile's kicker is its heading for screen readers alone; a mosaic
+  // tile's is its title.
+  const node = section.now ? spoken(text, "h2") : make(section.mosaic ? "h2" : tag, "", text);
+  node.classList.add("tile-kicker");
   node.dataset.part = "kicker";
-  node.append(kickerText(section, snapshot));
   return node;
 }
 
 /** How `renderTiles` sets out a tab. */
 export interface TileOptions {
   /**
-   * On a phone, the heading over the tab's finding rows ("In context" on
-   * the Overview); none by default.
+   * Give no tile an accessible name of its own, so each is not a named
+   * region: its content names it, and a screen reader hears its finding
+   * once (the Overview, #472). By default each tile is a region named by
+   * its registry label.
    */
-  rowsHeading?: string;
-  /**
-   * Name each tile, and on a phone each finding row, by its finding instead
-   * of its registry label, so a screen reader hears what the tile found
-   * (the Overview, #458).
-   */
-  nameByFinding?: boolean;
-}
-
-/**
- * A rendered section's finding, as words: its own `finding`, else the text
- * of its finding part.
- *
- * @param host - The rendered tile or row.
- * @param section - The section.
- * @param snapshot - The dashboard snapshot.
- * @returns The words, or null when the section has no finding.
- */
-function findingName(
-  host: HTMLElement,
-  section: TileSection,
-  snapshot: DashboardSnapshot,
-): string | null {
-  if (section.finding) return section.finding(snapshot);
-  const text = host.querySelector("[data-part=finding]")?.textContent?.replace(/\s+/g, " ").trim();
-  return text || null;
+  unnamed?: boolean;
 }
 
 /** The section's `data-` attributes, the same on a tile and a row. */
@@ -170,7 +196,7 @@ function mark(host: HTMLElement, section: TileSection): void {
   host.dataset.span = String(section.span ?? 1);
   if (section.phoneTop) host.dataset.phoneTop = "true";
   if (section.now) host.dataset.surface = "now";
-  if (section.fact) host.dataset.fact = "true";
+  if (section.mosaic) host.dataset.mosaic = "true";
 }
 
 /**
@@ -229,13 +255,14 @@ function exclusiveRows(grid: HTMLElement): void {
  * Render a tab's sections into its panel as a grid of tiles, replacing what
  * was there. Each tile is attached before its section renders, so a chart
  * can measure its width when it draws. On a phone, each section that is not
- * in the fixed top (nor kept open) renders as a closed finding row; a run of
- * rows shares one tile, and every row in the panel one group name.
+ * in the fixed top (nor kept open, nor a mosaic tile) renders
+ * as a closed finding row; a run of rows shares one tile, and every row in
+ * the panel one group name. A section whose `shown` says no is skipped.
  *
  * @param panel - The tab's panel.
  * @param snapshot - The dashboard snapshot.
  * @param sections - The tab's registry, in order.
- * @param options - The rows' heading, on a phone, and how tiles are named.
+ * @param options - How tiles are named.
  * @returns The grid.
  */
 export function renderTiles(
@@ -250,30 +277,18 @@ export function renderTiles(
   const phone = currentLayout() === "phone";
   const group = `${panel.id || "tab"}-rows`;
   let rows: HTMLElement | null = null;
-  let headed = false;
   for (const section of sections) {
-    if (phone && !section.phoneTop && !section.phoneOpen && !section.fact) {
+    if (section.shown && !section.shown(snapshot)) continue;
+    if (phone && !section.phoneTop && !section.phoneOpen && !section.mosaic) {
       if (!rows) {
         rows = document.createElement("section");
         rows.className = "tile tile-rows";
         rows.dataset.part = "rows";
-        if (options.rowsHeading && !headed) {
-          const heading = document.createElement("h2");
-          heading.className = "tile-kicker tile-rows-heading";
-          heading.textContent = options.rowsHeading;
-          rows.setAttribute("aria-label", options.rowsHeading);
-          rows.append(heading);
-          headed = true;
-        }
         grid.append(rows);
       }
       const row = startRow(section, snapshot, group);
       rows.append(row);
       section.render(row, snapshot);
-      if (options.nameByFinding) {
-        const name = findingName(row, section, snapshot);
-        if (name) row.setAttribute("aria-label", name);
-      }
       finishRow(row);
       continue;
     }
@@ -281,12 +296,10 @@ export function renderTiles(
     const host = document.createElement("section");
     host.className = "tile";
     mark(host, section);
-    host.setAttribute("aria-label", section.label);
+    if (!options.unnamed) host.setAttribute("aria-label", section.label);
     host.append(renderKicker(section, snapshot));
     grid.append(host);
     section.render(host, snapshot);
-    if (options.nameByFinding)
-      host.setAttribute("aria-label", findingName(host, section, snapshot) ?? section.label);
   }
   if (phone) exclusiveRows(grid);
   return grid;
@@ -297,11 +310,14 @@ export function renderTiles(
  *
  * @param text - The finding the section composes.
  * @param options - `lead`: the feature tile's or a tab's top finding, in
- *   Finding, lead type.
- * @returns The `h2`.
+ *   Finding, lead type. `zoom`: drawn in a zoom panel, under its `h3`.
+ * @returns The `h2`, or in a zoom panel the `h4`; it looks the same.
  */
-export function tileFinding(text: string, options: { lead?: boolean } = {}): HTMLElement {
-  const node = document.createElement("h2");
+export function tileFinding(
+  text: string,
+  options: { lead?: boolean; zoom?: boolean } = {},
+): HTMLElement {
+  const node = document.createElement(options.zoom ? "h4" : "h2");
   node.className = options.lead ? "tile-finding tile-finding-lead" : "tile-finding";
   node.dataset.part = "finding";
   node.textContent = text;
@@ -460,6 +476,32 @@ export function gapReasons(counts: readonly [number, string, string][]): string 
     .filter(([count]) => count > 0)
     .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
   return parts.length ? `${parts.join(", ")} not compared` : null;
+}
+
+/**
+ * A shared section's folded source note at its foot, on its tab only: in a
+ * zoom (`options.zoom`) the Overview's sources footer carries the line
+ * (prototype decision 22). No lag chip: the header states freshness once
+ * (#458).
+ *
+ * @param host - The tile.
+ * @param snapshot - The dashboard snapshot.
+ * @param options - How the section draws.
+ * @param what - What the numbers come from, short.
+ * @param sentences - The method paragraph's sentences; nulls are dropped.
+ * @param gaps - What the chart hatches, as the chip's reason; null for none.
+ */
+export function sectionSource(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: SectionOptions,
+  what: string,
+  sentences: readonly (string | null)[],
+  gaps: string | null,
+): void {
+  if (options.zoom) return;
+  const method = sentences.filter(Boolean).join(" ");
+  host.append(tileFolds(sourceNote(snapshot, { what, method, gaps, lag: false })));
 }
 
 /**

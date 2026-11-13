@@ -19,6 +19,7 @@ vi.mock("plotly.js-dist-min", () => ({ default: { react } }));
 import { LABEL_CHAR_PX } from "../src/charts/svg.js";
 import { drawEventChart, timeTicks } from "../src/events/charts.js";
 import { renderOverview } from "../src/overview/index.js";
+import { againstNormal, temperaturePeriods, tenDays } from "../src/overview/temperature.js";
 import { renderRain } from "../src/rain/index.js";
 import { renderSolar } from "../src/solar/index.js";
 import { listFinding } from "../src/events/model.js";
@@ -375,12 +376,12 @@ describe.each([
     expect(t.querySelector<HTMLElement>(".days-seg")!.hidden).toBe(false);
     expect(pressed(t)).toBe("30 days");
     expect(firstShown(chart)).toBe("Dec 10");
-    expect(t.querySelector("[data-part=standfirst]")!.textContent).toMatch(/of the last 30\b/);
+    expect(chart.getAttribute("aria-label")).toMatch(/the last 30 days/);
 
     press(t, 90);
     expect(pressed(t)).toBe("90 days");
     expect(firstShown(chart)).toBe("Oct 11");
-    expect(t.querySelector("[data-part=standfirst]")!.textContent).toMatch(/of the last 90\b/);
+    expect(chart.getAttribute("aria-label")).toMatch(/the last 90 days/);
 
     press(t, 30);
     expect(firstShown(chart)).toBe("Dec 10");
@@ -529,7 +530,10 @@ describe("every hand-drawn chart at phone width", () => {
     layOut(PHONE);
     const hosts: HTMLElement[] = [];
     for (const scenario of SCENARIOS) {
-      for (const render of [renderOverview, renderRain, renderSolar]) {
+      // The temperature sections left the Overview for the zoom (#472).
+      const zoom = (host: HTMLElement, s: DashboardSnapshot) =>
+        renderOverview(host, s, [temperaturePeriods, againstNormal, tenDays]);
+      for (const render of [renderOverview, zoom, renderRain, renderSolar]) {
         const host = document.createElement("section");
         document.body.append(host);
         render(host, dashboard(scenario));
@@ -583,7 +587,7 @@ describe("the period rows at phone width", () => {
   it("put each window's name above its bar, the bar the whole width", () => {
     layOut(PHONE);
     const host = panel();
-    renderOverview(host, dashboard("raining"));
+    renderOverview(host, dashboard("raining"), [temperaturePeriods]);
     const chart = host.querySelector("[data-part=periods-chart] svg")!;
     const names = [...chart.querySelectorAll("text.tc-row")];
     const bars = [...chart.querySelectorAll("rect.tc-iqr, rect.tc-hatch")];
@@ -606,7 +610,7 @@ describe("the period rows at phone width", () => {
   it("keep the label column beside the bars on desktop", () => {
     layOut(DESKTOP);
     const host = panel();
-    renderOverview(host, dashboard("raining"));
+    renderOverview(host, dashboard("raining"), [temperaturePeriods]);
     const chart = host.querySelector("[data-part=periods-chart] svg")!;
     const plot = chart.querySelector("g[transform]")!.getAttribute("transform")!;
 

@@ -208,11 +208,22 @@ describe("the selected day in the URL", () => {
     expect(selectedDay("?solar_day=yesterday")).toBeNull();
   });
 
-  it("hatches a picked day that is not in the record, with its reason", () => {
+  it("draws no chart for a picked day the archive has not reached (#606)", () => {
     render(dry, "?solar_day=2025-11-18");
+    expect(section("day").querySelector(".solar-day-body")!.childElementCount).toBe(0);
+    expect(section("day").querySelector(".gap-hatch")).toBeNull();
+    // The source still says why.
+    expect(text(section("day"))).toContain("the archive does not reach this far yet");
+  });
+
+  it("hatches a picked day with a gap in the record, with its reason", () => {
+    const copy = structuredClone(dry);
+    const days = copy.solar_tab!.days;
+    days.reason = days.reason.map((r) => (r === "not_archived" ? "gap" : r));
+    render(copy, "?solar_day=2025-11-18");
     const block = section("day").querySelector(".gap-hatch");
     expect(block).not.toBeNull();
-    expect(text(block)).toContain("not archived yet");
+    expect(text(block)).toContain("n/a: gap in record");
   });
 
   it("gives the total alone for a day older than the 15-minute window", () => {
@@ -282,6 +293,20 @@ describe("words", () => {
     days.reason = days.energy_kwh_m2.map(() => null);
     expect(dailyHeadline(copy)).toBe(
       "Brighter than this week in earlier years: 3.10 kWh/m² a day over the last 7 full days, against 2.00 (2025) and 2.00 (2024)",
+    );
+  });
+
+  it("says Dimmer, not Duller, for a week under earlier years (#607)", () => {
+    const copy = structuredClone(raining);
+    const days = copy.solar_tab!.days;
+    const count = 739;
+    days.first_day = "2024-01-01";
+    days.energy_kwh_m2 = Array.from({ length: count }, (_, i) =>
+      i >= count - 8 && i < count - 1 ? 1.0 : 2.0,
+    );
+    days.reason = days.energy_kwh_m2.map(() => null);
+    expect(dailyHeadline(copy)).toBe(
+      "Dimmer than this week in earlier years: 1.00 kWh/m² a day over the last 7 full days, against 2.00 (2025) and 2.00 (2024)",
     );
   });
 

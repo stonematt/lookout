@@ -1,0 +1,289 @@
+/*
+ * The mosaic (#472, spec #460, boards Main, MainDark, Desktop). On a phone
+ * the mosaic tiles sit two to a row (`tiles.css`, "phone: half-width
+ * tiles"); on the four-column grid the feature takes the whole row above
+ * them (prototype decision 23) and they follow in rows of four, one column
+ * a tile, in the phone's order.
+ *
+ * A tile is one link: its title (an h2 in kicker type), the number in Fact
+ * type, the delta in `ink-2`, then the mini chart at the tile's foot.
+ */
+
+.mosaic-link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  margin: calc(-1 * var(--s-1));
+  padding: var(--s-1);
+  border-radius: var(--r-row);
+  color: inherit;
+  text-decoration: none;
+}
+
+.mosaic-link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.mosaic-link:hover .mosaic-title {
+  color: var(--ink-2);
+}
+
+.mosaic-title {
+  margin: 0;
+}
+
+.mosaic-value {
+  margin: var(--s-1) 0 0;
+  font-size: var(--type-fact);
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Narrower than a 360px phone, a value in words ("under 1 m", "1 d 14 h")
+   outruns a half-width tile: it drops one type step, to Stat, as the quick
+   facts do, and may wrap between its words, never inside a number. */
+@media (max-width: 359px) {
+  .mosaic-value {
+    font-size: var(--type-stat);
+  }
+
+  /* and its unit one step under it, so "4.92 kWh/m²" keeps to its tile */
+  .mosaic-value .mosaic-unit {
+    font-size: var(--type-standfirst);
+  }
+}
+
+.mosaic-unit {
+  font-size: var(--type-stat);
+  font-weight: 400;
+}
+
+.mosaic-delta {
+  margin: var(--s-1) 0 0;
+  font-size: var(--type-standfirst);
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* at the tile's foot, so a row's charts line up */
+.mosaic-chart {
+  min-width: 0;
+  margin-top: auto;
+  padding-top: var(--s-3);
+}
+
+.mosaic-svg {
+  display: block;
+  overflow: visible;
+}
+
+/* ---------- the mini charts' marks ---------- */
+.mosaic-label {
+  font-size: var(--type-label);
+  fill: var(--ink-3);
+}
+
+.mosaic-base {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+/* Temperature: the usual row's middle band (dashed edge, as the legend's
+   "usual range"), today's whisker and middle half, the now rule */
+.mosaic-band {
+  fill: var(--temp-band);
+  stroke: var(--temp-band-edge);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+.mosaic-whisker {
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+}
+
+.mosaic-end {
+  fill: var(--rule-strong);
+}
+
+.mosaic-iqr {
+  fill: var(--temp-iqr);
+}
+
+.mosaic-now {
+  stroke: var(--now);
+  stroke-width: 2;
+}
+
+/* Rain: earlier water years thin, this one bold, ending at the now dot */
+.mosaic-curve {
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mosaic-curve-now {
+  stroke: var(--rain-line);
+  stroke-width: 2.5;
+}
+
+.mosaic-now-dot {
+  fill: var(--now);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+/* Last 10 days: each day's usual low to high, its own low to high over it */
+.mosaic-band-day {
+  fill: var(--temp-band);
+}
+
+/* the "usual range" legend over a chart with a band under bars (spec
+   #460 Legends): the band fill with its dashed edge, then the words. It
+   sits above the chart, so the chart keeps the foot its row shares */
+.mosaic-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: 0 0 var(--s-1);
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.mosaic-swatch {
+  flex: none;
+  width: 14px;
+  height: 10px;
+  border: 1px dashed var(--temp-band-edge);
+  border-radius: 2px;
+  background: var(--temp-band);
+}
+
+/* Dry spell: a square a day, dry in `rule-strong` (a mark the reader must
+   see, so 3:1 on the tile, #606), a rain day in the rain bars' colour, a day
+   not in the record hatched, today outlined */
+.mosaic-dry {
+  fill: var(--rule-strong);
+}
+
+.mosaic-blank {
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.mosaic-wet {
+  fill: var(--rain-bar);
+}
+
+.mosaic-today {
+  fill: none;
+  stroke: var(--now);
+  stroke-width: 1.5;
+}
+
+/* Wind: the compass dial and the arrow the way the wind blows */
+.mosaic-dial {
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+}
+
+.mosaic-arrow {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.mosaic-arrow-head {
+  fill: var(--ink);
+}
+
+/* Sun: the last 24 hours over its usual range, as the Solar tab draws it */
+.mosaic-sun-band {
+  fill: var(--sun-band);
+  stroke: var(--sun-band-edge);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+.mosaic-sun-line {
+  fill: none;
+  stroke: var(--sun-line);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* Daylight: the arc from sunrise to sunset, the day so far in the sun's
+   line colour */
+.mosaic-arc {
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.mosaic-arc-day {
+  fill: none;
+  stroke: var(--sun-line);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+/* Inside: one row per sensor, its name, then its reading and humidity on
+   one line, then its 24-hour line */
+.mosaic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+}
+
+.mosaic-row-name {
+  margin: 0;
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.mosaic-row-reading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1);
+  margin: 0;
+}
+
+.mosaic-row-value {
+  font-size: var(--type-stat);
+  font-weight: 400;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.mosaic-row-aside {
+  font-size: var(--type-standfirst);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.mosaic-row-line {
+  min-width: 0;
+  margin-top: var(--s-1);
+}
+
+.mosaic-line {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}

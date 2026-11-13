@@ -1,10 +1,12 @@
-The hero is the leading tile: the finding in `finding-lead`, a standfirst, a three-stat strip, the bold now line over a usual band, and "Why this leads" and the source folded below. Rain leads if an event is live or ended in the last 12 hours; temperature leads if it is at least 10 degrees from the month median; solar leads if it is at least 400 W/m²; otherwise the lead is calm.
+The hero is the now tile, the Overview's fixed top and the only tile on `now-surface`: the live temperature in `display` with its "°F", the one-line delta on usual for this hour under it ("−1° on usual for 11 pm", `finding` type in `ink-2`, tabular), and today hour by hour against the usual band for this date. On a phone the temperature sits above the chart; on the grids, beside it.
 
-**Consumer provides.** The finding, the standfirst, the stats, the band, median and now series, the now value, and the list of lead rules with their live values and which were met, all from the snapshot.
+**Consumer provides.** All from the snapshot: the live temperature, the delta on usual, the band (the middle half and median of each station-local hour's readings) with its basis (earlier years, the station's recent days, or the median only), today's 15-minute series, today's rain by quarter hour, and the slots the archive cannot speak for.
 
 **Use.**
-- The usual band covers the middle half of the comparison set, edged in light mode and passing by its fill in dark, with a dashed `median`. The current value is a 3.5px bold line in its data hue, ending in an r5.5 `now` dot and its value in `annotation` on a halo.
-- "Why this leads" lists each rule with its live value and marks the ones met with a filled ring; the lead rule is weight 600.
-- Name marks by label ("the bold line", "the band"), not by colour.
+- The chart runs midnight to midnight. The band runs to midnight as measured history, never a forecast. A label under the axis words its basis.
+- The band is context: `temp-band` with no edge. The dashed median draws in `ink-on-now` (`median` is too dark on the dark now surface), and today's line in `ink`, ending at the r5.5 `now` dot. Its label, "now 39°", is `annotation` in `now` on a 4px `now-surface` halo.
+- Where the live reading is ahead of the archive, a dotted line joins them.
+- Rain stands as quarter-hour bars in `ribbon-rain` on a track along the foot, heavier rain a taller bar, never over the band. A slot the archive cannot speak for is hatched in `ink-3`.
+- A snapshot with no band draws today's line and rain alone.
 
-Static rendition of `web/src/overview/hero.ts` and `hero.css`.
+Static rendition of `web/src/overview/first-screen.ts`, `today-hero.ts` and `first-screen.css`.

@@ -1,0 +1,38 @@
+/**
+ * The zoom registry (#474): every zoom the Overview can open, by slug.
+ *
+ * To add a zoom: write `zooms/<slug>.ts` exporting one `ZoomDefinition`
+ * (`../zoom.ts`) whose `slug` is its mosaic tile's, then add it to `ZOOMS`
+ * below, one line, in the mosaic's order. The shell (`../zoom.ts`) does the
+ * rest: the route `#overview/<slug>`, the tile's `aria-expanded` and
+ * `aria-controls`, the heading, Close and Back, focus, Escape and motion.
+ * A tile whose slug is not here keeps its link, and its route falls back to
+ * the Overview until its zoom lands.
+ *
+ * Offers `ZOOMS`.
+ */
+import type { ZoomDefinition } from "../zoom.js";
+import { daylightZoom } from "./daylight.js";
+import { drySpellZoom } from "./dry-spell.js";
+import { humidityZoom } from "./humidity.js";
+import { insideZoom } from "./inside.js";
+import { tenDaysZoom } from "./last-10-days.js";
+import { pressureZoom } from "./pressure.js";
+import { rainZoom } from "./rain.js";
+import { sunZoom } from "./sun.js";
+import { temperatureZoom } from "./temperature.js";
+import { windZoom } from "./wind.js";
+
+/** The registered zooms, in the mosaic's order. */
+export const ZOOMS: readonly ZoomDefinition[] = [
+  temperatureZoom, // #474
+  rainZoom, // #475
+  tenDaysZoom, // #477
+  drySpellZoom, // #475
+  windZoom, // #476
+  pressureZoom, // #477
+  humidityZoom, // #477
+  sunZoom, // #477
+  daylightZoom, // #477
+  insideZoom, // #477
+];

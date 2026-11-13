@@ -3,9 +3,13 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 import { goldenReadFunctions } from "./server/dev-fixtures.js";
+import { releaseDefine } from "./server/release.js";
 
 export default defineConfig({
   plugins: [goldenReadFunctions()],
+  // The release version (`../VERSION`) and short SHA, baked into the page
+  // (`src/release.ts`). Throws, failing the build, when VERSION is unreadable.
+  define: releaseDefine(process.env),
   server: {
     // The lane server: `npm run dev -- --port <port>`.
     strictPort: true,

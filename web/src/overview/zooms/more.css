@@ -1,0 +1,50 @@
+/*
+ * "More in <tab>" (`more.ts`, board `RainZoom`): a card on `ground` inside
+ * the zoom's `tile` surface, the tab's name in Finding type over its line
+ * in `ink-2`, a chevron at the right. The whole card is one link.
+ */
+
+.zoom-more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-row);
+  background: var(--ground);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.zoom-more:hover .zoom-more-line {
+  color: var(--ink);
+}
+
+.zoom-more:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* the panel's own heading, moved into the card: no panel-title spacing */
+.zoom-more .zoom-panel-title {
+  grid-column: 1;
+  margin: 0;
+  font-size: var(--type-finding);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.zoom-more-line {
+  grid-column: 1;
+  font-size: var(--type-standfirst);
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.zoom-more-chevron {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 1.5em;
+  line-height: 1;
+  color: var(--ink-2);
+}
