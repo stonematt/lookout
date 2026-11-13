@@ -222,6 +222,23 @@ const started = Date.now();
 let proved = false;
 let zoomViews = 0;
 
+/**
+ * The hero's Rain column (#619) stands on the ribbon chart's x-axis line:
+ * its floor and the chart's rain-track floor at one height on the page.
+ */
+async function heroRainOnBaseline(page) {
+  return page.evaluate(() => {
+    const column = document.querySelector("[data-part=rain-column] .hero-rain-floor");
+    const chart = document.querySelector(".today-chart .today-rain-floor");
+    if (!column || !column.getBoundingClientRect().width) return ["hero Rain column not shown"];
+    const a = column.getBoundingClientRect().top;
+    const b = chart.getBoundingClientRect().top;
+    return Math.abs(a - b) > 0.5
+      ? [`hero Rain column floor at ${a.toFixed(1)}px, the ribbon's x-axis at ${b.toFixed(1)}px`]
+      : [];
+  });
+}
+
 /** Print a view's result and keep its problems as failures. */
 function report(view, found, kase) {
   const problems = [...new Set(found)];
@@ -288,6 +305,29 @@ try {
     await page.waitForTimeout(300);
     report(`seasoned #overview footer 320px ${colorScheme}`, await footerFits(page), {});
     await page.close();
+  }
+  // The rain gauge on the golden with earlier years (#619), at phone widths.
+  for (const width of [320, 390]) {
+    for (const colorScheme of SCHEMES) {
+      const page = await browser.newPage({ viewport: { width, height: 844 }, colorScheme });
+      await page.goto(`${base}/?fixture=seasoned&age=3#overview/rain`, { waitUntil: "load" });
+      await page.waitForSelector("[data-panel=rain-windows] svg", { timeout: 5000 });
+      await page.waitForTimeout(300);
+      report(`seasoned #overview/rain ${width}px ${colorScheme}`, await inspectTab(page), {});
+      zoomViews += 1;
+      await page.close();
+    }
+  }
+  // The hero's Rain column on the ribbon's baseline (#619), on the grids.
+  for (const width of [900, 1280]) {
+    for (const colorScheme of SCHEMES) {
+      const page = await browser.newPage({ viewport: { width, height: 844 }, colorScheme });
+      await page.goto(`${base}/?fixture=raining&age=3#overview`, { waitUntil: "load" });
+      await page.waitForSelector(".masthead-age:not(:empty)", { timeout: 5000 });
+      await page.waitForTimeout(300);
+      report(`raining hero rain ${width}px ${colorScheme}`, await heroRainOnBaseline(page), {});
+      await page.close();
+    }
   }
 } finally {
   await browser.close();

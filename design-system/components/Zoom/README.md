@@ -1,6 +1,6 @@
 A zoom is a tile's full view. A tap on a mosaic tile, or on the feature, opens it at the hash route `#overview/<tile>`; leaving the route closes it, and a shared link opens it directly.
 
-**Consumer provides.** The zoom's panels, each a title and its content: the finding headline and the full charts, drawn from the snapshot. The temperature zoom leads with the window range chart (a Usual row on top, Full history at the foot), then the now-against-this-date strips; Rain, Dry spell and Sun draw their tab's section and end in a "More in Rain" or "More in Solar" link; Wind leads with the wind rose.
+**Consumer provides.** The zoom's panels, each a title and its content: the finding headline and the full charts, drawn from the snapshot. The temperature zoom leads with the window range chart (a Usual row on top, Full history at the foot), then the now-against-this-date strips; the rain zoom adds the rain gauge ("Rain over each window": three panels of bars on shared axes, earlier years as thin grey bars, `web/src/rain/gauge.ts`) in place of the window strip; Rain, Dry spell and Sun draw their tab's section and end in a "More in Rain" or "More in Solar" link; Wind leads with the wind rose.
 
 **Use.**
 - Phone: full screen. The mosaic, the sources footer and the bottom tab bar step aside; the header stays. A "‹ Overview" button leads ("Back to the Overview" to a screen reader), panels sit one under the other split by `rule` hairlines.
