@@ -179,6 +179,10 @@ describe("the Pressure and Humidity zooms", () => {
     const labels = [...svg.querySelectorAll(".mosaic-label")].map(words);
     expect(labels[0]).toBe(high);
     expect(labels.slice(-2)).toEqual(["24 h ago", "now"]);
+    // The now dot carries its value, like the wind rose's (#598).
+    const now = svg.querySelectorAll(".zoom-now-label");
+    expect(now).toHaveLength(1);
+    expect(words(now[0])).toMatch(slug === "pressure" ? /^now \d\d\.\d\d$/ : /^now \d+%$/);
   });
 
   it.each([

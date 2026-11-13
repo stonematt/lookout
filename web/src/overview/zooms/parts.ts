@@ -69,6 +69,27 @@ export function dayTrace(
     ),
   );
   svg.append(...traceMarks(values, x, y, 4));
+  // The now dot carries its value, as the wind rose's does ("now 1.8 mph").
+  const end = lastIndex(values);
+  const dotY = y(values[end]!);
+  // The label sits on the side the line is not: below when the line comes
+  // down to the dot, above when it comes up; flipped when there is no room.
+  const before = values.slice(0, end).findLast((v) => v !== null);
+  let below = before !== undefined && before > values[end]!;
+  if (below && dotY + 20 > bottom - 2) below = false;
+  if (!below && dotY - 10 < 10) below = true;
+  svg.append(
+    svgEl(
+      "text",
+      {
+        class: "zoom-now-label",
+        x: x(end) + 4,
+        y: below ? dotY + 20 : dotY - 10,
+        "text-anchor": "end",
+      },
+      `now ${label(values[end]!)}`,
+    ),
+  );
   return svg;
 }
 

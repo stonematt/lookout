@@ -120,7 +120,8 @@ export function traceMarks(
 /** The compass: a dial, N at the top, an arrow the way the wind blows. */
 function windChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const from = snapshot.current.wind_dir_deg;
-  if (from === null) return null;
+  // A calm wind has no way to blow: no arrow (#598).
+  if (from === null || isCalm(snapshot.current)) return null;
   const svg = miniChart(width);
   const r = MINI_HEIGHT / 2 - 2;
   const cx = width / 2;
@@ -148,19 +149,36 @@ function windChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
 }
 
 /**
+ * Whether the live wind is calm: a speed of exactly 0 (#598).
+ *
+ * TODO(#597): Python will null `wind_dir_deg` below `calm_below_mph`. Then
+ * "calm" keys on a null direction with a known speed, not on a speed of 0,
+ * and this test goes.
+ *
+ * @param c - The current conditions.
+ * @returns True at a speed of exactly 0.
+ */
+export function isCalm(c: DashboardSnapshot["current"]): boolean {
+  return c.wind_speed_mph === 0;
+}
+
+/**
  * The live wind's two clauses, each null when not known: "from the SE" and
  * "gusts to 2.5 mph". The tile's delta and the wind zoom's sentence share
- * them.
+ * them. A calm wind has no direction: `from` is null and `calm` is true.
  *
  * @param c - The current conditions.
  * @returns The clauses.
  */
 export function windClauses(c: DashboardSnapshot["current"]): {
+  calm: boolean;
   from: string | null;
   gust: string | null;
 } {
+  const calm = isCalm(c);
   return {
-    from: c.wind_dir_deg === null ? null : `from the ${compassPoint(c.wind_dir_deg)}`,
+    calm,
+    from: calm || c.wind_dir_deg === null ? null : `from the ${compassPoint(c.wind_dir_deg)}`,
     gust: c.wind_gust_mph === null ? null : `gusts to ${mph(c.wind_gust_mph)}`,
   };
 }
@@ -183,7 +201,9 @@ export const windTile: MosaicTile = {
   zoomName: "wind",
   read(snapshot) {
     const c = snapshot.current;
-    const { from, gust } = windClauses(c);
+    const { calm, from, gust } = windClauses(c);
+    // Calm: the word, no direction and no unit (#598).
+    if (calm) return { value: "calm", delta: c.wind_gust_mph ? gust : "no gusts" };
     let delta: string;
     if (from && gust) delta = `${from}, ${gust}`;
     else if (from) delta = `${from}, gust not known`;
@@ -198,7 +218,7 @@ export const windTile: MosaicTile = {
   source(snapshot) {
     const live =
       "Speed and gust in mph. The direction is where the wind blows from, to the nearest of 16 " +
-      "compass points; the compass arrow points the way it blows.";
+      "compass points; the compass arrow points the way it blows. A speed of 0 is calm: no direction, no arrow.";
     const rose = snapshot.wind_rose;
     if (!rose) return { what: "the live reading: speed, direction and gust", method: live };
     return {

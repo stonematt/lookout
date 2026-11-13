@@ -406,12 +406,30 @@ describe("the Wind tile", () => {
     expect(tile("wind").querySelector("svg")).toBeNull();
   });
 
-  it("keeps a calm zero a zero", () => {
+  it("reads a speed of exactly 0 as calm: no direction, no arrow, no unit (#598)", () => {
     const d = doc("dry");
-    d.current.wind_speed_mph = 0;
+    Object.assign(d.current, { wind_speed_mph: 0, wind_dir_deg: 112, wind_gust_mph: 0 });
     renderOverview(panel, parseDashboard(d));
 
-    expect(value("wind")).toBe("0.0 mph");
+    expect(value("wind")).toBe("calm");
+    expect(delta("wind")).toBe("no gusts");
+    const text = tile("wind").textContent!;
+    expect(text).not.toMatch(/from the|mph|ESE/);
+    expect(tile("wind").querySelector("svg")).toBeNull();
+  });
+
+  it("keeps a gust over a calm speed, and any non-zero speed as before (#598)", () => {
+    const d = doc("dry");
+    Object.assign(d.current, { wind_speed_mph: 0, wind_gust_mph: 3 });
+    renderOverview(panel, parseDashboard(d));
+    expect(value("wind")).toBe("calm");
+    expect(delta("wind")).toBe("gusts to 3.0 mph");
+
+    d.current.wind_speed_mph = 0.1;
+    renderOverview(panel, parseDashboard(d));
+    expect(value("wind")).toBe("0.1 mph");
+    expect(delta("wind")).toMatch(/^from the /);
+    expect(tile("wind").querySelectorAll("svg .mosaic-arrow-head")).toHaveLength(1);
   });
 });
 
