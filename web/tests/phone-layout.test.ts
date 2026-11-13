@@ -142,7 +142,10 @@ describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
         expect(line.textContent).toBe(`${kicker!.textContent}${finding!.textContent}`);
         expect(line.querySelector(".tile-row-chevron")?.getAttribute("aria-hidden")).toBe("true");
         const body = row.querySelector(":scope > .tile-row-body")!;
-        expect(body.querySelector("svg, figure, table, .gap-hatch")).not.toBeNull();
+        // The dry golden opens Solar on a day the archive has not reached: its
+        // chart is not drawn, not hatched (#606).
+        const chartless = scenario === "dry" && row.dataset.section === "day";
+        expect(body.querySelector("svg, figure, table, .gap-hatch") === null).toBe(chartless);
         expect(body.querySelector("details[data-part=source-note]")).not.toBeNull();
         expect(body.querySelector("[data-part=finding]")).toBeNull();
       }

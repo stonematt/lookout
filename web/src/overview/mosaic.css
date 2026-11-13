@@ -167,10 +167,11 @@
   background: var(--temp-band);
 }
 
-/* Dry spell: a square a day, dry in `rule`, a rain day in the rain bars'
-   colour, a day not in the record hatched, today outlined */
+/* Dry spell: a square a day, dry in `rule-strong` (a mark the reader must
+   see, so 3:1 on the tile, #606), a rain day in the rain bars' colour, a day
+   not in the record hatched, today outlined */
 .mosaic-dry {
-  fill: var(--rule);
+  fill: var(--rule-strong);
 }
 
 .mosaic-blank {

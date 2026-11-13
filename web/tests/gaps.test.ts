@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  beyondRecord,
   gapElement,
   gapLabel,
   gapSentence,
@@ -111,6 +112,22 @@ describe("gap values", () => {
   it("mark a prorated value with ≈ and leave a valid one alone", () => {
     expect(gapValue(prorated, "3.2 in")).toBe("≈ 3.2 in");
     expect(gapValue(status({}), "3.2 in")).toBe("3.2 in");
+  });
+});
+
+describe("beyond the record (#606)", () => {
+  it("is what the archive holds none of: before it, not reached yet, or not shown", () => {
+    expect(beyondRecord(status({ status: "invalid", reason: "before_archive" }))).toBe(true);
+    expect(beyondRecord(status({ status: "invalid", reason: "not_archived" }))).toBe(true);
+    expect(beyondRecord(status({ shown: false }))).toBe(true);
+  });
+
+  it("is not a gap the record covers, nor anything it can show", () => {
+    expect(beyondRecord(gapInRecord)).toBe(false);
+    expect(beyondRecord(status({ status: "invalid", reason: "low_coverage" }))).toBe(false);
+    expect(beyondRecord(status({ status: "invalid", reason: "in_progress" }))).toBe(false);
+    expect(beyondRecord(prorated)).toBe(false);
+    expect(beyondRecord(status({}))).toBe(false);
   });
 });
 

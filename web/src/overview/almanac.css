@@ -315,15 +315,22 @@ th.alm-season {
    while more columns lie beyond it. `local` pins the cover to the content,
    `scroll` pins the shadow to the frame, so the shadow shows only while
    content lies beyond the edge and a table that fits shows none. There is no
-   left shadow: the sticky Window column would cover it (#596). */
+   left shadow: the sticky Window column would cover it (#596). The cue is a
+   2px edge in `rule-strong` (3:1 on the tile, a mark the reader must see)
+   fading out over 24px, so it reads in both themes (#606). */
 .alm-table-frame {
-  --alm-shadow: color-mix(in srgb, var(--ink) 32%, transparent);
+  --alm-shadow: var(--rule-strong);
   margin-top: var(--s-3);
   overflow-x: auto;
   background:
-    linear-gradient(to left, var(--tile), var(--tile)) right center / 24px 100% no-repeat local,
-    linear-gradient(to left, var(--alm-shadow), transparent) right center / 16px 100% no-repeat
-      scroll;
+    linear-gradient(to left, var(--tile), var(--tile)) right center / 32px 100% no-repeat local,
+    linear-gradient(
+        to left,
+        var(--alm-shadow) 0 2px,
+        color-mix(in srgb, var(--alm-shadow) 55%, transparent) 2px,
+        transparent
+      )
+      right center / 24px 100% no-repeat scroll;
 }
 
 .alm-table {
