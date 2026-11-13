@@ -346,17 +346,19 @@ describe("the Daylight zoom", () => {
     s.sun_moon = null;
     await boot("#overview", s);
     expect(overview().querySelector('[data-section="daylight"]')).toBeNull();
-    const line = overview().querySelector<HTMLElement>('.ov-sources [data-source="Daylight"]')!;
+    const line = overview().querySelector<HTMLElement>(
+      '.ov-sources-list [data-source="Daylight"]',
+    )!;
     expect(words(line.querySelector("dt"))).toBe("Daylight");
-    expect(words(line.querySelector("dd"))).toBe("Not known: the station reports no location.");
-    expect(line.querySelector(".ov-sources-method")).toBeNull();
+    expect(words(line.querySelector("dd"))).toBe("not known, as the station reports no location.");
+    expect(overview().querySelector('.ov-sources-how [data-source="Daylight"]')).toBeNull();
   });
 
   it("on a located station, the footer gives Daylight's source, not the note", async () => {
     await boot("#overview");
-    const line = overview().querySelector('.ov-sources [data-source="Daylight"]');
+    const line = overview().querySelector('.ov-sources-list [data-source="Daylight"]');
     expect(words(line)).not.toContain("no location");
-    expect(line?.querySelector(".ov-sources-method")).not.toBeNull();
+    expect(overview().querySelector('.ov-sources-how [data-source="Daylight"]')).not.toBeNull();
   });
 });
 

@@ -89,8 +89,9 @@ export interface MosaicTile {
    */
   bandUnderBars?(snapshot: DashboardSnapshot): boolean;
   /**
-   * The tile's line in the Overview's sources footer (`sources.ts`): what it
-   * reads and how its comparison is made. The tile itself folds no source.
+   * The tile's entry in the Overview's sources footer (`sources.ts`): its
+   * short line (source and comparison, at most 12 words) and its method
+   * paragraph for the footer's disclosure. The tile itself folds no source.
    */
   source(snapshot: DashboardSnapshot): TileSource;
   /**
