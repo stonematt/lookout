@@ -418,11 +418,11 @@ describe("the rolling table's scroll cue (#596)", () => {
   const css = readFileSync(`${ROOT}/web/src/overview/almanac.css`, "utf8");
   const frame = /\.alm-table-frame \{([^}]*)\}/.exec(css)?.[1] ?? "";
 
-  it("scrolls sideways inside its tile and shades the edge that has more", () => {
+  it("scrolls sideways inside its tile and shades its right edge while more lies beyond", () => {
     expect(frame).toMatch(/overflow-x: auto;/);
-    // a `local` cover over a `scroll` shadow, per side: the shadow shows only
-    // while content lies beyond that edge
-    expect(frame.match(/\blocal\b/g)).toHaveLength(2);
-    expect(frame.match(/\bscroll\b/g)).toHaveLength(2);
+    // a `local` cover over a `scroll` shadow, on the right: the shadow shows
+    // only while content lies beyond that edge
+    expect(frame.match(/\blocal\b/g)).toHaveLength(1);
+    expect(frame.match(/\bscroll\b/g)).toHaveLength(1);
   });
 });
