@@ -202,6 +202,13 @@ describe("the feature tile", () => {
       expect(value()).toBe("0.11 in");
     });
 
+    it("draws rain lately, no number, when no row has the named start", () => {
+      draw(ended(1).snapshot);
+
+      expect(tile()!.querySelector("[data-part=value]")).toBeNull();
+      expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Rain");
+    });
+
     it("keeps the catalog's newest ended event when the field is null", () => {
       draw(ended(null).snapshot);
 

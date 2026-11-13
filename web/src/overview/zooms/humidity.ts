@@ -9,9 +9,9 @@
  */
 import { degrees, percent } from "../../format.js";
 import type { DashboardSnapshot } from "../../snapshot.js";
-import { HUMIDITY_PAD, humidityTile, lastIndex } from "../mosaic-conditions.js";
+import { HUMIDITY_PAD, humidityTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
-import { dayTrace, sentence, sizedChart } from "./parts.js";
+import { dayPanel, sentence } from "./parts.js";
 
 /**
  * The Air sentence: the humidity, then the dew point.
@@ -44,21 +44,6 @@ export const humidityZoom: ZoomDefinition = {
         sentence(host, airSentence(snapshot), "sentence");
       },
     },
-    {
-      id: "day",
-      title: "The last 24 hours",
-      wide: true,
-      shown: (snapshot) => lastIndex(humidityTrace(snapshot)) >= 0,
-      render: (host, snapshot) => {
-        sizedChart(host, "day-line", (width) =>
-          dayTrace(humidityTrace(snapshot), width, (v) => percent(v), HUMIDITY_PAD),
-        );
-      },
-    },
+    dayPanel((snapshot) => snapshot.outdoor_trace?.humidity_pct ?? [], percent, HUMIDITY_PAD),
   ],
 };
-
-/** The humidity series of `outdoor_trace` (#554); empty without one. */
-function humidityTrace(snapshot: DashboardSnapshot): (number | null)[] {
-  return snapshot.outdoor_trace?.humidity_pct ?? [];
-}

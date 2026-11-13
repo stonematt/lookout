@@ -321,9 +321,8 @@ function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
 }
 
 /** The ten-day highs' side of usual, in words: "highs over usual". */
-function highsWords(deltaF: number, days: number): string {
-  const side = deltaF > 0 ? "over" : deltaF < 0 ? "under" : "at";
-  return `highs ${side} usual${days < 10 ? `, ${formatDayCount(days)}` : ""}`;
+function highsWords(deltaF: number): string {
+  return `highs ${deltaF > 0 ? "over" : deltaF < 0 ? "under" : "at"} usual`;
 }
 
 /**
@@ -341,7 +340,7 @@ export const tenDaysTile: MosaicTile = {
     if (highs === null) return { value: null, delta: "not compared yet" };
     return {
       value: `${signed(highs.delta_f, 0, { plus: true })}°`,
-      delta: highsWords(highs.delta_f, highs.days),
+      delta: highsWords(highs.delta_f),
     };
   },
   chart: tenDaysChart,

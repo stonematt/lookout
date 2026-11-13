@@ -214,6 +214,12 @@ export const windTile: MosaicTile = {
 
 // ---------- Pressure and Humidity: the last 24 hours ----------
 
+/** The least room above and below the pressure line: 0.05 inHg. */
+export const PRESSURE_PAD = 0.05;
+
+/** The least room above and below the humidity line: 3 points. */
+export const HUMIDITY_PAD = 3;
+
 /**
  * One series of `outdoor_trace` (#554), the last 24 hours hourly, as a
  * mini chart: its line and its newest hour as the now dot, over "24 h" and
@@ -244,12 +250,6 @@ export function outdoorChart(
   endLabels(svg, width, "24 h", "now");
   return svg;
 }
-
-/** The least room above and below the pressure line: 0.05 inHg. */
-export const PRESSURE_PAD = 0.05;
-
-/** The least room above and below the humidity line: 3 points. */
-export const HUMIDITY_PAD = 3;
 
 // ---------- Pressure ----------
 

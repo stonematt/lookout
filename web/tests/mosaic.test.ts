@@ -290,13 +290,13 @@ describe("the Last 10 days tile", () => {
     expect(delta("last-10-days")).toBe("highs at usual");
   });
 
-  it("names how many days when fewer than ten are paired", () => {
+  it("prints the snapshot's mean however many days it is over", () => {
     const d = doc("seasoned");
     d.temperature_context.ten_day_highs = { delta_f: 4, days: 6 };
     renderOverview(panel, parseDashboard(d));
 
     expect(value("last-10-days")).toBe("+4°");
-    expect(delta("last-10-days")).toBe("highs over usual, 6 days");
+    expect(delta("last-10-days")).toBe("highs over usual");
   });
 
   it("prints no delta when the field is null (dry golden)", () => {

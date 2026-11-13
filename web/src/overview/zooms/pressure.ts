@@ -10,9 +10,9 @@
  */
 import { inHg } from "../../format.js";
 import type { DashboardSnapshot } from "../../snapshot.js";
-import { PRESSURE_PAD, lastIndex, pressureTile } from "../mosaic-conditions.js";
+import { PRESSURE_PAD, pressureTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
-import { dayTrace, sentence, sizedChart } from "./parts.js";
+import { dayPanel, sentence } from "./parts.js";
 
 /**
  * The pressure sentence: the reading, then the 3-hour trend word.
@@ -48,21 +48,6 @@ export const pressureZoom: ZoomDefinition = {
         sentence(host, pressureSentence(snapshot), "sentence");
       },
     },
-    {
-      id: "day",
-      title: "The last 24 hours",
-      wide: true,
-      shown: (snapshot) => lastIndex(pressureTrace(snapshot)) >= 0,
-      render: (host, snapshot) => {
-        sizedChart(host, "day-line", (width) =>
-          dayTrace(pressureTrace(snapshot), width, (v) => inHg(v), PRESSURE_PAD),
-        );
-      },
-    },
+    dayPanel((snapshot) => snapshot.outdoor_trace?.pressure_inhg ?? [], inHg, PRESSURE_PAD),
   ],
 };
-
-/** The pressure series of `outdoor_trace` (#554); empty without one. */
-function pressureTrace(snapshot: DashboardSnapshot): (number | null)[] {
-  return snapshot.outdoor_trace?.pressure_inhg ?? [];
-}

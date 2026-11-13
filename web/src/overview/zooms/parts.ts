@@ -5,16 +5,18 @@
  * heading, Close, focus and the route. A zoom's link on to a tab is its
  * "More in" panel (`more.ts`).
  *
- * Offers `sentence`, `factValue`, `sizedChart` and `dayTrace` (a 24-hour
+ * Offers `sentence`, `factValue`, `sizedChart`, `dayTrace` (a 24-hour
  * hourly series at full size: the Inside zoom's sensors, the Pressure and
- * Humidity zooms' lines).
+ * Humidity zooms' lines) and `dayPanel` (the panel that holds one).
  */
 import "./parts.css";
 
 import { drawSized, scale } from "../../charts/svg.js";
 import { svgEl } from "../../dom.js";
+import type { DashboardSnapshot } from "../../snapshot.js";
 import { lastIndex, traceMarks } from "../mosaic-conditions.js";
 import { miniChart } from "../mosaic.js";
+import type { ZoomPanel } from "../zoom.js";
 
 /** A day trace's height: the mini chart's, and room for its labels. */
 const TRACE_HEIGHT = 112;
@@ -68,6 +70,32 @@ export function dayTrace(
   );
   svg.append(...traceMarks(values, x, y, 4));
   return svg;
+}
+
+/**
+ * A zoom's "The last 24 hours" panel: one series at full size (`dayTrace`),
+ * wide, and not drawn when the series holds no reading. The Pressure and
+ * Humidity zooms draw `outdoor_trace` with it (#554).
+ *
+ * @param series - The series from the snapshot; empty when it has none.
+ * @param label - A low or high value as its label.
+ * @param pad - The least room above and below the line, in its unit.
+ * @returns The panel.
+ */
+export function dayPanel(
+  series: (snapshot: DashboardSnapshot) => (number | null)[],
+  label: (value: number) => string,
+  pad: number,
+): ZoomPanel {
+  return {
+    id: "day",
+    title: "The last 24 hours",
+    wide: true,
+    shown: (snapshot) => lastIndex(series(snapshot)) >= 0,
+    render: (host, snapshot) => {
+      sizedChart(host, "day-line", (width) => dayTrace(series(snapshot), width, label, pad));
+    },
+  };
 }
 
 /**
