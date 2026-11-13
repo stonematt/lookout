@@ -1,16 +1,19 @@
 /**
- * PROTOTYPE (issue #619): the floating variant switcher. Arrows and keys
- * cycle `?variant=` through off, A to D (reloads the page); hidden in
- * production builds. Throwaway.
+ * PROTOTYPE (issue #619): the floating switcher. Arrows and keys cycle
+ * `?variant=` through off, B, C; the button "hero" cycles `?hero=` through
+ * off, 1, 2 (reloads the page). Hidden in production builds. Throwaway.
  */
-const ORDER = ["", "A", "B", "C", "D"];
+const ORDER = ["", "B", "C"];
+const HERO = ["", "1", "2"];
 const LABELS: Record<string, string> = {
-  "": "off (window strip)",
-  A: "A shared linear axis",
-  B: "B tubes, own scale",
-  C: "C shared log axis",
-  D: "D one tall gauge",
+  "": "off",
+  B: "B tubes",
+  C: "C log axis",
 };
+
+function reload(q: URLSearchParams): void {
+  location.replace(`${location.pathname}?${q.toString()}${location.hash}`);
+}
 
 function go(delta: number): void {
   const q = new URLSearchParams(location.search);
@@ -18,7 +21,16 @@ function go(delta: number): void {
   const next = ORDER[(Math.max(i, 0) + delta + ORDER.length) % ORDER.length] as string;
   if (next) q.set("variant", next);
   else q.delete("variant");
-  location.replace(`${location.pathname}?${q.toString()}${location.hash}`);
+  reload(q);
+}
+
+function goHero(): void {
+  const q = new URLSearchParams(location.search);
+  const i = HERO.indexOf(q.get("hero") ?? "");
+  const next = HERO[(Math.max(i, 0) + 1) % HERO.length] as string;
+  if (next) q.set("hero", next);
+  else q.delete("hero");
+  reload(q);
 }
 
 if (!import.meta.env.PROD) {
@@ -29,16 +41,20 @@ if (!import.meta.env.PROD) {
   bar.dataset.prototype = "rain-gauge";
   const fake = q.get("rainwindows") ? " | FAKE totals" : "";
   const label = document.createElement("span");
-  label.textContent = `PROTOTYPE ${LABELS[cur] ?? cur}${fake}`;
-  const prev = document.createElement("button");
-  prev.textContent = "←";
-  prev.setAttribute("aria-label", "Previous variant");
-  prev.addEventListener("click", () => go(-1));
-  const next = document.createElement("button");
-  next.textContent = "→";
-  next.setAttribute("aria-label", "Next variant");
-  next.addEventListener("click", () => go(1));
-  bar.append(prev, label, next);
+  label.textContent = `PROTOTYPE gauge ${LABELS[cur] ?? cur} | hero ${q.get("hero") ?? "off"}${fake}`;
+  const mk = (txt: string, aria: string, fn: () => void) => {
+    const b = document.createElement("button");
+    b.textContent = txt;
+    b.setAttribute("aria-label", aria);
+    b.addEventListener("click", fn);
+    return b;
+  };
+  bar.append(
+    mk("←", "Previous variant", () => go(-1)),
+    label,
+    mk("→", "Next variant", () => go(1)),
+    mk("hero", "Cycle hero placement", goHero),
+  );
   document.addEventListener("keydown", (e) => {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;

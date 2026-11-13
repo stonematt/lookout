@@ -158,6 +158,11 @@ function shared(host: HTMLElement, cols: Col[], width: number, log: boolean): vo
   }
   const cw = (width - L - R) / cols.length;
   const bw = Math.min(40, cw * 0.55);
+  const yIdx = cols.findIndex((c) => c.key === "yesterday");
+  if (yIdx >= 0) {
+    const dx = L + cw * (yIdx + 1);
+    svg.append(svgEl("line", { x1: dx, x2: dx, y1: T, y2: H - B, class: "pg-grid" }));
+  }
   cols.forEach((c, i) => {
     const cx = L + cw * (i + 0.5);
     const top = y(c.total);
@@ -202,8 +207,18 @@ function multiples(host: HTMLElement, cols: Col[], width: number): void {
   const tw = narrow ? cw * 0.2 : Math.min(30, cw * 0.4);
   cols.forEach((c, i) => {
     const cx = cw * (i + 0.5);
-    const ax = niceAxis(Math.max(c.total, ...c.prior.map((p) => p.v)));
+    // Today and Yesterday share one axis (one panel); the rest have their own.
+    const pair = c.key === "today" || c.key === "yesterday";
+    const pairMax = Math.max(
+      ...cols.filter((x) => x.key === "today" || x.key === "yesterday").map((x) => x.total),
+    );
+    const ax = niceAxis(pair ? pairMax : Math.max(c.total, ...c.prior.map((p) => p.v)));
     const y = (v: number) => T + plotH * (1 - v / ax.top);
+    if (c.key === "yesterday") {
+      svg.append(
+        svgEl("line", { x1: cx + cw / 2, x2: cx + cw / 2, y1: T, y2: T + plotH, class: "pg-grid" }),
+      );
+    }
     svg.append(
       svgEl("rect", { x: cx - tw / 2, y: T, width: tw, height: plotH, rx: 4, class: "pg-tube" }),
     );
@@ -226,7 +241,7 @@ function multiples(host: HTMLElement, cols: Col[], width: number): void {
           class: "pg-floor",
         }),
       );
-      if (!narrow || t === ax.top) {
+      if (c.key !== "yesterday" && (!narrow || t === ax.top)) {
         text(svg, cx - tw / 2 - 4, y(t) + 3, tickFmt(t), "pg-tick pg-tick-sm", "end");
       }
     }
@@ -248,82 +263,10 @@ function multiples(host: HTMLElement, cols: Col[], width: number): void {
   host.append(svg);
 }
 
-/** PROTOTYPE: D, one tall tube; nested "since" levels. */
-function tall(host: HTMLElement, cols: Col[], width: number): void {
-  host.replaceChildren();
-  const H = 300;
-  const T = 14;
-  const B = 12;
-  const svg = bare(width, H, "Rain since each window began, one tall gauge");
-  const plotH = H - T - B;
-  const levels: { name: string; v: number }[] = [];
-  let acc = 0;
-  const byKey = new Map(cols.map((c) => [c.key, c]));
-  const today = byKey.get("today");
-  const yest = byKey.get("yesterday");
-  if (today) {
-    acc = today.total;
-    levels.push({ name: "Today", v: acc });
-  }
-  if (yest) {
-    acc = acc + yest.total;
-    levels.push({ name: "Since yesterday", v: acc });
-  }
-  for (const k of ["7d", "30d", "90d", "365d"]) {
-    const c = byKey.get(k);
-    if (c) {
-      acc = Math.max(acc, c.total);
-      levels.push({ name: `Last ${c.name.toLowerCase()}`, v: acc });
-    }
-  }
-  const ax = niceAxis(acc);
-  const y = (v: number) => T + plotH * (1 - v / ax.top);
-  const tx = 52;
-  const tw = Math.min(56, width * 0.2);
-  svg.append(svgEl("rect", { x: tx, y: T, width: tw, height: plotH, rx: 6, class: "pg-tube" }));
-  svg.append(
-    svgEl("rect", {
-      x: tx,
-      y: y(acc),
-      width: tw,
-      height: Math.max(1, y(0) - y(acc)),
-      class: "pg-fill",
-    }),
-  );
-  for (const t of ax.ticks) {
-    svg.append(svgEl("line", { x1: tx - 4, x2: tx, y1: y(t), y2: y(t), class: "pg-floor" }));
-    text(svg, tx - 6, y(t) + 3, tickFmt(t), "pg-tick", "end");
-  }
-  // Labels, pushed apart so they do not collide.
-  const labelY: number[] = [];
-  levels.forEach((lv, i) => {
-    const want = y(lv.v);
-    const prev = labelY[i - 1];
-    labelY.push(prev === undefined ? want : Math.min(want, prev - 15));
-  });
-  levels.forEach((lv, i) => {
-    const ly = labelY[i] as number;
-    const x0 = tx + tw;
-    svg.append(
-      svgEl("line", { x1: tx, x2: x0 + 8, y1: y(lv.v), y2: y(lv.v), class: "pg-prior pg-level" }),
-    );
-    svg.append(
-      svgEl("polyline", {
-        points: `${x0 + 8},${y(lv.v)} ${x0 + 16},${ly - 3} ${x0 + 22},${ly - 3}`,
-        class: "pg-lead",
-      }),
-    );
-    text(svg, x0 + 26, ly, `${fmt(lv.v)} in  ${lv.name}`, "pg-total pg-total-l", "start");
-  });
-  host.append(svg);
-}
-
 /** PROTOTYPE: a note under the chart saying what the marks mean. */
 const NOTES: Record<string, string> = {
-  A: "A: one shared linear axis. Each column is the rain over the window ending today. Ticks are the same window ending today in earlier years.",
-  B: "B: a tube per window, each with its own scale (see the tick labels): heights are not comparable across tubes. Ticks are earlier years.",
-  C: "C: one shared log axis (0, 0.1, 1, 10 in): equal steps are equal ratios, so height reads as order of magnitude, not amount. Ticks are earlier years.",
-  D: "D: one gauge filled to the longest window. Each mark is the rain since that window began: Today; Since yesterday = today + yesterday; then the last 7, 30, 90 and 365 days (each contains the shorter ones).",
+  B: "B: Today and Yesterday share one scale (left panel); each longer window is a tube with its own scale (see the tick labels), so heights are not comparable across tubes. Orange ticks are the same window in earlier years.",
+  C: "C: one shared log axis (0, 0.1, 1, 10 in) with Today and Yesterday side by side as one panel: equal steps are equal ratios, so height reads as order of magnitude, not amount. Orange ticks are earlier years.",
 };
 
 /**
@@ -362,20 +305,86 @@ export function renderProtoGauge(
   wrap.append(fig, note);
   host.append(wrap);
   drawSized(fig, (width) => {
-    if (variant === "A") shared(fig, cols, width, false);
-    else if (variant === "B") multiples(fig, cols, width);
-    else if (variant === "C") shared(fig, cols, width, true);
-    else tall(fig, cols, width);
+    if (variant === "B") multiples(fig, cols, width);
+    else shared(fig, cols, width, true);
   });
 }
 
+/** PROTOTYPE: the hero placement asked for by `?hero=1|2`, or null. */
+export function protoHero(): "1" | "2" | null {
+  const h = new URLSearchParams(location.search).get("hero");
+  return h === "1" || h === "2" ? h : null;
+}
+
 /**
- * PROTOTYPE: the hero rain track's total, e.g. "0.42 in today".
+ * PROTOTYPE: rain today and yesterday for the hero, or null when neither is
+ * above 0 (the old Streamlit rule: show only when it rained). `?rainwindows=`
+ * drives both; else the live total today and the Yesterday window total.
  *
- * @param live - The live total today, or null.
- * @param slotsSum - The sum of the track's slots.
- * @returns The words.
+ * @param snapshot - The dashboard snapshot.
+ * @returns The two totals, or null to hide the hero rain.
  */
-export function protoHeroTotal(live: number | null, slotsSum: number): string {
-  return `${inches(live ?? slotsSum)} today`;
+export function protoHeroRain(snapshot: DashboardSnapshot): { today: number; yest: number } | null {
+  const over = protoOverride();
+  let today = snapshot.current.rain_today_in;
+  const yw = snapshot.rain_tab.windows.find((w) => w.key === "yesterday");
+  let yest = yw && isShown(yw.status) ? yw.total_in : null;
+  if (over) {
+    today = over[0] ?? null;
+    yest = over[1] ?? null;
+  }
+  const t = today ?? 0;
+  const y = yest ?? 0;
+  return t > 0 || y > 0 ? { today: t, yest: y } : null;
+}
+
+/**
+ * PROTOTYPE: the hero's rain, placement 1 (words under the temperature) or
+ * 2 (a compact block on the far side of the ribbon with a tiny two-column gauge).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @param placement - "1" or "2".
+ * @returns The element, or null when it did not rain.
+ */
+export function protoHeroRainNode(
+  snapshot: DashboardSnapshot,
+  placement: "1" | "2",
+): HTMLElement | null {
+  const r = protoHeroRain(snapshot);
+  if (!r) return null;
+  if (placement === "1") {
+    const p = make("p", "pg-hero1");
+    p.dataset.prototype = "rain-gauge";
+    p.textContent = `Rain today ${inches(r.today)} · yesterday ${inches(r.yest)}`;
+    return p;
+  }
+  const box = make("div", "pg-hero2");
+  box.dataset.prototype = "rain-gauge";
+  const H = 40;
+  const max = Math.max(r.today, r.yest, 0.1);
+  const svg = svgEl("svg", {
+    class: "pg-hero2-svg",
+    width: 44,
+    height: H + 2,
+    viewBox: `0 0 44 ${H + 2}`,
+    "aria-hidden": "true",
+  });
+  [r.yest, r.today].forEach((v, i) => {
+    const h = v > 0 ? Math.max(2, (v / max) * H) : 0;
+    svg.append(
+      svgEl("rect", { x: 4 + i * 20, y: H - h, width: 16, height: h, class: "pg-hero2-bar" }),
+    );
+  });
+  svg.append(svgEl("line", { x1: 0, x2: 44, y1: H, y2: H, class: "pg-floor" }));
+  const nums = make("dl", "pg-hero2-nums");
+  for (const [k, v] of [
+    ["Today", r.today],
+    ["Yesterday", r.yest],
+  ] as const) {
+    const row = make("div", "pg-hero2-row");
+    row.append(make("dt", "pg-hero2-k", k), make("dd", "pg-hero2-v", inches(v)));
+    nums.append(row);
+  }
+  box.append(svg, nums);
+  return box;
 }

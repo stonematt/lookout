@@ -15,6 +15,7 @@
 import "./first-screen.css";
 
 import { signed } from "../format.js";
+import { protoHero, protoHeroRainNode } from "../rain/PROTOTYPE-gauge.js"; // PROTOTYPE #619
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -79,7 +80,15 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const delta = deltaLine(snapshot);
   if (delta) line.append(delta);
   const chart = todayChart(snapshot);
+  // PROTOTYPE #619: the hero's rain today and yesterday, `?hero=1|2`.
+  const hero = protoHero();
+  const rain = hero ? protoHeroRainNode(snapshot, hero) : null;
+  if (rain && hero === "1") line.append(rain);
   host.append(line, chart.block);
+  if (rain && hero === "2") {
+    host.dataset.protoHero = "2";
+    host.append(rain);
+  }
   chart.start();
 }
 
