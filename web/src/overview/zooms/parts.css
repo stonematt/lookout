@@ -48,3 +48,15 @@
   display: inline;
   margin-right: var(--s-2);
 }
+
+/* the 24-hour trace's now label: the wind rose's now label, same type and halo */
+.zoom-now-label {
+  font-size: var(--type-annotation);
+  font-weight: 600;
+  fill: var(--now);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}

@@ -39,7 +39,7 @@ import type {
   WindRose,
   WindRoseWindow,
 } from "../../snapshot.js";
-import { calmThreshold, windClauses, windTile } from "../mosaic-conditions.js";
+import { calmGust, calmThreshold, isCalm, windClauses, windTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
 
 /** The window the rose opens on when the record covers it (the board's). */
@@ -143,7 +143,8 @@ function roseSvg(w: WindRoseWindow, c: SnapshotConditions, width: number): SVGSV
   const cx = side / 2;
   const cy = side / 2;
   const outer = side / 2 - RIM;
-  const nowSpeed = c.wind_dir_deg === null ? null : c.wind_speed_mph;
+  // A calm wind has no bearing to plot (#598).
+  const nowSpeed = c.wind_dir_deg === null || isCalm(c) ? null : c.wind_speed_mph;
   // The scale reaches the next ring past the highest gust (or now's speed).
   const top = Math.max(
     RING_MPH,
@@ -411,7 +412,12 @@ function renderRose(host: HTMLElement, snapshot: DashboardSnapshot): void {
  * @returns E.g. "From the SE, gusts to 2.5 mph."
  */
 function windSentence(c: SnapshotConditions): string {
-  const { from: fromClause, gust } = windClauses(c);
+  const { calm, from: fromClause, gust } = windClauses(c);
+  // Calm: no direction (#598).
+  if (calm) {
+    const rest = calmGust(c, gust);
+    return rest === "no gusts" ? "Calm." : `Calm; ${rest}.`;
+  }
   const from = fromClause && `F${fromClause.slice(1)}`;
   let rest: string;
   if (from && gust) rest = `${from}, ${gust}.`;

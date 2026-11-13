@@ -216,6 +216,27 @@ describe("the live wind sentence", () => {
     expect(words(render("now", parsed("dry")))).toBe("From the SE, gusts to 2.5 mph.");
   });
 
+  it("says calm at a speed of exactly 0, with no direction (#598)", () => {
+    const snapshot = parsed("dry");
+    Object.assign(snapshot.current, { wind_speed_mph: 0, wind_gust_mph: 0 });
+    expect(snapshot.current.wind_dir_deg).not.toBeNull();
+    expect(words(render("now", snapshot))).toBe("Calm.");
+    expect(windZoom.lead!(snapshot)).toEqual({ value: "calm", delta: "no gusts" });
+    snapshot.current.wind_gust_mph = 2.5;
+    expect(words(render("now", snapshot))).toBe("Calm; gusts to 2.5 mph.");
+    snapshot.current.wind_gust_mph = null;
+    expect(words(render("now", snapshot))).toBe("Calm; gust not known.");
+  });
+
+  it("draws no now dot on the rose at 0 mph, and does at a non-zero speed (#598)", () => {
+    const snapshot = parsed("seasoned");
+    snapshot.current.wind_speed_mph = 0;
+    expect(render("rose", snapshot).querySelectorAll(".wind-rose .wind-now-dot")).toHaveLength(0);
+    expect(render("rose", snapshot).textContent).not.toContain("now 0.0");
+    snapshot.current.wind_speed_mph = 1.2;
+    expect(render("rose", snapshot).querySelectorAll(".wind-rose .wind-now-dot")).toHaveLength(1);
+  });
+
   it("says what is not known, never zero", () => {
     const snapshot = parsed("dry");
     snapshot.current.wind_speed_mph = null;
