@@ -23,26 +23,31 @@
 
 .ov-sources-list,
 .ov-sources-methods {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   margin: 0;
 }
 
-.ov-sources-list {
-  gap: 2px var(--s-6);
-}
-
-.ov-sources-methods {
-  gap: var(--s-3) var(--s-6);
-}
-
+/* two columns read down then across, so a one-line entry leaves no blank
+   band beside a two-line one */
 :root:is([data-layout="two"], [data-layout="four"]) :is(.ov-sources-list, .ov-sources-methods) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-count: 2;
+  column-gap: var(--s-6);
 }
 
 .ov-sources :is(.ov-sources-list, .ov-sources-methods) > div {
   min-width: 0;
   max-width: 62ch;
+  break-inside: avoid;
+}
+
+/* the short lines sit close, so a wrapped line hangs under its name and
+   each entry starts flush, marked by its name in ink-2 */
+.ov-sources-list > div {
+  padding-left: var(--s-3);
+  text-indent: calc(-1 * var(--s-3));
+}
+
+.ov-sources-methods > div {
+  padding-bottom: var(--s-3);
 }
 
 .ov-sources dt {

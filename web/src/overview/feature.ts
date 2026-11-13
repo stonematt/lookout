@@ -408,7 +408,7 @@ export const featureTile: OverviewSection = {
   // draws no feature tile.
   shown: (snapshot) => Boolean(snapshot.feature),
   source: () => ({
-    line: "the Feature Rule's pick: recent rain, an unusual reading, a dry spell.",
+    line: "recent rain, a reading unusual against earlier years, or a dry spell.",
     // The unusual rule's method, stated once on the Overview (#595): the
     // feature tile's finding says only the side. The window is Python's
     // `temperature.SPREAD_DAYS`, the band `feature.LOW` and `feature.HIGH`.

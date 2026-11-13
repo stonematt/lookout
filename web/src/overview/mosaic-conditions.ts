@@ -465,7 +465,7 @@ export const daylightTile: MosaicTile = {
   zoomName: "daylight",
   shown: (snapshot) => snapshot.sun_moon !== null,
   // The Sun and moon card said it in its body; with no tile, the footer does.
-  absent: () => "Not known: the station reports no location.",
+  absent: () => "not known, as the station reports no location.",
   read(snapshot) {
     const block = snapshot.sun_moon;
     if (!block) return { value: null, delta: "the station reports no location" };
@@ -477,7 +477,7 @@ export const daylightTile: MosaicTile = {
   },
   chart: daylightChart,
   source: () => ({
-    line: "sunrise to sunset, against yesterday.",
+    line: "sunrise to sunset at the station, against yesterday.",
     method:
       "Daylight runs from sunrise to sunset, against yesterday's. The arc is the day from " +
       "sunrise to sunset; the dot is where the sun is in it now.",
@@ -529,7 +529,7 @@ export const insideTile: MosaicTile = {
   read: () => ({ value: null, delta: null }),
   rows: (snapshot): MosaicRow[] => (snapshot.indoor ?? []).map(sensorRow),
   source: () => ({
-    line: "each sensor's last 24 hours.",
+    line: "each indoor sensor's last 24 hours.",
     method:
       "One row per indoor sensor still reporting: its temperature and humidity, and its last " +
       "24 hours as hourly means.",

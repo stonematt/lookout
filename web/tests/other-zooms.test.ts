@@ -350,7 +350,7 @@ describe("the Daylight zoom", () => {
       '.ov-sources-list [data-source="Daylight"]',
     )!;
     expect(words(line.querySelector("dt"))).toBe("Daylight");
-    expect(words(line.querySelector("dd"))).toBe("Not known: the station reports no location.");
+    expect(words(line.querySelector("dd"))).toBe("not known, as the station reports no location.");
     expect(overview().querySelector('.ov-sources-how [data-source="Daylight"]')).toBeNull();
   });
 

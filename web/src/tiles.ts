@@ -119,7 +119,7 @@ export interface TileSection {
   /**
    * For a section not drawn because the snapshot holds nothing for it, why,
    * in a sentence: the sources footer gives it in the section's place
-   * (Daylight: "Not known: the station reports no location."). Null when
+   * (Daylight: "not known, as the station reports no location."). Null when
    * there is nothing to say.
    */
   absent?(snapshot: DashboardSnapshot): string | null;

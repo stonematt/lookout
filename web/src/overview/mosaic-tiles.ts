@@ -349,7 +349,7 @@ export const tenDaysTile: MosaicTile = {
   chart: tenDaysChart,
   bandUnderBars: (snapshot) => shownDays(snapshot).some(hasUsual),
   source: () => ({
-    line: "lows and highs, against ±7 days of each date in earlier years.",
+    line: "lows and highs, against ±7 days around each date in earlier years.",
     method:
       "The number is the mean of the last ten days' highs against their usual highs, over the " +
       "days that have both. Each bar runs from the day's low to its high, over the usual range " +

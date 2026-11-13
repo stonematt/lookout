@@ -135,6 +135,14 @@ describe("the Overview's sources footer (prototype decision 22, #604)", () => {
     },
   );
 
+  it("keeps a left-out tile's reason to the same cap, with no method", () => {
+    renderOverview(panel, { ...raining, sun_moon: null });
+
+    const daylight = lines().find(([name]) => name === "Daylight")!;
+    expect(wordCount(daylight[1]!)).toBeLessThanOrEqual(12);
+    expect(methods().map(([name]) => name)).not.toContain("Daylight");
+  });
+
   it("keeps the method paragraphs behind one closed disclosure, after the lines", () => {
     renderOverview(panel, raining);
     const footer = panel.querySelector<HTMLElement>("footer.ov-sources")!;

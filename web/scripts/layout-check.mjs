@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Layout check (#402): open every tab of the built site in its own headless
- * Chromium and fail, naming the view, on three layout facts (and the footer's height below).
+ * Chromium and fail, naming the view, on four layout facts.
  *
  *   npm run layout-check            # builds with VITE_LANE_SERVER=1, then checks
  *   node scripts/layout-check.mjs <base-url>  # check a running build instead
@@ -24,9 +24,11 @@
  * measured the same way: the zooms are found from the Overview's tile
  * links (`a[data-zoom]`, set by `src/overview/zoom.ts` for each slug in
  * `src/overview/zooms/index.ts`), so a new zoom needs no change here.
- * At 320px the Overview's closed sources footer must also be shorter than a
- * 320px phone's screen (#604). Layout facts only; taste stays with the
- * design-compliance pass.
+ *  4. At 320px, the Overview's closed sources footer is not shorter than a
+ *     320px phone's screen, 568px (#604): checked on every case above and on
+ *     the `seasoned` golden, in light and dark.
+ *
+ * Layout facts only; taste stays with the design-compliance pass.
  *
  * It serves `dist/` with `vite preview` itself (the lane server's read
  * functions, so no secrets and no network), on a free port. `--prove` adds
@@ -190,18 +192,20 @@ const FOOTER_MAX_PX = 568;
 
 /** The closed sources footer's height against `FOOTER_MAX_PX`, as a problem. */
 async function footerFits(page) {
-  const height = await page.evaluate(() => {
-    const footer = document.querySelector("[role=tabpanel]:not([hidden]) footer.ov-sources");
-    if (!footer) return null;
-    const how = footer.querySelector("details");
-    if (how?.open) return -1;
-    return footer.getBoundingClientRect().height;
+  const footer = await page.evaluate(() => {
+    const node = document.querySelector("[role=tabpanel]:not([hidden]) footer.ov-sources");
+    return node
+      ? {
+          height: node.getBoundingClientRect().height,
+          open: Boolean(node.querySelector("details")?.open),
+        }
+      : null;
   });
-  if (height === null) return ["no sources footer"];
-  if (height === -1) return ["sources footer disclosure open on load"];
-  return height < FOOTER_MAX_PX
+  if (!footer) return ["no sources footer"];
+  if (footer.open) return ["sources footer disclosure open on load"];
+  return footer.height < FOOTER_MAX_PX
     ? []
-    : [`closed sources footer ${Math.round(height)}px, not under ${FOOTER_MAX_PX}px`];
+    : [`closed sources footer ${Math.round(footer.height)}px, not under ${FOOTER_MAX_PX}px`];
 }
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -275,6 +279,15 @@ try {
         await page.close();
       }
     }
+  }
+  // The sources footer on the third golden too (#604: every fixture).
+  for (const colorScheme of SCHEMES) {
+    const page = await browser.newPage({ viewport: { width: 320, height: 844 }, colorScheme });
+    await page.goto(`${base}/?fixture=seasoned&age=3#overview`, { waitUntil: "load" });
+    await page.waitForSelector(".masthead-age:not(:empty)", { timeout: 5000 });
+    await page.waitForTimeout(300);
+    report(`seasoned #overview footer 320px ${colorScheme}`, await footerFits(page), {});
+    await page.close();
   }
 } finally {
   await browser.close();

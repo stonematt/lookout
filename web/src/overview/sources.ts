@@ -42,15 +42,15 @@ function entryOf(snapshot: DashboardSnapshot, section: TileSection): Entry | nul
 }
 
 /** A `dl` row: the tile's name as `dt`, the words as `dd`. */
-function row(name: string, words: string, className: string): HTMLElement {
+function row(name: string, text: string, className: string): HTMLElement {
   const item = document.createElement("div");
   item.dataset.source = name;
   const term = document.createElement("dt");
   term.textContent = name;
-  const text = document.createElement("dd");
-  text.className = className;
-  text.textContent = words;
-  item.append(term, text);
+  const body = document.createElement("dd");
+  body.className = className;
+  body.textContent = text;
+  item.append(term, body);
   return item;
 }
 
@@ -89,12 +89,12 @@ export function sourcesFooter(
   footer.setAttribute("aria-labelledby", heading.id);
   const lines = list(
     "ov-sources-list",
-    entries.map((e) => row(e.name, e.line, "ov-sources-line")),
+    entries.map((entry) => row(entry.name, entry.line, "ov-sources-line")),
   );
   footer.append(heading, lines);
   const methods = entries
-    .filter((e): e is Entry & { method: string } => e.method !== null)
-    .map((e) => row(e.name, e.method, "ov-sources-method"));
+    .filter((entry): entry is Entry & { method: string } => entry.method !== null)
+    .map((entry) => row(entry.name, entry.method, "ov-sources-method"));
   if (methods.length) {
     const how = fold("How these are worked out", [list("ov-sources-methods", methods)], "how");
     how.classList.add("ov-sources-how");
