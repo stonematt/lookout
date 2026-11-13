@@ -118,14 +118,17 @@ describe.each(SCENARIOS)("the %s golden's hatch labels", (scenario) => {
 
   it("draws the periods chart's reasons after its now rule and dot", () => {
     drawZoom(scenario);
-    const chart = document.querySelector("[data-part=periods-chart] svg")!;
+    const chart = document.querySelector("[data-part=periods-chart] svg");
+    // The dry golden's archive holds none of its windows: no chart (#606).
+    expect(chart === null).toBe(scenario === "dry");
+    if (!chart) return;
     const marks = [...chart.querySelectorAll(".tc-now, .tc-now-dot")];
     const reasons = [...chart.querySelectorAll(".tc-reason")];
 
     expect(marks.length).toBeGreaterThan(0);
     // The raining golden's chart draws only the windows its record covers,
     // each comparable (#470): no hatch, so no reason to place.
-    expect(reasons.length > 0).toBe(scenario !== "raining");
+    expect(reasons.length > 0).toBe(scenario === "seasoned");
     for (const reason of reasons) {
       for (const mark of marks) {
         expect(

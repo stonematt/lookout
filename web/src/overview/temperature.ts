@@ -24,7 +24,14 @@ import "./temperature.css";
 import { degrees, inches } from "../format.js";
 import { LABEL_CHAR_PX, NARROW, aboveDot, niceTicks, pillLabel, scale } from "../charts/svg.js";
 import { make, spoken, svgEl } from "../dom.js";
-import { gapSentence, gapValue, isComparable, plainGapLabel, svgHatch } from "../gaps.js";
+import {
+  beyondRecord,
+  gapSentence,
+  gapValue,
+  isComparable,
+  plainGapLabel,
+  svgHatch,
+} from "../gaps.js";
 import type {
   DashboardSnapshot,
   GapStatus,
@@ -699,13 +706,17 @@ function renderPeriods(
   const chart = chartHost("periods-chart");
   const unlock = nextUnlockLine(snapshot);
   const usual = options.zoom ? usualSentence(snapshot) : null;
+  // When the archive holds none of any row (and no Usual row leads them),
+  // the chart is not drawn, not a stack of hatched rows (#606).
+  const drawn =
+    (options.zoom && usualRow(snapshot) !== null) || periods.some((p) => !beyondRecord(p.status));
   host.append(
     tileFinding(periodFinding(snapshot), options),
-    chart,
+    ...(drawn ? [chart] : []),
     ...(unlock ? [unlock] : []),
     spokenList([...(usual ? [usual] : []), ...periods.map(periodSentence)]),
   );
-  mountChart(chart, (w) => periodsChart(snapshot, w, options.zoom));
+  if (drawn) mountChart(chart, (w) => periodsChart(snapshot, w, options.zoom));
   if (options.zoom) return;
   host.append(
     tileFolds(

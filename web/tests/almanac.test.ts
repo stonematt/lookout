@@ -425,4 +425,15 @@ describe("the rolling table's scroll cue (#596)", () => {
     expect(frame.match(/\blocal\b/g)).toHaveLength(1);
     expect(frame.match(/\bscroll\b/g)).toHaveLength(1);
   });
+
+  it("draws its edge in a token that meets the graphics minimum on the tile, both themes (#606)", () => {
+    const token = /--alm-shadow: var\(--([a-z0-9-]+)\);/.exec(frame)?.[1];
+    expect(token).toBeDefined();
+    // the edge itself is solid, before it fades
+    expect(frame).toMatch(/var\(--alm-shadow\) 0 2px/);
+    for (const theme of ["light", "dark"] as const) {
+      const t = themeTokens(theme);
+      expect(ratio(t[token!]!, t.tile!), theme).toBeGreaterThanOrEqual(3);
+    }
+  });
 });

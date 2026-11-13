@@ -32,7 +32,7 @@ import { segmented } from "../../charts/days-switch.js";
 import { drawSized } from "../../charts/svg.js";
 import { make, svgEl } from "../../dom.js";
 import { mph } from "../../format.js";
-import { gapElement, isComparable } from "../../gaps.js";
+import { beyondRecord, gapElement, isComparable } from "../../gaps.js";
 import type {
   DashboardSnapshot,
   SnapshotConditions,
@@ -66,9 +66,12 @@ const RIM_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
 /** The window last pressed, kept across a refresh of the snapshot. */
 let chosenKey: string | null = null;
 
-/** The windows the record covers, shortest first. */
+/**
+ * The windows the record covers, shortest first: one the archive holds none
+ * of is left out, not drawn as a hatched rose (#606).
+ */
 function shownWindows(rose: WindRose | undefined): WindRoseWindow[] {
-  return rose?.windows.filter((w) => w.status.shown !== false) ?? [];
+  return rose?.windows.filter((w) => !beyondRecord(w.status)) ?? [];
 }
 
 /** A window's length in its unit: 24 hours, or 7 days from 48 hours. */

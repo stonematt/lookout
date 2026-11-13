@@ -62,10 +62,11 @@ describe("no n/a row on the Overview", () => {
     },
   );
 
-  it("draws only the windows the record covers, then Full history (dry)", () => {
+  it("draws no window range chart while the archive holds none of its rows (dry)", () => {
     show(parsed(doc("dry")));
 
-    expect(periodRows()).toEqual(["Today", "Yesterday", "Full history"]);
+    // Today, Yesterday and Full history are all not archived yet (#606).
+    expect(all("[data-part=periods-chart]")).toHaveLength(0);
     // The days before the record began are not drawn; the three it holds are.
     expect(dayRows()).toEqual(["Wed, Nov 19", "Tue, Nov 18", "Mon, Nov 17"]);
   });
@@ -137,14 +138,11 @@ describe("a gap inside a shown period", () => {
     ]);
   });
 
-  it("keeps the dry golden's shown but unarchived days hatched", () => {
+  it("draws no chart of the dry golden's shown but unarchived windows, not a hatched block (#606)", () => {
     show(parsed(doc("dry")));
 
-    expect(texts("[data-part=periods-chart] .tc-reason")).toEqual([
-      "not archived yet",
-      "not archived yet",
-      "not archived yet",
-    ]);
+    expect(all("[data-part=periods-chart]")).toHaveLength(0);
+    expect(texts("[data-block=periods] .tc-reason")).toEqual([]);
   });
 });
 
@@ -233,14 +231,11 @@ describe("a snapshot written before Release A (N−1)", () => {
   it.each(SCENARIOS)("%s: renders today's view without crashing", (scenario) => {
     expect(() => show(previous(scenario))).not.toThrow();
 
-    expect(periodRows()).toEqual([
-      "Today",
-      "Yesterday",
-      "7 days",
-      "30 days",
-      "90 days",
-      "365 days",
-    ]);
+    // The dry golden's archive holds none of its windows, so it draws no
+    // chart (#606); the others draw every window, hatched where they must.
+    expect(periodRows()).toEqual(
+      scenario === "dry" ? [] : ["Today", "Yesterday", "7 days", "30 days", "90 days", "365 days"],
+    );
     expect(dayRows()).toHaveLength(10);
     expect(all("[data-part=next-unlock]")).toHaveLength(0);
   });

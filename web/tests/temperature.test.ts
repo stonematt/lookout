@@ -149,17 +149,31 @@ describe("temperature across periods", () => {
     expect(`${values.join(" ")} ${spoken}`).not.toMatch(/-\d/);
   });
 
-  it("hatches every row the record covers when the archive lags, as in the dry golden", () => {
+  it("draws no chart when the archive holds none of its rows, as in the dry golden (#606)", () => {
     show(dry);
 
-    // Today, yesterday and Full history; the windows before the record are not drawn (#470).
-    expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(3);
-    expect(
-      all("[data-part=periods-chart] .tc-reason").every(
-        (el) => el.textContent === "not archived yet",
-      ),
-    ).toBe(true);
-    expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(0);
+    // Today, yesterday and Full history are all not archived yet: no chart,
+    // not three hatched rows. The finding and the spoken rows still say so.
+    expect(all("[data-part=periods-chart]")).toHaveLength(0);
+    expect(all("[data-block=periods] .tc-hatch")).toHaveLength(0);
+    expect(text("[data-block=periods] [data-part=finding]")).toContain("no window complete");
+    expect(text("[data-block=periods] .ov-sr")).toContain(
+      "the archive does not reach this far yet",
+    );
+  });
+
+  it("keeps a not-archived row hatched in a chart that shows other rows", () => {
+    const ctx = structuredClone(year);
+    const today = ctx.periods[0]!;
+    today.status = { ...today.status, status: "invalid", reason: "not_archived", missing_days: 1 };
+    Object.assign(today, { low: null, q1: null, q3: null, high: null, readings: 0 });
+    show(withYear(ctx));
+
+    expect(all("[data-part=periods-chart] .tc-hatch")).toHaveLength(1);
+    expect(all("[data-part=periods-chart] .tc-reason").map((el) => el.textContent)).toEqual([
+      "not archived yet",
+    ]);
+    expect(all("[data-part=periods-chart] .tc-whisker")).toHaveLength(6);
   });
 });
 
