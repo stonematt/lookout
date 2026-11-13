@@ -213,17 +213,18 @@ export function renderYears(
   const current = tab.water_years[tab.water_years.length - 1];
   // When the archive holds none of any water year there is no chart, not a
   // hatched block (#606).
-  const drawn = !tab.water_years.every((c) => beyondRecord(c.status));
-  if (drawn && current && tab.water_years.every((c) => c.cumulative_in.every((v) => v === null))) {
-    // No year can be compared: the hatch in place of an empty chart.
-    const block = gapElement(current.status);
-    block.classList.add("rain-years-gap");
-    host.append(block);
-  } else if (drawn) {
-    const { chart, readout } = figure(host, "Rain since Oct 1, one line per water year");
-    drawSized(chart, (width) =>
-      drawYearCurves(chart, tab, width, (t) => (readout.textContent = t)),
-    );
+  if (!tab.water_years.every((c) => beyondRecord(c.status))) {
+    if (current && tab.water_years.every((c) => c.cumulative_in.every((v) => v === null))) {
+      // No year can be compared: the hatch in place of an empty chart.
+      const block = gapElement(current.status);
+      block.classList.add("rain-years-gap");
+      host.append(block);
+    } else {
+      const { chart, readout } = figure(host, "Rain since Oct 1, one line per water year");
+      drawSized(chart, (width) =>
+        drawYearCurves(chart, tab, width, (t) => (readout.textContent = t)),
+      );
+    }
   }
   const strip = windowStrip(snapshot);
   if (strip) host.append(strip);
