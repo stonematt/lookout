@@ -20,6 +20,8 @@
  * the panel's title (`SectionOptions` in `tiles.ts`).
  */
 import "./rain.css";
+import "./PROTOTYPE-gauge.css"; // PROTOTYPE #619
+import { protoVariant, renderProtoGauge } from "./PROTOTYPE-gauge.js"; // PROTOTYPE #619
 
 import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { beyondRecord, gapElement, gapValue, hatchGap } from "../gaps.js";
@@ -230,7 +232,10 @@ export function renderYears(
       );
     }
   }
-  const strip = windowStrip(snapshot);
+  // PROTOTYPE #619: a rain gauge variant replaces the window strip (zoom only).
+  const proto = options.zoom ? protoVariant() : null;
+  const strip = proto ? null : windowStrip(snapshot);
+  if (proto) renderProtoGauge(host, snapshot, proto);
   if (strip) host.append(strip);
   const left = tab.water_years.filter((c) => c.cumulative_in.every((v) => v === null));
   const live = snapshot.current.rain_today_in;

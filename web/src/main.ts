@@ -9,6 +9,7 @@ import "./styles/base.css";
 
 import { fetchCurrent, fetchDashboard, fetchStations } from "./load.js";
 import { startPage } from "./page.js";
+import "./PROTOTYPE-switcher.js"; // PROTOTYPE #619
 import { applyThemeOverride } from "./theme.js";
 
 applyThemeOverride(location.search);

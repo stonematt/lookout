@@ -51,6 +51,7 @@ import {
   yTickSteps,
 } from "../charts/svg.js";
 import { make, svgEl } from "../dom.js";
+import { protoHeroTotal, protoVariant } from "../rain/PROTOTYPE-gauge.js"; // PROTOTYPE #619
 import { yearsText } from "./temperature.js";
 import type { DashboardSnapshot, UsualBand, UsualHour } from "../snapshot.js";
 
@@ -354,7 +355,8 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   const plotBottom = TOP + plotH;
   const rainTop = plotBottom + RAIN_GAP;
   const basisRow = band ? BASIS_H : 0;
-  const height = rainTop + RAIN_H + X_LABELS_H + basisRow;
+  const protoRow = protoVariant() ? 18 : 0; // PROTOTYPE #619
+  const height = rainTop + RAIN_H + X_LABELS_H + basisRow + protoRow;
   const left = LEFT;
   const right = width - RIGHT_PAD;
   const { svg, hatch } = canvas(width, height, todayChartName(snapshot), "today-svg");
@@ -484,6 +486,18 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
         "text",
         { x: fixed(x(hour)), y: labelY, class: "today-x", "text-anchor": anchor },
         text,
+      ),
+    );
+  }
+
+  // PROTOTYPE #619: the rain track's total, under the times of day.
+  if (protoRow) {
+    const sum = slots.reduce((a, s) => a + (s.rain ?? 0), 0);
+    svg.append(
+      svgEl(
+        "text",
+        { x: left, y: labelY + ROW_BASELINE + (band ? BASIS_H : 0), class: "today-total" },
+        protoHeroTotal(snapshot.current.rain_today_in, sum),
       ),
     );
   }
