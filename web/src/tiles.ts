@@ -55,11 +55,18 @@ import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
 /** How many of the four-column grid's columns a tile spans. */
 export type TileSpan = 1 | 2 | 3 | 4;
 
-/** A section's line in a sources footer. */
+/** A section's entry in a sources footer (#604). */
 export interface TileSource {
-  /** What it reads, short: "five-minute readings, station time". */
-  what: string;
-  /** How its comparison is made, in a sentence or two. */
+  /**
+   * The footer's one line for the tile, after its name: the source and the
+   * comparison, at most 12 words, ending in a full stop. "outdoor sensor,
+   * against ±7 days around this date in earlier years."
+   */
+  line: string;
+  /**
+   * How it is worked out, in a sentence or a few: shown only inside the
+   * footer's closed "How these are worked out" disclosure.
+   */
   method: string;
 }
 
@@ -103,15 +110,16 @@ export interface TileSection {
    */
   shown?(snapshot: DashboardSnapshot): boolean;
   /**
-   * What the section reads and how its comparison is made, for a tab that
-   * gathers its sources in one footer instead of a fold on each tile (the
-   * Overview, prototype decision 22). No archive time: the header says it.
+   * The section's short source line and its method paragraph, for a tab
+   * that gathers its sources in one footer instead of a fold on each tile
+   * (the Overview, prototype decision 22, #604). No archive time: the header
+   * says it.
    */
   source?(snapshot: DashboardSnapshot): TileSource;
   /**
    * For a section not drawn because the snapshot holds nothing for it, why,
    * in a sentence: the sources footer gives it in the section's place
-   * (Daylight: "Not known: the station reports no location."). Null when
+   * (Daylight: "not known, as the station reports no location."). Null when
    * there is nothing to say.
    */
   absent?(snapshot: DashboardSnapshot): string | null;

@@ -106,7 +106,9 @@ describe("the method, stated once in the sources footer", () => {
   it.each(SCENARIOS)("in the feature's line on the %s golden", async (scenario) => {
     await boot("#overview", parseDashboard(structuredClone(golden(scenario, "dashboard"))), 1440);
     const footer = document.querySelector<HTMLElement>("footer.ov-sources")!;
-    const line = footer.querySelector('[data-source="The feature"] .ov-sources-method')!;
+    const line = footer.querySelector(
+      '.ov-sources-how [data-source="The feature"] .ov-sources-method',
+    )!;
 
     expect(line.textContent).toBe(
       "A rain event that is live or ended in the last 12 hours leads; then an unusual " +
@@ -116,8 +118,8 @@ describe("the method, stated once in the sources footer", () => {
         "in earlier years (its percentile is the share of those readings below it): above " +
         "the 90th it is higher than usual, below the 10th lower.",
     );
-    // No other footer line repeats the method.
-    const others = [...footer.querySelectorAll(".ov-sources-list > div")]
+    // No other footer line or method repeats it.
+    const others = [...footer.querySelectorAll("[data-source]")]
       .filter((item) => item !== line.parentElement)
       .map((item) => item.textContent)
       .join(" ");

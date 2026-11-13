@@ -84,12 +84,32 @@ describe("the current temperature", () => {
   });
 });
 
-describe("the Overview's sources footer (prototype decision 22)", () => {
-  /** Each footer line: the tile's name, then what it reads, then its method. */
+describe("the Overview's sources footer (prototype decision 22, #604)", () => {
+  /** Each short line: the tile's name, then its source and comparison. */
   const lines = () =>
     all(".ov-sources-list > div").map((item) =>
       [...item.children].map((child) => child.textContent),
     );
+  /** Each method paragraph in the disclosure: the tile's name, then its method. */
+  const methods = () =>
+    all(".ov-sources-how [data-source]").map((item) =>
+      [...item.children].map((child) => child.textContent),
+    );
+  const NAMES = [
+    "Right now",
+    "The feature",
+    "Temperature",
+    "Rain since Oct 1",
+    "Last 10 days",
+    "Dry spell",
+    "Wind",
+    "Pressure",
+    "Humidity",
+    "Sun today",
+    "Daylight",
+    "Inside",
+  ];
+  const wordCount = (s: string) => s.trim().split(/\s+/).length;
 
   it("folds no source on any Overview tile, and lists every drawn tile once at the foot", () => {
     renderOverview(panel, raining);
@@ -97,25 +117,51 @@ describe("the Overview's sources footer (prototype decision 22)", () => {
     expect(panel.querySelector(".tile-grid details, .tile-grid .ov-source")).toBeNull();
     const footer = panel.querySelector<HTMLElement>("footer.ov-sources")!;
     expect(panel.lastElementChild).toBe(footer);
-    expect(words(footer.querySelector("h2"))).toBe("Sources and method");
-    expect(lines().map(([name]) => name)).toEqual([
-      "Right now",
-      "The feature",
-      "Temperature",
-      "Rain since Oct 1",
-      "Last 10 days",
-      "Dry spell",
-      "Wind",
-      "Pressure",
-      "Humidity",
-      "Sun today",
-      "Daylight",
-      "Inside",
-    ]);
-    for (const [, what, method] of lines()) {
-      expect(what!.length).toBeGreaterThan(5);
-      expect(method!.length).toBeGreaterThan(40);
-    }
+    expect(words(footer.querySelector("h2"))).toBe("Sources");
+    expect(lines().map(([name]) => name)).toEqual(NAMES);
+  });
+
+  it.each(["dry", "raining", "seasoned"] as const)(
+    "gives each tile one short line, at most 12 words, on the %s golden",
+    (scenario) => {
+      renderOverview(panel, parseDashboard(golden(scenario, "dashboard")));
+
+      for (const item of lines()) {
+        expect(item).toHaveLength(2);
+        const line = item[1]!;
+        expect(wordCount(line), line).toBeLessThanOrEqual(12);
+        expect(line.length).toBeGreaterThan(5);
+      }
+    },
+  );
+
+  it("keeps a left-out tile's reason to the same cap, with no method", () => {
+    renderOverview(panel, { ...raining, sun_moon: null });
+
+    const daylight = lines().find(([name]) => name === "Daylight")!;
+    expect(wordCount(daylight[1]!)).toBeLessThanOrEqual(12);
+    expect(methods().map(([name]) => name)).not.toContain("Daylight");
+  });
+
+  it("keeps the method paragraphs behind one closed disclosure, after the lines", () => {
+    renderOverview(panel, raining);
+    const footer = panel.querySelector<HTMLElement>("footer.ov-sources")!;
+
+    const disclosures = footer.querySelectorAll("details");
+    expect(disclosures).toHaveLength(1);
+    const how = disclosures[0]!;
+    expect(how.open).toBe(false);
+    expect(how.classList.contains("ov-sources-how")).toBe(true);
+    expect(words(how.querySelector("summary"))).toBe("How these are worked out");
+    expect(footer.querySelector(".ov-sources-list")!.compareDocumentPosition(how)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(methods().map(([name]) => name)).toEqual(NAMES);
+    for (const [, method] of methods()) expect(method!.length).toBeGreaterThan(40);
+    // No method paragraph outside the disclosure.
+    expect(footer.querySelectorAll(".ov-sources-method")).toHaveLength(
+      how.querySelectorAll(".ov-sources-method").length,
+    );
   });
 
   it("ends with the release version and short SHA", () => {
@@ -139,7 +185,7 @@ describe("the Overview's sources footer (prototype decision 22)", () => {
   it("words the now tile's band from its basis", () => {
     renderOverview(panel, raining);
 
-    expect(lines()[0]![2]).toContain(
+    expect(methods()[0]![1]).toContain(
       "The band is the usual for each hour of the day: the median of your last 4 days",
     );
   });
@@ -153,6 +199,7 @@ describe("the Overview's sources footer (prototype decision 22)", () => {
     const names = lines().map(([name]) => name);
     expect(names).not.toContain("The feature");
     expect(names).not.toContain("Rain since Oct 1");
+    expect(methods().map(([name]) => name)).toEqual(names);
   });
 });
 
