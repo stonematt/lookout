@@ -425,15 +425,25 @@ describe("the Rain tab", () => {
     expect(labels).toContain("2025 12.5 in");
   });
 
-  it("leaves a water year out of the chart when it cannot be compared", () => {
+  it("draws no chart, not a hatched block, when every water year is before the archive (#606)", () => {
     renderRain(panel, raining);
+
+    expect(section("years").querySelector(".rain-chart, svg, .gap-block, .gap-hatch")).toBeNull();
+    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
+      "Water year 2026 is left out",
+    );
+  });
+
+  it("hatches the water-year chart when no year can be compared for a gap in the record", () => {
+    const tab = structuredClone(raining);
+    for (const year of tab.rain_tab.water_years) {
+      year.status = { ...year.status, reason: "gap", shown: true };
+    }
+    renderRain(panel, tab);
 
     expect(section("years").querySelectorAll("polyline").length).toBe(0);
     expect(text(section("years").querySelector(".gap-block .gap-label"))).toBe(
-      "n/a: before the archive",
-    );
-    expect(text(section("years").querySelector("[data-part=source]"))).toContain(
-      "Water year 2026 is left out",
+      "n/a: gap in record",
     );
   });
 

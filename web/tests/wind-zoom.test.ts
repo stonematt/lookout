@@ -176,12 +176,20 @@ describe("the wind rose, young and live stations", () => {
     expect(host.querySelectorAll(".wind-rose .wind-gust")).toHaveLength(1);
   });
 
-  it("hatches a window the record does not hold, with its reason, and draws no rose", () => {
-    const host = render("rose", parsed("dry"));
+  it("leaves the rose out when the archive holds none of its windows (#606)", () => {
+    const snapshot = parsed("dry");
+    expect(panel("rose").shown!(snapshot)).toBe(false);
+    expect(panel("now").shown?.(snapshot) ?? true).toBe(true);
+  });
+
+  it("hatches a window with a gap in the record, with its reason, and draws no rose", () => {
+    const snapshot = parsed("dry");
+    for (const w of snapshot.wind_rose!.windows) w.status = { ...w.status, reason: "gap" };
+    const host = render("rose", snapshot);
     expect(host.querySelector(".wind-rose svg")).toBeNull();
     expect(host.querySelector(".wind-bars")).toBeNull();
     expect(host.querySelector(".gap-hatch, [data-gap]")).not.toBeNull();
-    expect(host.textContent).toContain("not archived yet");
+    expect(host.textContent).toContain("n/a: gap in record");
   });
 
   it("hides the rose for a snapshot without one, and still shows the live wind", () => {

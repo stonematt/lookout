@@ -17,6 +17,10 @@
  * Every view that shows a month or window value goes through `gapValue`
  * (null means: draw nothing, hatch it) and `hatchGap`.
  *
+ * A chart wholly beyond the record (`beyondRecord`: before the archive, not
+ * archived yet, or not shown) is not drawn, rather than drawn as one hatched
+ * block (#606); a chart that also shows data keeps its hatching.
+ *
  * The same hatch marks a span inside a chart: `svgHatch` gives an SVG chart
  * its pattern, `hatchSpan` is a hatched span for an HTML band to place, and
  * `plotlyHatch` is the pattern for a Plotly chart.
@@ -88,6 +92,25 @@ export interface HatchOptions {
  */
 export function isComparable(status: GapStatus): boolean {
   return status.status !== "invalid";
+}
+
+/**
+ * Whether the archive holds none of a month or window, as the snapshot
+ * decides it: one not shown (`shown: false`), or one invalid because it lies
+ * before the archive began or the archive has not reached it yet. A chart
+ * every part of which is beyond the record is not drawn at all, rather than
+ * drawn as one hatched block (#606); a gap the record does cover is still
+ * hatched.
+ *
+ * @param status - Its gap status.
+ * @returns True when the archive holds none of it.
+ */
+export function beyondRecord(status: GapStatus): boolean {
+  if (status.shown === false) return true;
+  return (
+    status.status === "invalid" &&
+    (status.reason === "not_archived" || status.reason === "before_archive")
+  );
 }
 
 /**

@@ -23,7 +23,7 @@ import { addDays, dayText, daysBetween, kwhPerM2 } from "../format.js";
 import { drawDays } from "../charts/days-switch.js";
 import { FALLBACK_WIDTH, drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
-import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
+import { beyondRecord, dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { WINDOW_NAMES, listText } from "../rain/text.js";
 import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
@@ -336,7 +336,8 @@ function renderDay(host: HTMLElement, snapshot: DashboardSnapshot, mount: Mount)
     next.disabled = day.day >= lastDay(tab);
     if (day.reason !== null || day.energy === null) {
       const status = dayStatus(day.day, day.reason ?? "gap");
-      body.replaceChildren(gapElement(status));
+      // A day the archive holds none of draws no chart; a gap is hatched (#606).
+      body.replaceChildren(...(beyondRecord(status) ? [] : [gapElement(status)]));
       note(
         "energy catalog, daily sums",
         [`The energy catalog's daily sums. ${gapSentence(status)}`],
