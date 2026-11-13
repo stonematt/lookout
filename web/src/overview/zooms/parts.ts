@@ -5,11 +5,70 @@
  * heading, Close, focus and the route. A zoom's link on to a tab is its
  * "More in" panel (`more.ts`).
  *
- * Offers `sentence`, `factValue` and `sizedChart`.
+ * Offers `sentence`, `factValue`, `sizedChart` and `dayTrace` (a 24-hour
+ * hourly series at full size: the Inside zoom's sensors, the Pressure and
+ * Humidity zooms' lines).
  */
 import "./parts.css";
 
-import { drawSized } from "../../charts/svg.js";
+import { drawSized, scale } from "../../charts/svg.js";
+import { svgEl } from "../../dom.js";
+import { lastIndex, traceMarks } from "../mosaic-conditions.js";
+import { miniChart } from "../mosaic.js";
+
+/** A day trace's height: the mini chart's, and room for its labels. */
+const TRACE_HEIGHT = 112;
+
+/** The strip under a day trace that holds its end labels. */
+const TRACE_AXIS = 18;
+
+/** The space at the left of a day trace for its low and high labels. */
+const TRACE_LEFT = 36;
+
+/**
+ * The last 24 hours of an hourly series at a width: the line, its low and
+ * high at the left, "24 h ago" and "now" under it, the newest hour as the
+ * now dot.
+ *
+ * @param values - The series, hourly, oldest first.
+ * @param width - The width to draw at.
+ * @param label - A low or high value as its label ("68°", "30.01").
+ * @param pad - The least room above and below the line, in its unit.
+ * @returns The chart, or null with fewer than two hours or no reading.
+ */
+export function dayTrace(
+  values: (number | null)[],
+  width: number,
+  label: (value: number) => string,
+  pad: number,
+): SVGSVGElement | null {
+  if (values.length < 2 || lastIndex(values) < 0) return null;
+  const numbers = values.filter((v): v is number => v !== null);
+  const low = Math.min(...numbers);
+  const high = Math.max(...numbers);
+  const bottom = TRACE_HEIGHT - TRACE_AXIS;
+  const x = scale(0, values.length - 1, TRACE_LEFT, width - 6);
+  const y = scale(low - pad, high + pad, bottom - 6, 8);
+  const svg = miniChart(width, TRACE_HEIGHT);
+  svg.append(
+    svgEl("line", { class: "mosaic-base", x1: TRACE_LEFT, x2: width, y1: bottom, y2: bottom }),
+    svgEl("text", { class: "mosaic-label", x: 0, y: y(high) + 4 }, label(high)),
+  );
+  // A steady day has one value: its low is its high, labelled once.
+  if (low !== high) {
+    svg.append(svgEl("text", { class: "mosaic-label", x: 0, y: y(low) + 4 }, label(low)));
+  }
+  svg.append(
+    svgEl("text", { class: "mosaic-label", x: TRACE_LEFT, y: TRACE_HEIGHT - 2 }, "24 h ago"),
+    svgEl(
+      "text",
+      { class: "mosaic-label", x: width, y: TRACE_HEIGHT - 2, "text-anchor": "end" },
+      "now",
+    ),
+  );
+  svg.append(...traceMarks(values, x, y, 4));
+  return svg;
+}
 
 /**
  * A sentence in a zoom panel, in Finding type.

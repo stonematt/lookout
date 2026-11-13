@@ -163,6 +163,36 @@ describe("the Pressure and Humidity zooms", () => {
     );
   });
 
+  it.each([
+    ["pressure", "30.00"],
+    ["humidity", "95%"],
+  ])("%s: draws the tile's 24 hours at full size (#554)", async (slug, high) => {
+    await boot(`#overview/${slug}`);
+    const day = panel("day")!;
+    expect(day.dataset.wide).toBe("true");
+    expect(words(day.querySelector("h3"))).toBe("The last 24 hours");
+    const box = day.querySelector("[data-part=day-line]")!;
+    expect(box.getAttribute("aria-hidden")).toBe("true");
+    const svg = box.querySelector("svg")!;
+    expect(svg.querySelectorAll(".mosaic-line")).toHaveLength(1);
+    expect(svg.querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
+    const labels = [...svg.querySelectorAll(".mosaic-label")].map(words);
+    expect(labels[0]).toBe(high);
+    expect(labels.slice(-2)).toEqual(["24 h ago", "now"]);
+  });
+
+  it.each([
+    ["null", null],
+    ["absent (N−1)", undefined],
+  ])("draw no 24-hour panel when outdoor_trace is %s", async (_, trace) => {
+    const raw = structuredClone(golden("seasoned", "dashboard")) as Record<string, unknown>;
+    if (trace === undefined) delete raw.outdoor_trace;
+    else raw.outdoor_trace = trace;
+    await boot("#overview/pressure", parseDashboard(raw));
+    expect(panel("trend")).not.toBeNull();
+    expect(panel("day")).toBeNull();
+  });
+
   it("say what is not known, never zero", () => {
     const s = parsed();
     s.current.barometer_inhg = null;

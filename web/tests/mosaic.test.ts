@@ -201,48 +201,73 @@ describe("the Temperature tile", () => {
   });
 });
 
+const value = (slug: string) => words(tile(slug).querySelector("[data-part=value]"));
+const delta = (slug: string) => words(tile(slug).querySelector("[data-part=delta]"));
+
 describe("the Rain tile", () => {
-  it("says not compared yet when this water year has no total to date", () => {
+  it("prints this year to date as a percent of the usual (seasoned)", () => {
     renderOverview(panel, parsed("seasoned"));
 
-    expect(tile("rain").querySelector("[data-part=value]")).toBeNull();
-    expect(words(tile("rain").querySelector("[data-part=delta]"))).toBe("not compared yet");
-  });
-
-  it("prints this year to date against the newest earlier year by the same date", () => {
-    const d = doc("seasoned");
-    const tab = d.rain_tab;
-    const at = tab.day_index;
-    for (const [i, curve] of tab.water_years.entries()) {
-      curve.cumulative_in = curve.cumulative_in.map((_: unknown, p: number) => (p * (i + 1)) / 100);
-      curve.prorated = curve.cumulative_in.map(() => false);
-      curve.to_date_in = curve.cumulative_in[at] ?? null;
-    }
-    renderOverview(panel, parseDashboard(d));
-    const years = tab.water_years;
-    const now = years.at(-1);
-    const before = years.at(-2);
-
-    expect(words(tile("rain").querySelector("[data-part=value]"))).toBe(
-      `${now.to_date_in.toFixed(2)} in`,
-    );
-    expect(words(tile("rain").querySelector("[data-part=delta]"))).toBe(
-      `${before.water_year} had ${before.cumulative_in[at].toFixed(2)} in`,
-    );
+    expect(value("rain")).toBe("0.44 in");
+    expect(delta("rain")).toBe("145% of usual");
     const svg = tile("rain").querySelector("svg")!;
     expect(svg.querySelectorAll(".mosaic-curve-now")).toHaveLength(1);
     expect(svg.querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
   });
+
+  it("prints the total alone when there is no usual to date (null)", () => {
+    const d = doc("seasoned");
+    d.rain_tab.usual_to_date = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("rain")).toBe("0.44 in");
+    expect(tile("rain").querySelector("[data-part=delta]")).toBeNull();
+  });
+
+  it("prints the total alone when the percent is null", () => {
+    const d = doc("seasoned");
+    d.rain_tab.usual_to_date.percent = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("rain")).toBe("0.44 in");
+    expect(tile("rain").querySelector("[data-part=delta]")).toBeNull();
+  });
+
+  it("prints the total alone from a snapshot without the field (N−1)", () => {
+    const d = doc("seasoned");
+    delete d.rain_tab.usual_to_date;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("rain")).toBe("0.44 in");
+    expect(tile("rain").querySelector("[data-part=delta]")).toBeNull();
+  });
+
+  it("says not compared yet when this water year has no total to date", () => {
+    const d = doc("seasoned");
+    d.rain_tab.water_years.at(-1).to_date_in = null;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("rain").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("rain")).toBe("not compared yet");
+  });
+
+  it("names the new field in its sources footer line", () => {
+    renderOverview(panel, parsed("seasoned"));
+
+    const rain = words(panel.querySelector('[data-source="Rain since Oct 1"]'));
+    expect(rain).toContain("a percent of the usual rain by this date");
+    expect(rain).not.toContain("newest earlier year");
+    const tenDays = words(panel.querySelector('[data-source="Last 10 days"]'));
+    expect(tenDays).toContain("the mean of the last ten days' highs against their usual highs");
+  });
 });
 
 describe("the Last 10 days tile", () => {
-  it("prints the newest day's high against its usual high", () => {
+  it("prints the ten days' highs against usual, signed (seasoned)", () => {
     renderOverview(panel, parsed("seasoned"));
 
-    expect(words(tile("last-10-days").querySelector("[data-part=value]"))).toBe("72°");
-    expect(words(tile("last-10-days").querySelector("[data-part=delta]"))).toBe(
-      "today's high, usual 60°",
-    );
+    expect(value("last-10-days")).toBe("+2°");
+    expect(delta("last-10-days")).toBe("highs over usual");
     // One bar a day the record covers.
     expect(tile("last-10-days").querySelectorAll("svg .mosaic-day")).toHaveLength(10);
     // The band under the bars is named by a legend swatch, not in the plot.
@@ -250,6 +275,48 @@ describe("the Last 10 days tile", () => {
     expect(words(legend)).toBe("usual range");
     expect(legend.closest("[aria-hidden=true]")).not.toBeNull();
     expect(tile("last-10-days").querySelector("svg text")).toBeNull();
+  });
+
+  it("prints a cooler spell with the true minus, and a level one as at usual", () => {
+    const d = doc("seasoned");
+    d.temperature_context.ten_day_highs = { delta_f: -3, days: 10 };
+    renderOverview(panel, parseDashboard(d));
+    expect(value("last-10-days")).toBe("\u22123°");
+    expect(delta("last-10-days")).toBe("highs under usual");
+
+    d.temperature_context.ten_day_highs = { delta_f: 0, days: 10 };
+    renderOverview(panel, parseDashboard(d));
+    expect(value("last-10-days")).toBe("0°");
+    expect(delta("last-10-days")).toBe("highs at usual");
+  });
+
+  it("names how many days when fewer than ten are paired", () => {
+    const d = doc("seasoned");
+    d.temperature_context.ten_day_highs = { delta_f: 4, days: 6 };
+    renderOverview(panel, parseDashboard(d));
+
+    expect(value("last-10-days")).toBe("+4°");
+    expect(delta("last-10-days")).toBe("highs over usual, 6 days");
+  });
+
+  it("prints no delta when the field is null (dry golden)", () => {
+    const d = doc("dry");
+    expect(d.temperature_context.ten_day_highs).toBeNull();
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("last-10-days")).toBe("not compared yet");
+  });
+
+  it("prints no delta from a snapshot without the field (N−1)", () => {
+    const d = doc("seasoned");
+    delete d.temperature_context.ten_day_highs;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("last-10-days")).toBe("not compared yet");
+    // The bars still draw: they are the ten-day list's own.
+    expect(tile("last-10-days").querySelectorAll("svg .mosaic-day")).toHaveLength(10);
   });
 });
 
@@ -297,9 +364,6 @@ describe("the quick-fact cards are gone, their content in the tiles", () => {
   });
 });
 
-const value = (slug: string) => words(tile(slug).querySelector("[data-part=value]"));
-const delta = (slug: string) => words(tile(slug).querySelector("[data-part=delta]"));
-
 describe("the Wind tile", () => {
   it("prints the live speed, where it blows from and its gust (dry)", () => {
     renderOverview(panel, parsed("dry"));
@@ -346,6 +410,41 @@ describe("the Pressure tile", () => {
     expect(value("pressure")).toBe("n/a");
     expect(delta("pressure")).toBe("3-hour trend not known");
   });
+
+  it("draws the last 24 hours of pressure, now as the dot", () => {
+    const d = doc("dry");
+    renderOverview(panel, parseDashboard(d));
+    const svg = tile("pressure").querySelector("svg")!;
+
+    expect(svg.closest("[aria-hidden=true]")).not.toBeNull();
+    // The dry golden's trace has two empty hours before its last one.
+    expect(svg.querySelectorAll(".mosaic-line").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
+    expect([...svg.querySelectorAll(".mosaic-label")].map(words)).toEqual(["24 h", "now"]);
+  });
+
+  it.each([
+    ["null", null],
+    ["absent (N−1)", undefined],
+  ])("draws no chart when outdoor_trace is %s", (_, trace) => {
+    const d = doc("raining");
+    if (trace === undefined) delete d.outdoor_trace;
+    else d.outdoor_trace = trace;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("pressure").querySelector("svg")).toBeNull();
+    expect(tile("humidity").querySelector("svg")).toBeNull();
+    expect(value("pressure")).toBe("30.00 inHg");
+  });
+
+  it("draws no chart when the series holds no reading", () => {
+    const d = doc("raining");
+    d.outdoor_trace.pressure_inhg = d.outdoor_trace.pressure_inhg.map(() => null);
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("pressure").querySelector("svg")).toBeNull();
+    expect(tile("humidity").querySelector("svg")).not.toBeNull();
+  });
 });
 
 describe("the Humidity tile, which takes the Air card", () => {
@@ -363,6 +462,16 @@ describe("the Humidity tile, which takes the Air card", () => {
 
     expect(value("humidity")).toBe("n/a");
     expect(delta("humidity")).toBe("dew point not known");
+  });
+
+  it("draws the last 24 hours of humidity, now as the dot (seasoned)", () => {
+    renderOverview(panel, parsed("seasoned"));
+    const svg = tile("humidity").querySelector("svg")!;
+
+    expect(svg.closest("[aria-hidden=true]")).not.toBeNull();
+    expect(svg.querySelectorAll(".mosaic-line")).toHaveLength(1);
+    expect(svg.querySelectorAll(".mosaic-now-dot")).toHaveLength(1);
+    expect([...svg.querySelectorAll(".mosaic-label")].map(words)).toEqual(["24 h", "now"]);
   });
 });
 

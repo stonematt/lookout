@@ -2,15 +2,17 @@
  * The Pressure zoom (#477, spec #460; boards `Zoom`, `ZoomDark`): under the
  * tile's number and trend, the Pressure card's full sentence from before
  * the mosaic: the reading and its 3-hour trend word (`barometer_trend`,
- * decided in Python). No source note (prototype decision 22).
+ * decided in Python); then the tile's 24-hour line at full size
+ * (`outdoor_trace`, #554), not drawn without one. No source note
+ * (prototype decision 22).
  *
  * Offers `pressureZoom` and `pressureSentence`.
  */
 import { inHg } from "../../format.js";
 import type { DashboardSnapshot } from "../../snapshot.js";
-import { pressureTile } from "../mosaic-conditions.js";
+import { PRESSURE_PAD, lastIndex, pressureTile } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
-import { sentence } from "./parts.js";
+import { dayTrace, sentence, sizedChart } from "./parts.js";
 
 /**
  * The pressure sentence: the reading, then the 3-hour trend word.
@@ -46,5 +48,21 @@ export const pressureZoom: ZoomDefinition = {
         sentence(host, pressureSentence(snapshot), "sentence");
       },
     },
+    {
+      id: "day",
+      title: "The last 24 hours",
+      wide: true,
+      shown: (snapshot) => lastIndex(pressureTrace(snapshot)) >= 0,
+      render: (host, snapshot) => {
+        sizedChart(host, "day-line", (width) =>
+          dayTrace(pressureTrace(snapshot), width, (v) => inHg(v), PRESSURE_PAD),
+        );
+      },
+    },
   ],
 };
+
+/** The pressure series of `outdoor_trace` (#554); empty without one. */
+function pressureTrace(snapshot: DashboardSnapshot): (number | null)[] {
+  return snapshot.outdoor_trace?.pressure_inhg ?? [];
+}

@@ -166,6 +166,56 @@ describe("the feature tile", () => {
     expect(tile()!.querySelector("[data-part=live]")).toBeNull();
   });
 
+  describe("finds an ended event by the feature's event_start_ms (#523)", () => {
+    /** The raining golden with every event ended and the feature naming `start`. */
+    function ended(start: number | null | undefined): { snapshot: DashboardSnapshot; rows: Doc[] } {
+      const base = doc("raining");
+      const events = structuredClone(base.rain_events) as { events: Doc[] };
+      events.events.forEach((row, i) => {
+        row.live = false;
+        row.total_in = 0.11 * (i + 1);
+      });
+      const feature = { ...(base.feature as Doc) };
+      if (start === undefined) delete feature.event_start_ms;
+      else feature.event_start_ms = start;
+      const snapshot = edited("raining", {
+        active_rain_event: null,
+        rain_events: { ...events, open_curve: null },
+        feature,
+        built_at_ms: (events.events[1]!.end_ms as number) + 3_600_000,
+      });
+      return { snapshot, rows: events.events };
+    }
+    const value = () => words(tile()!.querySelector("[data-part=value]"));
+
+    it("draws the event the feature names, not the catalog's newest", () => {
+      const probe = ended(undefined);
+      const second = probe.rows[1]!;
+      draw(ended(second.start_ms as number).snapshot);
+
+      expect(value()).toBe("0.22 in");
+    });
+
+    it("keeps the catalog's newest ended event in a snapshot without the field (N−1)", () => {
+      draw(ended(undefined).snapshot);
+
+      expect(value()).toBe("0.11 in");
+    });
+
+    it("keeps the catalog's newest ended event when the field is null", () => {
+      draw(ended(null).snapshot);
+
+      expect(value()).toBe("0.11 in");
+    });
+  });
+
+  it("refuses a feature whose event_start_ms is not a time", () => {
+    const base = doc("raining");
+    const feature = { ...(base.feature as Doc), event_start_ms: "soon" };
+
+    expect(() => parseDashboard({ ...base, feature })).toThrow(SnapshotContractError);
+  });
+
   it("draws an unusual reading: its value and its percentile at this hour", () => {
     const seasoned = parseDashboard(golden("seasoned", "dashboard"));
     draw(seasoned);

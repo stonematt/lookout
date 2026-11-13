@@ -8,11 +8,12 @@
  *   hero's own delta on usual (`nowDeltaWords`, the one snapshot value
  *   `temperature_context.usual_band.now_delta`); its mini chart is the usual
  *   and today rows of the window range chart, with the now rule.
- * - Rain since Oct 1: this water year's rain to date against the newest
- *   earlier year to the same date; its mini chart is the water-year curves,
- *   cropped to the season so far.
- * - Last 10 days: the newest day's high against its usual high; its mini
- *   chart is each day's low to high over the usual for its date.
+ * - Rain since Oct 1: this water year's rain to date as a percent of the
+ *   usual by this date (`rain_tab.usual_to_date`, #539); its mini chart is
+ *   the water-year curves, cropped to the season so far.
+ * - Last 10 days: the ten days' highs against their usual highs, a mean
+ *   (`temperature_context.ten_day_highs`, #540); its mini chart is each
+ *   day's low to high over the usual for its date.
  * - Dry spell: the days since it last rained against the usual dry spell
  *   (`dry_spell`, Release A; the calm lead rule for an older snapshot, the
  *   same numbers the Rain tab shows); its mini chart is the last 30 days'
@@ -23,10 +24,18 @@
  * Offers `MOSAIC_TILES` and each tile's definition.
  */
 import { lastDays } from "../rain/charts.js";
-import { calmRule, currentYear, earlierToDate } from "../rain/text.js";
+import { calmRule, currentYear } from "../rain/text.js";
 import { missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import { WET_DAY_IN, degrees, formatDayCount, formatDays, inches } from "../format.js";
+import {
+  WET_DAY_IN,
+  degrees,
+  formatDayCount,
+  formatDays,
+  inches,
+  percent,
+  signed,
+} from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { MosaicTile } from "./mosaic.js";
@@ -217,7 +226,11 @@ function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
   return svg;
 }
 
-/** Rain since Oct 1: this water year to date, against the newest earlier year by now. */
+/**
+ * Rain since Oct 1: this water year to date, as a percent of the usual rain
+ * by this date (`rain_tab.usual_to_date`, #539); the total alone when the
+ * snapshot has no percent (null, or N−1).
+ */
 export const rainTile: MosaicTile = {
   slug: "rain",
   depth: "rain",
@@ -230,21 +243,21 @@ export const rainTile: MosaicTile = {
       return { value: null, delta: "not compared yet" };
     }
     const approx = current.prorated[tab.day_index] ? "≈ " : "";
-    // The newest year the Rain tab's year-over-year finding compares.
-    const earlier = earlierToDate(tab)[0];
+    const share = tab.usual_to_date?.percent ?? null;
     return {
       value: `${approx}${inches(current.to_date_in, { unit: false })}`,
       unit: "in",
-      delta: earlier ? `${earlier.year} had ${earlier.text}` : null,
+      delta: share === null ? null : `${percent(share)} of usual`,
     };
   },
   chart: rainChart,
   source: () => ({
     what: "daily totals with today's live total",
     method:
-      "Rain since Oct 1, one line per water year, this year bold, set against the newest earlier " +
-      "year by the same date. Feb 29 is folded into Feb 28 so the years line up; ≈ marks a total " +
-      "scaled up over a few missing days.",
+      "Rain since Oct 1, one line per water year, this year bold. The percent is this year's " +
+      "total as a percent of the usual rain by this date: the median, over the earlier water " +
+      "years that reach this date, of their rain since Oct 1. Feb 29 is folded into Feb 28 so " +
+      "the years line up; ≈ marks a total scaled up over a few missing days.",
   }),
 };
 
@@ -307,19 +320,28 @@ function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   return svg;
 }
 
-/** Last 10 days: the newest day's high, against its usual high. */
+/** The ten-day highs' side of usual, in words: "highs over usual". */
+function highsWords(deltaF: number, days: number): string {
+  const side = deltaF > 0 ? "over" : deltaF < 0 ? "under" : "at";
+  return `highs ${side} usual${days < 10 ? `, ${formatDayCount(days)}` : ""}`;
+}
+
+/**
+ * Last 10 days: the last ten days' highs against their usual highs, a mean
+ * (`temperature_context.ten_day_highs`, #540); not compared when the
+ * snapshot has none (null, or N−1).
+ */
 export const tenDaysTile: MosaicTile = {
   slug: "last-10-days",
   depth: "last_10_days",
   title: "Last 10 days",
   zoomName: "last 10 days",
   read(snapshot) {
-    const newest = shownDays(snapshot).at(-1);
-    if (!newest || newest.high === null) return { value: null, delta: "not compared yet" };
-    const usual = newest.usual_high === null ? "" : `, usual ${degrees(newest.usual_high, 0)}`;
+    const highs = snapshot.temperature_context.ten_day_highs ?? null;
+    if (highs === null) return { value: null, delta: "not compared yet" };
     return {
-      value: gapValue(newest.status, degrees(newest.high, 0)),
-      delta: `today's high${usual}`,
+      value: `${signed(highs.delta_f, 0, { plus: true })}°`,
+      delta: highsWords(highs.delta_f, highs.days),
     };
   },
   chart: tenDaysChart,
@@ -327,9 +349,11 @@ export const tenDaysTile: MosaicTile = {
   source: () => ({
     what: "daily low and high",
     method:
-      "Each bar runs from the day's low to its high, over the usual range for its date: the median " +
-      "daily low to the median daily high over the days within a week either side of it, in each " +
-      "earlier year whose record there is complete. Today is the day so far.",
+      "The number is the mean of the last ten days' highs against their usual highs, over the " +
+      "days that have both. Each bar runs from the day's low to its high, over the usual range " +
+      "for its date: the median daily low to the median daily high over the days within a week " +
+      "either side of it, in each earlier year whose record there is complete. Today is the day " +
+      "so far.",
   }),
 };
 

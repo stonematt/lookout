@@ -413,6 +413,30 @@ export interface RainTab {
   day_index: number;
   /** Oldest first. */
   water_years: WaterYearCurve[];
+  /**
+   * This water year's rain to date against the usual rain to date (#539);
+   * null when no earlier water year has a value at `day_index`. Absent from
+   * a snapshot written before Release A3 (ADR-0008).
+   */
+  usual_to_date?: UsualToDate | null;
+}
+
+/** This water year's rain to date against the usual (`UsualToDate`, #539). */
+export interface UsualToDate {
+  /** The usual rain by this date: the median over the earlier water years. */
+  usual_in: number;
+  /** How many earlier water years the usual rests on; at least 1. */
+  years: number;
+  /** This year's rain to date as a whole percent of the usual; null when unknown. */
+  percent: number | null;
+}
+
+/** The last ten days' highs against their usual highs (`TenDayHighs`, #540). */
+export interface TenDayHighs {
+  /** Mean high minus mean usual high over the paired days, whole degrees F. */
+  delta_f: number;
+  /** How many days it is over: 1 to 10. */
+  days: number;
 }
 
 /** One window's range bar: low, middle half and high of its readings. */
@@ -480,6 +504,11 @@ export interface TemperatureContext {
    * one more range-bar row. Absent from a snapshot written before Release A.
    */
   full_history?: TemperaturePeriod | null;
+  /**
+   * The ten-day list's highs against their usual highs (#540); null when no
+   * day has both. Absent from a snapshot written before Release A3.
+   */
+  ten_day_highs?: TenDayHighs | null;
 }
 
 /**
@@ -757,6 +786,12 @@ export interface DashboardSnapshot extends SnapshotHead {
    * draws no rose (ADR-0008).
    */
   wind_rose?: WindRose;
+  /**
+   * The outdoor pressure and humidity over the last 24 hours, hourly (#554);
+   * null without an observation. Absent from snapshots published before
+   * Release A3; the Pressure and Humidity tiles then draw no chart.
+   */
+  outdoor_trace?: OutdoorTrace | null;
 }
 
 /**
@@ -835,6 +870,19 @@ export interface IndoorTrace {
   slot_minutes: number;
   /** The mean temperature in each slot; null for a slot with no reading. */
   temperature_f: (number | null)[];
+}
+
+/**
+ * The outdoor pressure and humidity over the last 24 hours, hourly (#554), in
+ * the indoor traces' slots: slot `i` starts `i * slot_minutes` after `start_ms`.
+ */
+export interface OutdoorTrace {
+  start_ms: number;
+  slot_minutes: number;
+  /** The mean relative pressure in each slot; null for a slot with no reading. */
+  pressure_inhg: (number | null)[];
+  /** The mean outdoor humidity in each slot; null for a slot with no reading. */
+  humidity_pct: (number | null)[];
 }
 
 /** One indoor sensor still reporting (#466): the console or a numbered one. */
@@ -999,6 +1047,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkDrySpell(head.dry_spell);
   checkRecordDepth(head.record_depth);
   checkWindRose(head.wind_rose);
+  checkOutdoorTrace(head.outdoor_trace);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1040,6 +1089,26 @@ function checkIndoor(list: unknown): void {
     )
   ) {
     throw new SnapshotContractError("dashboard: indoor malformed");
+  }
+}
+
+/**
+ * `outdoor_trace` may be absent (N−1) or null; present, it holds two
+ * parallel series of numbers or nulls.
+ */
+function checkOutdoorTrace(trace: unknown): void {
+  if (trace === undefined || trace === null) return;
+  const series = (v: unknown): v is unknown[] =>
+    Array.isArray(v) && v.every((x) => x === null || typeof x === "number");
+  if (
+    !isRecord(trace) ||
+    !isTime(trace.start_ms) ||
+    typeof trace.slot_minutes !== "number" ||
+    !series(trace.pressure_inhg) ||
+    !series(trace.humidity_pct) ||
+    trace.pressure_inhg.length !== trace.humidity_pct.length
+  ) {
+    throw new SnapshotContractError("dashboard: outdoor_trace malformed");
   }
 }
 
@@ -1136,6 +1205,20 @@ function checkRainTab(tab: unknown): void {
   if (!Number.isInteger(toCome) || (toCome as number) < 0 || (toCome as number) > 24) {
     throw new SnapshotContractError("dashboard: rain_tab.recent.first_hour_to_come not an hour");
   }
+  // Release A3's usual to date (#539) may be absent (N−1) or null.
+  const usual = tab.usual_to_date;
+  if (
+    usual !== undefined &&
+    usual !== null &&
+    !(
+      isRecord(usual) &&
+      typeof usual.usual_in === "number" &&
+      typeof usual.years === "number" &&
+      (usual.percent === null || typeof usual.percent === "number")
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: rain_tab.usual_to_date malformed");
+  }
 }
 
 function checkAlmanac(almanac: unknown): void {
@@ -1175,6 +1258,15 @@ function checkTemperature(context: unknown): void {
   }
   checkUsualBand(context.usual_band);
   checkFullHistory(context.full_history);
+  // Release A3's ten-day highs (#540) may be absent (N−1) or null.
+  const highs = context.ten_day_highs;
+  if (
+    highs !== undefined &&
+    highs !== null &&
+    !(isRecord(highs) && typeof highs.delta_f === "number" && typeof highs.days === "number")
+  ) {
+    throw new SnapshotContractError("dashboard: temperature_context.ten_day_highs malformed");
+  }
 }
 
 // ---------- the usual band (#462, drawn by the Overview hero, #468) ----------
@@ -1294,6 +1386,11 @@ export interface Feature {
    */
   percentile: number | null;
   /**
+   * For "rain", the `start_ms` of the event the rule held on, the key of its
+   * `rain_events` row (#523); null for every other kind. Absent before A3.
+   */
+  event_start_ms?: number | null;
+  /**
    * When this subject was first chosen (Release A3's 3-hour hold, #533); absent
    * in a snapshot written before A3.
    */
@@ -1346,6 +1443,9 @@ function checkFeature(feature: unknown): void {
         feature.unit === null &&
         feature.percentile === null) &&
     // The hold's fields (Release A3) may be absent, from a snapshot before it.
+    (feature.event_start_ms === undefined ||
+      feature.event_start_ms === null ||
+      isTime(feature.event_start_ms)) &&
     (feature.since_ms === undefined || typeof feature.since_ms === "number") &&
     (feature.held === undefined || typeof feature.held === "boolean") &&
     (feature.outside_usual === undefined ||

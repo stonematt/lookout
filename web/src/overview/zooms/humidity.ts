@@ -1,16 +1,17 @@
 /**
  * The Humidity zoom (#477, spec #460; boards `Zoom`, `ZoomDark`): under the
  * tile's number and dew point, the Air card's sentence from before the
- * mosaic, humidity and dew point together. No source note (prototype
- * decision 22).
+ * mosaic, humidity and dew point together; then the tile's 24-hour line at
+ * full size (`outdoor_trace`, #554), not drawn without one. No source note
+ * (prototype decision 22).
  *
  * Offers `humidityZoom` and `airSentence`.
  */
 import { degrees, percent } from "../../format.js";
 import type { DashboardSnapshot } from "../../snapshot.js";
-import { humidityTile } from "../mosaic-conditions.js";
+import { HUMIDITY_PAD, humidityTile, lastIndex } from "../mosaic-conditions.js";
 import type { ZoomDefinition } from "../zoom.js";
-import { sentence } from "./parts.js";
+import { dayTrace, sentence, sizedChart } from "./parts.js";
 
 /**
  * The Air sentence: the humidity, then the dew point.
@@ -43,5 +44,21 @@ export const humidityZoom: ZoomDefinition = {
         sentence(host, airSentence(snapshot), "sentence");
       },
     },
+    {
+      id: "day",
+      title: "The last 24 hours",
+      wide: true,
+      shown: (snapshot) => lastIndex(humidityTrace(snapshot)) >= 0,
+      render: (host, snapshot) => {
+        sizedChart(host, "day-line", (width) =>
+          dayTrace(humidityTrace(snapshot), width, (v) => percent(v), HUMIDITY_PAD),
+        );
+      },
+    },
   ],
 };
+
+/** The humidity series of `outdoor_trace` (#554); empty without one. */
+function humidityTrace(snapshot: DashboardSnapshot): (number | null)[] {
+  return snapshot.outdoor_trace?.humidity_pct ?? [];
+}
