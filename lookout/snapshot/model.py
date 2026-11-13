@@ -45,7 +45,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # The dashboard fields the context block carries, in order.
 CONTEXT_FIELDS: Tuple[str, ...] = (
@@ -323,77 +323,7 @@ class ConditionRibbon:
     known_hours: float
 
 
-LeadKind = Literal["rain", "temperature", "solar", "calm"]
-LeadRuleUnit = Literal["hours", "degrees_f", "wm2", "days"]
-LeadChartUnit = Literal["in", "f", "wm2", "days"]
-LeadMissing = Literal["no_event", "no_reading", "no_comparison"]
 WidgetView = Literal["rain_event", "dry_spell", "temperature_ranges"]
-
-
-@dataclass(frozen=True)
-class LeadRule:
-    """
-    One rule of the Adaptive Lead Rule, with its live value.
-
-    Computed by `lookout.snapshot.lead`, which holds the rules.
-
-    :param kind: Which rule: "rain", "temperature", "solar" or "calm".
-    :param met: Whether the rule holds. Calm holds only when no rule before
-        it does: it is the "otherwise".
-    :param value: Its live value, in `unit`: rain, the hours since the
-        newest event ended (0 while one is live); temperature, the current
-        temperature minus the month median (signed); solar, the current
-        radiation; calm, the days since it last rained. None when unknown.
-    :param unit: The unit of `value` and `threshold`.
-    :param threshold: What the rule needs: rain, at most 12 hours; temperature,
-        at least 10° either side; solar, at least 400 W/m²; calm, None.
-    :param reference: What `value` was measured against: temperature, the
-        month median at this hour (°F); calm, the usual dry spell (days);
-        else None. None also when its comparison is invalid.
-    :param compared: The `GapStatus` keys (in `Snapshot.gaps`) the reference
-        was computed over, newest first: the earlier years' same month for
-        temperature, the "365d" window for calm. Only comparable ones.
-    :param missing: Why `value` or `reference` is None: "no_event",
-        "no_reading" or "no_comparison"; None when nothing is missing.
-    """
-
-    kind: LeadKind
-    met: bool
-    value: Optional[float]
-    unit: LeadRuleUnit
-    threshold: Optional[float]
-    reference: Optional[float]
-    compared: Tuple[str, ...]
-    missing: Optional[LeadMissing]
-
-
-@dataclass(frozen=True)
-class LeadTrace:
-    """
-    The hero chart's bold "now" line, in slots, with its usual band per slot.
-
-    Slot `i` starts at `start_ms + i * slot_minutes` minutes. Temperature and
-    solar: today's hourly means from local midnight (hours still to come are
-    None), with the band of the same local hour in the compared months.
-    Rain: the event's rain so far in 15-minute slots from its start, with no
-    per-slot band (empty tuples): its usual range is the scalar one on
-    `HeroLead`. A slot with no reading is None: an archive gap, or the span
-    only the live reading covers.
-
-    :param start_ms: When the first slot starts.
-    :param slot_minutes: Each slot's length.
-    :param values: The bold line's value in each slot.
-    :param usual_low: The band's lower quartile in each slot, or ().
-    :param usual_median: The band's median in each slot, or ().
-    :param usual_high: The band's upper quartile in each slot, or ().
-    """
-
-    start_ms: int
-    slot_minutes: int
-    values: Tuple[Optional[float], ...]
-    usual_low: Tuple[Optional[float], ...]
-    usual_median: Tuple[Optional[float], ...]
-    usual_high: Tuple[Optional[float], ...]
 
 
 @dataclass(frozen=True)
@@ -401,8 +331,8 @@ class DrySpellNow:
     """
     The current dry spell against the usual dry spell, computed once.
 
-    The calm rule in `HeroLead`, the widget view and the Feature Rule all read
-    this one value, so they never disagree.
+    The widget view, the Feature Rule and the Rain tab all read this one
+    value, so they never disagree.
 
     :param days_since_rain: Days since `lastRain`, to the newest observation,
         rounded to 0.01; None without a reading or a last rain.
@@ -465,40 +395,6 @@ class Feature:
     since_ms: int
     held: bool
     outside_usual: Optional[bool]
-
-
-@dataclass(frozen=True)
-class HeroLead:
-    """
-    The Overview's hero lead: the most notable thing right now, and why.
-
-    :param kind: The rule that leads: the first in `rules` that is met.
-    :param rules: Every rule in order (rain, temperature, solar, calm), for
-        the "Why this leads" disclosure.
-    :param unit: The chart's unit: "in" (rain), "f", "wm2" or "days" (calm).
-    :param now: The bold "now" value: the event's rain so far, the current
-        temperature or radiation, or the days since it last rained.
-    :param now_ms: When `now` was observed.
-    :param usual_low: The usual range's lower quartile: at this hour for
-        temperature and solar, over completed events' totals for rain, over
-        completed dry spells for calm. None without a comparison set.
-    :param usual_median: Its median.
-    :param usual_high: Its upper quartile.
-    :param sample: How many the usual range is over: days (temperature,
-        solar), events (rain) or dry spells (calm).
-    :param trace: The bold line over time; None for calm.
-    """
-
-    kind: LeadKind
-    rules: Tuple[LeadRule, ...]
-    unit: LeadChartUnit
-    now: Optional[float]
-    now_ms: Optional[int]
-    usual_low: Optional[float]
-    usual_median: Optional[float]
-    usual_high: Optional[float]
-    sample: int
-    trace: Optional[LeadTrace]
 
 
 @dataclass(frozen=True)
@@ -1003,8 +899,8 @@ class DrySpells:
 
     A rain day has at least 0.01 in. Spells with a day not in the record are
     left out, so a missing day is never read as dry. The days since it last
-    rained and the usual dry spell are the calm lead rule's
-    (`HeroLead.rules`), so the Overview and the Rain tab show one number.
+    rained and the usual dry spell are `Snapshot.dry_spell`'s, so the
+    Overview and the Rain tab show one number.
 
     :param longest: The longest completed dry spell in the record.
     :param water_year_rain_days: Rain days this water year; prorated when
@@ -1683,9 +1579,8 @@ class Snapshot:
     :param condition_ribbon: The 48-hour condition ribbon, or None without
         an observation.
     :param rain_events: The Rain Events tab's list and summaries.
-    :param hero_lead: The hero lead and every lead rule's live value.
     :param dry_spell: Days since it last rained and the usual dry spell; the
-        calm rule's value and reference, computed once.
+        one value the feature, the widget view and the Rain tab read.
     :param rain_tab: The Rain tab's data.
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
@@ -1724,7 +1619,6 @@ class Snapshot:
     gaps: Gaps
     condition_ribbon: Optional[ConditionRibbon]
     rain_events: RainEvents
-    hero_lead: HeroLead
     dry_spell: DrySpellNow
     rain_tab: RainTab
     temperature_context: TemperatureContext

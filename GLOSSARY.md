@@ -217,14 +217,14 @@ _Avoid_: covered day, valid day (valid is a gap status, not a day).
 The maximum daily rain counter for each station-local day, extracted
 once per snapshot build beside the **counted days**. Today's value comes
 from the live reading's daily counter when the live reading is today. It
-is the one place a day's rain amount is read, so the lead and the Rain tab
-agree.
+is the one place a day's rain amount is read, so the feature and the Rain
+tab agree.
 
 ### rain day kind
 
 The rain view over the **counted days** and the **daily rain series**: a
 day is a rain gap when it is not counted, or counted with no counter value.
-The Rain tab, the almanac, rain events and the calm lead judge their
+The Rain tab, the almanac, rain events and the dry spell judge their
 windows through it; temperature, solar and the gaps section use the plain
 counted day.
 _Avoid_: rain coverage.
@@ -263,17 +263,6 @@ the snapshot instead. Keyed by the event's start, not
 its catalog `event_id`, which an ongoing event does not keep.
 _Avoid_: event file, event chart data.
 
-### lead
-
-The one reading the Overview's hero puts first: rain, temperature, solar or
-calm, picked by the **Adaptive Lead Rule** (DESIGN.md), whose rules are
-checked in that order and the first that holds leads. Rain leads while an
-event is live or ended in the last 12 h; temperature at 10°F or more from
-this hour's month median; solar at 400 W/m² or more; otherwise calm, the
-days since rain against the usual dry spell.
-_Avoid_: headline, hero metric, featured stat.
-To be replaced by the **feature** (ADR-0009).
-
 ### feature
 
 The one reading the Overview's full-width feature tile shows, and the one
@@ -285,9 +274,10 @@ furthest out winning; a dry spell longer than the usual dry spell; otherwise
 temperature, as a usual day. Its subject is its kind, and for an unusual
 reading which reading. A subject is held for 3 hours from when it was first
 chosen, unless rain starts: a held feature keeps its subject while the
-rule picks another, with its values as they are now. Replaces the **lead**
-and decides the **widget view**.
-_Avoid_: lead (once the feature ships), hero, featured stat, highlight;
+rule picks another, with its values as they are now. It replaced the lead
+(the snapshot's `hero_lead`, gone in schema 4) and decides the **widget
+view**.
+_Avoid_: lead, headline, hero, hero metric, featured stat, highlight;
 sticky (for the hold).
 
 ### widget view
@@ -296,8 +286,7 @@ Which view a widget shows now, picked in the snapshot so every widget shows
 the same one (`lookout.snapshot.widget`). It has no rules of its own: it is
 the **feature** mapped to a widget's three views (ADR-0009). Rain gives
 **rain_event**, a long dry spell **dry_spell**, anything else
-**temperature_ranges**, now against today, 7, 30 and 365 days. It is not the
-lead: the lead ranks the Overview's hero until the feature replaces it.
+**temperature_ranges**, now against today, 7, 30 and 365 days.
 _Avoid_: widget mode, widget state.
 
 ### dry spell
@@ -305,15 +294,15 @@ _Avoid_: widget mode, widget state.
 A run of dry days with a rain day (at least 0.01 in, one tip of the gauge)
 on each side. A day the archive cannot count breaks the run, so a gap never
 reads as dry. The **usual dry spell** is the median completed dry spell over
-the last 365 days. One definition serves the Rain tab and the calm lead
-(`lookout.core.rainfall_analysis.dry_spells`).
+the last 365 days. One definition serves the Rain tab, the feature and the
+widget view (`lookout.core.rainfall_analysis.dry_spells`).
 _Avoid_: drought, days without rain (for the spell itself).
 
 ### usual event
 
 The median total of completed rain events. The live (ongoing) event is never
-part of the median it is measured against. The Overview's rain lead and the
-Rain events catalog (all-time and per water year) use this one rule (#375).
+part of the median it is measured against. The Rain events catalog (all-time
+and per water year) uses this one rule (#375).
 _Avoid_: median event (for a median that counts the live event).
 
 ### usual rain to date

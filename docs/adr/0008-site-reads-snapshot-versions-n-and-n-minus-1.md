@@ -37,6 +37,10 @@ alone as release 2026.11.5, before the refresh run wrote 3.
    - Release B: the refresh run writes N.
    Release A may carry other work. The two may ship the same day, but
    B's deploy waits until A's site is live in production.
+   Numbered from release A's side, where the refresh run still writes
+   the current version N: the site reads N and N+1 while the refresh run
+   stays at N. Release B moves the refresh run to N+1, which becomes the
+   new N. Mosaic Overview C1 (#479) and C2 (#480) are this pair for v4.
 3. **N−2 support drops once no N−1 document is live**, in any later
    release. Narrowing the list is a site-only change.
 4. **What counts as a shape change** stays as `lookout/snapshot/model.py`

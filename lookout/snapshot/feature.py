@@ -7,8 +7,8 @@ order, the first that holds is the feature:
 
 1. **rain**: an event is live (the build's `ActiveRainEvent`), or the
    newest Event Catalog event ended at most `RAIN_HOURS` before the build
-   time (`StationClock.now_ms`). "Ended" is the catalog's `end_time`, as the
-   lead's rain rule reads it (`lookout.snapshot.events.newest_event`).
+   time (`StationClock.now_ms`). "Ended" is the catalog's `end_time`
+   (`lookout.snapshot.events.newest_event`).
    The feature names the event it holds on by `event_start_ms`, the key of
    its `rain_events` row: the live event when one is live, else that newest
    ended event, so the site never picks the event itself (ADR-0003).

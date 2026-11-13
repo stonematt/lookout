@@ -14,8 +14,8 @@ Functions:
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
 - newest_event(event_catalog, observed_at_ms): The catalog event that ended
-  last, up to a time: the feature's and the hero lead's rain rules read it,
-  each against `RAIN_HOURS`.
+  last, up to a time: the feature's rain rule reads it against
+  `RAIN_HOURS`.
 """
 
 from typing import Any, Callable, Collection, Iterator, List, Optional, Tuple
@@ -47,8 +47,7 @@ logger = app_logger(__name__)
 
 RAIN_HOURS = 12.0
 """An event live or ended at most this many hours ago is rain now: the rain
-rule of the feature (counted to the build time) and of the hero lead
-(counted to the newest observation)."""
+rule of the feature, counted to the build time."""
 
 
 # A reading more than this many minutes after the one before follows a gap
@@ -132,7 +131,7 @@ def _stats(events: pd.DataFrame) -> EventStats:
     `summarize_events` as the snapshot's dataclass, rounded for JSON.
 
     The median is over completed events only: the live event is never part
-    of the median it is measured against, as in the Overview lead (#375).
+    of the median it is measured against (#375).
     """
     summary = summarize_events(events)
     completed = events[~events["live"]] if "live" in events else events
@@ -337,8 +336,8 @@ def newest_event(
     The catalog event that ended last, up to `observed_at_ms`.
 
     :param event_catalog: The Event Catalog, or None.
-    :param observed_at_ms: The time to look back from: the newest
-        observation for the lead, the build time for the feature.
+    :param observed_at_ms: The time to look back from: the build time for
+        the feature.
     :return: The event's catalog row, or None when none has ended.
     """
     if event_catalog is None or event_catalog.empty or observed_at_ms is None:

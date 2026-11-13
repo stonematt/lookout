@@ -5,7 +5,7 @@
  */
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { FIXTURE_MAC, SALMON_MAC, golden, goldenNext } from "./golden.js";
+import { FIXTURE_MAC, SALMON_MAC, golden } from "./golden.js";
 
 interface Station {
   mac: string;
@@ -169,7 +169,7 @@ describe("widgetModel", () => {
   });
 
   it("draws the dry spell from a v4 snapshot, which has no hero_lead", () => {
-    const doc = goldenNext("dry", "dashboard") as Record<string, unknown>;
+    const doc = golden("dry", "dashboard") as Record<string, unknown>;
     doc.widget_view = "dry_spell";
     doc.dry_spell = { days_since_rain: 9.4, usual_days: 4 };
 
@@ -181,7 +181,7 @@ describe("widgetModel", () => {
   });
 
   it("falls back to temperature_ranges when the usual dry spell is unknown", () => {
-    const doc = goldenNext("dry", "dashboard") as Record<string, unknown>;
+    const doc = golden("dry", "dashboard") as Record<string, unknown>;
     doc.widget_view = "dry_spell";
     doc.dry_spell = { days_since_rain: 9.4, usual_days: null };
 
