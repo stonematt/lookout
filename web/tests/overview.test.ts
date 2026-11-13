@@ -36,7 +36,16 @@ describe("the Overview", () => {
     const order = [...first.querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    expect(order).toEqual(["kicker", "finding", "temperature", "delta", "today-chart"]);
+    // The raining golden had rain today: the hero's rain line and column (#619).
+    expect(order).toEqual([
+      "kicker",
+      "finding",
+      "temperature",
+      "delta",
+      "rain-line",
+      "today-chart",
+      "rain-column",
+    ]);
   });
 
   it("renders each section into its own tile, in order, after its kicker", () => {

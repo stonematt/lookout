@@ -20,7 +20,7 @@
  * with no band, median or basis label.
  *
  * Every value is the snapshot's: this module places and words, and decides
- * nothing. Offers `todayChart` (the chart block), `todayChartName` (its
+ * nothing. Offers `todayChart` (the chart block), `todayFrame` (its rows), `todayChartName` (its
  * accessible name), `nowDeltaText` (the one-line delta on usual under the
  * temperature), `nowDeltaWords` (the same delta without its hour, for the
  * Temperature tile), `readingDayWords` (the newest reading's day, when it is
@@ -338,6 +338,45 @@ function lineRuns(slots: readonly Slot[]): Slot[][] {
 
 const fixed = (v: number) => +v.toFixed(1);
 
+/** The chart's rows at a width: what `draw` lays out, and what `todayFrame` offers. */
+function frame(
+  snapshot: DashboardSnapshot,
+  width: number,
+): TodayFrame & { plotH: number; plotBottom: number; rainTop: number } {
+  const band = snapshot.temperature_context.usual_band ?? null;
+  const plotH = width < NARROW ? PLOT_H.narrow : PLOT_H.wide;
+  const plotBottom = TOP + plotH;
+  const rainTop = plotBottom + RAIN_GAP;
+  const floor = rainTop + RAIN_H;
+  const height = floor + X_LABELS_H + (band ? BASIS_H : 0);
+  return { height, top: TOP, floor, labelY: floor + ROW_BASELINE, plotH, plotBottom, rainTop };
+}
+
+/** Where the hero chart's rows fall, for a column drawn beside it on its lines. */
+export interface TodayFrame {
+  /** The svg's height. */
+  height: number;
+  /** The plot's top. */
+  top: number;
+  /** The x-axis line: the rain track's floor. */
+  floor: number;
+  /** The baseline of the times of day. */
+  labelY: number;
+}
+
+/**
+ * The hero chart's rows at a width, so the hero's Rain column (#619) stands
+ * on its x-axis line and puts its names on its x-label line.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @param width - The chart's width, in pixels.
+ * @returns The rows.
+ */
+export function todayFrame(snapshot: DashboardSnapshot, width: number): TodayFrame {
+  const { height, top, floor, labelY } = frame(snapshot, width);
+  return { height, top, floor, labelY };
+}
+
 /**
  * Draw the chart at a width into its host.
  *
@@ -350,11 +389,7 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   const slots = todaySlots(snapshot);
   const live = slots.find((s) => s.live && s.temperature !== null) ?? null;
   const narrow = width < NARROW;
-  const plotH = narrow ? PLOT_H.narrow : PLOT_H.wide;
-  const plotBottom = TOP + plotH;
-  const rainTop = plotBottom + RAIN_GAP;
-  const basisRow = band ? BASIS_H : 0;
-  const height = rainTop + RAIN_H + X_LABELS_H + basisRow;
+  const { height, plotH, plotBottom, rainTop } = frame(snapshot, width);
   const left = LEFT;
   const right = width - RIGHT_PAD;
   const { svg, hatch } = canvas(width, height, todayChartName(snapshot), "today-svg");
@@ -471,7 +506,7 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   svg.append(rain);
 
   // The times of day; the closing midnight once there is room for it.
-  const labelY = rainTop + RAIN_H + ROW_BASELINE;
+  const { labelY } = frame(snapshot, width);
   for (const [hour, text] of [
     ...[0, 6, 12, 18].map((h) => [h, hourText(h)]),
     ...(narrow ? [] : [[24, hourText(0)]]),

@@ -1,7 +1,8 @@
 /**
  * The now tile, the Overview's fixed top (spec #460, #468): the current
  * temperature large, then today hour by hour against the usual band for this
- * date (`today-hero.ts`). It is the one tile on `now-surface`, in the
+ * date (`today-hero.ts`), and rain today and yesterday when either is above
+ * 0 (`rain/hero-rain.ts`, #619). It is the one tile on `now-surface`, in the
  * phone's fixed top, and the full width of the grid. The 48-hour ribbon,
  * the condition sentence and the Right-now strip it once held are gone.
  *
@@ -15,6 +16,7 @@
 import "./first-screen.css";
 
 import { signed } from "../format.js";
+import { heroRain, heroRainColumn, heroRainLine } from "../rain/hero-rain.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -81,6 +83,16 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const chart = todayChart(snapshot);
   host.append(line, chart.block);
   chart.start();
+  // Rain today and yesterday (#619), only when either is above 0: a line
+  // under the caption on a phone, a column opposite the temperature on the
+  // grids. Dry, neither is drawn and the chart keeps the width.
+  const rain = heroRain(snapshot);
+  if (!rain) return;
+  host.dataset.rain = "true";
+  line.append(heroRainLine(rain));
+  const column = heroRainColumn(snapshot, rain, chart.block);
+  host.append(column.box);
+  column.start();
 }
 
 /** The now tile, as an Overview section. */

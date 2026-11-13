@@ -1,0 +1,60 @@
+/*
+ * The hero's rain today and yesterday (#619). Below 760 px (the phone
+ * layout), one line under the temperature's caption. From 760 px up (the
+ * grids), a third column opposite the temperature: two `ribbon-rain` bars on
+ * the ribbon chart's x-axis line, values and names in `ink-on-now`, which
+ * reads on the now surface in both themes.
+ */
+.hero-rain-line {
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-rain {
+  display: none;
+  min-width: 0;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .hero-rain-line {
+  display: none;
+}
+
+:root:is([data-layout="two"], [data-layout="four"]) .hero-rain {
+  display: block;
+}
+
+/* the grid takes a third column only when the column is there */
+:root:is([data-layout="two"], [data-layout="four"]) .tile[data-section="first-screen"][data-rain] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.hero-rain-svg {
+  display: block;
+  overflow: visible;
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-rain-bar {
+  fill: var(--ribbon-rain);
+}
+
+.hero-rain-floor {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.hero-rain-head,
+.hero-rain-value {
+  font-size: var(--type-label);
+  font-weight: 600;
+  fill: var(--ink-on-now);
+}
+
+.hero-rain-name {
+  font-size: var(--type-axis);
+  fill: var(--ink-on-now);
+}

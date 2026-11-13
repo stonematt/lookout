@@ -74,7 +74,16 @@ describe("the usual band hero", () => {
     const parts = [...hero().querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    expect(parts).toEqual(["kicker", "finding", "temperature", "delta", "today-chart"]);
+    // The raining golden had rain today: the hero's rain line and column (#619).
+    expect(parts).toEqual([
+      "kicker",
+      "finding",
+      "temperature",
+      "delta",
+      "rain-line",
+      "today-chart",
+      "rain-column",
+    ]);
     // No folded source either: its line is in the Overview's footer.
     expect(hero().querySelector("details")).toBeNull();
     expect(panel.querySelector("[data-part=ribbon], .ribbon-band, .right-now")).toBeNull();
