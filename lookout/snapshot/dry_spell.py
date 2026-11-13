@@ -9,8 +9,8 @@ gap never reads as dry. The 365-day window is judged by the rain day kind
 (`lookout.snapshot.days`); with it not comparable there is no usual dry
 spell.
 
-Computed once per build (`build.py`); the hero lead's calm rule, the feature
-and the widget view read the result.
+Computed once per build (`build.py`); the feature and the widget view read
+the result.
 
 Functions:
 - completed_dry_spells(days): Every completed dry spell in the 365-day window.
@@ -18,7 +18,7 @@ Functions:
 """
 
 from datetime import date
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
@@ -37,13 +37,12 @@ DIGITS = 2
 
 def completed_dry_spells(
     days: CountedDays,
-) -> Tuple[Optional[List[int]], Tuple[str, ...]]:
+) -> Optional[List[int]]:
     """
     Every completed dry spell in the 365-day rain window, in days.
 
     :param days: The counted days and the daily rain series.
-    :return: (spell lengths, or None when the window is invalid; its key when
-        comparable).
+    :return: The spell lengths, or None when the window is invalid.
     """
     status = days.rain.rolling(365, DRY_SPELL_WINDOW)
 
@@ -51,8 +50,7 @@ def completed_dry_spells(
         series = days.rain_days(date.fromisoformat(status.first_day), days.clock.today)
         return [int(length) for length in dry_spells(series)["days"]]
 
-    lengths = comparable(status, spells)
-    return lengths, ((status.key,) if lengths is not None else ())
+    return comparable(status, spells)
 
 
 def dry_spell(

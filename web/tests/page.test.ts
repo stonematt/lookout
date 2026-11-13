@@ -16,7 +16,6 @@ import {
   SALMON_MAC,
   golden,
   goldenCurveText,
-  goldenNext,
   oneStation,
   twoStations,
 } from "./golden.js";
@@ -509,8 +508,7 @@ describe("the station selector", () => {
 describe("a v4 snapshot (the refresh run after #480, no hero_lead)", () => {
   it("draws the Overview with no contract error", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const fetchImpl = (async () =>
-      Response.json(goldenNext("raining", "dashboard"))) as typeof fetch;
+    const fetchImpl = (async () => Response.json(golden("raining", "dashboard"))) as typeof fetch;
 
     await startPage(masthead, sections, {
       dashboard: () => fetchDashboard("", fetchImpl),
