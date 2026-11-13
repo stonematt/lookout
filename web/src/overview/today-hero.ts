@@ -389,7 +389,7 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   const slots = todaySlots(snapshot);
   const live = slots.find((s) => s.live && s.temperature !== null) ?? null;
   const narrow = width < NARROW;
-  const { height, plotH, plotBottom, rainTop } = frame(snapshot, width);
+  const { height, plotH, plotBottom, rainTop, labelY } = frame(snapshot, width);
   const left = LEFT;
   const right = width - RIGHT_PAD;
   const { svg, hatch } = canvas(width, height, todayChartName(snapshot), "today-svg");
@@ -506,7 +506,6 @@ function draw(host: HTMLElement, snapshot: DashboardSnapshot, width: number): vo
   svg.append(rain);
 
   // The times of day; the closing midnight once there is room for it.
-  const { labelY } = frame(snapshot, width);
   for (const [hour, text] of [
     ...[0, 6, 12, 18].map((h) => [h, hourText(h)]),
     ...(narrow ? [] : [[24, hourText(0)]]),
