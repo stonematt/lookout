@@ -271,6 +271,7 @@ a {
 .masthead-line:not([data-stale="true"]):has(> .masthead-age:not(:empty)) .masthead-when::after {
   content: "·";
   margin-left: var(--s-2);
+  color: var(--ink-3);
 }
 
 /* stale: past 15 minutes. The words say it; the hollow dot and a hatched

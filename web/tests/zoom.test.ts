@@ -241,6 +241,9 @@ describe("a zoom on the four-column grid", () => {
     const heading = zoom()!.querySelector<HTMLElement>(".zoom-heading")!;
     expect(document.activeElement).toBe(heading);
     expect(heading.hasAttribute("data-quiet")).toBe(true);
+    // A key pressed on the quiet heading gives it back its ring.
+    key(heading, "ArrowDown");
+    expect(heading.hasAttribute("data-quiet")).toBe(false);
 
     // Opened from the keyboard, the moved focus shows its ring.
     history.replaceState(null, "", "/#overview");

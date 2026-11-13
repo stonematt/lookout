@@ -191,15 +191,26 @@ function stateOf(panel: HTMLElement, zooms: readonly ZoomDefinition[]): ZoomStat
  * does after a key, so a zoom a link opens with no key pressed (a shared
  * link pasted into the open page) would show a ring nobody asked for.
  */
-let keyed = false;
+let lastInputWasKey = false;
+/** Whether the page listens for input yet: once for the page, not a panel. */
 let watching = false;
 
-/** Follow the reader's last input, once for the page. */
+/**
+ * Follow the reader's last input, once for the page. A key pressed while a
+ * quiet heading holds focus gives it back its ring.
+ */
 function watchInput(): void {
   if (watching) return;
   watching = true;
-  document.addEventListener("keydown", () => (keyed = true), true);
-  document.addEventListener("pointerdown", () => (keyed = false), true);
+  document.addEventListener(
+    "keydown",
+    () => {
+      lastInputWasKey = true;
+      document.querySelector(".zoom-heading[data-quiet]")?.removeAttribute("data-quiet");
+    },
+    true,
+  );
+  document.addEventListener("pointerdown", () => (lastInputWasKey = false), true);
 }
 
 /**
@@ -212,7 +223,7 @@ function watchInput(): void {
 function focusHeading(panel: HTMLElement): void {
   const heading = panel.querySelector<HTMLElement>(".zoom-heading");
   if (!heading) return;
-  heading.toggleAttribute("data-quiet", !keyed);
+  heading.toggleAttribute("data-quiet", !lastInputWasKey);
   heading.focus({ preventScroll: true });
 }
 

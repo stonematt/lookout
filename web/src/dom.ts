@@ -1,7 +1,7 @@
 /**
  * The element helpers the views build with: `make` for HTML, `spoken` and
- * `spokenRunOn` for screen-reader-only text, `svgEl` for SVG, and `escapeHtml` for any value
- * written into an HTML template.
+ * `spokenRunOn` for screen-reader-only text, `svgEl` for SVG, and
+ * `escapeHtml` for any value written into an HTML template.
  */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
