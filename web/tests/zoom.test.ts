@@ -231,6 +231,30 @@ describe("a zoom on the four-column grid", () => {
     expect(document.activeElement).toBe(tileLink());
   });
 
+  it("moves focus to the heading of a zoom a link opens, its ring only after a key", async () => {
+    await boot("#overview");
+    // A shared link pasted into the open page: no key pressed in it.
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    history.replaceState(null, "", "/#overview/temperature");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+
+    const heading = zoom()!.querySelector<HTMLElement>(".zoom-heading")!;
+    expect(document.activeElement).toBe(heading);
+    expect(heading.hasAttribute("data-quiet")).toBe(true);
+
+    // Opened from the keyboard, the moved focus shows its ring.
+    history.replaceState(null, "", "/#overview");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    key(tileLink(), "Enter");
+    tileLink().click();
+
+    const keyed = zoom()!.querySelector<HTMLElement>(".zoom-heading")!;
+    expect(document.activeElement).toBe(keyed);
+    expect(keyed.hasAttribute("data-quiet")).toBe(false);
+    const css = readFileSync(resolve(import.meta.dirname, "../src/overview/zoom.css"), "utf8");
+    expect(css).toMatch(/\.zoom-heading\[data-quiet\]:focus-visible \{\s*outline: none;/);
+  });
+
   it("sits under the tapped tile's row of four, the feature a row above it", async () => {
     // Lay the grid out as the four-column grid does: the now tile and the
     // feature a whole row each (prototype decision 23), then rows of four.
