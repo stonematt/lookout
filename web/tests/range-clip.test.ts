@@ -59,8 +59,8 @@ describe("the window range chart's value labels", () => {
       const svg = panel.querySelector("[data-part=periods-chart] svg")!;
       expect(Number(svg.getAttribute("width"))).toBe(width);
       const values = [...svg.querySelectorAll<SVGTextElement>(".tc-value")];
-      expect(values.map((v) => v.textContent)).toContain("≈ 102°");
-      expect(values.map((v) => v.textContent)).toContain("≈ −12°");
+      expect(values.map((v) => v.textContent)).toContain("≈\u00a0102°");
+      expect(values.map((v) => v.textContent)).toContain("≈\u00a0−12°");
 
       // The plot group's left edge is its translate; a phone has none.
       const plot = svg.querySelector("g[transform]")!;

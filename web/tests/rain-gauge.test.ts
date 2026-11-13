@@ -60,6 +60,13 @@ const column = (key: string) => gauge()!.querySelector<SVGGElement>(`g[data-wind
 const texts = (el: Element | null, cls: string) =>
   [...(el?.querySelectorAll(`text.${cls}`) ?? [])].map((t) => t.textContent);
 
+/** The seasoned golden with 0.12 in today, so its Today and yesterday panel draws. */
+function wetToday(): DashboardSnapshot {
+  const snapshot = parsed("seasoned");
+  snapshot.rain_tab.windows.find((w) => w.key === "today")!.total_in = 0.12;
+  return snapshot;
+}
+
 describe("the rain gauge on the seasoned golden", () => {
   it("is its own panel, next to the water year, and the zoom drops the window strip", async () => {
     await boot("#overview/rain", parsed("seasoned"));
@@ -69,7 +76,7 @@ describe("the rain gauge on the seasoned golden", () => {
   });
 
   it("draws three panels, each on one shared axis topped by its largest value", async () => {
-    await boot("#overview/rain", parsed("seasoned"));
+    await boot("#overview/rain", wetToday());
     expect(groups().map((g) => words(g.querySelector("text.gauge-head")))).toEqual([
       "Today and yesterday",
       "Last 7 and 30 days",
@@ -101,33 +108,48 @@ describe("the rain gauge on the seasoned golden", () => {
     expect(seven.querySelector("text.gauge-year.gauge-this")?.textContent).toBe("'26");
     expect(texts(seven, "gauge-total")).toEqual(["0.24"]);
 
-    // 30 days in 2024 is null: its label stays, its bar is a gap.
+    // 30 days in 2024 is null: its label stays, and it is marked missing,
+    // a hatched stub, never drawn like 2025's dry 0.00.
     const thirty = column("30d")!;
     expect(texts(thirty, "gauge-year")).toEqual(["'24", "'25", "'26"]);
     expect(thirty.querySelectorAll("rect.gauge-prior")).toHaveLength(1);
     expect(thirty.querySelector('rect.gauge-prior[data-year="2024"]')).toBeNull();
     expect(thirty.querySelector('rect.gauge-prior[data-year="2025"]')).not.toBeNull();
+    const missing = thirty.querySelector('rect.gauge-missing[data-year="2024"]');
+    expect(missing?.getAttribute("fill")).toMatch(/^url\(#/);
+    expect(thirty.querySelector('rect.gauge-missing[data-year="2025"]')).toBeNull();
   });
 
   it("draws Today and Yesterday as plain bars", async () => {
-    await boot("#overview/rain", parsed("seasoned"));
+    await boot("#overview/rain", wetToday());
     for (const key of ["today", "yesterday"]) {
       expect(column(key)!.querySelector("rect.gauge-prior, text.gauge-year")).toBeNull();
       expect(column(key)!.querySelectorAll("rect.gauge-bar")).toHaveLength(1);
     }
   });
 
-  it("keys the grey bars in one line", async () => {
+  it("folds Today and yesterday to one line when neither had rain", async () => {
+    await boot("#overview/rain", parsed("seasoned"));
+    expect(column("today")).toBeNull();
+    expect(column("yesterday")).toBeNull();
+    expect(groups().map((g) => words(g.querySelector("text.gauge-head")))).toEqual([
+      "Last 7 and 30 days",
+      "Last 90 days",
+    ]);
+    expect(words(gauge()!.querySelector("[data-part=quiet]"))).toBe("No rain today or yesterday.");
+  });
+
+  it("keys the grey bars, and the hatch when a year has no total, in one line", async () => {
     await boot("#overview/rain", parsed("seasoned"));
     expect(words(gauge()!.querySelector("[data-part=key]"))).toBe(
-      "Grey: the same window in earlier years",
+      "Grey: the same window in earlier years. Hatched: no total that year.",
     );
   });
 
   it("titles the finding with its window and the earlier years' numbers", async () => {
     await boot("#overview/rain", parsed("seasoned"));
     expect(words(gauge()!.querySelector("[data-part=finding]"))).toBe(
-      "0.44 in over the last 90 days, against ≈ 0.00 in (2025) over the same days",
+      "Last 90 days: 0.44 in, against ≈ 0.00 in (2025) over the same days",
     );
   });
 });
@@ -138,7 +160,14 @@ describe("the rain gauge on other goldens", () => {
     expect(groups()).toHaveLength(1);
     expect(texts(gauge(), "gauge-total")).toEqual(["0.30", "0.24"]);
     expect(gauge()!.querySelector("rect.gauge-prior, [data-part=key]")).toBeNull();
-    expect(words(gauge()!.querySelector("[data-part=finding]"))).toBe("0.24 in yesterday");
+    // Both days, today first: neither is the "longest" window.
+    expect(words(gauge()!.querySelector("[data-part=finding]"))).toBe(
+      "Today 0.30 in, yesterday 0.24 in",
+    );
+    // A panel drawn alone keeps a panel's width, its bars close.
+    const floor = groups()[0]!.querySelectorAll("line.gauge-axis")[1]!;
+    const span = Number(floor.getAttribute("x2")) - Number(floor.getAttribute("x1"));
+    expect(span).toBeLessThanOrEqual(360);
   });
 
   it("is left out when the record covers no window (dry)", async () => {
@@ -152,10 +181,8 @@ describe("the rain gauge on other goldens", () => {
     for (const row of snapshot.almanac!.rolling) row.years = row.years.slice(0, 1);
     await boot("#overview/rain", snapshot);
     expect(gauge()!.querySelector("rect.gauge-prior, text.gauge-year, [data-part=key]")).toBeNull();
-    expect(texts(gauge(), "gauge-total")).toEqual(["0.00", "0.00", "0.24", "0.44", "0.44"]);
-    expect(words(gauge()!.querySelector("[data-part=finding]"))).toBe(
-      "0.44 in over the last 90 days",
-    );
+    expect(texts(gauge(), "gauge-total")).toEqual(["0.24", "0.44", "0.44"]);
+    expect(words(gauge()!.querySelector("[data-part=finding]"))).toBe("Last 90 days: 0.44 in");
   });
 
   it("keeps the window strip on the Rain tab", async () => {

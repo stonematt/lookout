@@ -8,6 +8,6 @@ The hero is the now tile, the Overview's fixed top and the only tile on `now-sur
 - Where the live reading is ahead of the archive, a dotted line joins them.
 - Rain stands as quarter-hour bars in `ribbon-rain` on a track along the foot, heavier rain a taller bar, never over the band. A slot the archive cannot speak for is hatched in `ink-3`.
 - A snapshot with no band draws today's line and rain alone.
-- **Rain column**, only when rain today (the live total) or yesterday is above 0. On the grids, a third column opposite the temperature headed "Rain": two `ribbon-rain` bars, Today and Yesterday, on one scale, values on top, on the chart's x-axis line with names on its x-label line. On a phone, one line under the delta, "Rain today 0.30 in · yesterday 0.12 in". Dry, neither is drawn and the chart keeps the width.
+- **Rain column**, only when rain today (the live total) or yesterday is above 0. On the grids, a third column opposite the temperature headed "Rain": two `ribbon-rain` bars, Today and Yesterday, on one scale, values with their unit on top, on the chart's x-axis line with names on its x-label line. On a phone, one line under the delta, "Rain today 0.30 in · yesterday 0.12 in". A total not known yet reads "n/a" with no bar. Dry, neither is drawn and the chart keeps the width.
 
 Static rendition of `web/src/overview/first-screen.ts`, `today-hero.ts` and `first-screen.css`; the Rain column is `web/src/rain/hero-rain.ts` and `hero-rain.css`.
