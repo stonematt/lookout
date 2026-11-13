@@ -233,7 +233,7 @@ describe("the feature tile", () => {
     expect(() => parseDashboard({ ...base, feature })).toThrow(SnapshotContractError);
   });
 
-  it("draws an unusual reading: its value and its percentile at this hour", () => {
+  it("draws an unusual reading: its value and its side of usual at this hour", () => {
     const seasoned = parseDashboard(golden("seasoned", "dashboard"));
     draw(seasoned);
 
@@ -244,16 +244,16 @@ describe("the feature tile", () => {
     // The golden's reading sits at the 100th percentile: past every earlier
     // reading for this hour, which is said in words, never as "100th" (#563).
     expect(name).toBe(
-      "Temperature 72.0°, warmer than usual for 3 pm: highest for this hour on record. " +
+      "Temperature 72.0°. Warmer than usual for 3 pm: highest for this hour on record. " +
         "Open the temperature view.",
     );
     expect(link().getAttribute("href")).toBe("#overview/temperature");
   });
 
   it.each([
-    [100, "humidity", 99, "pct", "more humid than usual for 3 pm: highest for this hour on record"],
-    [0, "humidity", 22, "pct", "drier than usual for 3 pm: lowest for this hour on record"],
-    [0, "temperature", 31.0, "f", "cooler than usual for 3 pm: lowest for this hour on record"],
+    [100, "humidity", 99, "pct", "More humid than usual for 3 pm: highest for this hour on record"],
+    [0, "humidity", 22, "pct", "Drier than usual for 3 pm: lowest for this hour on record"],
+    [0, "temperature", 31.0, "f", "Cooler than usual for 3 pm: lowest for this hour on record"],
   ])(
     "words the %sth percentile as past every reading for this hour, never as a percentile",
     (percentile, reading, value, unit, finding) => {
@@ -267,34 +267,27 @@ describe("the feature tile", () => {
   it("names the reading's day when it is from before midnight", () => {
     // The dry golden is built at midnight from yesterday's 11:55 pm reading.
     draw(edited("dry", unusual("temperature", 31.0, "f", 4)));
-    expect(findingWords()).toBe(
-      "cooler than usual for 11 pm yesterday: the 4th percentile around this date in earlier years",
-    );
+    expect(findingWords()).toBe("Cooler than usual for 11 pm yesterday");
   });
 
+  // The voice pass (#595): each unusual reading, on each side of its usual
+  // range, says the reading and its side in plain words, never the
+  // percentile the snapshot decided it by; the method is the footer's.
   it.each([
-    // Each unusual reading opens its tile's zoom (#476, #477).
+    // reading, value, unit, percentile, shown, the spoken lead, finding, zoom
+    ["temperature", 64, "f", 96, "64.0°", "Temperature 64.0°", "Warmer than usual", "temperature"],
+    ["temperature", 41, "f", 4, "41.0°", "Temperature 41.0°", "Cooler than usual", "temperature"],
+    ["humidity", 91, "pct", 97, "91%", "Humidity 91%", "More humid than usual", "humidity"],
+    ["humidity", 22, "pct", 3, "22%", "Humidity 22%", "Drier than usual", "humidity"],
     [
-      "humidity",
-      22,
-      "pct",
-      3,
-      "22%",
-      "drier",
-      "3rd",
-      "#overview/humidity",
-      "Open the humidity view",
-    ],
-    [
-      "wind_gust",
-      31.5,
-      "mph",
-      98,
-      "31.5 mph",
-      "gustier",
-      "98th",
-      "#overview/wind",
-      "Open the wind view",
+      "pressure",
+      30.41,
+      "inhg",
+      95,
+      "30.41 inHg",
+      "30.41 inHg",
+      "Pressure higher than usual",
+      "pressure",
     ],
     [
       "pressure",
@@ -302,23 +295,25 @@ describe("the feature tile", () => {
       "inhg",
       1,
       "29.41 inHg",
-      "lower",
-      "1st",
-      "#overview/pressure",
-      "Open the pressure view",
+      "29.41 inHg",
+      "Pressure lower than usual",
+      "pressure",
     ],
-    ["solar", 140, "wm2", 2, "140 W/m²", "duller", "2nd", "#overview/sun", "Open the sun view"],
+    ["solar", 910, "wm2", 62, "910 W/m²", "Sun 910 W/m²", "Brighter than usual", "sun"],
+    ["solar", 140, "wm2", 2, "140 W/m²", "Sun 140 W/m²", "Duller than usual", "sun"],
+    // Wind gust is no longer judged (#533) but the site still reads it.
+    ["wind_gust", 31.5, "mph", 98, "31.5 mph", "Wind gust 31.5 mph", "Gustier than usual", "wind"],
+    ["wind_gust", 2.5, "mph", 5, "2.5 mph", "Wind gust 2.5 mph", "Calmer than usual", "wind"],
   ])(
-    "draws an unusual %s from a golden copy",
-    (reading, value, unit, percentile, shown, word, ordinal, href, open) => {
+    "words an unusual %s at %s on its side, with no percentile",
+    (reading, value, unit, percentile, shown, lead, side, zoom) => {
       draw(edited("seasoned", unusual(reading, value, unit, percentile)));
 
       expect(words(tile()!.querySelector("[data-part=value]"))).toBe(shown);
-      const name = linkName();
-      expect(name).toContain(`${shown}, ${word} than usual for `);
-      expect(name).toContain(`the ${ordinal} percentile`);
-      expect(name.endsWith(`. ${open}.`)).toBe(true);
-      expect(link().getAttribute("href")).toBe(href);
+      expect(findingWords()).toBe(`${side} for 3 pm`);
+      expect(linkName()).toBe(`${lead}. ${side} for 3 pm. Open the ${zoom} view.`);
+      expect(link().getAttribute("href")).toBe(`#overview/${zoom}`);
+      expect(`${tile()!.textContent} ${linkName()}`).not.toMatch(/percentile|\b\d+(st|nd|rd|th)\b/);
     },
   );
 
