@@ -389,12 +389,6 @@ export const tenDaysTile: MosaicTile = {
 
 // ---------- Dry spell ----------
 
-/** The current dry spell and the usual one, in days: the Rain tab's numbers. */
-function drySpellDays(snapshot: DashboardSnapshot): { since: number | null; usual: number | null } {
-  const spell = drySpellNow(snapshot);
-  return { since: spell.days_since_rain, usual: spell.usual_days };
-}
-
 /**
  * A day's square: a rain day by the Rain tab's own threshold (`WET_DAY_IN`),
  * else dry. One rain colour, with no second table of daily steps.
@@ -456,7 +450,8 @@ export const drySpellTile: MosaicTile = {
   title: "Dry spell",
   zoomName: "dry spell",
   read(snapshot) {
-    const { since, usual } = drySpellDays(snapshot);
+    // The Rain tab's numbers: the dashboard's dry spell.
+    const { days_since_rain: since, usual_days: usual } = drySpellNow(snapshot);
     if (since === null) return { value: null, delta: "no last rain on record" };
     return {
       value: formatDays(since),

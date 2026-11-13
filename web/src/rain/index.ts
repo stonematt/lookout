@@ -193,7 +193,7 @@ export function renderDry(
       "How long it has been since it last rained, against the dry spells of the last 365 days, and the longest in the record.",
       "The station archive's daily totals; the last rain is the station's own record.",
       `A rain day has at least ${WET_DAY_IN} in. Spells with a day missing from the record are left out, so a missing day is never read as dry.`,
-      "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's calm lead makes.",
+      "The usual dry spell is the median completed spell in the last 365 days, the same comparison the Overview's Dry spell tile makes.",
     ],
     gapReasons([[strip.querySelectorAll("dd.gap-hatch").length, "figure", "figures"]]),
   );
