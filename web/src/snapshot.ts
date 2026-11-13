@@ -413,6 +413,30 @@ export interface RainTab {
   day_index: number;
   /** Oldest first. */
   water_years: WaterYearCurve[];
+  /**
+   * This water year's rain to date against the usual rain to date (#539);
+   * null when no earlier water year has a value at `day_index`. Absent from
+   * a snapshot written before Release A3 (ADR-0008).
+   */
+  usual_to_date?: UsualToDate | null;
+}
+
+/** This water year's rain to date against the usual (`UsualToDate`, #539). */
+export interface UsualToDate {
+  /** The usual rain by this date: the median over the earlier water years. */
+  usual_in: number;
+  /** How many earlier water years the usual rests on; at least 1. */
+  years: number;
+  /** This year's rain to date as a whole percent of the usual; null when unknown. */
+  percent: number | null;
+}
+
+/** The last ten days' highs against their usual highs (`TenDayHighs`, #540). */
+export interface TenDayHighs {
+  /** Mean high minus mean usual high over the paired days, whole degrees F. */
+  delta_f: number;
+  /** How many days it is over: 1 to 10. */
+  days: number;
 }
 
 /** One window's range bar: low, middle half and high of its readings. */
@@ -480,6 +504,11 @@ export interface TemperatureContext {
    * one more range-bar row. Absent from a snapshot written before Release A.
    */
   full_history?: TemperaturePeriod | null;
+  /**
+   * The ten-day list's highs against their usual highs (#540); null when no
+   * day has both. Absent from a snapshot written before Release A3.
+   */
+  ten_day_highs?: TenDayHighs | null;
 }
 
 /**
@@ -745,6 +774,131 @@ export interface DashboardSnapshot extends SnapshotHead {
    * Release A; the site then draws today's view.
    */
   record_depth?: RecordDepth;
+  /**
+   * Each indoor sensor still reporting, the console first, then by number;
+   * empty when the station has none (#466). Absent from snapshots published
+   * before Release A, which the site reads as none (ADR-0008).
+   */
+  indoor?: IndoorSensor[];
+  /**
+   * Where the wind comes from over 24 hours, 7 days and 30 days (#465).
+   * Absent from snapshots published before Release A; the wind zoom then
+   * draws no rose (ADR-0008).
+   */
+  wind_rose?: WindRose;
+  /**
+   * The outdoor pressure and humidity over the last 24 hours, hourly (#554);
+   * null without an observation. Absent from snapshots published before
+   * Release A3; the Pressure and Humidity tiles then draw no chart.
+   */
+  outdoor_trace?: OutdoorTrace | null;
+}
+
+/**
+ * One of the wind rose's 16 direction bins (#465). Directions are where the
+ * wind blows from, in degrees clockwise from north.
+ */
+export interface WindBin {
+  /** Its compass point: "N", "NNE", ... "NNW". */
+  direction: string;
+  /** Its centre: 0, 22.5, ... 337.5. */
+  centre_deg: number;
+  /** Its first degree, inclusive (348.75 for N). */
+  from_deg: number;
+  /** Its last degree, exclusive (11.25 for N). */
+  to_deg: number;
+  /** How many readings that were not calm came from it. */
+  readings: number;
+  /** Their average wind speed, mph; null with no readings. */
+  average_mph: number | null;
+  /** Their highest gust, mph; null with none. */
+  gust_mph: number | null;
+}
+
+/** One of the wind rose's 8 compass points (#465): 45° centred on it. */
+export interface WindPoint {
+  /** "N", "NE", ... "NW". */
+  direction: string;
+  /** Its centre: 0, 45, ... 315. */
+  centre_deg: number;
+  /** How many readings that were not calm came from it. */
+  readings: number;
+  /**
+   * Their share of the window's readings that were not calm, a whole
+   * percent; null when there are none or the window is invalid.
+   */
+  share_pct: number | null;
+}
+
+/**
+ * The wind rose over one window back from the build time (#465). A reading
+ * is calm when its speed is under `WindRose.calm_below_mph` or it has no
+ * direction; calm readings are left out of the bins and points.
+ */
+export interface WindRoseWindow {
+  /** "24h", "7d" or "30d". Find a window by this, not by `status.key`. */
+  key: string;
+  /** Its span in hours back from the build time. */
+  hours: number;
+  /** Its gap status, keyed "wind_" + `key`; every value is null when invalid. */
+  status: GapStatus;
+  /** How many readings with a wind speed it holds. */
+  readings: number;
+  /** How many of them are calm. */
+  calm_readings: number;
+  /** The calm share of `readings`, a whole percent; null with no readings. */
+  calm_pct: number | null;
+  /** The 16 direction bins, clockwise from N. */
+  bins: WindBin[];
+  /** The 8 compass points, clockwise from N. */
+  points: WindPoint[];
+}
+
+/** Where the wind comes from, over 24 hours, 7 days and 30 days (#465). */
+export interface WindRose {
+  /** A reading under this speed (mph) is calm. */
+  calm_below_mph: number;
+  /** The windows, shortest first. */
+  windows: WindRoseWindow[];
+}
+
+/** An indoor sensor's last 24 hours as hourly means (#466). */
+export interface IndoorTrace {
+  /** When the first slot starts. */
+  start_ms: number;
+  /** Each slot's length: 60. */
+  slot_minutes: number;
+  /** The mean temperature in each slot; null for a slot with no reading. */
+  temperature_f: (number | null)[];
+}
+
+/**
+ * The outdoor pressure and humidity over the last 24 hours, hourly (#554), in
+ * the indoor traces' slots: slot `i` starts `i * slot_minutes` after `start_ms`.
+ */
+export interface OutdoorTrace {
+  start_ms: number;
+  slot_minutes: number;
+  /** The mean relative pressure in each slot; null for a slot with no reading. */
+  pressure_inhg: (number | null)[];
+  /** The mean outdoor humidity in each slot; null for a slot with no reading. */
+  humidity_pct: (number | null)[];
+}
+
+/** One indoor sensor still reporting (#466): the console or a numbered one. */
+export interface IndoorSensor {
+  /** "in" for the console, else the sensor's number as text ("1"). */
+  key: string;
+  /** The name the site prints: "Console", "Sensor 1", ... */
+  name: string;
+  /** Its newest temperature in the last 24 hours. */
+  temperature_f: number;
+  /** Its newest humidity; null when it reports none. */
+  humidity_pct: number | null;
+  /** When its newest temperature was read. */
+  observed_at_ms: number;
+  /** Its last 24 hours, hourly. */
+  trace: IndoorTrace;
 }
 
 /** One sensor's battery: its Ambient column, the name printed, and whether it reads low. */
@@ -888,9 +1042,12 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkSunMoon(sun_moon);
   const stale_catalogs = checkStaleCatalogs(head.stale_catalogs);
   checkBatteryFlags(head.battery_flags);
+  checkIndoor(head.indoor);
   checkFeature(head.feature);
   checkDrySpell(head.dry_spell);
   checkRecordDepth(head.record_depth);
+  checkWindRose(head.wind_rose);
+  checkOutdoorTrace(head.outdoor_trace);
   return { ...head, sun_moon, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -908,6 +1065,50 @@ function checkBatteryFlags(list: unknown): void {
     )
   ) {
     throw new SnapshotContractError("dashboard: battery_flags malformed");
+  }
+}
+
+/**
+ * `indoor` may be absent (N-1); present, each sensor has its key, name,
+ * reading, humidity (a number or null), the time it was read and a trace.
+ */
+function checkIndoor(list: unknown): void {
+  if (list === undefined) return;
+  if (
+    !Array.isArray(list) ||
+    !list.every(
+      (s) =>
+        isRecord(s) &&
+        typeof s.key === "string" &&
+        typeof s.name === "string" &&
+        typeof s.temperature_f === "number" &&
+        (s.humidity_pct === null || typeof s.humidity_pct === "number") &&
+        isTime(s.observed_at_ms) &&
+        isRecord(s.trace) &&
+        Array.isArray(s.trace.temperature_f),
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: indoor malformed");
+  }
+}
+
+/**
+ * `outdoor_trace` may be absent (N−1) or null; present, it holds two
+ * parallel series of numbers or nulls.
+ */
+function checkOutdoorTrace(trace: unknown): void {
+  if (trace === undefined || trace === null) return;
+  const series = (v: unknown): v is unknown[] =>
+    Array.isArray(v) && v.every((x) => x === null || typeof x === "number");
+  if (
+    !isRecord(trace) ||
+    !isTime(trace.start_ms) ||
+    typeof trace.slot_minutes !== "number" ||
+    !series(trace.pressure_inhg) ||
+    !series(trace.humidity_pct) ||
+    trace.pressure_inhg.length !== trace.humidity_pct.length
+  ) {
+    throw new SnapshotContractError("dashboard: outdoor_trace malformed");
   }
 }
 
@@ -1004,6 +1205,20 @@ function checkRainTab(tab: unknown): void {
   if (!Number.isInteger(toCome) || (toCome as number) < 0 || (toCome as number) > 24) {
     throw new SnapshotContractError("dashboard: rain_tab.recent.first_hour_to_come not an hour");
   }
+  // Release A3's usual to date (#539) may be absent (N−1) or null.
+  const usual = tab.usual_to_date;
+  if (
+    usual !== undefined &&
+    usual !== null &&
+    !(
+      isRecord(usual) &&
+      typeof usual.usual_in === "number" &&
+      typeof usual.years === "number" &&
+      (usual.percent === null || typeof usual.percent === "number")
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: rain_tab.usual_to_date malformed");
+  }
 }
 
 function checkAlmanac(almanac: unknown): void {
@@ -1043,6 +1258,15 @@ function checkTemperature(context: unknown): void {
   }
   checkUsualBand(context.usual_band);
   checkFullHistory(context.full_history);
+  // Release A3's ten-day highs (#540) may be absent (N−1) or null.
+  const highs = context.ten_day_highs;
+  if (
+    highs !== undefined &&
+    highs !== null &&
+    !(isRecord(highs) && typeof highs.delta_f === "number" && typeof highs.days === "number")
+  ) {
+    throw new SnapshotContractError("dashboard: temperature_context.ten_day_highs malformed");
+  }
 }
 
 // ---------- the usual band (#462, drawn by the Overview hero, #468) ----------
@@ -1162,6 +1386,11 @@ export interface Feature {
    */
   percentile: number | null;
   /**
+   * For "rain", the `start_ms` of the event the rule held on, the key of its
+   * `rain_events` row (#523); null for every other kind. Absent before A3.
+   */
+  event_start_ms?: number | null;
+  /**
    * When this subject was first chosen (Release A3's 3-hour hold, #533); absent
    * in a snapshot written before A3.
    */
@@ -1214,6 +1443,9 @@ function checkFeature(feature: unknown): void {
         feature.unit === null &&
         feature.percentile === null) &&
     // The hold's fields (Release A3) may be absent, from a snapshot before it.
+    (feature.event_start_ms === undefined ||
+      feature.event_start_ms === null ||
+      isTime(feature.event_start_ms)) &&
     (feature.since_ms === undefined || typeof feature.since_ms === "number") &&
     (feature.held === undefined || typeof feature.held === "boolean") &&
     (feature.outside_usual === undefined ||
@@ -1399,6 +1631,42 @@ function checkRecordDepth(depth: unknown): void {
     !(next === null || (isRecord(next) && typeof next.key === "string" && isDay(next.date)))
   ) {
     throw new SnapshotContractError("dashboard: record_depth malformed");
+  }
+}
+
+/**
+ * Check `wind_rose`: absent (N−1) is fine; present, each window has its
+ * key, its gap status, its counts and its bin and point lists.
+ */
+function checkWindRose(rose: unknown): void {
+  if (rose === undefined) return;
+  if (
+    !isRecord(rose) ||
+    typeof rose.calm_below_mph !== "number" ||
+    !Array.isArray(rose.windows) ||
+    !rose.windows.every(
+      (w) =>
+        isRecord(w) &&
+        typeof w.key === "string" &&
+        typeof w.hours === "number" &&
+        isRecord(w.status) &&
+        typeof w.readings === "number" &&
+        (w.calm_pct === null || typeof w.calm_pct === "number") &&
+        Array.isArray(w.bins) &&
+        w.bins.every(
+          (b) =>
+            isRecord(b) &&
+            typeof b.direction === "string" &&
+            typeof b.centre_deg === "number" &&
+            typeof b.readings === "number",
+        ) &&
+        Array.isArray(w.points) &&
+        w.points.every(
+          (p) => isRecord(p) && typeof p.direction === "string" && typeof p.readings === "number",
+        ),
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: wind_rose malformed");
   }
 }
 

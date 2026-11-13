@@ -1,60 +1,60 @@
 /**
- * The Overview tab: a grid of tiles (spec #332, DESIGN.md "Layout"). The now
- * tile and the feature tile first, the phone's fixed top; then temperature
- * across periods, now against this date, the last ten days, the rain almanac
- * and the rolling-window rain table, then the quick facts (wind, pressure,
- * air). In the four-column grid the now tile takes the first row, the
- * feature the second, temperature in context the third, now against this
- * date and the last ten days half the fourth each, the almanac three columns
- * beside the rolling windows, and the quick facts a row of one-column tiles
- * whose fourth cell is sun and moon's. On a phone the quick facts sit after
- * the finding rows, two to a row. A snapshot without a feature (published
- * before Release A, ADR-0008) draws no feature tile.
+ * The Overview tab (spec #460): the now tile, the feature tile, then the
+ * mosaic's ten tiles (#472, #473).
  *
- * History grows (#470): rows the record does not cover are not drawn, one
- * line under the window chart names the next unlock, and the rolling-window
- * rain tile is not drawn while the record covers none of its windows.
+ * Layout, the same order on every width (DESIGN.md "Layout", README
+ * decision 10): on a phone the now tile and the feature take the full
+ * width and the mosaic sits two to a row; on the four-column grid the now
+ * tile takes the first row, the feature the whole second (prototype
+ * decision 23, as Release B1 shipped it, #545), and the mosaic follows in
+ * rows of four, one column a tile, in the phone's order (Daylight and
+ * Inside alone on the last row). The Overview has no finding rows: the
+ * accordion is gone (the Rain, Solar and Rain events tabs keep theirs).
  *
- * Each tile or finding row carries the id `overview-<section>`, which the
- * feature tile's link reaches while the Overview has no zooms (Release B1).
+ * A section the snapshot does not draw (`TileSection.shown`) is skipped and
+ * the later ones move up: the feature without a `feature` (a snapshot
+ * published before Release A, ADR-0008), a mosaic tile the record does not
+ * cover yet (`record_depth.tiles`, #470), Inside on a station with no
+ * indoor sensor, Daylight on one with no location.
  *
- * A section is a module under `web/src/overview/` exporting an
- * `OverviewSection` (a `TileSection`, `web/src/tiles.ts`): its id, label,
- * kicker, span, whether it is in the phone's fixed top, and its render. To
- * add one, import it here and add it to `SECTIONS` at its place: one import
- * line and one list line. Each section renders into its own tile, already
- * attached to the page and holding its kicker, so a chart can measure its
- * width when it draws.
+ * No Overview tile folds a source (prototype decision 22): under the grid,
+ * one sources footer (`sources.ts`) lists each drawn section's `source`.
  *
- * Release 1 of the Mosaic Overview (#458): no Overview tile carries a
- * standfirst or an archive lag chip (the header states freshness once), and
- * each tile's accessible name is its finding.
+ * Each tile carries the id `overview-<section>`, which the feature tile's
+ * link reaches. No tile carries an accessible name of its own (#472): each
+ * tile's content names it, so a screen reader hears its finding once.
+ *
+ * A section is an `OverviewSection` (a `TileSection`, `web/src/tiles.ts`).
+ * A mosaic tile is a `MosaicTile` definition in `mosaic-tiles.ts`, drawn by
+ * `mosaicSection` (`mosaic.ts`): to add one, add its definition to
+ * `MOSAIC_TILES` at its place.
+ *
+ * The sections that left the Overview with the accordion (temperature across
+ * periods, now against this date, the ten-day list, the almanac and the
+ * rolling-window rain) stay in their modules as the zooms' content.
+ *
+ * Each tile's link opens its zoom at `#overview/<slug>` (#474): after every
+ * render the zoom shell (`zoom.ts`) draws the zoom the route names, from
+ * the registry in `zooms/index.ts`.
  */
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSection } from "../tiles.js";
 import { renderTiles } from "../tiles.js";
-import { almanacGrid, rollingHasRows, rollingRain } from "./almanac.js";
-import { firstScreen } from "./first-screen.js";
 import { featureTile } from "./feature.js";
-import { airFact, pressureFact, sunMoonFact, windFact } from "./quick-facts.js";
-import { againstNormal, temperaturePeriods, tenDays } from "./temperature.js";
+import { firstScreen } from "./first-screen.js";
+import { mosaicSection } from "./mosaic.js";
+import { MOSAIC_TILES } from "./mosaic-tiles.js";
+import { sourcesFooter } from "./sources.js";
+import { drawZoom } from "./zoom.js";
 
 /** One tile of the Overview. */
 export type OverviewSection = TileSection;
 
-/** The Overview's sections, in the board's order. */
+/** The Overview's sections, in the mosaic's fixed order. */
 export const SECTIONS: readonly OverviewSection[] = [
-  firstScreen, // #78 the now tile
-  featureTile, // #469 the feature tile, in place of What leads
-  temperaturePeriods, // #81 temperature across periods
-  againstNormal, // #81 "now against normal" strips
-  tenDays, // #81 the 10-day high-low list
-  almanacGrid, // #82 the almanac grid
-  rollingRain, // #82 the rolling-window rain table
-  windFact, // #340 the quick facts: one-column tiles, the phone's 2×2
-  pressureFact, // #340
-  airFact, // #340
-  sunMoonFact, // #341
+  firstScreen, // #468 the now tile
+  featureTile, // #469 the feature tile
+  ...MOSAIC_TILES.map(mosaicSection), // #472, #473 the ten tiles
 ];
 
 /**
@@ -69,23 +69,12 @@ export function renderOverview(
   snapshot: DashboardSnapshot,
   sections: readonly OverviewSection[] = SECTIONS,
 ): void {
-  // On a phone the finding rows sit under "In context" (DESIGN.md). Each
-  // tile is named by its finding, for screen readers (#458).
-  const hiddenSections = new Set<OverviewSection>();
-  if (!snapshot.feature) hiddenSections.add(featureTile);
-  if (!rollingHasRows(snapshot)) hiddenSections.add(rollingRain);
-  // The almanac takes the columns of the rolling tile when that one is not
-  // drawn, so its four-column row stays whole. The feature and the
-  // temperature periods each fill a row, so the feature leaves no hole.
-  const widened = (s: OverviewSection) => s === almanacGrid && hiddenSections.has(rollingRain);
-  const shown = sections
-    .filter((s) => !hiddenSections.has(s))
-    .map((s) => (widened(s) ? { ...s, span: 4 as const } : s));
-  const grid = renderTiles(panel, snapshot, shown, {
-    rowsHeading: "In context",
-    nameByFinding: true,
-  });
+  const grid = renderTiles(panel, snapshot, sections, { unnamed: true });
+  grid.classList.add("mosaic-grid");
   for (const tile of grid.querySelectorAll<HTMLElement>("[data-section]")) {
     tile.id = `overview-${tile.dataset.section}`;
   }
+  const footer = sourcesFooter(snapshot, sections);
+  if (footer) panel.append(footer);
+  drawZoom(panel, snapshot);
 }

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 
-import { renderDump, renderTree, stationPicker } from "../src/debug.js";
+import { renderDump, renderRelease, renderTree, stationPicker } from "../src/debug.js";
+import { SITE_RELEASE } from "../src/release.js";
 import { FIXTURE_MAC, SALMON_MAC, oneStation, twoStations } from "./golden.js";
 
 const BODY = {
@@ -74,6 +75,59 @@ describe("stationPicker", () => {
     const [header] = renderDump("/current", 200, JSON.stringify(BODY), twoStations());
     const select = header!.querySelector("h1 select")!;
     expect((select as HTMLSelectElement).value).toBe(FIXTURE_MAC);
+  });
+});
+
+describe("renderRelease", () => {
+  const SITE = { version: "2026.11.12", sha: "93e95b8" };
+  const status = (version: string, sha: string | null) =>
+    JSON.stringify({ kind: "status", version, sha, outcome: "ok" });
+  const spans = (line: HTMLElement) => [...line.children].map((s) => s.textContent);
+
+  it("sets the site's version and SHA beside the refresh run's", () => {
+    const line = renderRelease(status("2026.11.12", "93e95b8a0c1d2e3f4a5b"), SITE);
+    expect(spans(line)).toEqual(["Site 2026.11.12 · 93e95b8", "Refresh run 2026.11.12 · 93e95b8"]);
+    expect(line.dataset.match).toBe("true");
+  });
+
+  it("says the two differ when the versions do", () => {
+    const line = renderRelease(status("2026.11.1", "93e95b8a0c1d2e3f4a5b"), SITE);
+    expect(spans(line)).toEqual([
+      "Site 2026.11.12 · 93e95b8",
+      "Refresh run 2026.11.1 · 93e95b8",
+      "differ",
+    ]);
+    expect(line.dataset.match).toBe("false");
+  });
+
+  it("says the two differ when the SHAs do", () => {
+    const line = renderRelease(status("2026.11.12", "0123456789abcdef"), SITE);
+    expect(line.dataset.match).toBe("false");
+  });
+
+  it("compares versions only for a local build or a run that cannot tell its SHA", () => {
+    const local = renderRelease(status("2026.11.12", "0123456789abcdef"), {
+      ...SITE,
+      sha: "local",
+    });
+    expect(local.dataset.match).toBe("true");
+    const noSha = renderRelease(status("2026.11.12", null), SITE);
+    expect(spans(noSha)[1]).toBe("Refresh run 2026.11.12 · unknown");
+    expect(noSha.dataset.match).toBe("true");
+  });
+
+  it("still shows the site's release when the status cannot be read", () => {
+    for (const text of [null, "Bad Gateway", JSON.stringify({ error: "x" })]) {
+      const line = renderRelease(text, SITE);
+      expect(spans(line)).toEqual(["Site 2026.11.12 · 93e95b8", "Refresh run unknown"]);
+      expect(line.dataset.match).toBe("unknown");
+    }
+  });
+
+  it("shows this build's release by default", () => {
+    expect(renderRelease(null).textContent).toBe(
+      `Site ${SITE_RELEASE.version} · local` + "Refresh run unknown",
+    );
   });
 });
 

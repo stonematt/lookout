@@ -177,8 +177,8 @@
 }
 
 /* ---------- a stat strip beside its chart ---------- */
-/* on the four-column grid a tile's window strip stands beside its daily
-   bars (the Rain and Solar boards); stacked, strip above bars, below it */
+/* on the four-column grid the Solar tab's window strip stands beside its
+   daily bars (the Solar board); stacked, strip above bars, below it */
 :root[data-layout="four"] .tile-split {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr);
@@ -206,12 +206,7 @@
   padding-block: var(--s-1);
 }
 
-.tile-rows-heading {
-  margin: var(--s-2) 0 var(--s-1);
-}
-
-.tile-row + .tile-row,
-.tile-rows-heading + .tile-row {
+.tile-row + .tile-row {
   border-top: 1px solid var(--rule);
 }
 
@@ -276,14 +271,14 @@
   padding-bottom: var(--s-4);
 }
 
-/* ---------- phone: quick facts ---------- */
-/* DESIGN.md "Quick-fact tiles": on a phone the quick-fact tiles sit two to
-   a row (a 2×2 with sun and moon); every other tile keeps the full width */
+/* ---------- phone: half-width tiles ---------- */
+/* The mosaic (#472, #473): on a phone the mosaic tiles sit two to a row;
+   every other tile keeps the full width */
 :root:not([data-layout="two"], [data-layout="four"]) .tile-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-fact]) {
+:root:not([data-layout="two"], [data-layout="four"]) .tile-grid > :not([data-mosaic]) {
   grid-column: 1 / -1;
 }
 
@@ -309,4 +304,10 @@
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/* screen-reader-only words that run on from visible text (`spokenRunOn`):
+   inline and zero-sized, so no space comes before their comma or stop */
+.ov-sr-run {
+  font-size: 0;
 }

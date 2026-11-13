@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { LABEL_CHAR_PX } from "../src/charts/svg.js";
 import { renderOverview } from "../src/overview/index.js";
+import { temperaturePeriods } from "../src/overview/temperature.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
 
@@ -52,7 +53,8 @@ describe("the window range chart's value labels", () => {
     "stay inside a %ipx SVG with 102° and −12° at the ends",
     (width) => {
       widthOf = width;
-      renderOverview(panel, parseDashboard(wide()));
+      // The temperature zoom's window chart, drawn alone as the zoom draws it.
+      renderOverview(panel, parseDashboard(wide()), [temperaturePeriods]);
 
       const svg = panel.querySelector("[data-part=periods-chart] svg")!;
       expect(Number(svg.getAttribute("width"))).toBe(width);

@@ -1,0 +1,208 @@
+/*
+ * The zoom shell (#474, spec #460; boards Zoom, ZoomDark, Desktop). Every
+ * zoom draws in it; a zoom's own file draws only its panels' content.
+ *
+ * - phone (`data-mode="screen"`): the zoom takes the Overview's place. The
+ *   mosaic, the sources footer and the bottom tab bar step aside while it
+ *   is open (`.panel[data-zoomed]`, `:root[data-zoom-screen]`); the header
+ *   stays. "‹ Overview" leads, then the head, then the panels one under
+ *   the other.
+ * - two and four columns (`data-mode="row"`): a full-width tile in the
+ *   grid, under the tapped tile's row, Close at its top right, the panels
+ *   two by two (`.zoom-panels`); a `[data-wide]` panel takes the row.
+ *
+ * It opens with a short fade and rise, only under
+ * `prefers-reduced-motion: no-preference`.
+ */
+
+.zoom {
+  --surface: var(--tile);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface);
+}
+
+.zoom[data-mode="row"] {
+  grid-column: 1 / -1;
+  padding: var(--tile-pad);
+  border-radius: var(--r-tile);
+}
+
+.zoom[data-mode="screen"] {
+  padding: var(--tile-pad-phone);
+  border-radius: var(--r-tile-phone);
+}
+
+/* while a phone zoom has the screen, the Overview it covers steps aside */
+.panel[data-zoomed] > .tile-grid,
+.panel[data-zoomed] > .ov-sources,
+:root[data-zoom-screen] .tabs {
+  display: none;
+}
+
+/* the one animation, only for a visitor who has not asked for less motion */
+@media (prefers-reduced-motion: no-preference) {
+  .zoom {
+    animation: zoom-open 180ms ease-out;
+  }
+}
+
+@keyframes zoom-open {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- the bar: Back on a phone, Close on the grids ---------- */
+.zoom-bar {
+  /* a button's least height (DESIGN.md "Chips and buttons") */
+  --zoom-button: 44px;
+  display: flex;
+  margin-bottom: var(--s-2);
+}
+
+/* Close floats at the top right, beside the heading, not over a row of its own */
+.zoom[data-mode="row"] .zoom-bar {
+  justify-content: flex-end;
+  margin-bottom: calc(var(--s-1) - var(--zoom-button));
+}
+
+.zoom-back,
+.zoom-close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--zoom-button);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* the board's "‹ Overview": a plain link-like button at the screen's top */
+.zoom-back {
+  margin-left: calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  font-size: var(--type-finding);
+  color: var(--ink);
+}
+
+/* Close: a pill in `rule-strong` (DESIGN.md "Chips and buttons") */
+.zoom-close {
+  position: relative;
+  z-index: 1;
+  padding: 0 var(--s-4);
+  font-size: var(--type-standfirst);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.zoom-back:hover,
+.zoom-close:hover {
+  color: var(--ink-2);
+}
+
+.zoom-glyph {
+  font-size: 1.25em;
+  line-height: 1;
+}
+
+/* ---------- the head: heading, number, delta ---------- */
+.zoom-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-bottom: var(--s-5);
+}
+
+.zoom-heading {
+  /* as wide as its words, so its focus ring stays clear of Close */
+  align-self: flex-start;
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.zoom-heading:focus {
+  outline: none;
+}
+
+.zoom-heading:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* focus a script moved with no key pressed (a shared link): no ring */
+.zoom-heading[data-quiet]:focus-visible {
+  outline: none;
+}
+
+.zoom-value {
+  font-size: var(--type-display);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.zoom-unit {
+  font-size: var(--type-stat);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.zoom-delta {
+  font-size: var(--type-finding);
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* ---------- the panels: two by two on the grids ---------- */
+.zoom-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-6);
+}
+
+/* two by two on the four-column grid; one under the other on two columns,
+   where half a row is too narrow for a chart's label column */
+:root[data-layout="four"] .zoom[data-mode="row"] .zoom-panels {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:root[data-layout="four"] .zoom[data-mode="row"] .zoom-panel[data-wide] {
+  grid-column: 1 / -1;
+}
+
+.zoom-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* a rule between panels one under the other, as the board draws */
+:root:not([data-layout="four"]) .zoom .zoom-panel + .zoom-panel {
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--rule);
+}
+
+.zoom-panel-title {
+  margin-bottom: var(--s-2);
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+}

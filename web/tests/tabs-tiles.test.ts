@@ -72,7 +72,7 @@ function chips(tab: string): Record<string, string[]> {
 
 /** The tabs, their sections in the desktop board's order, and the phone top. */
 const TABS = {
-  rain: { sections: ["daily", "years", "dry", "hours"], top: ["daily"] },
+  rain: { sections: ["years", "daily", "dry", "hours"], top: ["years"] },
   solar: { sections: ["now", "daily", "day", "heatmaps"], top: ["now"] },
   events: { sections: ["catalog", "events"], top: ["catalog"] },
 } as const;
@@ -130,7 +130,7 @@ describe.each(SCENARIOS)("the %s golden's other tabs", (scenario) => {
     },
   );
 
-  it.each(Object.keys(TABS) as (keyof typeof TABS)[])(
+  it.each(["solar", "events"] as const)(
     "names the archive lag on every %s tile, the golden lagging past 15 minutes",
     async (tab) => {
       const snapshot = parsed(scenario);
@@ -152,8 +152,8 @@ describe("the gap chip on these tabs", () => {
     await boot(level(parsed("dry")), "rain", "solar", "events");
 
     expect(chips("rain")).toEqual({
-      daily: ["7 windows, 2 days not compared"],
-      years: ["1 water year not compared"],
+      years: ["1 water year, 2 windows not compared"],
+      daily: ["2 days not compared"],
       dry: ["3 figures not compared"],
       hours: ["2 days not compared"],
     });
@@ -241,7 +241,7 @@ describe("one number wherever it appears (story 53)", () => {
     const feature = panel("overview").querySelector("[data-section=feature] a");
 
     expect(since).toBe("1 d 14 h");
-    expect(feature?.getAttribute("aria-label")).toContain("About 39 hours since it last rained");
+    expect(feature?.textContent).toContain("About 39 hours since it last rained");
   });
 
   it("names the catalog's wettest event with the catalog's own total", async () => {

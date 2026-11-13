@@ -11,6 +11,7 @@
  */
 import { dayText, formatDayCount, formatDaysSpoken, hourText, inches } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
+import { isShown } from "../overview/history.js";
 import type {
   DashboardSnapshot,
   GapStatus,
@@ -202,15 +203,26 @@ export function yearsHeadline(tab: RainTab): string {
   const name = `Water year ${current.water_year}`;
   const value = toDate(tab, current);
   if (value === null) return `${name} cannot be compared yet`;
-  const earlier = tab.water_years
-    .slice(0, -1)
-    .reverse()
-    .map((curve) => ({ year: curve.water_year, text: toDate(tab, curve) }))
-    .filter((item): item is { year: number; text: string } => item.text !== null);
+  const earlier = earlierToDate(tab);
   const lead = `${name} has ${value} of rain since Oct 1`;
   if (!earlier.length) return lead;
   const named = earlier.slice(0, NAMED_YEARS).map((item) => `${item.text} (${item.year})`);
   return `${lead}, against ${listText(named)} by this date`;
+}
+
+/**
+ * The earlier water years compared by this date, newest first, each with
+ * its value to date as shown: the years the year-over-year finding names.
+ *
+ * @param tab - The Rain tab's data.
+ * @returns E.g. [{ year: 2025, text: "3.10 in" }, { year: 2024, text: "≈ 5.02 in" }].
+ */
+export function earlierToDate(tab: RainTab): { year: number; text: string }[] {
+  return tab.water_years
+    .slice(0, -1)
+    .reverse()
+    .map((curve) => ({ year: curve.water_year, text: toDate(tab, curve) }))
+    .filter((item): item is { year: number; text: string } => item.text !== null);
 }
 
 /**
@@ -239,16 +251,18 @@ export function hoursHeadline(snapshot: DashboardSnapshot): string {
 }
 
 /**
- * Why some windows are not shown, in one sentence for the source line.
+ * Why some windows in the strip are hatched, in one sentence for the source
+ * line. A window the record does not cover yet is left out of the strip
+ * (#470), so it is left out here too.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "7 days to the water year start before the archive began."
- *   or null when every window can be compared.
+ * @returns E.g. "Not compared: Today and yesterday are not archived yet."
+ *   or null when every window shown can be compared.
  */
 export function windowsNote(snapshot: DashboardSnapshot): string | null {
   const groups = new Map<string, string[]>();
   for (const window of snapshot.rain_tab.windows) {
-    if (window.status.status !== "invalid") continue;
+    if (window.status.status !== "invalid" || !isShown(window.status)) continue;
     const reason = window.status.reason ?? "gap";
     groups.set(reason, [...(groups.get(reason) ?? []), WINDOW_NAMES[window.key] ?? window.key]);
   }

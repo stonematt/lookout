@@ -1,0 +1,62 @@
+/*
+ * The conditions zooms' panel parts (#477): a sentence, a large value and
+ * a chart box. The shell's own hooks are in `../zoom.css`.
+ */
+
+.zoom-sentence {
+  font-size: var(--type-finding);
+  line-height: 1.45;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.zoom-sentence + .zoom-sentence {
+  margin-top: var(--s-2);
+}
+
+.zoom-fact {
+  font-size: var(--type-fact);
+  font-weight: 300;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.zoom-chart {
+  min-width: 0;
+  margin: var(--s-3) 0;
+}
+
+/* Inside: one row per sensor, its name, its reading, then its 24 hours */
+.zoom-sensors {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.zoom-sensor-name {
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.zoom-sensor-reading {
+  font-size: var(--type-finding);
+  color: var(--ink-2);
+}
+
+.zoom-sensor-reading .zoom-fact {
+  display: inline;
+  margin-right: var(--s-2);
+}
+
+/* the 24-hour trace's now label: the wind rose's now label, same type and halo */
+.zoom-now-label {
+  font-size: var(--type-annotation);
+  font-weight: 600;
+  fill: var(--now);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}

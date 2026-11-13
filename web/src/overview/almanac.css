@@ -309,11 +309,28 @@ th.alm-season {
 }
 
 /* ---------- the rolling-window table ---------- */
-/* the frame scrolls sideways inside the tile when the columns cannot fit,
-   Window sticky; at 12px type and tight padding it rarely has to */
+/* the frame scrolls sideways inside the tile when the columns cannot fit
+   (five columns of prorated values at 320), Window sticky. DESIGN.md names
+   no scroll pattern, so the cue is the common one: a shadow on the right edge
+   while more columns lie beyond it. `local` pins the cover to the content,
+   `scroll` pins the shadow to the frame, so the shadow shows only while
+   content lies beyond the edge and a table that fits shows none. There is no
+   left shadow: the sticky Window column would cover it (#596). The cue is a
+   2px edge in `rule-strong` (3:1 on the tile, a mark the reader must see)
+   fading out over 24px, so it reads in both themes (#606). */
 .alm-table-frame {
+  --alm-shadow: var(--rule-strong);
   margin-top: var(--s-3);
   overflow-x: auto;
+  background:
+    linear-gradient(to left, var(--tile), var(--tile)) right center / 32px 100% no-repeat local,
+    linear-gradient(
+        to left,
+        var(--alm-shadow) 0 2px,
+        color-mix(in srgb, var(--alm-shadow) 55%, transparent) 2px,
+        transparent
+      )
+      right center / 24px 100% no-repeat scroll;
 }
 
 .alm-table {
@@ -374,6 +391,17 @@ th.alm-season {
   border-top: 0;
 }
 
+/* the hatch stays inside its column: the cell's side padding is drawn in
+   the surface, so neighbouring gaps stand apart and clear of the numbers */
 .alm-table td.gap-hatch {
   text-align: left;
+  box-shadow:
+    inset var(--s-1) 0 0 var(--surface),
+    inset calc(-1 * var(--s-1)) 0 0 var(--surface);
+}
+
+/* one rule between the table and the zoom panel under it: the panel draws
+   it (`zoom.css`), so the table's last row draws none there */
+:root:not([data-layout="four"]) .zoom .alm-table tbody tr:last-child > * {
+  border-bottom: 0;
 }

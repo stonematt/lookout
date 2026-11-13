@@ -103,6 +103,17 @@
   stroke-width: 1;
 }
 
+/* the zoom's Usual row (#474): the band with the dashed edge the legend's
+   "usual range" and the Temperature tile draw, ruled off from the windows */
+.tc-usual[data-row="usual"] {
+  stroke-dasharray: 3 2;
+}
+
+.tc-divider {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
 .tc-now {
   stroke: var(--now);
   stroke-width: 2.5;
@@ -147,11 +158,4 @@
   line-height: 1.45;
   color: var(--ink-2);
   text-wrap: pretty;
-}
-
-/* the strips and the ten-day list span two of four columns (#468), but still
-   share a row in the two-column grid */
-:root[data-layout="two"]
-  .tile[data-span="2"]:is([data-section="against-normal"], [data-section="ten-days"]) {
-  grid-column: span 1;
 }

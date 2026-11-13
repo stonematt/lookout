@@ -12,6 +12,7 @@ import { setLayout } from "../src/layout.js";
 import { renderOverview } from "../src/overview/index.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
+import { nameFrom } from "./accessible-name.js";
 import { golden, SCENARIOS } from "./golden.js";
 
 type Doc = Record<string, unknown>;
@@ -39,6 +40,20 @@ beforeEach(() => {
 const words = (node: Element | null | undefined) => node?.textContent?.replace(/\s+/g, " ").trim();
 const tile = () => panel.querySelector<HTMLElement>("[data-section=feature]");
 const link = () => tile()!.querySelector<HTMLAnchorElement>("a")!;
+/** The finding as it shows, without the hidden words that run on from it. */
+function findingWords(): string | undefined {
+  const finding = tile()!.querySelector("[data-part=finding]")?.cloneNode(true) as Element;
+  finding?.querySelectorAll(".ov-sr-run").forEach((run) => run.remove());
+  return words(finding);
+}
+
+/**
+ * The link's accessible name, exactly: the hidden words that follow the
+ * finding run on from it inside its own element, so no space comes before
+ * their stop or comma.
+ */
+const nameOf = (el: Element) => nameFrom(el);
+const linkName = () => nameOf(link());
 
 function draw(snapshot: DashboardSnapshot): void {
   renderOverview(panel, snapshot);
@@ -51,7 +66,7 @@ describe("the feature tile", () => {
       (t) => t.dataset.section,
     );
 
-    expect(ids.slice(0, 3)).toEqual(["first-screen", "feature", "temperature-periods"]);
+    expect(ids.slice(0, 3)).toEqual(["first-screen", "feature", "temperature"]);
     expect(panel.querySelector("[data-section=hero-lead]")).toBeNull();
     expect(panel.querySelector("details[data-part=why]")).toBeNull();
     expect(panel.textContent).not.toMatch(/What leads|Why this leads|Leading:/);
@@ -64,50 +79,65 @@ describe("the feature tile", () => {
     expect(links).toHaveLength(1);
     // The whole tile is the link: the kicker, value and finding sit inside it.
     expect([...tile()!.children]).toEqual([links[0]]);
-    const finding = words(tile()!.querySelector("[data-part=finding]"))!;
-    const name = links[0]!.getAttribute("aria-label")!;
-    expect(name.startsWith(tile()!.getAttribute("aria-label")!)).toBe(true);
+    const finding = findingWords()!;
+    const name = nameOf(links[0]!);
+    // The tile is no named region, so the link alone says the finding (#472).
+    expect(tile()!.hasAttribute("aria-label")).toBe(false);
+    // The content names the link: no aria-label replaces it, and the finding
+    // is read once, the words round it being hidden text (#543).
+    expect(tile()!.querySelector("[aria-label]")).toBeNull();
     expect(name).toMatch(/\. (Open|Go to) .+\.$/);
     expect(name.toLowerCase()).toContain(finding.toLowerCase());
+    expect(name.toLowerCase().split(finding.toLowerCase())).toHaveLength(2);
     // Nothing inside the link is interactive in its own right.
     expect(links[0]!.querySelector("a, button, details, input")).toBeNull();
   });
 
-  it("spans the whole four-column row, so every row is whole", () => {
-    draw(parseDashboard(golden("seasoned", "dashboard")));
-    const spans = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
+  /** The four-column grid's cells the tiles fill: each tile's span. */
+  const cells = () =>
+    [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
       Number(t.dataset.span),
     );
-    let row = 0;
-    for (const span of spans) {
-      row += span;
-      if (row > 4) throw new Error(`row overflows at ${spans.join(",")}`);
-      if (row === 4) row = 0;
-    }
-    expect(row).toBe(0);
+
+  it("spans the whole four-column row, the mosaic in rows of four under it", () => {
+    draw(parseDashboard(golden("seasoned", "dashboard")));
+    const ids = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map(
+      (t) => t.dataset.section,
+    );
+
     expect(tile()!.dataset.span).toBe("4");
+    expect(ids.slice(1, 6)).toEqual([
+      "feature",
+      "temperature",
+      "rain",
+      "last-10-days",
+      "dry-spell",
+    ]);
+    lastRowIsDaylightAndInside();
   });
 
+  /**
+   * Every row of the four-column grid is full but the last, which holds
+   * Daylight and Inside with two empty cells (spec #460 "Overview layout").
+   */
+  function lastRowIsDaylightAndInside(): void {
+    const ids = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map(
+      (t) => t.dataset.section,
+    );
+    const before = cells().slice(0, -2);
+    expect(ids.slice(-2)).toEqual(["daylight", "inside"]);
+    expect(before.reduce((a, b) => a + b, 0) % 4, cells().join(",")).toBe(0);
+  }
+
   it.each(SCENARIOS)(
-    "leaves no hole in a four-column row on the %s golden without a feature (N-1)",
+    "fills each four-column row but the last, Daylight and Inside, on the %s golden without a feature (N-1)",
     (s) => {
       const withoutFeature = doc(s);
       delete withoutFeature.feature;
       draw(parseDashboard(withoutFeature));
-      const spans = [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) =>
-        Number(t.dataset.span),
-      );
-      let row = 0;
-      for (const span of spans) {
-        row += span;
-        if (row > 4) throw new Error(`row overflows at ${spans.join(",")}`);
-        if (row === 4) row = 0;
-      }
-      expect(row, `a row is left open at ${spans.join(",")}`).toBe(0);
+
       expect(tile()).toBeNull();
-      expect(
-        panel.querySelector<HTMLElement>("[data-section=temperature-periods]")!.dataset.span,
-      ).toBe("4");
+      lastRowIsDaylightAndInside();
     },
   );
 
@@ -119,7 +149,7 @@ describe("the feature tile", () => {
     expect(tile()!.dataset.kind).toBe("rain");
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Raining now · 2 h 25 m");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("0.30 in");
-    expect(link().getAttribute("aria-label")).toBe(
+    expect(linkName()).toBe(
       "Raining now: 0.30 in so far, against 0.42 in for a usual event. Open the Rain Events tab.",
     );
     expect(link().getAttribute("href")).toBe("#events");
@@ -139,55 +169,151 @@ describe("the feature tile", () => {
     draw(snapshot);
 
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Rain ended 3 h ago");
-    expect(link().getAttribute("aria-label")).toMatch(
-      /^Rain ended (about )?3 hours ago, after \d\.\d\d in(, against 0\.42 in for a usual event)?\. Open the Rain Events tab\.$/,
+    expect(linkName()).toMatch(
+      /^Rain ended (about )?3 hours ago, after \d\.\d\d in over [^,]+(, against 0\.42 in for a usual event)?\. Open the Rain Events tab\.$/,
     );
     expect(link().getAttribute("href")).toBe("#events");
     expect(tile()!.querySelector("[data-part=live]")).toBeNull();
   });
 
-  it("draws an unusual reading: its value and its percentile at this hour", () => {
+  describe("finds an ended event by the feature's event_start_ms (#523)", () => {
+    /** The raining golden with every event ended and the feature naming `start`. */
+    function ended(start: number | null | undefined): { snapshot: DashboardSnapshot; rows: Doc[] } {
+      const base = doc("raining");
+      const events = structuredClone(base.rain_events) as { events: Doc[] };
+      events.events.forEach((row, i) => {
+        row.live = false;
+        row.total_in = 0.11 * (i + 1);
+      });
+      const feature = { ...(base.feature as Doc) };
+      if (start === undefined) delete feature.event_start_ms;
+      else feature.event_start_ms = start;
+      const snapshot = edited("raining", {
+        active_rain_event: null,
+        rain_events: { ...events, open_curve: null },
+        feature,
+        built_at_ms: (events.events[1]!.end_ms as number) + 3_600_000,
+      });
+      return { snapshot, rows: events.events };
+    }
+    const value = () => words(tile()!.querySelector("[data-part=value]"));
+
+    it("draws the event the feature names, not the catalog's newest", () => {
+      const probe = ended(undefined);
+      const second = probe.rows[1]!;
+      draw(ended(second.start_ms as number).snapshot);
+
+      expect(value()).toBe("0.22 in");
+    });
+
+    it("keeps the catalog's newest ended event in a snapshot without the field (N−1)", () => {
+      draw(ended(undefined).snapshot);
+
+      expect(value()).toBe("0.11 in");
+    });
+
+    it("draws rain lately, no number, when no row has the named start", () => {
+      draw(ended(1).snapshot);
+
+      expect(tile()!.querySelector("[data-part=value]")).toBeNull();
+      expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Rain");
+    });
+
+    it("keeps the catalog's newest ended event when the field is null", () => {
+      draw(ended(null).snapshot);
+
+      expect(value()).toBe("0.11 in");
+    });
+  });
+
+  it("refuses a feature whose event_start_ms is not a time", () => {
+    const base = doc("raining");
+    const feature = { ...(base.feature as Doc), event_start_ms: "soon" };
+
+    expect(() => parseDashboard({ ...base, feature })).toThrow(SnapshotContractError);
+  });
+
+  it("draws an unusual reading: its value and its side of usual at this hour", () => {
     const seasoned = parseDashboard(golden("seasoned", "dashboard"));
     draw(seasoned);
 
     expect(seasoned.feature).toMatchObject({ kind: "unusual", reading: "temperature" });
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Unusual · temperature");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("72.0°");
-    const name = link().getAttribute("aria-label")!;
-    expect(name).toMatch(
-      /^Temperature 72.0°, warmer than usual for (\d+ (am|pm)|noon|midnight): the 100th percentile/,
+    const name = linkName();
+    // The golden's reading sits at the 100th percentile: past every earlier
+    // reading for this hour, which is said in words, never as "100th" (#563).
+    expect(name).toBe(
+      "Temperature 72.0°. Warmer than usual for 3 pm: highest for this hour on record. " +
+        "Open the temperature view.",
     );
-    expect(name).toContain("in earlier years");
-    expect(name).toMatch(/\. Go to Now against this date\.$/);
-    expect(link().getAttribute("href")).toBe("#overview-against-normal");
+    expect(link().getAttribute("href")).toBe("#overview/temperature");
   });
 
   it.each([
-    ["humidity", 22, "pct", 3, "22%", "drier", "3rd", "#overview-air", "Go to Air"],
-    ["wind_gust", 31.5, "mph", 98, "31.5 mph", "gustier", "98th", "#overview-wind", "Go to Wind"],
+    [100, "humidity", 99, "pct", "More humid than usual for 3 pm: highest for this hour on record"],
+    [0, "humidity", 22, "pct", "Drier than usual for 3 pm: lowest for this hour on record"],
+    [0, "temperature", 31.0, "f", "Cooler than usual for 3 pm: lowest for this hour on record"],
+  ])(
+    "words the %sth percentile as past every reading for this hour, never as a percentile",
+    (percentile, reading, value, unit, finding) => {
+      draw(edited("seasoned", unusual(reading, value, unit, percentile)));
+      expect(findingWords()).toBe(finding);
+      expect(tile()!.textContent).not.toMatch(/\b(0th|100th)\b|percentile/);
+      expect(linkName()).not.toMatch(/\b(0th|100th)\b|percentile/);
+    },
+  );
+
+  it("names the reading's day when it is from before midnight", () => {
+    // The dry golden is built at midnight from yesterday's 11:55 pm reading.
+    draw(edited("dry", unusual("temperature", 31.0, "f", 4)));
+    expect(findingWords()).toBe("Cooler than usual for 11 pm yesterday");
+  });
+
+  // The voice pass (#595): each unusual reading, on each side of its usual
+  // range, says the reading and its side in plain words, never the
+  // percentile the snapshot decided it by; the method is the footer's.
+  it.each([
+    // reading, value, unit, percentile, shown, the spoken lead, finding, zoom
+    ["temperature", 64, "f", 96, "64.0°", "Temperature 64.0°", "Warmer than usual", "temperature"],
+    ["temperature", 41, "f", 4, "41.0°", "Temperature 41.0°", "Cooler than usual", "temperature"],
+    ["humidity", 91, "pct", 97, "91%", "Humidity 91%", "More humid than usual", "humidity"],
+    ["humidity", 22, "pct", 3, "22%", "Humidity 22%", "Drier than usual", "humidity"],
+    [
+      "pressure",
+      30.41,
+      "inhg",
+      95,
+      "30.41 inHg",
+      "30.41 inHg",
+      "Pressure higher than usual",
+      "pressure",
+    ],
     [
       "pressure",
       29.41,
       "inhg",
       1,
       "29.41 inHg",
-      "lower",
-      "1st",
-      "#overview-pressure",
-      "Go to Pressure",
+      "29.41 inHg",
+      "Pressure lower than usual",
+      "pressure",
     ],
-    ["solar", 140, "wm2", 2, "140 W/m²", "duller", "2nd", "#solar", "Open the Solar tab"],
+    ["solar", 910, "wm2", 62, "910 W/m²", "Sun 910 W/m²", "Brighter than usual", "sun"],
+    ["solar", 140, "wm2", 2, "140 W/m²", "Sun 140 W/m²", "Dimmer than usual", "sun"],
+    // Wind gust is no longer judged (#533) but the site still reads it.
+    ["wind_gust", 31.5, "mph", 98, "31.5 mph", "Wind gust 31.5 mph", "Gustier than usual", "wind"],
+    ["wind_gust", 2.5, "mph", 5, "2.5 mph", "Wind gust 2.5 mph", "Calmer than usual", "wind"],
   ])(
-    "draws an unusual %s from a golden copy",
-    (reading, value, unit, percentile, shown, word, ordinal, href, open) => {
+    "words an unusual %s at %s on its side, with no percentile",
+    (reading, value, unit, percentile, shown, lead, side, zoom) => {
       draw(edited("seasoned", unusual(reading, value, unit, percentile)));
 
       expect(words(tile()!.querySelector("[data-part=value]"))).toBe(shown);
-      const name = link().getAttribute("aria-label")!;
-      expect(name).toContain(`${shown}, ${word} than usual for `);
-      expect(name).toContain(`the ${ordinal} percentile`);
-      expect(name.endsWith(`. ${open}.`)).toBe(true);
-      expect(link().getAttribute("href")).toBe(href);
+      expect(findingWords()).toBe(`${side} for 3 pm`);
+      expect(linkName()).toBe(`${lead}. ${side} for 3 pm. Open the ${zoom} view.`);
+      expect(link().getAttribute("href")).toBe(`#overview/${zoom}`);
+      expect(`${tile()!.textContent} ${linkName()}`).not.toMatch(/percentile|\b\d+(st|nd|rd|th)\b/);
     },
   );
 
@@ -200,8 +326,8 @@ describe("the feature tile", () => {
     const tileText = () => ({
       kicker: words(tile()!.querySelector("[data-part=kicker]")),
       value: words(tile()!.querySelector("[data-part=value]")),
-      finding: words(tile()!.querySelector("[data-part=finding]")),
-      name: link().getAttribute("aria-label"),
+      finding: findingWords(),
+      name: linkName(),
     });
     const today = () => {
       draw(parseDashboard(golden("seasoned", "dashboard")));
@@ -271,7 +397,7 @@ describe("the feature tile", () => {
         expect(text.finding).toBe(finding);
         expect(text.value).toBe(shown);
         expect(text.kicker).toBe(`Earlier · ${reading}`);
-        expect(text.name!.startsWith(`${finding}. `)).toBe(true);
+        expect(text.name).toContain(finding);
         const all = `${text.kicker} ${text.finding} ${text.name}`;
         expect(all).not.toMatch(/unusual|than usual|percentile|held|above|below/i);
       },
@@ -297,10 +423,10 @@ describe("the feature tile", () => {
 
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 d 9 h");
-    expect(link().getAttribute("aria-label")).toBe(
-      "About 9 days since it last rained, against a usual dry spell of 3 days. Open the Rain tab.",
+    expect(linkName()).toBe(
+      "About 9 days since it last rained, against a usual dry spell of 3 days. Open the dry spell view.",
     );
-    expect(link().getAttribute("href")).toBe("#rain");
+    expect(link().getAttribute("href")).toBe("#overview/dry-spell");
   });
 
   it("draws a quiet day as a usual day, with the temperature now", () => {
@@ -311,28 +437,25 @@ describe("the feature tile", () => {
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Today");
     const t = dry.current.temperature_f!.toFixed(1);
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe(`${t}°`);
-    expect(link().getAttribute("aria-label")).toBe(
-      `A usual day, ${t}° now. Go to Now against this date.`,
-    );
-    expect(link().getAttribute("href")).toBe("#overview-against-normal");
+    expect(linkName()).toBe(`a usual day, ${t}° now. Open the temperature view.`);
+    expect(link().getAttribute("href")).toBe("#overview/temperature");
   });
 
   it("gives every Overview tile an id the in-page links reach", () => {
     draw(parseDashboard(golden("dry", "dashboard")));
-    for (const id of ["against-normal", "wind", "pressure", "air"]) {
+    for (const id of ["temperature", "wind", "pressure", "humidity", "daylight", "inside"]) {
       expect(panel.querySelector(`#overview-${id}`), id).not.toBeNull();
     }
   });
 
-  it("opens the finding row it points to on a phone", () => {
+  it("points at the temperature zoom on a phone, its tile open, the Overview having no finding rows", () => {
     setLayout("phone");
     draw(parseDashboard(golden("dry", "dashboard")));
-    const target = panel.querySelector<HTMLDetailsElement>("#overview-against-normal")!;
+    const target = panel.querySelector<HTMLElement>("#overview-temperature")!;
 
-    expect(target.tagName).toBe("DETAILS");
-    expect(target.open).toBe(false);
-    link().click();
-    expect(target.open).toBe(true);
+    expect(link().getAttribute("href")).toBe("#overview/temperature");
+    expect(target.tagName).toBe("SECTION");
+    expect(panel.querySelector("details.tile-row")).toBeNull();
   });
 
   it("is in the phone's fixed top, an open tile, never a finding row", () => {
@@ -355,7 +478,7 @@ describe("the feature in a snapshot before Release A (N−1, ADR-0008)", () => {
     expect(tile()).toBeNull();
     expect(panel.querySelector("[data-section=hero-lead]")).toBeNull();
     expect(panel.querySelector("[data-section=first-screen]")).not.toBeNull();
-    expect(panel.querySelector("[data-section=temperature-periods]")).not.toBeNull();
+    expect(panel.querySelector("[data-section=temperature]")).not.toBeNull();
   });
 
   it.each([

@@ -13,6 +13,9 @@
  * The selected day lives in the URL (`?solar_day=YYYY-MM-DD`), so a shared
  * link opens on it. Picking a day on the daily bars, either day heatmap or
  * the date field updates the URL in place and redraws what shows it.
+ *
+ * Offers `renderSolar`, and `renderSunlightNow`, the top section, which the
+ * Overview's Sun zoom draws too (#477), without its source note.
  */
 import "./solar.css";
 
@@ -20,11 +23,11 @@ import { addDays, dayText, daysBetween, kwhPerM2 } from "../format.js";
 import { drawDays } from "../charts/days-switch.js";
 import { FALLBACK_WIDTH, drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
-import { dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
+import { beyondRecord, dayStatus, gapElement, gapSentence, hatchGap } from "../gaps.js";
 import { WINDOW_NAMES, listText } from "../rain/text.js";
 import { staleCatalogNote } from "../stale.js";
 import type { DashboardSnapshot, SolarTab } from "../snapshot.js";
-import type { TileSection } from "../tiles.js";
+import type { SectionOptions, TileSection } from "../tiles.js";
 import {
   gapReasons,
   hatchedCount,
@@ -55,6 +58,7 @@ import {
   openingDay,
   readDay,
   slotText,
+  todayHeadline,
   traceHeadline,
   wh,
   windowValue,
@@ -70,16 +74,20 @@ const VIEWS = [
 
 type View = (typeof VIEWS)[number][0];
 
-/** The tile's finding and standfirst, its first parts after the kicker. */
+/**
+ * The tile's finding and standfirst, its first parts after the kicker; in a
+ * zoom panel the finding sits under the panel's title.
+ */
 function heading(
   host: HTMLElement,
   finding: string,
   standfirst: string,
+  options: SectionOptions = {},
 ): {
   title: HTMLElement;
   lede: HTMLElement;
 } {
-  const title = tileFinding(finding);
+  const title = tileFinding(finding, options);
   const lede = make("p", "standfirst", standfirst);
   lede.dataset.part = "standfirst";
   host.append(title, lede);
@@ -145,16 +153,37 @@ interface Mount {
   dayHost: HTMLElement | null;
 }
 
-/** The 24-hour tile. */
-function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab): void {
-  const trace = tab.last_24h;
+/**
+ * The Solar tab's top section, Sunlight now: its finding, standfirst, the
+ * last 24 hours against the usual range, and its live readout, then the
+ * folded source note on the Solar tab. The Solar tab and the Overview's Sun
+ * zoom (`options.zoom`: no source note, prototype decision 22; its finding
+ * names today and yesterday as the Sun tile does, #607) both draw it.
+ *
+ * @param host - The tile or zoom panel to fill.
+ * @param snapshot - The dashboard snapshot.
+ * @param options - Whether it draws in a zoom panel.
+ */
+export function renderSunlightNow(
+  host: HTMLElement,
+  snapshot: DashboardSnapshot,
+  options: SectionOptions = {},
+): void {
+  const withNote = !options.zoom;
+  const trace = snapshot.solar_tab?.last_24h ?? null;
   const live = snapshot.current.solar_wm2;
   heading(
     host,
-    trace ? traceHeadline(trace, live) : "No solar reading yet",
+    !trace
+      ? "No solar reading yet"
+      : options.zoom
+        ? todayHeadline(snapshot, live)
+        : traceHeadline(trace, live),
     "The bold line is solar radiation over the last 24 hours; 1 kWh/m² is an hour of full midday sun. The shaded band is the middle half of the 30 days before at each time of day, the dashed line their median.",
+    options,
   );
   if (!trace) {
+    if (!withNote) return;
     host.append(
       source(snapshot, "the station's solar sensor", [
         "The station's solar sensor. There is no observation in this snapshot yet.",
@@ -167,6 +196,7 @@ function renderNow(host: HTMLElement, snapshot: DashboardSnapshot, tab: SolarTab
   sized(chart, (w) =>
     drawTrace(chart, trace, snapshot.archive_newest_ms, w, (t) => (readout.textContent = t)),
   );
+  if (!withNote) return;
   const noUsual = trace.usual.status === "invalid";
   host.append(
     source(
@@ -312,7 +342,8 @@ function renderDay(host: HTMLElement, snapshot: DashboardSnapshot, mount: Mount)
     next.disabled = day.day >= lastDay(tab);
     if (day.reason !== null || day.energy === null) {
       const status = dayStatus(day.day, day.reason ?? "gap");
-      body.replaceChildren(gapElement(status));
+      // A day the archive holds none of draws no chart; a gap is hatched (#606).
+      body.replaceChildren(...(beyondRecord(status) ? [] : [gapElement(status)]));
       note(
         "energy catalog, daily sums",
         [`The energy catalog's daily sums. ${gapSentence(status)}`],
@@ -502,7 +533,7 @@ function solarSections(mount: Mount): TileSection[] {
       kicker: "Sunlight now",
       span: 4,
       phoneTop: true,
-      render: (host, snapshot) => renderNow(host, snapshot, mount.tab),
+      render: (host, snapshot) => renderSunlightNow(host, snapshot),
     },
     {
       id: "daily",

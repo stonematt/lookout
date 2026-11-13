@@ -24,6 +24,9 @@
  * - The golden station index lists the golden's station, the default, then
  *   Salmon Run, which has no golden snapshot: `?station=` for it answers
  *   404, as a station whose snapshot is lost does.
+ * - `/api/v1/version` is the real function over the checkout's `VERSION`,
+ *   with the SHA "local"; it reads no golden, and refuses `fixture` and
+ *   `age` as it refuses any query parameter.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -42,6 +45,7 @@ import {
   handleStations,
   handleStatus,
 } from "./handlers.js";
+import { handleVersion, readRelease } from "./release.js";
 import type { SnapshotKind } from "./storj.js";
 
 /** Where the goldens live, relative to this file. */
@@ -164,7 +168,7 @@ const DEV_PARAMS = ["fixture", "age"] as const;
 
 /**
  * Answer a lane-server request for `/dashboard`, `/current`, `/event`,
- * `/status` or `/stations`.
+ * `/status`, `/stations` or `/api/v1/version`.
  *
  * @param url - The request path and query, e.g. `/dashboard?fixture=raining`.
  * @param env - The environment (`LOOKOUT_FIXTURE`, `LOOKOUT_AGE_MIN`).
@@ -173,6 +177,10 @@ const DEV_PARAMS = ["fixture", "age"] as const;
  */
 export async function devResponse(url: string, env: Env, nowMs: number): Promise<Response | null> {
   const parsed = new URL(url, "http://lane.local");
+  if (parsed.pathname === "/api/v1/version") {
+    // The lane server is never a Vercel build: the SHA is "local".
+    return handleVersion(new Request(parsed), () => readRelease({}));
+  }
   const handler = {
     "/dashboard": handleDashboard,
     "/current": handleCurrent,
@@ -211,7 +219,8 @@ export async function devResponse(url: string, env: Env, nowMs: number): Promise
 
 /**
  * A Vite plugin serving `/dashboard`, `/current`, `/event`, `/status` and
- * `/stations` from the goldens on the dev server, and on `vite preview` over the built page.
+ * `/stations` from the goldens on the dev server, and on `vite preview` over the built page,
+ * and `/api/v1/version` from the checkout.
  *
  * @returns The plugin.
  */
