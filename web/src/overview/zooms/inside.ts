@@ -19,7 +19,7 @@ import { dayTrace, factValue, sizedChart } from "./parts.js";
 function sensorChart(sensor: IndoorSensor, width: number): SVGSVGElement | null {
   return dayTrace(sensor.trace.temperature_f, width, (v) => degrees(v, 0), 1, {
     value: sensor.temperature_f,
-    text: degrees,
+    text: (v) => degrees(v, 1),
   });
 }
 

@@ -219,6 +219,25 @@ describe("the Pressure and Humidity zooms", () => {
     },
   );
 
+  it("a flat trace with a different live value prints the live value, finite", () => {
+    const flat = Array.from({ length: 24 }, () => 30);
+    const svg = dayTrace(flat, 340, (v) => v.toFixed(2), 0.05, {
+      value: 29.14,
+      text: TRACE_NOW.text,
+    })!;
+    expect(words(svg.querySelector(".zoom-now-label"))).toBe("now 29.14 inHg");
+    expect(svg.outerHTML).not.toContain("NaN");
+  });
+
+  it("Inside: with no live temperature the label reads the trace's newest hour", () => {
+    const trace = [66.2, 66.8, 67.4];
+    const svg = dayTrace(trace, 340, (v) => `${Math.round(v)}°`, 1, {
+      value: null,
+      text: (v) => `${v.toFixed(1)}°`,
+    })!;
+    expect(words(svg.querySelector(".zoom-now-label"))).toBe("now 67.4°");
+  });
+
   it("flat series: the now label is drawn, finite, off the line", () => {
     const flat = Array.from({ length: 24 }, () => 30);
     const svg = dayTrace(flat, 340, (v) => v.toFixed(2), 0.05, TRACE_NOW)!;

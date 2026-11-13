@@ -38,6 +38,14 @@ export interface NowReading {
   text: (value: number) => string;
 }
 
+/** Where a panel finds its `NowReading`: the live value in a snapshot, and the head's words for it. */
+export interface NowSource {
+  /** The live reading in the snapshot, or null when unknown. */
+  value: (snapshot: DashboardSnapshot) => number | null;
+  /** The reading as the zoom's head prints it (unlike the low and high `label`, with its unit). */
+  text: (value: number) => string;
+}
+
 /**
  * The last 24 hours of an hourly series at a width: the line, its low and
  * high at the left, "24 h ago" and "now" under it, the newest hour as the
@@ -123,7 +131,7 @@ export function dayPanel(
   series: (snapshot: DashboardSnapshot) => (number | null)[],
   label: (value: number) => string,
   pad: number,
-  now: { value: (snapshot: DashboardSnapshot) => number | null; text: (value: number) => string },
+  now: NowSource,
 ): ZoomPanel {
   return {
     id: "day",
