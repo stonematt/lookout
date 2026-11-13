@@ -52,3 +52,12 @@ Verdict: ship
 - [ ] fix: ten-day bar shade has no decided value; snapshot supplies it or the bars draw flat (#374)
 - [ ] note: Solar 24-hour chart has no x labels unless a slot lands on :00 (`web/src/solar/charts.ts:229`); recheck on real data
 - [x] cumulative rain fill, event-table Quality clip, count headline — fixed; water-year end label and Rate ticks not checkable on the fixtures
+
+### 2026-11-13 — rain gauge prototype (#619), `prototype/rain-gauge` at `9c981a93`
+Verdict: fix
+- [x] blocker: own-scale pale tubes read as "X% full", which is meaningless. Prototype fix: plain bars on paired shared axes (`89b55ece`)
+- [x] fix: earlier-year ticks in orange break the "now"-only rule. Prototype fix: grey bars labelled by year
+- [x] fix: columns unlabelled ("7d"), hero bars apart from their numbers. Prototype fix: "Last 7 days" and so on, panel headings, hero bars labelled on the x-label line
+- [x] fix: too much negative space. Prototype fix: about 150 px, paired panels
+- [ ] fix: title must state the finding and name its window; carried into the #619 spec
+- note: said no to swapping the Overview Rain tile to Today and Yesterday (Matt agreed)

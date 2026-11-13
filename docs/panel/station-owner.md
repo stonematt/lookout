@@ -56,3 +56,12 @@ Verdict: ship
 - [ ] note: Source and "Why this leads" rows are 33px tall, under 44px; at 320x568 the leading tile is below the fold — tiles
 - [ ] note: favicon still 404; `#rain-events` hash fallback not rechecked
 - checked: no sideways scroll 320–1280, no text under 12px or 4.5:1 in either theme, tab bar 48px and keyboard-usable, one finding row open at a time, stale chip obvious
+
+### 2026-11-13 — rain gauge prototype (#619), `prototype/rain-gauge` at `9c981a93`
+Verdict: fix
+- [x] fix: hero rain bars unidentified. Prototype fix: the "Rain" heading, Today and Yesterday labels, values on top (`1c412ba3`)
+- [x] fix: hero placement 2 adds about 70 px at 320. Prototype fix: one line under the temperature below 760 px
+- [x] fix: gauge negative space and a paragraph-length key. Prototype fix: about 150 px, one-line key
+- note: Today repeats the feature tile's event total while raining. Matt kept Today, because an event can span more than a day
+- note: said no to swapping the Overview Rain tile (Matt agreed)
+- [ ] open from 2026-11-04: station name truncation at 320, 33 px rows and the fold at 320x568, favicon 404 (not touched)
