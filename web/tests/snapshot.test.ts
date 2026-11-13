@@ -189,8 +189,11 @@ describe("parseDashboard", () => {
   });
 
   it("refuses another schema version", () => {
-    const doc = { ...(golden("dry", "dashboard") as object), schema_version: SCHEMA_VERSION + 2 };
-    expect(() => parseDashboard(doc)).toThrow(`schema_version ${SCHEMA_VERSION + 2}`);
+    const doc = {
+      ...(golden("dry", "dashboard") as object),
+      schema_version: NEXT_SCHEMA_VERSION + 1,
+    };
+    expect(() => parseDashboard(doc)).toThrow(`schema_version ${NEXT_SCHEMA_VERSION + 1}`);
   });
 
   it("accepts a v3 dashboard that still carries hero_lead, and ignores the key", () => {
