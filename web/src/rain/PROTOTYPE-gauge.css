@@ -1,6 +1,6 @@
-/* PROTOTYPE (issue #619): rain gauge variants. Throwaway. */
+/* PROTOTYPE (issue #619, round 3): rain gauge bars and the hero rain. Throwaway. */
 .pg-wrap {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .pg-fig {
   margin: 0;
@@ -8,17 +8,13 @@
 .pg-svg {
   display: block;
   max-width: 100%;
+  font-family: var(--sans);
 }
 .pg-fill {
   fill: var(--rain-bar);
 }
-.pg-tube {
-  fill: var(--rain-band);
-  stroke: var(--rain-band-edge);
-  stroke-width: 1;
-}
-.pg-grid {
-  stroke: var(--rule);
+.pg-axis {
+  stroke: var(--ink-3);
   stroke-width: 1;
 }
 .pg-floor {
@@ -26,55 +22,41 @@
   stroke-width: 1;
 }
 .pg-prior {
-  stroke: var(--now);
+  stroke: var(--ink-2);
   stroke-width: 2;
 }
-.pg-level {
-  stroke: var(--ink);
-}
-.pg-lead {
-  stroke: var(--ink-3);
-  stroke-width: 1;
-  fill: none;
-}
 .pg-tick,
-.pg-year,
-.pg-name {
-  font-size: var(--type-axis);
+.pg-name,
+.pg-key,
+.pg-head {
+  font-size: 12px;
   fill: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
-.pg-tick-sm {
-  font-size: 9px;
+.pg-head {
+  fill: var(--ink-2);
+  font-weight: 500;
 }
-.pg-year {
-  fill: var(--now);
-  font-size: 10px;
+.pg-name {
+  fill: var(--ink-2);
 }
 .pg-total {
-  font-size: var(--type-label);
+  font-size: 12px;
   fill: var(--ink);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.pg-total-l {
-  font-weight: 500;
-}
 .pg-note {
   font-size: var(--type-label);
   color: var(--ink-2);
-  margin: 6px 0 0;
+  margin: 4px 0 0;
 }
 .pg-switcher {
   position: fixed;
   bottom: 8px;
   left: 8px;
   z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: min(300px, calc(100vw - 16px));
-  padding: 3px 6px;
+  padding: 3px 8px;
   border-radius: 12px;
   background: #11161c;
   color: #fff;
@@ -82,15 +64,6 @@
     10px/1.2 system-ui,
     sans-serif;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-}
-.pg-switcher button {
-  all: unset;
-  cursor: pointer;
-  padding: 2px 6px;
-  font-size: 13px;
-}
-.pg-switcher span {
-  text-align: center;
 }
 
 /* PROTOTYPE #619: the hero's rain today and yesterday. */
@@ -102,21 +75,18 @@
   font-variant-numeric: tabular-nums;
 }
 .pg-hero2 {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  margin-top: 12px;
-  color: var(--ink-on-now);
-}
-.pg-hero2-bar {
-  fill: var(--ribbon-rain);
-}
-.pg-hero2-nums {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
+  display: none;
   margin: 0;
+  color: var(--ink-on-now);
   font-variant-numeric: tabular-nums;
+}
+.pg-hero2-row {
+  display: grid;
+  grid-template-columns: auto auto 72px;
+  white-space: nowrap;
+  align-items: center;
+  column-gap: 8px;
+  padding: 3px 0;
 }
 .pg-hero2-k {
   font-size: var(--type-label);
@@ -125,17 +95,30 @@
   margin: 0;
   font-size: var(--type-finding);
   font-weight: 500;
+  text-align: right;
 }
-:root:is([data-layout="two"], [data-layout="four"])
-  .tile[data-section="first-screen"]:has(> .pg-hero2) {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+.pg-hero2-track {
+  display: block;
+  height: 8px;
+  border-bottom: 1px solid var(--ink-3);
 }
-:root:is([data-layout="two"], [data-layout="four"]) .pg-hero2 {
-  margin-top: 0;
-  flex-direction: column;
-  align-items: flex-start;
+.pg-hero2-bar {
+  display: block;
+  height: 8px;
+  background: var(--ribbon-rain);
 }
-:root:is([data-layout="two"], [data-layout="four"]) .pg-hero2-nums {
-  flex-direction: column;
-  gap: 4px;
+@media (min-width: 760px) {
+  .pg-hero1 {
+    display: none;
+  }
+  .pg-hero2 {
+    display: block;
+  }
+  :root:is([data-layout="two"], [data-layout="four"], [data-layout="one"])
+    .tile[data-section="first-screen"]:has(> .pg-hero2) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: var(--s-6);
+  }
 }

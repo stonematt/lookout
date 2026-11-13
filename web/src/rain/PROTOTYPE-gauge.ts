@@ -1,44 +1,48 @@
 /**
- * PROTOTYPE (throwaway, issue #619): rain over each window as vertical
- * rain-gauge columns. Four structurally different variants, picked by
- * `?variant=A|B|C|D` and mounted by `renderYears` in `rain/index.ts` in
- * place of the window strip. Not production code: no tests, no polish.
- *
- * - A: one shared linear axis, a column per window (the honest baseline).
- * - B: small multiples, a tube per window, each with its own scale.
- * - C: one shared symlog axis.
- * - D: one tall tube, nested "since" levels with a mark at each window.
+ * PROTOTYPE (throwaway, issue #619, round 3): rain over each window as plain
+ * bars, one per window, replacing the window strip in the rain zoom when
+ * `?variant=B` is set. Today and Yesterday share one scale (one panel); each
+ * longer window's axis runs to the larger of its total and its earlier years'
+ * totals, with the earlier years as grey ticks. Also the hero's rain today and
+ * yesterday (`?hero=1`; two placements drawn, CSS picks by width).
  *
  * Dev-only `?rainwindows=a,b,c,d,e,f` (Today, Yesterday, 7, 30, 90, 365 days)
  * feeds fake totals, and fake earlier-year ticks, because the goldens' windows
  * are near zero or invalid.
  *
- * Offers `protoVariant`, `protoOverride`, `renderProtoGauge`, `protoHeroTotal`.
+ * Offers `protoVariant`, `protoOverride`, `protoHeadline`, `renderProtoGauge`,
+ * `protoHero`, `protoHeroRainNode`.
  */
 import { drawSized } from "../charts/svg.js";
 import { make, svgEl } from "../dom.js";
 import { inches } from "../format.js";
 import { isShown } from "../overview/history.js";
 import type { DashboardSnapshot } from "../snapshot.js";
-import { WINDOW_NAMES } from "./text.js";
 
 /** PROTOTYPE: the keys, in the order the columns draw. */
 const KEYS = ["today", "yesterday", "7d", "30d", "90d", "365d"];
+/** PROTOTYPE: the column names, in two lines at most. */
+const NAMES: Record<string, string[]> = {
+  today: ["Today"],
+  yesterday: ["Yesterday"],
+  "7d": ["Last 7", "days"],
+  "30d": ["Last 30", "days"],
+  "90d": ["Last 90", "days"],
+  "365d": ["Last 365", "days"],
+};
 /** PROTOTYPE: fake earlier years, as multiples of this year's total. */
 const FAKE_PRIOR = [0.55, 1.6, 0.9];
 
 /** PROTOTYPE: one column's data. */
 interface Col {
   key: string;
-  name: string;
   total: number;
   prior: { year: number; v: number }[];
 }
 
-/** PROTOTYPE: the variant asked for, or null. */
+/** PROTOTYPE: "B" when the gauge is asked for, else null. */
 export function protoVariant(): string | null {
-  const v = new URLSearchParams(location.search).get("variant");
-  return v && v.length === 1 && "ABCD".includes(v.toUpperCase()) ? v.toUpperCase() : null;
+  return new URLSearchParams(location.search).get("variant")?.toUpperCase() === "B" ? "B" : null;
 }
 
 /** PROTOTYPE: the `?rainwindows=` override, or null. */
@@ -77,214 +81,155 @@ function columns(snapshot: DashboardSnapshot): Col[] {
           .map((y) => ({ year: y.year, v: y.rain_in as number }));
       }
     }
-    out.push({ key, name: WINDOW_NAMES[key] ?? key, total, prior });
+    out.push({ key, total, prior });
   });
   return out;
 }
 
-/** PROTOTYPE: a "nice" axis top and ticks at 1, 2 or 5 times a power of ten. */
-function niceAxis(max: number): { top: number; ticks: number[] } {
-  const m = Math.max(max, 0.05);
-  const pow = Math.pow(10, Math.floor(Math.log10(m / 3)));
-  const step = [1, 2, 5, 10].map((k) => k * pow).find((s) => m / s <= 4) ?? pow * 10;
-  const ticks: number[] = [];
-  for (let v = 0; v <= m + step * 0.999; v += step) ticks.push(+v.toFixed(6));
-  return { top: ticks[ticks.length - 1] as number, ticks };
+/**
+ * PROTOTYPE: a finding for the zoom's title, from the totals against earlier
+ * years. Null when the gauge is not asked for or has nothing to say.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "1.2 in in the last 7 days, 38 in the last 365, wetter than 2023 and 2025".
+ */
+export function protoHeadline(snapshot: DashboardSnapshot): string | null {
+  if (!protoVariant()) return null;
+  const cols = columns(snapshot);
+  const short = cols.find((c) => c.key === "7d") ?? cols[0];
+  const long = [...cols].reverse().find((c) => c.prior.length > 0) ?? cols[cols.length - 1];
+  if (!short) return null;
+  const label = (c: Col) =>
+    c.key === "today" ? "today" : `in the last ${c.key.replace("d", "")} days`;
+  let text = `${tickFmt(short.total)} in ${label(short)}`;
+  if (long && long !== short) {
+    text = `${tickFmt(short.total)} in the last ${short.key.replace("d", "")} days, ${tickFmt(long.total)} in the last ${long.key.replace("d", "")}`;
+    const wetter = long.prior.filter((p) => long.total > p.v).map((p) => p.year);
+    const drier = long.prior.filter((p) => long.total <= p.v).map((p) => p.year);
+    if (wetter.length) text += `, wetter than ${wetter.join(" and ")}`;
+    else if (drier.length) text += `, drier than ${drier.join(" and ")}`;
+  }
+  return text;
 }
 
+/** Axis numbers: short, no trailing zeros. */
+const tickFmt = (v: number): string => String(+v.toFixed(v >= 10 ? 0 : v >= 1 ? 1 : 2));
+/** Value labels: two decimals under 10. */
 const fmt = (v: number): string => (v >= 10 ? v.toFixed(1) : v.toFixed(2));
-const tickFmt = (v: number): string => (v >= 1 ? String(+v.toFixed(1)) : String(+v.toFixed(2)));
-const yy = (y: number): string => `'${String(y).slice(2)}`;
-const shortName = (n: string): string => n.replace(" days", "d").replace("Yesterday", "Yest.");
-
-type Svg = SVGSVGElement;
 
 /** PROTOTYPE: append a text node. */
-function text(svg: Svg, x: number, y: number, s: string, cls: string, anchor = "middle"): void {
+function text(
+  svg: SVGSVGElement,
+  x: number,
+  y: number,
+  s: string,
+  cls: string,
+  anchor = "middle",
+): void {
   svg.append(
     svgEl("text", { x: +x.toFixed(1), y: +y.toFixed(1), class: cls, "text-anchor": anchor }, s),
   );
 }
 
-/** PROTOTYPE: a bare svg. */
-function bare(width: number, height: number, label: string): Svg {
-  return svgEl("svg", {
+/** PROTOTYPE: plain bars; Today and Yesterday on one scale, the rest each on their own. */
+function bars(host: HTMLElement, cols: Col[], width: number): void {
+  host.replaceChildren();
+  const HEAD = 18;
+  const T = HEAD + 18;
+  const plotH = 84;
+  const narrow = width / cols.length < 70;
+  const NAME_H = narrow ? 52 : 34;
+  const H = T + plotH + NAME_H;
+  const AX = 24; // room left of each bar for its axis numbers
+  const svg = svgEl("svg", {
     class: "pg-svg",
     width,
-    height,
-    viewBox: `0 0 ${width} ${height}`,
+    height: H,
+    viewBox: `0 0 ${width} ${H}`,
     role: "img",
-    "aria-label": label,
+    "aria-label": "Rain over each window, one bar each",
   });
-}
-
-/** PROTOTYPE: columns on a shared axis, A (linear) and C (symlog). */
-function shared(host: HTMLElement, cols: Col[], width: number, log: boolean): void {
-  host.replaceChildren();
-  const H = 230;
-  const L = 36;
-  const T = 24;
-  const B = 34;
-  const R = 6;
-  const max = Math.max(...cols.flatMap((c) => [c.total, ...c.prior.map((p) => p.v)]));
-  const svg = bare(width, H, "Rain over each window, one shared axis");
-  const plotH = H - T - B;
-  let f: (v: number) => number;
-  let ticks: number[];
-  if (log) {
-    const k = 0.1;
-    const raw = (v: number) => Math.log10(1 + v / k);
-    const cand = [0, 0.1, 0.5, 1, 5, 10, 50, 100, 500];
-    ticks = cand.filter((t) => t <= max * 1.05);
-    const top = raw(Math.max(max, ticks[ticks.length - 1] as number));
-    f = (v) => raw(v) / top;
-  } else {
-    const ax = niceAxis(max);
-    ticks = ax.ticks;
-    f = (v) => v / ax.top;
-  }
-  const y = (v: number) => T + plotH * (1 - Math.min(1, f(v)));
-  for (const t of ticks) {
-    svg.append(
-      svgEl("line", {
-        x1: L,
-        x2: width - R,
-        y1: y(t),
-        y2: y(t),
-        class: t === 0 ? "pg-floor" : "pg-grid",
-      }),
-    );
-    text(svg, L - 4, y(t) + 3, tickFmt(t), "pg-tick", "end");
-  }
-  const cw = (width - L - R) / cols.length;
-  const bw = Math.min(40, cw * 0.55);
-  const yIdx = cols.findIndex((c) => c.key === "yesterday");
-  if (yIdx >= 0) {
-    const dx = L + cw * (yIdx + 1);
-    svg.append(svgEl("line", { x1: dx, x2: dx, y1: T, y2: H - B, class: "pg-grid" }));
-  }
+  const cw = (width - 8) / cols.length;
+  const bw = Math.max(16, Math.min(48, cw - AX - 2));
+  const isPair = (c: Col) => c.key === "today" || c.key === "yesterday";
+  const pairTop = Math.max(...cols.filter(isPair).map((c) => c.total), 0.01);
+  let keyDone = false;
   cols.forEach((c, i) => {
-    const cx = L + cw * (i + 0.5);
-    const top = y(c.total);
-    svg.append(
-      svgEl("rect", {
-        x: cx - bw / 2,
-        y: top,
-        width: bw,
-        height: Math.max(1, y(0) - top),
-        class: "pg-fill",
-      }),
-    );
-    text(svg, cx, top - 4, fmt(c.total), "pg-total");
-    text(svg, cx, H - B + 14, shortName(c.name), "pg-name");
-    for (const p of c.prior) {
-      const py = y(p.v);
-      svg.append(
-        svgEl("line", {
-          x1: cx - cw * 0.45,
-          x2: cx + cw * 0.45,
-          y1: py,
-          y2: py,
-          class: "pg-prior",
-        }),
-      );
-      text(svg, cx + cw * 0.45, py - 2, yy(p.year), "pg-year", "end");
-    }
-  });
-  host.append(svg);
-}
-
-/** PROTOTYPE: B, one tube per window with its own scale. */
-function multiples(host: HTMLElement, cols: Col[], width: number): void {
-  host.replaceChildren();
-  const H = 220;
-  const T = 24;
-  const B = 34;
-  const svg = bare(width, H, "Rain over each window, one tube each with its own scale");
-  const plotH = H - T - B;
-  const cw = width / cols.length;
-  const narrow = cw < 70;
-  const tw = narrow ? cw * 0.2 : Math.min(30, cw * 0.4);
-  cols.forEach((c, i) => {
-    const cx = cw * (i + 0.5);
-    // Today and Yesterday share one axis (one panel); the rest have their own.
-    const pair = c.key === "today" || c.key === "yesterday";
-    const pairMax = Math.max(
-      ...cols.filter((x) => x.key === "today" || x.key === "yesterday").map((x) => x.total),
-    );
-    const ax = niceAxis(pair ? pairMax : Math.max(c.total, ...c.prior.map((p) => p.v)));
-    const y = (v: number) => T + plotH * (1 - v / ax.top);
-    if (c.key === "yesterday") {
-      svg.append(
-        svgEl("line", { x1: cx + cw / 2, x2: cx + cw / 2, y1: T, y2: T + plotH, class: "pg-grid" }),
-      );
+    const cell = cw * i;
+    const bx = cell + cw - bw - 2; // bar sits right in its cell, axis numbers left
+    const top = isPair(c) ? pairTop : Math.max(c.total, ...c.prior.map((p) => p.v), 0.01);
+    const y = (v: number) => T + plotH * (1 - v / top);
+    // the axis: a thin line left of the bar, labelled at 0 and at its top
+    // (the pair's second bar shares the first's axis, so has none)
+    if (c.key !== "yesterday") {
+      svg.append(svgEl("line", { x1: bx - 3, x2: bx - 3, y1: T, y2: T + plotH, class: "pg-axis" }));
+      // the top number is dropped when the value label already says it
+      if (top !== c.total) text(svg, bx - 6, T + 4, tickFmt(top), "pg-tick", "end");
+      text(svg, bx - 6, T + plotH + 4, "0", "pg-tick", "end");
     }
     svg.append(
-      svgEl("rect", { x: cx - tw / 2, y: T, width: tw, height: plotH, rx: 4, class: "pg-tube" }),
-    );
-    svg.append(
       svgEl("rect", {
-        x: cx - tw / 2,
+        x: bx,
         y: y(c.total),
-        width: tw,
-        height: Math.max(1, y(0) - y(c.total)),
+        width: bw,
+        height: Math.max(1, T + plotH - y(c.total)),
         class: "pg-fill",
       }),
     );
-    for (const t of ax.ticks) {
-      svg.append(
-        svgEl("line", {
-          x1: cx - tw / 2 - 3,
-          x2: cx - tw / 2,
-          y1: y(t),
-          y2: y(t),
-          class: "pg-floor",
-        }),
-      );
-      if (c.key !== "yesterday" && (!narrow || t === ax.top)) {
-        text(svg, cx - tw / 2 - 4, y(t) + 3, tickFmt(t), "pg-tick pg-tick-sm", "end");
-      }
-    }
+    svg.append(
+      svgEl("line", { x1: bx - 3, x2: bx + bw, y1: T + plotH, y2: T + plotH, class: "pg-floor" }),
+    );
     for (const p of c.prior) {
       svg.append(
-        svgEl("line", {
-          x1: cx - tw / 2,
-          x2: cx + tw / 2 + 3,
-          y1: y(p.v),
-          y2: y(p.v),
-          class: "pg-prior",
-        }),
+        svgEl("line", { x1: bx - 2, x2: bx + bw + 2, y1: y(p.v), y2: y(p.v), class: "pg-prior" }),
       );
-      text(svg, cx + tw / 2 + 4, y(p.v) + 3, yy(p.year), "pg-year", "start");
     }
-    text(svg, cx, y(c.total) - 4, fmt(c.total), "pg-total");
-    text(svg, cx, H - B + 14, shortName(c.name), "pg-name");
+    if (c.prior.length && !keyDone) {
+      keyDone = true;
+      // the one key (a grey tick and its words), in the heading row's far end
+      svg.append(
+        svgEl("line", { x1: width - 98, x2: width - 84, y1: 8, y2: 8, class: "pg-prior" }),
+      );
+      text(svg, width, 12, "earlier years", "pg-key", "end");
+    }
+    text(svg, bx + bw / 2, y(c.total) - 4, fmt(c.total), "pg-total");
+    const raw = NAMES[c.key] ?? [c.key];
+    const lines = narrow
+      ? raw.flatMap((l) => (l === "Yesterday" ? ["Yester-", "day"] : l.split(" ")))
+      : raw;
+    lines.forEach((line, k) => {
+      text(svg, narrow ? cell + cw / 2 : bx + bw / 2, T + plotH + 16 + k * 14, line, "pg-name");
+    });
   });
+  // the shared panel's heading and bracket
+  const yi = cols.findIndex((c) => c.key === "yesterday");
+  const ti = cols.findIndex((c) => c.key === "today");
+  if (yi >= 0 && ti >= 0) {
+    const x0 = cw * ti + 2;
+    const x1 = cw * (yi + 1) - 2;
+    text(
+      svg,
+      x0,
+      12,
+      narrow ? "Today, yesterday" : "Today and yesterday, one scale",
+      "pg-head",
+      "start",
+    );
+    svg.append(svgEl("line", { x1: x0, x2: x1, y1: HEAD - 2, y2: HEAD - 2, class: "pg-axis" }));
+  }
   host.append(svg);
 }
-
-/** PROTOTYPE: a note under the chart saying what the marks mean. */
-const NOTES: Record<string, string> = {
-  B: "B: Today and Yesterday share one scale (left panel); each longer window is a tube with its own scale (see the tick labels), so heights are not comparable across tubes. Orange ticks are the same window in earlier years.",
-  C: "C: one shared log axis (0, 0.1, 1, 10 in) with Today and Yesterday side by side as one panel: equal steps are equal ratios, so height reads as order of magnitude, not amount. Orange ticks are earlier years.",
-};
 
 /**
- * PROTOTYPE: draw the variant into the host, in place of the window strip.
+ * PROTOTYPE: draw the gauge into the host, in place of the window strip.
  *
  * @param host - The panel.
  * @param snapshot - The dashboard snapshot.
- * @param variant - "A" to "D".
  */
-export function renderProtoGauge(
-  host: HTMLElement,
-  snapshot: DashboardSnapshot,
-  variant: string,
-): void {
+export function renderProtoGauge(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const wrap = make("div", "pg-wrap");
   wrap.dataset.prototype = "rain-gauge";
   const cols = columns(snapshot);
-  const over = protoOverride();
   if (!cols.length) {
     wrap.append(
       make(
@@ -296,38 +241,32 @@ export function renderProtoGauge(
     host.append(wrap);
     return;
   }
+  const over = protoOverride();
   const note = make(
     "p",
     "pg-note",
-    `PROTOTYPE ${NOTES[variant] ?? ""}${over ? ` Fake totals from ?rainwindows=${over.join(",")}.` : ""}`,
+    `Each bar is its own scale (numbers at its axis); grey ticks are the same window in earlier years.${over ? ` PROTOTYPE: fake totals from ?rainwindows=${over.join(",")}.` : ""}`,
   );
   const fig = make("figure", "pg-fig");
   wrap.append(fig, note);
   host.append(wrap);
-  drawSized(fig, (width) => {
-    if (variant === "B") multiples(fig, cols, width);
-    else shared(fig, cols, width, true);
-  });
+  drawSized(fig, (width) => bars(fig, cols, width));
 }
 
-/** PROTOTYPE: the hero placement asked for by `?hero=1|2`, or null. */
-export function protoHero(): "1" | "2" | null {
-  const h = new URLSearchParams(location.search).get("hero");
-  return h === "1" || h === "2" ? h : null;
+/** PROTOTYPE: whether the hero rain is asked for (`?hero=1`). */
+export function protoHero(): boolean {
+  return new URLSearchParams(location.search).has("hero");
 }
 
 /**
  * PROTOTYPE: rain today and yesterday for the hero, or null when neither is
- * above 0 (the old Streamlit rule: show only when it rained). `?rainwindows=`
- * drives both; else the live total today and the Yesterday window total.
- *
- * @param snapshot - The dashboard snapshot.
- * @returns The two totals, or null to hide the hero rain.
+ * above 0. `?rainwindows=` drives both; else the live total today and the
+ * Yesterday window total. Today is the live rain today, not the event's total.
  */
-export function protoHeroRain(snapshot: DashboardSnapshot): { today: number; yest: number } | null {
+function heroRain(snapshot: DashboardSnapshot): { today: number; yest: number } | null {
   const over = protoOverride();
-  let today = snapshot.current.rain_today_in;
   const yw = snapshot.rain_tab.windows.find((w) => w.key === "yesterday");
+  let today = snapshot.current.rain_today_in;
   let yest = yw && isShown(yw.status) ? yw.total_in : null;
   if (over) {
     today = over[0] ?? null;
@@ -339,8 +278,9 @@ export function protoHeroRain(snapshot: DashboardSnapshot): { today: number; yes
 }
 
 /**
- * PROTOTYPE: the hero's rain, placement 1 (words under the temperature) or
- * 2 (a compact block on the far side of the ribbon with a tiny two-column gauge).
+ * PROTOTYPE: the hero's rain. Placement 1 (a line under the temperature's
+ * delta) shows below 760 px; placement 2 (two labelled rows with short bars on
+ * the far side of the ribbon) from 760 px up; CSS picks.
  *
  * @param snapshot - The dashboard snapshot.
  * @param placement - "1" or "2".
@@ -350,7 +290,7 @@ export function protoHeroRainNode(
   snapshot: DashboardSnapshot,
   placement: "1" | "2",
 ): HTMLElement | null {
-  const r = protoHeroRain(snapshot);
+  const r = heroRain(snapshot);
   if (!r) return null;
   if (placement === "1") {
     const p = make("p", "pg-hero1");
@@ -358,33 +298,22 @@ export function protoHeroRainNode(
     p.textContent = `Rain today ${inches(r.today)} · yesterday ${inches(r.yest)}`;
     return p;
   }
-  const box = make("div", "pg-hero2");
+  const box = make("dl", "pg-hero2");
   box.dataset.prototype = "rain-gauge";
-  const H = 40;
-  const max = Math.max(r.today, r.yest, 0.1);
-  const svg = svgEl("svg", {
-    class: "pg-hero2-svg",
-    width: 44,
-    height: H + 2,
-    viewBox: `0 0 44 ${H + 2}`,
-    "aria-hidden": "true",
-  });
-  [r.yest, r.today].forEach((v, i) => {
-    const h = v > 0 ? Math.max(2, (v / max) * H) : 0;
-    svg.append(
-      svgEl("rect", { x: 4 + i * 20, y: H - h, width: 16, height: h, class: "pg-hero2-bar" }),
-    );
-  });
-  svg.append(svgEl("line", { x1: 0, x2: 44, y1: H, y2: H, class: "pg-floor" }));
-  const nums = make("dl", "pg-hero2-nums");
+  const max = Math.max(r.today, r.yest, 0.01);
   for (const [k, v] of [
     ["Today", r.today],
     ["Yesterday", r.yest],
   ] as const) {
     const row = make("div", "pg-hero2-row");
-    row.append(make("dt", "pg-hero2-k", k), make("dd", "pg-hero2-v", inches(v)));
-    nums.append(row);
+    const label = make("dt", "pg-hero2-k", k);
+    const num = make("dd", "pg-hero2-v", inches(v));
+    const track = make("span", "pg-hero2-track");
+    const bar = make("span", "pg-hero2-bar");
+    bar.style.width = `${v > 0 ? Math.max(3, (v / max) * 100) : 0}%`;
+    track.append(bar);
+    row.append(label, num, track);
+    box.append(row);
   }
-  box.append(svg, nums);
   return box;
 }

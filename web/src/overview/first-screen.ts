@@ -80,15 +80,13 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const delta = deltaLine(snapshot);
   if (delta) line.append(delta);
   const chart = todayChart(snapshot);
-  // PROTOTYPE #619: the hero's rain today and yesterday, `?hero=1|2`.
-  const hero = protoHero();
-  const rain = hero ? protoHeroRainNode(snapshot, hero) : null;
-  if (rain && hero === "1") line.append(rain);
+  // PROTOTYPE #619: the hero's rain today and yesterday, `?hero=1`.
+  // Placement 1 below 760 px, placement 2 above; CSS picks.
+  const rain1 = protoHero() ? protoHeroRainNode(snapshot, "1") : null;
+  const rain2 = protoHero() ? protoHeroRainNode(snapshot, "2") : null;
+  if (rain1) line.append(rain1);
   host.append(line, chart.block);
-  if (rain && hero === "2") {
-    host.dataset.protoHero = "2";
-    host.append(rain);
-  }
+  if (rain2) host.append(rain2);
   chart.start();
 }
 

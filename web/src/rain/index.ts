@@ -21,7 +21,7 @@
  */
 import "./rain.css";
 import "./PROTOTYPE-gauge.css"; // PROTOTYPE #619
-import { protoVariant, renderProtoGauge } from "./PROTOTYPE-gauge.js"; // PROTOTYPE #619
+import { protoHeadline, protoVariant, renderProtoGauge } from "./PROTOTYPE-gauge.js"; // PROTOTYPE #619
 
 import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { beyondRecord, gapElement, gapValue, hatchGap } from "../gaps.js";
@@ -215,7 +215,10 @@ export function renderYears(
   options: SectionOptions = {},
 ): void {
   const tab: RainTab = snapshot.rain_tab;
-  host.append(tileFinding(yearsHeadline(tab), options));
+  // PROTOTYPE #619: the gauge's finding replaces the headline in the zoom.
+  host.append(
+    tileFinding((options.zoom && protoHeadline(snapshot)) || yearsHeadline(tab), options),
+  );
   const current = tab.water_years[tab.water_years.length - 1];
   // When the archive holds none of any water year there is no chart, not a
   // hatched block (#606).
@@ -235,7 +238,7 @@ export function renderYears(
   // PROTOTYPE #619: a rain gauge variant replaces the window strip (zoom only).
   const proto = options.zoom ? protoVariant() : null;
   const strip = proto ? null : windowStrip(snapshot);
-  if (proto) renderProtoGauge(host, snapshot, proto);
+  if (proto) renderProtoGauge(host, snapshot);
   if (strip) host.append(strip);
   const left = tab.water_years.filter((c) => c.cumulative_in.every((v) => v === null));
   const live = snapshot.current.rain_today_in;
