@@ -701,8 +701,8 @@
         "purpose": "The live temperature only, with a 0.4em superscript unit."
       },
       "headline": {
-        "displayName": "Hero finding",
-        "purpose": "The adaptive hero lead's finding; 1.625rem at 1024px and up; max 30ch."
+        "displayName": "Feature finding",
+        "purpose": "The feature tile's finding and each tab's top finding; 1.5rem from 760px, 1.25rem on a phone; max 52ch."
       },
       "title": {
         "displayName": "Section finding",
@@ -726,7 +726,7 @@
       },
       "stat": {
         "displayName": "Stat value",
-        "purpose": "Right-now and hero fact values, tabular, above an ink-2 label."
+        "purpose": "Stat strip values and the number on a mosaic or feature tile, tabular, above an ink-2 label."
       },
       "label": {
         "displayName": "Label",
@@ -836,7 +836,7 @@
   ],
   "narrative": {
     "northStar": "The Annotated Almanac",
-    "overview": "**Creative North Star: \"The Annotated Almanac\"**\n\nLookout is one station's own record, set out the way the Financial Times sets out a chart: a short finding in plain words, a one-line standfirst, the evidence, then where the numbers came from. The Dark Sky half supplies the presentation: a large current temperature, a 48-hour condition ribbon, and colour that comes from the weather rather than from the chrome. The headlines say what the data shows and then step back. The chart is the most contrasty thing in any section.\n\nThe Paper world sits on a warm off-white ground by day and a warm off-black ground at night. The chrome is close to greyscale and warm: ink, two softer inks, two hairline rules. Colour is kept for data. Rain is a desaturated blue ramp from drizzle to downpour, temperature runs from cold blue to terracotta, solar is amber, and one claret marks the finding on a chart. One readable family, Atkinson Hyperlegible Next, sets every word and number. The system is built for dyslexic readers: text is left-aligned, nothing is italic, there are no long all-caps runs, line height is generous, and measures are short.\n\nThe record is honest about itself. Gaps are hatched, never smoothed over. A live value beats an archived one. Each fact is computed once and agrees everywhere it appears. The system has no dark-pattern urgency, no gauge walls and no tile grids of raw numbers.",
+    "overview": "**Creative North Star: \"The Annotated Almanac\"**\n\nLookout is one station's own record, set out the way the Financial Times sets out a chart: a short finding in plain words, a one-line standfirst, the evidence, then where the numbers came from. The Dark Sky half supplies the presentation: a large current temperature, today drawn against its usual, and colour that comes from the weather rather than from the chrome. The headlines say what the data shows and then step back. The chart is the most contrasty thing in any section.\n\nThe Paper world sits on a warm off-white ground by day and a warm off-black ground at night. The chrome is close to greyscale and warm: ink, two softer inks, two hairline rules. Colour is kept for data. Rain is a desaturated blue ramp from drizzle to downpour, temperature runs from cold blue to terracotta, solar is amber, and one claret marks the finding on a chart. One readable family, Atkinson Hyperlegible Next, sets every word and number. The system is built for dyslexic readers: text is left-aligned, nothing is italic, there are no long all-caps runs, line height is generous, and measures are short.\n\nThe record is honest about itself. Gaps are hatched, never smoothed over. A live value beats an archived one. Each fact is computed once and agrees everywhere it appears. The system has no dark-pattern urgency, no gauge walls and no tile grids of raw numbers.",
     "keyCharacteristics": [
       "Every section runs finding headline, standfirst, chart, source line.",
       "Warm neutral chrome; data colour carries all the hue.",
@@ -878,12 +878,12 @@
       },
       {
         "name": "The Phone First-Screen Rule",
-        "body": "On a phone, the first screen holds, in order: the station name and live timestamp, the current temperature with the condition sentence beside it, the Right-now stat strip (feels like, wind, rain today), the 48-hour condition ribbon, and then the hero lead.",
+        "body": "On a phone, each tab opens with a short fixed top, then its context. The Overview holds the now tile (the current temperature, its delta on usual for this hour, and today against the usual band), then the feature tile at full width, then the mosaic, two tiles to a row. Nothing on the Overview folds. Rain and Solar open with the tab's top finding, its stats and its main chart; their other sections are finding rows.",
         "section": "layout"
       },
       {
-        "name": "The Adaptive Lead Rule",
-        "body": "The hero is chosen by rules, checked in order. Rain leads if an event is live or ended in the last 12 h. Temperature leads if it is at least 10° from the month median. Solar leads if it is at least 400 W/m². Otherwise the lead is calm (days since last rain against the usual dry spell). A \"Why this leads\" disclosure lists each rule with its live value and marks which were met.",
+        "name": "The Feature Rule",
+        "body": "One full-width feature tile sits under the now tile. The refresh run chooses it (ADR-0009) and the snapshot carries the choice; the site only words, formats and links it. The rule, checked in order: a rain event live or ended in the last 12 hours; then a reading below the 10th or above the 90th percentile of its readings at this hour within a week of this date in earlier years, the furthest out winning (skipped on a station with no earlier year); then a dry spell longer than the usual dry spell; otherwise \"a usual day\", with today's temperature. A snapshot with no feature draws no feature tile. The sources footer states the rule in words.",
         "section": "layout"
       },
       {
