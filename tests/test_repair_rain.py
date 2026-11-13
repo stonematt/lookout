@@ -384,14 +384,15 @@ def test_a_failed_reference_read_stops_the_repair_before_any_save(
     assert station.keys() == keys
 
 
-def test_a_missing_reference_aborts_the_write(seed, truth, capsys):
+def test_an_empty_reference_aborts_the_write(seed, truth, capsys):
     station = seed(truth, reference=truth.iloc[0:0])
     keys = station.keys()
 
     status, out = run(["--write"], capsys)
 
     assert status == 1
-    assert "missing or empty" in out
+    assert "is empty" in out
+    assert "missing" not in out
     assert "Nothing written" in out
     assert station.keys() == keys
 
