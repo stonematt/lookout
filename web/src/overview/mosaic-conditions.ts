@@ -233,9 +233,9 @@ export const windTile: MosaicTile = {
       "Speed and gust in mph. The direction is where the wind blows from, to the nearest of 16 " +
       "compass points; the compass arrow points the way it blows. A speed of 0 is calm: no direction, no arrow.";
     const rose = snapshot.wind_rose;
-    if (!rose) return { what: "the live reading: speed, direction and gust", method: live };
+    if (!rose) return { line: "live speed, direction and gust.", method: live };
     return {
-      what: "the live reading, and each window's readings for the rose",
+      line: "live speed, direction and gust; the rose from each window's readings.",
       method:
         `${live} The rose sorts each window's readings by the direction the wind came ` +
         "from: each direction's average wind and its highest gust. A reading under " +
@@ -303,7 +303,7 @@ export const pressureTile: MosaicTile = {
   chart: (snapshot, width) =>
     outdoorChart(snapshot.outdoor_trace?.pressure_inhg, width, PRESSURE_PAD),
   source: () => ({
-    what: "the live barometer reading, relative to sea level, and the last 24 hours' readings",
+    line: "live sea-level barometer and its last 24 hours; trend over 3 hours.",
     method:
       "The trend is the change over the last 3 hours: rising, falling or steady. The line is " +
       "the last 24 hours, each hour's mean.",
@@ -328,7 +328,7 @@ export const humidityTile: MosaicTile = {
   chart: (snapshot, width) =>
     outdoorChart(snapshot.outdoor_trace?.humidity_pct, width, HUMIDITY_PAD),
   source: () => ({
-    what: "the live outdoor humidity and dew point, and the last 24 hours' readings",
+    line: "outdoor sensor and dew point.",
     method:
       "Relative humidity outdoors, and the dew point: the temperature at which that air would " +
       "be saturated. The line is the last 24 hours, each hour's mean.",
@@ -403,7 +403,7 @@ export const sunTile: MosaicTile = {
   },
   chart: sunChart,
   source: () => ({
-    what: "daily solar energy and five-minute solar readings",
+    line: "solar sensor, against yesterday and the last 30 days.",
     method:
       "Today's energy so far and yesterday's whole day, in kWh per m²; ≈ marks a total scaled " +
       "up over a little missing time. The line is the last 24 hours of solar radiation, over its " +
@@ -465,7 +465,7 @@ export const daylightTile: MosaicTile = {
   zoomName: "daylight",
   shown: (snapshot) => snapshot.sun_moon !== null,
   // The Sun and moon card said it in its body; with no tile, the footer does.
-  absent: () => "Not known: the station reports no location.",
+  absent: () => "not known, as the station reports no location.",
   read(snapshot) {
     const block = snapshot.sun_moon;
     if (!block) return { value: null, delta: "the station reports no location" };
@@ -477,7 +477,7 @@ export const daylightTile: MosaicTile = {
   },
   chart: daylightChart,
   source: () => ({
-    what: "sunrise and sunset at the station's location, station time",
+    line: "sunrise to sunset at the station, against yesterday.",
     method:
       "Daylight runs from sunrise to sunset, against yesterday's. The arc is the day from " +
       "sunrise to sunset; the dot is where the sun is in it now.",
@@ -529,7 +529,7 @@ export const insideTile: MosaicTile = {
   read: () => ({ value: null, delta: null }),
   rows: (snapshot): MosaicRow[] => (snapshot.indoor ?? []).map(sensorRow),
   source: () => ({
-    what: "each indoor sensor's newest reading in the last 24 hours",
+    line: "each indoor sensor's last 24 hours.",
     method:
       "One row per indoor sensor still reporting: its temperature and humidity, and its last " +
       "24 hours as hourly means.",

@@ -251,13 +251,13 @@ describe("the Rain tile", () => {
     expect(delta("rain")).toBe("not compared yet");
   });
 
-  it("names the new field in its sources footer line", () => {
+  it("names the new field in its sources footer method", () => {
     renderOverview(panel, parsed("seasoned"));
 
-    const rain = words(panel.querySelector('[data-source="Rain since Oct 1"]'));
+    const rain = words(panel.querySelector('.ov-sources-how [data-source="Rain since Oct 1"]'));
     expect(rain).toContain("a percent of the usual rain by this date");
     expect(rain).not.toContain("newest earlier year");
-    const tenDays = words(panel.querySelector('[data-source="Last 10 days"]'));
+    const tenDays = words(panel.querySelector('.ov-sources-how [data-source="Last 10 days"]'));
     expect(tenDays).toContain("the mean of the last ten days' highs against their usual highs");
   });
 });
