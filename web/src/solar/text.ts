@@ -149,8 +149,11 @@ function change(now: number, before: number): string {
   return now > before ? "up from" : "down from";
 }
 
-/** A solar window's energy as its gap status allows, bare: "2.41", "≈ 6.11"; or null. */
-function windowEnergy(snapshot: DashboardSnapshot, key: string): string | null {
+/**
+ * A solar window's energy as its gap status allows, bare: "2.41", "≈ 6.11";
+ * or null. The Sun tile and the Sun zoom's finding both word it (#607).
+ */
+export function windowEnergy(snapshot: DashboardSnapshot, key: string): string | null {
   const window = snapshot.solar_tab?.windows.find((w) => w.key === key);
   if (!window || window.energy_kwh_m2 === null) return null;
   return gapValue(window.status, kwhPerM2(window.energy_kwh_m2, { unit: false }));

@@ -40,6 +40,7 @@ import {
 } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, TemperatureDay } from "../snapshot.js";
+import { isShown } from "./history.js";
 import type { MosaicTile } from "./mosaic.js";
 import {
   daylightTile,
@@ -49,7 +50,6 @@ import {
   sunTile,
   windTile,
 } from "./mosaic-conditions.js";
-import { isShown } from "./history.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
 import { rampColour, shownDays, todayInList, todayPeriod } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
