@@ -83,10 +83,11 @@ export interface MosaicTile {
    */
   chart?(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null;
   /**
-   * Whether the chart draws a usual band under bars: it then carries the
-   * "usual range" legend swatch under it (spec #460 Legends).
+   * Whether the chart draws a usual band under its bars for this snapshot:
+   * it then carries the "usual range" legend swatch above the chart (spec
+   * #460 Legends), and none when no day has a band to draw.
    */
-  bandUnderBars?: boolean;
+  bandUnderBars?(snapshot: DashboardSnapshot): boolean;
   /**
    * The tile's line in the Overview's sources footer (`sources.ts`): what it
    * reads and how its comparison is made. The tile itself folds no source.
@@ -267,12 +268,15 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   if (!draw) return;
   const plot = document.createElement("div");
   chart.append(plot);
+  const band = tile.bandUnderBars?.(snapshot) ?? false;
   drawSized(plot, (width) => {
     const svg = draw(snapshot, width);
     plot.replaceChildren(...(svg ? [svg] : []));
     // A band under bars carries its legend, never a label inside the plot.
+    // The legend goes above the chart, so the chart keeps the tile's foot,
+    // the baseline its row's charts share.
     const legend = chart.querySelector("[data-part=legend]");
-    if (svg && tile.bandUnderBars && !legend) chart.append(bandLegend());
+    if (svg && band && !legend) chart.prepend(bandLegend());
     if (!svg) legend?.remove();
   });
 }

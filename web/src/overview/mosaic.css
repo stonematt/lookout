@@ -145,13 +145,14 @@
   fill: var(--temp-band);
 }
 
-/* the "usual range" legend under a chart with a band under bars (spec
-   #460 Legends): the band fill with its dashed edge, then the words */
+/* the "usual range" legend over a chart with a band under bars (spec
+   #460 Legends): the band fill with its dashed edge, then the words. It
+   sits above the chart, so the chart keeps the foot its row shares */
 .mosaic-legend {
   display: flex;
   align-items: center;
   gap: var(--s-1);
-  margin: var(--s-1) 0 0;
+  margin: 0 0 var(--s-1);
   font-size: var(--type-label);
   line-height: 1.4;
   color: var(--ink-3);

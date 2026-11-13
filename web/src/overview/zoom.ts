@@ -29,7 +29,9 @@
  *   with a zoom carries `aria-expanded` and `aria-controls`.
  *
  * Focus moves to the zoom's heading when it opens, and back to the link
- * that opened it (else its tile) when it closes. Close, Back and Escape
+ * that opened it (else its tile) when it closes. The heading shows its focus
+ * ring only when the reader's last input was a key, never for a zoom a
+ * shared link opens. Close, Back and Escape
  * close it: they step back through the history entries the zooms pushed
  * (so the browser's Back and the zoom's own agree), or, for a zoom opened
  * from a shared link, replace the route with `#overview`. Under
@@ -177,9 +179,52 @@ function stateOf(panel: HTMLElement, zooms: readonly ZoomDefinition[]): ZoomStat
     };
     states.set(panel, state);
     listen(panel, state);
+    watchInput();
   }
   state.zooms = zooms;
   return state;
+}
+
+/**
+ * Whether the reader's last input was a key rather than a pointer. A
+ * browser shows the ring on a focus a script moves before any input, as it
+ * does after a key, so a zoom a link opens with no key pressed (a shared
+ * link pasted into the open page) would show a ring nobody asked for.
+ */
+let lastInputWasKey = false;
+/** Whether the page listens for input yet: once for the page, not a panel. */
+let watching = false;
+
+/**
+ * Follow the reader's last input, once for the page. A key pressed while a
+ * quiet heading holds focus gives it back its ring.
+ */
+function watchInput(): void {
+  if (watching) return;
+  watching = true;
+  document.addEventListener(
+    "keydown",
+    () => {
+      lastInputWasKey = true;
+      document.querySelector(".zoom-heading[data-quiet]")?.removeAttribute("data-quiet");
+    },
+    true,
+  );
+  document.addEventListener("pointerdown", () => (lastInputWasKey = false), true);
+}
+
+/**
+ * Move focus to the open zoom's heading, for screen readers, its ring shown
+ * only when the reader's last input was a key (`data-quiet` otherwise,
+ * `zoom.css`).
+ *
+ * @param panel - The Overview's panel.
+ */
+function focusHeading(panel: HTMLElement): void {
+  const heading = panel.querySelector<HTMLElement>(".zoom-heading");
+  if (!heading) return;
+  heading.toggleAttribute("data-quiet", !lastInputWasKey);
+  heading.focus({ preventScroll: true });
 }
 
 /** A tile's own link, by slug. */
@@ -396,7 +441,7 @@ export function drawZoom(
   // A zoom the page opens on its own (a shared link, a reload) steps back
   // as far as its history entry says, else replaces the route.
   if (state.open !== was) state.back = state.open === null ? 0 : (stampedBack() ?? 0);
-  if (held) panel.querySelector<HTMLElement>(".zoom-heading")?.focus({ preventScroll: true });
+  if (held) focusHeading(panel);
 }
 
 /** A drawn tile, by slug, or null. */
@@ -462,8 +507,7 @@ export function followZoom(panel: HTMLElement, zooms: readonly ZoomDefinition[] 
   render(panel, state);
   if (panel.hidden) return;
   if (next !== null) {
-    const heading = panel.querySelector<HTMLElement>(".zoom-heading");
-    heading?.focus({ preventScroll: true });
+    focusHeading(panel);
     const el = panel.querySelector<HTMLElement>(".zoom");
     if (inPlace())
       el?.scrollIntoView?.({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" });
