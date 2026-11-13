@@ -656,7 +656,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         problems: List[str] = []
         if reference.empty:
-            problems.append(f"the raw reference {reference_key} is missing or empty")
+            problems.append(f"the raw reference {reference_key} is empty")
 
         repaired = archive
         restored_ms: List[int] = []
