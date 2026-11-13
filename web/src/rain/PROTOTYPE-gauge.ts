@@ -15,7 +15,6 @@
  */
 import { drawSized } from "../charts/svg.js";
 import { make, svgEl } from "../dom.js";
-import { inches } from "../format.js";
 import { isShown } from "../overview/history.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 
@@ -251,69 +250,4 @@ export function renderProtoGauge(host: HTMLElement, snapshot: DashboardSnapshot)
   wrap.append(fig, note);
   host.append(wrap);
   drawSized(fig, (width) => bars(fig, cols, width));
-}
-
-/** PROTOTYPE: whether the hero rain is asked for (`?hero=1`). */
-export function protoHero(): boolean {
-  return new URLSearchParams(location.search).has("hero");
-}
-
-/**
- * PROTOTYPE: rain today and yesterday for the hero, or null when neither is
- * above 0. `?rainwindows=` drives both; else the live total today and the
- * Yesterday window total. Today is the live rain today, not the event's total.
- */
-function heroRain(snapshot: DashboardSnapshot): { today: number; yest: number } | null {
-  const over = protoOverride();
-  const yw = snapshot.rain_tab.windows.find((w) => w.key === "yesterday");
-  let today = snapshot.current.rain_today_in;
-  let yest = yw && isShown(yw.status) ? yw.total_in : null;
-  if (over) {
-    today = over[0] ?? null;
-    yest = over[1] ?? null;
-  }
-  const t = today ?? 0;
-  const y = yest ?? 0;
-  return t > 0 || y > 0 ? { today: t, yest: y } : null;
-}
-
-/**
- * PROTOTYPE: the hero's rain. Placement 1 (a line under the temperature's
- * delta) shows below 760 px; placement 2 (two labelled rows with short bars on
- * the far side of the ribbon) from 760 px up; CSS picks.
- *
- * @param snapshot - The dashboard snapshot.
- * @param placement - "1" or "2".
- * @returns The element, or null when it did not rain.
- */
-export function protoHeroRainNode(
-  snapshot: DashboardSnapshot,
-  placement: "1" | "2",
-): HTMLElement | null {
-  const r = heroRain(snapshot);
-  if (!r) return null;
-  if (placement === "1") {
-    const p = make("p", "pg-hero1");
-    p.dataset.prototype = "rain-gauge";
-    p.textContent = `Rain today ${inches(r.today)} · yesterday ${inches(r.yest)}`;
-    return p;
-  }
-  const box = make("dl", "pg-hero2");
-  box.dataset.prototype = "rain-gauge";
-  const max = Math.max(r.today, r.yest, 0.01);
-  for (const [k, v] of [
-    ["Today", r.today],
-    ["Yesterday", r.yest],
-  ] as const) {
-    const row = make("div", "pg-hero2-row");
-    const label = make("dt", "pg-hero2-k", k);
-    const num = make("dd", "pg-hero2-v", inches(v));
-    const track = make("span", "pg-hero2-track");
-    const bar = make("span", "pg-hero2-bar");
-    bar.style.width = `${v > 0 ? Math.max(3, (v / max) * 100) : 0}%`;
-    track.append(bar);
-    row.append(label, num, track);
-    box.append(row);
-  }
-  return box;
 }

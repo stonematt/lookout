@@ -56,7 +56,11 @@
   bottom: 8px;
   left: 8px;
   z-index: 9999;
-  padding: 3px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100vw - 16px);
+  padding: 3px 6px;
   border-radius: 12px;
   background: #11161c;
   color: #fff;
@@ -64,6 +68,13 @@
     10px/1.2 system-ui,
     sans-serif;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.pg-switcher button {
+  all: unset;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 13px;
 }
 
 /* PROTOTYPE #619: the hero's rain today and yesterday. */
@@ -74,48 +85,104 @@
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
-.pg-hero2 {
+.pg-hdesk {
   display: none;
-  margin: 0;
+  min-width: 0;
   color: var(--ink-on-now);
   font-variant-numeric: tabular-nums;
 }
-.pg-hero2-row {
-  display: grid;
-  grid-template-columns: auto auto 72px;
-  white-space: nowrap;
-  align-items: center;
-  column-gap: 8px;
-  padding: 3px 0;
-}
-.pg-hero2-k {
-  font-size: var(--type-label);
-}
-.pg-hero2-v {
+.pg-hdesk p {
   margin: 0;
+}
+.pg-unit {
+  font-size: 0.4em;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+/* a: mirrors the temperature, a step smaller */
+.pg-ha-label {
   font-size: var(--type-finding);
   font-weight: 500;
-  text-align: right;
+  color: var(--ink-2);
+  margin-bottom: 4px !important;
 }
-.pg-hero2-track {
+.pg-ha-num {
+  font-size: calc(var(--type-display) * 0.62);
+  font-weight: 300;
+  line-height: 0.88;
+  letter-spacing: -0.05em;
+  margin-bottom: var(--s-2, 8px) !important;
+}
+.pg-ha-cap {
+  font-size: var(--type-finding);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+
+/* b: a two-bar gauge on the chart's baseline */
+.pg-hb-svg {
   display: block;
-  height: 8px;
+  font-family: var(--sans);
+}
+.pg-hb-bar {
+  fill: var(--ribbon-rain);
+}
+.pg-hb-floor {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+.pg-hb-val {
+  font-size: 14px;
+  font-weight: 600;
+  fill: var(--ink-on-now);
+}
+.pg-hb-name {
+  font-size: 12px;
+  fill: var(--ink-on-now);
+}
+
+/* c: two enlarged rows, centred */
+.pg-h-c {
+  width: clamp(170px, 20vw, 240px);
+  align-self: center;
+}
+.pg-hc-row + .pg-hc-row {
+  margin-top: var(--s-5, 20px);
+}
+.pg-hc-k {
+  font-size: var(--type-finding);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.pg-hc-num {
+  font-size: calc(var(--type-display) * 0.42);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  margin: 2px 0 6px !important;
+}
+.pg-hc-track {
+  display: block;
+  height: 10px;
   border-bottom: 1px solid var(--ink-3);
 }
-.pg-hero2-bar {
+.pg-hc-bar {
   display: block;
-  height: 8px;
+  height: 10px;
   background: var(--ribbon-rain);
 }
+
 @media (min-width: 760px) {
   .pg-hero1 {
     display: none;
   }
-  .pg-hero2 {
+  .pg-hdesk {
     display: block;
   }
   :root:is([data-layout="two"], [data-layout="four"], [data-layout="one"])
-    .tile[data-section="first-screen"]:has(> .pg-hero2) {
+    .tile[data-section="first-screen"]:has(> .pg-hdesk) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: end;
