@@ -132,13 +132,39 @@ describe("the Sun zoom", () => {
     expect(words(link.querySelector(".zoom-panel-title"))).toBe("More in Solar");
     expect(link.querySelector("[aria-hidden=true]")?.textContent).toBe("›");
 
-    // The Solar tab draws the same section, with its source note kept.
+    // The Solar tab draws the same section, with its source note kept and
+    // its own 24-hour wording (#607).
     const tab = document.createElement("div");
     document.body.append(tab);
     renderSolar(tab, snapshot, () => "");
     const now = tab.querySelector<HTMLElement>('[data-section="now"]')!;
-    expect(words(now.querySelector("[data-part=finding]"))).toBe(finding);
+    expect(words(now.querySelector("[data-part=finding]"))).toBe(
+      "5.81 kWh/m² of sun in the last 24 hours, about the same as 6.11 the 24 before",
+    );
     expect(now.querySelector("details")).not.toBeNull();
+    expect(finding).not.toBe(words(now.querySelector("[data-part=finding]")));
+  });
+
+  it("names today and yesterday as the Sun tile does (#607)", async () => {
+    await boot("#overview/sun");
+    const finding = words(panel("sunlight-now")!.querySelector("[data-part=finding]"));
+    expect(finding).toBe("4.92 kWh/m² of sun today so far, 6.11 all of yesterday");
+    expect(finding).not.toMatch(/24/);
+    // The same numbers as the tile's, in the zoom's lead.
+    expect(words(zoom()!.querySelector("[data-part=value]"))).toBe("4.92 kWh/m²");
+    expect(words(zoom()!.querySelector("[data-part=delta]"))).toBe("all of yesterday 6.11 kWh/m²");
+  });
+
+  it.each([
+    ["yesterday", "4.92 kWh/m² of sun today so far"],
+    ["today", "6.11 kWh/m² of sun all of yesterday"],
+  ])("leaves out a day with no total: no %s (#607)", async (missing, text) => {
+    const d = structuredClone(golden("seasoned", "dashboard")) as {
+      solar_tab: { windows: { key: string; energy_kwh_m2: number | null }[] };
+    };
+    d.solar_tab.windows.find((w) => w.key === missing)!.energy_kwh_m2 = null;
+    await boot("#overview/sun", parseDashboard(d));
+    expect(words(panel("sunlight-now")!.querySelector("[data-part=finding]"))).toBe(text);
   });
 });
 

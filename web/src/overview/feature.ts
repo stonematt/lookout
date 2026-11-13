@@ -118,7 +118,7 @@ const READINGS: Record<
   solar: {
     name: "sun",
     high: "brighter",
-    low: "duller",
+    low: "dimmer",
     target: zoomTarget(sunTile),
   },
 };

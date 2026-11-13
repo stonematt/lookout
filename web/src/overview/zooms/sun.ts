@@ -2,8 +2,10 @@
  * The Sun zoom (#477, spec #460; boards `Zoom`, `ZoomDark`): under the Sun
  * tile's number and delta, the Solar tab's top section, Sunlight now (the
  * last 24 hours against the usual range), drawn by the Solar tab's own
- * `renderSunlightNow`, then "More in Solar". No source note (prototype
- * decision 22): the Overview's sources footer carries the tile's line.
+ * `renderSunlightNow` with its zoom option, whose finding names today and
+ * yesterday as the tile does (#607), then "More in Solar". No source note
+ * (prototype decision 22): the Overview's sources footer carries the
+ * tile's line.
  *
  * Offers `sunZoom`.
  */

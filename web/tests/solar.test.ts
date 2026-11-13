@@ -285,6 +285,20 @@ describe("words", () => {
     );
   });
 
+  it("says Dimmer, not Duller, for a week under earlier years (#607)", () => {
+    const copy = structuredClone(raining);
+    const days = copy.solar_tab!.days;
+    const count = 739;
+    days.first_day = "2024-01-01";
+    days.energy_kwh_m2 = Array.from({ length: count }, (_, i) =>
+      i >= count - 8 && i < count - 1 ? 1.0 : 2.0,
+    );
+    days.reason = days.energy_kwh_m2.map(() => null);
+    expect(dailyHeadline(copy)).toBe(
+      "Dimmer than this week in earlier years: 1.00 kWh/m² a day over the last 7 full days, against 2.00 (2025) and 2.00 (2024)",
+    );
+  });
+
   it("falls back to the last 30 days, or to no claim at all", () => {
     expect(dailyHeadline(raining)).toBe("Sun each day over the last 90 days");
   });
