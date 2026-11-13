@@ -605,9 +605,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     The shell entry point.
 
     :param argv: Arguments, without the program name; `sys.argv` when None.
-    :return: 0 when the repair checks out (and, with --write, was saved);
+    :return: 0 when the repair checks out (and, with --write, was saved), or
+        when the station has no raw reference at all (it needs no repair);
         1 when a day refilled short, a check failed, or the raw reference is
-        missing, `--station` is not in the station inventory, (with
+        empty, `--station` is not in the station inventory, (with
         --write) another archive writer holds the lock, or the read-back of
         the saved archive fails a check (the archive is then saved; the
         failure lines name the rollback backup).
@@ -643,9 +644,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             args.bucket, reference_key, file_type="parquet"
         )
         if reference is None:
-            emit(f"Problem: the raw reference {reference_key} is missing or empty")
-            emit("Nothing written: fix the problems above first.")
-            return 1
+            # Found nothing (ADR-0004): a station that joined after #95 has no
+            # raw reference and never needed the repair. Not a failure (#452).
+            emit(
+                f"Station {mac} has no raw reference from before #95, so the "
+                "#95 rain repair does not apply to it. Nothing written."
+            )
+            return 0
         # A repeated reading resolves as the archive merge resolves it (#431).
         reference = normalize(reference)
 

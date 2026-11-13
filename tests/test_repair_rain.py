@@ -384,18 +384,6 @@ def test_a_failed_reference_read_stops_the_repair_before_any_save(
     assert station.keys() == keys
 
 
-def test_an_absent_reference_aborts_the_write(seed, truth, capsys):
-    station = seed(truth)
-    station.s3.delete_object(Bucket=BUCKET, Key=REFERENCE_KEY)
-    keys = station.keys()
-
-    status, out = run(["--write"], capsys)
-
-    assert status == 1
-    assert "missing or empty" in out
-    assert station.keys() == keys
-
-
 def test_a_missing_reference_aborts_the_write(seed, truth, capsys):
     station = seed(truth, reference=truth.iloc[0:0])
     keys = station.keys()
@@ -544,17 +532,23 @@ def window_of(df: pd.DataFrame) -> pd.DataFrame:
     return by_time(df)[in_window(df.sort_values("dateutc")).to_numpy()]
 
 
-def seed_second(station: CatchupStation, truth: pd.DataFrame) -> str:
+def seed_second(
+    station: CatchupStation, truth: pd.DataFrame, reference: bool = True
+) -> str:
     """
     Add Salmon Run: on the account, in the inventory, damaged like the first,
-    with its own raw reference.
+    with its own raw reference unless `reference` is False.
 
+    :param reference: Whether to store the second station's raw reference.
     :return: The key of its archive.
     """
     with_second_station(station)
     key = f"{SECOND_MAC}.parquet"
     storj.save_df_to_s3(damaged(truth), BUCKET, key)
-    storj.save_df_to_s3(truth, BUCKET, repair_rain.REFERENCE_KEY.format(mac=SECOND_MAC))
+    if reference:
+        storj.save_df_to_s3(
+            truth, BUCKET, repair_rain.REFERENCE_KEY.format(mac=SECOND_MAC)
+        )
     return key
 
 
@@ -604,6 +598,25 @@ def test_a_station_outside_the_inventory_is_refused_before_ambient(
     assert "Refused: Station 00:00:00:00:00:99 is not in the station" in out
     assert station.replay.calls == []
     assert station.keys() == keys
+
+
+@pytest.mark.parametrize("flags", [[], ["--write"]])
+def test_a_station_with_no_raw_reference_needs_no_repair(seed, truth, capsys, flags):
+    station = seed(truth)
+    second_key = seed_second(station, truth, reference=False)
+    keys = station.keys()
+    second_before = storj.get_df_from_s3(BUCKET, second_key, file_type="parquet")
+
+    status, out = run([*flags, "--station", SECOND_MAC], capsys)
+
+    assert status == 0
+    assert "no raw reference from before #95" in out
+    assert "does not apply" in out
+    assert "Problem" not in out
+    assert station.keys() == keys
+    pd.testing.assert_frame_equal(
+        storj.get_df_from_s3(BUCKET, second_key, file_type="parquet"), second_before
+    )
 
 
 # The repair backup and the raw read-back (#169, #170).
