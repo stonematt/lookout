@@ -33,9 +33,17 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from lookout.snapshot.build import build_snapshot
-from lookout.snapshot.model import Feature, FeatureKind, FeatureReading, Snapshot
+from lookout.snapshot.feature import previous_feature
+from lookout.snapshot.model import (
+    Feature,
+    FeatureDirection,
+    FeatureKind,
+    FeatureReading,
+    Snapshot,
+)
 from lookout.utils.dateutc import DAY_MS, HOUR_MS, STATION_FRESH_MINUTES
 from tests.fixtures.archive import (
     SEASONED_NOW,
@@ -442,6 +450,7 @@ class TestPublished:
             "since_ms": ms(SEASONED_BUILT),
             "held": False,
             "outside_usual": True,
+            "direction": "above",
         }
 
     def test_a_quiet_feature_carries_nulls(self):
@@ -457,6 +466,7 @@ class TestPublished:
             "since_ms": ms(SEASONED_BUILT),
             "held": False,
             "outside_usual": None,
+            "direction": None,
         }
 
     def test_a_snapshot_with_no_history_is_quiet(self):
@@ -474,11 +484,13 @@ def chosen(
     kind: FeatureKind,
     reading: Optional[FeatureReading] = None,
     ago_ms: int = HOUR_MS,
+    direction: Optional[FeatureDirection] = None,
 ) -> Feature:
     """
     A last published feature, its subject chosen `ago_ms` before the build.
 
     Its values are deliberately stale, so a test sees them recomputed.
+    `direction` is the side it was chosen on (#584).
     """
     return Feature(
         kind=kind,
@@ -490,6 +502,7 @@ def chosen(
         since_ms=BUILT_MS - ago_ms,
         held=False,
         outside_usual=True if kind == "unusual" else None,
+        direction=direction,
     )
 
 
@@ -657,6 +670,106 @@ class TestHeldUnusual:
 
         assert snapshot.feature.kind == "quiet"
         assert snapshot.feature.held is False
+
+
+class TestDirection:
+    """
+    #584: an unusual feature carries `direction`, the side of the usual band
+    its subject was chosen on, kept unchanged through the hold.
+    """
+
+    def test_a_reading_chosen_above_its_band_says_above(self):
+        snapshot = seasoned({"tempf": SEASONED_PUSHED_TEMPF})
+
+        assert snapshot.feature.direction == "above"
+
+    def test_a_reading_chosen_below_its_band_says_below(self):
+        snapshot = seasoned({"tempf": usual_tempf(0.02)})
+
+        assert snapshot.feature.reading == "temperature"
+        assert snapshot.feature.outside_usual is True
+        assert snapshot.feature.direction == "below"
+
+    @pytest.mark.parametrize("kind", ["quiet", "dry_spell"])
+    def test_a_feature_with_no_reading_has_no_direction(self, kind):
+        assert seasoned(previous=chosen(kind)).feature.direction is None
+
+    def test_a_held_reading_keeps_its_side_after_crossing_the_50th(self):
+        # Chosen below its band an hour ago; temperature is now at its 80th,
+        # above the median and inside the band. The rule picks quiet, so the
+        # temperature is held.
+        previous = chosen("unusual", "temperature", direction="below")
+
+        snapshot = seasoned({"tempf": usual_tempf(0.8)}, previous=previous)
+
+        feature = snapshot.feature
+        assert feature.held is True
+        assert feature.outside_usual is False
+        assert feature.percentile is not None and feature.percentile > 50
+        assert feature.direction == "below"
+
+    def test_a_held_reading_keeps_its_side_when_another_wins_the_rule(self):
+        # Humidity was chosen above its band; it is back at its usual 65, and
+        # temperature is the furthest out below.
+        previous = chosen("unusual", "humidity", direction="above")
+
+        snapshot = seasoned({"tempf": usual_tempf(0.02)}, previous=previous)
+
+        assert snapshot.feature.reading == "humidity"
+        assert snapshot.feature.held is True
+        assert snapshot.feature.direction == "above"
+
+    def test_a_held_reading_out_on_the_other_side_keeps_its_first_side(self):
+        # Chosen below; it is now above its band, but held, so unchanged.
+        previous = chosen("unusual", "temperature", direction="below")
+
+        snapshot = seasoned(
+            {"tempf": usual_tempf(0.95), "humidity": 99.0}, previous=previous
+        )
+
+        assert snapshot.feature.reading == "temperature"
+        assert snapshot.feature.held is True
+        assert snapshot.feature.direction == "below"
+
+    def test_a_held_reading_from_before_the_field_has_no_side(self):
+        # Published before #584: its side was not recorded, and is not guessed.
+        previous = chosen("unusual", "humidity", direction=None)
+
+        snapshot = seasoned(previous=previous)
+
+        assert snapshot.feature.held is True
+        assert snapshot.feature.direction is None
+
+    def test_the_same_reading_picked_again_says_its_side_now(self):
+        previous = chosen("unusual", "temperature", ago_ms=5 * HOUR_MS)
+        previous = replace(previous, direction="below")
+
+        snapshot = seasoned({"tempf": SEASONED_PUSHED_TEMPF}, previous=previous)
+
+        assert snapshot.feature.held is False
+        assert snapshot.feature.direction == "above"
+
+    def test_the_last_published_feature_is_read_with_its_direction(self):
+        dashboard = {
+            "feature": {
+                "kind": "unusual",
+                "reading": "humidity",
+                "value": 40.0,
+                "unit": "pct",
+                "percentile": 4,
+                "event_start_ms": None,
+                "since_ms": BUILT_MS - HOUR_MS,
+                "held": False,
+                "outside_usual": True,
+                "direction": "below",
+            }
+        }
+
+        assert previous_feature(dashboard).direction == "below"
+        del dashboard["feature"]["direction"]
+        assert previous_feature(dashboard).direction is None
+        dashboard["feature"]["direction"] = "sideways"
+        assert previous_feature(dashboard).direction is None
 
 
 class TestRainTakesOver:
