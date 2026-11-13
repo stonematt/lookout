@@ -143,6 +143,11 @@
   outline-offset: 2px;
 }
 
+/* focus a script moved with no key pressed (a shared link): no ring */
+.zoom-heading[data-quiet]:focus-visible {
+  outline: none;
+}
+
 .zoom-value {
   font-size: var(--type-display);
   font-weight: 300;

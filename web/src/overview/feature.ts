@@ -27,7 +27,7 @@
  */
 import "./feature.css";
 
-import { spoken } from "../dom.js";
+import { spoken, spokenRunOn } from "../dom.js";
 import {
   degrees,
   formatDays,
@@ -369,9 +369,12 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
   // The finding is read once, as written; the hidden words round it carry
   // what the aria-hidden kicker and value show, and where the link goes.
+  // Those after it run on from it inside its element, so the link's name
+  // reads "on record." and never "on record ." (#589).
   if (view.spoken.before) body.append(spoken(view.spoken.before));
-  body.append(tileFinding(view.finding, { lead: true }));
-  body.append(spoken(`${view.spoken.after}. ${view.target.words}.`));
+  const finding = tileFinding(view.finding, { lead: true });
+  finding.append(spokenRunOn(`${view.spoken.after}.`));
+  body.append(finding, spoken(`${view.target.words}.`));
 
   link.append(top, body);
   host.replaceChildren(link);

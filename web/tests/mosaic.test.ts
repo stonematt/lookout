@@ -251,6 +251,29 @@ describe("the Last 10 days tile", () => {
     expect(legend.closest("[aria-hidden=true]")).not.toBeNull();
     expect(tile("last-10-days").querySelector("svg text")).toBeNull();
   });
+
+  it("sets the legend above the chart, so the chart keeps the row's baseline", () => {
+    renderOverview(panel, parsed("seasoned"));
+
+    // The chart is the mini chart's last part: nothing under it lifts it
+    // off the foot its row's charts share (DESIGN.md Mosaic tile anatomy).
+    const chart = tile("last-10-days").querySelector("[data-part=mini-chart]")!;
+    expect(chart.firstElementChild?.matches("[data-part=legend]")).toBe(true);
+    expect(chart.lastElementChild?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("shows no legend when no day has a usual range to draw", () => {
+    const d = doc("seasoned");
+    for (const day of d.temperature_context.ten_days) {
+      day.usual_low = null;
+      day.usual_high = null;
+    }
+    renderOverview(panel, parseDashboard(d));
+
+    expect(tile("last-10-days").querySelectorAll("svg .mosaic-day").length).toBeGreaterThan(0);
+    expect(tile("last-10-days").querySelector("svg .mosaic-band-day")).toBeNull();
+    expect(tile("last-10-days").querySelector("[data-part=legend]")).toBeNull();
+  });
 });
 
 describe("the Dry spell tile", () => {

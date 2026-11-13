@@ -476,7 +476,7 @@ A tile is one link, `#overview/<tile>`, to its zoom. Inside the link, in order:
 - the title, an `h2` in Kicker type ("Rain since Oct 1");
 - the number in Fact type, a word unit after it in Stat type;
 - the short delta in Small type, `ink-2` ("−1° on usual", "steady over 3 hours");
-- the mini chart at the tile's foot, 64px tall on every tile so a row lines up, `aria-hidden`, a crop of its zoom's main chart; with its "usual range" legend swatch when it draws a band under bars;
+- the mini chart at the tile's foot, 64px tall on every tile so a row lines up, `aria-hidden`, a crop of its zoom's main chart; with its "usual range" legend swatch above it when it draws a band under bars, so the chart stays the tile's last part and keeps the row's baseline;
 - "Open the … view", for screen readers only.
 The link's name is its own text, the tile's finding as number and delta, then "Open the … view"; no `aria-label` repeats it and the mini chart is never read. A tile has no sentence, no method and no source note. Where a chart needs words the number and delta do not carry (sunrise and sunset), they are spoken text, hidden on screen. Inside draws one row per indoor sensor in place of one number: the name, the reading with its humidity aside, and an `aria-hidden` 24-hour line. Focus rings the whole link; hover shifts the title to `ink-2`.
 
