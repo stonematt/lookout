@@ -14,8 +14,8 @@ import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
 import type {
   DashboardSnapshot,
+  DrySpellNow,
   GapStatus,
-  LeadRule,
   RainTab,
   RainWindow,
   WaterYearCurve,
@@ -121,34 +121,38 @@ export function dailyHeadline(snapshot: DashboardSnapshot): string {
   return "Rain each day over the last 90 days";
 }
 
+/** A dry spell with neither number known, for a snapshot without `dry_spell`. */
+const NO_DRY_SPELL: DrySpellNow = { days_since_rain: null, usual_days: null };
+
 /**
- * The calm lead rule: the days since it last rained and the usual dry
- * spell. The Rain tab reads them from the hero lead so the Overview and the
- * Rain tab show one number for each.
+ * The dry spell now: the days since it last rained and the usual dry spell,
+ * from the dashboard's `dry_spell` (#491), so the Overview, the Rain tab and
+ * the widget show one number for each. A snapshot without it reads as both
+ * unknown.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns The rule.
+ * @returns The two numbers, each null when unknown.
  */
-export function calmRule(snapshot: DashboardSnapshot): LeadRule | null {
-  return snapshot.hero_lead.rules.find((r) => r.kind === "calm") ?? null;
+export function drySpellNow(snapshot: DashboardSnapshot): DrySpellNow {
+  return snapshot.dry_spell ?? NO_DRY_SPELL;
 }
 
 /**
- * The dry-spell section's finding: the calm lead's days since it last
- * rained, against its usual dry spell.
+ * The dry-spell section's finding: the days since it last rained, against
+ * the usual dry spell.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns E.g. "1 d 22 h since it last rained, against a usual dry spell
  *   of 2 days".
  */
 export function dryHeadline(snapshot: DashboardSnapshot): string {
-  const calm = calmRule(snapshot);
-  if (!calm || calm.value === null) return "Dry spells in the record";
+  const spell = drySpellNow(snapshot);
+  if (spell.days_since_rain === null) return "Dry spells in the record";
   const usual =
-    calm.reference === null
+    spell.usual_days === null
       ? ""
-      : `, against a usual dry spell of ${formatDayCount(calm.reference)}`;
-  return `${formatDaysSpoken(calm.value)} since it last rained${usual}`;
+      : `, against a usual dry spell of ${formatDayCount(spell.usual_days)}`;
+  return `${formatDaysSpoken(spell.days_since_rain)} since it last rained${usual}`;
 }
 
 /** The current water year's curve: the newest one. */

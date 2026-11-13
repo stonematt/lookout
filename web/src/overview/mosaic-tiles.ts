@@ -17,8 +17,8 @@
  * - With nothing to compare yet (a new station), Rain and Last 10 days show
  *   the snapshot's 7-day window instead, named "last 7 days" (#605).
  * - Dry spell: the days since it last rained against the usual dry spell
- *   (`dry_spell`, Release A; the calm lead rule for an older snapshot, the
- *   same numbers the Rain tab shows); its mini chart is the last 30 days'
+ *   (`dry_spell`, Release A, the same numbers the Rain tab shows); its mini
+ *   chart is the last 30 days'
  *   rain, a day to a square.
  *
  * Every value is the snapshot's; these only word, format and draw.
@@ -26,7 +26,7 @@
  * Offers `MOSAIC_TILES` and each tile's definition.
  */
 import { lastDays } from "../rain/charts.js";
-import { calmRule, currentYear } from "../rain/text.js";
+import { currentYear, drySpellNow } from "../rain/text.js";
 import { missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import {
@@ -389,15 +389,10 @@ export const tenDaysTile: MosaicTile = {
 
 // ---------- Dry spell ----------
 
-/**
- * The current dry spell and the usual one, in days: Release A's `dry_spell`,
- * or for an older snapshot the calm lead rule's (the Rain tab's numbers).
- */
+/** The current dry spell and the usual one, in days: the Rain tab's numbers. */
 function drySpellDays(snapshot: DashboardSnapshot): { since: number | null; usual: number | null } {
-  const spell = snapshot.dry_spell;
-  if (spell) return { since: spell.days_since_rain, usual: spell.usual_days };
-  const calm = calmRule(snapshot);
-  return { since: calm?.value ?? null, usual: calm?.reference ?? null };
+  const spell = drySpellNow(snapshot);
+  return { since: spell.days_since_rain, usual: spell.usual_days };
 }
 
 /**
