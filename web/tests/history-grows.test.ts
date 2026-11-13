@@ -108,7 +108,7 @@ describe("no n/a row on the Overview", () => {
 });
 
 describe("a gap inside a shown period", () => {
-  it("stays hatched, worded without n/a (seasoned 90 and 365 days)", () => {
+  it("stays hatched, worded without n/a (seasoned)", () => {
     renderOverview(panel, parsed(doc("seasoned")));
 
     expect(periodRows()).toEqual([
@@ -120,9 +120,9 @@ describe("a gap inside a shown period", () => {
       "365 days",
       "Full history",
     ]);
-    // 90 days, 365 days and Full history: shown, with days missing.
+    // 365 days and Full history: shown, with days missing. 90 days is whole
+    // since the seasoned fixture spans water years 2025–26 (#539).
     expect(texts("[data-part=periods-chart] .tc-reason")).toEqual([
-      "gap in record",
       "gap in record",
       "gap in record",
     ]);

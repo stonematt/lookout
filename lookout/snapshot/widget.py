@@ -5,13 +5,14 @@ A Lookout widget shows one view at a time: the current value against the
 station's own history. Python chooses the view so every widget (Scriptable
 now, a WidgetKit app later) shows the same one. It has no rules of its own:
 it is the feature (`lookout.snapshot.feature`, ADR-0009) mapped to the three
-views a widget can draw:
+views a widget can draw. A feature the hold keeps (#533) maps the same way,
+so the widget follows the held feature, never the rule's pick under it:
 
 - feature **rain** -> **rain_event**;
 - feature **dry_spell** -> **dry_spell**;
 - anything else (**unusual**, **quiet**) -> **temperature_ranges**, now
-  against today, 7, 30 and 365 days. A widget cannot draw wind or pressure,
-  so an unusual reading of any kind maps here.
+  against today, 7, 30 and 365 days. A widget cannot draw pressure,
+  humidity or solar, so an unusual reading of any kind maps here.
 
 Functions:
 - widget_view(feature): The `WidgetView` for one snapshot.

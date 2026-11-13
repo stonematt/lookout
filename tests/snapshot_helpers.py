@@ -157,10 +157,11 @@ def seasoned_station() -> Snapshot:
     """
     The seasoned station, its live reading at `SEASONED_NOW`.
 
-    Two earlier years around 20 May and a recent run of 45 days. The archive
-    ends at `SEASONED_ARCHIVE_NEWEST`; the live reading, half an hour ahead,
-    carries the temperature pushed past the 90th percentile of its usual
-    window and sensor 1's low battery.
+    Two earlier years around 20 May and water years 2025 and 2026 from their
+    Oct 1, to compare rain by this date (#539). The archive ends at
+    `SEASONED_ARCHIVE_NEWEST`; the live reading, half an hour ahead, carries
+    the temperature pushed past the 90th percentile of its usual window and
+    sensor 1's low battery.
     """
     full = seasoned_archive()
     archive = full[full["dateutc"] <= ms(SEASONED_ARCHIVE_NEWEST)].reset_index(

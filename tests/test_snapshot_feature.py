@@ -4,14 +4,18 @@ The feature (ADR-0009, #464), through `build_snapshot`.
 The Feature Rule, checked in order, first that holds:
 
 1. rain: an event is live, or the newest event ended at most 12 h before
-   the build time;
-2. unusual: a reading (temperature, humidity, wind gust, pressure, solar)
-   is below the 10th or above the 90th percentile of its readings at this
-   hour over the usual window's earlier years; skipped without an earlier
-   year; the one furthest from the 50th wins, ties to the first in that
-   list;
+   the build time; it names that event by `event_start_ms` (#523);
+2. unusual: a reading (temperature, humidity, pressure, solar; never wind
+   gust, #533) is below the 10th or above the 90th percentile of its
+   readings at this hour over the usual window's earlier years; skipped
+   without an earlier year; the one furthest from the 50th wins, ties to
+   the first in that list;
 3. dry_spell: the current dry spell is longer than the usual dry spell;
 4. quiet: otherwise.
+
+The hold (#533): a subject (the kind, and for unusual the reading) chosen
+under 3 hours ago is kept when the rule now picks a different one, unless
+the rule picks rain; a held feature's values are recomputed every build.
 
 The widget view follows: rain -> rain_event, dry_spell -> dry_spell, else
 temperature_ranges.
@@ -23,6 +27,7 @@ until a test moves them; temperature and solar are set to their usual
 median for the rules after unusual.
 """
 
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Dict, Optional, Sequence
 
@@ -30,8 +35,8 @@ import numpy as np
 import pandas as pd
 
 from lookout.snapshot.build import build_snapshot
-from lookout.snapshot.model import Snapshot
-from lookout.utils.dateutc import DAY_MS, STATION_FRESH_MINUTES
+from lookout.snapshot.model import Feature, FeatureKind, FeatureReading, Snapshot
+from lookout.utils.dateutc import DAY_MS, HOUR_MS, STATION_FRESH_MINUTES
 from tests.fixtures.archive import (
     SEASONED_NOW,
     SEASONED_PUSHED_TEMPF,
@@ -81,6 +86,7 @@ def seasoned(
     rain: Sequence[RainSpell] = SEASONED_RAIN,
     ordinary: bool = True,
     built: str = SEASONED_BUILT,
+    previous: Optional[Feature] = None,
 ) -> Snapshot:
     """
     The seasoned station, its live reading changed.
@@ -90,6 +96,7 @@ def seasoned(
     :param ordinary: Set the live temperature and solar to their usual median
         first, so neither is unusual unless `changes` says so.
     :param built: The build time; the live reading stays at `SEASONED_NOW`.
+    :param previous: The last published feature, or None.
     :return: The snapshot.
     """
     full = seasoned_archive(rain=rain)
@@ -110,6 +117,7 @@ def seasoned(
         energy_catalog=None,
         station=SEASONED_STATION,
         now=pd.Timestamp(built),
+        previous_feature=previous,
     )
 
 
@@ -176,18 +184,29 @@ class TestUnusual:
         assert snapshot.feature.kind == "quiet"
 
     def test_the_reading_furthest_out_wins(self):
-        # Temperature at the 95th is out; gust past every reading is further.
+        # Temperature at the 95th is out; humidity past every reading is further.
+        snapshot = seasoned({"tempf": usual_tempf(0.95), "humidity": 99.0})
+
+        assert snapshot.feature.reading == "humidity"
+        assert snapshot.feature.unit == "pct"
+        assert snapshot.feature.percentile == 100
+
+    def test_an_unusual_wind_gust_never_becomes_the_feature(self):
+        # Gust is the same at every 15:00 reading; 30 mph is past them all.
+        snapshot = seasoned({"windgustmph": 30.0})
+
+        assert snapshot.current.wind_gust_mph == 30.0
+        assert snapshot.feature.kind == "quiet"
+
+    def test_an_unusual_gust_does_not_outrank_a_reading_that_is_out(self):
         snapshot = seasoned({"tempf": usual_tempf(0.95), "windgustmph": 30.0})
 
-        assert snapshot.feature.reading == "wind_gust"
-        assert snapshot.feature.unit == "mph"
-        assert snapshot.feature.percentile == 100
+        assert snapshot.feature.reading == "temperature"
 
     def test_each_reading_maps_to_its_column(self):
         cases = {
             "baromrelin": ("pressure", "inhg", 29.0),
             "solarradiation": ("solar", "wm2", 1000.0),
-            "windgustmph": ("wind_gust", "mph", 30.0),
             "humidity": ("humidity", "pct", 99.0),
             "tempf": ("temperature", "f", 99.0),
         }
@@ -318,6 +337,67 @@ class TestRain:
         assert snapshot.widget_view == "temperature_ranges"
 
 
+class TestRainNamesItsEvent:
+    """A rain feature carries its event's `start_ms`, the Event Catalog key."""
+
+    def test_a_live_event_is_named(self):
+        snapshot = raining_station()
+
+        live = [row for row in snapshot.rain_events.events if row.live]
+        assert len(live) == 1
+        assert snapshot.feature.event_start_ms == live[0].start_ms
+        assert snapshot.feature.event_start_ms == ms("2026-01-08T22:00:00Z")  # event 3
+
+    def test_an_ended_event_is_named_by_its_start(self):
+        # Event 3 rained 22:00Z-02:00Z; six hours after, nothing is live.
+        archive = scenario_until("2026-01-09T12:00:00Z")
+
+        snapshot = build(archive, None, "2026-01-09T08:00:00Z", event_catalog(archive))
+
+        assert snapshot.active_rain_event is None
+        assert snapshot.feature.kind == "rain"
+        assert snapshot.feature.event_start_ms == ms("2026-01-08T22:00:00Z")
+        named = [
+            row
+            for row in snapshot.rain_events.events
+            if row.start_ms == snapshot.feature.event_start_ms
+        ]
+        assert len(named) == 1
+        assert not named[0].live
+
+    def test_the_newest_ended_event_is_named_not_an_earlier_one(self):
+        # Event 2 (07 Jan 04:00Z-14:00Z) ended after event 1; event 3 is to come.
+        archive = scenario_until("2026-01-07T20:00:00Z")
+
+        snapshot = build(archive, None, "2026-01-07T20:00:00Z", event_catalog(archive))
+
+        assert snapshot.feature.kind == "rain"
+        assert snapshot.feature.event_start_ms == ms("2026-01-07T04:00:00Z")
+
+    def test_a_feature_past_the_rain_hours_names_no_event(self):
+        archive = scenario_until("2026-01-09T12:00:00Z")
+        catalog = event_catalog(archive)
+        end = int(pd.Timestamp(catalog["end_time"].max()).value // 10**6)
+        at = pd.Timestamp(end + 12 * 3_600_000 + 1, unit="ms", tz="UTC").isoformat()
+
+        snapshot = build(archive, None, at, catalog)
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.event_start_ms is None
+
+    def test_a_dry_spell_names_no_event(self):
+        snapshot = build(rain_every_fifth_day(DRY_END), None, DRY_END)
+
+        assert snapshot.feature.kind == "dry_spell"
+        assert snapshot.feature.event_start_ms is None
+
+    def test_the_dashboard_publishes_the_key(self):
+        dashboard = raining_station().dashboard()
+
+        assert dashboard["feature"]["kind"] == "rain"
+        assert dashboard["feature"]["event_start_ms"] == ms("2026-01-08T22:00:00Z")
+
+
 class TestDrySpell:
     def test_an_unusual_reading_beats_a_long_dry_spell(self):
         full = rain_every_fifth_day(DRY_END)
@@ -358,6 +438,10 @@ class TestPublished:
             "value": SEASONED_PUSHED_TEMPF,
             "unit": "f",
             "percentile": 100,
+            "event_start_ms": None,
+            "since_ms": ms(SEASONED_BUILT),
+            "held": False,
+            "outside_usual": True,
         }
 
     def test_a_quiet_feature_carries_nulls(self):
@@ -369,6 +453,10 @@ class TestPublished:
             "value": None,
             "unit": None,
             "percentile": None,
+            "event_start_ms": None,
+            "since_ms": ms(SEASONED_BUILT),
+            "held": False,
+            "outside_usual": None,
         }
 
     def test_a_snapshot_with_no_history_is_quiet(self):
@@ -376,3 +464,216 @@ class TestPublished:
 
         assert snapshot.feature.kind == "quiet"
         assert snapshot.widget_view == "temperature_ranges"
+
+
+BUILT_MS = ms(SEASONED_BUILT)
+"""The seasoned build time: the hold counts back from it."""
+
+
+def chosen(
+    kind: FeatureKind,
+    reading: Optional[FeatureReading] = None,
+    ago_ms: int = HOUR_MS,
+) -> Feature:
+    """
+    A last published feature, its subject chosen `ago_ms` before the build.
+
+    Its values are deliberately stale, so a test sees them recomputed.
+    """
+    return Feature(
+        kind=kind,
+        reading=reading,
+        value=-1.0 if kind == "unusual" else None,
+        unit=None,
+        percentile=99 if kind == "unusual" else None,
+        event_start_ms=None,
+        since_ms=BUILT_MS - ago_ms,
+        held=False,
+        outside_usual=True if kind == "unusual" else None,
+    )
+
+
+class TestHold:
+    """
+    #533: a subject chosen under 3 hours ago is kept when the rule now picks
+    a different one; rain takes over at once.
+    """
+
+    def test_with_no_previous_feature_the_subject_is_chosen_now(self):
+        snapshot = seasoned()
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.since_ms == BUILT_MS
+        assert snapshot.feature.held is False
+
+    def test_a_subject_chosen_an_hour_ago_is_kept(self):
+        # The rule picks quiet; the dry spell chosen an hour ago holds.
+        snapshot = seasoned(previous=chosen("dry_spell"))
+
+        assert snapshot.feature.kind == "dry_spell"
+        assert snapshot.feature.held is True
+        assert snapshot.feature.since_ms == BUILT_MS - HOUR_MS
+
+    def test_the_widget_view_follows_the_held_feature(self):
+        snapshot = seasoned(previous=chosen("dry_spell"))
+
+        assert snapshot.widget_view == "dry_spell"
+
+    def test_a_held_quiet_day_keeps_out_an_unusual_reading(self):
+        snapshot = seasoned({"tempf": SEASONED_PUSHED_TEMPF}, previous=chosen("quiet"))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.reading is None
+        assert snapshot.feature.held is True
+
+    def test_a_different_unusual_reading_is_a_different_subject(self):
+        # Humidity is the furthest out now; temperature was chosen an hour ago.
+        snapshot = seasoned(
+            {"tempf": usual_tempf(0.95), "humidity": 99.0},
+            previous=chosen("unusual", "temperature"),
+        )
+
+        assert snapshot.feature.reading == "temperature"
+        assert snapshot.feature.held is True
+        assert snapshot.feature.unit == "f"
+        assert snapshot.feature.value == usual_tempf(0.95)
+        # Recomputed this build (the stale 99 is gone), still above the 90th.
+        assert 90 < snapshot.feature.percentile < 99
+        assert snapshot.feature.outside_usual is True
+
+    def test_just_under_3_hours_it_still_holds(self):
+        previous = chosen("dry_spell", ago_ms=3 * HOUR_MS - 1)
+
+        snapshot = seasoned(previous=previous)
+
+        assert snapshot.feature.kind == "dry_spell"
+        assert snapshot.feature.held is True
+
+    def test_at_3_hours_the_rule_picks_again(self):
+        snapshot = seasoned(previous=chosen("dry_spell", ago_ms=3 * HOUR_MS))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS
+
+    def test_a_choice_time_after_the_build_holds_nothing(self):
+        # A clock gone back must not hold a subject for ever.
+        snapshot = seasoned(previous=chosen("dry_spell", ago_ms=-HOUR_MS))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS
+
+    def test_the_same_subject_keeps_its_first_choice_time(self):
+        previous = chosen("unusual", "temperature", ago_ms=5 * HOUR_MS)
+
+        snapshot = seasoned({"tempf": SEASONED_PUSHED_TEMPF}, previous=previous)
+
+        assert snapshot.feature.reading == "temperature"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS - 5 * HOUR_MS
+        # Picked by the rule this build, so its values are this build's.
+        assert snapshot.feature.value == SEASONED_PUSHED_TEMPF
+        assert snapshot.feature.percentile == 100
+
+    def test_a_held_subject_chosen_again_is_no_longer_held(self):
+        previous = chosen("unusual", "temperature")
+        previous = replace(previous, held=True)
+
+        snapshot = seasoned({"tempf": SEASONED_PUSHED_TEMPF}, previous=previous)
+
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS - HOUR_MS
+
+
+class TestHeldUnusual:
+    """
+    A held unusual feature carries its reading as judged this build. Back
+    inside the 10th to 90th, it says so: held, the percentile, and
+    `outside_usual` False.
+    """
+
+    def test_a_reading_back_inside_its_band_is_not_outside_usual(self):
+        # Humidity was chosen an hour ago; it is back at its usual 65 now.
+        snapshot = seasoned(previous=chosen("unusual", "humidity"))
+
+        feature = snapshot.feature
+        assert (feature.kind, feature.reading, feature.held) == (
+            "unusual",
+            "humidity",
+            True,
+        )
+        assert feature.value == snapshot.current.humidity_pct
+        assert feature.unit == "pct"
+        assert feature.percentile == 50
+        assert feature.outside_usual is False
+        assert snapshot.widget_view == "temperature_ranges"
+
+    def test_a_held_reading_still_out_keeps_its_published_rounding(self):
+        # Humidity is at the 0th; temperature ties it and wins the rule.
+        snapshot = seasoned(
+            {"tempf": SEASONED_PUSHED_TEMPF, "humidity": 40.0},
+            previous=chosen("unusual", "humidity"),
+        )
+
+        assert snapshot.feature.reading == "humidity"
+        assert snapshot.feature.percentile == 0
+        assert snapshot.feature.outside_usual is True
+
+    def test_a_held_reading_with_no_value_now_is_not_held(self):
+        snapshot = seasoned({"tempf": None}, previous=chosen("unusual", "temperature"))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS
+
+    def test_a_held_reading_gone_stale_is_not_held(self):
+        built = after_live(FRESH_MS)
+        previous = chosen("unusual", "temperature", ago_ms=0)
+        previous = replace(previous, since_ms=ms(built) - HOUR_MS)
+
+        snapshot = seasoned(ordinary=False, built=built, previous=previous)
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == ms(built)
+
+    def test_a_held_reading_without_an_earlier_year_is_not_held(self):
+        archive = build_archive("2025-12-08T08:00:00Z", "2026-01-06T20:00:00Z")
+        live = live_row(archive, "2026-01-06T19:55:00Z")
+        now = "2026-01-06T20:00:00Z"
+        previous = chosen("unusual", "temperature")
+        previous = replace(previous, since_ms=ms(now) - HOUR_MS)
+
+        snapshot = build_snapshot(
+            archive=archive,
+            live=live,
+            event_catalog=None,
+            energy_catalog=None,
+            station=SEASONED_STATION,
+            now=pd.Timestamp(now),
+            previous_feature=previous,
+        )
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+
+
+class TestRainTakesOver:
+    def test_rain_takes_over_inside_a_hold(self):
+        rain = SEASONED_RAIN + (RainSpell("2026-05-20T18:00:00Z", 1, 0.1),)
+
+        snapshot = seasoned(rain=rain, previous=chosen("unusual", "humidity"))
+
+        assert snapshot.feature.kind == "rain"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS
+        assert snapshot.widget_view == "rain_event"
+
+    def test_rain_is_not_held_once_its_rule_stops_holding(self):
+        # The rain rule's own 12 hours after an event is its hold.
+        snapshot = seasoned(previous=chosen("rain"))
+
+        assert snapshot.feature.kind == "quiet"
+        assert snapshot.feature.held is False
+        assert snapshot.feature.since_ms == BUILT_MS
