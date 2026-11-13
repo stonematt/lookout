@@ -36,9 +36,9 @@ Tracker: GitHub Issues on `stonematt/lookout`. Labels: one category (`bug`, `enh
 
 Architecture review candidates Matt keeps become issues labelled `refactor` + `needs-triage`, each carrying its full grilling brief; he grills from the issue (2026-11-01).
 
-Branch flow: feature branch → `dev` (integration) → `main` (release). Vercel deploys `main` to production, https://lookout.stonecover.com; there is no separate deploy branch (Streamlit and its `live` branch retired by #86). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
+Branch flow: feature branch (or lane → `goal/<slug>` → `uat/<slug>` for UAT) → `dev` (integration) → `main` (release). Vercel deploys `main` to production, https://lookout.stonecover.com; there is no separate deploy branch (Streamlit and its `live` branch retired by #86). Research notes: `docs/research/`, wayfinder research on unmerged `research/<name>` branches.
 Each `dev` → `main` release bumps `VERSION` through a `chore(release)` PR into `dev` and is tagged `v<version>` on `main` after production is verified (ADR-0007). Merge the `chore(release)` PR, then open the release PR at once; the release head must equal that PR's tested head.
-Vercel is on the Hobby plan: about 100 deployments a day, and every branch push builds a preview, `shots/*` and swarm lane branches included. A build-and-UAT cycle can spend it in a morning (2026-11-04), and the limit blocks the production deploy from `main` too. Plan pushes against it: one push per fix PR in UAT, and no `shots/*` pushes once UAT starts. PR #404 (#401) skips previews for `shots/*` and `lane/*` through `ignoreCommand`; lane branches only skip once the swarm skill's lane brief cuts `lane/<slug>` (it still hard-codes `fix/<slug>` in `~/.claude/skills/swarm/LANE-BRIEF.md`).
+Deploys: only `main`, `dev` and `uat/**` deploy on Vercel, and each release gets a `uat/<slug>` branch for UAT; see [ADR-0010](../adr/0010-deploy-allowlist-and-uat-branch-per-release.md) and [CONTRIBUTING.md](../../CONTRIBUTING.md#branches).
 
 ## Drift
 
