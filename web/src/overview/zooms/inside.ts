@@ -17,7 +17,10 @@ import { dayTrace, factValue, sizedChart } from "./parts.js";
 
 /** A sensor's last 24 hours at a width (`dayTrace`), its low and high in whole degrees. */
 function sensorChart(sensor: IndoorSensor, width: number): SVGSVGElement | null {
-  return dayTrace(sensor.trace.temperature_f, width, (v) => degrees(v, 0), 1);
+  return dayTrace(sensor.trace.temperature_f, width, (v) => degrees(v, 0), 1, {
+    value: sensor.temperature_f,
+    text: (v) => degrees(v, 1),
+  });
 }
 
 /** Each sensor: its name, its reading, then its 24 hours. */

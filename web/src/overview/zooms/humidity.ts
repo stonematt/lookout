@@ -44,6 +44,9 @@ export const humidityZoom: ZoomDefinition = {
         sentence(host, airSentence(snapshot), "sentence");
       },
     },
-    dayPanel((snapshot) => snapshot.outdoor_trace?.humidity_pct ?? [], percent, HUMIDITY_PAD),
+    dayPanel((snapshot) => snapshot.outdoor_trace?.humidity_pct ?? [], percent, HUMIDITY_PAD, {
+      value: (snapshot) => snapshot.current.humidity_pct,
+      text: percent,
+    }),
   ],
 };

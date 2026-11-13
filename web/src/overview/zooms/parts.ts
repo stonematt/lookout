@@ -28,6 +28,25 @@ const TRACE_AXIS = 18;
 const TRACE_LEFT = 36;
 
 /**
+ * The reading a day trace's now label prints: the live value, in the same
+ * words as the zoom's head, so the two never differ (#602).
+ */
+export interface NowReading {
+  /** The live reading, or null when unknown (the label then reads the trace's newest hour). */
+  value: number | null;
+  /** The reading as the zoom's head prints it, unit included ("29.14 inHg", "65%", "65.1°"). */
+  text: (value: number) => string;
+}
+
+/** Where a panel finds its `NowReading`: the live value in a snapshot, and the head's words for it. */
+export interface NowSource {
+  /** The live reading in the snapshot, or null when unknown. */
+  value: (snapshot: DashboardSnapshot) => number | null;
+  /** The reading as the zoom's head prints it (unlike the low and high `label`, with its unit). */
+  text: (value: number) => string;
+}
+
+/**
  * The last 24 hours of an hourly series at a width: the line, its low and
  * high at the left, "24 h ago" and "now" under it, the newest hour as the
  * now dot.
@@ -36,6 +55,8 @@ const TRACE_LEFT = 36;
  * @param width - The width to draw at.
  * @param label - A low or high value as its label ("68°", "30.01").
  * @param pad - The least room above and below the line, in its unit.
+ * @param now - The live reading the now label prints; the trace's newest hour
+ *   stands in when it is null.
  * @returns The chart, or null with fewer than two hours or no reading.
  */
 export function dayTrace(
@@ -43,6 +64,7 @@ export function dayTrace(
   width: number,
   label: (value: number) => string,
   pad: number,
+  now: NowReading,
 ): SVGSVGElement | null {
   if (values.length < 2 || lastIndex(values) < 0) return null;
   const numbers = values.filter((v): v is number => v !== null);
@@ -87,7 +109,7 @@ export function dayTrace(
         y: below ? dotY + 20 : dotY - 10,
         "text-anchor": "end",
       },
-      `now ${label(values[end]!)}`,
+      `now ${now.text(now.value ?? values[end]!)}`,
     ),
   );
   return svg;
@@ -101,12 +123,15 @@ export function dayTrace(
  * @param series - The series from the snapshot; empty when it has none.
  * @param label - A low or high value as its label.
  * @param pad - The least room above and below the line, in its unit.
+ * @param now - The live value from the snapshot and how the zoom's head prints
+ *   it; the now label reads them (#602).
  * @returns The panel.
  */
 export function dayPanel(
   series: (snapshot: DashboardSnapshot) => (number | null)[],
   label: (value: number) => string,
   pad: number,
+  now: NowSource,
 ): ZoomPanel {
   return {
     id: "day",
@@ -114,7 +139,10 @@ export function dayPanel(
     wide: true,
     shown: (snapshot) => lastIndex(series(snapshot)) >= 0,
     render: (host, snapshot) => {
-      sizedChart(host, "day-line", (width) => dayTrace(series(snapshot), width, label, pad));
+      const reading: NowReading = { value: now.value(snapshot), text: now.text };
+      sizedChart(host, "day-line", (width) =>
+        dayTrace(series(snapshot), width, label, pad, reading),
+      );
     },
   };
 }

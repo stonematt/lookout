@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { airSentence } from "../src/overview/zooms/humidity.js";
 import { dayTrace } from "../src/overview/zooms/parts.js";
+import type { NowReading } from "../src/overview/zooms/parts.js";
 import { pressureSentence } from "../src/overview/zooms/pressure.js";
 import { daylightZoom, moonSentence } from "../src/overview/zooms/daylight.js";
 import { isZoomRoute } from "../src/overview/zoom.js";
@@ -26,6 +27,9 @@ import { renderSolar } from "../src/solar/index.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { golden } from "./golden.js";
+
+/** A pressure reading as the Pressure zoom's head prints it. */
+const TRACE_NOW: NowReading = { value: null, text: (v) => `${v.toFixed(2)} inHg` };
 
 const parsed = (): DashboardSnapshot =>
   parseDashboard(structuredClone(golden("seasoned", "dashboard")));
@@ -183,12 +187,78 @@ describe("the Pressure and Humidity zooms", () => {
     // The now dot carries its value, like the wind rose's (#598).
     const now = svg.querySelectorAll(".zoom-now-label");
     expect(now).toHaveLength(1);
-    expect(words(now[0])).toMatch(slug === "pressure" ? /^now \d\d\.\d\d$/ : /^now \d+%$/);
+    expect(words(now[0])).toMatch(slug === "pressure" ? /^now \d\d\.\d\d inHg$/ : /^now \d+%$/);
+  });
+
+  // The now label is the zoom head's reading, not the trace's last hourly
+  // mean: one number for one reading (#602).
+  it.each([
+    ["pressure", "barometer_inhg", 29.14],
+    ["humidity", "humidity_pct", 71],
+  ] as const)(
+    "%s: the now label matches the zoom head, and falls back to the trace",
+    async (slug, key, live) => {
+      const s = parsed();
+      s.current[key] = live;
+      await boot(`#overview/${slug}`, s);
+      const head = words(zoom()!.querySelector(".zoom-value"));
+      const label = words(panel("day")!.querySelector(".zoom-now-label"));
+      expect(label).toBe(`now ${head}`);
+      expect(label).toContain(slug === "pressure" ? "29.14 inHg" : "71%");
+      page!.stop();
+
+      // No live value: the trace's newest hour stands in, with its unit.
+      const gone = parsed();
+      gone.current[key] = null;
+      await boot(`#overview/${slug}`, gone);
+      const trace = gone.outdoor_trace![slug === "pressure" ? "pressure_inhg" : "humidity_pct"];
+      const last = trace.findLast((v) => v !== null)!;
+      expect(words(panel("day")!.querySelector(".zoom-now-label"))).toBe(
+        slug === "pressure" ? `now ${last.toFixed(2)} inHg` : `now ${Math.round(last)}%`,
+      );
+    },
+  );
+
+  it("a flat trace with a different live value prints the live value, finite", () => {
+    const flat = Array.from({ length: 24 }, () => 30);
+    const svg = dayTrace(flat, 340, (v) => v.toFixed(2), 0.05, {
+      value: 29.14,
+      text: TRACE_NOW.text,
+    })!;
+    expect(words(svg.querySelector(".zoom-now-label"))).toBe("now 29.14 inHg");
+    expect(svg.outerHTML).not.toContain("NaN");
+  });
+
+  it("Inside: with no live temperature the label reads the trace's newest hour", () => {
+    const trace = [66.2, 66.8, 67.4];
+    const svg = dayTrace(trace, 340, (v) => `${Math.round(v)}°`, 1, {
+      value: null,
+      text: (v) => `${v.toFixed(1)}°`,
+    })!;
+    expect(words(svg.querySelector(".zoom-now-label"))).toBe("now 67.4°");
+  });
+
+  it("flat series: the now label is drawn, finite, off the line", () => {
+    const flat = Array.from({ length: 24 }, () => 30);
+    const svg = dayTrace(flat, 340, (v) => v.toFixed(2), 0.05, TRACE_NOW)!;
+    const label = svg.querySelector(".zoom-now-label")!;
+    const dot = svg.querySelector(".mosaic-now-dot")!;
+    expect(words(label)).toBe("now 30.00 inHg");
+    for (const el of [label, dot]) {
+      for (const a of ["x", "y", "cx", "cy"]) {
+        const v = el.getAttribute(a);
+        if (v !== null) expect(Number.isFinite(Number(v))).toBe(true);
+      }
+    }
+    expect(svg.outerHTML).not.toContain("NaN");
+    // The text sits above the dot and clear of the low/high label at the left.
+    expect(Number(label.getAttribute("y"))).toBeLessThan(Number(dot.getAttribute("cy")) - 4);
+    expect(Number(label.getAttribute("x"))).toBeGreaterThan(36 + 80);
   });
 
   it("puts the now label on the side the line is not (#598)", () => {
     const at = (values: number[]) => {
-      const svg = dayTrace(values, 400, (v) => v.toFixed(2), 0.05)!;
+      const svg = dayTrace(values, 400, (v) => v.toFixed(2), 0.05, TRACE_NOW)!;
       const label = svg.querySelector(".zoom-now-label")!;
       const dot = svg.querySelector(".mosaic-now-dot")!;
       return Number(label.getAttribute("y")) - Number(dot.getAttribute("cy"));
@@ -307,6 +377,10 @@ describe("the Inside zoom", () => {
           `${sensor.temperature_f.toFixed(1)}° humidity ${sensor.humidity_pct}%`,
         );
       expect(el.querySelector("[data-part=sensor-line] svg")).not.toBeNull();
+      // The now label is the sensor's live reading, as the row prints it (#602).
+      expect(words(el.querySelector(".zoom-now-label"))).toBe(
+        `now ${words(el.querySelector("[data-part=sensor-value]"))}`,
+      );
     });
   });
 });
