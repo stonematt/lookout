@@ -413,3 +413,16 @@ describe("text on a ramp cell", () => {
     },
   );
 });
+
+describe("the rolling table's scroll cue (#596)", () => {
+  const css = readFileSync(`${ROOT}/web/src/overview/almanac.css`, "utf8");
+  const frame = /\.alm-table-frame \{([^}]*)\}/.exec(css)?.[1] ?? "";
+
+  it("scrolls sideways inside its tile and shades the edge that has more", () => {
+    expect(frame).toMatch(/overflow-x: auto;/);
+    // a `local` cover over a `scroll` shadow, per side: the shadow shows only
+    // while content lies beyond that edge
+    expect(frame.match(/\blocal\b/g)).toHaveLength(2);
+    expect(frame.match(/\bscroll\b/g)).toHaveLength(2);
+  });
+});

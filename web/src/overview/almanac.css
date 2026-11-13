@@ -309,11 +309,23 @@ th.alm-season {
 }
 
 /* ---------- the rolling-window table ---------- */
-/* the frame scrolls sideways inside the tile when the columns cannot fit,
-   Window sticky; at 12px type and tight padding it rarely has to */
+/* the frame scrolls sideways inside the tile when the columns cannot fit
+   (five columns of prorated values at 320), Window sticky. DESIGN.md names
+   no scroll pattern, so the cue is the common one: an edge shadow on the side
+   that has more to scroll to. `local` pins the cover to the content, `scroll`
+   pins the shadow to the frame, so each shadow shows only while content lies
+   beyond that edge and a table that fits shows neither (#596). */
 .alm-table-frame {
+  --alm-shadow: color-mix(in srgb, var(--ink) 32%, transparent);
   margin-top: var(--s-3);
   overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--tile), var(--tile)) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--tile), var(--tile)) right center / 24px 100% no-repeat local,
+    linear-gradient(to right, var(--alm-shadow), transparent) left center / 16px 100% no-repeat
+      scroll,
+    linear-gradient(to left, var(--alm-shadow), transparent) right center / 16px 100% no-repeat
+      scroll;
 }
 
 .alm-table {
