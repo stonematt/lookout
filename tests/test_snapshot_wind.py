@@ -312,3 +312,26 @@ def test_the_seasoned_station_has_a_varied_rose():
     assert 98 <= sum(p.share_pct or 0 for p in week.points) <= 102
     averages = {b.average_mph for b in week.bins if b.readings}
     assert len(averages) > 1
+
+
+def current_direction(mph: float, deg: float = 270.0) -> Optional[float]:
+    """The snapshot's current wind direction for a live reading at `mph`."""
+    df = station()
+    live = {**live_row(df, NOW), "windspeedmph": mph, "winddir": deg}
+    return build(df.iloc[:-1], live, NOW).current.wind_dir_deg
+
+
+@pytest.mark.parametrize("mph", [0.0, 0.4, 0.99])
+def test_the_current_direction_is_null_below_the_calm_speed(mph):
+    """Ambient keeps the vane's resting direction when the air is calm (#597)."""
+    assert current_direction(mph) is None
+
+
+@pytest.mark.parametrize("mph", [1.0, 3.0])
+def test_the_current_direction_is_kept_at_or_above_the_calm_speed(mph):
+    assert current_direction(mph, 225.0) == 225.0
+
+
+def test_the_current_direction_uses_the_roses_calm_threshold():
+    below = rose(station()).calm_below_mph - 0.01
+    assert current_direction(below) is None

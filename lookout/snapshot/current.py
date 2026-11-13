@@ -19,6 +19,7 @@ import pandas as pd
 from lookout.core.weather_events import find_active_rain_event
 from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import ActiveRainEvent, SnapshotConditions
+from lookout.snapshot.wind import CALM_BELOW_MPH
 from lookout.utils.dateutc import local_time
 from lookout.utils.trend_utils import (
     calculate_barometer_trend,
@@ -170,6 +171,10 @@ def current_conditions(
     yesterday's last row, that counter is yesterday's total, so rain today
     is None until a reading from today arrives.
 
+    The wind direction is None when the wind speed is under `CALM_BELOW_MPH`,
+    the wind rose's calm rule: Ambient keeps the vane's resting direction in
+    calm air, a direction nobody measured (#597).
+
     :param stitched: `stitch_live` output; may be empty.
     :param clock: The station clock: it says which day is today.
     :return: The current conditions; every value None on an empty history.
@@ -178,6 +183,9 @@ def current_conditions(
     values = {field: _value(newest, column) for field, column in LIVE_FIELDS.items()}
     if not _is_today(newest.get("dateutc"), clock):
         values["rain_today_in"] = None
+    speed = values["wind_speed_mph"]
+    if speed is not None and speed < CALM_BELOW_MPH:
+        values["wind_dir_deg"] = None
 
     return SnapshotConditions(
         **values,
