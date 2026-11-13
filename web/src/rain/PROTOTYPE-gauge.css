@@ -21,6 +21,18 @@
   stroke: var(--ink-3);
   stroke-width: 1;
 }
+.pg-prior-bar {
+  fill: var(--rule-strong);
+}
+.pg-dot {
+  fill: var(--ink-3);
+}
+.pg-this {
+  font-weight: 600;
+}
+.pg-win {
+  fill: var(--ink);
+}
 .pg-prior {
   stroke: var(--ink-2);
   stroke-width: 2;
