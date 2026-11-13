@@ -48,6 +48,9 @@ export const pressureZoom: ZoomDefinition = {
         sentence(host, pressureSentence(snapshot), "sentence");
       },
     },
-    dayPanel((snapshot) => snapshot.outdoor_trace?.pressure_inhg ?? [], inHg, PRESSURE_PAD),
+    dayPanel((snapshot) => snapshot.outdoor_trace?.pressure_inhg ?? [], inHg, PRESSURE_PAD, {
+      value: (snapshot) => snapshot.current.barometer_inhg,
+      text: (v) => `${inHg(v)} inHg`,
+    }),
   ],
 };
