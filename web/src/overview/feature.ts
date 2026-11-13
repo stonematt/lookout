@@ -2,8 +2,8 @@
  * The feature tile (#469, spec #460 stories 10–17, 52–53): one tile under
  * the now tile showing the snapshot's `feature`, picked by the Feature Rule
  * in Python (ADR-0009): the rain event, the unusual reading, the long dry
- * spell, or a usual day. It replaces "What leads
- * right now" and the browser rules that went with it.
+ * spell, or a usual day. It replaces "What leads right now" and the
+ * browser rules that went with it.
  *
  * The tile is one link: kicker, value and finding all sit inside it, and its
  * accessible name comes from its content, as the mosaic tiles' does (#543):
