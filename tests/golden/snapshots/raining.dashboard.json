@@ -13787,7 +13787,8 @@
     "event_start_ms": 1767909600000,
     "since_ms": 1767918420000,
     "held": false,
-    "outside_usual": null
+    "outside_usual": null,
+    "direction": null
   },
   "widget_view": "rain_event",
   "record_depth": {

@@ -347,6 +347,7 @@ class DrySpellNow:
 
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
 FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
+FeatureDirection = Literal["above", "below"]
 FeatureUnit = Literal["f", "pct", "inhg", "wm2"]
 
 
@@ -384,6 +385,11 @@ class Feature:
     :param outside_usual: For "unusual", whether `percentile` is outside 10
         to 90 this build: always True unless `held`, so a held reading back
         inside its usual band says so. None for every other kind.
+    :param direction: For "unusual", the side of its usual band the reading
+        was on when its subject was chosen: "above" or "below" (#584). A held
+        reading keeps it, even after its percentile crosses 50. None for
+        every other kind, and for a held reading published before the field
+        (its side is not guessed).
     """
 
     kind: FeatureKind
@@ -395,6 +401,7 @@ class Feature:
     since_ms: int
     held: bool
     outside_usual: Optional[bool]
+    direction: Optional[FeatureDirection] = None
 
 
 @dataclass(frozen=True)
