@@ -258,10 +258,16 @@ class TestDocuments:
     def test_both_documents_carry_the_schema_version_and_kind(self):
         snapshot = raining_station()
 
-        assert snapshot.dashboard()["schema_version"] == SCHEMA_VERSION == 3
+        assert snapshot.dashboard()["schema_version"] == SCHEMA_VERSION == 4
         assert snapshot.context()["schema_version"] == SCHEMA_VERSION
         assert snapshot.dashboard()["kind"] == "dashboard"
         assert snapshot.context()["kind"] == "context"
+
+    def test_version_4_carries_no_hero_lead(self):
+        snapshot = raining_station()
+
+        assert "hero_lead" not in snapshot.dashboard()
+        assert "hero_lead" not in snapshot.context()
 
     def test_the_context_block_is_the_slice_of_the_dashboard_current_needs(self):
         dashboard = raining_station().dashboard()

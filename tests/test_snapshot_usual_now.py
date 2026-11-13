@@ -185,7 +185,7 @@ class TestGoldens:
         found = doc["temperature_context"]["usual_band"]["now_delta"]
 
         assert found == {"hour": 15, "delta_f": 12, "basis": "earlier_years"}
-        assert doc["schema_version"] == 3
+        assert doc["schema_version"] == 4
 
     def test_a_null_delta_is_json_null(self, recent):
         doc = snapshot(recent, built="2026-01-06T20:15:00Z").dashboard()

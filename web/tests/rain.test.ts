@@ -20,7 +20,7 @@ import {
 } from "../src/rain/text.js";
 import type { DashboardSnapshot, RainTab, WaterYearCurve } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
-import { golden, goldenNext } from "./golden.js";
+import { golden, goldenPrevious } from "./golden.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
@@ -121,8 +121,8 @@ describe("the Rain tab's words", () => {
     );
     // The 365 days are not archived, so there is no usual spell to compare.
     expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
-    // A v4 snapshot has no hero_lead; the Rain tab reads the same words.
-    expect(dryHeadline(parseDashboard(goldenNext("dry", "dashboard")))).toBe(
+    // A v3 snapshot still carries hero_lead; the Rain tab reads the same words.
+    expect(dryHeadline(parseDashboard(goldenPrevious("dry", "dashboard")))).toBe(
       "about 39 hours since it last rained",
     );
   });

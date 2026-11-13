@@ -20,7 +20,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden, goldenNext } from "./golden.js";
+import { SCENARIOS, golden, goldenPrevious } from "./golden.js";
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -409,7 +409,7 @@ describe("the Dry spell tile", () => {
   });
 
   it("reads dry_spell in a v4 snapshot, with no hero_lead", () => {
-    const d = goldenNext("seasoned", "dashboard") as Doc;
+    const d = golden("seasoned", "dashboard") as Doc;
     d.dry_spell = { days_since_rain: 3.05, usual_days: 2 };
     renderOverview(panel, parseDashboard(d));
 
@@ -418,7 +418,7 @@ describe("the Dry spell tile", () => {
   });
 
   it("ignores the calm lead rule a v3 snapshot still carries", () => {
-    const d = doc("seasoned");
+    const d = goldenPrevious("seasoned", "dashboard") as Doc;
     d.dry_spell = { days_since_rain: 9.4, usual_days: 3 };
     const calm = d.hero_lead.rules.find((r: Doc) => r.kind === "calm");
     calm.value = 1;
