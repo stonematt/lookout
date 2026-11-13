@@ -375,6 +375,16 @@ class TestSeasonedGolden:
 
         assert all(row.usual_years == () for row in rows)
 
+    def test_the_last_ten_days_ran_two_degrees_over_their_usual_highs(self):
+        # Highs 617.2 over ten days against usual highs 600.4: +1.68.
+        highs = seasoned_station().temperature_context.ten_day_highs
+
+        assert highs is not None
+        assert (highs.delta_f, highs.days) == (2, 10)
+
+    def test_a_station_with_no_usual_highs_has_no_ten_day_delta(self):
+        assert dry_station().temperature_context.ten_day_highs is None
+
     def test_the_current_temperature_is_past_its_usual_90th_percentile(self):
         archive = seasoned_archive()
         local = pd.to_datetime(archive["dateutc"], unit="ms", utc=True)

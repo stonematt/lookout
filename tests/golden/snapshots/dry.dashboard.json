@@ -3568,7 +3568,8 @@
         "total_in": null,
         "to_date_in": null
       }
-    ]
+    ],
+    "usual_to_date": null
   },
   "temperature_context": {
     "now": 39.4,
@@ -3877,6 +3878,7 @@
       }
     ],
     "ten_day_years": [],
+    "ten_day_highs": null,
     "strips": [
       {
         "kind": "temperature",
@@ -13553,7 +13555,11 @@
     "reading": null,
     "value": null,
     "unit": null,
-    "percentile": null
+    "percentile": null,
+    "event_start_ms": null,
+    "since_ms": 1763539200000,
+    "held": false,
+    "outside_usual": null
   },
   "widget_view": "temperature_ranges",
   "record_depth": {
@@ -14410,5 +14416,61 @@
       "low": false
     }
   ],
+  "outdoor_trace": {
+    "start_ms": 1763452800000,
+    "slot_minutes": 60,
+    "pressure_inhg": [
+      29.66,
+      29.66,
+      29.67,
+      29.68,
+      29.68,
+      29.69,
+      29.7,
+      29.7,
+      29.72,
+      29.72,
+      29.72,
+      29.72,
+      29.71,
+      29.7,
+      29.7,
+      29.7,
+      29.7,
+      29.72,
+      29.72,
+      29.71,
+      29.71,
+      null,
+      null,
+      29.67
+    ],
+    "humidity_pct": [
+      94.0,
+      94.0,
+      97.0,
+      98.0,
+      99.0,
+      99.0,
+      99.0,
+      99.0,
+      99.0,
+      98.0,
+      97.0,
+      97.0,
+      93.0,
+      92.0,
+      88.0,
+      90.0,
+      94.0,
+      98.0,
+      99.0,
+      99.0,
+      99.0,
+      null,
+      null,
+      99.0
+    ]
+  },
   "stale_catalogs": []
 }

@@ -416,8 +416,8 @@ class DrySpellNow:
 
 
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
-FeatureReading = Literal["temperature", "humidity", "wind_gust", "pressure", "solar"]
-FeatureUnit = Literal["f", "pct", "mph", "inhg", "wm2"]
+FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
+FeatureUnit = Literal["f", "pct", "inhg", "wm2"]
 
 
 @dataclass(frozen=True)
@@ -428,17 +428,32 @@ class Feature:
     `lookout.snapshot.feature`).
 
     :param kind: The first rule that holds: "rain", "unusual", "dry_spell"
-        or "quiet" (temperature, a usual day).
-    :param reading: For "unusual", the reading furthest out: "temperature",
-        "humidity", "wind_gust", "pressure" or "solar"; else None.
+        or "quiet" (temperature, a usual day); or, while `held`, the kind
+        kept from the last published feature.
+    :param reading: For "unusual", the reading furthest out (or the held
+        one): "temperature", "humidity", "pressure" or "solar"; else None.
     :param value: For "unusual", that reading's current value in `unit`;
         else None.
-    :param unit: For "unusual", the value's unit: "f", "pct", "mph", "inhg"
-        or "wm2"; else None.
+    :param unit: For "unusual", the value's unit: "f", "pct", "inhg" or
+        "wm2"; else None.
     :param percentile: For "unusual", where the value sits among its usual
         readings at this hour, 0 to 100: the share below it, a reading equal
-        to it counting half, rounded to a whole number that stays outside
-        10 to 90; else None.
+        to it counting half, rounded to a whole number. Computed this build,
+        held or not. Outside 10 to 90 it stays outside when rounded; a held
+        reading back inside the band still publishes its whole percentile,
+        with `outside_usual` false. None for every kind but "unusual".
+    :param event_start_ms: For "rain", the `start_ms` of the event the rule
+        held on, the key of its `rain_events` row: the live event when one
+        is live, else the newest ended event. None for every other kind.
+    :param since_ms: When this subject (the kind, and for "unusual" the
+        reading) was first chosen, the build time of that build: the hold
+        counts from it.
+    :param held: True when the rule picks a different subject this build
+        and the hold keeps this one, chosen under 3 hours ago
+        (`lookout.snapshot.feature.HOLD_HOURS`).
+    :param outside_usual: For "unusual", whether `percentile` is outside 10
+        to 90 this build: always True unless `held`, so a held reading back
+        inside its usual band says so. None for every other kind.
     """
 
     kind: FeatureKind
@@ -446,6 +461,10 @@ class Feature:
     value: Optional[float]
     unit: Optional[FeatureUnit]
     percentile: Optional[int]
+    event_start_ms: Optional[int]
+    since_ms: int
+    held: bool
+    outside_usual: Optional[bool]
 
 
 @dataclass(frozen=True)
@@ -541,6 +560,25 @@ class TemperatureDay:
     usual_high: Optional[float]
     usual_years: Tuple[int, ...]
     usual_days: int
+
+
+@dataclass(frozen=True)
+class TenDayHighs:
+    """
+    The last ten days' highs against their usual highs (#540): the Last 10
+    days tile's one number, such as "+5° highs over usual", decided here so
+    the site only words it.
+
+    :param delta_f: The mean of the ten-day list's highs minus the mean of
+        their usual highs, over the paired days only, in whole degrees F,
+        rounded half away from zero; a difference that rounds to zero is 0,
+        never -0.
+    :param days: How many days it is over: those with both a high and a
+        usual high, 1 to 10.
+    """
+
+    delta_f: int
+    days: int
 
 
 @dataclass(frozen=True)
@@ -677,6 +715,8 @@ class TemperatureContext:
     :param ten_days: The last ten local days, oldest first, ending today.
     :param ten_day_years: Every earlier year the list's normal is over,
         newest first.
+    :param ten_day_highs: The list's highs against their usual highs; null
+        when no day has both a high and a usual high.
     :param strips: The temperature strip, then the rain strip.
     :param usual_band: Today's usual band by station-local hour, which the
         Overview hero draws today against.
@@ -693,6 +733,7 @@ class TemperatureContext:
     periods: Tuple[TemperaturePeriod, ...]
     ten_days: Tuple[TemperatureDay, ...]
     ten_day_years: Tuple[int, ...]
+    ten_day_highs: Optional[TenDayHighs]
     strips: Tuple[NormalStrip, ...]
     usual_band: UsualBand
     full_history: Optional[TemperaturePeriod]
@@ -1009,6 +1050,28 @@ class WaterYearCurve:
 
 
 @dataclass(frozen=True)
+class UsualToDate:
+    """
+    This water year's rain to date against the usual rain to date (#539).
+
+    The usual is the median, over the earlier water years whose curve has a
+    value at `RainTab.day_index` (`WaterYearCurve.to_date_in`: the window
+    from Oct 1 to this date is valid or prorated), of that value. An even
+    count of years takes the mean of the middle two.
+
+    :param usual_in: The usual rain by this date.
+    :param years: How many earlier water years the usual rests on; at least 1.
+    :param percent: This year's `to_date_in` as a percent of `usual_in`,
+        rounded to a whole percent; None when this year's value is None or
+        the usual is 0.
+    """
+
+    usual_in: float
+    years: int
+    percent: Optional[int]
+
+
+@dataclass(frozen=True)
 class RainTab:
     """
     Everything the Rain tab shows (`lookout.snapshot.rain_tab`). Every rain
@@ -1020,6 +1083,8 @@ class RainTab:
     :param dry_spells: The current dry spell against the record.
     :param day_index: Today's place in the water-year curves.
     :param water_years: Every water year the archive reaches, oldest first.
+    :param usual_to_date: This water year's rain to date against the usual;
+        None when no earlier water year has a value at `day_index`.
     """
 
     windows: Tuple[RainWindow, ...]
@@ -1027,6 +1092,7 @@ class RainTab:
     dry_spells: DrySpells
     day_index: int
     water_years: Tuple[WaterYearCurve, ...]
+    usual_to_date: Optional[UsualToDate]
 
 
 @dataclass(frozen=True)
@@ -1529,6 +1595,30 @@ class IndoorTrace:
 
 
 @dataclass(frozen=True)
+class OutdoorTrace:
+    """
+    The outdoor pressure and humidity over the last 24 hours, hourly (#554).
+
+    The Pressure and Humidity tiles' mini charts. The slots are the indoor
+    traces' (`IndoorTrace`): slot `i` covers `start_ms + i * slot_minutes`
+    minutes up to the next slot, and the last is the hour holding the
+    history's newest reading (`lookout.snapshot.trace`).
+
+    :param start_ms: When the first slot starts.
+    :param slot_minutes: Each slot's length: 60.
+    :param pressure_inhg: The mean relative pressure (`baromrelin`) in each
+        slot, to two decimals; null for a slot with no reading.
+    :param humidity_pct: The mean outdoor humidity (`humidity`) in each
+        slot, to whole percent; null for a slot with no reading.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    pressure_inhg: Tuple[Optional[float], ...]
+    humidity_pct: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
 class IndoorSensor:
     """
     One indoor sensor still reporting (#466): the console or a numbered one.
@@ -1617,6 +1707,9 @@ class Snapshot:
         (`lookout.snapshot.indoor`).
     :param battery_flags: Each sensor battery still reporting, OK or low,
         with the name the site prints (`lookout.snapshot.indoor`).
+    :param outdoor_trace: The outdoor pressure and humidity over the last 24
+        hours, hourly, for their tiles' mini charts; None without an
+        observation (`lookout.snapshot.trace`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1644,6 +1737,7 @@ class Snapshot:
     wind_rose: WindRose
     indoor: Tuple[IndoorSensor, ...]
     battery_flags: Tuple[BatteryFlag, ...]
+    outdoor_trace: Optional[OutdoorTrace]
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

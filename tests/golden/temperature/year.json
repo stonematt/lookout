@@ -339,6 +339,10 @@
     2024,
     2023
   ],
+  "ten_day_highs": {
+    "delta_f": 5,
+    "days": 10
+  },
   "strips": [
     {
       "kind": "temperature",
