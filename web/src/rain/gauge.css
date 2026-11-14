@@ -1,0 +1,70 @@
+/*
+ * The rain gauge (#619): this year's bars in `rain-bar`, earlier years in
+ * `rule-strong` grey, axes in `ink-3`, words in the tile's inks. Orange
+ * (`now`) stays reserved for "now".
+ */
+.gauge-fig {
+  margin: var(--s-2) 0 0;
+  min-width: 0;
+}
+
+.gauge-svg {
+  display: block;
+  max-width: 100%;
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-bar {
+  fill: var(--rain-bar);
+}
+
+.gauge-prior {
+  fill: var(--rule-strong);
+}
+
+.gauge-axis {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.gauge-head {
+  font-size: var(--type-label);
+  font-weight: 500;
+  fill: var(--ink-2);
+}
+
+.gauge-tick,
+.gauge-year {
+  font-size: var(--type-axis);
+  fill: var(--ink-3);
+}
+
+.gauge-this {
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.gauge-name {
+  font-size: var(--type-axis);
+  fill: var(--ink-2);
+}
+
+.gauge-total {
+  font-size: var(--type-axis);
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.gauge-key {
+  margin: var(--s-1) 0 0;
+  font-size: var(--type-label);
+  color: var(--ink-2);
+}
+
+/* today and yesterday folded to one line when neither had rain */
+.gauge-quiet {
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-label);
+  color: var(--ink-2);
+}

@@ -19151,7 +19151,8 @@
     "event_start_ms": null,
     "since_ms": 1779314460000,
     "held": false,
-    "outside_usual": true
+    "outside_usual": true,
+    "direction": "above"
   },
   "widget_view": "temperature_ranges",
   "record_depth": {

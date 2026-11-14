@@ -201,7 +201,8 @@ export function renderDry(
 
 /**
  * The water-year section: one curve per water year, then the window strip
- * under the chart. The Rain tab's top tile and the rain zoom both draw it.
+ * under the chart. The Rain tab's top tile and the rain zoom both draw it;
+ * the zoom leaves the strip to its rain gauge panel (#619).
  *
  * @param host - The tile, or the zoom's panel.
  * @param snapshot - The dashboard snapshot.
@@ -230,7 +231,8 @@ export function renderYears(
       );
     }
   }
-  const strip = windowStrip(snapshot);
+  // In the zoom the rain gauge, its own panel, draws the windows (#619).
+  const strip = options.zoom ? null : windowStrip(snapshot);
   if (strip) host.append(strip);
   const left = tab.water_years.filter((c) => c.cumulative_in.every((v) => v === null));
   const live = snapshot.current.rain_today_in;

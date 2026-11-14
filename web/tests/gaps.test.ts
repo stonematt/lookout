@@ -110,7 +110,7 @@ describe("gap values", () => {
   });
 
   it("mark a prorated value with ≈ and leave a valid one alone", () => {
-    expect(gapValue(prorated, "3.2 in")).toBe("≈ 3.2 in");
+    expect(gapValue(prorated, "3.2 in")).toBe("≈\u00a03.2 in");
     expect(gapValue(status({}), "3.2 in")).toBe("3.2 in");
   });
 });
