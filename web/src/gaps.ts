@@ -208,11 +208,12 @@ export function gapSentence(status: GapStatus): string {
  *
  * @param status - The month's or window's gap status.
  * @param text - Its formatted value, e.g. "3.2 in".
- * @returns The text; "≈ " before it when prorated; null when invalid.
+ * @returns The text; "≈" and a non-breaking space before it when
+ *   prorated, so the two never part at a line break; null when invalid.
  */
 export function gapValue(status: GapStatus, text: string): string | null {
   if (!isComparable(status)) return null;
-  return status.status === "prorated" ? `≈ ${text}` : text;
+  return status.status === "prorated" ? `≈\u00a0${text}` : text;
 }
 
 /**

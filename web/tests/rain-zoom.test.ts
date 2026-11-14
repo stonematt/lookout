@@ -112,6 +112,7 @@ describe.each([1440, 390])("the rain zoom at %ipx", (width) => {
     expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Rain since Oct 1");
     expect(panels().map((p) => p.dataset.panel)).toEqual([
       "water-year",
+      "rain-windows",
       "almanac",
       "rolling-rain",
       "more",
@@ -132,7 +133,7 @@ describe.each([1440, 390])("the rain zoom at %ipx", (width) => {
 });
 
 describe("the rain zoom", () => {
-  it("draws the same water-year section the Rain tab leads with, with no source note", async () => {
+  it("draws the Rain tab's water-year section, with no source note, its strip left to the gauge", async () => {
     const snapshot = withYears();
     const tab = await rainSection("years", snapshot);
     const onTab = {
@@ -147,7 +148,8 @@ describe("the rain zoom", () => {
     expect(words(years.querySelector("[data-part=finding]"))).toBe(onTab.finding);
     expect(onTab.finding).toMatch(/^Water year 2026 has 4\.20 in of rain since Oct 1/);
     expect(years.querySelector(".rain-chart svg")?.getAttribute("aria-label")).toBe(onTab.chart);
-    expect(words(years.querySelector(".rain-windows"))).toBe(onTab.strip);
+    expect(onTab.strip).toBeTruthy();
+    expect(years.querySelector(".rain-windows")).toBeNull();
     expect(tab.querySelector("[data-part=source-note]")).not.toBeNull();
   });
 

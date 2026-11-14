@@ -131,7 +131,7 @@ describe("temperature across periods", () => {
     show(withYear(ctx));
 
     const values = all("[data-part=periods-chart] .tc-value").map((el) => el.textContent!);
-    expect(values.filter((v) => v.startsWith("≈ "))).toHaveLength(2);
+    expect(values.filter((v) => v.startsWith("≈\u00a0"))).toHaveLength(2);
   });
 
   it("writes a below-zero low with the true minus, in the chart and its words", () => {
@@ -142,7 +142,7 @@ describe("temperature across periods", () => {
     show(withYear(ctx));
 
     const values = all("[data-part=periods-chart] .tc-value").map((el) => el.textContent!);
-    expect(values).toContain("≈ −12°");
+    expect(values).toContain("≈\u00a0−12°");
     const spoken = text("[data-block=periods] .ov-sr")!;
     expect(spoken).toContain("low −12.4°");
     expect(spoken).toContain("middle half −3.0° to");

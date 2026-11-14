@@ -43,10 +43,13 @@ which takes over at once. Rain itself is never held: its rule's
 `RAIN_HOURS` after an event already is its hold. A held feature's values
 are recomputed this build: a held unusual reading carries its value and
 percentile as judged now (rounded plainly when back inside the band, with
-`outside_usual` False), and a held unusual reading that cannot be judged
-this build (no value, a stale observation, no earlier year, no usual
-readings at the hour) is not held: the rule's own pick stands. A last
-feature without `since_ms` (published before the hold) is no last feature.
+`outside_usual` False), and keeps the `direction` it was chosen with
+(`above` or `below`, #584) however far the percentile has moved; a held
+reading published before the field has none. A held unusual reading that
+cannot be judged this build (no value, a stale observation, no earlier
+year, no usual readings at the hour) is not held: the rule's own pick
+stands. A last feature without `since_ms` (published before the hold) is no
+last feature.
 
 Functions:
 - feature(event_catalog, active, stitched, current, observed_at_ms, coverage,
@@ -70,6 +73,7 @@ from lookout.snapshot.model import (
     ActiveRainEvent,
     DrySpellNow,
     Feature,
+    FeatureDirection,
     FeatureKind,
     FeatureReading,
     FeatureUnit,
@@ -222,6 +226,16 @@ def _outside(rank: float) -> bool:
     return rank < LOW or rank > HIGH
 
 
+def _side(rank: float) -> FeatureDirection:
+    """
+    The side of the usual band a percentile rank is on.
+
+    :param rank: The exact percentile rank.
+    :return: "above" over the 50th, else "below".
+    """
+    return "above" if rank > 50.0 else "below"
+
+
 def _published(rank: float) -> int:
     """
     A percentile rank as published: whole, and on the side of the band it is.
@@ -270,6 +284,7 @@ def _judge(
     judging: Judging,
     since_ms: int,
     held: bool,
+    kept: Optional[FeatureDirection] = None,
 ) -> Optional[Ranked]:
     """
     One reading judged against its usual readings at the hour.
@@ -281,6 +296,7 @@ def _judge(
     :param judging: The hour and window.
     :param since_ms: When its subject was first chosen.
     :param held: Whether the hold keeps it.
+    :param kept: When held, the side it was chosen on (kept as published).
     :return: Its exact percentile rank and its unusual feature; None when it
         has no current value or no usual readings at the hour.
     """
@@ -292,6 +308,9 @@ def _judge(
     if len(at_hour) == 0:
         return None
     rank = _percentile(float(value), at_hour)
+    # A fresh choice is outside the band, so its side is its rank's side; a
+    # held one keeps the side it was chosen on, however far it has moved.
+    direction = kept if held else _side(rank)
     return Ranked(
         rank=rank,
         feature=Feature(
@@ -304,6 +323,7 @@ def _judge(
             since_ms=since_ms,
             held=held,
             outside_usual=_outside(rank),
+            direction=direction,
         ),
     )
 
@@ -401,6 +421,7 @@ def _held(
         judging,
         since_ms=previous.since_ms,
         held=True,
+        kept=previous.direction,
     )
     return None if ranked is None else ranked.feature
 
@@ -477,6 +498,7 @@ def previous_feature(dashboard: Optional[Dict[str, Any]]) -> Optional[Feature]:
     reading = published.get("reading")
     if reading is not None and reading not in READING_BY_NAME:
         return None
+    direction = published.get("direction")
     return Feature(
         kind=published["kind"],
         reading=reading,
@@ -487,4 +509,5 @@ def previous_feature(dashboard: Optional[Dict[str, Any]]) -> Optional[Feature]:
         since_ms=since_ms,
         held=bool(published.get("held")),
         outside_usual=published.get("outside_usual"),
+        direction=direction if direction in get_args(FeatureDirection) else None,
     )
