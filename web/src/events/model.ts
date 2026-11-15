@@ -9,7 +9,13 @@
 import { formatDuration, formatStamp, inches, ordinal, stationFormat } from "../format.js";
 import { isComparable, notCompared } from "../gaps.js";
 import { listText } from "../rain/text.js";
-import type { EventSeason, EventStats, RainEventRow, RainEvents } from "../snapshot.js";
+import type {
+  EventCategory,
+  EventSeason,
+  EventStats,
+  RainEventRow,
+  RainEvents,
+} from "../snapshot.js";
 
 /** The URL query parameter holding the selected event's start. */
 export const EVENT_PARAM = "event";
@@ -26,6 +32,42 @@ export const SORTS: readonly { sort: EventSort; label: string }[] = [
   { sort: "wettest", label: "Wettest" },
   { sort: "longest", label: "Longest" },
 ];
+
+/** The categories, in the filter's order (largest first), with their words. */
+export const CATEGORIES: readonly { category: EventCategory; label: string }[] = [
+  { category: "storm", label: "Storm" },
+  { category: "rain", label: "Rain" },
+  { category: "shower", label: "Shower" },
+  { category: "sprinkle", label: "Sprinkle" },
+];
+
+/** Which categories the list shows; sprinkles are hidden by default. */
+export type Categories = ReadonlySet<EventCategory>;
+
+/** The categories a first visit shows: all but sprinkles. */
+export const DEFAULT_CATEGORIES: Categories = new Set<EventCategory>(["shower", "rain", "storm"]);
+
+/**
+ * Whether the category filter lets a row through. The live event always
+ * shows, and so does a row with no category (a snapshot written before it).
+ *
+ * @param row - The event.
+ * @param categories - The categories picked.
+ * @returns True to list it.
+ */
+export function inCategories(row: RainEventRow, categories: Categories): boolean {
+  return row.live || row.category == null || categories.has(row.category);
+}
+
+/**
+ * A row's category word, e.g. "Storm", or null when the snapshot has none.
+ *
+ * @param row - The event.
+ * @returns The word.
+ */
+export function categoryLabel(row: RainEventRow): string | null {
+  return CATEGORIES.find((c) => c.category === row.category)?.label ?? null;
+}
 
 /**
  * The selected event's start from a page query, or null.
@@ -55,21 +97,23 @@ export function withEvent(search: string, startMs: number | null): string {
 }
 
 /**
- * The events the list shows: one water year's or all, sorted, with the
- * live event pinned on top whatever the sort.
+ * The events the list shows: one water year's or all, in the categories
+ * picked, sorted, with the live event pinned on top whatever the sort.
  *
  * @param section - The snapshot's `rain_events`.
  * @param season - A water year, or "all".
  * @param sort - "newest" by start, "wettest" by total (Python's rank) or
  *   "longest" by the duration each row carries; ties go newest first.
+ * @param categories - The categories picked; every category when omitted.
  * @returns The rows to list.
  */
 export function visibleEvents(
   section: RainEvents,
   season: Season,
   sort: EventSort,
+  categories?: Categories,
 ): RainEventRow[] {
-  const rows = inSeason(section, season);
+  const rows = inSeason(section, season, categories);
   const key: Record<EventSort, (a: RainEventRow, b: RainEventRow) => number> = {
     newest: () => 0,
     wettest: (a, b) => a.rank - b.rank,
@@ -82,20 +126,29 @@ export function visibleEvents(
 }
 
 /** One water year's events, or all of them, in the snapshot's order. */
-function inSeason(section: RainEvents, season: Season): RainEventRow[] {
-  return section.events.filter((e) => season === "all" || e.water_year === season);
+function inSeason(section: RainEvents, season: Season, categories?: Categories): RainEventRow[] {
+  return section.events.filter(
+    (e) =>
+      (season === "all" || e.water_year === season) &&
+      (categories === undefined || inCategories(e, categories)),
+  );
 }
 
 /**
  * The event open by default in a water year or in all: the live one, or
- * with none live, the newest by start.
+ * with none live, the newest by start, among the categories picked.
  *
  * @param section - The snapshot's `rain_events`.
  * @param season - A water year, or "all".
+ * @param categories - The categories picked; every category when omitted.
  * @returns The event, or null when the filter leaves none.
  */
-export function defaultOpen(section: RainEvents, season: Season): RainEventRow | null {
-  const rows = inSeason(section, season);
+export function defaultOpen(
+  section: RainEvents,
+  season: Season,
+  categories?: Categories,
+): RainEventRow | null {
+  const rows = inSeason(section, season, categories);
   return (
     rows.find((e) => e.live) ??
     rows.reduce<RainEventRow | null>(
@@ -132,9 +185,14 @@ export function sizeShare(row: RainEventRow, most: number): number {
  * What the list's empty state says when a filter leaves no events.
  *
  * @param season - A water year, or "all".
+ * @param hidden - Events the category filter hides there.
  * @returns The sentence (DESIGN.md "Event list").
  */
-export function emptyList(season: Season): string {
+export function emptyList(season: Season, hidden = 0): string {
+  if (hidden > 0) {
+    const scope = season === "all" ? "" : ` in water year ${season}`;
+    return `No events${scope} in the categories picked; ${hidden} other${hidden === 1 ? " is" : "s are"} hidden.`;
+  }
   return season === "all"
     ? "No rain events on record yet."
     : `No rain events in water year ${season} yet.`;

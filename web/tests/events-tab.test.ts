@@ -54,6 +54,7 @@ function pick(value: string): void {
 const drawnLast = () => deps.draw.mock.calls.at(-1)!;
 
 beforeEach(() => {
+  localStorage.clear();
   history.replaceState(null, "", "/?fixture=raining#events");
   document.body.innerHTML = "<section id=panel></section>";
   panel = document.getElementById("panel")!;
@@ -74,7 +75,7 @@ describe("the event list", () => {
     expect(rows()[1]!.querySelector(".ev-live")).toBeNull();
     expect(rows()[1]!.querySelector(".ev-total")!.textContent).toBe("0.48 in");
     expect(rows()[1]!.querySelector(".ev-meta")!.textContent).toBe(
-      "15 h 50 m · peak 0.12 in/hr excellent",
+      "Shower · 15 h 50 m · peak 0.12 in/hr excellent",
     );
   });
 
@@ -170,6 +171,90 @@ describe("the event list", () => {
     click(".ev-more");
     expect(rows()).toHaveLength(25);
     expect(panel.querySelector(".ev-more")).toBeNull();
+  });
+});
+
+describe("the category filter", () => {
+  /** The raining golden with event 1 a sprinkle. */
+  function withSprinkle(start = EVENT_1): DashboardSnapshot {
+    const snapshot = raining();
+    snapshot.rain_events.events.find((e) => e.start_ms === start)!.category = "sprinkle";
+    return snapshot;
+  }
+  const pressed = (category: string) =>
+    panel.querySelector(`[data-category=${category}]`)!.getAttribute("aria-pressed");
+
+  it("hides sprinkles at first and lists them once Sprinkle is picked", () => {
+    mountEvents(panel, withSprinkle(), deps);
+
+    expect(starts()).toEqual([EVENT_3, EVENT_2]);
+    expect(pressed("sprinkle")).toBe("false");
+    expect(pressed("storm")).toBe("true");
+
+    click("[data-category=sprinkle]");
+
+    expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
+    expect(pressed("sprinkle")).toBe("true");
+  });
+
+  it("keeps the categories picked for the next visit", () => {
+    mountEvents(panel, withSprinkle(), deps);
+    click("[data-category=sprinkle]");
+    document.body.innerHTML = "<section id=panel></section>";
+    panel = document.getElementById("panel")!;
+
+    mountEvents(panel, withSprinkle(), deps);
+
+    expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
+  });
+
+  it("always lists the live event, whatever its category", () => {
+    mountEvents(panel, withSprinkle(EVENT_3), deps);
+
+    expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
+  });
+
+  it("lists a row with no category under any pick", () => {
+    const snapshot = raining();
+    delete snapshot.rain_events.events.find((e) => e.start_ms === EVENT_1)!.category;
+    mountEvents(panel, snapshot, deps);
+    click("[data-category=shower]");
+
+    expect(starts()).toEqual([EVENT_3, EVENT_1]);
+  });
+
+  it("adds a linked event's category so its row shows", () => {
+    history.replaceState(null, "", `/?fixture=raining&event=${EVENT_1}#events`);
+    mountEvents(panel, withSprinkle(), deps);
+
+    expect(openStart()).toBe(EVENT_1);
+    expect(pressed("sprinkle")).toBe("true");
+  });
+
+  it("says how many events the pick hides when it leaves none", () => {
+    const snapshot = raining();
+    for (const e of snapshot.rain_events.events) {
+      e.category = "sprinkle";
+      e.live = false;
+    }
+    mountEvents(panel, snapshot, deps);
+
+    expect(starts()).toEqual([]);
+    expect(panel.querySelector(".ev-empty")!.textContent).toBe(
+      "No events in the categories picked; 3 others are hidden.",
+    );
+  });
+
+  it("opens the default event when a pick hides the open row", () => {
+    mountEvents(panel, raining(), deps);
+    click(row(EVENT_2));
+    expect(openStart()).toBe(EVENT_2);
+
+    click("[data-category=shower]");
+
+    expect(starts()).toEqual([EVENT_3]);
+    expect(openStart()).toBe(EVENT_3);
+    expect(location.search).not.toContain("event=");
   });
 });
 

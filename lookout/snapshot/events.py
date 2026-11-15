@@ -23,6 +23,7 @@ from typing import Any, Callable, Collection, Iterator, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from lookout.core.event_category import event_category
 from lookout.core.rain_events import (
     filter_events,
     is_event_ongoing,
@@ -183,12 +184,15 @@ def _row(event: pd.Series, rank: int, history: _History, tz: str) -> RainEventRo
     has_curve = not history.span(start_ms, end_ms).empty
     completeness = number(event.get("data_completeness"))
     quality = event.get("quality_rating")
+    total_in = float(event["total_rainfall"])
+    peak = number(event.get("max_hourly_rate"))
     return RainEventRow(
         start_ms=start_ms,
         end_ms=end_ms,
         duration_minutes=float(event["duration_minutes"]),
-        total_in=float(event["total_rainfall"]),
-        peak_rate_in_hr=number(event.get("max_hourly_rate")),
+        total_in=total_in,
+        peak_rate_in_hr=peak,
+        category=event_category(total_in, peak),
         quality=quality if isinstance(quality, str) and has_curve else NO_DATA,
         completeness_pct=None if completeness is None else round(completeness * 100, 1),
         max_gap_minutes=number(event.get("max_gap_minutes"), 1),

@@ -658,6 +658,9 @@ class RainEventRow:
     :param duration_minutes: From start to end.
     :param total_in: Its rain: the live `eventrainin` while it is live.
     :param peak_rate_in_hr: Its highest rate between 5-minute readings.
+    :param category: "sprinkle", "shower", "rain" or "storm", from its total
+        and peak rate (`lookout.core.event_category`); the list hides
+        sprinkles by default.
     :param quality: The catalog's rating: "excellent", "good", "fair",
         "poor", or "invalid" when the archive has no data in its range.
     :param completeness_pct: Readings present against expected, 0-100.
@@ -676,6 +679,7 @@ class RainEventRow:
     duration_minutes: float
     total_in: float
     peak_rate_in_hr: Optional[float]
+    category: str
     quality: str
     completeness_pct: Optional[float]
     max_gap_minutes: Optional[float]

@@ -156,6 +156,12 @@ export interface ConditionRibbon {
   known_hours: number;
 }
 
+/**
+ * An event's category, smallest first, from its total and peak rate
+ * (`lookout.core.event_category`). The list hides sprinkles by default.
+ */
+export type EventCategory = "sprinkle" | "shower" | "rain" | "storm";
+
 /** Event Catalog quality: "invalid" means no archive data in its range. */
 export type EventQuality = "excellent" | "good" | "fair" | "poor" | "invalid";
 
@@ -170,6 +176,11 @@ export interface RainEventRow {
   /** The live event total while `live`. */
   total_in: number;
   peak_rate_in_hr: number | null;
+  /**
+   * Decided in Python. Absent from a snapshot written before it was added:
+   * such a row shows under every filter.
+   */
+  category?: EventCategory | null;
   quality: EventQuality;
   completeness_pct: number | null;
   max_gap_minutes: number | null;
