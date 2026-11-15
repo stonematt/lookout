@@ -469,3 +469,9 @@
   border-style: dashed;
   color: var(--ink-3);
 }
+
+/* the category toggles: several can be pressed, so they sit apart */
+.ev-kinds {
+  gap: 2px;
+  padding: 1px;
+}

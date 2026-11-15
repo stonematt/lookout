@@ -7,8 +7,10 @@
  *   (kicker, finding, standfirst, stats, folded source), the phone's fixed
  *   top; under it, the event list (DESIGN.md "Event list"): a filter bar
  *   pinned under any sticky header while the list scrolls (a water-year
- *   select and a Newest / Wettest / Longest sort), the rows, "Show N more".
- * - A closed row is the event's start, length, peak and quality chip, its
+ *   select, a Newest / Wettest / Longest sort and the Storm / Rain / Shower /
+ *   Sprinkle category toggles, sprinkles off at first and the pick kept in
+ *   the browser), the rows, "Show N more".
+ * - A closed row is the event's start, category, length, peak and quality chip, its
  *   total, and a size bar (its total over the catalog's largest, hidden
  *   from assistive tech). The open row adds the event's finding, its stats,
  *   a Total / Rate switch over one chart, its quality and its folded source.
@@ -40,14 +42,24 @@ import { escapeHtml as esc } from "../dom.js";
 import { gapElement, gapLabel, isComparable } from "../gaps.js";
 import { staleCatalogNote } from "../stale.js";
 import { gapReasons, renderTiles, sourceNote, tileFolds } from "../tiles.js";
-import type { DashboardSnapshot, EventCurve, EventSeason, RainEventRow } from "../snapshot.js";
+import type {
+  DashboardSnapshot,
+  EventCategory,
+  EventCurve,
+  EventSeason,
+  RainEventRow,
+} from "../snapshot.js";
 import type { EventChart, EventChartOptions } from "./charts.js";
 import type { EventSort, Season } from "./model.js";
 import {
+  CATEGORIES,
+  DEFAULT_CATEGORIES,
   SORTS,
+  categoryLabel,
   defaultOpen,
   emptyList,
   eventFinding,
+  inCategories,
   latestStart,
   listFinding,
   listHeading,
@@ -65,6 +77,35 @@ import {
 
 /** Rows shown before "Show more". */
 const PAGE = 20;
+
+/** Where the browser keeps the categories picked, across visits. */
+const CATEGORIES_KEY = "lookout.events.categories";
+
+/** The categories picked on an earlier visit, or the default. */
+function storedCategories(): Set<EventCategory> {
+  try {
+    const raw = localStorage.getItem(CATEGORIES_KEY);
+    if (raw !== null) {
+      const known = new Set<string>(CATEGORIES.map((c) => c.category));
+      const picked = (JSON.parse(raw) as unknown[]).filter(
+        (c): c is EventCategory => typeof c === "string" && known.has(c),
+      );
+      return new Set(picked);
+    }
+  } catch {
+    // No storage, or a value this version cannot read: the default.
+  }
+  return new Set(DEFAULT_CATEGORIES);
+}
+
+/** Keep the categories picked for the next visit, where the browser lets it. */
+function storeCategories(categories: ReadonlySet<EventCategory>): void {
+  try {
+    localStorage.setItem(CATEGORIES_KEY, JSON.stringify([...categories]));
+  } catch {
+    // Storage blocked: the pick lasts this page only.
+  }
+}
 
 /** What the tab reads and draws with; tests replace these. */
 export interface EventsDeps {
@@ -129,6 +170,8 @@ function yearOption(season: EventSeason): string {
 interface View {
   season: Season;
   sort: EventSort;
+  /** The categories listed. */
+  categories: Set<EventCategory>;
   limit: number;
   /** The open row's chart. */
   chart: EventChart;
@@ -160,7 +203,15 @@ const panels = new WeakMap<HTMLElement, Kept>();
  * lists goes back to All, with the first page, the order and the chart kept.
  */
 function keptView(last: View | undefined, section: DashboardSnapshot["rain_events"]): View {
-  if (!last) return { season: "all", sort: "newest", limit: PAGE, chart: "total" };
+  if (!last) {
+    return {
+      season: "all",
+      sort: "newest",
+      categories: storedCategories(),
+      limit: PAGE,
+      chart: "total",
+    };
+  }
   const { season } = last;
   if (season === "all" || section.seasons.some((s) => s.water_year === season)) return last;
   return { ...last, season: "all", limit: PAGE };
@@ -223,9 +274,13 @@ export function mountEvents(
   if (linked && view.season !== "all" && linked.water_year !== view.season) {
     view.season = "all";
   }
+  // So does a linked event in a category not picked: its category is added.
+  if (linked?.category && !inCategories(linked, view.categories)) {
+    view.categories.add(linked.category);
+  }
   let selected: RainEventRow | null = kept.shut
     ? null
-    : (linked ?? defaultOpen(section, view.season));
+    : (linked ?? defaultOpen(section, view.season, view.categories));
   let missing = asked !== null && linked === null;
   const latest = latestStart(section);
   let drawn = 0;
@@ -277,6 +332,10 @@ export function mountEvents(
         const sorts = SORTS.map(
           ({ sort, label }) => `<button type="button" data-sort="${sort}">${label}</button>`,
         ).join("");
+        const kinds = CATEGORIES.map(
+          ({ category, label }) =>
+            `<button type="button" data-category="${category}">${label}</button>`,
+        ).join("");
         // Literal markup; the select's options are escaped in yearOption.
         // eslint-disable-next-line no-unsanitized/method
         host.insertAdjacentHTML(
@@ -288,6 +347,7 @@ export function mountEvents(
     <option value="all">All years</option>${section.seasons.map(yearOption).join("")}
   </select></label>
   <div class="ev-seg ev-sort" role="group" aria-label="Order">${sorts}</div>
+  <div class="ev-seg ev-kinds" role="group" aria-label="Categories">${kinds}</div>
 </div>
 <div class="ev-list"></div>
 <div class="ev-foot"></div>`,
@@ -309,7 +369,7 @@ export function mountEvents(
   function renderHead(): void {
     const stats = statsFor(section, view.season);
     const oldest = all.length ? all[all.length - 1]!.start_ms : null;
-    const rows = visibleEvents(section, view.season, view.sort);
+    const rows = visibleEvents(section, view.season, view.sort, view.categories);
     $(".ev-title").textContent = all.length
       ? listFinding(stats, view.season, oldest, rows)
       : "No rain events in the catalog yet";
@@ -344,6 +404,10 @@ export function mountEvents(
     for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-sort]")) {
       b.setAttribute("aria-pressed", String(b.dataset.sort === view.sort));
     }
+    for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-category]")) {
+      const on = view.categories.has(b.dataset.category as EventCategory);
+      b.setAttribute("aria-pressed", String(on));
+    }
   }
 
   /** The catalog's largest event total, the size bars' full track. */
@@ -362,22 +426,24 @@ export function mountEvents(
       e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : inchesPerHour(e.peak_rate_in_hr);
     const chip = `<span class="ev-chip${lowQuality(e) ? " low" : ""}">${esc(qualityLabel(e))}</span>`;
     const share = (sizeShare(e, most) * 100).toFixed(1);
+    const kind = categoryLabel(e);
     return `<h3 class="ev-row-head"><button type="button" class="ev-open" data-start="${esc(e.start_ms)}" aria-expanded="${open}" aria-controls="ev-body-${esc(e.start_ms)}">
   <span class="ev-date">${when(startLabel(e.start_ms, now))}${mark}</span>
   <span class="ev-total">${e.total_in.toFixed(2)}<small> in</small></span>
-  <span class="ev-meta">${esc(minutes(e.duration_minutes))} · peak ${esc(peak)} ${chip}</span>
+  <span class="ev-meta">${kind ? `${esc(kind)} · ` : ""}${esc(minutes(e.duration_minutes))} · peak ${esc(peak)} ${chip}</span>
   <span class="ev-size" aria-hidden="true"><span style="width: ${share}%"></span></span>
 </button></h3>`;
   }
 
   function renderList(): void {
-    const rows = visibleEvents(section, view.season, view.sort);
+    const rows = visibleEvents(section, view.season, view.sort, view.categories);
     const shown = rows.slice(0, view.limit);
     const now = deps.nowMs();
     const most = largest();
     const list = $(".ev-list");
     if (!rows.length) {
-      list.innerHTML = `<p class="ev-empty" role="status">${esc(emptyList(all.length ? view.season : "all"))}</p>`;
+      const hidden = visibleEvents(section, view.season, view.sort).length;
+      list.innerHTML = `<p class="ev-empty" role="status">${esc(emptyList(all.length ? view.season : "all", hidden))}</p>`;
       $(".ev-foot").replaceChildren();
       return;
     }
@@ -527,7 +593,7 @@ ${switcher}
   /** Make sure the open row is on the rows shown. */
   function reach(): void {
     if (!selected) return;
-    const at = visibleEvents(section, view.season, view.sort).indexOf(selected);
+    const at = visibleEvents(section, view.season, view.sort, view.categories).indexOf(selected);
     if (at >= view.limit) view.limit = at + 1;
   }
 
@@ -591,6 +657,23 @@ ${switcher}
         renderBody();
         return;
       }
+      const kindButton = target.closest<HTMLButtonElement>("[data-category]");
+      if (kindButton) {
+        const category = kindButton.dataset.category as EventCategory;
+        if (!view.categories.delete(category)) view.categories.add(category);
+        storeCategories(view.categories);
+        view.limit = PAGE;
+        // An open row the pick hides gives way to the default rule.
+        if (selected && !inCategories(selected, view.categories)) {
+          selected = kept.shut ? null : defaultOpen(section, view.season, view.categories);
+          missing = false;
+          writeUrl(null);
+        }
+        reach();
+        renderHead();
+        renderList();
+        return;
+      }
       const sortButton = target.closest<HTMLButtonElement>("[data-sort]");
       if (sortButton) {
         view.sort = sortButton.dataset.sort as EventSort;
@@ -618,7 +701,7 @@ ${switcher}
       // The open row follows the default rule within the water year picked:
       // the live event, or the newest. A row closed by hand stays closed.
       if (!kept.shut) {
-        selected = defaultOpen(section, view.season);
+        selected = defaultOpen(section, view.season, view.categories);
         missing = false;
         writeUrl(null);
       }
