@@ -712,6 +712,7 @@
         "duration_minutes": 1910.0,
         "total_in": 0.665,
         "peak_rate_in_hr": 0.432,
+        "category": "rain",
         "quality": "poor",
         "completeness_pct": 94.8,
         "max_gap_minutes": 94.0,

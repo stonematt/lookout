@@ -238,6 +238,14 @@ events shaped by earlier rain corrections, is lost unless a backup is kept.
 So a rebuild is a human act, never a side effect of a failed read.
 _Avoid_: rain catalog, events file.
 
+### event category
+
+A rain event's size: sprinkle (under 0.05 in), shower, rain (0.5 in or a
+peak of 0.5 in/hr) or storm (2.0 in or a peak of 1.0 in/hr). Python decides
+it (`lookout.core.event_category`) and the snapshot carries it; the event
+list filters on it and hides sprinkles by default.
+_Avoid_: event class, event type.
+
 ### read outcome (found / missing / failed)
 
 Every storage read ends in exactly one of three outcomes:

@@ -56,6 +56,7 @@ class TestTheEventList:
         assert row.total_in == pytest.approx(0.36)
         assert row.duration_minutes == 530.0
         assert row.peak_rate_in_hr == pytest.approx(0.12)
+        assert row.category == "shower"
         assert row.quality == "excellent"
         assert row.completeness_pct == 100.0
         assert row.max_gap_minutes == 0
