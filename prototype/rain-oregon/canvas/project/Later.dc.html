@@ -50,18 +50,16 @@ a{color:#11161c;text-decoration:none}a:hover{color:#11161c}
     <g font-size="12" fill="#2c353f"><text x="30" y="130">midnight</text><text x="110.5" y="130" text-anchor="middle">6 am</text><text x="191" y="130" text-anchor="middle">noon</text><text x="271.5" y="130" text-anchor="middle">6 pm</text></g>
   </svg>
 
-  <a href="RainC.dc.html" aria-label="Wet 11% of the last 7 days and 16% of the last 30. Open the rain view." style="display: block; border-top: 1px solid #c9d1d9; margin-top: 8px; padding-top: 10px; color: #11161c;">
+  <a href="RainC.dc.html" aria-label="Wet 17 of the last 168 hours and 110 of the last 720. Open the rain view." style="display: block; border-top: 1px solid #c9d1d9; margin-top: 8px; padding-top: 10px; color: #11161c;">
     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-      <span style="font-size: 12px; font-weight: 500; color: #2c353f;">Wet time</span>
-      <span style="font-size: 13px; color: #2c353f; font-variant-numeric: tabular-nums;"><b style="font-weight: 600; color: #11161c;">11%</b> of 7 days · <b style="font-weight: 600; color: #11161c;">16%</b> of 30</span>
+      <span style="font-size: 12px; font-weight: 500; color: #2c353f;">Wet hours</span>
+      <span style="font-size: 12px; color: #2c353f;">each bar is every hour; dark is wet</span>
     </div>
-    <svg viewBox="0 0 358 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" aria-hidden="true">
-      <rect x="0" y="18" width="358" height="8" rx="4" fill="#c3cfdb"/>
-      <circle cx="57.3" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
-      <circle cx="39.4" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
-      <text x="57.3" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">30 d</text>
-      <text x="39.4" y="42" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">7 d</text>
-      <g font-size="12" fill="#2c353f"><text x="0" y="42">0</text><text x="89.5" y="42" text-anchor="middle">25%</text><text x="179" y="42" text-anchor="middle">50%</text><text x="358" y="42" text-anchor="end">100% wet</text></g>
+    <svg viewBox="0 0 358 48" style="display: block; width: 100%; height: auto; margin-top: 6px;" aria-hidden="true">
+      <g font-size="12" fill="#2c353f"><text x="0" y="16">7 days</text><text x="0" y="40">30 days</text></g>
+      <rect x="62" y="6" width="200" height="12" rx="6" fill="#c3cfdb"/><rect x="62" y="6" width="20.2" height="12" rx="6" fill="#1d4a7a"/>
+      <rect x="62" y="30" width="200" height="12" rx="6" fill="#c3cfdb"/><rect x="62" y="30" width="30.6" height="12" rx="6" fill="#1d4a7a"/>
+      <g font-size="13" fill="#2c353f" text-anchor="end" style="font-variant-numeric: tabular-nums;"><text x="358" y="16"><tspan font-weight="600" fill="#11161c">17 h</tspan> of 168</text><text x="358" y="40"><tspan font-weight="600" fill="#11161c">110 h</tspan> of 720</text></g>
     </svg>
   </a>
 </section>
@@ -84,7 +82,7 @@ a{color:#11161c;text-decoration:none}a:hover{color:#11161c}
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 16px 0;">
-  <a href="#" style="display: block; background: #ffffff; border-radius: 16px; padding: 14px 12px 10px; height: 176px; box-sizing: border-box;">
+  <a href="#" style="order: -2; display: block; background: #ffffff; border-radius: 16px; padding: 14px 12px 10px; height: 176px; box-sizing: border-box;">
     <div style="font-size: 12px; font-weight: 500; color: #4d5763;">Temperature</div>
     <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">53°</div>
     <div style="font-size: 13px; color: #353e48;">high 53°, <b style="font-weight: 500;">+5°</b> on usual</div>
@@ -99,7 +97,7 @@ a{color:#11161c;text-decoration:none}a:hover{color:#11161c}
     <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">+1°</div>
     <div style="font-size: 13px; color: #353e48;">highs over usual</div>
   </a>
-  <a href="RainC.dc.html" aria-label="Wet hours: 17 this week, last rain 9 hours ago. Open the rain view." style="display: block; background: #ffffff; border-radius: 16px; padding: 14px 12px 10px;">
+  <a href="RainC.dc.html" aria-label="Wet hours: 17 this week, last rain 9 hours ago. Open the rain view." style="order: -1; display: block; background: #ffffff; border-radius: 16px; padding: 14px 12px 10px;">
     <div style="font-size: 12px; font-weight: 500; color: #4d5763;">Wet hours</div>
     <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">17<span style="font-size: 16px;"> h</span></div>
     <div style="font-size: 13px; color: #353e48;">this week · last rain <b style="font-weight: 500;">9 h ago</b></div>
