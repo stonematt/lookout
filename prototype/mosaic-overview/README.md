@@ -62,6 +62,14 @@ The grill on the issue settled the tiles, the Feature Rule and the zoom; this pa
 
 23. **On desktop the feature is a full-width row** (Matt, Nov 12). This replaces decision 10's 2×2 feature block. The feature spans all four columns at the top of the mosaic, as Release B1 shipped it (#545, passed in Matt's B1 UAT). The ten tiles follow in rows of four in the phone's order: Temperature, Rain, Last 10 days, Dry spell | Wind, Pressure, Humidity, Sun | Daylight, Inside. A zoom opens as a full-width row under the tapped tile's row. The "under the feature block" case in decision 11 is gone. The `Desktop` board still draws the 2×2 block; this decision wins over it.
 
+## Fourth pass (Nov 23, rain should feel like Oregon, #647)
+
+These decisions come from the #647 grill and its prototype (branch `prototype/rain-oregon`, canvas https://claude.ai/artifact/5XYWsospyUdu72Ax2LpNF4). Its boards win over this branch's boards where they differ.
+
+24. **The tile order follows the rain mode** (Matt, Nov 23). This replaces the fixed order in decision 23. Row 1 is Temperature and the wet-or-dry tile: "Wet hours" in wet mode, "Dry spell" in dry mode. Rain since Oct 1 always sits in row 2. While rain leads (the Feature Rule picks rain, last rain within 3 h, ADR-0011), one rain tile carries the now story with the season at its foot, and Wet hours and Rain since Oct 1 leave the mosaic. "Last 10 days" is retitled "Highs over usual" (GLOSSARY **tile title**). Desktop keeps rows of four in the phone's order.
+
+25. **The rain zoom stays a crop of the Rain tab's first section, which is now the now-and-season head** (Matt, Nov 23). This replaces decision 14's lead, not its rule. The Rain tab runs now, then the season, then usual: the headline is the wetter-or-drier verdict over the water-year curves, and the window strip becomes each window's rain as a dot on its usual range. The rain zoom draws that head, so the zoom and the tab remain one drawing. Boards: the Rain tab C boards on `prototype/rain-oregon`.
+
 ## Accessibility audit (Nov 11, `/impeccable audit`)
 
 Axe-core 4.10 (WCAG 2.2 A/AA and best practice) on every board, light and dark, found no colour-contrast failures in text. The impeccable detector found no anti-patterns, only advisories that sizes and radii are off the DESIGN.md ramp (prototype drift; the build uses the tokens). Chart graphics were measured by hand, since axe does not check them.
