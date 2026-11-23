@@ -50,6 +50,28 @@ The six comment threads were auto-acknowledged; resolve each with a short reply 
 
 Countable hours: a label reads wet h of countable h; uncountable hours are hatched at the end of the bar, never counted as dry (GLOSSARY wet hour, wet share). Sample: the 30-day bar reads "112 h of 696", with the 24 hours of Nov 5 hatched; the 7-day bar reads "19 h of 168" (no gap). The Meter board has a week with an 18-hour gap: "19 h of 150".
 
+## Picks and open questions
+
+Picks so far:
+
+- Q2, the Overview: C, one rain tile.
+- Q3, the tile name: (a), it follows the mode, "Wet hours" or "Dry spell".
+- Q4, the Rain tab: C, now then season then usual.
+- Q5, Rain Events: layout B, events by size, with the four-step glyph on each row.
+- Tile order: row 1 is Temperature and the wet-or-dry tile; Rain since Oct 1 is always in row 2.
+- Wet time is shown in hours, never percent, and every label reads "wet h of countable h".
+- The feature tile has the dual chart.
+- The Rain Events list: C's list with the reworked filter line (water year, sort, size).
+
+Open:
+
+- Q1, meter windows: 7 d + 30 d recommended.
+- The Rain Events page: B above the fold and then C's list, or not.
+- Tile titles: whether every tile's title names what its number counts (thread a35b05e1).
+- Thread a7488a22 ("drop this, polish C", on EventsA): I read it as a pick of C over A and deleted nothing. EventsA is still on the canvas; Matt or the main session decides whether to drop it.
+
+Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
+
 ## Still to do
 
 1. SendMessage to session `rain-oregon-principles`: the canvas link, the branch, and for each question the options and the recommendation (Q2: Matt likes C; Q4: Matt agrees with C); then wait for Matt's picks.
