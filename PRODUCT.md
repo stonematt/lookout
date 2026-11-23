@@ -52,7 +52,7 @@ Lookout shows this station's own measured, hyperlocal record, which a generic we
 
 ## Product Principles
 
-1. **Lead with now, then context.** Current conditions come first, and recent history explains them.
+1. **Lead with now, then the season, then usual.** Current conditions come first. The season says how this stretch of the year is going, and usual says how that compares with earlier years. Each is one tap from the others, and none crowds out another. Each measure defines its own season. Rain builds this first (#647); other measures take it on when they are next changed.
 2. **Promote what is happening.** When it rains, the rain event leads.
 3. **Every finding shows its evidence, at every size.**
 4. **Honest about the record.** A comparison appears only once the record supports it, and one line names the next unlock. A gap inside a shown period stays visible.
