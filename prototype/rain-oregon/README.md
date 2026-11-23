@@ -9,7 +9,7 @@ Design canvas for the prototype pass on stonematt/lookout#647. Branch `prototype
 
 ## Sample numbers (keep consistent)
 
-Mon Nov 23, 2026, Lookout Post. Raining since 2:40 pm; now 4:35 pm; 0.08 in/h (last 60 min); 0.31 in since 2:40. Last 7 days: 19 wet h of 168 (11%). Last 30 days: 112 wet h of 720 (16%). Since Oct 1: 3.98 in, 113 wet h (9%); earlier years by Nov 23: 7.58 in (2026), 10.08 (2025), 7.90 (2024), so "drier". Wet share usual by date: 11–15%.
+Mon Nov 23, 2026, Lookout Post. Raining since 2:40 pm; now 4:35 pm; 0.08 in/h (last 60 min); 0.31 in since 2:40. Last 7 days: 19 wet h of 168. Last 30 days: 112 wet h of 696 countable (24 h of Nov 5 hatched). Since Oct 1: 3.98 in, 113 wet h of 1,292; earlier years by Nov 23: 7.58 in (2026), 10.08 (2025), 7.90 (2024), so "drier". Wet share usual by date: 11–15%.
 "Later" board: 11:40 am, last rain 2:40 am (9 h ago), 17 wet h this week, 110 h of 30 days.
 "DryDay": Fri Aug 14, 2026, dry spell 23 days (real: last rain Jul 22), usual 3; WY2026 to date 26.1 in vs 35.5 / 40.6.
 
@@ -17,23 +17,21 @@ Mon Nov 23, 2026, Lookout Post. Raining since 2:40 pm; now 4:35 pm; 0.08 in/h (l
 
 | Page | Board | State |
 |---|---|---|
-| Overview (Q2) | Main (A, raining) | **updated for Matt's comments** |
-| | Stopped, Later (A) | need the comment changes (below) |
-| | DryDay (A, dry mode, no meter) | done |
-| | AltB (meter in hero top right, season pair first row) | done |
-| | AltC (one rain tile: now over season) | **Matt likes it**; needs the comment changes |
-| | MainDark | needs the comment changes |
-| Meter (Q1, Q3) | Meter (24 h + 7 d vs 7 d + 30 d on three real days) | done; the meter form changed after (see below) |
+| Overview (Q2) | Main (A, raining), Stopped, Later (A) | done: dual feature chart, two wet-hour bars, Wet hours beside Temperature |
+| | DryDay (A, dry mode, no meter) | done: Dry spell beside Temperature, Rain since Oct 1 last |
+| | AltB (meter in hero top right) | done: two hour bars |
+| | AltC (one rain tile: now over season) | **Matt likes it**; done |
+| | MainDark | done |
+| Meter (Q1, Q3) | Meter (24 h + 7 d vs 7 d + 30 d on three real days, plus a countable-hours example) | done, in hours |
 | | TileNames (a: Wet hours / Dry spell, b: Rain lately, c: Wet time / Dry time) | done |
-| Rain tab (Q4) | RainA (water year leads), RainB (season calendar leads), RainC (now, season, usual), RainCDark | done |
-| Rain Events (Q5) | EventsA (timeline + step glyph rows) | done |
-| | EventsB (events by size, beeswarm per water year), EventsC (last ten events as bars), Glyphs (520x620: drop count / four steps / sized ring, x sprinkle, shower, rain, storm) | **not written yet**; frames are in canvas.json |
-| Desktop | Desktop (1440, dark, raining, rows of four, feature full width per Mosaic decision 23) | **not written yet** |
+| Rain tab (Q4) | RainA, RainB, RainC (Matt agrees with C), RainCDark | done: wet time in hours; the Now card of C has the accumulation line |
+| Rain Events (Q5) | EventsA (timeline), EventsB (beeswarm per water year; earlier years are sample shapes), EventsC (last ten events as bars), Glyphs (three options) | done |
+| Desktop | Desktop (1440, dark, raining, rows of four, feature full width) | done; Wind, Pressure, Humidity and Sun values are made up |
 
 ## Matt's comments on the canvas (Nov 23) and what they changed
 
 1. **Feature chart:** a dual chart. Columns are rain every 5 min (left axis, .01/.02/.03); a line is the running total since the start (right axis, .1/.2/.3 in, sharing the gridlines); "last hour 0.08 in" bracket under the baseline; legend under the chart. Done on Main. Apply to Stopped (bars shifted −68.9, line flat at 0.31 after 4:35), MainDark and AltC (replace its compact ribbon with this chart).
-2. **Hours beat percent.** The wet-time meter is now two bars, 7 days and 30 days. Each bar is every hour in the window; the dark fill is the wet hours; the label reads "19 h of 168" / "112 h of 720". Header: "Wet hours" / "each bar is every hour; dark is wet". This replaces the decided "one track 0–100%, two markers": report it as a change Matt's comment drove. Done on Main; apply to Stopped, Later (17 h, 110 h), AltC, MainDark. The Rain tab's "Share of hours wet" rows should follow (hours, not %).
+2. **Hours beat percent.** The wet-time meter is now two bars, 7 days and 30 days. Each bar is every hour in the window; the dark fill is the wet hours; the label reads "19 h of 168" / "112 h of 696". Header: "Wet hours" / "each bar is every hour; dark is wet". This replaces the decided "one track 0–100%, two markers": report it as a change Matt's comment drove. Done on every Overview board, Meter and the Rain tab.
 3. **Tile order:** Wet hours moves up to row 1 beside Temperature; Rain since Oct 1 moves down to row 2. Done on Main with CSS `order` (Temperature −2, Wet hours −1). Apply to Stopped, Later, MainDark.
 4. **C (one rain tile):** Matt likes it. Treat it as his lean for Q2.
 
@@ -48,10 +46,12 @@ The six comment threads were auto-acknowledged; resolve each with a short reply 
 - **Q5 Rain Events:** A, the timeline (stems at each event's start, height = total, newest named, missing days hatched on the axis, "4 days missing" plus a "How events are found" fold) and the four-step glyph.
 - Flags: the meter hides in dry mode; the feature and the meter both link to the rain view.
 
+## Countable hours
+
+Countable hours: a label reads wet h of countable h; uncountable hours are hatched at the end of the bar, never counted as dry (GLOSSARY wet hour, wet share). Sample: the 30-day bar reads "112 h of 696", with the 24 hours of Nov 5 hatched; the 7-day bar reads "19 h of 168" (no gap). The Meter board has a week with an 18-hour gap: "19 h of 150".
+
 ## Still to do
 
-1. Apply the comment changes to Stopped, Later, AltC, MainDark; publish each; resolve the six threads.
-2. Write EventsB, EventsC, Glyphs and Desktop (dark); publish each.
-3. Update the canvas notes n1/n3 (meter is now hours bars; Matt leans C).
-4. Commit and push this branch.
-5. SendMessage to session `rain-oregon-principles`: the canvas link, the branch, and for each question the options and the recommendation (Q2 noting Matt likes C); then wait for Matt's picks.
+1. SendMessage to session `rain-oregon-principles`: the canvas link, the branch, and for each question the options and the recommendation (Q2: Matt likes C; Q4: Matt agrees with C); then wait for Matt's picks.
+2. Open: thread a35b05e1 (TileNames, "I like this row"): ask Matt whether the naming pattern becomes the default for the other tiles.
+3. Not done: the since-Oct-1 bars carry no hatched gaps (the gaps in Oct are not drawn on them).
