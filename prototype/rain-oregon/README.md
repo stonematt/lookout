@@ -64,10 +64,9 @@ Picks so far:
 - Wet time is shown in hours, never percent, and every label reads "wet h of countable h".
 - The feature tile has the dual chart.
 - The Rain Events list: C's list with the reworked filter line (water year, sort, size), on one row: "2026–27", "Newest", "Showers and up".
-- Rain Events: A, the timeline, is dropped (thread a7488a22). 
+- Rain Events: A, the timeline, is dropped (thread a7488a22).
 
-Open:
-
+Open: none. Every question is picked.
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
 
