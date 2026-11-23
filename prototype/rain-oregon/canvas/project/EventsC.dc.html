@@ -35,56 +35,114 @@ a{color:#11161c;text-decoration:none}a:hover{color:#11161c}
     <span style="font-size: 44px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums;">10</span>
     <span style="font-size: 17px; font-weight: 500; line-height: 1.3;">events in 30 days;<br>one is raining now</span>
   </div>
-  <ul style="list-style: none; margin: 12px 0 0; padding: 0; position: relative;">
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Today 2:40 pm · now</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.31 inches"><rect x="0" y="1" width="46.5" height="12" rx="3" fill="#ffffff" stroke="#a74b11" stroke-width="2"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.31</span>
+  <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+    <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; background: #11161c; color: #ffffff; padding: 0 14px; min-height: 36px; border-radius: 18px;">All but sprinkles</button>
+    <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; border: 1px solid #7d8995; background: none; color: #353e48; padding: 0 14px; min-height: 36px; border-radius: 18px;">Rain and storms</button>
+  </div>
+  <ul style="list-style: none; margin: 8px 0 0; padding: 0;">
+    <li style="border-top: 0;">
+      <button type="button" aria-expanded="true" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 600;">Today 2:40 pm · now</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.31 inches"><rect x="0" y="1" width="46.5" height="12" rx="3" fill="#ffffff" stroke="#a74b11" stroke-width="2"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.31</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 6.5 L5 3 L8.5 6.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
+      <div style="background: #f3f5f7; border-radius: 12px; padding: 12px; margin: 2px 0 6px;">
+        <div style="font-size: 13px; font-weight: 500; color: #353e48;">Raining now · 0.08 in/h · 0.31 in since 2:40 pm</div>
+        <svg viewBox="0 0 372 134" style="display: block; width: 100%; height: auto; margin-top: 12px;" aria-hidden="true">
+    <g stroke="#e1e5e9" stroke-width="1"><line x1="30" y1="72" x2="340" y2="72"/><line x1="30" y1="52" x2="340" y2="52"/><line x1="30" y1="32" x2="340" y2="32"/></g>
+    <line x1="30" y1="92" x2="340" y2="92" stroke="#7d8995" stroke-width="1"/>
+    <g font-size="12" fill="#4d5763" style="font-variant-numeric: tabular-nums;"><text x="0" y="76">.01</text><text x="0" y="56">.02</text><text x="0" y="36">.03</text></g>
+    <g fill="#3b6fa6">
+      <rect x="143.2" y="72" width="6" height="20" rx="1.5"/><rect x="151.8" y="52" width="6" height="40" rx="1.5"/><rect x="160.4" y="32" width="6" height="60" rx="1.5"/><rect x="169.0" y="52" width="6" height="40" rx="1.5"/><rect x="177.7" y="32" width="6" height="60" rx="1.5"/><rect x="186.3" y="52" width="6" height="40" rx="1.5"/><rect x="194.9" y="52" width="6" height="40" rx="1.5"/><rect x="203.5" y="32" width="6" height="60" rx="1.5"/><rect x="212.1" y="52" width="6" height="40" rx="1.5"/><rect x="220.8" y="52" width="6" height="40" rx="1.5"/><rect x="229.4" y="72" width="6" height="20" rx="1.5"/>
+      <rect x="238.0" y="72" width="6" height="20" rx="1.5"/><rect x="255.2" y="72" width="6" height="20" rx="1.5"/><rect x="263.8" y="72" width="6" height="20" rx="1.5"/><rect x="281.1" y="72" width="6" height="20" rx="1.5"/><rect x="289.7" y="72" width="6" height="20" rx="1.5"/><rect x="306.9" y="72" width="6" height="20" rx="1.5"/><rect x="315.6" y="72" width="6" height="20" rx="1.5"/><rect x="332.8" y="72" width="6" height="20" rx="1.5"/>
+    </g>
+    <g font-size="12" fill="#4d5763" style="font-variant-numeric: tabular-nums;"><text x="346" y="76">.1</text><text x="346" y="56">.2</text><text x="346" y="36">.3 in</text></g>
+    <path d="M30,92 L143,92 L146.2,90 L154.8,86 L163.4,80 L172,76 L180.7,70 L189.3,66 L197.9,62 L206.5,56 L215.1,52 L223.8,48 L232.4,46 L241,44 L249.6,44 L258.2,42 L266.8,40 L275.5,40 L284.1,38 L292.7,36 L301.3,36 L309.9,34 L318.6,32 L327.2,32 L335.8,30" fill="none" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M30,92 L143,92 L146.2,90 L154.8,86 L163.4,80 L172,76 L180.7,70 L189.3,66 L197.9,62 L206.5,56 L215.1,52 L223.8,48 L232.4,46 L241,44 L249.6,44 L258.2,42 L266.8,40 L275.5,40 L284.1,38 L292.7,36 L301.3,36 L309.9,34 L318.6,32 L327.2,32 L335.8,30" fill="none" stroke="#11161c" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="335.8" cy="30" r="3.5" fill="#11161c"/>
+    <text x="330" y="20" font-size="12" font-weight="600" fill="#11161c" text-anchor="end">0.31 in so far</text>
+    <line x1="237" y1="100" x2="340" y2="100" stroke="#353e48" stroke-width="1.5"/><line x1="237" y1="96" x2="237" y2="104" stroke="#353e48" stroke-width="1.5"/><line x1="340" y1="96" x2="340" y2="104" stroke="#353e48" stroke-width="1.5"/>
+    <text x="288.5" y="116" font-size="12" font-weight="600" fill="#353e48" text-anchor="middle">last hour 0.08 in</text>
+    <g font-size="12" fill="#4d5763"><text x="30" y="130">1:35 pm</text><text x="143.2" y="130">2:40 start</text><text x="340" y="130" text-anchor="end">4:35</text></g>
+  </svg>
+  <div style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #4d5763; margin-top: 2px;">
+    <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 10px; border-radius: 1.5px; background: #3b6fa6;"></span>rain every 5 min (left)</span>
+    <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 14px; height: 2px; background: #11161c;"></span>total since 2:40 (right)</span>
+  </div>
+      </div>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Sat Nov 21</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.19 inches"><rect x="0" y="1" width="28.5" height="12" rx="3" fill="#52789f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.19</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Sat Nov 21</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.19 inches"><rect x="0" y="1" width="28.5" height="12" rx="3" fill="#52789f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.19</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Wed Nov 18</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.13 inches"><rect x="0" y="1" width="19.5" height="12" rx="3" fill="#52789f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.13</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Wed Nov 18</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.13 inches"><rect x="0" y="1" width="19.5" height="12" rx="3" fill="#52789f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.13</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Thu Nov 12</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="rain, 1.02 inches"><rect x="0" y="1" width="153.0" height="12" rx="3" fill="#2a4b6f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">1.02</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Thu Nov 12</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="rain, 1.02 inches"><rect x="0" y="1" width="153.0" height="12" rx="3" fill="#2a4b6f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">1.02</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Mon Nov 9</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="rain, 0.60 inches"><rect x="0" y="1" width="90.0" height="12" rx="3" fill="#2a4b6f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.60</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Mon Nov 9</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="rain, 0.60 inches"><rect x="0" y="1" width="90.0" height="12" rx="3" fill="#2a4b6f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.60</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Fri Nov 6</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.48 inches"><rect x="0" y="1" width="72.0" height="12" rx="3" fill="#52789f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.48</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Fri Nov 6</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.48 inches"><rect x="0" y="1" width="72.0" height="12" rx="3" fill="#52789f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.48</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Tue Nov 3</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="sprinkle, 0.04 inches"><rect x="0" y="1" width="6.0" height="12" rx="3" fill="#6a8fb7"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.04</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Tue Nov 3</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="sprinkle, 0.04 inches"><rect x="0" y="1" width="6.0" height="12" rx="3" fill="#6a8fb7"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.04</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Sat Oct 31</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.47 inches"><rect x="0" y="1" width="70.5" height="12" rx="3" fill="#52789f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.47</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Sat Oct 31</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="shower, 0.47 inches"><rect x="0" y="1" width="70.5" height="12" rx="3" fill="#52789f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.47</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Thu Oct 29</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="rain, 0.73 inches"><rect x="0" y="1" width="109.5" height="12" rx="3" fill="#2a4b6f"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.73</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Thu Oct 29</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="rain, 0.73 inches"><rect x="0" y="1" width="109.5" height="12" rx="3" fill="#2a4b6f"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.73</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
-    <li style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; gap: 8px; align-items: center; min-height: 36px;">
-      <span style="font-size: 13px; color: #353e48;">Sun Oct 25</span>
-      <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="sprinkle, 0.01 inches"><rect x="0" y="1" width="3.0" height="12" rx="3" fill="#6a8fb7"/></svg>
-      <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.01</span>
+    <li style="border-top: 1px solid #e1e5e9;">
+      <button type="button" aria-expanded="false" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px 16px; gap: 8px; align-items: center; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left;">
+        <span style="font-size: 13px; color: #11161c; font-weight: 400;">Sun Oct 25</span>
+        <svg viewBox="0 0 200 14" style="display: block; width: 100%; height: 14px;" role="img" aria-label="sprinkle, 0.01 inches"><rect x="0" y="1" width="3.0" height="12" rx="3" fill="#6a8fb7"/></svg>
+        <span style="font-size: 15px; text-align: right; font-variant-numeric: tabular-nums;">0.01</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#4d5763" stroke-width="1.5"/></svg>
+      </button>
     </li>
     </ul>
   <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; color: #4d5763; margin-top: 4px;">
@@ -102,7 +160,7 @@ a{color:#11161c;text-decoration:none}a:hover{color:#11161c}
 </section>
 
 <div style="margin: 10px 16px 0; padding: 12px 14px; border: 1px dashed #7d8995; border-radius: 12px; font-size: 12px; line-height: 1.5; color: #4d5763;">
-  <b style="color: #11161c; font-weight: 600;">Board note.</b> The list again, drawn as bars. Bars share one scale, so size reads at a glance and recency is the order. It carries no gaps, no usual event and no earlier years. Dates before Nov 9 are approximate.
+  <b style="color: #11161c; font-weight: 600;">Board note.</b> The list again, drawn as bars. Bars share one scale, so size reads at a glance and recency is the order. Tap a title to open that event's rate and accumulation panel (shown open on the newest). It carries no gaps, no usual event and no earlier years. Dates before Nov 9 are approximate.
 </div>
 
 <div style="flex-grow: 1; min-height: 24px;"></div>
