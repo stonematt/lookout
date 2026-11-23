@@ -319,15 +319,25 @@ _Avoid_: lastRain (Ambient's field, for this measure), time since rain.
 ### wet hour
 
 A station-local clock hour with at least one tip of the gauge (0.01 in).
-Whole hours, because drizzle can take 30 to 60 minutes per tip. An hour the
-archive cannot count is neither wet nor dry.
+Whole hours, because drizzle can take 30 to 60 minutes per tip. Only a
+**countable hour** can be wet; any other hour is neither wet nor dry.
 _Avoid_: rainy hour, hours of rain (for a prorated count).
+
+### countable hour
+
+A station-local clock hour that has readings and no gap over 30 minutes
+between them. The gap from the reading before the hour to its first reading
+counts as part of the hour. An hour with a longer gap, or no reading, is not
+countable: it is drawn hatched and is never wet or dry (#647).
+_Avoid_: known hour, valid hour.
 
 ### wet share
 
 Wet hours divided by the hours the archive can count, over a window. A
 missing hour lowers the countable hours, never the share. Published with the
-wet and countable hour counts it rests on.
+wet and countable hour counts it rests on. It decides **wet mode**; the site
+never shows it as a percent. Wet time reads in hours, as wet hours of
+countable hours ("19 h of 168").
 _Avoid_: percent of time raining, rain fraction.
 
 ### wet mode
@@ -357,6 +367,25 @@ is published as a whole percent of it, as in "74% of usual", with the count
 of years it rests on (`rain_tab.usual_to_date`, #539). There is none before
 an earlier year covers the date, and no percent of a usual of 0.
 _Avoid_: normal rainfall, average to date.
+
+### usual wet hours to date
+
+The range of wet hours this water year would have to date if it were as wet
+as earlier years: the 25th to 75th percentile of earlier **water years'**
+**wet share** from Oct 1 to this date, times this year's countable hours.
+Built from the share, not the hour count, because earlier years have
+different gaps. There is none before an earlier year covers the date (#647).
+_Avoid_: normal wet hours, average wet time.
+
+### tile title
+
+The heading over a tile's number. Where the number counts a window or
+depends on a mode, the title names what it counts, as in "Highs over usual"
+(over, under or at usual) or "Wet hours" against "Dry spell". The snapshot
+carries the title text, and the zoom heading and the sources footer read
+the same title. A window with a gap reads "gap in record", never a zero.
+Other titles are fixed names (#647).
+_Avoid_: label, caption, header (for this heading).
 
 ### usual band
 
