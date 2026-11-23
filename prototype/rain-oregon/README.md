@@ -25,7 +25,7 @@ Mon Nov 23, 2026, Lookout Post. Raining since 2:40 pm; now 4:35 pm; 0.08 in/h (l
 | Meter (Q1, Q3) | Meter (24 h + 7 d vs 7 d + 30 d on three real days, plus a countable-hours example) | done, in hours |
 | | TileNames (a: Wet hours / Dry spell, b: Rain lately, c: Wet time / Dry time) | done |
 | Rain tab (Q4) | RainA, RainB, RainC (Matt agrees with C), RainCDark | done: wet time in hours; the Now card of C has the accumulation line |
-| Rain Events (Q5) | EventsB (beeswarm per water year; earlier years are sample shapes), EventsC (every event of the water year; filter line on one row), EventsBC (B over C's list on one page, one filter line drives both), Glyphs (three options) | done; EventsA (timeline) dropped on Matt's comment; EventsB's dot caption removed |
+| Rain Events (Q5) | EventsB (beeswarm per water year; earlier years are sample shapes), EventsC (every event of the water year; filter line on one row), EventsBC (B's scatter unchanged over C's list on one page; the filter line sits on the list), Glyphs (three options) | done; EventsA (timeline) dropped on Matt's comment; EventsB's dot caption removed |
 | Desktop | Desktop (1440, dark, raining, rows of four, feature full width) | done; Wind, Pressure, Humidity and Sun values are made up |
 
 ## Matt's comments on the canvas (Nov 23) and what they changed
@@ -67,7 +67,7 @@ Picks so far:
 Open:
 
 - Q1, meter windows: 7 d + 30 d recommended.
-- The Rain Events page: one page (EventsBC: B's size chart over C's list, one filter line for both), or B and C apart. Matt asked whether B and C are either/or by condition (thread 91b2194a): they are not; they answer different questions.
+- The Rain Events page: one page (EventsBC: B's scatter as drawn, then C's list with the filter line on it), or B and C apart. Matt asked whether B and C are either/or by condition (thread 91b2194a): they are not; they answer different questions.
 - Tile titles: whether every tile's title names what its number counts (thread a35b05e1).
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
