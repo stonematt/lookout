@@ -171,3 +171,9 @@ Retro over ledger #628 (Gate, Go-live, Sessions, Waits on Matt, Decisions and th
 - [skill] **release-manager: the branch-delete line was built lane by lane and missed most of the release's branches.** The ledger's Waits on Matt line named three branches; the release left the docs and fix lanes, the goal, UAT and `chore(release)` branches too. Skill line to change: release-manager step 6 — at close, build the delete command from the head branch of every PR in the release (`gh pr list --state merged` over the goal and release PRs) with each SHA. rolled up https://github.com/stonematt/stonematt-skills/issues/137#issuecomment-6871862551
 - [project] **A new `uat/**` branch at a commit already pushed on `goal/**` got no Vercel Git deployment** (unchecked: Vercel may skip a commit it has already seen). Filed #642. Fold into: `CONTRIBUTING.md` branches and ADR-0010, once #642 names the cause.
 - [project] **The pytest job sits at its 15-minute limit on every branch, `dev` included; this release did not cause it.** Filed #641 (raise the limit, then cut the suite's time); it is the ticket the Mosaic retro's CI-time lesson asked for. Fold into: brief, release 2026.11.19 line. folded 90f3bd4f
+
+## 2026-11-23 · [project] Rain event bounds are Ambient's · folded into the brief, PR #650
+
+Context: scoping Rain should feel like Oregon (#647). I pulled #116 (event end includes the dry tail) in as a data prerequisite, because the Overview's event duration reads about 6 h long.
+Correction (Matt): a rain event's start and end are defined by Ambient's event counter and its own end rule; the site keeps them. Time since the last gauge tip is a separate measure, and the better driver for the now story.
+Apply: don't treat Ambient-defined event bounds as a data bug; when a duration reads wrong, ask whether the design should show time since last rain instead.
