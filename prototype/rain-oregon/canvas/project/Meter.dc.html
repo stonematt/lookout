@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Meter windows: 24 h + 7 d against 7 d + 30 d</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 960px; min-height: 900px; box-sizing: border-box; background: #f3f5f7; color: #11161c; font-family: Lexend, system-ui, sans-serif; letter-spacing: 0.01em; padding: 36px 40px 40px;">
+  <div style="font-size: 13px; font-weight: 500; color: #4d5763;">Q1 · The meter's two windows</div>
+  <h1 style="margin: 6px 0 0; font-size: 28px; font-weight: 500; line-height: 1.25; max-width: 52ch;">7 d + 30 d keeps a story on dry days; 24 h + 7 d goes blank on half of winter</h1>
+  <p style="margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: #353e48; max-width: 70ch;">Lookout Post, Dec–Feb back-test: the 24 h share reads 0% on 49% of days. The 7 d share has a median of 11% and a 90th percentile of 34%. Three real days below, each drawn both ways on the hero's track (0–100% wet). The filled dot is the shorter window, the ring the longer; their order shows the trend.</p>
+
+  <div style="display: grid; grid-template-columns: 160px minmax(0, 1fr) minmax(0, 1fr); gap: 14px 20px; margin-top: 28px; align-items: center;">
+    <div></div>
+    <div style="font-size: 15px; font-weight: 600;">24 h + 7 d</div>
+    <div style="font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">7 d + 30 d <span style="font-size: 12px; font-weight: 500; color: #ffffff; background: #11161c; border-radius: 12px; padding: 3px 10px;">recommended</span></div>
+
+    <div>
+      <div style="font-size: 15px; font-weight: 500;">Thu Mar 12, 2026</div>
+      <div style="font-size: 13px; color: #4d5763; margin-top: 2px;">a storm day</div>
+    </div>
+    <div style="background: #e2e9f0; border-radius: 16px; padding: 14px 16px 10px;">
+      <div style="font-size: 13px; color: #2c353f;">Wet <b style="font-weight: 600; color: #11161c;">75%</b> of 24 h · <b style="font-weight: 600; color: #11161c;">25%</b> of 7 days</div>
+      <svg viewBox="0 0 330 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" role="img" aria-label="24 hours at 75 percent, 7 days at 25 percent">
+        <rect x="0" y="18" width="330" height="8" rx="4" fill="#c3cfdb"/>
+        <circle cx="82.5" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
+        <circle cx="247.5" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
+        <text x="247.5" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">24 h</text>
+        <text x="82.5" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">7 d</text>
+        <g font-size="12" fill="#2c353f"><text x="0" y="42">0</text><text x="165" y="42" text-anchor="middle">50%</text><text x="330" y="42" text-anchor="end">100%</text></g>
+      </svg>
+    </div>
+    <div style="background: #e2e9f0; border-radius: 16px; padding: 14px 16px 10px;">
+      <div style="font-size: 13px; color: #2c353f;">Wet <b style="font-weight: 600; color: #11161c;">25%</b> of 7 days · <b style="font-weight: 600; color: #11161c;">10%</b> of 30</div>
+      <svg viewBox="0 0 330 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" role="img" aria-label="7 days at 25 percent, 30 days at 10 percent">
+        <rect x="0" y="18" width="330" height="8" rx="4" fill="#c3cfdb"/>
+        <circle cx="32.3" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
+        <circle cx="82.5" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
+        <text x="32.3" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">30 d</text>
+        <text x="82.5" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">7 d</text>
+        <g font-size="12" fill="#2c353f"><text x="0" y="42">0</text><text x="165" y="42" text-anchor="middle">50%</text><text x="330" y="42" text-anchor="end">100%</text></g>
+      </svg>
+    </div>
+
+    <div>
+      <div style="font-size: 15px; font-weight: 500;">Sat Dec 20, 2025</div>
+      <div style="font-size: 13px; color: #4d5763; margin-top: 2px;">a dry day after a wet week</div>
+    </div>
+    <div style="background: #e2e9f0; border-radius: 16px; padding: 14px 16px 10px;">
+      <div style="font-size: 13px; color: #2c353f;">Wet <b style="font-weight: 600; color: #11161c;">0%</b> of 24 h · <b style="font-weight: 600; color: #11161c;">23%</b> of 7 days</div>
+      <svg viewBox="0 0 330 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" role="img" aria-label="24 hours at 0 percent, 7 days at 23 percent">
+        <rect x="0" y="18" width="330" height="8" rx="4" fill="#c3cfdb"/>
+        <circle cx="76.6" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
+        <circle cx="6" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
+        <text x="6" y="10" font-size="12" font-weight="600" fill="#1d4a7a">24 h</text>
+        <text x="76.6" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="middle">7 d</text>
+        <g font-size="12" fill="#2c353f"><text x="0" y="42">0</text><text x="165" y="42" text-anchor="middle">50%</text><text x="330" y="42" text-anchor="end">100%</text></g>
+      </svg>
+    </div>
+    <div style="background: #e2e9f0; border-radius: 16px; padding: 14px 16px 10px;">
+      <div style="font-size: 13px; color: #2c353f;">Wet <b style="font-weight: 600; color: #11161c;">23%</b> of 7 days · <b style="font-weight: 600; color: #11161c;">16%</b> of 30</div>
+      <svg viewBox="0 0 330 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" role="img" aria-label="7 days at 23 percent, 30 days at 16 percent">
+        <rect x="0" y="18" width="330" height="8" rx="4" fill="#c3cfdb"/>
+        <circle cx="51.2" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
+        <circle cx="76.6" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
+        <text x="51.2" y="10" font-size="12" font-weight="600" fill="#1d4a7a" text-anchor="end">30 d</text>
+        <text x="76.6" y="10" font-size="12" font-weight="600" fill="#1d4a7a">7 d</text>
+        <g font-size="12" fill="#2c353f"><text x="0" y="42">0</text><text x="165" y="42" text-anchor="middle">50%</text><text x="330" y="42" text-anchor="end">100%</text></g>
+      </svg>
+    </div>
+
+    <div>
+      <div style="font-size: 15px; font-weight: 500;">Tue Jan 20, 2026</div>
+      <div style="font-size: 13px; color: #4d5763; margin-top: 2px;">day 12 of the 18-day dry spell</div>
+    </div>
+    <div style="background: #e2e9f0; border-radius: 16px; padding: 14px 16px 10px;">
+      <div style="font-size: 13px; color: #2c353f;">Wet <b style="font-weight: 600; color: #11161c;">0%</b> of 24 h · <b style="font-weight: 600; color: #11161c;">0%</b> of 7 days</div>
+      <svg viewBox="0 0 330 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" role="img" aria-label="Both windows at 0 percent; the markers sit on each other">
+        <rect x="0" y="18" width="330" height="8" rx="4" fill="#c3cfdb"/>
+        <circle cx="6" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
+        <circle cx="6" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
+        <text x="16" y="10" font-size="12" font-weight="600" fill="#1d4a7a">24 h and 7 d, one on the other</text>
+        <g font-size="12" fill="#2c353f"><text x="0" y="42">0</text><text x="165" y="42" text-anchor="middle">50%</text><text x="330" y="42" text-anchor="end">100%</text></g>
+      </svg>
+    </div>
+    <div style="background: #e2e9f0; border-radius: 16px; padding: 14px 16px 10px;">
+      <div style="font-size: 13px; color: #2c353f;">Wet <b style="font-weight: 600; color: #11161c;">0%</b> of 7 days · <b style="font-weight: 600; color: #11161c;">9%</b> of 30</div>
+      <svg viewBox="0 0 330 46" style="display: block; width: 100%; height: auto; margin-top: 4px;" role="img" aria-label="7 days at 0 percent, 30 days at 9 percent">
+        <rect x="0" y="18" width="330" height="8" rx="4" fill="#c3cfdb"/>
+        <circle cx="29.4" cy="22" r="6" fill="#e2e9f0" stroke="#1d4a7a" stroke-width="2.5"/>
+        <circle cx="6" cy="22" r="6" fill="#1d4a7a" stroke="#e2e9f0" stroke-width="2"/>
+        <text x="29.4" y="10" font-size="12" font-weight="600" fill="#1d4a7a">30 d</text>
+        <text x="16" y="42" font-size="12" font-weight="600" fill="#1d4a7a">7 d</text>
+        <g font-size="12" fill="#2c353f"><text x="165" y="42" text-anchor="middle">50%</text><text x="330" y="42" text-anchor="end">100%</text></g>
+      </svg>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 32px;">
+    <div style="background: #ffffff; border-radius: 16px; padding: 18px 20px;">
+      <div style="font-size: 13px; font-weight: 500; color: #4d5763;">Why 7 d + 30 d</div>
+      <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.55; color: #353e48;">The issue's season question is "this week and this month". The last few hours already belong to the now story in the feature tile, so a 24 h marker repeats it, and reads 0% on half of winter's days. With 7 d + 30 d the meter still says something on day 12 of a dry spell: the month was wet, the week was not.</p>
+    </div>
+    <div style="background: #ffffff; border-radius: 16px; padding: 18px 20px;">
+      <div style="font-size: 13px; font-weight: 500; color: #4d5763;">What 24 h + 7 d does better</div>
+      <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.55; color: #353e48;">On a storm day the 24 h marker jumps far right (75%), the most vivid picture of "it's pouring today". That picture is already the feature tile's job while rain leads. The cost is the blank meter on dry winter days.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

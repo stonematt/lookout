@@ -1,0 +1,140 @@
+salmon days 21 2026-11-03 2026-11-23 hours 479 known days 19
+hours with >=1 reading 479  >=6 readings 478  wet hours 91 wet hours strict 91
+
+== 3 drizzle: wet-hour tip size distribution
+wet hours with exactly 1 tip (0.01): 0.396  <=0.02: 0.549  >0.10: 0.077
+minutes between consecutive tip-readings (all pairs): quantiles [ 5.  5. 10. 20. 60.]
+pairs <=180min (same rainy period) n= 294 quantiles p10/25/50/75/90 [ 5.   5.  10.  18.8 40. ]
+  share of in-period gaps <= 5min: 0.442
+  share of in-period gaps <= 10min: 0.626
+  share of in-period gaps <= 15min: 0.748
+  share of in-period gaps <= 30min: 0.874
+  share of in-period gaps <= 60min: 0.949
+  share of in-period gaps <= 120min: 0.980
+  share of in-period gaps <= 180min: 1.000
+  tip-readings: 310  readings with rise >0.01 (multi-tip in 5 min): 0.132
+
+== 1 weekly last 365 (see csv) weeks 4 ; wet share quantiles p10/50/90 of weekly [0.028, 0.103, 0.284]
+            wet_h  cnt_h  rain  days  wet_share
+wk                                             
+2026-11-02     12    131  0.29     6      0.092
+2026-11-09     60    168  3.08     7      0.357
+2026-11-16     19    168  0.47     7      0.113
+2026-11-23      0     12  0.00     1      0.000
+
+== 2 monthly wet share % by WY (cols Oct..Sep)
+mo    10    11  12  1   2   3   4   5   6   7   8   9 
+wy                                                    
+2027 NaN  19.0 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+rain in
+mo    10    11  12  1   2   3   4   5   6   7   8   9 
+wy                                                    
+2027 NaN  3.84 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+       w    c  rain  wetdays  known  share
+wy                                        
+2027  91  479  3.84       15     19   0.19
+
+== 6 meter values (share %, p10/p50/p90, mean, %days with zero)
+Dec-Feb s1 0 [nan, nan, nan] mean nan zero nan
+Dec-Feb s7 0 [nan, nan, nan] mean nan zero nan
+Jun-Aug s1 0 [nan, nan, nan] mean nan zero nan
+Jun-Aug s7 0 [nan, nan, nan] mean nan zero nan
+Dec-Feb wet hours/day p10/50/90 [nan, nan, nan] wetday frac nan
+Jun-Aug wet hours/day p10/50/90 [nan, nan, nan] wetday frac nan
+
+completed dry spells n 2 median 2.0
+dry spells >=7 days starting Nov-Mar:
+Empty DataFrame
+Columns: [first_day, last_day, days, mo]
+Index: []
+
+== 4 rule backtest summary
+           rule  flips flips_by_wy  flaps_lt7d  summer_Jun_Sep_entries  sept_entries  winter_DecFeb_exits  flips_last365  wet_day_share
+0    a_calendar      0          {}           0                       0             0                    0              0          1.000
+1    b_in5_out1      1   {2027: 1}           0                       0             0                    0              1          0.333
+2    b_in5_out2      1   {2027: 1}           0                       0             0                    0              1          0.333
+3    b_in5_out5      1   {2027: 1}           0                       0             0                    0              1          0.333
+4   b_in10_out1      1   {2027: 1}           0                       0             0                    0              1          0.333
+5   b_in10_out2      1   {2027: 1}           0                       0             0                    0              1          0.333
+6   b_in10_out5      1   {2027: 1}           0                       0             0                    0              1          0.333
+7   b_in15_out1      1   {2027: 1}           0                       0             0                    0              1          0.333
+8   b_in15_out2      1   {2027: 1}           0                       0             0                    0              1          0.333
+9   b_in15_out5      1   {2027: 1}           0                       0             0                    0              1          0.333
+10      c_N2_D7      1   {2027: 1}           0                       0             0                    0              1          0.333
+11      d_N2_D7      1   {2027: 1}           0                       0             0                    0              1          0.333
+12     c_N2_D10      1   {2027: 1}           0                       0             0                    0              1          0.333
+13     d_N2_D10      1   {2027: 1}           0                       0             0                    0              1          0.333
+14     c_N2_D14      1   {2027: 1}           0                       0             0                    0              1          0.333
+15     d_N2_D14      1   {2027: 1}           0                       0             0                    0              1          0.333
+16      c_N3_D7      1   {2027: 1}           0                       0             0                    0              1          0.333
+17      d_N3_D7      1   {2027: 1}           0                       0             0                    0              1          0.333
+18     c_N3_D10      1   {2027: 1}           0                       0             0                    0              1          0.333
+19     d_N3_D10      1   {2027: 1}           0                       0             0                    0              1          0.333
+20     c_N3_D14      1   {2027: 1}           0                       0             0                    0              1          0.333
+21     d_N3_D14      1   {2027: 1}           0                       0             0                    0              1          0.333
+22      c_N4_D7      1   {2027: 1}           0                       0             0                    0              1          0.333
+23      d_N4_D7      1   {2027: 1}           0                       0             0                    0              1          0.333
+24     c_N4_D10      1   {2027: 1}           0                       0             0                    0              1          0.333
+25     d_N4_D10      1   {2027: 1}           0                       0             0                    0              1          0.333
+26     c_N4_D14      1   {2027: 1}           0                       0             0                    0              1          0.333
+27     d_N4_D14      1   {2027: 1}           0                       0             0                    0              1          0.333
+
+flips last365 for each rule:
+a_calendar []
+b_in5_out1 [('2026-11-17', 'dry->wet')]
+b_in5_out2 [('2026-11-17', 'dry->wet')]
+b_in5_out5 [('2026-11-17', 'dry->wet')]
+b_in10_out1 [('2026-11-17', 'dry->wet')]
+b_in10_out2 [('2026-11-17', 'dry->wet')]
+b_in10_out5 [('2026-11-17', 'dry->wet')]
+b_in15_out1 [('2026-11-17', 'dry->wet')]
+b_in15_out2 [('2026-11-17', 'dry->wet')]
+b_in15_out5 [('2026-11-17', 'dry->wet')]
+c_N2_D7 [('2026-11-17', 'dry->wet')]
+d_N2_D7 [('2026-11-17', 'dry->wet')]
+c_N2_D10 [('2026-11-17', 'dry->wet')]
+d_N2_D10 [('2026-11-17', 'dry->wet')]
+c_N2_D14 [('2026-11-17', 'dry->wet')]
+d_N2_D14 [('2026-11-17', 'dry->wet')]
+c_N3_D7 [('2026-11-17', 'dry->wet')]
+d_N3_D7 [('2026-11-17', 'dry->wet')]
+c_N3_D10 [('2026-11-17', 'dry->wet')]
+d_N3_D10 [('2026-11-17', 'dry->wet')]
+c_N3_D14 [('2026-11-17', 'dry->wet')]
+d_N3_D14 [('2026-11-17', 'dry->wet')]
+c_N4_D7 [('2026-11-17', 'dry->wet')]
+d_N4_D7 [('2026-11-17', 'dry->wet')]
+c_N4_D10 [('2026-11-17', 'dry->wet')]
+d_N4_D10 [('2026-11-17', 'dry->wet')]
+c_N4_D14 [('2026-11-17', 'dry->wet')]
+d_N4_D14 [('2026-11-17', 'dry->wet')]
+
+agreement with calendar (share of days same state):
+a_calendar 1.0
+b_in5_out1 0.333
+b_in5_out2 0.333
+b_in5_out5 0.333
+b_in10_out1 0.333
+b_in10_out2 0.333
+b_in10_out5 0.333
+b_in15_out1 0.333
+b_in15_out2 0.333
+b_in15_out5 0.333
+c_N2_D7 0.333
+d_N2_D7 0.333
+c_N2_D10 0.333
+d_N2_D10 0.333
+c_N2_D14 0.333
+d_N2_D14 0.333
+c_N3_D7 0.333
+d_N3_D7 0.333
+c_N3_D10 0.333
+d_N3_D10 0.333
+c_N3_D14 0.333
+d_N3_D14 0.333
+c_N4_D7 0.333
+d_N4_D7 0.333
+c_N4_D10 0.333
+d_N4_D10 0.333
+c_N4_D14 0.333
+d_N4_D14 0.333

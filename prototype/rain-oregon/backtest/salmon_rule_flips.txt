@@ -1,0 +1,196 @@
+## a_calendar
+flips: []
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: []
+
+## b_in5_out1
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in5_out2
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in5_out5
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in10_out1
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in10_out2
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in10_out5
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in15_out1
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in15_out2
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## b_in15_out5
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N2_D7
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N2_D7
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N2_D10
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N2_D10
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N2_D14
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N2_D14
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N3_D7
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N3_D7
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N3_D10
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N3_D10
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N3_D14
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N3_D14
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N4_D7
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N4_D7
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N4_D10
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N4_D10
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## c_N4_D14
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
+## d_N4_D14
+flips: [('2026-11-17', 'dry->wet')]
+flaps<7d: []
+Jun-Sep entries: []
+Dec-Feb exits: []
+last365: [('2026-11-17', 'dry->wet')]
+
