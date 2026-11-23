@@ -57,17 +57,16 @@ Picks so far:
 - Q2, the Overview: C, one rain tile.
 - Q3, the tile name: (a), it follows the mode, "Wet hours" or "Dry spell".
 - Q4, the Rain tab: C, now then season then usual.
-- Q5, Rain Events: layout B, events by size, with the four-step glyph on each row.
+- Q5, Rain Events: B + C on one page (EventsBC): B's scatter as drawn, then C's list with the filter line on it, the four-step glyph on each row. Matt: "this is the one to pick" (thread c97346e3). Every Rain Events link opens EventsBC.
 - Tile order: row 1 is Temperature and the wet-or-dry tile; Rain since Oct 1 is always in row 2.
 - Wet time is shown in hours, never percent, and every label reads "wet h of countable h".
 - The feature tile has the dual chart.
 - The Rain Events list: C's list with the reworked filter line (water year, sort, size), on one row: "2026–27", "Newest", "Showers and up".
-- Rain Events: A, the timeline, is dropped (thread a7488a22). Every Rain Events link opens EventsC.
+- Rain Events: A, the timeline, is dropped (thread a7488a22). 
 
 Open:
 
 - Q1, meter windows: 7 d + 30 d recommended.
-- The Rain Events page: one page (EventsBC: B's scatter as drawn, then C's list with the filter line on it), or B and C apart. Matt asked whether B and C are either/or by condition (thread 91b2194a): they are not; they answer different questions.
 - Tile titles: whether every tile's title names what its number counts (thread a35b05e1).
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
