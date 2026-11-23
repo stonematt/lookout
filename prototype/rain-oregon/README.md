@@ -54,6 +54,7 @@ Countable hours: a label reads wet h of countable h; uncountable hours are hatch
 
 Picks so far:
 
+- Q1, meter windows: 7 d + 30 d (Matt, Nov 23).
 - Q2, the Overview: C, one rain tile.
 - Q3, the tile name: (a), it follows the mode, "Wet hours" or "Dry spell".
 - Q4, the Rain tab: C, now then season then usual.
@@ -66,7 +67,6 @@ Picks so far:
 
 Open:
 
-- Q1, meter windows: 7 d + 30 d recommended.
 - Tile titles: whether every tile's title names what its number counts (thread a35b05e1).
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
