@@ -25,7 +25,7 @@ Mon Nov 23, 2026, Lookout Post. Raining since 2:40 pm; now 4:35 pm; 0.08 in/h (l
 | Meter (Q1, Q3) | Meter (24 h + 7 d vs 7 d + 30 d on three real days, plus a countable-hours example) | done, in hours |
 | | TileNames (a: Wet hours / Dry spell, b: Rain lately, c: Wet time / Dry time) | done |
 | Rain tab (Q4) | RainA, RainB, RainC (Matt agrees with C), RainCDark | done: wet time in hours; the Now card of C has the accumulation line |
-| Rain Events (Q5) | EventsA (timeline), EventsB (beeswarm per water year; earlier years are sample shapes), EventsC (last ten events as bars), Glyphs (three options) | done |
+| Rain Events (Q5) | EventsB (beeswarm per water year; earlier years are sample shapes), EventsC (every event of the water year; filter line on one row), Glyphs (three options) | done; EventsA (timeline) dropped on Matt's comment |
 | Desktop | Desktop (1440, dark, raining, rows of four, feature full width) | done; Wind, Pressure, Humidity and Sun values are made up |
 
 ## Matt's comments on the canvas (Nov 23) and what they changed
@@ -43,7 +43,7 @@ The six comment threads were auto-acknowledged; resolve each with a short reply 
 - **Q2 stories on the Overview:** recommended A, but Matt likes C. Report C as the lead.
 - **Q3 tile name:** follows the mode: "Wet hours" / "Dry spell".
 - **Q4 Rain tab:** C, now then season then usual. The headline becomes the verdict over the water-year curves; the window strip becomes a dot-on-band chart (each window's rain on its own usual range). Cost: breaks Mosaic decision 14's "zoom = tab's lead".
-- **Q5 Rain Events:** A, the timeline (stems at each event's start, height = total, newest named, missing days hatched on the axis, "4 days missing" plus a "How events are found" fold) and the four-step glyph.
+- **Q5 Rain Events:** the first recommendation was A, the timeline. Matt picked B and C's list instead and dropped A ("drop this, polish C"). The four-step glyph stands.
 - Flags: the meter hides in dry mode; the feature and the meter both link to the rain view.
 
 ## Countable hours
@@ -61,19 +61,18 @@ Picks so far:
 - Tile order: row 1 is Temperature and the wet-or-dry tile; Rain since Oct 1 is always in row 2.
 - Wet time is shown in hours, never percent, and every label reads "wet h of countable h".
 - The feature tile has the dual chart.
-- The Rain Events list: C's list with the reworked filter line (water year, sort, size).
+- The Rain Events list: C's list with the reworked filter line (water year, sort, size), on one row: "2026–27", "Newest", "Showers and up".
+- Rain Events: A, the timeline, is dropped (thread a7488a22). Every Rain Events link opens EventsC.
 
 Open:
 
 - Q1, meter windows: 7 d + 30 d recommended.
 - The Rain Events page: B above the fold and then C's list, or not.
 - Tile titles: whether every tile's title names what its number counts (thread a35b05e1).
-- Thread a7488a22 ("drop this, polish C", on EventsA): I read it as a pick of C over A and deleted nothing. EventsA is still on the canvas; Matt or the main session decides whether to drop it.
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
 
 ## Still to do
 
-1. SendMessage to session `rain-oregon-principles`: the canvas link, the branch, and for each question the options and the recommendation (Q2: Matt likes C; Q4: Matt agrees with C); then wait for Matt's picks.
-2. Open: thread a35b05e1 (TileNames, "I like this row"): ask Matt whether the naming pattern becomes the default for the other tiles.
-3. Not done: the since-Oct-1 bars carry no hatched gaps (the gaps in Oct are not drawn on them).
+1. Open: thread a35b05e1 (TileNames, "I like this row"): ask Matt whether the naming pattern becomes the default for the other tiles. It stays open until he answers.
+2. Not done: the since-Oct-1 bars carry no hatched gaps (the gaps in Oct are not drawn on them).
