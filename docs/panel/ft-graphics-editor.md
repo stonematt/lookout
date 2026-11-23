@@ -61,3 +61,13 @@ Verdict: fix
 - [x] fix: too much negative space. Prototype fix: about 150 px, paired panels
 - [ ] fix: title must state the finding and name its window; carried into the #619 spec
 - note: said no to swapping the Overview Rain tile to Today and Yesterday (Matt agreed)
+
+### 2026-11-23 — Rain should feel like Oregon (#647), grill decisions + prototype canvas, before /to-spec
+
+Verdict: fix
+- [ ] blocker: since-Oct-1 bars must hatch October's missing days (canvas does not draw this); the spec makes it a done-when — Overview Rain since Oct 1
+- [ ] blocker: B's scatter built from real catalog events only; the canvas's 2024–26 dots are made up — Rain Events
+- [ ] fix: draw C (one rain tile) in the stopped state; the season must stay one tap away in each state — Stopped
+- [ ] fix: meter hatch explained in place ("18 h missing, not counted") and never placed by time; dual chart labels its line directly, axes at a fixed 10:1; glyph carries a text label; band strip states "above/below" and the no-verdict case in words
+- [ ] note: judged from board HTML, not viewed in a browser; re-check contrast, dark mode and 390 px on the build
+- 2026-11-04 measure-only titles (#369, heatmap, Sun each day, Now against normal, almanac) and 2026-11-13 "title states the finding": partly addressed by the Rain tab verdict headline; still open
