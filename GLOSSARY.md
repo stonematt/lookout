@@ -319,9 +319,17 @@ _Avoid_: lastRain (Ambient's field, for this measure), time since rain.
 ### wet hour
 
 A station-local clock hour with at least one tip of the gauge (0.01 in).
-Whole hours, because drizzle can take 30 to 60 minutes per tip. An hour the
-archive cannot count is neither wet nor dry.
+Whole hours, because drizzle can take 30 to 60 minutes per tip. Only a
+**countable hour** can be wet; any other hour is neither wet nor dry.
 _Avoid_: rainy hour, hours of rain (for a prorated count).
+
+### countable hour
+
+A station-local clock hour that has readings and no gap over 30 minutes
+between them. The gap from the reading before the hour to its first reading
+counts as part of the hour. An hour with a longer gap, or no reading, is not
+countable: it is drawn hatched and is never wet or dry (#647).
+_Avoid_: known hour, valid hour.
 
 ### wet share
 
