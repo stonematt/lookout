@@ -5,7 +5,9 @@
 accepted (2026-11-11). Decided with Matt in the Mosaic Overview grill
 (issue #426). Amended 2026-11-12 (#533): wind gust leaves the unusual test,
 and the feature is held for 3 hours, after a replay showed it flipping
-between reloads.
+between reloads. Clause 1 (rain) replaced 2026-11-23 by
+[ADR-0011](0011-feature-rule-picks-rain-from-the-last-tip.md): rain leads
+on a gauge tip in the last 3 hours, not on the event.
 
 ## Context
 
