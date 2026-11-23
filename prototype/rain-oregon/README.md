@@ -55,6 +55,7 @@ Countable hours: a label reads wet h of countable h; uncountable hours are hatch
 Picks so far:
 
 - Q1, meter windows: 7 d + 30 d (Matt, Nov 23).
+- Tile titles: a title names what its number counts only where it named a window. Last 10 days becomes "Highs over usual" with "last 10 days" under the number; Temperature and Rain since Oct 1 stay. Terms from the panel (station owner, FT graphics editor, skeptic, maintainer; all four agreed): the snapshot carries the title text (over, under or at usual), never the site; a window with a gap reads "gap in record", never +0°; the zoom heading and the sources footer read the same title; DESIGN.md gets one sentence that titles may follow mode or data. Today the title is a fixed string in `web/src/overview/mosaic-tiles.ts`, and the tests pin it. The panel's verdict logs in `docs/panel/` are not written yet: they belong on dev with the build.
 - Q2, the Overview: C, one rain tile.
 - Q3, the tile name: (a), it follows the mode, "Wet hours" or "Dry spell".
 - Q4, the Rain tab: C, now then season then usual.
@@ -67,11 +68,9 @@ Picks so far:
 
 Open:
 
-- Tile titles: whether every tile's title names what its number counts (thread a35b05e1).
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
 
 ## Still to do
 
-1. Open: thread a35b05e1 (TileNames, "I like this row"): ask Matt whether the naming pattern becomes the default for the other tiles. It stays open until he answers.
-2. Not done: the since-Oct-1 bars carry no hatched gaps (the gaps in Oct are not drawn on them).
+1. Not done: the since-Oct-1 bars carry no hatched gaps (the gaps in Oct are not drawn on them).
