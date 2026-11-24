@@ -46,10 +46,11 @@
  *   hand, and redraws a completed event from the curve it already read (the
  *   per-panel `Kept` record). Keyboard focus goes back to the element that
  *   had it, and an open event already shown is not announced again (#239).
- * - A `?event=` the catalog does not hold opens the default row with a note
- *   saying why: the link names no event in the catalog, or the event the
- *   visitor had open here has left it. The stale `?event=` is cleared, so
- *   the note shows once.
+ * - A `?event=` the catalog does not hold opens the default row with one
+ *   note, for a followed link and an event the visitor had open alike:
+ *   "That event is no longer in the catalog; showing the newest one
+ *   instead." The stale `?event=` is dropped with a history replace, so the
+ *   note shows once, not again at the next snapshot or a refresh (#707).
  */
 import "./events.css";
 
@@ -59,7 +60,6 @@ import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js
 import { renderTiles, sourceNote } from "../tiles.js";
 import { renderCatalogHead, renderCatalogTile } from "./catalog.js";
 import type { EventChartOptions } from "./charts.js";
-import type { MissingEvent } from "./detail.js";
 import { chartLabel, eventBody, eventSource } from "./detail.js";
 import {
   PAGE,
@@ -136,8 +136,7 @@ interface Kept {
   shut: boolean;
   /**
    * The event whose row body was last shown, or null: a newer snapshot
-   * does not announce it again, and if it has left the catalog the note
-   * says it has gone rather than that a link was wrong.
+   * does not announce it again.
    */
   shown: number | null;
 }
@@ -304,11 +303,10 @@ export function mountEvents(
   let selected: RainEventRow | null = kept.shut
     ? null
     : (linked ?? defaultOpen(section, view.season, view.size));
-  // The URL names an event the catalog does not hold: the one the visitor
-  // had open here has gone, or the link was never good. Say so once, and
-  // clear the stale `?event=` so the next snapshot does not say it again.
-  let missing: MissingEvent =
-    asked === null || linked !== null ? null : last?.shown === asked ? "vanished" : "linked";
+  // The URL names an event the catalog does not hold: say so once, and
+  // drop the stale `?event=` with a history replace (no new entry), so
+  // neither the next snapshot nor a refresh says it again (#707).
+  let missing = asked !== null && linked === null;
   if (missing) writeUrl(null);
   const latest = latestStart(section);
   let drawn = 0;
@@ -490,7 +488,7 @@ export function mountEvents(
       selected = all.find((e) => e.start_ms === startMs) ?? null;
       if (!selected) return;
       kept.shut = false;
-      missing = null;
+      missing = false;
       writeUrl(startMs);
     }
     renderList();
@@ -542,7 +540,7 @@ export function mountEvents(
         // An open row the size hides gives way to the default rule.
         if (selected && !inSize(selected, view.size)) {
           selected = kept.shut ? null : defaultOpen(section, view.season, view.size);
-          missing = null;
+          missing = false;
           writeUrl(null);
         }
       } else {
@@ -552,7 +550,7 @@ export function mountEvents(
         // closed.
         if (!kept.shut) {
           selected = defaultOpen(section, view.season, view.size);
-          missing = null;
+          missing = false;
           writeUrl(null);
         }
       }
