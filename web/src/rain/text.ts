@@ -19,6 +19,7 @@ import type {
   GapStatus,
   RainTab,
   RainWindow,
+  Verdict,
   WaterYearCurve,
   WetHoursToDate,
 } from "../snapshot.js";
@@ -197,7 +198,8 @@ export function yearsSkipped(tab: RainTab): number[] {
 }
 
 /**
- * The year-over-year finding, naming the years compared, newest first.
+ * The year-over-year finding: the water year's verdict when the snapshot
+ * has one (`verdictHeadline`, #640), else the years compared, newest first.
  *
  * @param tab - The Rain tab's data.
  * @returns E.g. "Water year 2026 has 4.20 in of rain since Oct 1, against
@@ -209,11 +211,48 @@ export function yearsHeadline(tab: RainTab): string {
   const name = `Water year ${current.water_year}`;
   const value = toDate(tab, current);
   if (value === null) return `${name} cannot be compared yet`;
+  const verdict = verdictHeadline(tab);
+  if (verdict) return verdict;
   const earlier = earlierToDate(tab);
   const lead = `${name} has ${value} of rain since Oct 1`;
   if (!earlier.length) return lead;
   const named = earlier.slice(0, NAMED_YEARS).map((item) => `${item.text} (${item.year})`);
   return `${lead}, against ${listText(named)} by this date`;
+}
+
+/** The verdict's sentence words: the snapshot's word, then its preposition. */
+const VERDICT_WORDS: Record<Verdict, string> = {
+  wetter: "wetter than usual",
+  drier: "drier than usual",
+  "about the same": "about the same as usual",
+};
+
+/**
+ * The water year's verdict as the Rain tab's headline (#640): the
+ * snapshot's word against the usual rain to date, with the numbers it rests
+ * on. The site decides nothing: the word is `usual_to_date.verdict`.
+ *
+ * @param tab - The Rain tab's data.
+ * @returns E.g. "Water year 2026 is wetter than usual: 0.44 in since Oct 1,
+ *   against a usual 0.30 in by this date (2025)", the years named newest
+ *   first up to `NAMED_YEARS`, else counted; null with no verdict (a young
+ *   station, or a snapshot written before it), when the headline falls
+ *   back to naming the years.
+ */
+export function verdictHeadline(tab: RainTab): string | null {
+  const usual = tab.usual_to_date;
+  const current = currentYear(tab);
+  const value = current ? toDate(tab, current) : null;
+  if (!usual?.verdict || !current || value === null) return null;
+  const named = usual.water_years ?? [];
+  const years =
+    named.length === usual.years && named.length <= NAMED_YEARS
+      ? listText(named.map(String).reverse())
+      : `${usual.years} earlier year${usual.years === 1 ? "" : "s"}`;
+  return (
+    `Water year ${current.water_year} is ${VERDICT_WORDS[usual.verdict]}: ` +
+    `${value} since Oct 1, against a usual ${inches(usual.usual_in)} by this date (${years})`
+  );
 }
 
 /**
