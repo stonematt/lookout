@@ -15,6 +15,7 @@ import { isShown } from "../overview/history.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
+  EarlierWetYear,
   GapStatus,
   RainTab,
   RainWindow,
@@ -267,8 +268,8 @@ export function usualWetWords(wet: WetHoursToDate): string {
         : `range of ${usual.years} earlier years`;
     words = `usual to date ${hourCount(usual.low_hours)}–${hourCount(usual.high_hours)} h, ${of}`;
   } else if (usual && usual.earlier.length === 1) {
-    const [year] = usual.earlier;
-    words = `usual to date ${hourCount(year!.usual_hours)} h, from ${year!.water_year}`;
+    const [{ usual_hours, water_year }] = usual.earlier as [EarlierWetYear];
+    words = `usual to date ${hourCount(usual_hours)} h, from ${water_year}`;
   } else if (usual) {
     const values = usual.earlier.map((y) => `${hourCount(y.usual_hours)} h (${y.water_year})`);
     words = `usual to date ${values.join(", ")}`;

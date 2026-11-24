@@ -19,6 +19,7 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
+from lookout.snapshot import Snapshot
 from lookout.snapshot.model import WetHoursToDate
 from tests.fixtures.archive import Gap, RainSpell, build_archive
 from tests.snapshot_helpers import build, live_row
@@ -37,6 +38,7 @@ def year_archive(
     :param wet_hours: Whole wet hours of steady rain from Oct 2, 10:00 local.
     :param gaps: Stretches with no readings.
     :param end: The last reading's end, exclusive; Oct 9 by default.
+    :return: The readings, oldest first.
     """
     first = year - 1
     rain = ()
@@ -51,17 +53,38 @@ def year_archive(
     )
 
 
-def to_date(
-    *earlier: pd.DataFrame, this_year: Optional[pd.DataFrame] = None
-) -> WetHoursToDate:
-    """`build_snapshot` at `NOW` over this year and the earlier years given."""
-    current = this_year if this_year is not None else year_archive(2026, end=NOW)
+def snapshot_of(
+    *earlier: pd.DataFrame, this_year: Optional[pd.DataFrame] = None, now: str = NOW
+) -> Snapshot:
+    """
+    `build_snapshot` at `now` over this year and the earlier years given.
+
+    :param earlier: Earlier water years' readings.
+    :param this_year: This year's readings; a dry year to `now` by default.
+    :param now: The build time, UTC.
+    :return: The snapshot; the live reading is the archive's newest row.
+    """
+    current = this_year if this_year is not None else year_archive(2026, end=now)
     archive = pd.concat([*earlier, current], ignore_index=True)
     archive = archive.sort_values("dateutc", ascending=False, ignore_index=True)
     newest = pd.Timestamp(int(archive["dateutc"].max()), unit="ms", tz="UTC")
-    snapshot = build(archive, live_row(archive, newest.isoformat()), NOW)
-    assert snapshot.rain_tab.wet_hours_to_date is not None
-    return snapshot.rain_tab.wet_hours_to_date
+    return build(archive, live_row(archive, newest.isoformat()), now)
+
+
+def to_date(
+    *earlier: pd.DataFrame, this_year: Optional[pd.DataFrame] = None, now: str = NOW
+) -> WetHoursToDate:
+    """
+    The Rain tab's wet hours to date, built as `snapshot_of` builds.
+
+    :param earlier: Earlier water years' readings.
+    :param this_year: This year's readings.
+    :param now: The build time, UTC.
+    :return: `RainTab.wet_hours_to_date`.
+    """
+    wet = snapshot_of(*earlier, this_year=this_year, now=now).rain_tab
+    assert wet.wet_hours_to_date is not None
+    return wet.wet_hours_to_date
 
 
 class TestThisWaterYear:
@@ -75,14 +98,23 @@ class TestThisWaterYear:
         assert wet.missing_hours == 0
 
     def test_ends_where_the_overview_meter_ends(self):
-        archive = year_archive(2026, wet_hours=3, end=NOW)
-        newest = pd.Timestamp(int(archive["dateutc"].max()), unit="ms", tz="UTC")
-        snapshot = build(archive, live_row(archive, newest.isoformat()), NOW)
+        snapshot = snapshot_of(this_year=year_archive(2026, wet_hours=3, end=NOW))
 
-        to_date = snapshot.rain_tab.wet_hours_to_date
-        assert to_date.through_ms == snapshot.wet_hours.through_ms
+        wet = snapshot.rain_tab.wet_hours_to_date
+        assert wet.through_ms == snapshot.wet_hours.through_ms
         # Rain on Oct 2 is in both the 30-day window and the water year.
-        assert to_date.wet_hours == snapshot.wet_hours.last_30_days.wet_hours
+        assert wet.wet_hours == snapshot.wet_hours.last_30_days.wet_hours
+
+    def test_the_first_hour_of_oct_1_has_no_hour_yet(self):
+        # 00:10 local on Oct 1: the hour in progress is the year's first.
+        oct_1 = "2025-10-01T07:10:00Z"
+        last_year = year_archive(2025, wet_hours=6)
+
+        wet = to_date(last_year, this_year=year_archive(2026, end=oct_1), now=oct_1)
+
+        assert (wet.water_year, wet.first_day) == (2026, "2025-10-01")
+        assert (wet.hours, wet.wet_hours, wet.countable_hours) == (0, 0, 0)
+        assert wet.usual is None
 
     def test_a_gap_lowers_the_countable_hours_never_the_wet_ones(self):
         gap = Gap("2025-10-05T07:05:00Z", "2025-10-05T12:00:00Z")

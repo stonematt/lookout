@@ -47,6 +47,19 @@ WINDOW_DAYS = (7, 30)
 STRIP_DAYS = 30
 """The strip's days: today and the 29 before it."""
 
+MIN_COVERED = 0.5
+"""An earlier year covers the date with at least this share of its hours
+from Oct 1 to the date countable."""
+
+BAND_YEARS = 3
+"""From this many earlier years the usual is a band, not plain values."""
+
+PERCENTILE_YEARS = 4
+"""From this many earlier years the band is called a percentile band."""
+
+BAND = (0.25, 0.75)
+"""The band's percentiles of the earlier years' wet shares."""
+
 
 def wet_hours(stitched: pd.DataFrame, clock: StationClock) -> WetHours:
     """
@@ -118,20 +131,6 @@ def _strip(hours: pd.DataFrame, clock: StationClock) -> Tuple[WetHoursDay, ...]:
             )
         )
     return tuple(strip)
-
-
-MIN_COVERED = 0.5
-"""An earlier year covers the date with at least this share of its hours
-from Oct 1 to the date countable."""
-
-BAND_YEARS = 3
-"""From this many earlier years the usual is a band, not plain values."""
-
-PERCENTILE_YEARS = 4
-"""From this many earlier years the band is called a percentile band."""
-
-BAND = (0.25, 0.75)
-"""The band's percentiles of the earlier years' wet shares."""
 
 
 def wet_hours_to_date(stitched: pd.DataFrame, clock: StationClock) -> WetHoursToDate:
@@ -209,10 +208,21 @@ def _earlier_years(
                 water_year=earlier,
                 wet_hours=wet,
                 countable_hours=counted,
-                usual_hours=round(wet / counted * countable),
+                usual_hours=_as_hours(wet / counted, countable),
             )
         )
     return years
+
+
+def _as_hours(share: float, countable: int) -> int:
+    """
+    A wet share as this year's wet hours: the one scaling of usual wet hours.
+
+    :param share: An earlier year's wet share, or a percentile of them.
+    :param countable: This year's countable hours.
+    :return: Whole hours.
+    """
+    return round(share * countable)
 
 
 def _usual(earlier: List[EarlierWetYear], countable: int) -> Optional[UsualWetHours]:
@@ -229,7 +239,7 @@ def _usual(earlier: List[EarlierWetYear], countable: int) -> Optional[UsualWetHo
     low = high = band = None
     if len(earlier) >= BAND_YEARS:
         shares = pd.Series([y.wet_hours / y.countable_hours for y in earlier])
-        low, high = (round(float(shares.quantile(q)) * countable) for q in BAND)
+        low, high = (_as_hours(float(shares.quantile(q)), countable) for q in BAND)
         band = "percentile" if len(earlier) >= PERCENTILE_YEARS else "range"
     return UsualWetHours(
         years=len(earlier),

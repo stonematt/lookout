@@ -1372,6 +1372,8 @@ function checkRainTab(tab: unknown): void {
  * `rain_tab.wet_hours_to_date` (#663) may be absent (N−1) or null; present,
  * its counts are whole hours and its usual, when there is one, rests on as
  * many earlier years as it lists.
+ *
+ * @param wet - The field as read.
  */
 function checkWetHoursToDate(wet: unknown): void {
   if (wet === undefined || wet === null) return;
