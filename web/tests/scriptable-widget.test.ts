@@ -6,7 +6,7 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { WHOLE_DRY_DAYS_VERSION } from "../src/snapshot.js";
-import { FIXTURE_MAC, SALMON_MAC, golden, goldenNext } from "./golden.js";
+import { FIXTURE_MAC, SALMON_MAC, golden, goldenDays, goldenPrevious } from "./golden.js";
 
 interface Station {
   mac: string;
@@ -183,7 +183,7 @@ describe("widgetModel", () => {
   });
 
   it("draws a v5 snapshot's whole dry days as they are (#667)", () => {
-    const doc = goldenNext("dry", "dashboard", 9) as Record<string, unknown>;
+    const doc = goldenDays("dry", 9) as Record<string, unknown>;
     doc.widget_view = "dry_spell";
     (doc.dry_spell as { usual_days: number }).usual_days = 4;
 
@@ -199,7 +199,7 @@ describe("widgetModel", () => {
   });
 
   it("cuts a v4 snapshot's time since last rain to whole days, never rounding up", () => {
-    const doc = dashboard("dry");
+    const doc = goldenPrevious("dry", "dashboard") as Record<string, unknown>;
     doc.widget_view = "dry_spell";
     doc.dry_spell = { days_since_rain: 9.8, usual_days: 4 };
 

@@ -201,8 +201,9 @@ class TestFeatureRule:
         assert snapshot.feature.kind != "rain"
 
     def test_the_dry_spell_clause_reads_the_dry_spell_not_last_rain(self):
-        # 9 Jan, in the wet months: a dry spell longer than usual still leads.
-        end = "2026-01-09T06:35:00Z"
+        # 9 Jan, in the wet months: five whole dry days against a usual four
+        # still lead.
+        end = "2026-01-10T06:35:00Z"
         snapshot = build(rain_every_fifth_day(end), None, end)
 
         assert snapshot.rain_now.last_rain_ms is not None

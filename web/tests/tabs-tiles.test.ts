@@ -14,7 +14,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { lagCaveat } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden } from "./golden.js";
+import { SCENARIOS, golden, goldenPrevious } from "./golden.js";
 
 let page: Page | null = null;
 
@@ -227,9 +227,10 @@ describe("an empty Event Catalog", () => {
 });
 
 describe("one number wherever it appears (story 53)", () => {
-  it("keeps the Rain tab stat exact while the Overview's dry spell feature speaks it", async () => {
-    // A golden copy whose feature is the dry spell (the dry golden's is quiet).
-    const doc = structuredClone(golden("dry", "dashboard")) as Record<string, unknown>;
+  it("keeps a v4 Rain tab stat exact while the Overview's dry spell feature speaks it", async () => {
+    // A v4 golden copy whose feature is the dry spell (the dry golden's is
+    // quiet), its time since rain about 39 hours.
+    const doc = goldenPrevious("dry", "dashboard", 1.62) as Record<string, unknown>;
     doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
     doc.dry_spell = { ...(doc.dry_spell as object), usual_days: 1 };
     await boot(parseDashboard(doc), "rain", "overview");

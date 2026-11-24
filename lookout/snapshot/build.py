@@ -89,7 +89,7 @@ def build_snapshot(
     current = current_conditions(stitched, clock)
     active = active_rain_event(event_catalog, current, observed_at_ms)
     days = count_days(archive, current, clock)
-    dry = dry_spell(current, observed_at_ms, completed_dry_spells(days))
+    dry = dry_spell(days, completed_dry_spells(days))
     rain = rain_now(stitched, event_catalog, active, clock)
     picked = feature(
         rain,

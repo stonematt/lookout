@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "kind": "context",
   "station": {
     "mac": "00:11:22:33:44:77",

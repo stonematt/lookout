@@ -97,4 +97,4 @@ def test_the_dashboard_document_carries_the_title():
 
     assert document["tile_titles"]["ten_days"] == "Highs over usual"
     assert document["temperature_context"]["ten_day_highs"]["gap"] is False
-    assert document["schema_version"] == 4
+    assert document["schema_version"] == 5

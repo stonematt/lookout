@@ -13,7 +13,7 @@ import { renderOverview } from "../src/overview/index.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
-import { golden, goldenNext, SCENARIOS } from "./golden.js";
+import { golden, goldenDays, goldenPrevious, SCENARIOS } from "./golden.js";
 
 type Doc = Record<string, unknown>;
 
@@ -433,13 +433,11 @@ describe("the feature tile", () => {
     }
   });
 
-  it("draws a long dry spell from a golden copy: its days against the usual spell", () => {
-    draw(
-      edited("dry", {
-        feature: { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null },
-        dry_spell: { days_since_rain: 9.4, usual_days: 3 },
-      }),
-    );
+  it("draws a v4 snapshot's long dry spell as the time since rain", () => {
+    const doc = goldenPrevious("dry", "dashboard", 9.4) as Doc;
+    doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
+    (doc.dry_spell as Doc).usual_days = 3;
+    draw(parseDashboard(doc));
 
     expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
     expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 d 9 h");
@@ -449,8 +447,8 @@ describe("the feature tile", () => {
     expect(link().getAttribute("href")).toBe("#overview/dry-spell");
   });
 
-  it("draws a v5 snapshot's long dry spell in whole dry days (#667)", () => {
-    const doc = goldenNext("dry", "dashboard", 9) as Doc;
+  it("draws a long dry spell in whole dry days, against the usual spell (#668)", () => {
+    const doc = goldenDays("dry", 9) as Doc;
     doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
     (doc.dry_spell as Doc).usual_days = 3;
     draw(parseDashboard(doc));
