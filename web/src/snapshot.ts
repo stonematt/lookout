@@ -252,6 +252,38 @@ export interface RainEvents {
    * still holds one open: that event's file follows its close.
    */
   open_curve: EventCurve | null;
+  /**
+   * The page's headline counts (#666). Absent from a snapshot written before
+   * them: the page then opens without the headline.
+   */
+  counts?: EventCounts | null;
+  /**
+   * The scatter's rows, newest first: this water year and up to three before
+   * it (#666). Absent from a snapshot written before it: no scatter is drawn.
+   */
+  scatter?: ScatterYear[] | null;
+}
+
+/** "10 events this water year · 3 in the last 7 days", counted in Python. */
+export interface EventCounts {
+  /** The build time's water year, named by the year it ends in. */
+  water_year: number;
+  /** The events that started in it, the live one too. */
+  events: number;
+  /** The events that started in the 7 days before the build. */
+  last_7_days: number;
+}
+
+/**
+ * One water year's row of the Rain Events scatter: its completed Event
+ * Catalog events, newest first, as parallel arrays. The live event is not a
+ * point; the category is Python's and sizes the dot.
+ */
+export interface ScatterYear {
+  water_year: number;
+  start_ms: number[];
+  total_in: number[];
+  category: EventCategory[];
 }
 
 /**
@@ -1026,6 +1058,8 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   ) {
     throw new SnapshotContractError("dashboard: rain_events.seasons without a gap status");
   }
+  checkEventCounts(events.counts);
+  checkScatter(events.scatter);
   checkRainTab(head.rain_tab);
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
@@ -1205,6 +1239,38 @@ function checkSolarTab(tab: unknown): void {
       throw new SnapshotContractError("dashboard: solar_tab window or month has no gap status");
     }
   }
+}
+
+/** `rain_events.counts` (#666) may be absent (N−1) or null; else three integers. */
+function checkEventCounts(counts: unknown): void {
+  if (counts === undefined || counts === null) return;
+  if (
+    !isRecord(counts) ||
+    ![counts.water_year, counts.events, counts.last_7_days].every(Number.isInteger)
+  ) {
+    throw new SnapshotContractError("dashboard: rain_events.counts malformed");
+  }
+}
+
+/**
+ * `rain_events.scatter` (#666) may be absent (N−1) or null; else rows of
+ * parallel arrays of one length.
+ */
+function checkScatter(scatter: unknown): void {
+  if (scatter === undefined || scatter === null) return;
+  const ok =
+    Array.isArray(scatter) &&
+    scatter.every(
+      (row) =>
+        isRecord(row) &&
+        Number.isInteger(row.water_year) &&
+        Array.isArray(row.start_ms) &&
+        Array.isArray(row.total_in) &&
+        Array.isArray(row.category) &&
+        row.total_in.length === row.start_ms.length &&
+        row.category.length === row.start_ms.length,
+    );
+  if (!ok) throw new SnapshotContractError("dashboard: rain_events.scatter not parallel");
 }
 
 function checkRainTab(tab: unknown): void {

@@ -40,6 +40,13 @@ describe("the tabs", () => {
     expect(visiblePanels().map((p) => p.id)).toEqual(["panel-events"]);
   });
 
+  it("opens Rain Events for the #rain-events hash, written as #events", () => {
+    history.replaceState(null, "", "/#rain-events");
+    mountTabs(host);
+    expect(selected()?.textContent).toBe("Rain Events");
+    expect(location.hash).toBe("#events");
+  });
+
   it("falls back to Overview for an unknown hash", () => {
     history.replaceState(null, "", "/#nope");
     mountTabs(host);

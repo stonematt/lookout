@@ -10,7 +10,8 @@ completed and its curve file is written.
 
 Functions:
 - rain_events_section(event_catalog, stitched, active, observed_at_ms,
-  clock, year_status): The tab's section.
+  clock, year_status): The tab's section, with the page's headline counts
+  and its four-water-year scatter (#666).
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
 - newest_event(event_catalog, observed_at_ms): The catalog event that ended
@@ -18,7 +19,16 @@ Functions:
   `RAIN_HOURS`.
 """
 
-from typing import Any, Callable, Collection, Iterator, List, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+)
 
 import numpy as np
 import pandas as pd
@@ -35,12 +45,14 @@ from lookout.snapshot.clock import StationClock
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.model import (
     ActiveRainEvent,
+    EventCounts,
     EventCurve,
     EventSeason,
     EventStats,
     GapStatus,
     RainEventRow,
     RainEvents,
+    ScatterYear,
 )
 from lookout.snapshot.values import number
 from lookout.utils.log_util import app_logger
@@ -57,6 +69,12 @@ rule of the feature, counted to the build time."""
 GAP_MINUTES = 10.0
 
 NO_DATA = "invalid"
+
+SCATTER_YEARS = 4
+"""The scatter's water years: this one and the three before it."""
+
+RECENT_MS = 7 * 24 * 3600 * 1000
+"""The headline's recent window: the 7 days before the build time."""
 
 
 class _History:
@@ -226,9 +244,15 @@ def rain_events_section(
         so a season reads against the same status, and every season has one.
     :return: The section.
     """
+    this_year = water_year(clock.today)
     if event_catalog is None or event_catalog.empty:
         return RainEvents(
-            events=(), all_time=_stats(pd.DataFrame()), seasons=(), open_curve=None
+            events=(),
+            all_time=_stats(pd.DataFrame()),
+            seasons=(),
+            open_curve=None,
+            counts=EventCounts(water_year=this_year, events=0, last_7_days=0),
+            scatter=(),
         )
 
     events = _live_catalog(event_catalog, active, observed_at_ms)
@@ -267,11 +291,68 @@ def rain_events_section(
         if not readings.empty:
             open_curve = _curve(readings, start_ms, int(readings["dateutc"].iloc[-1]))
 
+    recent_from = clock.now_ms - RECENT_MS
+    counts = EventCounts(
+        water_year=this_year,
+        events=sum(1 for row in rows if row.water_year == this_year),
+        last_7_days=sum(
+            1 for row in rows if recent_from <= row.start_ms <= clock.now_ms
+        ),
+    )
     return RainEvents(
         events=rows,
         all_time=_stats(events),
         seasons=seasons,
         open_curve=open_curve,
+        counts=counts,
+        scatter=_scatter(event_catalog, clock.tz, this_year),
+    )
+
+
+def _scatter(
+    event_catalog: pd.DataFrame, tz: str, this_year: int
+) -> Tuple[ScatterYear, ...]:
+    """
+    The scatter's rows from the Event Catalog alone: each completed event's
+    start, catalog total and category, per water year, newest first.
+
+    :param event_catalog: The Event Catalog, not empty.
+    :param tz: The station's zone: which water year an event starts in.
+    :param this_year: The build time's water year, the first row.
+    :return: This water year and the three before it, none before the water
+        year of the catalog's oldest event; a year with no completed event
+        is an empty row.
+    """
+    events = event_catalog.copy()
+    events["start_time"] = pd.to_datetime(events["start_time"], utc=True)
+    events = events.sort_values("start_time", ascending=False)
+    events["water_year"] = [
+        water_year(start.tz_convert(tz).date()) for start in events["start_time"]
+    ]
+    oldest = int(events["water_year"].min())
+    points: Dict[int, Tuple[List[int], List[float], List[str]]] = {
+        year: ([], [], [])
+        for year in range(this_year, this_year - SCATTER_YEARS, -1)
+        if year >= oldest or year == this_year
+    }
+    for _, event in events.iterrows():
+        row = points.get(int(event["water_year"]))
+        total_in = number(event.get("total_rainfall"))
+        # An event with no total has no place on the axis: it is no point.
+        if row is None or total_in is None or is_event_ongoing(event):
+            continue
+        peak = number(event.get("max_hourly_rate"))
+        row[0].append(_ms(event["start_time"]))
+        row[1].append(round(total_in, 2))
+        row[2].append(event_category(total_in, peak))
+    return tuple(
+        ScatterYear(
+            water_year=year,
+            start_ms=tuple(starts),
+            total_in=tuple(totals),
+            category=tuple(categories),
+        )
+        for year, (starts, totals, categories) in points.items()
     )
 
 

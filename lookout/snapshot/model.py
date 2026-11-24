@@ -844,6 +844,52 @@ class EventCurve:
 
 
 @dataclass(frozen=True)
+class EventCounts:
+    """
+    The Rain Events page's headline: "10 events this water year · 3 in the
+    last 7 days" (#666).
+
+    Both count Event Catalog events by their start, the live one included,
+    as `EventSeason` does: an event counts whole in the water year it
+    started in, so the recent count is part of the water year's unless the
+    water year turned within the 7 days.
+
+    :param water_year: The build time's water year, named by its end.
+    :param events: The events that started in it: its season's `stats.count`,
+        and 0 before its first.
+    :param last_7_days: The events that started in the 7 days (168 h)
+        before the build time.
+    """
+
+    water_year: int
+    events: int
+    last_7_days: int
+
+
+@dataclass(frozen=True)
+class ScatterYear:
+    """
+    One water year's row of the Rain Events scatter (#666): its completed
+    events, newest first, as parallel arrays.
+
+    From the Event Catalog only: the live event is no point, and a point's
+    total and category are the catalog's (a live row's are the live
+    reading's).
+
+    :param water_year: The water year, named by its end.
+    :param start_ms: Each event's start; its key.
+    :param total_in: Each event's catalog total, to 0.01 in.
+    :param category: Each event's category (`lookout.core.event_category`),
+        from its catalog total and peak rate: the dot's size.
+    """
+
+    water_year: int
+    start_ms: Tuple[int, ...]
+    total_in: Tuple[float, ...]
+    category: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class RainEvents:
     """
     The Rain Events tab: the Event Catalog's events and their summaries.
@@ -856,12 +902,18 @@ class RainEvents:
         event rain), live stitched; its curve file is written only once the
         catalog closes it. None when no event is live, even while the catalog
         still holds one open (#147): that event's file follows its close.
+    :param counts: The page's headline counts (#666).
+    :param scatter: The scatter's rows, newest first: this water year and
+        the three before it, back to the catalog's oldest event's water year,
+        a year with no events an empty row. Empty with no catalog.
     """
 
     events: Tuple[RainEventRow, ...]
     all_time: EventStats
     seasons: Tuple[EventSeason, ...]
     open_curve: Optional[EventCurve]
+    counts: EventCounts
+    scatter: Tuple[ScatterYear, ...]
 
 
 @dataclass(frozen=True)

@@ -1,23 +1,43 @@
 /**
- * The Rain Events tab's top tile, the Event Catalog: its finding, the
- * standfirst, the stale-catalog note, the stat strip, the water year's gap
- * note and the folded source. On a phone it is the fixed top. Markup goes
- * through `html` (`web/src/dom.ts`). The page's headline and the scatter
- * (#666) open this tile, so they belong here or in a module it calls.
+ * The Rain Events tab's top tile, the Event Catalog. On a phone it is the
+ * fixed top. Markup goes through `html` (`web/src/dom.ts`).
  *
- * - `renderCatalogTile`: the tile's markup and source fold, once per mount.
- * - `renderCatalogHead`: its finding, stats and gap note for the water year
- *   shown, after every pick.
+ * The page opens with a picture (#666, board EventsBC): the headline, "10
+ * events this water year · 3 in the last 7 days" (`RainEvents.counts`), is
+ * the tile's finding, then the scatter of four water years' events by size
+ * (`scatter.ts`). Under them, the finding for the list's pick, the
+ * stale-catalog note, the stat strip, the water year's gap note and the
+ * folded source. A snapshot written before the counts (N−1) opens as before:
+ * the pick's finding as the tile's finding, then the standfirst.
+ *
+ * - `renderCatalogTile`: the tile's markup, scatter and source fold, once
+ *   per mount.
+ * - `renderCatalogHead`: the pick's finding, stats and gap note for the
+ *   water year shown, after every pick.
  */
 import { html } from "../dom.js";
+import type { Html } from "../dom.js";
 import { inches } from "../format.js";
 import { gapElement, isComparable } from "../gaps.js";
-import type { DashboardSnapshot, RainEventRow } from "../snapshot.js";
+import type { DashboardSnapshot, EventCounts, RainEventRow } from "../snapshot.js";
 import { staleCatalogNote } from "../stale.js";
 import { gapReasons, sourceNote, tileFolds } from "../tiles.js";
 import { stat } from "./detail.js";
 import type { Season } from "./model.js";
 import { listFinding, minutes, seasonNote, statsFor } from "./model.js";
+import { drawScatter, scatterInput, scatterMarkup } from "./scatter.js";
+
+/**
+ * The headline: the count in Fact type beside its two lines, read as one
+ * sentence, "10 events this water year · 3 in the last 7 days".
+ *
+ * @param counts - The snapshot's counts.
+ * @returns The tile's finding, an `h2`.
+ */
+export function headline(counts: EventCounts): Html {
+  const n = counts.events;
+  return html`<h2 class="tile-finding ev-headline" data-part="finding"><span class="ev-headline-n">${n}</span> <span class="ev-headline-words"><span>${n === 1 ? "event" : "events"} this water year</span><span class="sr-only"> · </span><span>${counts.last_7_days} in the last 7 days</span></span></h2>`;
+}
 
 /**
  * Fill the catalog tile: the finding and stats it renders later, the
@@ -31,15 +51,22 @@ export function renderCatalogTile(host: HTMLElement, snapshot: DashboardSnapshot
   const count = section.events.length;
   const events = `${count} event${count === 1 ? "" : "s"}`;
   host.classList.add("ev-tile");
+  const scatter = scatterInput(section);
+  const head = section.counts
+    ? html`${headline(section.counts)}${scatter ? scatterMarkup(scatter) : ""}
+<h3 class="tile-finding ev-title ev-pick" data-part="pick"></h3>`
+    : html`<h2 class="tile-finding ev-title" data-part="finding"></h2>
+<p class="standfirst" data-part="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>`;
   host.insertAdjacentHTML(
     "beforeend",
     html`
-<h2 class="tile-finding ev-title" data-part="finding"></h2>
-<p class="standfirst" data-part="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>
+${head}
 <p class="ev-note ev-stale" role="status" hidden></p>
 <dl class="ev-stats"></dl>
 <p class="ev-note ev-season-gap" role="note" hidden></p>`,
   );
+  const chart = host.querySelector<HTMLElement>(".ev-sc-chart");
+  if (chart && scatter) drawScatter(chart, scatter);
   const uncovered = section.seasons.filter((s) => !isComparable(s.status)).length;
   host.append(
     tileFolds(
