@@ -187,8 +187,44 @@ class TestWindowStrip:
         marks = {w.key: w.mark for w in snapshot.rain_tab.window_strip}
 
         assert marks["30d"] == "below usual range"
-        assert marks["water_year"] == "below usual range"
+        assert marks["water_year"] is None  # only the verdict judges it
         assert marks["today"] is None
+
+    def test_every_complete_window_under_its_range_is_marked_below(self):
+        # Two whole years from Oct 21 2023, no gaps: 0.5 in on Oct 10 this
+        # year; a year back
+        # 1.0 in on Oct 10 and 1.0 in on Oct 19, a year back from
+        # yesterday. Every window reaches an earlier year and falls under
+        # it. Today withholds the mark (GLOSSARY usual range), and the water
+        # year carries none: only its verdict judges it (#647 call 2).
+        archive = build_archive(
+            "2023-10-21T07:00:00Z",
+            "2025-10-21T07:00:00Z",
+            rain=[
+                RainSpell("2025-10-10T18:00:00Z", 1, 0.5),
+                RainSpell("2024-10-10T18:00:00Z", 1, 1.0),
+                RainSpell("2024-10-19T18:00:00Z", 1, 1.0),
+            ],
+        )
+        snapshot = build(archive, "2025-10-21T06:59:00Z")
+        windows = strip(snapshot)
+
+        for key in ("yesterday", "7d", "30d", "90d", "365d"):
+            assert windows[key].years >= 1, key
+            assert windows[key].mark == "below usual range", key
+        assert windows["today"].mark is None
+        assert windows["water_year"].years == 1
+        assert windows["water_year"].mark is None
+        assert snapshot.rain_tab.usual_to_date.verdict == "drier"
+
+    def test_the_water_year_above_its_range_carries_no_mark(self):
+        snapshot = one_october(2.0)
+
+        assert (
+            strip(snapshot)["water_year"].rain_in
+            > strip(snapshot)["water_year"].high_in
+        )
+        assert strip(snapshot)["water_year"].mark is None
 
     def test_today_under_its_range_is_not_marked(self, snapshot):
         # Today has had no rain yet; earlier Oct 20s had 0.1 in by midnight.
@@ -229,5 +265,5 @@ class TestWindowStrip:
         assert water_year.years == 1
         assert water_year.band is None
         assert (water_year.low_in, water_year.high_in) == (approx(1.0), approx(1.0))
-        assert water_year.mark == "below usual range"
+        assert water_year.mark is None  # only the verdict judges the water year
         assert water_year.earlier[0].last_day == "2024-10-20"

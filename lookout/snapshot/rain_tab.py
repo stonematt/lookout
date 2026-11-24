@@ -37,9 +37,8 @@ the new site's rules:
   a whole number of years back, each earlier window judged by the gap
   rules, as a range: from 3 years the band usual wet hours use
   (`lookout.snapshot.wet_hours.usual_band`), below that the plain values.
-  A window outside it is marked "above usual range" or "below usual
-  range"; only "today" is never below, as its rain can still grow
-  (#690).
+  Which windows are marked, and how, is GLOSSARY "usual range"
+  (`GROWING_WINDOW`, `UNMARKED_WINDOW`).
 
 Functions:
 - rain_tab(history, days): the `RainTab` section.
@@ -86,7 +85,7 @@ from lookout.snapshot.model import (
 )
 from lookout.snapshot.values import iso_day, number
 from lookout.snapshot.wet_hours import usual_band, wet_hours_to_date
-from lookout.utils.dateutc import day_span, from_local_date
+from lookout.utils.dateutc import day_span, from_local_date, years_back
 
 RECENT_WINDOW = "90d"
 """The standard window the daily bars and the heatmap cover."""
@@ -98,6 +97,14 @@ _DAY_MS = 24 * 60 * 60 * 1000
 
 PLACES = 365
 """Places in a water-year curve: Oct 1 to Sep 30, Feb 29 folded in."""
+
+GROWING_WINDOW = "today"
+"""The window strip's window whose rain can still grow: never marked below
+its usual range (GLOSSARY usual range)."""
+
+UNMARKED_WINDOW = "water_year"
+"""The window strip's window that carries no mark: only the verdict judges
+the water year (GLOSSARY usual range, #647 call 2)."""
 
 ABOUT_THE_SAME = 15
 """The verdict is "about the same" while this water year's rain to date is
@@ -411,19 +418,6 @@ def _verdict(current: Optional[float], percent: Optional[int]) -> Optional[Verdi
     return "about the same"
 
 
-def _years_back(day: date, years: int) -> date:
-    """
-    The same date a whole number of years back; Feb 29 as Feb 28.
-
-    :param day: The date.
-    :param years: How many years back.
-    :return: That date.
-    """
-    if (day.month, day.day) == (2, 29):
-        day = day.replace(day=28)
-    return day.replace(year=day.year - years)
-
-
 def _window_strip(
     windows: Tuple[RainWindow, ...],
     to_date: Tuple[WaterYearCurve, ...],
@@ -444,7 +438,7 @@ def _window_strip(
         if window.key == "water_year":
             earlier = [
                 EarlierWindowRain(
-                    last_day=_years_back(
+                    last_day=years_back(
                         today, water_year(today) - c.water_year
                     ).isoformat(),
                     rain_in=c.to_date_in,
@@ -472,7 +466,7 @@ def _earlier_windows(status: GapStatus, days: CountedDays) -> List[EarlierWindow
     earlier = []
     back = 1
     while earliest is not None:
-        end = _years_back(last, back)
+        end = years_back(last, back)
         if end - length < earliest:
             break
         total = days.rain_total(days.rain.window(end - length, end))
@@ -501,10 +495,11 @@ def _strip_window(
         low, high = min(values), max(values)
     mark: Optional[StripMark] = None
     rain = window.total_in
-    if rain is not None and low is not None and high is not None:
+    judged = window.key != UNMARKED_WINDOW
+    if judged and rain is not None and low is not None and high is not None:
         if rain > high:
             mark = "above usual range"
-        elif rain < low and window.key != "today":
+        elif rain < low and window.key != GROWING_WINDOW:
             mark = "below usual range"
     return StripWindow(
         key=window.key,
