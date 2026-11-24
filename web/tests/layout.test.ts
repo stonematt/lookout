@@ -88,7 +88,11 @@ describe("the Overview's grid under each layout", () => {
     document.body.innerHTML = "<div id=panel></div>";
     renderOverview(document.getElementById("panel")!, raining);
     const tiles = [...document.querySelectorAll<HTMLElement>(".tile")];
-    const feature = document.querySelector<HTMLElement>(".tile[data-section=feature]")!;
+    // Rain leads on the raining golden: the rain tile is in the feature's
+    // place (Overview C, #661).
+    const feature = document.querySelector<HTMLElement>(
+      ".tile[data-section=feature], .tile[data-section=rain]:not([data-mosaic])",
+    )!;
     return {
       columns: getComputedStyle(document.querySelector(".tile-grid")!).gridTemplateColumns,
       spans: tiles.map((tile) => getComputedStyle(tile).gridColumn || "span 1"),
@@ -96,8 +100,8 @@ describe("the Overview's grid under each layout", () => {
     };
   }
 
-  /** The mosaic's ten tiles. */
-  const halves = Array<string>(10).fill("span 1");
+  /** The mosaic's eight tiles while rain leads: Wet hours and Rain since Oct 1 left it. */
+  const halves = Array<string>(8).fill("span 1");
 
   it("is two columns on a phone: now and feature full width, the mosaic two to a row", () => {
     const { columns, spans } = grid("phone");

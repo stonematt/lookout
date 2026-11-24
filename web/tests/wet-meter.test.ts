@@ -1,13 +1,16 @@
 // @vitest-environment happy-dom
 /**
- * The wet-hour meter (#657, spec #647 "Meter bars"), through the Overview on
- * the goldens: two bars at the now tile's foot, 7 days and 30 days, each
- * reading wet hours of countable hours ("19 h of 168"), never a percent. The
- * missing hours are hatched at the bar's end and named under it, "N h
- * missing, not dry", with the missing days ("5 d missing"). Every mark draws
- * in a token whose 3:1 pair on the now surface the Contrast table holds, in
- * both themes. A snapshot without `wet_hours` (N−1) draws no meter; in dry
- * mode (#658) the meter is hidden, and without a mode it is drawn as before.
+ * The wet-hour bars (#657, spec #647 "Meter bars"; the C boards' words,
+ * #661), through the Overview on the goldens: two bars, 7 days and 30 days,
+ * each reading wet hours of countable hours ("19 h of 168"), never a
+ * percent, under the header "Wet hours · each bar is every hour; dark is
+ * wet". The missing hours are hatched at the bar's end, and the key under
+ * the bars reads "hatched: missing, not dry". Every mark draws in a token
+ * whose 3:1 pair on the now surface the Contrast table holds, in both
+ * themes. The bars sit at the now tile's foot only for a snapshot without a
+ * mode; with one, the Wet hours tile or the rain tile's foot carries them,
+ * and dry mode (#658) hides them. A snapshot without `wet_hours` (N−1)
+ * draws none.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -30,10 +33,17 @@ const parsed = (scenario: Scenario): DashboardSnapshot =>
  * A golden in wet mode: the seasoned golden is dry mode, where the meter is
  * hidden (#658), so its every-hour-counted windows are read in wet mode.
  */
-const wet = (scenario: Scenario): DashboardSnapshot => ({
-  ...parsed(scenario),
-  wet_mode: { mode: "wet", decided_by: "weather" },
-});
+/**
+ * A golden without a mode (N−1): the one case the bars sit at the now
+ * tile's foot. With a mode, the Wet hours tile carries them in wet mode and
+ * the rain tile's foot while rain leads (#661, Call 4 on #647).
+ */
+const noMode = (scenario: Scenario): DashboardSnapshot => {
+  const doc = structuredClone(golden(scenario, "dashboard")) as Record<string, unknown>;
+  delete doc.wet_mode;
+  delete doc.tile_titles;
+  return parseDashboard(doc);
+};
 
 let panel: HTMLElement;
 
@@ -49,57 +59,58 @@ const meter = () => hero().querySelector<HTMLAnchorElement>("[data-part=wet-mete
 const all = (part: string) => [...(meter()?.querySelectorAll(`[data-part=${part}]`) ?? [])];
 
 describe("the wet-hour meter", () => {
-  it("reads wet hours of countable hours for 7 and 30 days, never a percent", () => {
-    renderOverview(panel, wet("seasoned"));
+  it("reads the board's words: wet hours of countable hours for 7 and 30 days, never a percent", () => {
+    renderOverview(panel, noMode("seasoned"));
+    expect(words(meter()!.querySelector(".wet-meter-title"))).toBe(
+      "Wet hours · each bar is every hour; dark is wet",
+    );
+    expect([...meter()!.querySelectorAll(".wet-meter-name")].map(words)).toEqual([
+      "7 days",
+      "30 days",
+    ]);
     expect(all("count").map(words)).toEqual(["2 h of 168", "6 h of 720"]);
     expect(nameFrom(meter()!)).toBe(
-      "Wet hours 7 days 2 h of 168 30 days 6 h of 720 Open the rain view",
+      "Wet hours · each bar is every hour; dark is wet 7 days 2 h of 168 30 days 6 h of 720 Open the rain view",
     );
     expect(words(meter())).not.toContain("%");
   });
 
-  it("is one link to the Rain tab, at the now tile's foot", () => {
-    renderOverview(panel, wet("seasoned"));
+  it("is one link to the Rain tab, at the now tile's foot, without a mode", () => {
+    renderOverview(panel, noMode("seasoned"));
     expect(meter()!.getAttribute("href")).toBe("#rain");
     expect(hero().lastElementChild).toBe(meter());
   });
 
-  it("names nothing missing when every hour counts", () => {
-    renderOverview(panel, wet("seasoned"));
-    expect(all("missing")).toHaveLength(0);
+  it("carries no hatch key when every hour counts", () => {
+    renderOverview(panel, noMode("seasoned"));
+    expect(all("hatch-key")).toHaveLength(0);
     expect(meter()!.querySelectorAll(".wet-meter-missing")).toHaveLength(0);
   });
 
-  it("hatches the missing hours at each bar's end and names them, not dry", () => {
-    renderOverview(panel, parsed("raining"));
-    expect(all("count").map(words)).toEqual(["12 h of 111", "12 h of 111"]);
-    expect(all("missing").map(words)).toEqual([
-      "57 h missing, not dry · 3 d missing",
-      "609 h missing, not dry · 26 d missing",
-    ]);
+  it("hatches the missing hours at each bar's end, with the key in the board's words", () => {
+    renderOverview(panel, noMode("dry"));
+    expect(all("count").map(words)).toEqual(["8 h of 43", "8 h of 43"]);
     for (const bar of all("bar")) {
       const hatch = bar.lastElementChild!;
       expect(hatch.classList.contains("wet-meter-missing")).toBe(true);
       expect(hatch.classList.contains("gap-hatch")).toBe(true);
     }
-    // Each note carries the hatch as a swatch beside its words.
-    for (const note of all("missing")) {
-      expect(note.firstElementChild!.classList.contains("hatch-swatch")).toBe(true);
-    }
+    const [key] = all("hatch-key");
+    expect(words(key)).toBe("hatched: missing, not dry");
+    expect(key!.firstElementChild!.classList.contains("hatch-swatch")).toBe(true);
   });
 
   it("draws each part as its share of every hour in the window", () => {
-    const snapshot = parsed("raining");
-    renderOverview(panel, snapshot);
+    renderOverview(panel, noMode("dry"));
     const week = all("bar")[0]!;
     const share = (cls: string) =>
       week.querySelector<HTMLElement>(`.${cls}`)!.style.getPropertyValue("--share");
-    expect(share("wet-meter-wet")).toBe(`${(100 * 12) / 168}%`);
-    expect(share("wet-meter-missing")).toBe(`${(100 * 57) / 168}%`);
+    expect(share("wet-meter-wet")).toBe(`${(100 * 8) / 168}%`);
+    expect(share("wet-meter-missing")).toBe(`${(100 * 125) / 168}%`);
   });
 
   it("draws no wet fill when no hour was wet", () => {
-    const snapshot = wet("seasoned");
+    const snapshot = noMode("seasoned");
     snapshot.wet_hours!.last_7_days.wet_hours = 0;
     renderOverview(panel, snapshot);
     expect(all("bar")[0]!.querySelector(".wet-meter-wet")).toBeNull();
@@ -116,23 +127,29 @@ describe("the wet-hour meter", () => {
     expect(sources).not.toContain("wet-hour bars");
   });
 
-  it("is drawn in wet mode (raining, wet by the calendar)", () => {
+  it("leaves the now tile's foot in wet mode, where the Wet hours tile carries the bars (dry)", () => {
+    renderOverview(panel, parsed("dry"));
+    expect(meter()).toBeNull();
+    expect(panel.querySelector("[data-section=wet-hours]")).not.toBeNull();
+  });
+
+  it("leaves the now tile's foot while rain leads, for the rain tile's (raining)", () => {
     renderOverview(panel, parsed("raining"));
-    expect(meter()).not.toBeNull();
+    expect(meter()).toBeNull();
+    const foot = panel.querySelector("[data-section=rain] [data-part=season]");
+    expect(foot?.querySelectorAll("[data-part=bar]")).toHaveLength(2);
   });
 
   it("is drawn from a version 4 snapshot without the mode, as before it", () => {
-    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, unknown>;
-    delete doc.wet_mode;
-    delete doc.tile_titles;
-    renderOverview(panel, parseDashboard(doc));
+    renderOverview(panel, noMode("seasoned"));
     expect(meter()).not.toBeNull();
   });
 
   it("is not drawn from a snapshot without wet hours", () => {
     for (const absent of [undefined, null]) {
       panel.replaceChildren();
-      const doc = structuredClone(golden("raining", "dashboard")) as Record<string, unknown>;
+      const doc = structuredClone(golden("dry", "dashboard")) as Record<string, unknown>;
+      delete doc.wet_mode;
       if (absent === undefined) delete doc.wet_hours;
       else doc.wet_hours = null;
       renderOverview(panel, parseDashboard(doc));

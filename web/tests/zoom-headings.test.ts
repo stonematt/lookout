@@ -75,9 +75,10 @@ describe("every zoom's headings nest", () => {
     if (!zoom) {
       // This golden does not draw the tile (Inside or Daylight on a station
       // without them, Wet hours in dry mode), so there is no zoom to walk.
-      // The seasoned golden draws every tile but Wet hours, which the
-      // raining golden (wet mode) draws, so each zoom is walked once at least.
-      expect(scenario).not.toBe(slug === "wet-hours" ? "raining" : "seasoned");
+      // The seasoned golden draws every tile but Wet hours, which the dry
+      // golden (wet mode, rain not leading) draws, so each zoom is walked
+      // once at least.
+      expect(scenario).not.toBe(slug === "wet-hours" ? "dry" : "seasoned");
       expect(document.querySelector(".zoom")).toBeNull();
       return;
     }

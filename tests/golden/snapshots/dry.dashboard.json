@@ -779,7 +779,8 @@
     "raining": false,
     "rate_in_hr": null,
     "event_start_ms": null,
-    "event_total_in": null
+    "event_total_in": null,
+    "last_3_hours": null
   },
   "rain_tab": {
     "windows": [

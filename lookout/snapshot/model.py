@@ -346,6 +346,33 @@ class DrySpellNow:
 
 
 @dataclass(frozen=True)
+class RainSlots:
+    """
+    The rain of the now story's chart (#661): the `STORY_HOURS` up to the
+    build time in slots of `slot_minutes`, oldest first, from the one counter
+    helper (`lookout.core.rain_counter`), so a counter reset never reads as
+    rain or as a loss.
+
+    Slot `i` holds the readings after `start_ms + i * slot_minutes` minutes
+    and up to the next slot's start; the last slot ends at the build time.
+
+    :param start_ms: The window's start: the build time less `STORY_HOURS`.
+    :param slot_minutes: Each slot's length, 5.
+    :param rain_in: Each slot's rain, the sum of what its readings add; None
+        for a slot with no reading (missing, never dry). A reading after a
+        gap holds the gap's rain.
+    :param total_in: The event's running total at each slot's end, ending
+        at `RainNow.event_total_in`; None for a slot that ends before the
+        event's start, and for every slot when no event holds last rain.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    rain_in: Tuple[Optional[float], ...]
+    total_in: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
 class RainNow:
     """
     Last rain and the now story (ADR-0011, `lookout.snapshot.rain_now`).
@@ -368,6 +395,9 @@ class RainNow:
         or when no event holds it.
     :param event_total_in: That event's rain: the live `eventrainin`, or
         the ended event's total; None when `event_start_ms` is.
+    :param last_3_hours: The rain of the story's chart, every 5 minutes
+        with the event's running total (`RainSlots`, #661); None outside
+        the now story. A version 4 addition (ADR-0008).
     """
 
     last_rain_ms: Optional[int]
@@ -375,6 +405,7 @@ class RainNow:
     rate_in_hr: Optional[float]
     event_start_ms: Optional[int]
     event_total_in: Optional[float]
+    last_3_hours: Optional[RainSlots] = None
 
 
 @dataclass(frozen=True)

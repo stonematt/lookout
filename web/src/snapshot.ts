@@ -1828,6 +1828,27 @@ export interface RainNow {
   event_start_ms: number | null;
   /** That event's rain in inches; null when `event_start_ms` is. */
   event_total_in: number | null;
+  /**
+   * The rain of the now story's chart (#661); null outside the story, and
+   * absent from a snapshot written before it (ADR-0008).
+   */
+  last_3_hours?: RainSlots | null;
+}
+
+/**
+ * The 3 hours up to the build in slots (#661): slot `i` holds the readings
+ * after `start_ms + i * slot_minutes` minutes, up to the next slot's start.
+ */
+export interface RainSlots {
+  start_ms: number;
+  slot_minutes: number;
+  /** Each slot's rain; null for a slot with no reading (missing, never dry). */
+  rain_in: (number | null)[];
+  /**
+   * The event's running total at each slot's end, ending on its total; null
+   * before the event's start, and everywhere when no event holds last rain.
+   */
+  total_in: (number | null)[];
 }
 
 /**
@@ -1895,10 +1916,29 @@ function checkRainNow(rain: unknown): void {
     typeof rain.raining !== "boolean" ||
     !isValueOrNull(rain.rate_in_hr) ||
     !timeOrNull(rain.event_start_ms) ||
-    !isValueOrNull(rain.event_total_in)
+    !isValueOrNull(rain.event_total_in) ||
+    !rainSlotsOk(rain.last_3_hours)
   ) {
     throw new SnapshotContractError("dashboard: rain_now malformed");
   }
+}
+
+/**
+ * `rain_now.last_3_hours` may be absent (before #661) or null; present, it
+ * holds a start, a slot length and two series of one length.
+ */
+function rainSlotsOk(slots: unknown): boolean {
+  if (slots === undefined || slots === null) return true;
+  const series = (v: unknown): v is unknown[] => Array.isArray(v) && v.every(isValueOrNull);
+  return (
+    isRecord(slots) &&
+    isTime(slots.start_ms) &&
+    isTime(slots.slot_minutes) &&
+    (slots.slot_minutes as number) > 0 &&
+    series(slots.rain_in) &&
+    series(slots.total_in) &&
+    slots.rain_in.length === slots.total_in.length
+  );
 }
 
 /** `dry_spell` may be absent (N−1); present, it holds two numbers or nulls. */

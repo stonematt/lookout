@@ -1,9 +1,11 @@
 /**
  * The feature tile (#469, spec #460 stories 10–17, 52–53): one tile under
  * the now tile showing the snapshot's `feature`, picked by the Feature Rule
- * in Python (ADR-0009): rain (the now story while last rain is within 3 h,
- * ADR-0011), the unusual reading, the long dry spell, or a usual day. It replaces "What leads right now" and the
- * browser rules that went with it.
+ * in Python (ADR-0009): rain, the unusual reading, the long dry spell, or a
+ * usual day. It replaces "What leads right now" and the browser rules that
+ * went with it. While rain leads with the now story (last rain within 3 h,
+ * ADR-0011) the rain tile (`rain-lead.ts`, Overview C, #661) takes its
+ * place; this tile draws rain only for a snapshot before the story (#659).
  *
  * The tile is one link: kicker, value and finding all sit inside it, and its
  * accessible name comes from its content, as the mosaic tiles' does (#543):
@@ -25,7 +27,8 @@
  * (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
- * carries a feature) and `featureTile` (the Overview section).
+ * carries a feature), `featureTile` (the Overview section), and `stoppedAgo`
+ * and `sinceWords` (the rain tile's story, #661).
  */
 import "./feature.css";
 
@@ -45,8 +48,7 @@ import {
   percent,
 } from "../format.js";
 import { drySpellShown } from "../rain/text.js";
-import { rainNow } from "../snapshot.js";
-import type { DashboardSnapshot, Feature, FeatureReading, RainNow } from "../snapshot.js";
+import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 import type { MosaicTile } from "./mosaic.js";
@@ -154,68 +156,23 @@ function againstUsualEvent(snapshot: DashboardSnapshot): string {
   return median === null ? "" : `, against ${inches(median, { digits: 2 })} for a usual event`;
 }
 
-/** A rain rate in the now story's words: `0.08 in/h`. */
-const perHour = (rate: number) => `${inches(rate, { digits: 2 })}/h`;
-
 /** How long ago rain stopped: `40 min` under an hour, then `2 h 10 m`. */
-function stoppedAgo(ms: number): string {
+export function stoppedAgo(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000);
   return minutes < 60 ? `${minutes} min` : formatDuration(ms);
 }
 
 /** When the event started: `2:40 pm`, or `Nov 22, 9:05 pm` on an earlier day. */
-function sinceWords(startMs: number, builtMs: number): string {
+export function sinceWords(startMs: number, builtMs: number): string {
   return localDay(startMs) === localDay(builtMs) ? formatTime(startMs) : formatStamp(startMs);
 }
 
 /**
- * The now story (ADR-0011, #659): "Raining · 0.08 in/h", then "0.31 in since
- * 2:40 pm"; or "Rain stopped 40 min ago", then the same. Raining and the
- * rate are Python's, from the gauge's last tip; the event's start and total
- * are Ambient's bounds. Without an event, the value is the last hour's rain.
+ * A rain feature without the now story: a snapshot before #659. With the
+ * story, rain leads and the rain tile (`rain-lead.ts`, #661) takes this
+ * tile's place, so the feature tile is never drawn for it.
  */
-function nowStoryView(
-  snapshot: DashboardSnapshot,
-  rain: RainNow & { rate_in_hr: number },
-): FeatureView {
-  const rate = rain.rate_in_hr;
-  // The story is told only with a last rain; a missing one reads as now.
-  const ago = Math.max(0, snapshot.built_at_ms - (rain.last_rain_ms ?? snapshot.built_at_ms));
-  const kicker = rain.raining
-    ? `Raining · ${perHour(rate)}`
-    : `Rain stopped ${stoppedAgo(ago)} ago`;
-  const spokenKicker = rain.raining
-    ? `Raining, ${perHour(rate)}`
-    : `Rain stopped ${formatDurationSpoken(ago)} ago`;
-  const event =
-    rain.event_start_ms !== null && rain.event_total_in !== null
-      ? { start: rain.event_start_ms, total: rain.event_total_in }
-      : null;
-  const value: [string, string] = [
-    inches(event ? event.total : rate, { digits: 2, unit: false }),
-    "in",
-  ];
-  const finding = event
-    ? `since ${sinceWords(event.start, snapshot.built_at_ms)}`
-    : "in the last hour";
-  return {
-    kind: "rain",
-    kicker,
-    value,
-    finding,
-    spoken: { before: `${spokenKicker}: ${valueText(value)} `, after: "" },
-    live: rain.raining,
-    target: RAIN_EVENTS,
-  };
-}
-
 function rainView(snapshot: DashboardSnapshot): FeatureView {
-  // A snapshot with the now story tells it; one before #659 reads as today.
-  const rain = rainNow(snapshot);
-  // The rate is set exactly while the story is told (Python's 3 hours).
-  if (rain !== null && rain.rate_in_hr !== null) {
-    return nowStoryView(snapshot, { ...rain, rate_in_hr: rain.rate_in_hr });
-  }
   const usual = againstUsualEvent(snapshot);
   const active = snapshot.active_rain_event;
   if (active) {

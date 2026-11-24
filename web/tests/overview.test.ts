@@ -37,7 +37,8 @@ describe("the Overview", () => {
       el.getAttribute("data-part"),
     );
     // The raining golden had rain today: the hero's rain line and column
-    // (#619); the wet-hour meter at its foot, each bar missing hours (#657).
+    // (#619). Rain leads, so the wet-hour bars sit in the rain tile's foot,
+    // not at this tile's (#661).
     expect(order).toEqual([
       "kicker",
       "finding",
@@ -46,9 +47,6 @@ describe("the Overview", () => {
       "rain-line",
       "today-chart",
       "rain-column",
-      "wet-meter",
-      ...["bar", "count", "missing"],
-      ...["bar", "count", "missing"],
     ]);
   });
 
@@ -110,11 +108,10 @@ describe("the Overview's sources footer (prototype decision 22, #604)", () => {
     );
   const NAMES = [
     "Right now",
-    "The feature",
-    // The raining golden is wet mode (#658): Wet hours beside Temperature.
+    // Rain leads on the raining golden (#661): the rain tile, whose foot
+    // carries Wet hours and Rain since Oct 1, so they leave the mosaic.
+    "Rain",
     "Temperature",
-    "Wet hours",
-    "Rain since Oct 1",
     "Last 10 days",
     "Wind",
     "Pressure",
