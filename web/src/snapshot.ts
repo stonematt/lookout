@@ -840,6 +840,39 @@ export interface DashboardSnapshot extends SnapshotHead {
    * wet-hour meter (ADR-0008).
    */
   wet_hours?: WetHours | null;
+  /**
+   * Today's wet mode or dry mode and what decided it (#658). Absent from
+   * snapshots published before it; the site then draws today's mosaic
+   * (ADR-0008).
+   */
+  wet_mode?: WetMode | null;
+  /**
+   * The title text of each tile whose title follows its mode or its data
+   * (#658, GLOSSARY tile title). Absent before it; each tile then keeps its
+   * fixed name.
+   */
+  tile_titles?: TileTitles | null;
+}
+
+/** Today's wet mode or dry mode (GLOSSARY wet mode), decided in Python. */
+export interface WetMode {
+  /** "wet" or "dry": the mosaic's order and the wet-or-dry tile follow it. */
+  mode: "wet" | "dry";
+  /**
+   * "weather" (the wet share of the days before today) or "calendar" (too
+   * few of the last 14 days' hours countable: Nov 1 to Apr 30 is wet).
+   */
+  decided_by: "weather" | "calendar";
+}
+
+/**
+ * The title text of the tiles whose title follows a mode or data; a tile
+ * not named keeps its fixed name. The tile, its zoom heading and the
+ * sources footer read the same text.
+ */
+export interface TileTitles {
+  /** The wet-or-dry tile: "Wet hours" in wet mode, "Dry spell" in dry mode. */
+  wet_or_dry: string;
 }
 
 /**
@@ -1135,6 +1168,8 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkWindRose(head.wind_rose);
   checkOutdoorTrace(head.outdoor_trace);
   checkWetHours(head.wet_hours);
+  checkWetMode(head.wet_mode);
+  checkTileTitles(head.tile_titles);
   return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1223,6 +1258,32 @@ function checkWetHours(wet: unknown): void {
     !wet.days.every(day)
   ) {
     throw new SnapshotContractError("dashboard: wet_hours malformed");
+  }
+}
+
+/**
+ * `wet_mode` may be absent (N−1) or null; present, it names a mode and what
+ * decided it.
+ */
+function checkWetMode(mode: unknown): void {
+  if (mode === undefined || mode === null) return;
+  if (
+    !isRecord(mode) ||
+    (mode.mode !== "wet" && mode.mode !== "dry") ||
+    (mode.decided_by !== "weather" && mode.decided_by !== "calendar")
+  ) {
+    throw new SnapshotContractError("dashboard: wet_mode malformed");
+  }
+}
+
+/**
+ * `tile_titles` may be absent (N−1) or null; present, each title it holds
+ * is text.
+ */
+function checkTileTitles(titles: unknown): void {
+  if (titles === undefined || titles === null) return;
+  if (!isRecord(titles) || typeof titles.wet_or_dry !== "string") {
+    throw new SnapshotContractError("dashboard: tile_titles malformed");
   }
 }
 

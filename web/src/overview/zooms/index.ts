@@ -21,6 +21,7 @@ import { pressureZoom } from "./pressure.js";
 import { rainZoom } from "./rain.js";
 import { sunZoom } from "./sun.js";
 import { temperatureZoom } from "./temperature.js";
+import { wetHoursZoom } from "./wet-hours.js";
 import { windZoom } from "./wind.js";
 
 /** The registered zooms, in the mosaic's order. */
@@ -35,4 +36,5 @@ export const ZOOMS: readonly ZoomDefinition[] = [
   sunZoom, // #477
   daylightZoom, // #477
   insideZoom, // #477
+  wetHoursZoom, // #658, the wet-or-dry tile in wet mode
 ];

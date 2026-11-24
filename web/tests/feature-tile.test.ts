@@ -106,12 +106,13 @@ describe("the feature tile", () => {
     );
 
     expect(tile()!.dataset.span).toBe("4");
+    // The seasoned golden is dry mode: Dry spell beside Temperature (#658).
     expect(ids.slice(1, 6)).toEqual([
       "feature",
       "temperature",
-      "rain",
-      "last-10-days",
       "dry-spell",
+      "last-10-days",
+      "rain",
     ]);
     lastRowIsDaylightAndInside();
   });
