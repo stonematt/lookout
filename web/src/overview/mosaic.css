@@ -6,7 +6,8 @@
  * a tile, in the phone's order.
  *
  * A tile is one link: its title (an h2 in kicker type), the number in Fact
- * type, the delta in `ink-2`, then the mini chart at the tile's foot.
+ * type, the delta in `ink-2`, then the mini chart at the tile's foot; the
+ * Wet hours tile follows its bars with the hatch key and a caption (#706).
  */
 
 .mosaic-link {
@@ -32,11 +33,6 @@
 
 .mosaic-title {
   margin: 0;
-}
-
-/* a title with how-to-read words runs as one line of text that wraps (#703) */
-.mosaic-title-how {
-  display: block;
 }
 
 .mosaic-value {
@@ -167,6 +163,26 @@
   align-items: center;
   gap: var(--s-1);
   margin: 0 0 var(--s-1);
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* the hatch key goes under the bars, beside the caption (#706); when its
+   words wrap in a 320px half-width tile, the swatch holds the first line */
+.mosaic-legend.mosaic-legend-under {
+  align-items: flex-start;
+  margin: var(--s-1) 0 0;
+}
+
+.mosaic-legend-under .hatch-swatch {
+  margin-top: calc((1.4em - 12px) / 2);
+}
+
+/* how to read the chart, in caption type under it, the tile's last part:
+   the Wet hours tile's "each bar is every hour; dark is wet" (#706) */
+.mosaic-caption {
+  margin: var(--s-1) 0 0;
   font-size: var(--type-label);
   line-height: 1.4;
   color: var(--ink-3);

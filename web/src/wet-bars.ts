@@ -9,7 +9,8 @@
  *   title) where the bars stand for the Wet hours tile (the Overview); on
  *   the Rain tab head the season's label is always "Wet hours", as the
  *   since-Oct-1 bar is drawn in dry mode too, when the tile title is "Dry
- *   spell";
+ *   spell". The half-width Wet hours tile keeps its title on one line and
+ *   sets the same how-to-read words under its bars (#706);
  * - each bar a tally of every hour in its span: the dark fill its wet
  *   hours, the hours the record cannot count hatched at its end, never
  *   drawn as dry, each part its share of the span's hours;
@@ -21,7 +22,7 @@
  * The 7-day and 30-day bars are drawn only outside dry mode (#658, #647
  * call 3), where they would read 0 h for months (`meterShown`).
  *
- * Offers `METER_TITLE`, `HATCH_KEY`, `meterTitle`, `meterShown`,
+ * Offers `METER_TITLE`, `HOW_TO_READ`, `HATCH_KEY`, `meterTitle`, `meterShown`,
  * `howToRead`, `barShare`, `barCount` and `hatchKey`.
  */
 import "./wet-bars.css";
@@ -31,8 +32,11 @@ import type { DashboardSnapshot } from "./snapshot.js";
 
 /** The bars' name where no tile title names them (N−1, the Rain tab's season). */
 export const METER_TITLE = "Wet hours";
-/** How to read the bars, after their name (the C boards). */
-const METER_HOW = " · each bar is every hour; dark is wet";
+/**
+ * How to read the bars (the C boards): after their name where they run full
+ * width, the caption under them on the half-width Wet hours tile (#706).
+ */
+export const HOW_TO_READ = "each bar is every hour; dark is wet";
 /** The key under the bars when any hour is hatched (the C boards). */
 export const HATCH_KEY = "hatched: missing, not dry";
 
@@ -65,7 +69,7 @@ export function meterShown(snapshot: DashboardSnapshot): boolean {
  * @returns " · each bar is every hour; dark is wet", as a span.
  */
 export function howToRead(): HTMLElement {
-  return make("span", "wet-meter-how", METER_HOW);
+  return make("span", "wet-meter-how", ` · ${HOW_TO_READ}`);
 }
 
 /**
