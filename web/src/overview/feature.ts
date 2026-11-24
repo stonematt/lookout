@@ -352,7 +352,7 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
   return {
     kind: "dry_spell",
     kicker: "Dry spell",
-    value: [since.number, since.unit],
+    value: [since.value, since.unit],
     finding,
     spoken: { before: `${upperFirst(since.spoken)} `, after: "" },
     live: false,

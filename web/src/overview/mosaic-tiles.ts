@@ -513,7 +513,7 @@ export const drySpellTile: MosaicTile = {
     const since = drySpellShown(snapshot);
     if (since === null) return { value: null, delta: "no last rain on record" };
     return {
-      value: since.number,
+      value: since.value,
       unit: since.unit,
       delta: usual === null ? null : `usual is ${formatDayCount(usual)}`,
     };

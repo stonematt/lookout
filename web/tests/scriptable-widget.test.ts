@@ -5,6 +5,7 @@
  */
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
+import { WHOLE_DRY_DAYS_VERSION } from "../src/snapshot.js";
 import { FIXTURE_MAC, SALMON_MAC, golden, goldenNext } from "./golden.js";
 
 interface Station {
@@ -41,6 +42,7 @@ interface Widget {
   leadingDashboard(results: PromiseSettledResult<unknown>[]): unknown;
   widgetModel(dashboard: unknown): Model;
   formatDuration(minutes: number): string;
+  WHOLE_DRY_DAYS_VERSION: number;
 }
 
 const widget = createRequire(import.meta.url)("../../widgets/scriptable/Lookout.js") as Widget;
@@ -190,6 +192,10 @@ describe("widgetModel", () => {
     expect(model.view).toBe("dry_spell");
     expect(model.daysDry).toBe(9);
     expect(model.sentence).toBe("Dry for 9 days, longer than the usual 4");
+  });
+
+  it("switches to whole dry days at the site's version (it cannot import it)", () => {
+    expect(widget.WHOLE_DRY_DAYS_VERSION).toBe(WHOLE_DRY_DAYS_VERSION);
   });
 
   it("cuts a v4 snapshot's time since last rain to whole days, never rounding up", () => {

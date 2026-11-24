@@ -20,7 +20,8 @@ const REFRESH_MINUTES = 5;
 // All stations ranks stations the way Python ranks views.
 const VIEW_RANK = { rain_event: 0, dry_spell: 1, temperature_ranges: 2 };
 const DEFAULT_VIEW = "temperature_ranges";
-// The first snapshot version whose `days_since_rain` is whole dry days.
+// The first snapshot version whose `days_since_rain` is whole dry days: the
+// site's `WHOLE_DRY_DAYS_VERSION` (web/src/snapshot.ts), held equal by a test.
 const WHOLE_DRY_DAYS_VERSION = 5;
 const RANGE_ROWS = [
   ["today", "Today"],
@@ -538,6 +539,7 @@ if (typeof Script === "undefined") {
     leadingDashboard,
     widgetModel,
     formatDuration,
+    WHOLE_DRY_DAYS_VERSION,
   };
 } else {
   main();

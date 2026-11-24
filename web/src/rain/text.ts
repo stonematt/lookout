@@ -175,7 +175,7 @@ export function dryHeadline(snapshot: DashboardSnapshot): string {
 /** The dry spell now as it is shown: the number, its unit and its words. */
 export interface DrySpellShown {
   /** "9" in whole dry days; "1 d 14 h" before them, the unit in the words. */
-  number: string;
+  value: string;
   /** "days" or "day" in whole dry days; null when the number carries it. */
   unit: string | null;
   /** The number for a sentence: "9 dry days"; "about 39 hours" before. */
@@ -198,9 +198,9 @@ export function drySpellShown(snapshot: DashboardSnapshot): DrySpellShown | null
   if (snapshot.schema_version >= WHOLE_DRY_DAYS_VERSION) {
     const whole = Math.round(days);
     const unit = whole === 1 ? "day" : "days";
-    return { number: String(whole), unit, spoken: `${whole} dry ${unit}` };
+    return { value: String(whole), unit, spoken: `${whole} dry ${unit}` };
   }
-  return { number: formatDays(days), unit: null, spoken: formatDaysSpoken(days) };
+  return { value: formatDays(days), unit: null, spoken: formatDaysSpoken(days) };
 }
 
 /**
@@ -210,7 +210,7 @@ export function drySpellShown(snapshot: DashboardSnapshot): DrySpellShown | null
  * @returns The number and its unit.
  */
 export function drySpellText(shown: DrySpellShown): string {
-  return shown.unit === null ? shown.number : `${shown.number} ${shown.unit}`;
+  return shown.unit === null ? shown.value : `${shown.value} ${shown.unit}`;
 }
 
 /** The current water year's curve: the newest one. */
@@ -377,8 +377,8 @@ export function usualWetWords(wet: WetHoursToDate): string {
  * The heatmap's finding: the wettest hour. It counts no hours: wet hours
  * come from the one wet-hour helper (`wet_hours`, `wet_hours_to_date`) in
  * the Rain tab's head, and the Rain tab's prorated hour count is never read
- * (#667). A snapshot without wet hours to date reads the same: its wet
- * hours read as absent.
+ * (#667). A snapshot without wet hours to date gets the same headline, with
+ * no hour count anywhere: the missing field reads as null (ADR-0008).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns E.g. "Rain by the hour over the last 90 days, the heaviest
