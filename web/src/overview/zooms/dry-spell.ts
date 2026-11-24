@@ -10,6 +10,7 @@
  * Offers `drySpellZoom`.
  */
 import { renderDry } from "../../rain/index.js";
+import { tileTitle } from "../mosaic.js";
 import { drySpellTile } from "../mosaic-tiles.js";
 import type { ZoomDefinition } from "../zoom.js";
 import { morePanel } from "./more.js";
@@ -18,7 +19,7 @@ import { RAIN_TAB } from "./rain.js";
 /** The dry spell zoom. */
 export const drySpellZoom: ZoomDefinition = {
   slug: drySpellTile.slug,
-  title: drySpellTile.title,
+  title: (snapshot) => tileTitle(drySpellTile, snapshot),
   lead: (snapshot) => drySpellTile.read(snapshot),
   panels: [
     {

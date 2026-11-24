@@ -20,7 +20,7 @@ import {
 } from "../src/rain/text.js";
 import type { DashboardSnapshot, RainTab, WaterYearCurve } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
-import { golden, goldenPrevious } from "./golden.js";
+import { SCENARIOS, golden, goldenNext } from "./golden.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
@@ -41,6 +41,16 @@ const section = (id: string) => panel.querySelector(`[data-section=${id}]`)!;
 function withTab(snapshot: DashboardSnapshot, change: Partial<RainTab>): DashboardSnapshot {
   const copy = structuredClone(snapshot);
   copy.rain_tab = { ...copy.rain_tab, ...change };
+  return copy;
+}
+
+/**
+ * A copy of a snapshot written before the window strip (#640): the Rain
+ * tab then draws its number strip, which these tests hold.
+ */
+function numberStrip(snapshot: DashboardSnapshot): DashboardSnapshot {
+  const copy = structuredClone(snapshot);
+  delete copy.rain_tab.window_strip;
   return copy;
 }
 
@@ -121,10 +131,31 @@ describe("the Rain tab's words", () => {
     );
     // The 365 days are not archived, so there is no usual spell to compare.
     expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
-    // A v3 snapshot still carries hero_lead; the Rain tab reads the same words.
-    expect(dryHeadline(parseDashboard(goldenPrevious("dry", "dashboard")))).toBe(
-      "about 39 hours since it last rained",
+  });
+
+  it("states a v5 snapshot's dry spell in whole dry days (#667)", () => {
+    const v5 = (days: number | null, usual: number | null) => {
+      const doc = goldenNext("dry", "dashboard", days) as { dry_spell: { usual_days: unknown } };
+      doc.dry_spell.usual_days = usual;
+      return parseDashboard(doc);
+    };
+    expect(dryHeadline(v5(12, 4))).toBe(
+      "12 dry days since it last rained, against a usual dry spell of 4 days",
     );
+    expect(dryHeadline(v5(1, null))).toBe("1 dry day since it last rained");
+    expect(dryHeadline(v5(0, 2.5))).toBe(
+      // Never "0 dry days": no dry spell yet, with last rain (#694).
+      "No dry spell yet, last rain 39 h ago",
+    );
+    expect(dryHeadline(v5(null, 4))).toBe("Dry spells in the record");
+  });
+
+  it("puts a v5 snapshot's whole dry days in the Rain tab's dry-spell stat", () => {
+    const panel = document.createElement("div");
+    renderRain(panel, parseDashboard(goldenNext("seasoned", "dashboard", 6)));
+    const stats = [...panel.querySelectorAll(".rain-dry-stats dt")];
+    const since = stats.find((dt) => dt.textContent === "Since it last rained");
+    expect(since?.nextElementSibling?.textContent).toBe("6 days");
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -175,7 +206,6 @@ describe("the Rain tab's words", () => {
     const wet = withTab(raining, {
       recent: {
         ...raining.rain_tab.recent,
-        wet_hours: 18.4,
         wettest_hour: { day: "2026-01-08", hour: 15, rain_in: 0.12 },
       },
     });
@@ -183,9 +213,42 @@ describe("the Rain tab's words", () => {
       status: "prorated",
       reason: "gap",
     });
-    expect(hoursHeadline(wet)).toBe(
-      "Rain fell in ≈\u00a018 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
-    );
+    const heaviest =
+      "Rain by the hour over the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8";
+    expect(hoursHeadline(wet)).toBe(heaviest);
+    // The prorated count is never read (#667), with or without wet hours to
+    // date: a snapshot without them counts no hours here.
+    const before = withTab(wet, { wet_hours_to_date: undefined });
+    expect(hoursHeadline(before)).toBe(heaviest);
+  });
+
+  it.each(SCENARIOS)("reads no prorated wet_hours in the Rain tab (%s)", (scenario) => {
+    const draw = (doc: unknown) => {
+      const panel = document.createElement("div");
+      renderRain(panel, parseDashboard(doc));
+      return panel.textContent;
+    };
+    // Without wet hours to date too: the prorated count has no stand-in.
+    const v4 = structuredClone(golden(scenario, "dashboard")) as {
+      rain_tab: { recent: { wet_hours?: unknown }; wet_hours_to_date?: unknown };
+    };
+    delete v4.rain_tab.wet_hours_to_date;
+    const shown = draw(v4);
+    v4.rain_tab.recent.wet_hours = 9999;
+    expect(draw(v4)).toBe(shown);
+    delete v4.rain_tab.recent.wet_hours;
+    expect(draw(v4)).toBe(shown);
+  });
+
+  it("says no rain fell when the 90 days can be compared and hold none", () => {
+    const none = withTab(dry, {
+      recent: { ...dry.rain_tab.recent, wettest_hour: null },
+    });
+    Object.assign(none.rain_tab.windows.find((w) => w.key === "90d")!.status, {
+      status: "valid",
+      reason: null,
+    });
+    expect(hoursHeadline(none)).toBe("No rain fell in the last 90 days");
   });
 
   it("picks round ticks above the largest value", () => {
@@ -211,7 +274,7 @@ describe("the Rain tab", () => {
       shown: true,
     });
     window.total_in = null;
-    renderRain(panel, week);
+    renderRain(panel, numberStrip(week));
 
     const dds = [...section("years").querySelectorAll(".rain-windows dd")];
     expect(text(dds[2]!.querySelector(".gap-label"))).toBe("n/a");
@@ -251,7 +314,9 @@ describe("the Rain tab", () => {
     const place = seasoned.rain_tab.day_index;
     renderRain(
       panel,
-      withTab(seasoned, { water_years: [year(2025, place, 3.1), year(2026, place, 4.2)] }),
+      withTab(numberStrip(seasoned), {
+        water_years: [year(2025, place, 3.1), year(2026, place, 4.2)],
+      }),
     );
     const years = section("years");
     const chart = years.querySelector(".rain-chart")!;
@@ -272,7 +337,7 @@ describe("the Rain tab", () => {
 
   it("hides a window the record does not cover, instead of n/a", () => {
     // Raining: 7 days to the water year start before the archive began.
-    renderRain(panel, raining);
+    renderRain(panel, numberStrip(raining));
     const names = [...section("years").querySelectorAll(".rain-windows dt")].map((dt) => text(dt));
 
     expect(names).toEqual(["Today", "Yesterday"]);
@@ -299,7 +364,7 @@ describe("the Rain tab", () => {
   it("hatches each window the record covers but cannot compare, with its reason", () => {
     // Seasoned: 365 days is covered, with a gap in it; the rest are whole
     // since the fixture spans water years 2025 and 2026 (#539).
-    renderRain(panel, seasoned);
+    renderRain(panel, numberStrip(seasoned));
     const cells = [...section("years").querySelectorAll(".rain-windows dd")];
 
     expect(cells.map((dd) => dd.classList.contains("gap-hatch"))).toEqual([
@@ -319,7 +384,7 @@ describe("the Rain tab", () => {
     // A live reading from today, the archive not caught up.
     const live = structuredClone(dry);
     live.current.rain_today_in = 0;
-    renderRain(panel, live);
+    renderRain(panel, numberStrip(live));
     const today = section("years").querySelector(".rain-windows dd")!;
 
     expect(text(today.querySelector(".gap-label"))).toBe("n/a");
@@ -431,7 +496,7 @@ describe("the Rain tab", () => {
   it("draws no chart, not a hatched block, when every water year is before the archive (#606)", () => {
     renderRain(panel, raining);
 
-    expect(section("years").querySelector(".rain-chart, svg, .gap-block, .gap-hatch")).toBeNull();
+    expect(section("years").querySelector(".rain-chart, .gap-block, .rain-years-gap")).toBeNull();
     expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "Water year 2026 is left out",
     );
@@ -512,12 +577,30 @@ describe("the Rain tab", () => {
       text(item.querySelector("dd")),
     ]);
 
-    expect(stats[0]).toEqual(["Last rain", "Nov 17, 9:03 am"]);
+    // The gauge's last tip (rain_now), not Ambient's lastRain at 9:03 am.
+    expect(stats[0]).toEqual(["Last rain", "Nov 17, 8:55 am"]);
     expect(stats[1]).toEqual(["Since it last rained", "1 d 14 h"]);
     expect(stats[2]?.[0]).toBe("Usual dry spell");
     expect(
       text(section("dry").querySelectorAll(".rain-dry-stats dd")[2]?.querySelector(".gap-label")),
     ).toBe("not archived yet");
+  });
+
+  it("stamps last rain from the snapshot's last rain, not Ambient's lastRain (#694)", () => {
+    // One last rain on the tab: the head's now part and this stat read the same field.
+    const copy = structuredClone(dry);
+    const lastRain = copy.current.last_rain_ms! - 3 * 3_600_000;
+    copy.rain_now = { ...copy.rain_now!, last_rain_ms: lastRain };
+    renderRain(panel, copy);
+    const stamp = text(section("dry").querySelector(".rain-dry-stats dd"));
+    expect(stamp).toBe("Nov 17, 6:03 am");
+  });
+
+  it("falls back to Ambient's lastRain on a document without rain_now (N−1)", () => {
+    const copy = structuredClone(dry);
+    delete copy.rain_now;
+    renderRain(panel, copy);
+    expect(text(section("dry").querySelector(".rain-dry-stats dd"))).toBe("Nov 17, 9:03 am");
   });
 });
 

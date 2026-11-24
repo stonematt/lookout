@@ -69,8 +69,11 @@ import { ZOOMS } from "./zooms/index.js";
 export interface ZoomPanel {
   /** Unique in its zoom: the panel's `data-panel`. */
   id: string;
-  /** Its heading, an `h3`: "Now against this date". */
-  title: string;
+  /**
+   * Its heading, an `h3`: "Now against this date"; or read from the
+   * snapshot, as the Rain tab head's kicker is (#703).
+   */
+  title: string | ((snapshot: DashboardSnapshot) => string);
   /**
    * Fill the panel under its heading. The panel is in the page when this
    * runs, so a chart can measure its width.
@@ -86,8 +89,11 @@ export interface ZoomPanel {
 export interface ZoomDefinition {
   /** The mosaic tile's slug: the zoom opens at `#overview/<slug>`. */
   slug: string;
-  /** The zoom's heading, an `h2`: "Temperature". */
-  title: string;
+  /**
+   * The zoom's heading, an `h2`: "Temperature"; or read from the snapshot,
+   * as its tile's title is when it follows a mode (#658).
+   */
+  title: string | ((snapshot: DashboardSnapshot) => string);
   /** The number and delta under the heading; the tile's `read` fits. */
   lead?(snapshot: DashboardSnapshot): TileReading;
   /** The panels, in reading order: two by two on the grids. */
@@ -328,12 +334,12 @@ function head(zoom: ZoomDefinition, snapshot: DashboardSnapshot): HTMLElement {
   heading.className = "zoom-heading";
   heading.id = `zoom-${zoom.slug}-heading`;
   heading.tabIndex = -1;
-  heading.textContent = zoom.title;
+  heading.textContent = typeof zoom.title === "function" ? zoom.title(snapshot) : zoom.title;
   el.append(heading);
   const reading = zoom.lead?.(snapshot);
   if (reading?.value != null) {
     const value = document.createElement("p");
-    value.className = "zoom-value";
+    value.className = reading.words ? "zoom-value zoom-value-words" : "zoom-value";
     value.dataset.part = "value";
     value.append(reading.value);
     if (reading.unit) {
@@ -379,7 +385,7 @@ function fill(el: HTMLElement, zoom: ZoomDefinition, snapshot: DashboardSnapshot
     if (spec.wide) host.dataset.wide = "true";
     const title = document.createElement("h3");
     title.className = "zoom-panel-title";
-    title.textContent = spec.title;
+    title.textContent = typeof spec.title === "function" ? spec.title(snapshot) : spec.title;
     host.append(title);
     panels.append(host);
     spec.render(host, snapshot);

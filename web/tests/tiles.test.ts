@@ -19,7 +19,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { archiveLagMs, gapReasons, lagCaveat, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden, twoStations } from "./golden.js";
+import { LEAD_TILE, MOSAIC_ORDER, SCENARIOS, golden, twoStations } from "./golden.js";
 
 let page: Page | null = null;
 
@@ -99,18 +99,9 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
 
     expect(tiles.map((t) => t.dataset.section)).toEqual([
       "first-screen",
-      "feature",
-      // The mosaic (#472), in its fixed order.
-      "temperature",
-      "rain",
-      "last-10-days",
-      "dry-spell",
-      "wind",
-      "pressure",
-      "humidity",
-      "sun",
-      "daylight",
-      "inside",
+      LEAD_TILE[scenario],
+      // The mosaic (#472), in the order its wet mode sets (#658).
+      ...MOSAIC_ORDER[scenario],
     ]);
     for (const tile of tiles) {
       if (tile.dataset.section === "feature") {
@@ -119,6 +110,16 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
         expect([...tile.children]).toEqual([link]);
         expect(link.querySelector("[data-part]")!.getAttribute("data-part")).toBe("kicker");
         expect(words(link.querySelector("[data-part=finding]"))).not.toBe("");
+        continue;
+      }
+      if (tile.dataset.section === "rain" && !tile.dataset.mosaic) {
+        // The rain tile (#661): its now link holds its kicker first, then its
+        // finding; its season foot is the second link.
+        const [now, season] = [...tile.children];
+        expect(now!.getAttribute("data-part")).toBe("now");
+        expect(season!.getAttribute("data-part")).toBe("season");
+        expect(now!.querySelector("[data-part]")!.getAttribute("data-part")).toBe("kicker");
+        expect(words(now!.querySelector("[data-part=finding]"))).not.toBe("");
         continue;
       }
       if (tile.dataset.mosaic) {
@@ -164,7 +165,7 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     const panel = await boot(parsed(scenario));
     const top = [...panel.querySelectorAll<HTMLElement>(".tile[data-phone-top]")];
 
-    expect(top.map((t) => t.dataset.section)).toEqual(["first-screen", "feature"]);
+    expect(top.map((t) => t.dataset.section)).toEqual(["first-screen", LEAD_TILE[scenario]]);
   });
 
   it("states findings in the live value, never the archive (story 54)", async () => {

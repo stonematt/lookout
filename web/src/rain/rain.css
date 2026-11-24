@@ -23,6 +23,11 @@
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 
+/* wet hours since Oct 1 (#663): one stat whose usual note reads as a line */
+.rain-wet-to-date {
+  grid-template-columns: minmax(0, 40rem);
+}
+
 /* a date and time at Stat size outgrows its slot: let it wrap, not overlap */
 .rain-stats.rain-dry-stats dd {
   white-space: normal;
@@ -232,4 +237,263 @@
   height: 14px;
   border-radius: var(--r-cell);
   flex: none;
+}
+
+/* ---------- the head, Rain tab C (#664): now, the season, then usual ---------- */
+/* each later part is set off by a hairline over its small label */
+.rain-part-next,
+.rain-strip-part {
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--rule);
+}
+
+.rain-part-label {
+  margin: 0 0 var(--s-1);
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* a later part's lead reads as a finding (`tile-finding`), its numbers lined up */
+.rain-lead {
+  font-variant-numeric: tabular-nums;
+}
+
+/* while it rains a rain mark leads the line; the word "Raining" says it too */
+.rain-now-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--rain-bar);
+  vertical-align: 0.15em;
+}
+
+/* wet hours: name, bar, count on one grid so the bars line up; a note under its bar */
+.rain-wet-rows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  row-gap: var(--s-2);
+  margin-top: var(--s-3);
+  max-width: 640px;
+}
+
+.rain-wet-row {
+  display: contents;
+}
+
+.rain-wet-name {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.rain-wet-row[data-key="water_year"] .rain-wet-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rain-wet-bar {
+  position: relative;
+  height: 12px;
+}
+
+/* every hour of the span: its edge in rule-strong, 3:1 on the tile */
+.rain-wet-track {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+/* each part is its share of the span's hours, at least 3px when it holds one */
+.rain-wet-fill,
+.rain-wet-missing {
+  --share: 0%;
+  flex: none;
+  width: max(3px, var(--share));
+}
+
+.rain-wet-fill {
+  background: var(--rain-line);
+}
+
+/* the missing hours sit at the bar's end, never between wet and dry */
+.rain-wet-missing {
+  margin-left: auto;
+  border-left: 1px solid var(--rule-strong);
+}
+
+/* usual wet hours to date: a dashed band over the bar, standing past its edges */
+.rain-wet-usual {
+  --from: 0%;
+  --to: 0%;
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: var(--from);
+  width: max(4px, calc(var(--to) - var(--from)));
+  border: 1.5px dashed var(--rain-band-edge);
+  border-radius: var(--r-cell);
+  box-sizing: border-box;
+}
+
+.rain-wet-count {
+  font-size: var(--type-annotation);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rain-wet-count b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rain-wet-note {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: calc(-1 * var(--s-1));
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.rain-wet-phrase {
+  white-space: nowrap;
+}
+
+/* the hatch key spans the bars' grid, under the last row */
+.rain-wet-rows > .wet-meter-key {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.rain-usual-swatch,
+.rain-strip-key-band {
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 10px;
+  border: 1.5px dashed var(--rain-band-edge);
+  border-radius: var(--r-cell);
+  background: var(--rain-band);
+  box-sizing: border-box;
+}
+
+/* the window strip: a row per window, its words over its track */
+.rain-strip {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 640px;
+}
+
+.rain-strip-row + .rain-strip-row {
+  margin-top: var(--s-2);
+}
+
+.rain-strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--s-3);
+  margin: 0;
+  font-size: var(--type-annotation);
+  line-height: 1.4;
+}
+
+.rain-strip-name {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.rain-strip-row[data-key="water_year"] .rain-strip-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rain-strip-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.rain-strip-value b,
+.rain-strip-mark {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rain-strip-value.gap-hatch {
+  min-width: 6em;
+  padding: 0 var(--s-1);
+}
+
+.rain-strip-track {
+  min-height: 40px;
+}
+
+.rain-svg .rain-strip-line {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+/* the band's fill is a tint; its dashed edge carries it at 3:1 */
+.rain-svg .rain-strip-band {
+  fill: var(--rain-band);
+  stroke: var(--rain-band-edge);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+
+.rain-svg .rain-strip-tick {
+  stroke: var(--rain-band-edge);
+  stroke-width: 2;
+}
+
+.rain-svg .rain-strip-dot {
+  fill: var(--rain-line);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.rain-strip-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+/* a swatch stays beside its words when the key wraps */
+.rain-strip-key-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.rain-strip-key-item > span {
+  align-self: center;
+}
+
+.rain-strip-key-dot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--rain-line);
 }

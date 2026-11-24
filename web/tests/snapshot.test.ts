@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CURVE_SCHEMA_VERSIONS,
   SCHEMA_VERSION,
   SNAPSHOT_SCHEMA_VERSIONS,
   SnapshotContractError,
+  WHOLE_DRY_DAYS_VERSION,
   newestObservation,
   parseContext,
   parseCurrent,
   parseDashboard,
 } from "../src/snapshot.js";
 import { fetchCurrent } from "../src/load.js";
-import { PREVIOUS_SCHEMA_VERSION, SCENARIOS, golden, goldenPrevious } from "./golden.js";
+import { NEXT_SCHEMA_VERSION, SCENARIOS, golden, goldenNext } from "./golden.js";
 
 describe("the contract version", () => {
   it("is the version the Python builder writes (read from the goldens)", () => {
@@ -154,6 +156,31 @@ describe("parseDashboard", () => {
       (d) => d.outdoor_trace.pressure_inhg.pop(),
       "dashboard: outdoor_trace malformed",
     ],
+    [
+      "a wet mode the site does not know",
+      (d) => (d.wet_mode.mode = "damp"),
+      "dashboard: wet_mode malformed",
+    ],
+    [
+      "a wet mode without what decided it",
+      (d) => delete d.wet_mode.decided_by,
+      "dashboard: wet_mode malformed",
+    ],
+    [
+      "a tile title that is not text",
+      (d) => (d.tile_titles.wet_or_dry = null),
+      "dashboard: tile_titles malformed",
+    ],
+    [
+      "a ten-day gap that is not a flag",
+      (d) => (d.temperature_context.ten_day_highs.gap = "yes"),
+      "dashboard: temperature_context.ten_day_highs malformed",
+    ],
+    [
+      "a ten-day tile title that is not text",
+      (d) => (d.tile_titles.ten_days = 5),
+      "dashboard: tile_titles malformed",
+    ],
   ])("refuses %s", (_case, spoil, message) => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
     spoil(doc);
@@ -163,8 +190,14 @@ describe("parseDashboard", () => {
   it("reads Release A3's fields, and a snapshot without them (N−1)", () => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
     const read = parseDashboard(doc);
-    expect(read.rain_tab.usual_to_date).toEqual({ usual_in: 0.304, years: 1, percent: 145 });
-    expect(read.temperature_context.ten_day_highs).toEqual({ delta_f: 2, days: 10 });
+    expect(read.rain_tab.usual_to_date).toEqual({
+      usual_in: 0.304,
+      years: 1,
+      percent: 145,
+      verdict: "wetter",
+      water_years: [2025],
+    });
+    expect(read.temperature_context.ten_day_highs).toEqual({ delta_f: 2, days: 10, gap: false });
     expect(read.outdoor_trace?.pressure_inhg).toHaveLength(24);
 
     delete doc.rain_tab.usual_to_date;
@@ -192,15 +225,14 @@ describe("parseDashboard", () => {
   it("refuses another schema version", () => {
     const doc = {
       ...(golden("dry", "dashboard") as object),
-      schema_version: 5,
+      schema_version: 6,
     };
-    expect(() => parseDashboard(doc)).toThrow("schema_version 5");
+    expect(() => parseDashboard(doc)).toThrow("schema_version 6");
   });
 
-  it("accepts a v3 dashboard that still carries hero_lead, and ignores the key", () => {
-    const doc = goldenPrevious("seasoned", "dashboard") as Record<string, unknown>;
-    expect(doc).toHaveProperty("hero_lead");
-    expect(doc.schema_version).toBe(3);
+  it("accepts a v5 dashboard without the Rain tab's prorated wet_hours", () => {
+    const doc = goldenNext("seasoned", "dashboard") as Record<string, unknown>;
+    expect(doc.schema_version).toBe(5);
     expect(() => parseDashboard(doc)).not.toThrow();
   });
 
@@ -278,9 +310,9 @@ describe("parseCurrent", () => {
     expect(body.context?.schema_version).toBe(SCHEMA_VERSION);
   });
 
-  it("keeps a v3 context the refresh run wrote before #480", () => {
-    const body = parseCurrent(current(goldenPrevious("raining", "context")));
-    expect(body.context?.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
+  it("keeps a v5 context the refresh run writes after #668", () => {
+    const body = parseCurrent(current(goldenNext("raining", "context")));
+    expect(body.context?.schema_version).toBe(NEXT_SCHEMA_VERSION);
   });
 
   it("refuses a body at schema_version 3: this site's own server writes 4", () => {
@@ -305,13 +337,19 @@ describe("newestObservation", () => {
 });
 
 describe("the schema versions (ADR-0008)", () => {
-  // The site read 4 before the refresh run wrote it, so the two need not
-  // switch at the same moment (#351). Release C1 (#479) reads 3 and 4; C2
-  // (#480) makes the refresh run write 4, which drops hero_lead. The site
-  // still reads 3 until a later release.
-  it("reads SCHEMA_VERSION and the version before it, and no other", () => {
-    expect(PREVIOUS_SCHEMA_VERSION).toBe(SCHEMA_VERSION - 1);
-    expect(SNAPSHOT_SCHEMA_VERSIONS).toEqual([PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION]);
+  // The site reads 5 before the refresh run writes it, so the two need not
+  // switch at the same moment (#351). R1 of #647 (#667) reads 4 and 5 while
+  // the refresh run writes 4; R2 (#668) makes it write 5, which counts
+  // days_since_rain in whole dry days and drops the prorated wet_hours.
+  // Version 3 is no longer live, so the site no longer reads it.
+  it("reads SCHEMA_VERSION and the version after it, and no other", () => {
+    expect(NEXT_SCHEMA_VERSION).toBe(SCHEMA_VERSION + 1);
+    expect(SNAPSHOT_SCHEMA_VERSIONS).toEqual([SCHEMA_VERSION, NEXT_SCHEMA_VERSION]);
+    expect(WHOLE_DRY_DAYS_VERSION).toBe(NEXT_SCHEMA_VERSION);
+  });
+
+  it("reads a curve file at the version after SCHEMA_VERSION too", () => {
+    expect(CURVE_SCHEMA_VERSIONS).toContain(NEXT_SCHEMA_VERSION);
   });
 
   it("reads a v4 dashboard without hero_lead", () => {
@@ -322,22 +360,25 @@ describe("the schema versions (ADR-0008)", () => {
     }
   });
 
-  it("reads a v3 dashboard with hero_lead", () => {
+  it("reads a v5 dashboard in whole dry days, without the prorated wet_hours", () => {
     for (const scenario of SCENARIOS) {
-      const snap = parseDashboard(goldenPrevious(scenario, "dashboard"));
-      expect(snap.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
+      const snap = parseDashboard(goldenNext(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(NEXT_SCHEMA_VERSION);
+      expect(snap.rain_tab.recent).not.toHaveProperty("wet_hours");
+      const since = snap.dry_spell?.days_since_rain ?? null;
+      if (since !== null) expect(Number.isInteger(since)).toBe(true);
     }
   });
 
-  it("reads a v3 context", () => {
-    const block = parseContext(goldenPrevious("raining", "context"));
-    expect(block.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
+  it("reads a v5 context", () => {
+    const block = parseContext(goldenNext("raining", "context"));
+    expect(block.schema_version).toBe(NEXT_SCHEMA_VERSION);
     expect(block.kind).toBe("context");
   });
 
   for (const kind of ["dashboard", "context"] as const) {
     const parse = kind === "dashboard" ? parseDashboard : parseContext;
-    for (const version of [2, 5, undefined]) {
+    for (const version of [3, 6, undefined]) {
       it(`refuses a ${kind} at schema_version ${String(version)}`, () => {
         const doc = { ...(golden("dry", kind) as Record<string, unknown>) };
         if (version === undefined) delete doc.schema_version;
@@ -347,15 +388,15 @@ describe("the schema versions (ADR-0008)", () => {
     }
 
     it(`names the versions it reads when it refuses a ${kind}`, () => {
-      const doc = { ...(golden("dry", kind) as object), schema_version: 2 };
-      expect(() => parse(doc)).toThrow(`${kind}: schema_version 2, this site reads 3 or 4`);
+      const doc = { ...(golden("dry", kind) as object), schema_version: 3 };
+      expect(() => parse(doc)).toThrow(`${kind}: schema_version 3, this site reads 4 or 5`);
     });
   }
 
-  it("still refuses a v3 dashboard without sun_moon", () => {
-    const doc = { ...(goldenPrevious("raining", "dashboard") as Record<string, unknown>) };
+  it("still refuses a v5 dashboard without sun_moon", () => {
+    const doc = { ...(goldenNext("raining", "dashboard") as Record<string, unknown>) };
     delete doc.sun_moon;
-    expect(doc.schema_version).toBe(3);
+    expect(doc.schema_version).toBe(5);
     expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
   });
 });

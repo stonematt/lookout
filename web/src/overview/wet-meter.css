@@ -1,0 +1,100 @@
+/*
+ * The wet-hour meter (#657) at the foot of the now tile: two bars, each a
+ * tally of its window's hours. On the now surface every mark a reader needs
+ * meets 3:1 (DESIGN.md Contrast): the track's edge and the hatch draw in
+ * `ink-3` (the now tile sets `--hatch` to it), the wet fill in
+ * `ribbon-rain`. The missing hours carry the hatch, a non-colour cue, and
+ * the key under the bars says what it means (#661). The divider over the
+ * bars is a `rule` hairline, as every divider is (DESIGN.md, #703).
+ */
+.wet-meter {
+  display: block;
+  margin: var(--s-3) calc(-1 * var(--s-1)) 0;
+  padding: var(--s-3) var(--s-1) var(--s-1);
+  border-top: 1px solid var(--rule);
+  border-radius: 0 0 var(--r-cell) var(--r-cell);
+  color: inherit;
+  text-decoration: none;
+}
+
+.wet-meter:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.wet-meter:hover .wet-meter-title {
+  color: var(--ink-2);
+}
+
+/* on the grids the meter takes the tile's full width, under its row */
+:root:is([data-layout="two"], [data-layout="four"])
+  .tile[data-section="first-screen"]
+  > .wet-meter {
+  grid-column: 1 / -1;
+}
+
+.wet-meter-title {
+  display: block;
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* name, bar, count; a missing note under its bar */
+.wet-meter-rows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  row-gap: var(--s-1);
+  margin-top: var(--s-2);
+  max-width: 560px;
+}
+
+.wet-meter-name {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--ink-on-now);
+}
+
+.wet-meter-bar {
+  position: relative;
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid var(--ink-3);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+
+/* each part is its share of the window's hours, at least 3px when it holds one */
+.wet-meter-wet,
+.wet-meter-missing {
+  --share: 0%;
+  flex: none;
+  width: max(3px, var(--share));
+}
+
+.wet-meter-wet {
+  background: var(--ribbon-rain);
+}
+
+/* the missing hours sit at the bar's end, never between wet and dry */
+.wet-meter-missing {
+  margin-left: auto;
+  border-left: 1px solid var(--ink-3);
+}
+
+.wet-meter-count {
+  font-size: var(--type-annotation);
+  color: var(--ink-on-now);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wet-meter-count b {
+  font-weight: 600;
+  color: var(--ink);
+}

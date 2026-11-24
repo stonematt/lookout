@@ -13,7 +13,7 @@ import { renderOverview } from "../src/overview/index.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
-import { golden, SCENARIOS } from "./golden.js";
+import { golden, goldenNext, SCENARIOS } from "./golden.js";
 
 type Doc = Record<string, unknown>;
 
@@ -66,13 +66,18 @@ describe("the feature tile", () => {
       (t) => t.dataset.section,
     );
 
-    expect(ids.slice(0, 3)).toEqual(["first-screen", "feature", "temperature"]);
+    // While rain leads the rain tile takes the feature's place (#661).
+    const second = s === "raining" ? "rain" : "feature";
+    expect(ids.slice(0, 3)).toEqual(["first-screen", second, "temperature"]);
     expect(panel.querySelector("[data-section=hero-lead]")).toBeNull();
     expect(panel.querySelector("details[data-part=why]")).toBeNull();
     expect(panel.textContent).not.toMatch(/What leads|Why this leads|Leading:/);
   });
 
-  it.each(SCENARIOS)("is one link on the %s golden, named by its finding", (s) => {
+  // On the raining golden rain leads: the rain tile (`overview-c.test.ts`).
+  const featured = SCENARIOS.filter((s) => s !== "raining");
+
+  it.each(featured)("is one link on the %s golden, named by its finding", (s) => {
     draw(parseDashboard(golden(s, "dashboard")));
     const links = tile()!.querySelectorAll("a");
 
@@ -106,12 +111,13 @@ describe("the feature tile", () => {
     );
 
     expect(tile()!.dataset.span).toBe("4");
+    // The seasoned golden is dry mode: Dry spell beside Temperature (#658).
     expect(ids.slice(1, 6)).toEqual([
       "feature",
       "temperature",
-      "rain",
-      "last-10-days",
       "dry-spell",
+      "last-10-days",
+      "rain",
     ]);
     lastRowIsDaylightAndInside();
   });
@@ -141,19 +147,30 @@ describe("the feature tile", () => {
     },
   );
 
-  it("draws a live rain event: its total so far against the usual event", () => {
-    const raining = parseDashboard(golden("raining", "dashboard"));
-    draw(raining);
+  describe("a rain feature without the now story (before #659)", () => {
+    // With the now story, rain leads and the rain tile tells it (Overview C,
+    // #661, `overview-c.test.ts`); the feature tile is not drawn.
+    const kicker = () => words(tile()!.querySelector("[data-part=kicker]"));
+    const value = () => words(tile()!.querySelector("[data-part=value]"));
 
-    expect(raining.feature?.kind).toBe("rain");
-    expect(tile()!.dataset.kind).toBe("rain");
-    expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Raining now · 2 h 25 m");
-    expect(words(tile()!.querySelector("[data-part=value]"))).toBe("0.30 in");
-    expect(linkName()).toBe(
-      "Raining now: 0.30 in so far, against 0.42 in for a usual event. Open the Rain Events tab.",
-    );
-    expect(link().getAttribute("href")).toBe("#events");
-    expect(tile()!.querySelector("[data-part=live]")).not.toBeNull();
+    it("draws today's rain view from a snapshot without rain_now (version 4 before #659)", () => {
+      const base = doc("raining");
+      delete base.rain_now;
+      draw(parseDashboard(base));
+
+      expect(kicker()).toBe("Raining now · 2 h 25 m");
+      expect(value()).toBe("0.30 in");
+      expect(linkName()).toBe(
+        "Raining now: 0.30 in so far, against 0.42 in for a usual event. Open the Rain Events tab.",
+      );
+    });
+
+    it("refuses a rain_now whose raining is not a flag", () => {
+      const base = doc("raining");
+      const rain_now = { ...(base.rain_now as Doc), raining: "yes" };
+
+      expect(() => parseDashboard({ ...base, rain_now })).toThrow(SnapshotContractError);
+    });
   });
 
   it("draws rain that ended: the newest event's total and how long ago it ended", () => {
@@ -161,9 +178,11 @@ describe("the feature tile", () => {
     const events = structuredClone(base.rain_events) as { events: Doc[] };
     for (const row of events.events) row.live = false;
     const newest = events.events[0]!;
+    // A snapshot before #659: no now story, so today's ended-event view.
     const snapshot = edited("raining", {
       active_rain_event: null,
       rain_events: { ...events, open_curve: null },
+      rain_now: undefined,
       built_at_ms: (newest.end_ms as number) + 3 * 3_600_000,
     });
     draw(snapshot);
@@ -191,6 +210,7 @@ describe("the feature tile", () => {
       const snapshot = edited("raining", {
         active_rain_event: null,
         rain_events: { ...events, open_curve: null },
+        rain_now: undefined,
         feature,
         built_at_ms: (events.events[1]!.end_ms as number) + 3_600_000,
       });
@@ -429,6 +449,19 @@ describe("the feature tile", () => {
     expect(link().getAttribute("href")).toBe("#overview/dry-spell");
   });
 
+  it("draws a v5 snapshot's long dry spell in whole dry days (#667)", () => {
+    const doc = goldenNext("dry", "dashboard", 9) as Doc;
+    doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
+    (doc.dry_spell as Doc).usual_days = 3;
+    draw(parseDashboard(doc));
+
+    expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
+    expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 days");
+    expect(linkName()).toBe(
+      "9 dry days since it last rained, against a usual dry spell of 3 days. Open the dry spell view.",
+    );
+  });
+
   it("draws a quiet day as a usual day, with the temperature now", () => {
     const dry = parseDashboard(golden("dry", "dashboard"));
     draw(dry);
@@ -460,7 +493,7 @@ describe("the feature tile", () => {
 
   it("is in the phone's fixed top, an open tile, never a finding row", () => {
     setLayout("phone");
-    draw(parseDashboard(golden("raining", "dashboard")));
+    draw(parseDashboard(golden("seasoned", "dashboard")));
 
     expect(tile()!.tagName).toBe("SECTION");
     expect(tile()!.dataset.phoneTop).toBe("true");

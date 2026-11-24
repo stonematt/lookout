@@ -1,9 +1,11 @@
 /**
  * The feature tile (#469, spec #460 stories 10–17, 52–53): one tile under
  * the now tile showing the snapshot's `feature`, picked by the Feature Rule
- * in Python (ADR-0009): the rain event, the unusual reading, the long dry
- * spell, or a usual day. It replaces "What leads right now" and the
- * browser rules that went with it.
+ * in Python (ADR-0009): rain, the unusual reading, the long dry spell, or a
+ * usual day. It replaces "What leads right now" and the browser rules that
+ * went with it. While rain leads with the now story (last rain within 3 h,
+ * ADR-0011) the rain tile (`rain-lead.ts`, Overview C, #661) takes its
+ * place; this tile draws rain only for a snapshot before the story (#659).
  *
  * The tile is one link: kicker, value and finding all sit inside it, and its
  * accessible name comes from its content, as the mosaic tiles' does (#543):
@@ -25,15 +27,14 @@
  * (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
- * carries a feature) and `featureTile` (the Overview section).
+ * carries a feature) and `featureTile` (the Overview section). The rain
+ * tile's now story is worded in `now-story.ts` (#694).
  */
 import "./feature.css";
 
 import { spoken, spokenRunOn } from "../dom.js";
 import {
   degrees,
-  formatDays,
-  formatDaysSpoken,
   formatDayCount,
   formatDuration,
   formatDurationSpoken,
@@ -43,6 +44,7 @@ import {
   mph,
   percent,
 } from "../format.js";
+import { dryHeadline, drySpellShown } from "../rain/text.js";
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -151,6 +153,11 @@ function againstUsualEvent(snapshot: DashboardSnapshot): string {
   return median === null ? "" : `, against ${inches(median, { digits: 2 })} for a usual event`;
 }
 
+/**
+ * A rain feature without the now story: a snapshot before #659. With the
+ * story, rain leads and the rain tile (`rain-lead.ts`, #661) takes this
+ * tile's place, so the feature tile is never drawn for it.
+ */
 function rainView(snapshot: DashboardSnapshot): FeatureView {
   const usual = againstUsualEvent(snapshot);
   const active = snapshot.active_rain_event;
@@ -265,12 +272,13 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
 }
 
 function drySpellView(snapshot: DashboardSnapshot): FeatureView {
-  const days = snapshot.dry_spell?.days_since_rain ?? null;
+  const since = drySpellShown(snapshot);
   const usualDays = snapshot.dry_spell?.usual_days ?? null;
   const usual =
     usualDays === null ? "" : `, against a usual dry spell of ${formatDayCount(usualDays)}`;
-  if (days === null) {
-    const finding = "No last rain on record";
+  if (since === null || since.under !== null) {
+    // No dry spell yet (0 whole dry days, #694) reads as the Rain tab's finding.
+    const finding = since === null ? "No last rain on record" : dryHeadline(snapshot);
     return {
       kind: "dry_spell",
       kicker: "Dry spell",
@@ -281,15 +289,16 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
       target: DRY_SPELL,
     };
   }
-  // The value and the name say it as the Rain tab does: its stat ("1 d 14 h")
-  // and its finding ("about 39 hours since it last rained").
+  // The value and the name say it as the Rain tab does: its stat ("9 days",
+  // "1 d 14 h" before version 5) and its finding ("9 dry days since it last
+  // rained", "about 39 hours since it last rained").
   const finding = `since it last rained${usual}`;
   return {
     kind: "dry_spell",
     kicker: "Dry spell",
-    value: [formatDays(days), null],
+    value: [since.value, since.unit],
     finding,
-    spoken: { before: `${upperFirst(formatDaysSpoken(days))} `, after: "" },
+    spoken: { before: `${upperFirst(since.spoken)} `, after: "" },
     live: false,
     target: DRY_SPELL,
   };

@@ -245,11 +245,14 @@ describe("one number wherever it appears (story 53)", () => {
   });
 
   it("names the catalog's wettest event with the catalog's own total", async () => {
+    // A snapshot written before the counts (N−1) still names it.
     const snapshot = parsed("raining");
+    delete snapshot.rain_events.counts;
+    delete snapshot.rain_events.scatter;
     await boot(snapshot, "events");
     const wettest = Math.max(...snapshot.rain_events.events.map((e) => e.total_in)).toFixed(2);
 
-    expect(words(panel("events").querySelector("[data-section=catalog] h2"))).toContain(
+    expect(words(panel("events").querySelector("[data-section=catalog] .ev-title"))).toContain(
       `${wettest} in`,
     );
   });

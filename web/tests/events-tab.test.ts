@@ -29,6 +29,13 @@ function raining(): DashboardSnapshot {
   return parseDashboard(structuredClone(golden("raining", "dashboard")));
 }
 
+/** The raining golden as a snapshot written before the counts (N−1). */
+function beforeCounts(snapshot = raining()): DashboardSnapshot {
+  delete snapshot.rain_events.counts;
+  delete snapshot.rain_events.scatter;
+  return snapshot;
+}
+
 function curveOf(start: number): EventCurve {
   return parseEventCurve(goldenCurve("raining", start));
 }
@@ -45,13 +52,24 @@ const click = (selector: string) =>
     .querySelector<HTMLElement>(selector)!
     .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 const row = (start: number) => `.ev-open[data-start='${start}']`;
-/** Pick a water year in the select, as a visitor does. */
-function pick(value: string): void {
-  const select = panel.querySelector<HTMLSelectElement>(".ev-select")!;
+/** Pick a value in one of the filter line's selects, as a visitor does. */
+function choose(selector: string, value: string): void {
+  const select = panel.querySelector<HTMLSelectElement>(selector)!;
   select.value = value;
   select.dispatchEvent(new Event("change", { bubbles: true }));
 }
+/** Pick a water year. */
+const pick = (value: string) => choose(".ev-year-select", value);
+/** Pick an order. */
+const sortBy = (value: string) => choose(".ev-sort-select", value);
+/** Pick a size. */
+const sizeOf = (value: string) => choose(".ev-size-select", value);
 const drawnLast = () => deps.draw.mock.calls.at(-1)!;
+/** The owner's sentence for an event the URL names and the catalog lacks (#707). */
+const MISSING_NOTE = "That event is no longer in the catalog; showing the newest one instead.";
+/** The open row's missing-event note, or null when it has none. */
+const missingNote = () =>
+  panel.querySelector(".ev-row[data-open] .ev-body > .ev-note")?.textContent ?? null;
 
 beforeEach(() => {
   localStorage.clear();
@@ -75,12 +93,39 @@ describe("the event list", () => {
     expect(rows()[1]!.querySelector(".ev-live")).toBeNull();
     expect(rows()[1]!.querySelector(".ev-total")!.textContent).toBe("0.48 in");
     expect(rows()[1]!.querySelector(".ev-meta")!.textContent).toBe(
-      "Shower · 15 h 50 m · peak 0.12 in/hr excellent",
+      "shower · 15 h 50 m · peak 0.12 in/hr excellent",
+    );
+  });
+
+  it("marks each row's category with the four-step glyph beside its word", () => {
+    const snapshot = raining();
+    const categories = ["storm", "rain", "shower"] as const;
+    snapshot.rain_events.events.forEach((e, i) => (e.category = categories[i]));
+    mountEvents(panel, snapshot, deps);
+
+    const kinds = rows().map((r) => r.querySelector<HTMLElement>(".ev-kind")!);
+    expect(kinds.map((k) => k.textContent)).toEqual(["storm", "rain", "shower"]);
+    const glyphs = kinds.map((k) => k.querySelector("svg.ev-glyph")!);
+    expect(glyphs.map((g) => g.getAttribute("data-step"))).toEqual(["4", "3", "2"]);
+    expect(glyphs.map((g) => g.querySelectorAll("rect.on").length)).toEqual([4, 3, 2]);
+    // The word says it to assistive tech; the glyph is hidden from it.
+    for (const g of glyphs) expect(g.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("leaves the glyph off a row with no category", () => {
+    const snapshot = raining();
+    delete snapshot.rain_events.events.find((e) => e.start_ms === EVENT_2)!.category;
+    mountEvents(panel, snapshot, deps);
+
+    expect(rows()[1]!.querySelector(".ev-kind")).toBeNull();
+    expect(rows()[1]!.querySelector(".ev-meta")!.textContent).toBe(
+      "15 h 50 m · peak 0.12 in/hr excellent",
     );
   });
 
   it("heads the list with the summary the snapshot computed", () => {
-    mountEvents(panel, raining(), deps);
+    mountEvents(panel, beforeCounts(), deps);
+    pick("all");
 
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
       "The wettest of 3 events since Jan 4, 2026, brought 0.48 in, against 0.42 in for the median event",
@@ -88,16 +133,29 @@ describe("the event list", () => {
     const stats = panel.querySelector(".ev-stats")!.textContent!;
     expect(stats).toContain("3");
     expect(stats).toContain("0.42 in"); // the median event
-    expect(panel.querySelector(".ev-list-finding")!.textContent).toBe("3 events, newest first");
+    expect(panel.querySelector(".ev-list-finding")!.textContent).toBe("Every event, newest first");
+    // The golden's water year starts before the archive.
+    expect(panel.querySelector(".ev-count")!.textContent).toBe("3 events · partial year");
+  });
+
+  it("opens on the newest water year, every event of it", () => {
+    const snapshot = raining();
+    snapshot.rain_events.events[2]!.water_year = 2025;
+    snapshot.rain_events.seasons.push({ ...snapshot.rain_events.seasons[0]!, water_year: 2025 });
+    mountEvents(panel, snapshot, deps);
+
+    expect(panel.querySelector<HTMLSelectElement>(".ev-year-select")!.value).toBe("2026");
+    expect(starts()).toEqual([EVENT_3, EVENT_2]);
   });
 
   it("sorts by total with the live event still pinned on top", () => {
     mountEvents(panel, raining(), deps);
 
-    click("[data-sort=wettest]");
+    sortBy("wettest");
 
     expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
-    expect(panel.querySelector("[data-sort=wettest]")!.getAttribute("aria-pressed")).toBe("true");
+    expect(panel.querySelector<HTMLSelectElement>(".ev-sort-select")!.value).toBe("wettest");
+    expect(panel.querySelector(".ev-list-finding")!.textContent).toBe("Every event, wettest first");
   });
 
   it("orders Newest by start, Wettest by total and Longest by duration", () => {
@@ -106,7 +164,7 @@ describe("the event list", () => {
     snapshot.rain_events.events[2]!.duration_minutes = 2000;
     mountEvents(panel, snapshot, deps);
     const order = (sort: string) => {
-      click(`[data-sort=${sort}]`);
+      sortBy(sort);
       return starts();
     };
 
@@ -114,8 +172,24 @@ describe("the event list", () => {
     expect(order("wettest")).toEqual([EVENT_2, EVENT_1, EVENT_3]);
     expect(order("newest")).toEqual([EVENT_3, EVENT_2, EVENT_1]);
     expect(
-      [...panel.querySelectorAll<HTMLElement>(".ev-sort button")].map((b) => b.textContent),
+      [...panel.querySelectorAll<HTMLElement>(".ev-sort-select option")].map((b) => b.textContent),
     ).toEqual(["Newest", "Wettest", "Longest"]);
+  });
+
+  it("is one filter line: water year, sort and size, each a labelled select", () => {
+    mountEvents(panel, raining(), deps);
+
+    const selects = [...panel.querySelectorAll<HTMLSelectElement>(".ev-bar select")];
+    expect(selects.map((s) => s.closest("label")!.querySelector(".ov-sr")!.textContent)).toEqual([
+      "Water year",
+      "Sort",
+      "Size",
+    ]);
+    expect(selects.map((s) => s.selectedOptions[0]!.textContent)).toEqual([
+      "2025–26",
+      "Newest",
+      "Showers and up",
+    ]);
   });
 
   it("picks one water year's events and its summary in the select", () => {
@@ -134,16 +208,14 @@ describe("the event list", () => {
       },
     ];
     mountEvents(panel, snapshot, deps);
-    const options = [...panel.querySelectorAll<HTMLOptionElement>(".ev-select option")];
-    expect(options.map((o) => o.value)).toEqual(["all", "2026", "2025"]);
-    expect(options[0]!.textContent).toBe("All years");
+    const options = [...panel.querySelectorAll<HTMLOptionElement>(".ev-year-select option")];
+    expect(options.map((o) => o.value)).toEqual(["2026", "2025", "all"]);
+    expect(options[2]!.textContent).toBe("All years");
 
     pick("2025");
 
     expect(starts()).toEqual([EVENT_1]);
-    expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "The one rain event in water year 2025 brought 0.36 in",
-    );
+    expect(panel.querySelector(".ev-list-finding")!.textContent).toBe("Every event, newest first");
   });
 
   it("draws each size bar as its total over the catalog's largest, hidden from assistive tech", () => {
@@ -174,64 +246,87 @@ describe("the event list", () => {
   });
 });
 
-describe("the category filter", () => {
+describe("the size filter", () => {
   /** The raining golden with event 1 a sprinkle. */
   function withSprinkle(start = EVENT_1): DashboardSnapshot {
     const snapshot = raining();
     snapshot.rain_events.events.find((e) => e.start_ms === start)!.category = "sprinkle";
     return snapshot;
   }
-  const pressed = (category: string) =>
-    panel.querySelector(`[data-category=${category}]`)!.getAttribute("aria-pressed");
+  const size = () => panel.querySelector<HTMLSelectElement>(".ev-size-select")!.value;
+  const count = () => panel.querySelector(".ev-count-words")!.textContent;
 
-  it("hides sprinkles at first and lists them once Sprinkle is picked", () => {
+  it("hides sprinkles at first, says so, and lists them under All sizes", () => {
     mountEvents(panel, withSprinkle(), deps);
 
+    expect(size()).toBe("shower");
     expect(starts()).toEqual([EVENT_3, EVENT_2]);
-    expect(pressed("sprinkle")).toBe("false");
-    expect(pressed("storm")).toBe("true");
+    expect(count()).toBe("2 events, sprinkles hidden");
 
-    click("[data-category=sprinkle]");
+    sizeOf("all");
 
     expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
-    expect(pressed("sprinkle")).toBe("true");
+    expect(count()).toBe("3 events");
   });
 
-  it("keeps the categories picked for the next visit", () => {
+  it("says nothing is hidden when the size hides no event", () => {
+    mountEvents(panel, raining(), deps);
+
+    expect(count()).toBe("3 events");
+  });
+
+  it("lists showers only from Showers and up, rain from Rain and up", () => {
+    const snapshot = raining();
+    snapshot.rain_events.events[0]!.live = false;
+    const categories = ["storm", "rain", "shower"] as const;
+    snapshot.rain_events.events.forEach((e, i) => (e.category = categories[i]));
+    mountEvents(panel, snapshot, deps);
+
+    expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
+    sizeOf("rain");
+    expect(starts()).toEqual([EVENT_3, EVENT_2]);
+    expect(count()).toBe("2 events, showers and sprinkles hidden");
+    sizeOf("storm");
+    expect(starts()).toEqual([EVENT_3]);
+  });
+
+  it("keeps the size picked for the next visit", () => {
     mountEvents(panel, withSprinkle(), deps);
-    click("[data-category=sprinkle]");
+    sizeOf("all");
     document.body.innerHTML = "<section id=panel></section>";
     panel = document.getElementById("panel")!;
 
     mountEvents(panel, withSprinkle(), deps);
 
+    expect(size()).toBe("all");
     expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
   });
 
-  it("always lists the live event, whatever its category", () => {
+  it("always lists the live event, whatever its size", () => {
     mountEvents(panel, withSprinkle(EVENT_3), deps);
+    sizeOf("storm");
 
-    expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
+    expect(starts()).toEqual([EVENT_3]);
   });
 
-  it("lists a row with no category under any pick", () => {
+  it("lists a row with no category under any size", () => {
     const snapshot = raining();
     delete snapshot.rain_events.events.find((e) => e.start_ms === EVENT_1)!.category;
     mountEvents(panel, snapshot, deps);
-    click("[data-category=shower]");
+    sizeOf("storm");
 
     expect(starts()).toEqual([EVENT_3, EVENT_1]);
   });
 
-  it("adds a linked event's category so its row shows", () => {
+  it("widens the size so a linked event's row shows", () => {
     history.replaceState(null, "", `/?fixture=raining&event=${EVENT_1}#events`);
     mountEvents(panel, withSprinkle(), deps);
 
     expect(openStart()).toBe(EVENT_1);
-    expect(pressed("sprinkle")).toBe("true");
+    expect(size()).toBe("all");
   });
 
-  it("says how many events the pick hides when it leaves none", () => {
+  it("says how many events the size hides when it leaves none", () => {
     const snapshot = raining();
     for (const e of snapshot.rain_events.events) {
       e.category = "sprinkle";
@@ -241,20 +336,66 @@ describe("the category filter", () => {
 
     expect(starts()).toEqual([]);
     expect(panel.querySelector(".ev-empty")!.textContent).toBe(
-      "No events in the categories picked; 3 others are hidden.",
+      "No events this size in 2025–26; 3 smaller ones are hidden.",
     );
   });
 
-  it("opens the default event when a pick hides the open row", () => {
+  it("opens the default event when a size hides the open row", () => {
     mountEvents(panel, raining(), deps);
     click(row(EVENT_2));
     expect(openStart()).toBe(EVENT_2);
 
-    click("[data-category=shower]");
+    sizeOf("storm");
 
     expect(starts()).toEqual([EVENT_3]);
     expect(openStart()).toBe(EVENT_3);
     expect(location.search).not.toContain("event=");
+  });
+});
+
+describe("rows as links (#370)", () => {
+  const link = (start: number) => panel.querySelector<HTMLAnchorElement>(row(start))!;
+
+  it("makes each row's header a link to the page with its event open", () => {
+    mountEvents(panel, raining(), deps);
+
+    expect(link(EVENT_2).tagName).toBe("A");
+    expect(link(EVENT_2).getAttribute("href")).toBe(`/?fixture=raining&event=${EVENT_2}#events`);
+  });
+
+  it("leaves a ctrl-, cmd-, shift- or middle-click to the browser, opening nothing here", () => {
+    mountEvents(panel, raining(), deps);
+    const clicks = [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { button: 1 }];
+
+    for (const init of clicks) {
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true, ...init });
+      link(EVENT_2).dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    // The tab did not open it; following the link is the browser's.
+    expect(openStart()).toBe(EVENT_3);
+  });
+
+  it("opens the row in place on a plain click, without following the link", () => {
+    mountEvents(panel, raining(), deps);
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+
+    link(EVENT_2).dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(openStart()).toBe(EVENT_2);
+  });
+
+  it("opens the linked event in its own water year", () => {
+    const snapshot = raining();
+    snapshot.rain_events.events[2]!.water_year = 2025;
+    snapshot.rain_events.seasons.push({ ...snapshot.rain_events.seasons[0]!, water_year: 2025 });
+    history.replaceState(null, "", `/?event=${EVENT_1}#events`);
+
+    mountEvents(panel, snapshot, deps);
+
+    expect(panel.querySelector<HTMLSelectElement>(".ev-year-select")!.value).toBe("2025");
+    expect(openStart()).toBe(EVENT_1);
   });
 });
 
@@ -298,11 +439,11 @@ describe("the open row", () => {
     expect(rows()[0]!.hasAttribute("data-live")).toBe(false);
   });
 
-  it("draws Total against the catalog's median event", async () => {
+  it("draws the chart against the catalog's median event", async () => {
     mountEvents(panel, raining(), deps);
     await flush();
 
-    expect(drawnLast()[3]).toEqual({ chart: "total", medianIn: 0.42 });
+    expect(drawnLast()[3]).toEqual({ medianIn: 0.42 });
     expect(drawnLast()[0]).toBe(charts().querySelector(".ev-chart"));
   });
 
@@ -360,23 +501,54 @@ describe("the open row", () => {
     mountEvents(panel, raining(), deps);
 
     const head = panel.querySelector<HTMLButtonElement>(row(EVENT_3))!;
-    expect(head.tagName).toBe("BUTTON");
+    expect(head.tagName).toBe("A");
     expect(head.closest("h3")).not.toBeNull();
     const body = document.getElementById(head.getAttribute("aria-controls")!)!;
     expect(body.closest(".ev-row")).toBe(head.closest(".ev-row"));
   });
 
   it("says so when a linked event is not in the catalog", async () => {
-    history.replaceState(null, "", "/?event=1600000000000#events");
+    history.replaceState(null, "", "/?fixture=raining&event=1600000000000#events");
 
     mountEvents(panel, raining(), deps);
     await flush();
 
-    expect(openRows()[0]!.textContent).toContain("The linked event is not in the catalog");
+    expect(missingNote()).toBe(MISSING_NOTE);
     expect(finding()).toContain("still raining");
+    // The stale link is cleared, so the next snapshot does not say it again.
+    expect(location.search).toBe("?fixture=raining");
+    mountEvents(panel, raining(), deps);
+    expect(missingNote()).toBeNull();
   });
 
-  it("shows totals only, with the gap note and no switch, for an event with no archive data", async () => {
+  it("drops a stale ?event= with a history replace, so a refresh shows no note", async () => {
+    history.replaceState(null, "", "/?fixture=raining&event=1600000000000#events");
+    const length = history.length;
+    const push = vi.spyOn(history, "pushState");
+    const replace = vi.spyOn(history, "replaceState");
+
+    mountEvents(panel, raining(), deps);
+    await flush();
+
+    expect(missingNote()).toBe(MISSING_NOTE);
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(history.length).toBe(length);
+    expect(`${location.search}${location.hash}`).toBe("?fixture=raining#events");
+    push.mockRestore();
+    replace.mockRestore();
+
+    // A refresh loads the page again: a new panel, from the URL left behind.
+    document.body.innerHTML = "<section id=panel></section>";
+    panel = document.getElementById("panel")!;
+    mountEvents(panel, raining(), deps);
+    await flush();
+
+    expect(openStart()).toBe(EVENT_3);
+    expect(missingNote()).toBeNull();
+  });
+
+  it("shows totals only, with the gap note and no chart, for an event with no archive data", async () => {
     const snapshot = raining();
     const event = snapshot.rain_events.events[2]!;
     Object.assign(event, { has_curve: false, quality: "invalid" });
@@ -390,7 +562,7 @@ describe("the open row", () => {
     const open = openRows()[0]!;
     expect(open.querySelector(".ev-gap.gap-hatch")!.textContent).toContain("n/a: gap in record");
     expect(open.querySelector(".ev-facts")!.textContent).toContain("0.36 in");
-    expect(open.querySelector("[data-chart]")).toBeNull();
+    expect(open.querySelector(".ev-chart")).toBeNull();
     expect(open.textContent).not.toMatch(/error/i);
     expect(rows()[2]!.querySelector(".ev-chip.low")!.textContent).toBe("no data");
   });
@@ -437,42 +609,58 @@ describe("the open row", () => {
     expect(deps.draw).toHaveBeenCalledOnce();
   });
 
-  it("switches the open row's chart between Total and Rate in place", async () => {
+  it("draws the total and the rate on one chart, with no switch between them", async () => {
     mountEvents(panel, raining(), deps);
     click(row(EVENT_2));
     await flush();
-    const head = panel.querySelector(row(EVENT_2));
 
-    click("[data-chart=rate]");
-    await flush();
-
-    expect(drawnLast()[3]).toEqual({ chart: "rate", medianIn: 0.42 });
-    expect(drawnLast()[1]).toEqual(curveOf(EVENT_2));
-    expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
-    expect(panel.querySelector(row(EVENT_2))).toBe(head);
-    expect(panel.querySelector("[data-chart=rate]")!.getAttribute("aria-pressed")).toBe("true");
-    expect(charts().querySelector<HTMLElement>(".ev-chart")!.dataset.chart).toBe("rate");
-
-    click("[data-chart=total]");
-    expect(drawnLast()[3].chart).toBe("total");
+    const open = openRows()[0]!;
+    expect(open.querySelectorAll(".ev-chart")).toHaveLength(1);
+    expect(open.querySelector("button[aria-pressed]")).toBeNull();
+    expect(open.textContent).not.toMatch(/\bRate\b/);
+    const label = charts().querySelector(".ev-chart")!.getAttribute("aria-label")!;
+    expect(label).toContain("Rain so far in this event, rising to 0.48 in");
+    expect(label).toContain("columns of the rain between readings");
+    expect(label).toContain("peaking at 0.12 in/hr");
+    // The source note says what the one chart draws.
+    const method = open.querySelector("details[data-part=source-note]")!.textContent!;
+    expect(method).toContain("the columns are the rain per 5 minutes");
+    expect(method).toContain("ten times the left");
   });
 
-  it("keeps the rest of the open row as it is when the chart switches", async () => {
-    history.replaceState(null, "", "/?event=1600000000000#events");
+  it("keeps the loading note over the chart until the chart is drawn", async () => {
+    let drawn: () => void = () => {};
+    deps.draw.mockReturnValue(new Promise<void>((resolve) => (drawn = resolve)));
     mountEvents(panel, raining(), deps);
+    click(row(EVENT_2));
     await flush();
-    const open = openRows()[0]!;
-    const words = open.querySelector(".ev-finding");
-    const fold = open.querySelector<HTMLDetailsElement>("details[data-part=source-note]")!;
-    fold.open = true;
-    const rate = open.querySelector<HTMLButtonElement>("[data-chart=rate]")!;
 
-    click("[data-chart=rate]");
+    // The readings are in; the chart is not drawn yet: never an empty chart.
+    expect(charts().querySelector(".ev-chart")).not.toBeNull();
+    expect(charts().textContent).toBe("Loading the curve…");
+    expect(charts().getAttribute("aria-busy")).toBe("true");
+    drawn();
+    await flush();
 
-    expect(open.querySelector(".ev-finding")).toBe(words);
-    expect(open.querySelector("[data-chart=rate]")).toBe(rate);
-    expect(fold.isConnected && fold.open).toBe(true);
-    expect(open.textContent).toContain("The linked event is not in the catalog");
+    expect(charts().textContent).not.toContain("Loading");
+    expect(charts().hasAttribute("aria-busy")).toBe(false);
+  });
+
+  it("says the live event's chart is loading until it is drawn, its curve at hand", async () => {
+    let drawn: () => void = () => {};
+    deps.draw.mockReturnValue(new Promise<void>((resolve) => (drawn = resolve)));
+    mountEvents(panel, raining(), deps);
+
+    expect(openStart()).toBe(EVENT_3);
+    expect(deps.fetchCurve).not.toHaveBeenCalled();
+    // Shown only if the drawing takes a moment, and not announced.
+    const note = charts().querySelector(".ev-loading.ev-later")!;
+    expect(note.textContent).toBe("Loading the curve…");
+    expect(note.getAttribute("role")).toBeNull();
+    drawn();
+    await flush();
+
+    expect(note.isConnected).toBe(false);
   });
 
   it("draws the curve against the median event of the water year shown", async () => {
@@ -482,6 +670,7 @@ describe("the open row", () => {
       median_in: 0.5,
     };
     mountEvents(panel, snapshot, deps);
+    pick("all");
     await flush();
     expect(drawnLast()[3].medianIn).toBe(0.42);
 
@@ -489,7 +678,6 @@ describe("the open row", () => {
     await flush();
 
     expect(drawnLast()[3].medianIn).toBe(0.5);
-    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.50 in");
   });
 
   it("follows the default rule within a water year the open row is not in", async () => {
@@ -528,11 +716,9 @@ describe("the open row", () => {
     pick("2027");
 
     expect(rows()).toHaveLength(0);
-    expect(panel.querySelector(".ev-empty")!.textContent).toBe(
-      "No rain events in water year 2027 yet.",
-    );
-    expect(panel.querySelector(".ev-bar .ev-select")).not.toBeNull();
-    expect(panel.querySelector(".ev-bar .ev-sort")).not.toBeNull();
+    expect(panel.querySelector(".ev-empty")!.textContent).toBe("No rain events in 2026–27 yet.");
+    expect(panel.querySelector(".ev-bar .ev-year-select")).not.toBeNull();
+    expect(panel.querySelector(".ev-bar .ev-sort-select")).not.toBeNull();
   });
 });
 
@@ -595,27 +781,26 @@ describe("a newer snapshot mounted over the tab", () => {
 
     mountEvents(panel, raining(), deps);
 
-    expect(charts().textContent).not.toContain("Loading");
+    // No read, so nothing announced: only the drawing's quiet note.
+    expect(charts().querySelector("[role=status]")).toBeNull();
     await flush();
+    expect(charts().textContent).not.toContain("Loading");
     expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
     expect(deps.draw).toHaveBeenCalledTimes(3); // the live event, event 2, event 2 again
     expect(drawnLast()[1]).toEqual(curveOf(EVENT_2));
   });
 
-  it("keeps the water year, the order and the chart picked", async () => {
+  it("keeps the water year and the order picked", async () => {
     const year = raining().rain_events.seasons[0]!.water_year;
     mountEvents(panel, raining(), deps);
-    click("[data-sort=longest]");
+    sortBy("longest");
     pick(String(year));
-    click("[data-chart=rate]");
 
     mountEvents(panel, raining(), deps);
     await flush();
 
-    expect(panel.querySelector("[data-sort=longest]")!.getAttribute("aria-pressed")).toBe("true");
-    expect(panel.querySelector<HTMLSelectElement>(".ev-select")!.value).toBe(String(year));
-    expect(panel.querySelector("[data-chart=rate]")!.getAttribute("aria-pressed")).toBe("true");
-    expect(drawnLast()[3].chart).toBe("rate");
+    expect(panel.querySelector<HTMLSelectElement>(".ev-sort-select")!.value).toBe("longest");
+    expect(panel.querySelector<HTMLSelectElement>(".ev-year-select")!.value).toBe(String(year));
   });
 
   it("keeps a row closed by hand closed", () => {
@@ -628,16 +813,17 @@ describe("a newer snapshot mounted over the tab", () => {
     expect(openRows()).toHaveLength(0);
   });
 
-  it("goes back to All when the new snapshot no longer has the year picked", () => {
+  it("goes to the newest water year when the new snapshot no longer has the year picked", () => {
     const year = raining().rain_events.seasons[0]!.water_year;
     mountEvents(panel, raining(), deps);
     pick(String(year));
 
     const next = raining();
     next.rain_events.seasons = [{ ...next.rain_events.seasons[0]!, water_year: year + 1 }];
+    for (const e of next.rain_events.events) e.water_year = year + 1;
     mountEvents(panel, next, deps);
 
-    expect(panel.querySelector<HTMLSelectElement>(".ev-select")!.value).toBe("all");
+    expect(panel.querySelector<HTMLSelectElement>(".ev-year-select")!.value).toBe(String(year + 1));
     expect(starts()).toEqual([EVENT_3, EVENT_2, EVENT_1]);
   });
 
@@ -652,7 +838,62 @@ describe("a newer snapshot mounted over the tab", () => {
     await flush();
 
     expect(openStart()).toBe(EVENT_3);
-    expect(openRows()[0]!.textContent).toContain("The linked event is not in the catalog");
+    // The same neutral note as for a followed link (#707).
+    expect(missingNote()).toBe(MISSING_NOTE);
+    expect(location.search).not.toContain("event=");
+
+    mountEvents(panel, next, deps);
+    expect(missingNote()).toBeNull();
+  });
+
+  it("keeps keyboard focus on the row that had it", () => {
+    mountEvents(panel, raining(), deps);
+    panel.querySelector<HTMLElement>(row(EVENT_2))!.focus();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(document.activeElement).toBe(panel.querySelector(row(EVENT_2)));
+  });
+
+  it("keeps keyboard focus on the filter that had it", () => {
+    mountEvents(panel, raining(), deps);
+    panel.querySelector<HTMLElement>(".ev-sort-select")!.focus();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(document.activeElement).toBe(panel.querySelector(".ev-sort-select"));
+  });
+
+  it("keeps keyboard focus on Show more", () => {
+    mountEvents(panel, longer(30, 1), deps);
+    panel.querySelector<HTMLElement>(".ev-more")!.focus();
+
+    mountEvents(panel, longer(30, 2), deps);
+
+    expect(document.activeElement).toBe(panel.querySelector(".ev-more"));
+  });
+
+  it("keeps keyboard focus on the open row's source fold, in that row", () => {
+    mountEvents(panel, raining(), deps);
+    const fold = () => panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-body summary")!;
+    fold().focus();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(document.activeElement).toBe(fold());
+  });
+
+  it("does not announce an unchanged open event again", () => {
+    mountEvents(panel, raining(), deps);
+    const live = () =>
+      panel.querySelector(".ev-row[data-open] .ev-finding")!.getAttribute("aria-live");
+    expect(live()).toBe("polite");
+
+    mountEvents(panel, raining(), deps);
+    expect(live()).toBeNull();
+
+    click(row(EVENT_2));
+    expect(live()).toBe("polite");
   });
 });
 
@@ -705,72 +946,97 @@ describe("each water year's gap status", () => {
   }
 
   const option = (year: string) =>
-    panel.querySelector<HTMLOptionElement>(`.ev-select option[value='${year}']`)!;
+    panel.querySelector<HTMLOptionElement>(`.ev-year-select option[value='${year}']`)!;
+  const missing = () => panel.querySelector<HTMLElement>(".ev-missing")!;
+  /** The sentence in the list's fold, "How events are found". */
+  const method = () => panel.querySelector(".ev-season-gap")!.textContent;
 
-  it("names a non-comparable year's reason in its option and says why when it is picked", () => {
+  it("names a non-comparable year's reason in its option and says how much is missing", () => {
     const gap = status({ missing_days: 40, status: "invalid", reason: "gap" });
     mountEvents(panel, twoYears(gap), deps);
 
     expect(option("2025").dataset.gap).toBe("gap");
-    expect(option("2025").textContent).toBe("2025, partial");
+    expect(option("2025").textContent).toBe("2024–25");
     expect(option("2025").title).toContain("n/a: gap in record");
     expect(option("2026").dataset.gap).toBeUndefined();
-    expect(option("2026").textContent).toBe("2026");
+    expect(option("2026").textContent).toBe("2025–26");
+    expect(missing().hidden).toBe(true);
 
     pick("2025");
 
-    const note = panel.querySelector<HTMLElement>(".ev-season-gap")!;
-    expect(note.hidden).toBe(false);
-    expect(note.querySelector(".gap-hatch .gap-label")!.textContent).toBe("n/a: gap in record");
-    expect(note.textContent).toContain(
-      "Water year 2025 has days missing from the record, so the list can miss its events and their total is not the year's rain.",
+    // One line, hatched; the method in the fold.
+    expect(missing().hidden).toBe(false);
+    expect(missing().querySelector(".hatch-chip")!.textContent).toBe("40 days missing");
+    expect(method()).toBe(
+      "Water year 2024–25 has days missing from the record, so the list can miss its events and their total is not the year's rain.",
+    );
+    expect(panel.querySelector('.fold[data-part="method"] .fold-line')!.textContent).toBe(
+      "How events are found",
     );
     // The events-only sum is still shown beside it, never hatched away.
-    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.36 in");
 
     pick("2026");
-    expect(panel.querySelector<HTMLElement>(".ev-season-gap")!.hidden).toBe(true);
+    expect(missing().hidden).toBe(true);
+    expect(method()).toBe("");
   });
 
-  it("reads a year the archive does not reach by the snapshot's own reason", () => {
-    const missing = { missing_days: 365, status: "invalid", reason: "not_archived" } as const;
-    mountEvents(panel, twoYears(status(missing)), deps);
+  it("names a year the archive does not reach by the snapshot's own reason, unhatched", () => {
+    const beyond = { missing_days: 365, status: "invalid", reason: "not_archived" } as const;
+    mountEvents(panel, twoYears(status(beyond)), deps);
 
     expect(option("2025").dataset.gap).toBe("not_archived");
-    expect(option("2025").textContent).toBe("2025, not archived");
+    expect(option("2025").textContent).toBe("2024–25");
     pick("2025");
-    expect(panel.querySelector(".ev-season-gap")!.textContent).toContain(
-      "Water year 2025 is not archived yet",
-    );
+    expect(missing().textContent).toBe(" · not archived yet");
+    expect(missing().querySelector(".hatch-chip")).toBeNull();
+    expect(method()).toContain("Water year 2024–25 is not archived yet");
   });
 
-  it("notes a prorated year without a mark or a ≈ on the events-only sum", () => {
+  it("keeps the events-only sum, unhatched and without a ≈, on a snapshot before the counts", () => {
     mountEvents(
       panel,
-      twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })),
+      beforeCounts(twoYears(status({ missing_days: 40, status: "invalid", reason: "gap" }))),
       deps,
     );
-
-    expect(option("2025").textContent).toBe("2025");
     pick("2025");
 
-    const note = panel.querySelector<HTMLElement>(".ev-season-gap")!;
-    expect(note.querySelector(".gap-hatch")).toBeNull();
-    expect(note.textContent).toBe(
-      "3 of 365 days of water year 2025 are missing from the record, so the list can miss events in them.",
-    );
+    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.36 in");
     expect(panel.querySelector(".ev-stats")!.textContent).not.toContain("≈");
   });
 
-  it("words a prorated year under All as it does for the one year", () => {
+  it("notes a prorated year's days without a hatch or a ≈ on the events-only sum", () => {
     mountEvents(
       panel,
       twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" })),
       deps,
     );
 
-    expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
-      "3 of 365 days of water year 2025 are missing from the record, so the list can miss events in them.",
+    expect(option("2025").textContent).toBe("2024–25");
+    pick("2025");
+
+    expect(missing().textContent).toBe(" · 3 days missing");
+    expect(missing().querySelector(".hatch-chip")).toBeNull();
+    expect(method()).toBe(
+      "3 of 365 days of water year 2024–25 are missing from the record, so the list can miss events in them.",
+    );
+  });
+
+  it("adds up the days missing under All, and words them as for one year", () => {
+    const snapshot = twoYears(status({ missing_days: 3, status: "prorated", reason: "gap" }));
+    snapshot.rain_events.seasons[0]!.status = status({
+      first_day: "2025-10-01",
+      last_day: "2026-01-09",
+      days: 101,
+      missing_days: 1,
+      status: "prorated",
+      reason: "gap",
+    });
+    mountEvents(panel, snapshot, deps);
+    pick("all");
+
+    expect(missing().textContent).toBe(" · 4 days missing");
+    expect(method()).toBe(
+      "1 of 101 days of water year 2025–26 and 3 of 365 days of water year 2024–25 are missing from the record, so the list can miss events in them.",
     );
   });
 
@@ -785,28 +1051,20 @@ describe("each water year's gap status", () => {
       reason: "gap",
     });
     mountEvents(panel, snapshot, deps);
+    pick("all");
 
-    expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
-      "The record does not cover all of water year 2026, and 3 of 365 days of water year 2025 are missing from it, so the list can miss events in them.",
-    );
-  });
-
-  it("names the years the record does not cover under All", () => {
-    mountEvents(
-      panel,
-      twoYears(status({ missing_days: 40, status: "invalid", reason: "gap" })),
-      deps,
-    );
-
-    expect(panel.querySelector(".ev-season-gap")!.textContent).toBe(
-      "The record does not cover all of water year 2025, so the list can miss its events.",
+    expect(missing().querySelector(".hatch-chip")!.textContent).toBe("43 days missing");
+    expect(method()).toBe(
+      "The record does not cover all of water year 2025–26, and 3 of 365 days of water year 2024–25 are missing from it, so the list can miss events in them.",
     );
   });
 
   it("shows no note when every year is whole", () => {
     mountEvents(panel, twoYears(status({})), deps);
+    pick("all");
 
-    expect(panel.querySelector<HTMLElement>(".ev-season-gap")!.hidden).toBe(true);
+    expect(missing().hidden).toBe(true);
+    expect(method()).toBe("");
   });
 });
 
@@ -822,6 +1080,8 @@ describe("the filter bar", () => {
 
     const tile = panel.querySelector<HTMLElement>("[data-section=events]")!;
     expect(tile.style.getPropertyValue("--ev-bar-top")).toBe("48px");
-    expect(tile.querySelector(".ev-bar")!.nextElementSibling!.className).toBe("ev-list");
+    // The count line rides under the bar, then the rows.
+    expect(tile.querySelector(".ev-bar")!.nextElementSibling!.className).toBe("ev-count");
+    expect(tile.querySelector(".ev-count")!.nextElementSibling!.className).toBe("ev-list");
   });
 });

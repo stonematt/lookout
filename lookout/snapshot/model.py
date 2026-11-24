@@ -345,6 +345,259 @@ class DrySpellNow:
     usual_days: Optional[float]
 
 
+@dataclass(frozen=True)
+class RainSlots:
+    """
+    The rain of the now story's chart (#661): the `STORY_HOURS` up to the
+    build time in slots of `slot_minutes`, oldest first, from the one counter
+    helper (`lookout.core.rain_counter`), so a counter reset never reads as
+    rain or as a loss.
+
+    Slot `i` holds the readings after `start_ms + i * slot_minutes` minutes
+    and up to the next slot's start; the last slot ends at the build time.
+
+    :param start_ms: The window's start: the build time less `STORY_HOURS`.
+    :param slot_minutes: Each slot's length, 5.
+    :param rain_in: Each slot's rain, the sum of what its readings add; None
+        for a slot with no reading (missing, never dry). A reading after a
+        gap holds the gap's rain.
+    :param total_in: The event's running total at each slot's end, ending
+        at `RainNow.event_total_in`; None for a slot that ends before the
+        event's start, and for every slot when no event holds last rain.
+    """
+
+    start_ms: int
+    slot_minutes: int
+    rain_in: Tuple[Optional[float], ...]
+    total_in: Tuple[Optional[float], ...]
+
+
+@dataclass(frozen=True)
+class RainNow:
+    """
+    Last rain and the now story (ADR-0011, `lookout.snapshot.rain_now`).
+
+    The now story (`raining`, the rate and the event) is told while last
+    rain is within 3 hours of the build time, exactly while the Feature
+    Rule picks rain; outside it `raining` is False and the rest is None.
+
+    :param last_rain_ms: **Last rain**: the newest reading the daily
+        counter rose on, after carryover corrections (not Ambient's
+        `lastRain`); None when no reading shows a tip.
+    :param raining: Whether last rain is within 30 minutes of the build
+        time.
+    :param rate_in_hr: The rain in the 60 minutes up to the build time, in
+        inches, which is the rate in inches per hour; None outside the now
+        story.
+    :param event_start_ms: The current rain event's start (Ambient's event
+        bounds, the key of its `rain_events` row): the live event, else the
+        newest ended event that holds last rain; None outside the now story
+        or when no event holds it.
+    :param event_total_in: That event's rain: the live `eventrainin`, or
+        the ended event's total; None when `event_start_ms` is.
+    :param last_3_hours: The rain of the story's chart, every 5 minutes
+        with the event's running total (`RainSlots`, #661); None outside
+        the now story. A version 4 addition (ADR-0008).
+    """
+
+    last_rain_ms: Optional[int]
+    raining: bool
+    rate_in_hr: Optional[float]
+    event_start_ms: Optional[int]
+    event_total_in: Optional[float]
+    last_3_hours: Optional[RainSlots] = None
+
+
+@dataclass(frozen=True)
+class WetHoursWindow:
+    """
+    One window's wet hours of its countable hours (GLOSSARY wet hour,
+    countable hour), and what it is missing.
+
+    :param days: The window's length in days: 7 or 30.
+    :param hours: Every hour in it: 168 or 720.
+    :param wet_hours: Its countable hours with at least one tip.
+    :param countable_hours: Its hours with readings and no gap over 30
+        minutes; the label reads wet hours of these ("19 h of 168").
+    :param missing_hours: Its hours that are not countable: never wet,
+        never dry; `hours` less `countable_hours`.
+    :param missing_days: The station-local days it touches with no
+        countable hour in it ("5 d missing").
+    """
+
+    days: int
+    hours: int
+    wet_hours: int
+    countable_hours: int
+    missing_hours: int
+    missing_days: int
+
+
+@dataclass(frozen=True)
+class WetHoursDay:
+    """
+    One station-local day of the wet-hour strip.
+
+    :param day: The day, "YYYY-MM-DD".
+    :param wet_hours: Its wet hours, 0-24 (25 on a fall-back day); null
+        with no countable hour.
+    :param countable_hours: Its countable hours, today's so far; null with
+        none.
+    """
+
+    day: str
+    wet_hours: Optional[int]
+    countable_hours: Optional[int]
+
+
+@dataclass(frozen=True)
+class WetHours:
+    """
+    The wet hours over the last 7 and 30 days, and the 30-day strip (#657).
+
+    Each window ends with the last whole hour before the build, in the
+    station zone; the hour in progress is in neither. Every hour is judged
+    by the one wet-hour helper (`lookout.core.wet_hours`).
+
+    :param through_ms: The windows' end, exclusive: the start of the hour
+        in progress.
+    :param last_7_days: The 168 hours before it.
+    :param last_30_days: The 720 hours before it.
+    :param days: Today and the 29 days before it, oldest first.
+    """
+
+    through_ms: int
+    last_7_days: WetHoursWindow
+    last_30_days: WetHoursWindow
+    days: Tuple[WetHoursDay, ...]
+
+
+UsualWetBand = Literal["percentile", "range"]
+
+
+@dataclass(frozen=True)
+class EarlierWetYear:
+    """
+    One earlier water year that covers this date, for usual wet hours.
+
+    :param water_year: Named by the year it ends in.
+    :param wet_hours: Its own wet hours from Oct 1 to this date.
+    :param countable_hours: Its own countable hours over the same span: at
+        least half the span's hours, or the year would not count.
+    :param usual_hours: Its wet share (`wet_hours` of `countable_hours`)
+        times this year's countable hours, in whole hours: the wet hours
+        this year would have if it were as wet as that year.
+    """
+
+    water_year: int
+    wet_hours: int
+    countable_hours: int
+    usual_hours: int
+
+
+@dataclass(frozen=True)
+class UsualWetHours:
+    """
+    Usual wet hours to date (GLOSSARY): earlier water years' wet share from
+    Oct 1 to this date, times this year's countable hours (#663).
+
+    An earlier year counts only if at least half its hours from Oct 1 to
+    this date are countable. With 3 or more such years the usual is the
+    25th to 75th percentile band of their shares; with 1 or 2, the plain
+    values and no band. With none there is no `UsualWetHours`.
+
+    :param years: N, the earlier water years it rests on; at least 1.
+    :param earlier: Each of those years, oldest first.
+    :param low_hours: The band's low end, the 25th percentile, in whole
+        hours; None below 3 years.
+    :param high_hours: The band's high end, the 75th percentile; None below
+        3 years.
+    :param band: What the site calls the band: "percentile" from 4 years,
+        "range" (of N earlier years, not a percentile) at 3; None below 3.
+    """
+
+    years: int
+    earlier: Tuple[EarlierWetYear, ...]
+    low_hours: Optional[int]
+    high_hours: Optional[int]
+    band: Optional[UsualWetBand]
+
+
+@dataclass(frozen=True)
+class WetHoursToDate:
+    """
+    This water year's wet hours since Oct 1 against usual wet hours to
+    date (#663). Every hour is judged by the one wet-hour helper
+    (`lookout.core.wet_hours`), over whole station-local hours ending, as
+    the Overview's windows do (`WetHours.through_ms`), at the start of the
+    hour in progress.
+
+    :param water_year: This water year, named by the year it ends in.
+    :param first_day: Its Oct 1, "YYYY-MM-DD".
+    :param through_ms: The span's end, exclusive: the start of the hour in
+        progress.
+    :param hours: Every hour from Oct 1 to `through_ms`.
+    :param wet_hours: Its countable hours with at least one tip.
+    :param countable_hours: Its countable hours.
+    :param missing_hours: `hours` less `countable_hours`: never wet, never
+        dry.
+    :param usual: Usual wet hours to date; None when no earlier water year
+        covers this date.
+    """
+
+    water_year: int
+    first_day: str
+    through_ms: int
+    hours: int
+    wet_hours: int
+    countable_hours: int
+    missing_hours: int
+    usual: Optional[UsualWetHours]
+
+
+WetModeName = Literal["wet", "dry"]
+WetModeDecider = Literal["weather", "calendar"]
+
+
+@dataclass(frozen=True)
+class WetMode:
+    """
+    Today's wet mode or dry mode (GLOSSARY wet mode, #658): the rain
+    surfaces tell how much of the time it has rained, or how long it has
+    been dry. Replayed over the archive alone (`lookout.core.wet_mode`), so
+    a rebuild gives the same mode; the site orders the mosaic by it.
+
+    :param mode: "wet" or "dry".
+    :param decided_by: "weather" (the wet share of the days before today)
+        or "calendar" (fewer than half the last 14 days' hours countable:
+        Nov 1 to Apr 30 is wet).
+    """
+
+    mode: WetModeName
+    decided_by: WetModeDecider
+
+
+@dataclass(frozen=True)
+class TileTitles:
+    """
+    The title text of each tile whose title follows its mode or its data
+    (GLOSSARY tile title, #647). The tile, its zoom heading and the sources
+    footer read the same text. A tile not named here keeps its fixed name.
+
+    :param wet_or_dry: The wet-or-dry tile: "Wet hours" in wet mode, "Dry
+        spell" in dry mode.
+    :param ten_days: The ten-day temperature tile, named by its number
+        (`TemperatureContext.ten_day_highs`): "Highs over usual", "Highs
+        under usual" or "Highs at usual"; "Gap in record" when a day the
+        record covers is missing from the window, so a gap never reads as
+        level; "Last 10 days" when there is nothing to compare. Added in
+        version 4 (#665, ADR-0008).
+    """
+
+    wet_or_dry: str
+    ten_days: str
+
+
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
 FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
 FeatureDirection = Literal["above", "below"]
@@ -478,10 +731,15 @@ class TenDayHighs:
         never -0.
     :param days: How many days it is over: those with both a high and a
         usual high, 1 to 10.
+    :param gap: Whether a day the record covers has no low or high (the
+        days the tile's chart hatches). The tile then reads "Gap in record"
+        and shows no number, so a gap never reads as level (#665). Added in
+        version 4 (ADR-0008).
     """
 
     delta_f: int
     days: int
+    gap: bool
 
 
 @dataclass(frozen=True)
@@ -780,6 +1038,52 @@ class EventCurve:
 
 
 @dataclass(frozen=True)
+class EventCounts:
+    """
+    The Rain Events page's headline: "10 events this water year · 3 in the
+    last 7 days" (#666).
+
+    Both count Event Catalog events by their start, the live one included,
+    as `EventSeason` does: an event counts whole in the water year it
+    started in, so the recent count is part of the water year's unless the
+    water year turned within the 7 days.
+
+    :param water_year: The build time's water year, named by its end.
+    :param events: The events that started in it: its season's `stats.count`,
+        and 0 before its first.
+    :param last_7_days: The events that started in the 7 days (168 h)
+        before the build time.
+    """
+
+    water_year: int
+    events: int
+    last_7_days: int
+
+
+@dataclass(frozen=True)
+class ScatterYear:
+    """
+    One water year's row of the Rain Events scatter (#666): its completed
+    events, newest first, as parallel arrays.
+
+    From the Event Catalog only: the live event is no point, and a point's
+    total and category are the catalog's (a live row's are the live
+    reading's).
+
+    :param water_year: The water year, named by its end.
+    :param start_ms: Each event's start; its key.
+    :param total_in: Each event's catalog total, to 0.01 in.
+    :param category: Each event's category (`lookout.core.event_category`),
+        from its catalog total and peak rate: the dot's size.
+    """
+
+    water_year: int
+    start_ms: Tuple[int, ...]
+    total_in: Tuple[float, ...]
+    category: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class RainEvents:
     """
     The Rain Events tab: the Event Catalog's events and their summaries.
@@ -792,12 +1096,18 @@ class RainEvents:
         event rain), live stitched; its curve file is written only once the
         catalog closes it. None when no event is live, even while the catalog
         still holds one open (#147): that event's file follows its close.
+    :param counts: The page's headline counts (#666).
+    :param scatter: The scatter's rows, newest first: this water year and
+        the three before it, back to the catalog's oldest event's water year,
+        a year with no events an empty row. Empty with no catalog.
     """
 
     events: Tuple[RainEventRow, ...]
     all_time: EventStats
     seasons: Tuple[EventSeason, ...]
     open_curve: Optional[EventCurve]
+    counts: EventCounts
+    scatter: Tuple[ScatterYear, ...]
 
 
 @dataclass(frozen=True)
@@ -945,6 +1255,12 @@ class WaterYearCurve:
     :param to_date_in: The value at `RainTab.day_index`, the place of today,
         so years compare to the same date; None when it is invalid or the
         year has not reached it.
+    :param reason: Why each place's day is not in the record for rain, the
+        rain day kind's reason as `RecentRain.reason` gives it ("gap",
+        "before_archive", ...); None for a counted day (#662). Feb 29 folds
+        into Feb 28's place, missing when either day is. A version 4
+        addition (ADR-0008): the site reads it as absent from an older
+        snapshot.
     """
 
     water_year: int
@@ -954,6 +1270,10 @@ class WaterYearCurve:
     status: GapStatus
     total_in: Optional[float]
     to_date_in: Optional[float]
+    reason: Tuple[Optional[GapReason], ...]
+
+
+Verdict = Literal["wetter", "drier", "about the same"]
 
 
 @dataclass(frozen=True)
@@ -963,19 +1283,83 @@ class UsualToDate:
 
     The usual is the median, over the earlier water years whose curve has a
     value at `RainTab.day_index` (`WaterYearCurve.to_date_in`: the window
-    from Oct 1 to this date is valid or prorated), of that value. An even
-    count of years takes the mean of the middle two.
+    from Oct 1 to this date is valid or prorated) and that cover this date
+    (`UsualWetHours.earlier`: at least half their hours from Oct 1 to this
+    date countable, #647), of that value. An even count of years takes the
+    mean of the middle two.
 
     :param usual_in: The usual rain by this date.
     :param years: How many earlier water years the usual rests on; at least 1.
     :param percent: This year's `to_date_in` as a percent of `usual_in`,
         rounded to a whole percent; None when this year's value is None or
         the usual is 0.
+    :param verdict: The water year's verdict (#640): "about the same" when
+        `percent` is within 15 of 100, else "wetter" or "drier"; read from
+        the published percent, so the two never disagree. Against a usual
+        of 0, any rain is "wetter" and none "about the same". None when this
+        year's value is None. Absent (None) from a snapshot written before
+        R1 of #647.
+    :param water_years: The earlier water years the usual rests on, oldest
+        first, so a finding can name them; `years` of them. Empty in a
+        snapshot written before R1 of #647.
     """
 
     usual_in: float
     years: int
     percent: Optional[int]
+    verdict: Optional[Verdict] = None
+    water_years: Tuple[int, ...] = ()
+
+
+StripMark = Literal["above usual range", "below usual range"]
+StripBand = Literal["percentile", "range"]
+
+
+@dataclass(frozen=True)
+class EarlierWindowRain:
+    """
+    One earlier year's rain over the same window (#640).
+
+    :param last_day: That window's last day, "YYYY-MM-DD": this window's,
+        a whole number of years back (Feb 29 as Feb 28).
+    :param rain_in: Its rain; prorated when its window is.
+    """
+
+    last_day: str
+    rain_in: float
+
+
+@dataclass(frozen=True)
+class StripWindow:
+    """
+    One window of the Rain tab's window strip (#640, spec #647): its rain
+    against its usual range from the same window in earlier years.
+
+    An earlier year counts when its window is valid or prorated by the gap
+    rules; the water year's counts exactly when `UsualToDate` does. With 3
+    or more such years the range is their 25th to 75th percentile; with 1
+    or 2 it spans their plain values.
+
+    :param key: The window, as `RainTab.windows` names it.
+    :param rain_in: Its rain, `RainWindow.total_in`; None when invalid.
+    :param years: N, the earlier years the range rests on.
+    :param earlier: Each of those years' rain, oldest first.
+    :param low_in: The range's low end; None with no earlier year.
+    :param high_in: The range's high end; None with no earlier year.
+    :param band: What the site calls the range: "percentile" from 4 years,
+        "range" (of N earlier years) at 3; None below 3, the plain values.
+    :param mark: "above usual range", "below usual range" or None, by
+        GLOSSARY "usual range": words distinct from the verdict's.
+    """
+
+    key: str
+    rain_in: Optional[float]
+    years: int
+    earlier: Tuple[EarlierWindowRain, ...]
+    low_in: Optional[float]
+    high_in: Optional[float]
+    band: Optional[StripBand]
+    mark: Optional[StripMark]
 
 
 @dataclass(frozen=True)
@@ -990,8 +1374,14 @@ class RainTab:
     :param dry_spells: The current dry spell against the record.
     :param day_index: Today's place in the water-year curves.
     :param water_years: Every water year the archive reaches, oldest first.
-    :param usual_to_date: This water year's rain to date against the usual;
-        None when no earlier water year has a value at `day_index`.
+    :param usual_to_date: This water year's rain to date against the usual,
+        with its verdict; None when no earlier water year both has a value
+        at `day_index` and covers this date.
+    :param wet_hours_to_date: Wet hours since Oct 1 against usual wet hours
+        to date (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663); the
+        Rain tab reads it in place of `recent.wet_hours`.
+    :param window_strip: Each window's rain against its usual range, in
+        `windows` order (#640); empty in a snapshot written before R1.
     """
 
     windows: Tuple[RainWindow, ...]
@@ -1000,6 +1390,8 @@ class RainTab:
     day_index: int
     water_years: Tuple[WaterYearCurve, ...]
     usual_to_date: Optional[UsualToDate]
+    wet_hours_to_date: Optional[WetHoursToDate] = None
+    window_strip: Tuple[StripWindow, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1592,6 +1984,8 @@ class Snapshot:
     :param rain_events: The Rain Events tab's list and summaries.
     :param dry_spell: Days since it last rained and the usual dry spell; the
         one value the feature, the widget view and the Rain tab read.
+    :param rain_now: Last rain and the now story (ADR-0011): the one value
+        the Feature Rule's rain clause reads.
     :param rain_tab: The Rain tab's data.
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
@@ -1600,7 +1994,8 @@ class Snapshot:
         catalog.
     :param sun_moon: The sun and moon today, or None when the station has
         no coordinates.
-    :param feature: The feature, by the Feature Rule (ADR-0009).
+    :param feature: The feature, by the Feature Rule (ADR-0009, its rain
+        clause per ADR-0011).
     :param widget_view: Which view a widget shows now: "rain_event",
         "dry_spell" or "temperature_ranges", the feature mapped
         (`lookout.snapshot.widget`).
@@ -1616,6 +2011,13 @@ class Snapshot:
     :param outdoor_trace: The outdoor pressure and humidity over the last 24
         hours, hourly, for their tiles' mini charts; None without an
         observation (`lookout.snapshot.trace`).
+    :param wet_hours: The wet hours over the last 7 and 30 days and the
+        30-day strip (`lookout.snapshot.wet_hours`).
+    :param wet_mode: Today's wet or dry mode and what decided it
+        (`lookout.snapshot.wet_mode`).
+    :param tile_titles: The title text of the tiles whose title follows
+        their mode or data (`lookout.snapshot.wet_mode` for the wet-or-dry
+        tile).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1631,6 +2033,7 @@ class Snapshot:
     condition_ribbon: Optional[ConditionRibbon]
     rain_events: RainEvents
     dry_spell: DrySpellNow
+    rain_now: RainNow
     rain_tab: RainTab
     temperature_context: TemperatureContext
     almanac: Almanac
@@ -1643,6 +2046,9 @@ class Snapshot:
     indoor: Tuple[IndoorSensor, ...]
     battery_flags: Tuple[BatteryFlag, ...]
     outdoor_trace: Optional[OutdoorTrace]
+    wet_hours: WetHours
+    wet_mode: WetMode
+    tile_titles: TileTitles
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

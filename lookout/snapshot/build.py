@@ -34,12 +34,16 @@ from lookout.snapshot.indoor import battery_flags, indoor_sensors
 from lookout.snapshot.depth import record_depth
 from lookout.snapshot.dry_spell import completed_dry_spells, dry_spell
 from lookout.snapshot.model import Feature, Snapshot, Station
+from lookout.snapshot.rain_now import rain_now
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
 from lookout.snapshot.trace import outdoor_trace
+from lookout.snapshot.titles import tile_titles
+from lookout.snapshot.wet_hours import wet_hours
+from lookout.snapshot.wet_mode import wet_mode
 from lookout.snapshot.widget import widget_view
 from lookout.snapshot.wind import wind_rose
 
@@ -86,9 +90,9 @@ def build_snapshot(
     active = active_rain_event(event_catalog, current, observed_at_ms)
     days = count_days(archive, current, clock)
     dry = dry_spell(current, observed_at_ms, completed_dry_spells(days))
+    rain = rain_now(stitched, event_catalog, active, clock)
     picked = feature(
-        event_catalog,
-        active,
+        rain,
         stitched,
         current,
         observed_at_ms,
@@ -98,6 +102,8 @@ def build_snapshot(
         previous_feature,
     )
     indoor = indoor_sensors(stitched)
+    mode = wet_mode(stitched, clock)
+    temperature = temperature_context(stitched, current, observed_at_ms, days.coverage)
 
     return Snapshot(
         station=station,
@@ -117,10 +123,9 @@ def build_snapshot(
             days.rain.water_year_status,
         ),
         dry_spell=dry,
+        rain_now=rain,
         rain_tab=rain_tab(stitched, days),
-        temperature_context=temperature_context(
-            stitched, current, observed_at_ms, days.coverage
-        ),
+        temperature_context=temperature,
         almanac=almanac(days),
         solar_tab=solar_tab(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
@@ -133,4 +138,7 @@ def build_snapshot(
         indoor=indoor,
         battery_flags=battery_flags(stitched),
         outdoor_trace=outdoor_trace(stitched),
+        wet_hours=wet_hours(stitched, clock),
+        wet_mode=mode,
+        tile_titles=tile_titles(mode, temperature.ten_day_highs),
     )

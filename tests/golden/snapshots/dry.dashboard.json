@@ -749,11 +749,38 @@
         }
       }
     ],
-    "open_curve": null
+    "open_curve": null,
+    "counts": {
+      "water_year": 2026,
+      "events": 1,
+      "last_7_days": 1
+    },
+    "scatter": [
+      {
+        "water_year": 2026,
+        "start_ms": [
+          1763366400000
+        ],
+        "total_in": [
+          0.67
+        ],
+        "category": [
+          "rain"
+        ]
+      }
+    ]
   },
   "dry_spell": {
     "days_since_rain": 1.62,
     "usual_days": null
+  },
+  "rain_now": {
+    "last_rain_ms": 1763398500000,
+    "raining": false,
+    "rate_in_hr": null,
+    "event_start_ms": null,
+    "event_total_in": null,
+    "last_3_hours": null
   },
   "rain_tab": {
     "windows": [
@@ -3514,10 +3541,144 @@
           "shown": false
         },
         "total_in": null,
-        "to_date_in": null
+        "to_date_in": null,
+        "reason": [
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          null,
+          "not_archived",
+          "not_archived"
+        ]
       }
     ],
-    "usual_to_date": null
+    "usual_to_date": null,
+    "wet_hours_to_date": {
+      "water_year": 2026,
+      "first_day": "2025-10-01",
+      "through_ms": 1763539200000,
+      "hours": 1177,
+      "wet_hours": 8,
+      "countable_hours": 43,
+      "missing_hours": 1134,
+      "usual": null
+    },
+    "window_strip": [
+      {
+        "key": "today",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "yesterday",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "7d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "30d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "90d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "365d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "water_year",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      }
+    ]
   },
   "temperature_context": {
     "now": 39.4,
@@ -14420,6 +14581,185 @@
       null,
       99.0
     ]
+  },
+  "wet_hours": {
+    "through_ms": 1763539200000,
+    "last_7_days": {
+      "days": 7,
+      "hours": 168,
+      "wet_hours": 8,
+      "countable_hours": 43,
+      "missing_hours": 125,
+      "missing_days": 5
+    },
+    "last_30_days": {
+      "days": 30,
+      "hours": 720,
+      "wet_hours": 8,
+      "countable_hours": 43,
+      "missing_hours": 677,
+      "missing_days": 28
+    },
+    "days": [
+      {
+        "day": "2025-10-21",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-22",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-23",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-24",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-25",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-26",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-27",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-28",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-29",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-30",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-10-31",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-01",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-02",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-03",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-04",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-05",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-06",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-07",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-08",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-09",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-10",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-11",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-12",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-13",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-14",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-15",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-16",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-11-17",
+        "wet_hours": 8,
+        "countable_hours": 23
+      },
+      {
+        "day": "2025-11-18",
+        "wet_hours": 0,
+        "countable_hours": 20
+      },
+      {
+        "day": "2025-11-19",
+        "wet_hours": null,
+        "countable_hours": null
+      }
+    ]
+  },
+  "wet_mode": {
+    "mode": "wet",
+    "decided_by": "calendar"
+  },
+  "tile_titles": {
+    "wet_or_dry": "Wet hours",
+    "ten_days": "Last 10 days"
   },
   "stale_catalogs": []
 }

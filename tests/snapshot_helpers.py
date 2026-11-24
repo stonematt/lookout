@@ -54,6 +54,15 @@ def ms(when: str) -> int:
     return int(pd.Timestamp(when).value // 10**6)
 
 
+def at_ms(milliseconds: int) -> str:
+    """An ISO-8601 UTC time from epoch ms, as `build` takes it."""
+    return pd.Timestamp(milliseconds, unit="ms", tz="UTC").isoformat()
+
+
+# The SCENARIO station's last tip of event 3 (rain 22:00Z on 8 Jan to 02:00Z).
+EVENT_3_LAST_TIP = ms("2026-01-09T01:55:00Z")
+
+
 def live_row(df: pd.DataFrame, when: str) -> Dict:
     """The archive row at `when`, shaped as Ambient's `lastData`."""
     return to_ambient_records(df[df["dateutc"] == ms(when)])[0]
