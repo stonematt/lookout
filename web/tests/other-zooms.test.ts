@@ -80,7 +80,8 @@ const words = (el: Element | null | undefined) =>
   (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 
 const MINE = [
-  ["last-10-days", "Last 10 days"],
+  // Titled by its number, the snapshot's `tile_titles.ten_days` (#665).
+  ["last-10-days", "Highs over usual"],
   ["pressure", "Pressure"],
   ["humidity", "Humidity"],
   ["sun", "Sun today"],
@@ -179,6 +180,26 @@ describe("the Last 10 days zoom", () => {
     expect(words(days.querySelector("[data-part=finding]"))).toMatch(/^The last ten days/);
     expect(days.querySelector("[data-part=days-chart] svg")).not.toBeNull();
     expect(days.querySelector("details")).toBeNull();
+  });
+
+  it("is headed by the tile's title from the snapshot, the window under its number", async () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    doc.tile_titles.ten_days = "Gap in record";
+    doc.temperature_context.ten_day_highs.gap = true;
+    await boot("#overview/last-10-days", parseDashboard(doc));
+    const el = zoom()!;
+    expect(words(el.querySelector(".zoom-heading"))).toBe("Gap in record");
+    expect(el.querySelector(".zoom-value")).toBeNull();
+    expect(words(el.querySelector("[data-part=delta]"))).toBe("last 10 days");
+  });
+
+  it("keeps its fixed name for a snapshot without the title (N−1)", async () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    delete doc.tile_titles.ten_days;
+    await boot("#overview/last-10-days", parseDashboard(doc));
+    const el = zoom()!;
+    expect(words(el.querySelector(".zoom-heading"))).toBe("Last 10 days");
+    expect(words(el.querySelector("[data-part=delta]"))).toBe("highs over usual");
   });
 });
 

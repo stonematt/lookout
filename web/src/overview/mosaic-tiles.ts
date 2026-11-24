@@ -16,7 +16,10 @@
  *   the water-year curves, cropped to the season so far.
  * - Last 10 days: the ten days' highs against their usual highs, a mean
  *   (`temperature_context.ten_day_highs`, #540); its mini chart is each
- *   day's low to high over the usual for its date.
+ *   day's low to high over the usual for its date. Its title is the
+ *   snapshot's (`tile_titles.ten_days`, #665): "Highs over usual" with
+ *   "last 10 days" under the number, or "Gap in record"; a snapshot without
+ *   it keeps "Last 10 days" and "highs over usual" under the number.
  * - With nothing to compare yet (a new station), Rain and Last 10 days show
  *   the snapshot's 7-day window instead, named "last 7 days" (#605).
  * - Dry spell: the days since it last rained against the usual dry spell
@@ -65,6 +68,8 @@ const ROW_LABEL_PX = 46;
 
 /** The delta naming a number as the 7-day window's, when nothing compares (#605). */
 const LAST_7_DAYS = "last 7 days";
+/** The ten-day tile's window, under its number when the title names it. */
+const LAST_10_DAYS = "last 10 days";
 
 // ---------- Temperature ----------
 
@@ -343,7 +348,11 @@ function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   return svg;
 }
 
-/** The ten-day highs' side of usual, in words: "highs over usual". */
+/**
+ * The ten-day highs' side of usual, in words: "highs over usual". Only for
+ * a document without `tile_titles.ten_days`, whose title Python words by
+ * the same sign (`lookout/snapshot/titles.py`).
+ */
 function highsWords(deltaF: number): string {
   return `highs ${deltaF > 0 ? "over" : deltaF < 0 ? "under" : "at"} usual`;
 }
@@ -358,6 +367,8 @@ export const tenDaysTile: MosaicTile = {
   slug: "last-10-days",
   depth: "last_10_days",
   title: "Last 10 days",
+  // Named by its number, "Highs over usual", with the window under it.
+  titleFrom: (snapshot) => snapshot.tile_titles?.ten_days,
   zoomName: "last 10 days",
   read(snapshot) {
     const highs = snapshot.temperature_context.ten_day_highs ?? null;
@@ -373,9 +384,13 @@ export const tenDaysTile: MosaicTile = {
         delta: `low to high, ${LAST_7_DAYS}`,
       };
     }
+    // The snapshot's title names the highs' side of usual (#665), so the
+    // window goes under the number; without one, today's words. A gap is
+    // the title alone, never a number.
+    if (highs.gap) return { value: null, delta: LAST_10_DAYS };
     return {
       value: `${signed(highs.delta_f, 0, { plus: true })}°`,
-      delta: highsWords(highs.delta_f),
+      delta: snapshot.tile_titles?.ten_days ? LAST_10_DAYS : highsWords(highs.delta_f),
     };
   },
   chart: tenDaysChart,

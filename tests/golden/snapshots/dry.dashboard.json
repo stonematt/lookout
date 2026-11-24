@@ -14705,7 +14705,8 @@
     "decided_by": "calendar"
   },
   "tile_titles": {
-    "wet_or_dry": "Wet hours"
+    "wet_or_dry": "Wet hours",
+    "ten_days": "Last 10 days"
   },
   "stale_catalogs": []
 }
