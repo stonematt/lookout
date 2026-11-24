@@ -3,8 +3,9 @@ The feature (ADR-0009, #464), through `build_snapshot`.
 
 The Feature Rule, checked in order, first that holds:
 
-1. rain: an event is live, or the newest event ended at most 12 h before
-   the build time; it names that event by `event_start_ms` (#523);
+1. rain: last rain (the counter's last tip) is within 3 h of the build time
+   (ADR-0011); it names the now story's event by `event_start_ms` (#523);
+   last rain's own edges are in `test_snapshot_rain_now`;
 2. unusual: a reading (temperature, humidity, pressure, solar; never wind
    gust, #533) is below the 10th or above the 90th percentile of its
    readings at this hour over the usual window's earlier years; skipped
@@ -140,6 +141,18 @@ def usual_tempf(share: float) -> float:
     """The seasoned usual temperature at 15:00 at quantile `share`."""
     values = hour_readings(seasoned_archive(), USUAL_DAYS, HOUR, "tempf")
     return float(np.quantile(values, share))
+
+
+LAST_TIP = ms("2026-01-09T01:55:00Z")
+"""The SCENARIO station's last tip of event 3 (22:00Z to 02:00Z)."""
+
+RECENT_RAIN = "2026-05-20T19:30:00Z"
+"""An hour of rain on the seasoned station ending 2.5 h before its build."""
+
+
+def at_ms(milliseconds: int) -> str:
+    """An ISO time from epoch ms."""
+    return pd.Timestamp(milliseconds, unit="ms", tz="UTC").isoformat()
 
 
 # Thu Jan 8, 10:30 pm local: mid-hour, so no reading sits at its hour's edge.
@@ -313,34 +326,31 @@ class TestRain:
         assert snapshot.widget_view == "rain_event"
 
     def test_rain_beats_an_unusual_reading(self):
-        # Rain from 11:00 to 12:00 PDT today, three hours before the build.
-        rain = SEASONED_RAIN + (RainSpell("2026-05-20T18:00:00Z", 1, 0.1),)
+        # Rain from 12:30 to 13:30 PDT today, under three hours before the build.
+        rain = SEASONED_RAIN + (RainSpell(RECENT_RAIN, 1, 0.1),)
         snapshot = seasoned({"tempf": SEASONED_PUSHED_TEMPF}, rain=rain)
 
         assert snapshot.feature.kind == "rain"
         assert snapshot.widget_view == "rain_event"
 
-    def test_an_event_that_ended_12_hours_before_the_build_still_holds(self):
-        archive = scenario_until("2026-01-09T12:00:00Z")
-        catalog = event_catalog(archive)
-        end = int(pd.Timestamp(catalog["end_time"].max()).value // 10**6)
-        at = pd.Timestamp(end + 12 * 3_600_000, unit="ms", tz="UTC").isoformat()
+    def test_rain_holds_3_hours_after_the_last_tip(self):
+        built = LAST_TIP + 3 * HOUR_MS
+        archive = scenario_until(at_ms(built))
 
-        snapshot = build(archive, None, at, catalog)
+        snapshot = build(archive, None, at_ms(built), event_catalog(archive))
 
-        assert snapshot.active_rain_event is None
+        assert snapshot.rain_now.last_rain_ms == LAST_TIP
         assert snapshot.feature.kind == "rain"
         assert snapshot.widget_view == "rain_event"
 
-    def test_one_millisecond_past_12_hours_it_does_not(self):
-        # Measured from the build time: the archive's last row is hours older.
-        archive = scenario_until("2026-01-09T12:00:00Z")
-        catalog = event_catalog(archive)
-        end = int(pd.Timestamp(catalog["end_time"].max()).value // 10**6)
-        at = pd.Timestamp(end + 12 * 3_600_000 + 1, unit="ms", tz="UTC").isoformat()
+    def test_one_millisecond_past_3_hours_it_does_not(self):
+        # Ambient's event 3 is still live: the event no longer decides.
+        built = LAST_TIP + 3 * HOUR_MS + 1
+        archive = scenario_until(at_ms(built))
 
-        snapshot = build(archive, None, at, catalog)
+        snapshot = build(archive, None, at_ms(built), event_catalog(archive))
 
+        assert snapshot.active_rain_event is not None
         assert snapshot.feature.kind == "quiet"
         assert snapshot.widget_view == "temperature_ranges"
 
@@ -357,10 +367,16 @@ class TestRainNamesItsEvent:
         assert snapshot.feature.event_start_ms == ms("2026-01-08T22:00:00Z")  # event 3
 
     def test_an_ended_event_is_named_by_its_start(self):
-        # Event 3 rained 22:00Z-02:00Z; six hours after, nothing is live.
-        archive = scenario_until("2026-01-09T12:00:00Z")
+        # Ambient ends this station's events after one dry hour.
+        spell = RainSpell("2026-01-08T22:00:00Z", 1, 0.12)
+        archive = build_archive(
+            "2026-01-07T08:00:00Z",
+            "2026-01-09T01:00:00Z",
+            rain=(spell,),
+            event_reset_hours=1.0,
+        )
 
-        snapshot = build(archive, None, "2026-01-09T08:00:00Z", event_catalog(archive))
+        snapshot = build(archive, None, "2026-01-09T01:00:00Z", event_catalog(archive))
 
         assert snapshot.active_rain_event is None
         assert snapshot.feature.kind == "rain"
@@ -373,22 +389,20 @@ class TestRainNamesItsEvent:
         assert len(named) == 1
         assert not named[0].live
 
-    def test_the_newest_ended_event_is_named_not_an_earlier_one(self):
-        # Event 2 (07 Jan 04:00Z-14:00Z) ended after event 1; event 3 is to come.
-        archive = scenario_until("2026-01-07T20:00:00Z")
+    def test_the_event_holding_last_rain_is_named_not_an_earlier_one(self):
+        # Event 2 (07 Jan from 04:00Z) last tipped at 13:55Z; event 1 is older.
+        archive = scenario_until("2026-01-07T16:00:00Z")
 
-        snapshot = build(archive, None, "2026-01-07T20:00:00Z", event_catalog(archive))
+        snapshot = build(archive, None, "2026-01-07T16:00:00Z", event_catalog(archive))
 
         assert snapshot.feature.kind == "rain"
         assert snapshot.feature.event_start_ms == ms("2026-01-07T04:00:00Z")
 
     def test_a_feature_past_the_rain_hours_names_no_event(self):
-        archive = scenario_until("2026-01-09T12:00:00Z")
-        catalog = event_catalog(archive)
-        end = int(pd.Timestamp(catalog["end_time"].max()).value // 10**6)
-        at = pd.Timestamp(end + 12 * 3_600_000 + 1, unit="ms", tz="UTC").isoformat()
+        built = LAST_TIP + 3 * HOUR_MS + 1
+        archive = scenario_until(at_ms(built))
 
-        snapshot = build(archive, None, at, catalog)
+        snapshot = build(archive, None, at_ms(built), event_catalog(archive))
 
         assert snapshot.feature.kind == "quiet"
         assert snapshot.feature.event_start_ms is None
@@ -774,7 +788,7 @@ class TestDirection:
 
 class TestRainTakesOver:
     def test_rain_takes_over_inside_a_hold(self):
-        rain = SEASONED_RAIN + (RainSpell("2026-05-20T18:00:00Z", 1, 0.1),)
+        rain = SEASONED_RAIN + (RainSpell(RECENT_RAIN, 1, 0.1),)
 
         snapshot = seasoned(rain=rain, previous=chosen("unusual", "humidity"))
 
@@ -784,7 +798,7 @@ class TestRainTakesOver:
         assert snapshot.widget_view == "rain_event"
 
     def test_rain_is_not_held_once_its_rule_stops_holding(self):
-        # The rain rule's own 12 hours after an event is its hold.
+        # The rain rule's own 3 hours after last rain are its hold.
         snapshot = seasoned(previous=chosen("rain"))
 
         assert snapshot.feature.kind == "quiet"

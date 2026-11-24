@@ -49,11 +49,24 @@ reader, so a pause between showers never reads as a dry spell.
   less (back-test on the Lookout Post archive, 2026-11-23), which sets
   "raining", not the feature window.
 
+## Salmon Run
+
+The 30-minute and 3-hour thresholds are Lookout Post's, and nobody has
+checked them on Salmon Run. It had 21 days of data on 2026-11-23, and 87% of
+its gaps between tips inside a rainy period are 30 minutes or less, against
+Lookout Post's 92%: drizzle there may pause longer between tips. Re-check
+both thresholds on Salmon Run's own archive once it holds 90 days (about
+2027-01-31), and record the outcome here. Until its console time zone is set
+(#651), its rain numbers are suspect anyway.
+
 ## Consequences
 
-- The snapshot gains last rain, and the feature's rain values change. This
-  ships inside the schema 5 bump for #647 (ADR-0008: the site reads 5
-  first, then the refresh run writes 5).
+- The snapshot gains last rain and the now story (`rain_now`: last rain,
+  raining, the rate, the event's start and total, #659), and the feature's
+  rain values change. The new fields are additions inside version 4
+  (ADR-0008: adding a field keeps the version); the site reads a document
+  without them as today's view. The rest of #647's shape changes ship in
+  the schema 5 bump.
 - `DrySpellNow.days_since_rain` stops reading `lastRain` and counts whole
   dry days.
 - The widget view follows the feature, so widgets show rain on the same

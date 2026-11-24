@@ -1,17 +1,17 @@
 """
-feature.py: The feature, picked by the Feature Rule (ADR-0009).
+feature.py: The feature, picked by the Feature Rule (ADR-0009, ADR-0011).
 
 One rule decides what matters now; the Overview's feature tile shows it and
 the widget view is derived from it (`lookout.snapshot.widget`). Checked in
 order, the first that holds is the feature:
 
-1. **rain**: an event is live (the build's `ActiveRainEvent`), or the
-   newest Event Catalog event ended at most `RAIN_HOURS` before the build
-   time (`StationClock.now_ms`). "Ended" is the catalog's `end_time`
-   (`lookout.snapshot.events.newest_event`).
-   The feature names the event it holds on by `event_start_ms`, the key of
-   its `rain_events` row: the live event when one is live, else that newest
-   ended event, so the site never picks the event itself (ADR-0003).
+1. **rain**: **last rain** is within 3 hours of the build time
+   (`StationClock.now_ms`): the snapshot's `RainNow`, read through
+   `lookout.snapshot.rain_now.rain_leads` (ADR-0011). The rain event no
+   longer decides it. The feature names the now story's event by
+   `event_start_ms`, the key of its `rain_events` row (the live event, else
+   the newest ended event that holds last rain; None when neither does), so
+   the site never picks the event itself (ADR-0003).
 2. **unusual**: a current reading is below the `LOW`th or above the `HIGH`th
    percentile of its readings at the newest observation's station-local
    hour, over the usual window for that date (`usual_window`, the ±7 days
@@ -39,8 +39,8 @@ reading; `since_ms` is the build time of the build that first chose it.
 When the rule picks a different subject from the last published feature's,
 and that subject was chosen under `HOLD_HOURS` before the build time, the
 last subject is kept and marked `held`, unless the rule now picks rain,
-which takes over at once. Rain itself is never held: its rule's
-`RAIN_HOURS` after an event already is its hold. A held feature's values
+which takes over at once. Rain itself is never held: its rule's 3 hours
+after last rain already are its hold. A held feature's values
 are recomputed this build: a held unusual reading carries its value and
 percentile as judged now (rounded plainly when back inside the band, with
 `outside_usual` False), and keeps the `direction` it was chosen with
@@ -52,8 +52,8 @@ stands. A last feature without `since_ms` (published before the hold) is no
 last feature.
 
 Functions:
-- feature(event_catalog, active, stitched, current, observed_at_ms, coverage,
-  dry, clock, previous): The `Feature` for one snapshot.
+- feature(rain, stitched, current, observed_at_ms, coverage, dry, clock,
+  previous): The `Feature` for one snapshot.
 - previous_feature(dashboard): The last published feature, from the last
   published dashboard document, or None.
 """
@@ -66,19 +66,18 @@ import numpy as np
 import pandas as pd
 
 from lookout.snapshot.clock import StationClock
-from lookout.snapshot.current import to_ms
-from lookout.snapshot.events import RAIN_HOURS, newest_event
 from lookout.snapshot.gaps import ArchiveCoverage
 from lookout.snapshot.model import (
-    ActiveRainEvent,
     DrySpellNow,
     Feature,
     FeatureDirection,
     FeatureKind,
     FeatureReading,
     FeatureUnit,
+    RainNow,
     SnapshotConditions,
 )
+from lookout.snapshot.rain_now import rain_leads
 from lookout.snapshot.temperature import usual_readings, usual_window
 from lookout.utils.dateutc import HOUR_MS, is_fresh, local_time
 
@@ -166,37 +165,25 @@ def _bare(kind: FeatureKind, since_ms: int, held: bool) -> Feature:
     )
 
 
-def _rain_feature(
-    event_catalog: Optional[pd.DataFrame],
-    active: Optional[ActiveRainEvent],
-    clock: StationClock,
-) -> Optional[Feature]:
+def _rain_feature(rain: RainNow, clock: StationClock) -> Optional[Feature]:
     """
-    The rain rule: an event is live, or the newest ended within `RAIN_HOURS`.
+    The rain rule: last rain is within 3 hours of the build time.
 
-    :param event_catalog: The Event Catalog, or None.
-    :param active: The active rain event, or None.
+    :param rain: The snapshot's `RainNow`.
     :param clock: The build's clock; the hours are counted to its `now`.
-    :return: The rain feature, chosen now, naming the event the rule holds
-        on (the live event, else the newest ended one) by its `start_ms`;
-        None when the rule does not hold.
+    :return: The rain feature, chosen now, naming the now story's event by
+        its `start_ms` (None when no event holds last rain); None when the
+        rule does not hold.
     """
-    if active is not None:
-        start_ms: Optional[int] = active.start_ms
-    else:
-        newest = newest_event(event_catalog, clock.now_ms)
-        if newest is None:
-            return None
-        if (clock.now_ms - to_ms(newest["end_time"])) / HOUR_MS > RAIN_HOURS:
-            return None
-        start_ms = to_ms(newest["start_time"])
+    if not rain_leads(rain, clock):
+        return None
     return Feature(
         kind="rain",
         reading=None,
         value=None,
         unit=None,
         percentile=None,
-        event_start_ms=start_ms,
+        event_start_ms=rain.event_start_ms,
         since_ms=clock.now_ms,
         held=False,
         outside_usual=None,
@@ -427,8 +414,7 @@ def _held(
 
 
 def feature(
-    event_catalog: Optional[pd.DataFrame],
-    active: Optional[ActiveRainEvent],
+    rain: RainNow,
     stitched: pd.DataFrame,
     current: SnapshotConditions,
     observed_at_ms: Optional[int],
@@ -440,8 +426,8 @@ def feature(
     """
     Pick the feature by the Feature Rule, then apply the hold.
 
-    :param event_catalog: The Event Catalog, or None.
-    :param active: The active rain event, or None.
+    :param rain: The snapshot's last rain and now story, computed once in
+        the build.
     :param stitched: `stitch_live` output.
     :param current: Current conditions, live stitched.
     :param observed_at_ms: The newest observation, or None.
@@ -453,7 +439,7 @@ def feature(
     :return: The feature.
     """
     judging = _judging(observed_at_ms, coverage, clock)
-    picked = _rain_feature(event_catalog, active, clock)
+    picked = _rain_feature(rain, clock)
     if picked is None:
         picked = _unusual(stitched, current, coverage, judging, clock)
     if picked is None:

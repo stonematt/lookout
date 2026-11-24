@@ -1093,6 +1093,13 @@
     "days_since_rain": 3.05,
     "usual_days": null
   },
+  "rain_now": {
+    "last_rain_ms": 1779051300000,
+    "raining": false,
+    "rate_in_hr": null,
+    "event_start_ms": null,
+    "event_total_in": null
+  },
   "rain_tab": {
     "windows": [
       {
