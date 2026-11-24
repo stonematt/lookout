@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from lookout.core.event_category import event_category
+from lookout.core.rain_counter import rain_increments
 from lookout.core.rain_events import (
     filter_events,
     is_event_ongoing,
@@ -99,10 +100,11 @@ def _curve(readings: pd.DataFrame, start_ms: int, end_ms: int) -> EventCurve:
     """
     One event's curve from its readings, oldest first.
 
-    The rate between readings is the rise in `dailyrainin` (negative steps,
-    the midnight reset, read as 0) over the time between them, as the
-    Event Catalog's peak rate and the Streamlit rate chart compute it. The
-    first reading reads 0. A reading after a gap has no rate.
+    The rate between readings is the rain the reading adds to `dailyrainin`
+    (`rain_counter.rain_increments`: a counter drop is the reset, and the
+    reading after it holds only new rain) over the time between them, as
+    the Event Catalog's peak rate computes it (#654). The first reading
+    reads 0. A reading after a gap has no rate.
 
     :param readings: The event's readings.
     :param start_ms: The event's start.
@@ -111,8 +113,7 @@ def _curve(readings: pd.DataFrame, start_ms: int, end_ms: int) -> EventCurve:
     """
     t = readings["dateutc"].to_numpy(dtype="int64")
     minutes = np.diff(t, prepend=t[0] - 5 * 60_000) / 60_000
-    daily = readings["dailyrainin"].astype(float)
-    fallen = daily.diff().clip(lower=0).fillna(0).to_numpy()
+    fallen = rain_increments(readings["dailyrainin"]).fillna(0).to_numpy()
     rate = fallen / (minutes / 60)
     after_gap = minutes > GAP_MINUTES
     return EventCurve(

@@ -13,11 +13,12 @@ The Rain tab's prep (#83), read by `lookout.snapshot.rain_tab`:
 """
 
 from datetime import date
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from lookout.core.rain_counter import rain_increments
 from lookout.utils.dateutc import DEFAULT_TZ, to_local
 from lookout.utils.log_util import app_logger
 
@@ -36,25 +37,29 @@ _REFERENCE_WATER_YEAR = 2001
 
 def extract_daily_rainfall(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     """
-    Extract daily rainfall totals from dailyrainin field.
+    Extract daily rainfall totals from the daily rain counter.
 
-    The dailyrainin field is a rolling 24-hour accumulation that resets to zero
-    at midnight local time. Therefore, max(dailyrainin) for each calendar day
-    represents the total rainfall for that day.
+    A day's total is the rain its readings add to `dailyrainin`
+    (`rain_counter.rain_increments`): a counter drop is the reset, whenever
+    it falls, so a reset late after local midnight, or one on another
+    zone's midnight, never moves rain between days (#654). The first
+    reading adds nothing: nothing before it says how much of its counter is
+    new, and it may be a reading before a late reset.
 
     :param df: Weather data with 'dateutc' and 'dailyrainin' columns.
     :param tz: The station-local zone whose midnight starts each day.
-    :return: DataFrame with 'date' and 'rainfall' columns containing daily totals.
+    :return: DataFrame with 'date' and 'rainfall' columns containing daily totals,
+        one row per local day with readings; NaN for a day none of whose
+        readings has the counter.
     """
-    df_local = df.copy()
+    days = sorted(to_local(df["dateutc"], tz).dt.date.unique())
+    totals = pd.Series(np.nan, index=days, dtype=float)
+    if "dailyrainin" in df:
+        readings = _reading_rain(df, tz)
+        summed = readings.groupby(readings["local"].dt.date)["rain_in"].sum()
+        totals = summed.round(3).reindex(days)
 
-    df_local["local_datetime"] = to_local(df_local["dateutc"], tz)
-    df_local["local_date"] = df_local["local_datetime"].dt.date
-
-    # Since dailyrainin resets at midnight, max value for each day IS the daily total
-    daily_max = df_local.groupby("local_date")["dailyrainin"].max()
-
-    result_df = pd.DataFrame({"date": daily_max.index, "rainfall": daily_max.values})
+    result_df = pd.DataFrame({"date": days, "rainfall": totals.to_numpy()})
 
     # Add helper columns for date-based UI
     result_df["day_of_year"] = pd.to_datetime(result_df["date"]).dt.dayofyear
@@ -197,7 +202,8 @@ def compute_rolling_rain_context(
 
     :param daily_rain_df: DataFrame with daily totals ['date', 'rainfall'].
     :param windows: Window lengths in days.
-    :param normals_years: (start_year, end_year); if None, uses all years except current.
+    :param normals_years: (start_year, end_year); if None, uses all years
+        except current.
     :param end_date: Period end (defaults to latest 'date' in data).
     :return: DataFrame with totals, normal, anomaly %, rank, percentile for each window.
     """
@@ -245,7 +251,9 @@ def compute_rolling_rain_context(
     else:
         y0, y1 = normals_years
         historical_data = s[
-            (s.index.year >= y0) & (s.index.year <= y1) & (s.index.year != end_dt.year)  # type: ignore
+            (s.index.year >= y0)  # type: ignore
+            & (s.index.year <= y1)  # type: ignore
+            & (s.index.year != end_dt.year)  # type: ignore
         ]
 
     rows = []
@@ -256,7 +264,9 @@ def compute_rolling_rain_context(
         cur = float(s.loc[(s.index >= period_start) & (s.index <= period_end)].sum())
 
         if len(historical_data) >= w:
-            all_rolling_totals = historical_data.rolling(window=w).sum().dropna()  # type: ignore
+            all_rolling_totals = (
+                historical_data.rolling(window=w).sum().dropna()  # type: ignore
+            )
             normals = all_rolling_totals.values  # type: ignore
             normals = normals[np.isfinite(normals)]  # type: ignore
         else:
@@ -305,9 +315,11 @@ def prepare_violin_plot_data(
 
     :param daily_rain_df: DataFrame with daily totals ['date', 'rainfall'].
     :param windows: Window lengths in days.
-    :param normals_years: (start_year, end_year); if None, uses all years except current.
+    :param normals_years: (start_year, end_year); if None, uses all years
+        except current.
     :param end_date: Period end (defaults to latest 'date' in data).
-    :return: Dict with window -> {"values": array, "current": float, "percentile": float}
+    :return: Dict with window -> {"values": array, "current": float,
+        "percentile": float}
     """
     if daily_rain_df.empty:
         return {}
@@ -340,12 +352,16 @@ def prepare_violin_plot_data(
         )
 
         if len(historical_data) >= w:
-            all_rolling_totals = historical_data.rolling(window=w).sum().dropna()  # type: ignore
+            all_rolling_totals = (
+                historical_data.rolling(window=w).sum().dropna()  # type: ignore
+            )
             historical_values = all_rolling_totals.values  # type: ignore
-            historical_values = historical_values[np.isfinite(historical_values)]  # type: ignore
+            finite = np.isfinite(historical_values)  # type: ignore
+            historical_values = historical_values[finite]  # type: ignore
 
             if len(historical_values) > 0:  # type: ignore
-                rank = int(sum(v > current_total for v in historical_values) + 1)  # type: ignore
+                above = [v > current_total for v in historical_values]
+                rank = int(sum(above) + 1)  # type: ignore
                 percentile = 100.0 * (1.0 - rank / (len(historical_values) + 1.0))
             else:
                 percentile = np.nan
@@ -681,17 +697,39 @@ def dry_spells(daily: pd.Series, wet_in: float = WET_DAY_IN) -> pd.DataFrame:
     return pd.DataFrame(spells, columns=["first_day", "last_day", "days"])
 
 
+def _reading_rain(df: pd.DataFrame, tz: str) -> pd.DataFrame:
+    """
+    The rain each reading with a daily counter adds, oldest first.
+
+    From `rain_counter.rain_increments`: a counter drop is the reset. The
+    first reading adds nothing: nothing before it says how much of its
+    counter is new (at 00:00 it may still hold yesterday's total).
+
+    :param df: Readings with `dateutc` (epoch ms) and `dailyrainin`.
+    :param tz: The station-local zone.
+    :return: `local` (station-local time) and `rain_in`, one row per
+        reading whose counter is present.
+    """
+    rows = df[["dateutc", "dailyrainin"]].dropna(subset=["dailyrainin"])
+    rows = rows.sort_values("dateutc")
+    counter = rows["dailyrainin"].astype(float)
+    rain = rain_increments(counter).fillna(0.0)
+    return pd.DataFrame({"local": to_local(rows["dateutc"], tz), "rain_in": rain})
+
+
 def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     """
     The rain that fell in each station-local hour, from the daily counter.
 
-    Each reading's rain is the rise in `dailyrainin` since the reading before
-    it on the same local day; the day's first reading counts in full, since
-    the counter starts the day at zero. So each day's hours add up to its
-    highest counter, the day's total. Rain the station counted during a gap
-    lands in the hour of the first reading after it. Hours with no counter
-    reading (no rows, rows whose `dailyrainin` is missing, or no such column)
-    are left out, so a caller never reads one as dry.
+    Each reading's rain is what it adds to `dailyrainin`
+    (`rain_counter.rain_increments`): a counter drop is the reset, whenever
+    it falls, so a late reset never puts yesterday's rain in hour 0 (#654).
+    The first reading adds nothing, so give a reading from before the
+    first hour wanted. Each day's hours add up to its daily total
+    (`extract_daily_rainfall`). Rain the station counted during a gap lands
+    in the hour of the first reading after it. Hours with no counter
+    reading (no rows, rows whose `dailyrainin` is missing, or no such
+    column) are left out, so a caller never reads one as dry.
 
     :param df: Readings with `dateutc` (epoch ms) and `dailyrainin`, any order.
     :param tz: The station-local zone.
@@ -700,16 +738,18 @@ def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     columns = ["date", "hour", "rain_in"]
     if df.empty or "dailyrainin" not in df:
         return pd.DataFrame(columns=columns)
-    rows = df[["dateutc", "dailyrainin"]].dropna(subset=["dailyrainin"])
-    if rows.empty:
+    readings = _reading_rain(df, tz)
+    if readings.empty:
         return pd.DataFrame(columns=columns)
-    rows = rows.sort_values("dateutc")
-    local = to_local(rows["dateutc"], tz)
-    counter = rows["dailyrainin"].astype(float)
-    local_day = local.dt.date
-    rise = counter.groupby(local_day).diff().fillna(counter).clip(lower=0)
+    local = readings["local"]
     hours = (
-        pd.DataFrame({"date": local_day, "hour": local.dt.hour, "rain_in": rise})
+        pd.DataFrame(
+            {
+                "date": local.dt.date,
+                "hour": local.dt.hour,
+                "rain_in": readings["rain_in"],
+            }
+        )
         .groupby(["date", "hour"], as_index=False)["rain_in"]
         .sum()
     )

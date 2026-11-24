@@ -8,7 +8,8 @@ rainfall rate calculations.
 Key concepts:
 - Data completeness: Ratio of actual vs expected 5-minute readings
 - Gap analysis: Identifies significant data gaps (>10 minutes) within events
-- Rainfall rates: Calculates hourly rates from interval rainfall data
+- Rainfall rates: Calculates hourly rates from interval rainfall data, the
+  rain each reading adds to the daily counter (`rain_counter`)
 - Quality classification: Rates events as excellent/good/fair/poor based on metrics
 
 Quality thresholds:
@@ -25,9 +26,9 @@ Usage:
 
 from typing import Dict
 
-import numpy as np
 import pandas as pd
 
+from lookout.core.rain_counter import rain_increments
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
@@ -65,7 +66,8 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
 
     # Expected readings: time_span / 5 (number of 5-min intervals)
     # For a 10-minute span with readings at 0, 5, 10 min, we have 3 readings
-    # Time span = 10 min, intervals = 10/5 = 2, but we have 3 readings (start + 2 intervals)
+    # Time span = 10 min, intervals = 10/5 = 2, but we have 3 readings
+    # (start + 2 intervals)
     # So expected = (time_span / 5) + 1 if we count endpoints
     # BUT: if actual readings = 3 and expected = 2, we get >100%
     #
@@ -75,7 +77,6 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
     #
     # Let's use actual interval count instead:
     expected_intervals = time_span_minutes / 5
-    expected_readings = expected_intervals + 1  # Include starting point
     actual_readings = len(event_data)
 
     # Alternative: count actual intervals and compare
@@ -86,7 +87,8 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
 
     logger.debug(
         f"Event quality for {event.get('event_id', 'unknown')[:8]}: "
-        f"span={time_span_minutes:.1f}min, expected_intervals={expected_intervals:.1f}, "
+        f"span={time_span_minutes:.1f}min, "
+        f"expected_intervals={expected_intervals:.1f}, "
         f"actual_intervals={actual_intervals}, completeness={completeness:.3f}"
     )
 
@@ -103,9 +105,11 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
         )
         event_data.loc[event_data.index[0], "time_diff_min"] = 5
 
-        event_data["interval_rain"] = event_data["dailyrainin"].diff().clip(lower=0)
-        if len(event_data) > 0 and pd.isna(event_data["interval_rain"].iloc[0]):
-            event_data.loc[event_data.index[0], "interval_rain"] = 0
+        # A counter drop is the reset: the reading after it keeps its rain
+        # (#654). The first reading has nothing before it: 0.
+        event_data["interval_rain"] = rain_increments(event_data["dailyrainin"]).fillna(
+            0
+        )
 
         event_data["rate_in_per_hr"] = event_data["interval_rain"] / (
             event_data["time_diff_min"] / 60
@@ -137,7 +141,8 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
         max_hourly_rate = 0.0
         avg_hourly_rate = 0.0
         logger.warning(
-            f"Event {event.get('event_id', 'unknown')[:8]}: dailyrainin column not found"
+            f"Event {event.get('event_id', 'unknown')[:8]}: "
+            "dailyrainin column not found"
         )
 
     # Quality classification based on actual gaps and completeness

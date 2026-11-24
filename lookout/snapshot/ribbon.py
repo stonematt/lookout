@@ -24,9 +24,9 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+from lookout.core.rain_counter import rain_increments
 from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import ConditionRibbon
-from lookout.utils.dateutc import to_local
 
 SLOT_MINUTES = 15
 SLOTS = 48 * 60 // SLOT_MINUTES
@@ -34,33 +34,24 @@ SLOT_MS = SLOT_MINUTES * 60 * 1000
 
 # Readings further apart than this cannot place a rain increment in a slot.
 _MAX_STEP_MS = SLOT_MS
-# A fall in the daily counter this soon after local midnight is its reset.
-_RESET_WINDOW = pd.Timedelta(hours=1)
 
 
-def _rain_increments(ordered: pd.DataFrame, tz: str) -> pd.Series:
+def _rain_increments(ordered: pd.DataFrame) -> pd.Series:
     """
     The rain each reading adds to the daily counter, NaN where it is unknown.
 
-    Each reading is compared with the last one that reported the counter,
-    so one missing reading does not void the next. The counter resets at
-    local midnight, a few minutes late on a real station, so a fall in the
-    first hour of the local day is all new rain; a fall later in the day is a
-    correction, not rain. An increment after a silence longer than one slot
-    is unknown: it cannot be placed in one slot.
+    From `rain_counter.rain_increments`: each reading is compared with the
+    last one that reported the counter, and a drop is the reset, whenever
+    it falls (#654). An increment after a silence longer than one slot is
+    unknown: it cannot be placed in one slot.
 
     :param ordered: The stitched history, oldest first.
-    :param tz: The station's zone, whose midnight resets the counter.
     :return: One increment per row, aligned with `ordered`.
     """
     if "dailyrainin" not in ordered.columns:
         return pd.Series(np.nan, index=ordered.index)
-    daily = pd.to_numeric(ordered["dailyrainin"], errors="coerce")
-    step = daily - daily.ffill().shift()
-    local = to_local(ordered["dateutc"], tz)
-    reset = local - local.dt.normalize() < _RESET_WINDOW
     # The oldest reading has nothing before it to rise from: unknown (NaN).
-    increment = step.where(step.isna() | (step >= 0), daily.where(reset, 0.0))
+    increment = rain_increments(ordered["dailyrainin"])
     after_silence = ordered["dateutc"].diff() > _MAX_STEP_MS
     return increment.mask(after_silence)
 
@@ -88,7 +79,7 @@ def condition_ribbon(
     start_ms = last_start - (SLOTS - 1) * SLOT_MS
 
     ordered = stitched.sort_values("dateutc").reset_index(drop=True)
-    rows = ordered.assign(rain=_rain_increments(ordered, clock.tz))
+    rows = ordered.assign(rain=_rain_increments(ordered))
     rows = rows[rows["dateutc"] >= start_ms]
     index = ((rows["dateutc"] - start_ms) // SLOT_MS).astype(int)
     grouped = rows.groupby(index)

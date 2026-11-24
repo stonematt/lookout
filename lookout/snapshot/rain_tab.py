@@ -70,6 +70,8 @@ RECENT_WINDOW = "90d"
 HOURS = 24
 """Local hours in a heatmap day."""
 
+_DAY_MS = 24 * 60 * 60 * 1000
+
 PLACES = 365
 """Places in a water-year curve: Oct 1 to Sep 30, Feb 29 folded in."""
 
@@ -116,7 +118,10 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
     span_days = day_span(first, last)
     span = history
     if not history.empty:
-        span = history[history["dateutc"] >= from_local_date(first, coverage.tz)]
+        # A day of readings before the window: its first hour's rain is the
+        # rise from them; the first reading of a span adds nothing (#654).
+        lead_in = from_local_date(first, coverage.tz) - _DAY_MS
+        span = history[history["dateutc"] >= lead_in]
     hours = hourly_rain(span, coverage.tz)
     by_hour = {(d, h): r for d, h, r in hours.itertuples(index=False, name=None)}
     # The one "still to come" decision: the hours after the build hour on

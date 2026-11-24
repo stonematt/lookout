@@ -13,6 +13,10 @@ Counter rules (the builder's own, chosen to be easy to work by hand):
 - `hourlyrainin` is the rain in the 60 minutes ending at t (rows in (t-1h, t]).
 - `dailyrainin`, `weeklyrainin`, `monthlyrainin`, `yearlyrainin` accumulate
   and reset at station-local midnight, Sunday, the 1st, and 1 January.
+  `daily_reset` moves the daily counter's reset off local midnight: 5
+  minutes late, as Lookout Post's counter resets, or 3 hours early (21:00
+  local), as Salmon Run's resets on Eastern midnight (#328). A row at the
+  reset time already reads the new day's counter.
 - `eventrainin` accumulates while it rains and returns to 0 once the station
   has been dry for `event_reset_hours` (Ambient's own rule varies).
 - `lastRain` is the local time of the last row that received rain.
@@ -170,6 +174,7 @@ def build_archive(
     event_reset_hours: float = 6.0,
     newest_first: bool = True,
     tz: str = STATION_TZ,
+    daily_reset: pd.Timedelta = pd.Timedelta(0),
 ) -> pd.DataFrame:
     """
     Simulate a station from `start` (inclusive) to `end` (exclusive).
@@ -182,6 +187,8 @@ def build_archive(
     :param event_reset_hours: Dry hours after which `eventrainin` returns to 0.
     :param newest_first: Sort newest row first, as the Storj archive is.
     :param tz: The station's zone; its counters reset at midnight there.
+    :param daily_reset: How long after local midnight the daily counter
+        resets; negative for before it.
     :return: The archive DataFrame, index reset.
     """
     step = pd.Timedelta(minutes=interval_minutes)
@@ -200,7 +207,7 @@ def build_archive(
         return rain_series.groupby(key).cumsum()
 
     naive = local.tz_localize(None)
-    daily = _since_reset(naive.normalize().values)
+    daily = _since_reset((naive - daily_reset).normalize().values)
     weekly = _since_reset(naive.to_period("W-SAT").astype(str).values)
     monthly = _since_reset(naive.to_period("M").astype(str).values)
     yearly = _since_reset(naive.year.values)
