@@ -221,7 +221,7 @@ describe("the event charts (Plotly)", () => {
     const host = document.createElement("div");
     host.style.setProperty("--surface", "rgb(1, 2, 3)");
     document.body.append(host);
-    await drawEventChart(host, curve(), row, { chart: "total", medianIn: 0.36 });
+    await drawEventChart(host, curve(), row, { medianIn: 0.36 });
     const [, data, layout] = react.mock.calls[0] as unknown as [
       unknown,
       Record<string, unknown>[],
