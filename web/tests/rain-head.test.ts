@@ -236,6 +236,16 @@ describe("the window strip", () => {
     ]);
   });
 
+  it("draws no key when every window shown is hatched", () => {
+    // Dry: today and yesterday are covered, neither archived yet.
+    renderRain(panel, parseDashboard(golden("dry", "dashboard")));
+
+    expect(rows().length).toBe(2);
+    expect(head().querySelector(".rain-strip-track, .rain-strip-key")).toBeNull();
+    renderRain(panel, seasoned);
+    expect(head().querySelector(".rain-strip-key")).not.toBeNull();
+  });
+
   it("hatches a window it covers but cannot compare, with no track", () => {
     renderRain(panel, seasoned);
     const year = rows()[5]!;

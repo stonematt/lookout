@@ -161,10 +161,12 @@ function wetRow(row: WetRow): HTMLElement {
     else if (row.missing > 0) note.append(make("span", "hatch-swatch"));
     const words = make("span", "");
     // A short phrase stays whole when the note wraps on a narrow phone.
-    row.note.forEach((phrase, i) => {
-      if (i > 0) words.append(" · ");
-      words.append(make("span", phrase.length <= 24 ? "rain-wet-phrase" : "", phrase));
-    });
+    row.note
+      .flatMap((words) => words.split(" · "))
+      .forEach((phrase, i) => {
+        if (i > 0) words.append(" · ");
+        words.append(make("span", phrase.length <= 24 ? "rain-wet-phrase" : "", phrase));
+      });
     note.append(words);
     cells.push(note);
   }
@@ -401,6 +403,8 @@ export function windowDots(snapshot: DashboardSnapshot): HTMLElement | null {
     "the same window in earlier years: their middle half from 4 years, else their range",
   );
   key.append(dot, band);
-  part.append(list, key);
+  part.append(list);
+  // The key decodes the dot and band; with every window hatched there are none.
+  if (list.querySelector(".rain-strip-track")) part.append(key);
   return part;
 }
