@@ -6,7 +6,14 @@
  * and the per-water-year summaries are computed once in Python. The browser
  * only picks, sorts and words them.
  */
-import { formatDuration, formatStamp, inches, ordinal, stationFormat } from "../format.js";
+import {
+  formatDuration,
+  formatStamp,
+  inches,
+  inchesPerHour,
+  ordinal,
+  stationFormat,
+} from "../format.js";
 import { isComparable, notCompared } from "../gaps.js";
 import { listText } from "../rain/text.js";
 import type {
@@ -282,6 +289,11 @@ export function seasonNote(section: RainEvents, season: Season): string | null {
 /** A duration given in minutes, in the One Format Rule's words. */
 export function minutes(value: number): string {
   return formatDuration(value * 60_000);
+}
+
+/** An event's peak rate, or "n/a" without one or without archive readings. */
+export function peakText(e: RainEventRow): string {
+  return e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : inchesPerHour(e.peak_rate_in_hr);
 }
 
 /** The year formatter in the station's zone. */
