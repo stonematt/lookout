@@ -9,8 +9,9 @@ almanac.py: The Overview's almanac grid and rolling-window rain table (#82).
 
 Every total comes from the build's `CountedDays` (`rain` and `rain_total`),
 the Rain tab's own, so a window has one rain total and one status everywhere
-(the One Number Rule): an archive sum of each day's highest `dailyrainin`,
-with today's live total stitched in, judged and prorated by the gap rules.
+(the One Number Rule): an archive sum of each day's rain (what its readings
+add to `dailyrainin`, a counter drop being the reset, #654), with today's
+live total stitched in, judged and prorated by the gap rules.
 Ambient's year, month and week counters are never read.
 
 Functions:

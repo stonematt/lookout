@@ -7,7 +7,8 @@ fails to reset, carrying forward the previous day's total.
 
 Detection Algorithm:
 - Identify day transitions where first record is NOT between 00:00-00:05
-- Flag as carryover if first_dailyrainin ≈ prev_day_last_dailyrainin (±0.05")
+- Flag as carryover if the counter did not reset across the gap: no drop
+  (`rain_counter.rain_increments`, #654), and under 0.05" added
 - Requires prev_day value > 0.01" (something to carry over)
 
 Sensitivity:
@@ -20,6 +21,7 @@ Sensitivity:
 from typing import Dict, List, Optional
 import pandas as pd
 
+from lookout.core.rain_counter import rain_increments
 from lookout.storage.storj import read_json_from_s3, save_json_to_s3
 from lookout.utils.log_util import app_logger
 
@@ -51,13 +53,35 @@ def save_catalog(catalog: Dict, mac_address: str, bucket: str = "lookout") -> bo
     return save_json_to_s3(catalog, bucket, f"{mac_address}.rain_corrections.json")
 
 
+CARRYOVER_TOLERANCE_IN = 0.05
+"""The most rain a carryover's first reading may add to the kept total."""
+
+
+def _kept_total(last_val: float, first_val: float) -> bool:
+    """
+    Whether a reading kept the counter's previous, non-zero total.
+
+    The counter kept it when it did not reset: by `rain_increments`, a
+    reset reading's rain is its whole value. A small drop is a reset too,
+    so it is never a carryover.
+
+    :param last_val: The previous day's last `dailyrainin`, above zero.
+    :param first_val: The day's first `dailyrainin`, after the gap.
+    :return: True when the counter did not reset and the reading added
+        under `CARRYOVER_TOLERANCE_IN`.
+    """
+    added = float(rain_increments(pd.Series([last_val, first_val])).iloc[1])
+    return added != first_val and added < CARRYOVER_TOLERANCE_IN
+
+
 def detect_carryovers(archive_df: pd.DataFrame) -> List[Dict]:
     """
     Detect midnight gaps with carryover.
 
     Scans archive for day transitions where:
     1. First record of day missed midnight window (not 00:00-00:05)
-    2. First dailyrainin ≈ previous day's last dailyrainin
+    2. The counter did not reset across the gap: no drop from the previous
+       day's last dailyrainin, and under 0.05\" added (`_kept_total`)
     3. Previous day's value > 0.01"
 
     :param archive_df: Full archive DataFrame (reverse sorted by dateutc)
@@ -89,8 +113,10 @@ def detect_carryovers(archive_df: pd.DataFrame) -> List[Dict]:
             first_val = day_data["dailyrainin"].iloc[0]
             last_val = prev_data["dailyrainin"].iloc[-1]
 
-            # Carryover if values match (didn't reset) and non-trivial
-            if abs(first_val - last_val) < 0.05 and last_val > 0.01:
+            # Carryover if the counter did not reset (no drop: the day's
+            # first reading still holds the previous total) and the total
+            # is non-trivial.
+            if last_val > 0.01 and _kept_total(last_val, first_val):
                 carryovers.append(
                     {
                         "affected_date": str(day),

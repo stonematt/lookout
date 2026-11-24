@@ -55,6 +55,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from lookout.core.rainfall_analysis import reading_rain
 from lookout.snapshot.gaps import ArchiveCoverage, comparable, standard_window_keys
 from lookout.snapshot.model import (
     GapStatus,
@@ -122,6 +123,9 @@ class _Readings:
                 else np.nan
             )
         local = to_local(frame["dateutc"], tz)
+        # The rain each reading adds (a counter drop is the reset, #654).
+        rain = reading_rain(frame, tz)["rain_in"]
+        frame["rain"] = rain.reindex(frame.index)
         frame["day"] = local.dt.date
         frame["hour"] = local.dt.hour
         frame["minute"] = local.dt.hour * 60 + local.dt.minute
@@ -156,12 +160,18 @@ class _Readings:
         return None if values.empty else float(values.mean())
 
     def rain_by(self, day: date, minute: int) -> Optional[float]:
-        """The most rain `day` had counted up to local `minute`, or None."""
+        """
+        The rain `day`'s readings added up to local `minute`, or None.
+
+        A sum of what each reading adds to the counter, so a reset late
+        after midnight or on another zone's midnight never counts the day
+        before's rain (#654).
+        """
         if day not in self._days.groups:
             return None
         rows = self._days.get_group(day)
-        values = rows.loc[rows["minute"] <= minute, "dailyrainin"].dropna()
-        return None if values.empty else float(values.max())
+        values = rows.loc[rows["minute"] <= minute, "rain"].dropna()
+        return None if values.empty else round(float(values.sum()), 3)
 
 
 FINDING_ORDER = ("30d", "7d", "90d", "365d", "yesterday")

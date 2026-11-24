@@ -105,11 +105,12 @@ stays even after pinning `pandas < 3`.
 
 ### water year
 
-The rain season Lookout totals over: Oct 1 through Sep 30, in the station's
-local zone, named by the year it ends in. Season totals,
+Rain's season: the year Lookout totals rain over, Oct 1 through Sep 30, in
+the station's local zone, named by the year it ends in. Season totals,
 year-to-date rain, the almanac's year rows and year-over-year accumulation
-all use it, so a winter's rain is never split across two years.
-_Avoid_: rain year, season year, calendar year (for rain totals).
+all use it, so a winter's rain is never split across two years. It is a
+fixed calendar span; the weather-driven wet stretch is **wet mode**.
+_Avoid_: rain year, rain season, season year, calendar year (for rain totals).
 
 ### snapshot
 
@@ -274,8 +275,9 @@ _Avoid_: event file, event chart data.
 ### feature
 
 The one reading the Overview's full-width feature tile shows, and the one
-every widget's view follows. Picked by the Feature Rule (ADR-0009), first
-that holds: rain while an event is live or ended in the last 12 h; a reading
+every widget's view follows. Picked by the Feature Rule (ADR-0009, rain
+clause per ADR-0011), first that holds: rain while **last rain** is within
+3 h; a reading
 (temperature, humidity, pressure or solar; never wind gust) outside its usual
 band for this hour (below the 10th or above the 90th percentile), the
 furthest out winning; a dry spell longer than the usual dry spell; otherwise
@@ -306,6 +308,48 @@ the last 365 days. One definition serves the Rain tab, the feature and the
 widget view (`lookout.core.rainfall_analysis.dry_spells`).
 _Avoid_: drought, days without rain (for the spell itself).
 
+### last rain
+
+The time of the archive's last gauge tip, after carryover corrections. It
+is **raining** while last rain is within 30 minutes. Last rain answers "when
+did it last rain"; it never measures a **dry spell**, which counts whole dry
+days.
+_Avoid_: lastRain (Ambient's field, for this measure), time since rain.
+
+### wet hour
+
+A station-local clock hour with at least one tip of the gauge (0.01 in).
+Whole hours, because drizzle can take 30 to 60 minutes per tip. Only a
+**countable hour** can be wet; any other hour is neither wet nor dry.
+_Avoid_: rainy hour, hours of rain (for a prorated count).
+
+### countable hour
+
+A station-local clock hour that has readings and no gap over 30 minutes
+between them. The gap from the reading before the hour to its first reading
+counts as part of the hour. An hour with a longer gap, or no reading, is not
+countable: it is drawn hatched and is never wet or dry (#647).
+_Avoid_: known hour, valid hour.
+
+### wet share
+
+Wet hours divided by the hours the archive can count, over a window. A
+missing hour lowers the countable hours, never the share. Published with the
+wet and countable hour counts it rests on. It decides **wet mode**; the site
+never shows it as a percent. Wet time reads in hours, as wet hours of
+countable hours ("19 h of 168").
+_Avoid_: percent of time raining, rain fraction.
+
+### wet mode
+
+The state in which the rain surfaces tell how much of the time it has been
+raining, rather than how long it has been dry (**dry mode**). The weather
+decides it: wet mode starts when the last 7 days' **wet share** reaches 15%
+and ends when the last 14 days' share falls below 2%. When too little of the
+last 14 days can be counted, the calendar decides instead (Nov 1 to Apr 30
+is wet). It is not a season; rain's season is the **water year** (#647).
+_Avoid_: wet season, rainy season.
+
 ### usual event
 
 The median total of completed rain events. The live (ongoing) event is never
@@ -323,6 +367,25 @@ is published as a whole percent of it, as in "74% of usual", with the count
 of years it rests on (`rain_tab.usual_to_date`, #539). There is none before
 an earlier year covers the date, and no percent of a usual of 0.
 _Avoid_: normal rainfall, average to date.
+
+### usual wet hours to date
+
+The range of wet hours this water year would have to date if it were as wet
+as earlier years: the 25th to 75th percentile of earlier **water years'**
+**wet share** from Oct 1 to this date, times this year's countable hours.
+Built from the share, not the hour count, because earlier years have
+different gaps. There is none before an earlier year covers the date (#647).
+_Avoid_: normal wet hours, average wet time.
+
+### tile title
+
+The heading over a tile's number. Where the number counts a window or
+depends on a mode, the title names what it counts, as in "Highs over usual"
+(over, under or at usual) or "Wet hours" against "Dry spell". The snapshot
+carries the title text, and the zoom heading and the sources footer read
+the same title. A window with a gap reads "gap in record", never a zero.
+Other titles are fixed names (#647).
+_Avoid_: label, caption, header (for this heading).
 
 ### usual band
 

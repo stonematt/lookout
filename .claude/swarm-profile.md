@@ -21,6 +21,14 @@
 
 **CI** `.github/workflows/tests.yml` (from #67): pytest on PRs into `dev`, `goal/**` and `main`, Python 3.12, 15-minute job timeout (a slow fixture once hit it). `.github/workflows/web.yml` (from #77): web format check, lint, build and test. Before #67 there was none. #67 added one workflow running pytest on PRs into `dev` and into `goal/off-streamlit`. Until #67 merges, the gates above are the only check.
 
+**Branch rules** (ruleset `protect main and dev`, id 27409181, 2026-11-16) On `main` and `dev`, every change goes through a PR, the `pytest` and `web` checks must pass, and force-push and deletion are blocked. No approval is required. The one bypass belongs to the repo admin role, and it works only at merge time (`gh pr merge --admin`). GitHub records each bypass on the PR. `goal/**` has no ruleset; the orchestrator holds lane PRs to the same rules.
+
+**CI unavailable** When required checks never start, stay queued well past their run time, or fail in setup before any test runs, a lane or orchestrator stops and reports. It does not merge on local results. Merging without CI is Matt's call, PR by PR, and follows `stone-merge` section 2e:
+1. Matt approves the bypass for this PR in his own words.
+2. The `tests` and `web` gates above pass on the PR's head SHA, in a clean worktree.
+3. A PR comment goes up before the merge, recording why CI is unavailable, the head SHA, each command, and its result.
+4. The main session merges with `--admin` (or plain `gh pr merge` into a `goal/**` branch) and logs `--checks bypassed-local`.
+
 **Blast radius** — probes planted at `$TMPDIR`, `~/.config/`, `~`, and the main checkout's live `data/` dir; test suite run at `7592c37` in a clean worktree: all markers survived. The real risk is secrets, not deletes: live Ambient and Storj keys sit in `~/.config/lookout/secrets.toml`, and the main checkout also holds a `.streamlit/secrets.toml` symlink to it. Nothing reads the symlink any more. **Never run gates in the main checkout. Never copy either secrets file into a worktree.** A lane's new tests pin to: no network, no real secrets (conftest stubs from #67), moto for S3, synthetic or committed fixtures, `tmp_path` for files.
 
 **Leave unrun** `lookout/cli/catchup.py`, `lookout/bin/cron_run.sh`, the new refresh command against real secrets — they write the live Storj archive and Event Catalog. `lookout/cli/pull_archive.py`, `rain_corrections_cli.py`, `manage_day_periods.py`, `regenerate*`/catalog CLIs — they read or write live Storj. Anything that ssh's to the VPS (`itri`). Any Vercel deploy.

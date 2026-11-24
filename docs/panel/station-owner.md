@@ -65,3 +65,13 @@ Verdict: fix
 - note: Today repeats the feature tile's event total while raining. Matt kept Today, because an event can span more than a day
 - note: said no to swapping the Overview Rain tile (Matt agreed)
 - [ ] open from 2026-11-04: station name truncation at 320, 33 px rows and the fold at 320x568, favicon 404 (not touched)
+
+### 2026-11-23 — Rain should feel like Oregon (#647), grill decisions + prototype canvas, before /to-spec
+
+Verdict: fix
+- [ ] fix: draw the Stopped state (rain within 3 h) in Overview C; Stopped, MainDark and Desktop are still A, and Wet hours and Rain since Oct 1 must leave the mosaic there — Stopped board
+- [ ] fix: the spec names which target opens what in the C tile (now part → rain zoom, season foot → Rain tab season), both at least 44 px
+- [ ] fix: hatched missing hours sit at the bar's end; say "missing, not dry" in place — Meter board
+- [ ] fix: usual wet hours rests on 3 earlier years; show the year count and no band below 3 — Rain tab C
+- [ ] fix: a v4 snapshot must render today's mosaic between R1 and R2
+- note: sample numbers reconcile with the back-test csv. Still open from 2026-11-04 and 2026-11-13: station name truncation at 320, 33 px rows and the fold at 320x568 (the C tile is taller), favicon 404

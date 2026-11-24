@@ -62,3 +62,13 @@ Verdict: ship
 - [ ] note: `operations.md:8` and `CLAUDE.md:28` name only the daily backup folder, not `<stamp>-repair-<reason>/`; `catchup.update_archive` keeps the deleted refresh function's name
 - [x] #244 lock: now also checked at save time (`held_by_this_process`)
 - streamlit import, socket guard, `HC_PING_KEY`, publish order, #247 scope, #374, #370 — not in this diff; still open
+
+### 2026-11-23 — Rain should feel like Oregon (#647), grill decisions + prototype canvas, before /to-spec
+
+Verdict: fix
+- [ ] blocker: mode hysteresis is stateful; define it as a replay over the daily wet-hour series in a pure function, pinned to the six back-test flips — `lookout/core/rainfall_analysis.py`
+- [ ] blocker: five copies of the counter increment; one counter-drop-is-reset helper first, wet hour and last rain build on it — `rainfall_analysis.py`, `snapshot/ribbon.py`, `snapshot/events.py`, `core/event_quality.py`
+- [ ] fix: stored event peak rates and categories may change after the midnight fix; diff them, and rebuild with `event-catalog --save` on itri if they do, backup key on stdout — `event_quality.py`
+- [ ] fix: freeze all v5 field shapes and give R1 a v5 fixture before R1 merges; `days_since_rain` and `wet_hours` readers change in one ticket; measure the scatter's size (context document if over about 20 KB) — `web/src/snapshot.ts`
+- [ ] fix: Events-tab tickets share `web/src/events/tab.ts`; one lane, or split modules first; keep real links on rows (#370)
+- streamlit import, socket guard, #247 scope, `HC_PING_KEY`, publish order, #374, operations.md — not touched; still open

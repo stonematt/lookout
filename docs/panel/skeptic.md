@@ -64,3 +64,13 @@ Verdict: ship
 - [ ] note: no entry-point test makes `stations add` or the refresh run raise `ArchiveLockNotHeld`
 - [x] usual event against catalog median (#375): shipped in 2026.11.8 (#418)
 - #374 ramp stops, INFO log on every correction — not in this diff; still open
+
+### 2026-11-23 — Rain should feel like Oregon (#647), grill decisions + prototype canvas, before /to-spec
+
+Verdict: fix
+- [ ] blocker: an hour with a reading gap over 30 min counts as countable, yet the rain after the gap is dropped, so it reads dry (`backtest/prep.py:20`); define countable hour in GLOSSARY and re-run the back-test
+- [ ] blocker: mode hysteresis is stateful but `build_snapshot` is pure; replay from a fixed start or carry the previous mode — `lookout/core/rainfall_analysis.py`
+- [ ] fix: the wet-hour helper must not reuse `hourly_rain` (#328); parity test against the back-test method; Salmon Run thresholds unvalidated (21 days), re-check at 90 days
+- [ ] fix: "usual wet hours" from 3 earlier years or fewer is not a percentile; publish N; the ±15% verdict and the 25–75 band can disagree on one tab — GLOSSARY, `rain_tab.py`, #640
+- [ ] note: sample denominators 1,292 and 696 do not reconcile with elapsed hours — prototype README
+- #374 ramp stops, INFO log on every correction, replace read-back docstring, ArchiveLockNotHeld test — not touched; still open

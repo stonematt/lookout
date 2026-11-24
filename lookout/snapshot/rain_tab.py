@@ -5,9 +5,10 @@ The Streamlit Rain tab's data prep, moved behind `build_snapshot` and set to
 the new site's rules:
 
 - Every rain total is an archive sum with today's live total stitched in
-  (spec #66, decided 2026-10-30): a day's total is its highest `dailyrainin`,
-  and today's is the live reading's (`SnapshotConditions.rain_today_in`), so
-  the Rain tab, the Overview and `/current` show one number for today.
+  (spec #66, decided 2026-10-30): a day's total is what its readings add
+  to `dailyrainin`, a counter drop being the reset (#654), and today's is
+  the live reading's (`SnapshotConditions.rain_today_in`), so the Rain tab,
+  the Overview and `/current` show one number for today.
 - Every value over a window goes through the gap rules
   (`lookout.snapshot.gaps`): a total is summed over the window's counted days
   and prorated; an invalid window's value is None and never computed.
@@ -70,6 +71,8 @@ RECENT_WINDOW = "90d"
 HOURS = 24
 """Local hours in a heatmap day."""
 
+_DAY_MS = 24 * 60 * 60 * 1000
+
 PLACES = 365
 """Places in a water-year curve: Oct 1 to Sep 30, Feb 29 folded in."""
 
@@ -116,7 +119,10 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
     span_days = day_span(first, last)
     span = history
     if not history.empty:
-        span = history[history["dateutc"] >= from_local_date(first, coverage.tz)]
+        # A day of readings before the window: its first hour's rain is the
+        # rise from them; the first reading of a span adds nothing (#654).
+        lead_in = from_local_date(first, coverage.tz) - _DAY_MS
+        span = history[history["dateutc"] >= lead_in]
     hours = hourly_rain(span, coverage.tz)
     by_hour = {(d, h): r for d, h, r in hours.itertuples(index=False, name=None)}
     # The one "still to come" decision: the hours after the build hour on
