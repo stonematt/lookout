@@ -588,7 +588,9 @@ describe("the wet-or-dry tile (#658)", () => {
     renderOverview(panel, parsed("raining"));
     const method = words(panel.querySelector('.ov-sources-how [data-source="Wet hours"]'));
 
-    expect(method).toContain("the calendar decides");
+    expect(method).toContain("Wet mode, decided by the calendar");
+    // The rule's thresholds are Python's; the site never restates them.
+    expect(method).not.toMatch(/15%|2%|14 days/);
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * The Overview tab (spec #460): the now tile, the feature tile, then the
- * mosaic's ten tiles (#472, #473), in the order the snapshot's wet mode
+ * mosaic's tiles (#472, #473), in the order the snapshot's wet mode
  * sets (#658, `overviewSections`).
  *
  * Layout, the same order on every width (DESIGN.md "Layout", README
@@ -43,6 +43,7 @@ import type { TileSection } from "../tiles.js";
 import { renderTiles } from "../tiles.js";
 import { featureTile } from "./feature.js";
 import { firstScreen } from "./first-screen.js";
+import type { MosaicTile } from "./mosaic.js";
 import { mosaicSection } from "./mosaic.js";
 import { MOSAIC_TILES, mosaicTiles } from "./mosaic-tiles.js";
 import { sourcesFooter } from "./sources.js";
@@ -51,12 +52,15 @@ import { drawZoom } from "./zoom.js";
 /** One tile of the Overview. */
 export type OverviewSection = TileSection;
 
-/** The Overview's sections for a snapshot without a mode (N−1). */
-export const SECTIONS: readonly OverviewSection[] = [
-  firstScreen, // #468 the now tile
-  featureTile, // #469 the feature tile
-  ...MOSAIC_TILES.map(mosaicSection), // #472, #473 the ten tiles
+/** The now tile (#468), the feature tile (#469), then the mosaic's tiles. */
+const sectionsOf = (tiles: readonly MosaicTile[]): readonly OverviewSection[] => [
+  firstScreen,
+  featureTile,
+  ...tiles.map(mosaicSection),
 ];
+
+/** The Overview's sections for a snapshot without a mode (N−1). */
+export const SECTIONS: readonly OverviewSection[] = sectionsOf(MOSAIC_TILES);
 
 /**
  * The Overview's sections for a snapshot: the now tile, the feature, then
@@ -66,8 +70,7 @@ export const SECTIONS: readonly OverviewSection[] = [
  * @returns The sections, in order.
  */
 export function overviewSections(snapshot: DashboardSnapshot): readonly OverviewSection[] {
-  if (!snapshot.wet_mode) return SECTIONS;
-  return [firstScreen, featureTile, ...mosaicTiles(snapshot).map(mosaicSection)];
+  return snapshot.wet_mode ? sectionsOf(mosaicTiles(snapshot)) : SECTIONS;
 }
 
 /**

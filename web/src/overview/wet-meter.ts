@@ -9,9 +9,9 @@
  *
  * The meter is one link to the Rain tab. Every number is the snapshot's
  * `wet_hours` (GLOSSARY wet hour, countable hour); a snapshot without it
- * (N−1, ADR-0008) draws no meter.
+ * (N−1, ADR-0008) draws no meter, and nor does dry mode (#658).
  *
- * Offers `wetMeter` and `missingWords`.
+ * Offers `wetMeter`, `meterShown` and `missingWords`.
  */
 import "./wet-meter.css";
 
@@ -83,14 +83,26 @@ function row(name: string, window: WetHoursWindow): HTMLElement[] {
 }
 
 /**
- * The meter, or null when the snapshot has no wet hours.
+ * Whether the meter is drawn: the snapshot has wet hours and is not in dry
+ * mode (#658), where the meter would read 0 h for months. Without a mode
+ * (N−1) it is drawn as before.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns True to draw it.
+ */
+export function meterShown(snapshot: DashboardSnapshot): boolean {
+  return Boolean(snapshot.wet_hours) && snapshot.wet_mode?.mode !== "dry";
+}
+
+/**
+ * The meter, or null when it is not drawn (`meterShown`).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The meter's link, to the Rain tab.
  */
 export function wetMeter(snapshot: DashboardSnapshot): HTMLElement | null {
   const wet = snapshot.wet_hours ?? null;
-  if (!wet) return null;
+  if (!wet || !meterShown(snapshot)) return null;
   const link = make("a", "wet-meter");
   link.href = "#rain";
   link.dataset.part = "wet-meter";

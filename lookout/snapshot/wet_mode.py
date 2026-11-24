@@ -20,6 +20,7 @@ from lookout.core.wet_hours import daily_wet_hours, hour_start, judge_hours
 from lookout.core.wet_mode import wet_mode as replay
 from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import WetMode
+from lookout.utils.dateutc import POST_2020_MS
 
 
 def wet_mode(stitched: pd.DataFrame, clock: StationClock) -> WetMode:
@@ -31,7 +32,9 @@ def wet_mode(stitched: pd.DataFrame, clock: StationClock) -> WetMode:
     :return: The mode and what decided it.
     """
     end_ms = hour_start(clock.now_ms, clock.tz)
-    start_ms = int(stitched["dateutc"].min()) if not stitched.empty else end_ms
+    first_ms = int(stitched["dateutc"].min()) if not stitched.empty else end_ms
+    # A row before the floor is invalid (ADR-0001): it never stretches the span.
+    start_ms = max(first_ms, POST_2020_MS)
     hours = judge_hours(stitched, clock.tz, min(start_ms, end_ms), end_ms)
     days = daily_wet_hours(hours)
     index = pd.DatetimeIndex(pd.to_datetime(days["day"]), name="day")

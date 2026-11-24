@@ -24,7 +24,7 @@ import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 import { bandBasisWords, nowDeltaText, todayChart } from "./today-hero.js";
-import { wetMeter } from "./wet-meter.js";
+import { meterShown, wetMeter } from "./wet-meter.js";
 
 function temperature(snapshot: DashboardSnapshot): HTMLElement {
   const node = document.createElement("p");
@@ -54,10 +54,9 @@ function firstScreenSource(snapshot: DashboardSnapshot): TileSource {
     ? ` The band is the usual for each hour of the day: ${bandBasisWords(band)}, and the delta is the live reading against its own hour's median.`
     : "";
   const slots = snapshot.condition_ribbon?.slot_minutes ?? 15;
-  const wet =
-    snapshot.wet_hours && snapshot.wet_mode?.mode !== "dry"
-      ? " The wet-hour bars count the station-local clock hours of the last 7 and 30 days, to the last whole hour: an hour with at least one tip of the gauge (0.01 in) is wet, of the hours the record can count. An hour with no reading or a gap over 30 minutes is missing, hatched at the bar's end, never dry."
-      : "";
+  const wet = meterShown(snapshot)
+    ? " The wet-hour bars count the station-local clock hours of the last 7 and 30 days, to the last whole hour: an hour with at least one tip of the gauge (0.01 in) is wet, of the hours the record can count. An hour with no reading or a gap over 30 minutes is missing, hatched at the bar's end, never dry."
+    : "";
   return {
     line: band
       ? "live reading and today's archive, against each hour's usual."
@@ -104,7 +103,7 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   }
   // The wet-hour meter (#657) at the tile's foot, the full width of it;
   // hidden in dry mode (#658), where it would read 0 h for months.
-  const meter = snapshot.wet_mode?.mode === "dry" ? null : wetMeter(snapshot);
+  const meter = wetMeter(snapshot);
   if (meter) host.append(meter);
 }
 

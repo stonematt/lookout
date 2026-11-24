@@ -94,16 +94,17 @@ export const wetHoursTile: MosaicTile = {
 };
 
 /**
- * Why the tile is in wet mode, in a sentence.
+ * What decided the mode, in a sentence: words for the snapshot's
+ * `decided_by`, never the rule's thresholds, which are Python's.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The sentence; empty without a mode.
  */
-export function modeWords(snapshot: DashboardSnapshot): string {
+function modeWords(snapshot: DashboardSnapshot): string {
   const mode = snapshot.wet_mode;
   if (!mode) return "";
   const name = mode.mode === "wet" ? "Wet mode" : "Dry mode";
   return mode.decided_by === "calendar"
-    ? `${name}: too few of the last 14 days' hours could be counted, so the calendar decides (Nov 1 to Apr 30 is wet).`
-    : `${name}: wet mode starts when 15% of the last 7 days' hours are wet and ends when under 2% of the last 14 days' are.`;
+    ? `${name}, decided by the calendar: too few recent hours could be counted.`
+    : `${name}, decided by the weather: the share of recent hours that were wet.`;
 }
