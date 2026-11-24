@@ -20,7 +20,7 @@ import {
 } from "../src/rain/text.js";
 import type { DashboardSnapshot, RainTab, WaterYearCurve } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
-import { golden, goldenPrevious } from "./golden.js";
+import { SCENARIOS, golden, goldenNext } from "./golden.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
@@ -131,10 +131,30 @@ describe("the Rain tab's words", () => {
     );
     // The 365 days are not archived, so there is no usual spell to compare.
     expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
-    // A v3 snapshot still carries hero_lead; the Rain tab reads the same words.
-    expect(dryHeadline(parseDashboard(goldenPrevious("dry", "dashboard")))).toBe(
-      "about 39 hours since it last rained",
+  });
+
+  it("states a v5 snapshot's dry spell in whole dry days (#667)", () => {
+    const v5 = (days: number | null, usual: number | null) => {
+      const doc = goldenNext("dry", "dashboard", days) as { dry_spell: { usual_days: unknown } };
+      doc.dry_spell.usual_days = usual;
+      return parseDashboard(doc);
+    };
+    expect(dryHeadline(v5(12, 4))).toBe(
+      "12 dry days since it last rained, against a usual dry spell of 4 days",
     );
+    expect(dryHeadline(v5(1, null))).toBe("1 dry day since it last rained");
+    expect(dryHeadline(v5(0, 2.5))).toBe(
+      "0 dry days since it last rained, against a usual dry spell of 2.5 days",
+    );
+    expect(dryHeadline(v5(null, 4))).toBe("Dry spells in the record");
+  });
+
+  it("puts a v5 snapshot's whole dry days in the Rain tab's dry-spell stat", () => {
+    const panel = document.createElement("div");
+    renderRain(panel, parseDashboard(goldenNext("seasoned", "dashboard", 6)));
+    const stats = [...panel.querySelectorAll(".rain-dry-stats dt")];
+    const since = stats.find((dt) => dt.textContent === "Since it last rained");
+    expect(since?.nextElementSibling?.textContent).toBe("6 days");
   });
 
   it("names the years compared, newest first, with ≈ where prorated", () => {
@@ -185,7 +205,6 @@ describe("the Rain tab's words", () => {
     const wet = withTab(raining, {
       recent: {
         ...raining.rain_tab.recent,
-        wet_hours: 18.4,
         wettest_hour: { day: "2026-01-08", hour: 15, rain_in: 0.12 },
       },
     });
@@ -193,20 +212,36 @@ describe("the Rain tab's words", () => {
       status: "prorated",
       reason: "gap",
     });
-    // With wet hours to date (#663) the prorated count is not read.
-    expect(hoursHeadline(wet)).toBe(
-      "Rain by the hour over the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
-    );
-    // A snapshot written before it (N−1) reads today's prorated count.
+    const heaviest =
+      "Rain by the hour over the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8";
+    expect(hoursHeadline(wet)).toBe(heaviest);
+    // The prorated count is never read (#667), with or without wet hours to
+    // date: a snapshot without them counts no hours here.
     const before = withTab(wet, { wet_hours_to_date: undefined });
-    expect(hoursHeadline(before)).toBe(
-      "Rain fell in ≈\u00a018 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
-    );
+    expect(hoursHeadline(before)).toBe(heaviest);
+  });
+
+  it.each(SCENARIOS)("reads no prorated wet_hours in the Rain tab (%s)", (scenario) => {
+    const draw = (doc: unknown) => {
+      const panel = document.createElement("div");
+      renderRain(panel, parseDashboard(doc));
+      return panel.textContent;
+    };
+    // Without wet hours to date too: the prorated count has no stand-in.
+    const v4 = structuredClone(golden(scenario, "dashboard")) as {
+      rain_tab: { recent: { wet_hours?: unknown }; wet_hours_to_date?: unknown };
+    };
+    delete v4.rain_tab.wet_hours_to_date;
+    const shown = draw(v4);
+    v4.rain_tab.recent.wet_hours = 9999;
+    expect(draw(v4)).toBe(shown);
+    delete v4.rain_tab.recent.wet_hours;
+    expect(draw(v4)).toBe(shown);
   });
 
   it("says no rain fell when the 90 days can be compared and hold none", () => {
     const none = withTab(dry, {
-      recent: { ...dry.rain_tab.recent, wet_hours: 3.7, wettest_hour: null },
+      recent: { ...dry.rain_tab.recent, wettest_hour: null },
     });
     Object.assign(none.rain_tab.windows.find((w) => w.key === "90d")!.status, {
       status: "valid",

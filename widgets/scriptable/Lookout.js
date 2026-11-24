@@ -20,6 +20,9 @@ const REFRESH_MINUTES = 5;
 // All stations ranks stations the way Python ranks views.
 const VIEW_RANK = { rain_event: 0, dry_spell: 1, temperature_ranges: 2 };
 const DEFAULT_VIEW = "temperature_ranges";
+// The first snapshot version whose `days_since_rain` is whole dry days: the
+// site's `WHOLE_DRY_DAYS_VERSION` (web/src/snapshot.ts), held equal by a test.
+const WHOLE_DRY_DAYS_VERSION = 5;
 const RANGE_ROWS = [
   ["today", "Today"],
   ["7d", "7 days"],
@@ -168,9 +171,21 @@ function rainEventModel(dashboard) {
   };
 }
 
+/**
+ * The whole days it has been dry. From schema version 5 `days_since_rain`
+ * counts whole dry days (GLOSSARY dry spell, #667); a version 4 snapshot
+ * carries the time since `lastRain` in fractional days, cut to whole days.
+ */
+function wholeDaysDry(dashboard) {
+  const days = dashboard.dry_spell.days_since_rain;
+  return dashboard.schema_version >= WHOLE_DRY_DAYS_VERSION
+    ? Math.round(days)
+    : Math.floor(days);
+}
+
 function drySpellModel(dashboard) {
   const spell = dashboard.dry_spell;
-  const daysDry = Math.floor(spell.days_since_rain);
+  const daysDry = wholeDaysDry(dashboard);
   const usual = spell.usual_days;
   const longest = dashboard.rain_tab.dry_spells.longest;
   return {
@@ -524,6 +539,7 @@ if (typeof Script === "undefined") {
     leadingDashboard,
     widgetModel,
     formatDuration,
+    WHOLE_DRY_DAYS_VERSION,
   };
 } else {
   main();

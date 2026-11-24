@@ -23,7 +23,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden, goldenPrevious } from "./golden.js";
+import { SCENARIOS, golden, goldenNext } from "./golden.js";
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -628,16 +628,28 @@ describe("the Dry spell tile", () => {
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 2 days");
   });
 
-  it("ignores the calm lead rule a v3 snapshot still carries", () => {
-    const d = goldenPrevious("seasoned", "dashboard") as Doc;
-    d.dry_spell = { days_since_rain: 9.4, usual_days: 3 };
-    const calm = d.hero_lead.rules.find((r: Doc) => r.kind === "calm");
-    calm.value = 1;
-    calm.reference = 99;
+  it("prints whole dry days for a v5 snapshot (#667)", () => {
+    const d = goldenNext("seasoned", "dashboard", 9) as Doc;
+    (d.dry_spell as Doc).usual_days = 3;
     renderOverview(panel, parseDashboard(d));
 
-    expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("9 d 9 h");
+    expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("9 days");
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 3 days");
+  });
+
+  it("says one dry day in the singular, and no last rain as before, for a v5 snapshot", () => {
+    renderOverview(panel, parseDashboard(goldenNext("seasoned", "dashboard", 1)));
+    expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("1 day");
+
+    renderOverview(panel, parseDashboard(goldenNext("seasoned", "dashboard", null)));
+    expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe(
+      "no last rain on record",
+    );
+  });
+
+  it.each(SCENARIOS)("orders a v5 snapshot's Overview as the v4 golden's (%s)", (scenario) => {
+    renderOverview(panel, parseDashboard(goldenNext(scenario, "dashboard")));
+    expect(ids()).toEqual(["first-screen", SECOND[scenario], ...ORDER[scenario]]);
   });
 
   it("draws the last 30 days, today outlined", () => {

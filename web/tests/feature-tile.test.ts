@@ -13,7 +13,7 @@ import { renderOverview } from "../src/overview/index.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
-import { golden, SCENARIOS } from "./golden.js";
+import { golden, goldenNext, SCENARIOS } from "./golden.js";
 
 type Doc = Record<string, unknown>;
 
@@ -447,6 +447,19 @@ describe("the feature tile", () => {
       "About 9 days since it last rained, against a usual dry spell of 3 days. Open the dry spell view.",
     );
     expect(link().getAttribute("href")).toBe("#overview/dry-spell");
+  });
+
+  it("draws a v5 snapshot's long dry spell in whole dry days (#667)", () => {
+    const doc = goldenNext("dry", "dashboard", 9) as Doc;
+    doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
+    (doc.dry_spell as Doc).usual_days = 3;
+    draw(parseDashboard(doc));
+
+    expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Dry spell");
+    expect(words(tile()!.querySelector("[data-part=value]"))).toBe("9 days");
+    expect(linkName()).toBe(
+      "9 dry days since it last rained, against a usual dry spell of 3 days. Open the dry spell view.",
+    );
   });
 
   it("draws a quiet day as a usual day, with the temperature now", () => {

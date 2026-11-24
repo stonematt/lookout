@@ -33,18 +33,10 @@
  * Offers `mosaicTiles`, `MOSAIC_TILES` and each tile's definition.
  */
 import { lastDays } from "../rain/charts.js";
-import { currentYear, drySpellNow } from "../rain/text.js";
+import { currentYear, drySpellNow, drySpellShown } from "../rain/text.js";
 import { missingDay, runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import {
-  WET_DAY_IN,
-  degrees,
-  formatDayCount,
-  formatDays,
-  inches,
-  percent,
-  signed,
-} from "../format.js";
+import { WET_DAY_IN, degrees, formatDayCount, inches, percent, signed } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, GapReason, TemperatureDay } from "../snapshot.js";
 import { isShown } from "./history.js";
@@ -516,10 +508,13 @@ export const drySpellTile: MosaicTile = {
   zoomName: "dry spell",
   read(snapshot) {
     // The Rain tab's numbers: the dashboard's dry spell.
-    const { days_since_rain: since, usual_days: usual } = drySpellNow(snapshot);
+    // Whole dry days from version 5 (#667), a duration before it.
+    const usual = drySpellNow(snapshot).usual_days;
+    const since = drySpellShown(snapshot);
     if (since === null) return { value: null, delta: "no last rain on record" };
     return {
-      value: formatDays(since),
+      value: since.value,
+      unit: since.unit,
       delta: usual === null ? null : `usual is ${formatDayCount(usual)}`,
     };
   },

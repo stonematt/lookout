@@ -27,18 +27,28 @@ export const SCHEMA_VERSION = 4;
 /**
  * The versions a curve file may carry. Its shape has not changed since 2,
  * and stored curve files are never rewritten, so a version bump that leaves
- * the curve alone adds to this list rather than replacing it.
+ * the curve alone adds to this list rather than replacing it. Version 5
+ * (#667) leaves the curve alone.
  */
-export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4];
+export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4, 5];
 
 /**
- * The versions a dashboard or context document may carry (ADR-0008). The
- * site read version 4 before the refresh run wrote it (#479, #480), so the
- * two need not switch at the same moment (#351). Version 4 drops `hero_lead`,
- * which this site no longer reads; a v3 document that still carries it is
- * read with the key ignored. Version 2 is no longer live.
+ * The versions a dashboard or context document may carry (ADR-0008): N, the
+ * version the refresh run writes (`SCHEMA_VERSION`), and N+1, which this
+ * site reads before the refresh run writes it (#667, R1 of #647), so the two
+ * need not switch at the same moment (#351). Version 5 counts
+ * `days_since_rain` in whole dry days (`WHOLE_DRY_DAYS_VERSION`) and drops
+ * the Rain tab's prorated `recent.wet_hours`, which this site no longer
+ * reads. Version 3 is no longer live.
  */
-export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [3, 4];
+export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [4, 5];
+
+/**
+ * The first version whose `dry_spell.days_since_rain` counts whole dry days
+ * (GLOSSARY dry spell); before it the field is the time since Ambient's
+ * `lastRain` in fractional days, and the site shows it as a duration.
+ */
+export const WHOLE_DRY_DAYS_VERSION = 5;
 
 /** Which station a document is about. */
 export interface StationId {
@@ -346,8 +356,9 @@ export interface RecentRain {
    * when none is. Every other null hour has no readings in the record.
    */
   first_hour_to_come: number;
-  /** Prorated when the window is; null when invalid. */
-  wet_hours: number | null;
+  // A version 4 document also carries a prorated `wet_hours`, which version 5
+  // drops (#667): it is not typed, so no site code reads it. Wet hours are
+  // the dashboard's `wet_hours` and `rain_tab.wet_hours_to_date`.
   wettest_hour: RainHour | null;
 }
 
@@ -413,7 +424,7 @@ export interface RainTab {
   /**
    * Wet hours since Oct 1 against usual wet hours to date (#663), from the
    * one wet-hour helper the Overview's meter reads. Absent from a snapshot
-   * written before it (ADR-0008): the tab then reads `recent.wet_hours`.
+   * written before it (ADR-0008), which then shows no wet hours since Oct 1.
    */
   wet_hours_to_date?: WetHoursToDate | null;
   /**
@@ -1784,7 +1795,11 @@ export interface Feature {
 
 /** The current dry spell against the usual dry spell (`DrySpellNow`). */
 export interface DrySpellNow {
-  /** Days since it last rained; null without a reading or a last rain. */
+  /**
+   * Days since it last rained: whole dry days from `WHOLE_DRY_DAYS_VERSION`
+   * (GLOSSARY dry spell), the time since `lastRain` in fractional days
+   * before it; null without a reading or a last rain.
+   */
   days_since_rain: number | null;
   /** The usual dry spell in days; null when the 365 days are not comparable. */
   usual_days: number | null;

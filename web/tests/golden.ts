@@ -130,48 +130,40 @@ export function oneStation(): StationIndex {
 }
 
 /**
- * The schema version the refresh run wrote before the goldens' version, which
- * the site still reads (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`): a v3 document
- * carries `hero_lead`, which v4 removed (#480). When the site stops reading 3
- * this builder goes.
+ * The schema version after the goldens' version, which the site reads before
+ * the refresh run writes it (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`, #667): a
+ * v5 document counts `days_since_rain` in whole dry days and drops the Rain
+ * tab's prorated `recent.wet_hours`. Once the refresh run writes 5 (#668) the
+ * goldens are v5 and this builder goes.
  */
-export const PREVIOUS_SCHEMA_VERSION = 3;
+export const NEXT_SCHEMA_VERSION = 5;
 
 /**
- * One golden document as the refresh run wrote it at
- * `PREVIOUS_SCHEMA_VERSION`: the golden with `schema_version` set back and,
- * on a dashboard, a v3 `hero_lead` whose calm rule restates `dry_spell`, as
- * the refresh run wrote it. Built here, never by editing a golden file (#351).
+ * One golden document as the refresh run will write it at
+ * `NEXT_SCHEMA_VERSION`: the golden with `schema_version` set forward and, on
+ * a dashboard, `days_since_rain` in whole days (`wholeDays`, or the golden's
+ * own value cut to whole days) and no prorated `recent.wet_hours`. Built
+ * here, never by editing a golden file (#351).
  *
  * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard" or "context".
+ * @param wholeDays - The whole dry days to carry; the golden's, floored, when
+ *   omitted.
  * @returns The parsed JSON, untyped.
  */
-export function goldenPrevious(scenario: Scenario, kind: "dashboard" | "context"): unknown {
-  const doc = golden(scenario, kind) as Record<string, unknown>;
-  if (kind === "context") return { ...doc, schema_version: PREVIOUS_SCHEMA_VERSION };
+export function goldenNext(
+  scenario: Scenario,
+  kind: "dashboard" | "context",
+  wholeDays?: number | null,
+): unknown {
+  const doc = structuredClone(golden(scenario, kind)) as Record<string, unknown>;
+  doc.schema_version = NEXT_SCHEMA_VERSION;
+  if (kind === "context") return doc;
   const dry = doc.dry_spell as { days_since_rain: number | null; usual_days: number | null };
-  const calm = {
-    kind: "calm",
-    met: true,
-    value: dry.days_since_rain,
-    unit: "days",
-    threshold: null,
-    reference: dry.usual_days,
-    compared: [],
-    missing: null,
-  };
-  const heroLead = {
-    kind: "calm",
-    rules: [calm],
-    unit: "days",
-    now: dry.days_since_rain,
-    now_ms: doc.observed_at_ms,
-    usual_low: null,
-    usual_median: dry.usual_days,
-    usual_high: null,
-    sample: 0,
-    trace: null,
-  };
-  return { ...doc, schema_version: PREVIOUS_SCHEMA_VERSION, hero_lead: heroLead };
+  const since = dry.days_since_rain;
+  dry.days_since_rain =
+    wholeDays !== undefined ? wholeDays : since === null ? null : Math.floor(since);
+  const tab = doc.rain_tab as { recent: Record<string, unknown> };
+  delete tab.recent.wet_hours;
+  return doc;
 }
