@@ -380,7 +380,8 @@ From three such years it is their 25th to 75th percentile, as usual wet
 hours' band is; with one or two, the span of their plain values; with none,
 there is no range and the window carries its rain alone. A window outside
 it is marked "above usual range" or "below usual range", words kept apart
-from the water year's verdict; one still running is never "below" (#640).
+from the water year's verdict; only the "today" window is never "below",
+its rain still growing (#640, #690).
 _Avoid_: normal range, usual band (for an hour-of-day band).
 
 ### usual wet hours to date
