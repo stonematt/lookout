@@ -21,12 +21,14 @@ Mon Nov 23, 2026, Lookout Post. Raining since 2:40 pm; now 4:35 pm; 0.08 in/h (l
 | | DryDay (A, dry mode, no meter) | done: Dry spell beside Temperature, Rain since Oct 1 last |
 | | AltB (meter in hero top right) | done: two hour bars |
 | | AltC (one rain tile: now over season) | **Matt likes it**; done |
-| | MainDark | done |
+| | MainDark | redrawn in C (raining, dark; season foot in the rain tile) |
+| | StoppedC, StoppedCDark | C, rain stopped 40 min ago, light and dark (#660) |
 | Meter (Q1, Q3) | Meter (24 h + 7 d vs 7 d + 30 d on three real days, plus a countable-hours example) | done, in hours |
 | | TileNames (a: Wet hours / Dry spell, b: Rain lately, c: Wet time / Dry time) | done |
 | Rain tab (Q4) | RainA, RainB, RainC (Matt agrees with C), RainCDark | done: wet time in hours; the Now card of C has the accumulation line |
 | Rain Events (Q5) | EventsB (beeswarm per water year; earlier years are sample shapes), EventsC (every event of the water year; filter line on one row), EventsBC (B's scatter unchanged over C's list on one page; the filter line sits on the list), Glyphs (three options) | done; EventsA (timeline) dropped on Matt's comment; EventsB's dot caption removed |
-| Desktop | Desktop (1440, dark, raining, rows of four, feature full width) | done; Wind, Pressure, Humidity and Sun values are made up |
+| Desktop | Desktop (1440, dark, raining, redrawn in C: one rain tile, six mosaic tiles) | done; Wind, Pressure, Humidity and Sun values are made up |
+| | DesktopStopped (dark), DesktopStoppedLight | C, rain stopped 40 min ago (#660) |
 
 ## Matt's comments on the canvas (Nov 23) and what they changed
 
@@ -69,6 +71,21 @@ Picks so far:
 Open: none. Every question is picked.
 
 Picking this up in a new session: read this README, then use ArtifactComments (action read) on the canvas URL to read any open threads.
+
+## Stopped in C (#660), drawn without Matt judging it
+
+Boards: StoppedC, StoppedCDark (phone), DesktopStopped, DesktopStoppedLight (1440); MainDark and Desktop redrawn in C. The A boards Stopped, Main, Later stay as the earlier layout. Choices the decisions did not cover:
+
+- Last-hour bracket: replaced by a dry bracket from the last rain to now ("dry 40 min"). The raining bracket says "last hour 0.08 in", a rate; Stopped has no rate, and at 40 min the last hour still holds 20 min of rain. A dry-for bracket is true at any time up to 3 h, and past 60 min it is the empty last hour.
+- Chart window: the 3 h ending now (2:15 to 5:15 pm), same px per minute as raining. The old Stopped A board's left label (1:35 pm) did not match its shifted bars.
+- Story line: "Rain stopped 40 min ago ·" then "0.31 in since 2:40 pm" as two no-wrap runs, so on a phone it wraps after the dot, never mid-phrase. One line on desktop.
+- Tile label: a hollow ring and "Rain" (raining: a filled dot and "Raining").
+- Line colour is the rain-line token (#1d4a7a light, #d6e9fb dark), columns rain-bar; the older boards drew the line in ink.
+- Hatch: DESIGN's 135 degree stripes, `hatch` on the tile (3.57:1 light, 3.25:1 dark), with a 1px outline and a 12 px swatch key, "hatched: missing, not dry" (the old bars had no key).
+- Season foot is one link: heading, 7 d and 30 d bars, key, then Rain since Oct 1 (3.98 in, drier). On desktop the bars and Rain since Oct 1 sit side by side.
+- The old AltC still carries its meter in the hero and its daily mini bars in the foot; it was not touched. The new boards move the two bars into the foot, as decided.
+- Desktop mosaic: six tiles (Temperature, Highs over usual, Wind, Pressure, Humidity, Sun) after Wet hours and Rain since Oct 1 leave.
+- The 320 px view scales chart text below 12 px (the boards use viewBox charts; the site draws SVG at real width).
 
 ## Still to do
 

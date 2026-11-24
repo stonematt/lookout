@@ -17,7 +17,9 @@
     "DryDay.dc.html": {"page": "overview", "x": 1410, "y": 0, "w": 390, "h": 1240, "radius": 28, "title": "A · A dry day in dry mode"},
     "AltB.dc.html": {"page": "overview", "x": 0, "y": 1600, "w": 390, "h": 1240, "radius": 28, "title": "B · Raining: a rain row under the feature"},
     "AltC.dc.html": {"page": "overview", "x": 470, "y": 1600, "w": 390, "h": 1240, "radius": 28, "title": "C · Raining: one rain tile, now over season"},
-    "MainDark.dc.html": {"page": "overview", "x": 940, "y": 1600, "w": 390, "h": 1240, "radius": 28, "title": "A · Raining, dark"},
+    "MainDark.dc.html": {"page": "overview", "x": 940, "y": 1600, "w": 390, "h": 1240, "radius": 28, "title": "C · Raining, dark (one rain tile)"},
+    "StoppedC.dc.html": {"page": "overview", "x": 0, "y": 3200, "w": 390, "h": 1240, "radius": 28, "title": "C · Rain stopped 40 min ago, one rain tile"},
+    "StoppedCDark.dc.html": {"page": "overview", "x": 470, "y": 3200, "w": 390, "h": 1240, "radius": 28, "title": "C · Rain stopped 40 min ago, dark"},
     "Meter.dc.html": {"page": "meter", "x": 0, "y": 0, "w": 960, "h": 900, "radius": 16, "title": "Q1 · Meter windows on three real days"},
     "TileNames.dc.html": {"page": "meter", "x": 0, "y": 1020, "w": 960, "h": 820, "radius": 16, "title": "Q3 · The tile in both modes, three names"},
     "RainA.dc.html": {"page": "raintab", "x": 0, "y": 0, "w": 390, "h": 1500, "radius": 28, "title": "A · The water year leads"},
@@ -28,19 +30,22 @@
     "EventsC.dc.html": {"page": "events", "x": 470, "y": 0, "w": 390, "h": 1180, "radius": 28, "title": "C · Every event of the water year"},
     "EventsBC.dc.html": {"page": "events", "x": 0, "y": 1300, "w": 390, "h": 1420, "radius": 28, "title": "B + C · Picked: size over the list, the filter on the list"},
     "Glyphs.dc.html": {"page": "events", "x": 940, "y": 0, "w": 520, "h": 620, "radius": 16, "title": "Storm-or-shower glyph: three options"},
-    "Desktop.dc.html": {"page": "desktop", "x": 0, "y": 0, "w": 1440, "h": 1420, "radius": 16, "title": "Desktop 1440, dark, raining"}
+    "Desktop.dc.html": {"page": "desktop", "x": 0, "y": 0, "w": 1440, "h": 1420, "radius": 16, "title": "Desktop 1440, dark, raining (C)"},
+    "DesktopStopped.dc.html": {"page": "desktop", "x": 0, "y": 1540, "w": 1440, "h": 1420, "radius": 16, "title": "Desktop 1440, dark, rain stopped (C)"},
+    "DesktopStoppedLight.dc.html": {"page": "desktop", "x": 0, "y": 3080, "w": 1440, "h": 1420, "radius": 16, "title": "Desktop 1440, light, rain stopped (C)"}
   },
   "order": [
     "Main.dc.html", "Stopped.dc.html", "Later.dc.html", "DryDay.dc.html",
-    "AltB.dc.html", "AltC.dc.html", "MainDark.dc.html",
+    "AltB.dc.html", "AltC.dc.html", "MainDark.dc.html", "StoppedC.dc.html", "StoppedCDark.dc.html",
     "Meter.dc.html", "TileNames.dc.html",
     "RainA.dc.html", "RainB.dc.html", "RainC.dc.html", "RainCDark.dc.html",
     "EventsB.dc.html", "EventsC.dc.html", "EventsBC.dc.html", "Glyphs.dc.html",
-    "Desktop.dc.html"
+    "Desktop.dc.html", "DesktopStopped.dc.html", "DesktopStoppedLight.dc.html"
   ],
   "notes": {
     "t1": {"page": "overview", "kind": "title1", "x": 0, "y": -300, "maxW": 1800, "text": "Rain should feel like Oregon: now, then the season"},
     "n1": {"page": "overview", "x": 1880, "y": 0, "w": 360, "fill": "blue", "text": "Q2 · How the two stories sit (Matt leans to C)\n\nA (top row). The feature tile under the temperature carries the now story: a dual chart, rain every 5 min as columns and the running total as a line. The hero ends with the wet-hours meter, two bars (7 days, 30 days): the season at a glance on the first screen. Matt likes C, so report C as the lead; A is the earlier recommendation. The Dry spell slot turns into Wet hours in wet mode; \"Last rain 9 h ago\" is its delta once rain stops leading. Mosaic order and one-link tiles unchanged.\n\nTap: the feature and the meter both open the rain zoom, which runs now, then season, then usual (Rain tab C). Now → season is one scroll in the zoom; season → now is the same zoom's top.\n\nB. Meter shrinks into the hero's top right; in wet mode the first mosaic row becomes Wet hours | Rain since Oct 1. Breaks the fixed tile order (Mosaic decision 23).\n\nC. One rain tile: now on top, a season strip at its foot. Two links in one tile; the season is on screen only while rain leads."},
+    "n7": {"page": "overview", "x": 1880, "y": 1600, "w": 360, "fill": "blue", "text": "C · Stopped (#660)\n\nStopped applies while the last rain is under 3 h old and more than 30 min ago. The tile reads \"Rain stopped 40 min ago · 0.31 in since 2:40 pm\", with no rate. The chart is the same event: columns stop at 4:35, the line goes flat at 0.31 in to now. The last-hour bracket becomes a dry bracket, from the last rain to now (\"dry 40 min\"), so it never claims a rate and stays true when the last hour is empty. Season foot as when raining: two wet-hour bars and Rain since Oct 1. The hatch has a key (\"hatched: missing, not dry\") and a hatched swatch, and is hatch on tile (3.57:1 light, 3.25:1 dark). Two taps: the now part opens the rain zoom, the season foot opens the Rain tab at the season. MainDark and Desktop are redrawn in C."},
     "n2": {"page": "overview", "x": 1880, "y": 640, "w": 360, "fill": "gray", "text": "Sample values shaped like Lookout Post on Mon Nov 23, 2026. The 30-day wet hours are the back-test's real days (Oct 25 to Nov 22), plus 3 wet hours today for the rain scenario. Nov 5 is hatched only to show a missing day. Rain since Oct 1: 3.67 in measured + 0.31 in today = 3.98 in, against 7.58 (2026), 10.08 (2025) and 7.90 (2024) by this date: drier."},
     "n3": {"page": "overview", "x": 1880, "y": 1000, "w": 360, "fill": "orange", "text": "Flags\n\n1. The meter is now two hour bars, 7 days and 30 days (\"19 h of 168\", \"112 h of 720\"), after Matt's comment that hours beat percent. This replaces the decided one track 0–100% with two markers. The Wet hours tile carries the same number: one fact, shown twice.\n2. In dry mode the meter hides: it would read 0 h for months. The DryDay board shows the hero without it.\n3. Tile order: Wet hours moves up beside Temperature; Rain since Oct 1 moves to row 2. This breaks the fixed tile order (Mosaic decision 23) while it is wet.\n4. Last 10 days is retitled \"Highs over usual\", with \"last 10 days\" under the number (Matt, after a panel review). A title names what its number counts only where the old title named a window. The snapshot carries the title text (over, under or at usual), never the site. A window with a gap reads \"gap in record\" under the number, never +0°. The zoom heading and the sources footer read the same title."},
     "t2": {"page": "meter", "kind": "title1", "x": 0, "y": -300, "maxW": 960, "text": "The meter and the tile"},

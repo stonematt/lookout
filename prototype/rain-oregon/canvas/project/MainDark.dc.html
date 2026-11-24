@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Overview, raining, dark (A)</title>
+<title>Overview, raining, dark (C: one rain tile)</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -15,17 +15,8 @@ body{margin:0}
 a{color:#eef2f5;text-decoration:none}a:hover{color:#eef2f5}
 </style>
 </helmet>
-<div style="width: 390px; min-height: 1240px; box-sizing: border-box; background: #11161c; color: #eef2f5; font-family: Lexend, system-ui, sans-serif; letter-spacing: 0.01em; display: flex; flex-direction: column; position: relative;">
-
-<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 12px;">
-  <button type="button" style="display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; font: inherit; font-size: 17px; font-weight: 600; color: #eef2f5; min-height: 44px;">Lookout Post
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#c3ccd5" stroke-width="1.5"/></svg>
-  </button>
-  <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #aab5c0;">
-    <span style="width: 8px; height: 8px; border-radius: 4px; background: #7fb0e0;"></span>4:35 pm · 2 m ago
-  </div>
-</header>
-
+<div style="width: 100%; max-width: 390px; min-height: 1240px; box-sizing: border-box; background: #11161c; color: #eef2f5; font-family: Lexend, system-ui, sans-serif; letter-spacing: 0.01em; display: flex; flex-direction: column; position: relative; overflow-x: hidden;">
+<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 12px;"><button type="button" style="display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; font: inherit; font-size: 17px; font-weight: 600; color: #eef2f5; min-height: 44px;">Lookout Post<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4 L6 8 L10 4" fill="none" stroke="#c3ccd5" stroke-width="1.5"/></svg></button><div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #aab5c0;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #7fb0e0;"></span>4:35 pm · 2 m ago</div></header>
 <section aria-label="Now" style="margin: 0 16px; background: #354251; border-radius: 20px; padding: 16px 16px 12px;">
   <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
     <div style="display: flex; align-items: flex-start; font-variant-numeric: tabular-nums;">
@@ -37,69 +28,22 @@ a{color:#eef2f5;text-decoration:none}a:hover{color:#eef2f5}
       <div style="font-size: 13px; color: #dfe6ec; margin-top: 4px;"><b style="font-weight: 600;">−1°</b> on usual for 4 pm</div>
     </div>
   </div>
-  <svg viewBox="0 0 358 134" style="display: block; width: 100%; height: auto; margin-top: 12px;" role="img" aria-label="Today by the hour against the usual for Nov 16 to 30 in earlier years: inside the usual band all day; rain since 2:40 pm; now 51 degrees">
+  <svg viewBox="0 0 358 134" style="display: block; width: 100%; height: auto; margin-top: 12px;" role="img" aria-label="Today by the hour against the usual: inside the band; rain since 2:40 pm; now 51 degrees">
     <g stroke="#2a333d" stroke-width="1"><line x1="30" y1="96.8" x2="352" y2="96.8"/><line x1="30" y1="60.8" x2="352" y2="60.8"/><line x1="30" y1="24.8" x2="352" y2="24.8"/></g>
     <g font-size="12" fill="#dfe6ec" style="font-variant-numeric: tabular-nums;"><text x="0" y="100.8">40°</text><text x="0" y="64.8">50°</text><text x="0" y="28.8">60°</text></g>
     <path d="M30.0,69.8 L43.4,71.6 L56.8,73.4 L70.2,75.2 L83.7,77.0 L97.1,78.8 L110.5,80.6 L123.9,80.6 L137.3,76.3 L150.8,68.0 L164.2,60.1 L177.6,52.2 L191.0,44.2 L204.4,38.1 L217.8,33.8 L231.2,32.0 L244.7,34.5 L258.1,40.6 L271.5,48.9 L284.9,55.4 L298.3,59.7 L311.8,64.0 L325.2,66.2 L338.6,68.0 L352.0,69.8 L352.0,95.0 L338.6,93.2 L325.2,91.4 L311.8,90.0 L298.3,87.1 L284.9,84.2 L271.5,79.9 L258.1,73.8 L244.7,69.1 L231.2,68.0 L217.8,69.8 L204.4,72.7 L191.0,77.4 L177.6,83.8 L164.2,90.3 L150.8,96.8 L137.3,102.9 L123.9,105.8 L110.5,105.8 L97.1,104.0 L83.7,102.2 L70.2,100.4 L56.8,98.6 L43.4,96.8 L30.0,95.0 Z" fill="#606d7a"/>
     <path d="M30.0,82.4 L43.4,84.2 L56.8,86.0 L70.2,87.8 L83.7,89.6 L97.1,91.4 L110.5,93.2 L123.9,93.2 L137.3,89.6 L150.8,82.4 L164.2,75.2 L177.6,68.0 L191.0,60.8 L204.4,55.4 L217.8,51.8 L231.2,50.0 L244.7,51.8 L258.1,57.2 L271.5,64.4 L284.9,69.8 L298.3,73.4 L311.8,77.0 L325.2,78.8 L338.6,80.6 L352.0,82.4" fill="none" stroke="#dfe6ec" stroke-width="1.25" stroke-dasharray="4 3"/>
-    <text x="262" y="112" font-size="12" fill="#dfe6ec">usual, Nov 16–30</text>
+    <text x="352" text-anchor="end" y="112" font-size="12" fill="#dfe6ec">usual, Nov 16–30</text>
     <g fill="#a9d0f5"><rect x="226.4" y="112" width="2.6" height="6" rx="1"/><rect x="229.8" y="106" width="2.6" height="12" rx="1"/><rect x="233.1" y="104" width="2.6" height="14" rx="1"/><rect x="236.5" y="107" width="2.6" height="11" rx="1"/><rect x="239.8" y="110" width="2.6" height="8" rx="1"/><rect x="243.2" y="113" width="2.6" height="5" rx="1"/><rect x="246.5" y="112" width="2.6" height="6" rx="1"/><rect x="249.9" y="114" width="2.6" height="4" rx="1"/></g>
     <path d="M30.0,64.4 L43.4,64.4 L56.8,66.2 L70.2,68.0 L83.7,68.0 L97.1,69.8 L110.5,69.8 L123.9,68.0 L137.3,64.4 L150.8,59.0 L164.2,53.6 L177.6,50.0 L191.0,48.2 L204.4,46.4 L217.8,47.3 L231.2,52.0 L244.7,56.5 L252.5,58.0" fill="none" stroke="#eef2f5" stroke-width="2.75" stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="252.5" cy="58.0" r="5.5" fill="#f2a65e" stroke="#354251" stroke-width="2"/>
     <text x="262" y="50" font-size="12" font-weight="600" fill="#f2a65e">now 51°</text>
     <g font-size="12" fill="#dfe6ec"><text x="30" y="130">midnight</text><text x="110.5" y="130" text-anchor="middle">6 am</text><text x="191" y="130" text-anchor="middle">noon</text><text x="271.5" y="130" text-anchor="middle">6 pm</text></g>
   </svg>
-
-  <a href="RainCDark.dc.html" aria-label="Wet 19 of the last 168 hours and 112 of the 696 countable hours in the last 720. Open the rain view." style="display: block; border-top: 1px solid #4a5868; margin-top: 8px; padding-top: 10px; color: #eef2f5;">
-    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-      <span style="font-size: 12px; font-weight: 500; color: #dfe6ec;">Wet hours</span>
-    </div>
-    <svg viewBox="0 0 358 48" style="display: block; width: 100%; height: auto; margin-top: 6px;" aria-hidden="true">
-      <defs><pattern id="gapm" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="1.6" height="5" fill="#64717e"/></pattern></defs>
-      <g font-size="12" fill="#dfe6ec"><text x="0" y="16">7 days</text><text x="0" y="40">30 days</text></g>
-      <rect x="62" y="6" width="200" height="12" rx="6" fill="#606d7a"/><rect x="62" y="6" width="22.6" height="12" rx="6" fill="#d6e9fb"/>
-      <rect x="62" y="30" width="200" height="12" rx="6" fill="#606d7a"/><rect x="62" y="30" width="31.1" height="12" rx="6" fill="#d6e9fb"/><rect x="255.3" y="30" width="6.7" height="12" rx="3" fill="url(#gapm)"/>
-      <g font-size="13" fill="#dfe6ec" text-anchor="end" style="font-variant-numeric: tabular-nums;"><text x="358" y="16"><tspan font-weight="600" fill="#eef2f5">19 h</tspan> of 168</text><text x="358" y="40"><tspan font-weight="600" fill="#eef2f5">112 h</tspan> of 696</text></g>
-    </svg>
-  </a>
-</section>
-
-<a href="RainCDark.dc.html" aria-label="Raining, 0.08 inches an hour, 0.31 inches since 2:40 pm. Open the rain view." style="display: block; margin: 12px 16px 0; background: #1a2129; border-radius: 20px; padding: 16px 16px 12px;">
-  <div style="display: flex; justify-content: space-between; align-items: center;">
-    <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #aab5c0;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #7fb0e0;"></span>Raining</span>
-    <span style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 16px; border: 1px solid #6b7886; display: flex; align-items: center; justify-content: center;">
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 L7 5 L3.5 8.5" fill="none" stroke="#c3ccd5" stroke-width="1.5"/></svg>
-    </span>
-  </div>
-  <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 4px;">
-    <span style="font-size: 44px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap;">0.08<span style="font-size: 18px; font-weight: 400;"> in/h</span></span>
-    <span style="font-size: 17px; font-weight: 500; line-height: 1.3;">0.31 in since<br>2:40 pm</span>
-  </div>
-  <svg viewBox="0 0 372 134" style="display: block; width: 100%; height: auto; margin-top: 12px;" aria-hidden="true">
-    <g stroke="#2a333d" stroke-width="1"><line x1="30" y1="72" x2="340" y2="72"/><line x1="30" y1="52" x2="340" y2="52"/><line x1="30" y1="32" x2="340" y2="32"/></g>
-    <line x1="30" y1="92" x2="340" y2="92" stroke="#6b7886" stroke-width="1"/>
-    <g font-size="12" fill="#aab5c0" style="font-variant-numeric: tabular-nums;"><text x="0" y="76">.01</text><text x="0" y="56">.02</text><text x="0" y="36">.03</text></g>
-    <g fill="#7fb0e0">
-      <rect x="143.2" y="72" width="6" height="20" rx="1.5"/><rect x="151.8" y="52" width="6" height="40" rx="1.5"/><rect x="160.4" y="32" width="6" height="60" rx="1.5"/><rect x="169.0" y="52" width="6" height="40" rx="1.5"/><rect x="177.7" y="32" width="6" height="60" rx="1.5"/><rect x="186.3" y="52" width="6" height="40" rx="1.5"/><rect x="194.9" y="52" width="6" height="40" rx="1.5"/><rect x="203.5" y="32" width="6" height="60" rx="1.5"/><rect x="212.1" y="52" width="6" height="40" rx="1.5"/><rect x="220.8" y="52" width="6" height="40" rx="1.5"/><rect x="229.4" y="72" width="6" height="20" rx="1.5"/>
-      <rect x="238.0" y="72" width="6" height="20" rx="1.5"/><rect x="255.2" y="72" width="6" height="20" rx="1.5"/><rect x="263.8" y="72" width="6" height="20" rx="1.5"/><rect x="281.1" y="72" width="6" height="20" rx="1.5"/><rect x="289.7" y="72" width="6" height="20" rx="1.5"/><rect x="306.9" y="72" width="6" height="20" rx="1.5"/><rect x="315.6" y="72" width="6" height="20" rx="1.5"/><rect x="332.8" y="72" width="6" height="20" rx="1.5"/>
-    </g>
-    <g font-size="12" fill="#aab5c0" style="font-variant-numeric: tabular-nums;"><text x="346" y="76">.1</text><text x="346" y="56">.2</text><text x="346" y="36">.3 in</text></g>
-    <path d="M30,92 L143,92 L146.2,90 L154.8,86 L163.4,80 L172,76 L180.7,70 L189.3,66 L197.9,62 L206.5,56 L215.1,52 L223.8,48 L232.4,46 L241,44 L249.6,44 L258.2,42 L266.8,40 L275.5,40 L284.1,38 L292.7,36 L301.3,36 L309.9,34 L318.6,32 L327.2,32 L335.8,30" fill="none" stroke="#1a2129" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M30,92 L143,92 L146.2,90 L154.8,86 L163.4,80 L172,76 L180.7,70 L189.3,66 L197.9,62 L206.5,56 L215.1,52 L223.8,48 L232.4,46 L241,44 L249.6,44 L258.2,42 L266.8,40 L275.5,40 L284.1,38 L292.7,36 L301.3,36 L309.9,34 L318.6,32 L327.2,32 L335.8,30" fill="none" stroke="#eef2f5" stroke-width="2" stroke-linejoin="round"/>
-    <circle cx="335.8" cy="30" r="3.5" fill="#eef2f5"/>
-    <text x="330" y="20" font-size="12" font-weight="600" fill="#eef2f5" text-anchor="end">0.31 in so far</text>
-    <line x1="237" y1="100" x2="340" y2="100" stroke="#c3ccd5" stroke-width="1.5"/><line x1="237" y1="96" x2="237" y2="104" stroke="#c3ccd5" stroke-width="1.5"/><line x1="340" y1="96" x2="340" y2="104" stroke="#c3ccd5" stroke-width="1.5"/>
-    <text x="288.5" y="116" font-size="12" font-weight="600" fill="#c3ccd5" text-anchor="middle">last hour 0.08 in</text>
-    <g font-size="12" fill="#aab5c0"><text x="30" y="130">1:35 pm</text><text x="143.2" y="130">2:40 start</text><text x="340" y="130" text-anchor="end">4:35</text></g>
-  </svg>
-  <div style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #aab5c0; margin-top: 2px;">
-    <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 10px; border-radius: 1.5px; background: #7fb0e0;"></span>rain every 5 min (left)</span>
-    <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 14px; height: 2px; background: #eef2f5;"></span>total since 2:40 (right)</span>
-  </div>
-</a>
-
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 16px 0;">
-  <a href="#" style="order: -2; display: block; background: #1a2129; border-radius: 16px; padding: 14px 12px 10px;">
+  </section>
+<section aria-label="Rain" style="margin: 12px 16px 0; background: #1a2129; border-radius: 20px; padding: 16px 16px 4px;"><a href="RainCDark.dc.html" aria-label="Raining, 0.08 inches an hour, 0.31 inches since 2:40 pm. Open the rain view." style="display: block; min-height: 44px; color: #eef2f5;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #aab5c0;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #7fb0e0;"></span>Raining</span><span style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 16px; border: 1px solid #6b7886; display: flex; align-items: center; justify-content: center; flex: none;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 L7 5 L3.5 8.5" fill="none" stroke="#c3ccd5" stroke-width="1.5"/></svg></span></div><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 4px;"><span style="font-size: 44px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap;">0.08<span style="font-size: 18px; font-weight: 400;"> in/h</span></span><span style="font-size: 17px; font-weight: 500; line-height: 1.3;">0.31 in since 2:40 pm</span></div><svg viewBox="0 0 372 134" style="display: block; width: 100%; height: auto; margin-top: 12px;" role="img" aria-label="Rain every 5 minutes as columns and the running total as a line, ten to one. 0.31 inches so far since 2:40 pm; 0.08 inches in the last hour."><g stroke="#2a333d" stroke-width="1"><line x1="30.0" y1="72" x2="340" y2="72"/><line x1="30.0" y1="52" x2="340" y2="52"/><line x1="30.0" y1="32" x2="340" y2="32"/></g><line x1="30.0" y1="92" x2="340" y2="92" stroke="#6b7886" stroke-width="1"/><g font-size="12" fill="#aab5c0" style="font-variant-numeric: tabular-nums;"><text x="0" y="76">.01</text><text x="0" y="56">.02</text><text x="0" y="36">.03</text></g><g fill="#7fb0e0"><rect x="143.2" y="72" width="6" height="20" rx="1.5"/><rect x="151.9" y="52" width="6" height="40" rx="1.5"/><rect x="160.5" y="32" width="6" height="60" rx="1.5"/><rect x="169.1" y="52" width="6" height="40" rx="1.5"/><rect x="177.7" y="32" width="6" height="60" rx="1.5"/><rect x="186.3" y="52" width="6" height="40" rx="1.5"/><rect x="194.9" y="52" width="6" height="40" rx="1.5"/><rect x="203.5" y="32" width="6" height="60" rx="1.5"/><rect x="212.1" y="52" width="6" height="40" rx="1.5"/><rect x="220.8" y="52" width="6" height="40" rx="1.5"/><rect x="229.4" y="72" width="6" height="20" rx="1.5"/><rect x="238.0" y="72" width="6" height="20" rx="1.5"/><rect x="255.2" y="72" width="6" height="20" rx="1.5"/><rect x="263.8" y="72" width="6" height="20" rx="1.5"/><rect x="281.0" y="72" width="6" height="20" rx="1.5"/><rect x="289.6" y="72" width="6" height="20" rx="1.5"/><rect x="306.9" y="72" width="6" height="20" rx="1.5"/><rect x="315.5" y="72" width="6" height="20" rx="1.5"/><rect x="332.7" y="72" width="6" height="20" rx="1.5"/></g><g font-size="12" fill="#aab5c0" style="font-variant-numeric: tabular-nums;"><text x="346" y="76">.1</text><text x="346" y="56">.2</text><text x="346" y="36">.3 in</text></g><path d="M30.0,92.0 L141.9,92.0 L150.6,90.0 L159.2,86.0 L167.8,80.0 L176.4,76.0 L185.0,70.0 L193.6,66.0 L202.2,62.0 L210.8,56.0 L219.4,52.0 L228.1,48.0 L236.7,46.0 L245.3,44.0 L253.9,44.0 L262.5,42.0 L271.1,40.0 L279.7,40.0 L288.3,38.0 L296.9,36.0 L305.6,36.0 L314.2,34.0 L322.8,32.0 L331.4,32.0 L340.0,30.0" fill="none" stroke="#1a2129" stroke-width="5" stroke-linejoin="round"/><path d="M30.0,92.0 L141.9,92.0 L150.6,90.0 L159.2,86.0 L167.8,80.0 L176.4,76.0 L185.0,70.0 L193.6,66.0 L202.2,62.0 L210.8,56.0 L219.4,52.0 L228.1,48.0 L236.7,46.0 L245.3,44.0 L253.9,44.0 L262.5,42.0 L271.1,40.0 L279.7,40.0 L288.3,38.0 L296.9,36.0 L305.6,36.0 L314.2,34.0 L322.8,32.0 L331.4,32.0 L340.0,30.0" fill="none" stroke="#d6e9fb" stroke-width="2" stroke-linejoin="round"/><circle cx="335.8" cy="30" r="3.5" fill="#d6e9fb"/><text x="330.0" y="20" font-size="12" font-weight="600" fill="#d6e9fb" text-anchor="end">0.31 in so far</text><line x1="236.7" y1="100" x2="340.0" y2="100" stroke="#c3ccd5" stroke-width="1.5"/><line x1="236.7" y1="96" x2="236.7" y2="104" stroke="#c3ccd5" stroke-width="1.5"/><line x1="340.0" y1="96" x2="340.0" y2="104" stroke="#c3ccd5" stroke-width="1.5"/><text x="288.3" y="116" font-size="12" font-weight="600" fill="#c3ccd5" text-anchor="middle">last hour 0.08 in</text><g font-size="12" fill="#aab5c0"><text x="30.0" y="130">1:35 pm</text><text x="141.9" y="130">2:40 start</text><text x="340" y="130" text-anchor="end">4:35</text></g></svg><div style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #aab5c0; margin-top: 2px;"><span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 10px; border-radius: 1.5px; background: #7fb0e0;"></span>rain every 5 min (left)</span><span style="display: flex; align-items: center; gap: 5px;"><span style="width: 14px; height: 2px; background: #d6e9fb;"></span>total since 2:40 (right)</span></div></a><a href="RainCDark.dc.html" aria-label="The season: wet 19 of the last 168 hours and 112 of the 696 countable hours in the last 720; 3.98 inches since Oct 1, drier than usual. Open the rain view at the season." style="display: block; min-height: 44px; border-top: 1px solid #2a333d; margin-top: 12px; padding: 12px 0 14px; color: #eef2f5;"><div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 12px; font-weight: 500; color: #aab5c0;">Wet hours<span style="font-weight: 400;"> · each bar is every hour; dark is wet</span></span></div><svg viewBox="0 0 358 48" style="display: block; width: 100%; height: auto; margin-top: 6px;" aria-hidden="true"><defs><pattern id="gm" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="2" height="6" fill="#64717e"/></pattern></defs><g font-size="12" fill="#aab5c0"><text x="0" y="16">7 days</text><text x="0" y="40">30 days</text></g><rect x="62" y="6" width="200" height="12" rx="6" fill="#606d7a"/><rect x="62" y="6" width="22.6" height="12" rx="6" fill="#d6e9fb"/><rect x="62" y="30" width="193.3" height="12" rx="6" fill="#606d7a"/><rect x="62" y="30" width="31.1" height="12" rx="6" fill="#d6e9fb"/><rect x="255.8" y="30.5" width="6.2" height="11" fill="#1a2129" stroke="#64717e"/><rect x="255.8" y="30.5" width="6.2" height="11" fill="url(#gm)"/><g font-size="13" fill="#aab5c0" text-anchor="end" style="font-variant-numeric: tabular-nums;"><text x="358" y="16"><tspan font-weight="600" fill="#eef2f5">19 h</tspan> of 168</text><text x="358" y="40"><tspan font-weight="600" fill="#eef2f5">112 h</tspan> of 696</text></g></svg><div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #aab5c0; margin-top: 4px;"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" style="flex: none;"><defs><pattern id="gmk" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="2" height="6" fill="#64717e"/></pattern></defs><rect x="0.5" y="0.5" width="11" height="11" fill="#1a2129" stroke="#64717e"/><rect x="0.5" y="0.5" width="11" height="11" fill="url(#gmk)"/></svg><span>hatched: missing, not dry</span></div><div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; border-top: 1px solid #2a333d; margin-top: 10px; padding-top: 10px;"><div><div style="font-size: 12px; font-weight: 500; color: #aab5c0;">Rain since Oct 1</div><div style="font-size: 24px; font-weight: 300; font-variant-numeric: tabular-nums;">3.98<span style="font-size: 14px;"> in</span></div></div><div style="font-size: 13px; color: #c3ccd5; text-align: right;"><b style="font-weight: 500;">drier</b> than usual<div style="font-size: 12px; color: #aab5c0; margin-top: 2px;">usual by now 7.90 in</div></div></div></a></section>
+<div style="margin: 10px 16px 0; padding: 10px 14px; border: 1px dashed #6b7886; border-radius: 12px; font-size: 12px; line-height: 1.5; color: #aab5c0;"><b style="color: #eef2f5; font-weight: 600;">While rain leads:</b> the season sits in the rain tile, so Wet hours and Rain since Oct 1 leave the mosaic. When rain stops leading they come back. Two links in one tile: the now part opens the rain zoom, the season foot opens the Rain tab at the season.</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 16px 0;"><a href="#" style="order: -2; display: block; background: #1a2129; border-radius: 16px; padding: 14px 12px 10px;">
     <div style="font-size: 12px; font-weight: 500; color: #aab5c0;">Temperature</div>
     <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">51°</div>
     <div style="font-size: 13px; color: #c3ccd5;">high 53°, <b style="font-weight: 500;">−1°</b> on usual</div>
@@ -112,23 +56,7 @@ a{color:#eef2f5;text-decoration:none}a:hover{color:#eef2f5}
       <rect x="88" y="30.5" width="18" height="13" rx="4" fill="#9fb9d3"/>
       <line x1="104" y1="2" x2="104" y2="48" stroke="#f2a65e" stroke-width="2"/>
     </svg>
-  </a>
-  <a href="RainCDark.dc.html" aria-label="Rain since Oct 1, 3.98 inches, drier than usual. Open the rain view." style="display: block; background: #1a2129; border-radius: 16px; padding: 14px 12px 10px;">
-    <div style="font-size: 12px; font-weight: 500; color: #aab5c0;">Rain since Oct 1</div>
-    <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">3.98<span style="font-size: 16px;"> in</span></div>
-    <div style="font-size: 13px; color: #c3ccd5;"><b style="font-weight: 500;">drier</b> than usual</div>
-    <svg viewBox="0 0 150 66" style="display: block; width: 100%; height: auto; margin-top: 8px; overflow: hidden;" aria-hidden="true">
-      <g transform="translate(0,16) scale(1,0.75)" fill="none">
-        <path d="M0.0,63.9 L11.1,62.1 L22.1,57.8 L33.2,56.4 L44.3,48.9 L55.3,46.6 L66.4,36.8 L77.5,34.8 L88.5,24.1 L99.6,21.9 L110.7,11.4 L121.7,8.8 L132.8,-1.2 L143.9,-4.4 L150,-5.9" stroke="#6b7886" stroke-width="1.25"/>
-        <path d="M0.0,63.9 L11.1,60.5 L22.1,52.6 L33.2,50.0 L44.3,42.4 L55.3,40.7 L66.4,33.4 L77.5,31.5 L88.5,20.8 L99.6,18.6 L110.7,8.1 L121.7,5.5 L132.8,-4.4 L143.9,-7.7 L150,-9.2" stroke="#6b7886" stroke-width="1.25"/>
-        <path d="M0.0,63.6 L14.8,58.7 L29.5,53.7 L44.3,48.0 L59.0,41.6 L73.8,35.2 L88.5,28.3 L103.3,21.4 L118.0,14.5 L132.8,7.6 L147.5,0.6" stroke="#eef2f5" stroke-width="1.25" stroke-dasharray="3 3"/>
-        <path d="M0.0,63.9 L9.8,63.9 L19.7,63.6 L29.5,63.6 L36.0,58.0 L44.3,56.5 L52.0,55.0 L60.0,51.5 L66.0,50.5" stroke="#d6e9fb" stroke-width="2.5"/>
-      </g>
-      <circle cx="66" cy="53.9" r="4" fill="#f2a65e" stroke="#1a2129" stroke-width="1.5"/>
-    </svg>
-    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #aab5c0;"><span>Oct</span><span>Jan</span></div>
-  </a>
-  <a href="#" style="display: block; background: #1a2129; border-radius: 16px; padding: 14px 12px 10px;">
+  </a><a href="#" style="display: block; background: #1a2129; border-radius: 16px; padding: 14px 12px 10px;">
     <div style="font-size: 12px; font-weight: 500; color: #aab5c0;">Highs over usual</div>
     <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">+1°</div>
     <div style="font-size: 13px; color: #c3ccd5;">last 10 days</div>
@@ -137,32 +65,9 @@ a{color:#eef2f5;text-decoration:none}a:hover{color:#eef2f5}
       <rect x="6" y="24" width="6" height="24" rx="3" fill="#9fb9d3"/><rect x="20" y="20" width="6" height="26" rx="3" fill="#9fb9d3"/><rect x="34" y="14" width="6" height="28" rx="3" fill="#f5bd8a"/><rect x="48" y="22" width="6" height="24" rx="3" fill="#9fb9d3"/><rect x="62" y="16" width="6" height="26" rx="3" fill="#f5bd8a"/><rect x="76" y="26" width="6" height="22" rx="3" fill="#9fb9d3"/><rect x="90" y="20" width="6" height="26" rx="3" fill="#9fb9d3"/><rect x="104" y="12" width="6" height="28" rx="3" fill="#f5bd8a"/><rect x="118" y="22" width="6" height="24" rx="3" fill="#9fb9d3"/>
       <rect x="131" y="22" width="8" height="22" rx="4" fill="#f2a65e"/>
     </svg>
-  </a>
-  <a href="RainCDark.dc.html" aria-label="Wet hours: 19 this week, raining now. Open the rain view." style="order: -1; display: block; background: #1a2129; border-radius: 16px; padding: 14px 12px 10px;">
-    <div style="font-size: 12px; font-weight: 500; color: #aab5c0;">Wet hours</div>
-    <div style="font-size: 30px; font-weight: 300; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums;">19<span style="font-size: 16px;"> h</span></div>
-    <div style="font-size: 13px; color: #c3ccd5;">this week · raining now</div>
-    <svg viewBox="0 0 150 64" style="display: block; width: 100%; height: auto; margin-top: 8px;" aria-hidden="true">
-      <defs><pattern id="hd" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="1.6" height="5" fill="#64717e"/></pattern></defs>
-      <rect x="115" y="4" width="35" height="52" fill="#2a333d"/>
-      <line x1="0" y1="32" x2="150" y2="32" stroke="#2a333d"/>
-      <g fill="#7fb0e0"><rect x="0.8" y="42" width="3.4" height="14" rx="1"/><rect x="5.8" y="44" width="3.4" height="12" rx="1"/><rect x="10.8" y="42" width="3.4" height="14" rx="1"/><rect x="15.8" y="38" width="3.4" height="18" rx="1"/><rect x="20.8" y="48" width="3.4" height="8" rx="1"/><rect x="25.8" y="54" width="3.4" height="2" rx="1"/><rect x="45.8" y="54" width="3.4" height="2" rx="1"/><rect x="50.8" y="52" width="3.4" height="4" rx="1"/><rect x="60.8" y="50" width="3.4" height="6" rx="1"/><rect x="65.8" y="50" width="3.4" height="6" rx="1"/><rect x="70.8" y="52" width="3.4" height="4" rx="1"/><rect x="75.8" y="40" width="3.4" height="16" rx="1"/><rect x="80.8" y="42" width="3.4" height="14" rx="1"/><rect x="90.8" y="54" width="3.4" height="2" rx="1"/><rect x="95.8" y="36" width="3.4" height="20" rx="1"/><rect x="100.8" y="38" width="3.4" height="18" rx="1"/><rect x="105.8" y="34" width="3.4" height="22" rx="1"/><rect x="110.8" y="52" width="3.4" height="4" rx="1"/><rect x="120.8" y="42" width="3.4" height="14" rx="1"/><rect x="135.8" y="50" width="3.4" height="6" rx="1"/><rect x="140.8" y="44" width="3.4" height="12" rx="1"/><rect x="145.8" y="50" width="3.4" height="6" rx="1"/></g>
-      <rect x="55.3" y="8" width="4.4" height="48" fill="url(#hd)"/>
-      <line x1="0" y1="56" x2="150" y2="56" stroke="#6b7886"/>
-      <circle cx="147.5" cy="43" r="3.5" fill="#f2a65e" stroke="#1a2129" stroke-width="1.5"/>
-    </svg>
-    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #aab5c0;"><span>30 days</span><span>this week</span></div>
-  </a>
-</div>
-
+  </a></div>
 <div style="flex-grow: 1; min-height: 24px;"></div>
-
-<nav aria-label="Tabs" style="position: sticky; bottom: 0; display: flex; justify-content: space-around; align-items: center; padding: 10px 12px 22px; background: #11161c; border-top: 1px solid #2a333d;">
-  <a href="MainDark.dc.html" aria-current="page" style="font-size: 14px; font-weight: 600; color: #11161c; background: #eef2f5; border-radius: 22px; padding: 12px 16px;">Overview</a>
-  <a href="RainCDark.dc.html" style="font-size: 14px; color: #c3ccd5; padding: 12px 10px;">Rain</a>
-  <a href="EventsBC.dc.html" style="font-size: 14px; color: #c3ccd5; padding: 12px 10px;">Rain Events</a>
-  <a href="#" style="font-size: 14px; color: #c3ccd5; padding: 12px 10px;">Solar</a>
-</nav>
+<nav aria-label="Tabs" style="position: sticky; bottom: 0; display: flex; justify-content: space-around; align-items: center; padding: 10px 12px 22px; background: #11161c; border-top: 1px solid #2a333d;"><a href="MainDark.dc.html" aria-current="page" style="font-size: 14px; font-weight: 600; color: #11161c; background: #eef2f5; border-radius: 22px; padding: 12px 16px;">Overview</a><a href="RainCDark.dc.html" style="font-size: 14px; color: #c3ccd5; padding: 12px 6px; white-space: nowrap;">Rain</a><a href="EventsBC.dc.html" style="font-size: 14px; color: #c3ccd5; padding: 12px 6px; white-space: nowrap;">Rain Events</a><a href="#" style="font-size: 14px; color: #c3ccd5; padding: 12px 6px; white-space: nowrap;">Solar</a></nav>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1240}}'>
