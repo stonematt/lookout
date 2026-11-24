@@ -21,9 +21,9 @@
  *   tab): its start, the four-step category glyph and word, length, peak
  *   and quality chip, its total, and a size bar (its total over the
  *   catalog's largest, hidden from assistive tech). The open row adds the
- *   event's finding, its stats, a Total / Rate switch over one chart, its
- *   quality and its folded source. Opening another row closes it; opening
- *   writes `?event=`.
+ *   event's finding, its stats, one chart of its rain (columns) and its
+ *   running total (a line, #419), its quality and its folded source.
+ *   Opening another row closes it; opening writes `?event=`.
  * - With no `?event=`, the live event is open, or with none live, the newest
  *   event in the water year shown. With none live the newest row carries
  *   the "latest" chip. A linked event shows in its own water year, the size
@@ -32,17 +32,19 @@
  *   snapshot holds only for the live event (`active_rain_event`, the hero's
  *   decision); without one it says its readings are "not in the snapshot
  *   yet". Any other event's is its curve file (`/event`), read when its row
- *   opens: "Loading the curve…" while it reads, "Couldn't load this event's
- *   curve." with Try again if the read fails. An event the catalog still
- *   holds open after the rain has stopped is not live and has no file yet,
- *   so it reads "not published yet" until then. An event with no archive
- *   data shows its totals only, with "n/a: gap in record".
+ *   opens: "Loading the curve…" while it reads, and on until the chart is
+ *   drawn (Plotly loads on first use), so an empty chart never reads as no
+ *   rain; "Couldn't load this event's curve." with Try again if the read
+ *   fails. An event the catalog still holds open after the rain has stopped
+ *   is not live and has no file yet, so it reads "not published yet" until
+ *   then. An event with no archive data shows its totals only, with "n/a:
+ *   gap in record".
  * - The event is keyed by its start, which is stable across refresh runs,
  *   so a link opened while it is live still opens it once it has completed.
  * - A newer snapshot mounts the tab again over the same panel; it keeps the
- *   water year, the order, the rows "Show more" opened, the Total / Rate
- *   pick and a row closed by hand, and redraws a completed event from the
- *   curve it already read (the per-panel `Kept` record).
+ *   water year, the order, the rows "Show more" opened and a row closed by
+ *   hand, and redraws a completed event from the curve it already read (the
+ *   per-panel `Kept` record).
  */
 import "./events.css";
 
@@ -51,7 +53,7 @@ import { ReadError, fetchEventCurve } from "../load.js";
 import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
 import { renderTiles, sourceNote } from "../tiles.js";
 import { renderCatalogHead, renderCatalogTile } from "./catalog.js";
-import type { EventChart, EventChartOptions } from "./charts.js";
+import type { EventChartOptions } from "./charts.js";
 import { chartLabel, eventBody, eventSource } from "./detail.js";
 import {
   PAGE,
@@ -82,7 +84,7 @@ import {
 export interface EventsDeps {
   /** A completed event's curve; rejects with a `ReadError` 404 if unwritten. */
   fetchCurve(startMs: number): Promise<EventCurve>;
-  /** Draw the open row's chart, Total or Rate, into its host. */
+  /** Draw the open row's chart into its host. */
   draw(
     host: HTMLElement,
     curve: EventCurve,
@@ -112,8 +114,6 @@ interface View {
   /** The smallest category listed, or all; kept in the browser too. */
   size: EventSize;
   limit: number;
-  /** The open row's chart. */
-  chart: EventChart;
 }
 
 /** What a panel keeps from its last mount for the next one. */
@@ -138,19 +138,13 @@ const panels = new WeakMap<HTMLElement, Kept>();
 
 /**
  * The view a mount starts from: the panel's last one, or the first page of
- * the newest water year, newest first, in the size kept in the browser, on
- * Total. A water year the snapshot no longer lists goes to the newest, with
- * the first page, the order, the size and the chart kept.
+ * the newest water year, newest first, in the size kept in the browser. A
+ * water year the snapshot no longer lists goes to the newest, with the
+ * first page, the order and the size kept.
  */
 function keptView(last: View | undefined, section: DashboardSnapshot["rain_events"]): View {
   if (!last) {
-    return {
-      season: currentSeason(section),
-      sort: "newest",
-      size: storedSize(),
-      limit: PAGE,
-      chart: "total",
-    };
+    return { season: currentSeason(section), sort: "newest", size: storedSize(), limit: PAGE };
   }
   const { season } = last;
   if (season === "all" || section.seasons.some((s) => s.water_year === season)) return last;
@@ -165,6 +159,24 @@ function eventHref(startMs: number): string {
 /** Whether a click asks the browser to open the link elsewhere. */
 function opensElsewhere(event: MouseEvent): boolean {
   return event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+}
+
+/**
+ * The chart area's loading note, "Loading the curve…" (DESIGN.md "Loading
+ * a curve"). The read's note shows at once and is a status for assistive
+ * tech; the drawing's (`later`) shows only after a moment and is not
+ * announced, so a quick redraw at each newer snapshot neither flashes nor
+ * speaks.
+ *
+ * @param later - The note waits for the chart's drawing, not a read.
+ * @returns The note.
+ */
+function loadingNote(later = false): HTMLElement {
+  const note = document.createElement("p");
+  note.className = later ? "ev-wait ev-loading ev-later" : "ev-wait ev-loading";
+  if (!later) note.setAttribute("role", "status");
+  note.textContent = "Loading the curve…";
+  return note;
 }
 
 /**
@@ -191,8 +203,8 @@ function stickyTop(): number {
 /**
  * Render the Rain Events tab into its panel. Mounted again over the same
  * panel (a newer snapshot), it keeps the open event, the water year, the
- * order, the chart and the rows "Show more" opened; for another station it
- * keeps nothing.
+ * order and the rows "Show more" opened; for another station it keeps
+ * nothing.
  *
  * @param panel - The tab's panel; its content is replaced.
  * @param snapshot - The dashboard snapshot.
@@ -306,7 +318,7 @@ export function mountEvents(
     const host = row ? panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-body") : null;
     if (!row || !host) return;
     const ticket = ++drawn;
-    host.innerHTML = html`${eventBody(row, all.length, view.chart, missing)}`;
+    host.innerHTML = html`${eventBody(row, all.length, missing)}`;
     const charts = host.querySelector<HTMLElement>(".ev-charts")!;
     host.append(sourceNote(snapshot, eventSource(row)));
 
@@ -323,7 +335,7 @@ export function mountEvents(
       charts.innerHTML = html`<p class="ev-note ev-wait">This event's readings are not in the snapshot yet.</p>`;
       return;
     }
-    charts.innerHTML = html`<p class="ev-wait" role="status">Loading the curve…</p>`;
+    charts.replaceChildren(loadingNote());
     deps.fetchCurve(row.start_ms).then(
       (curve) => {
         kept.curves.set(row.start_ms, curve);
@@ -349,25 +361,36 @@ export function mountEvents(
   }
 
   /**
-   * The open row's chart, Total or Rate as the switch says, from its curve,
-   * against the median event of the water year shown (the catalog tile's).
+   * The open row's chart from its curve, against the median event of the
+   * water year shown (the catalog tile's). Until it is drawn the area says
+   * it is loading: the note the read put there, or one that shows only if
+   * the drawing takes a moment (a redraw with Plotly at hand does not).
    */
   function show(charts: HTMLElement, curve: EventCurve, row: RainEventRow, ticket: number): void {
     if (ticket !== drawn) return;
     const median = statsFor(section, view.season).median_in;
     const chart = document.createElement("div");
     chart.className = "ev-chart";
-    chart.dataset.chart = view.chart;
     chart.setAttribute("role", "img");
-    chart.setAttribute("aria-label", chartLabel(row, view.chart, median));
-    charts.replaceChildren(chart);
-    deps
-      .draw(chart, curve, row, { chart: view.chart, medianIn: median })
-      .catch((error: unknown) => {
+    chart.setAttribute("aria-label", chartLabel(row, median));
+    const reading = charts.querySelector<HTMLElement>(":scope > .ev-loading");
+    for (const child of [...charts.children]) if (child !== reading) child.remove();
+    const note = reading ?? loadingNote(true);
+    charts.prepend(chart);
+    if (!reading) charts.append(note);
+    charts.setAttribute("aria-busy", "true");
+    deps.draw(chart, curve, row, { medianIn: median }).then(
+      () => {
+        note.remove();
+        charts.removeAttribute("aria-busy");
+      },
+      (error: unknown) => {
+        charts.removeAttribute("aria-busy");
         if (ticket !== drawn) return;
         console.error("Lookout: event chart failed", error);
         charts.innerHTML = html`<p class="ev-note ev-wait">The chart could not be drawn.</p>`;
-      });
+      },
+    );
   }
 
   /** Make sure the open row is on the rows shown. */
@@ -423,19 +446,6 @@ export function mountEvents(
         if (opensElsewhere(event)) return;
         event.preventDefault();
         toggle(Number(head.dataset.start));
-        return;
-      }
-      const chartButton = target.closest<HTMLButtonElement>("[data-chart]");
-      if (chartButton) {
-        view.chart = chartButton.dataset.chart as EventChart;
-        for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-chart]")) {
-          b.setAttribute("aria-pressed", String(b === chartButton));
-        }
-        // Only the chart changes: the row, its switch and its fold stay. A
-        // curve still loading draws on the new pick when it arrives.
-        const charts = panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-charts");
-        const curve = selected && curveOf(selected);
-        if (charts && curve && selected) show(charts, curve, selected, drawn);
         return;
       }
       if (target.closest(".ev-retry")) {

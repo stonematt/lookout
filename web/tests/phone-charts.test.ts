@@ -17,7 +17,8 @@ const react = vi.fn(async () => {});
 vi.mock("plotly.js-dist-min", () => ({ default: { react } }));
 
 import { LABEL_CHAR_PX } from "../src/charts/svg.js";
-import { drawEventChart, timeTicks } from "../src/events/charts.js";
+import { dualScale } from "../src/charts/dual.js";
+import { columnWords, drawEventChart, rainColumns, timeTicks } from "../src/events/charts.js";
 import { renderOverview } from "../src/overview/index.js";
 import { againstNormal, temperaturePeriods, tenDays } from "../src/overview/temperature.js";
 import { renderRain } from "../src/rain/index.js";
@@ -92,8 +93,7 @@ describe("the event charts", () => {
     { data: Record<string, unknown>[]; layout: Record<string, unknown> }[]
   > {
     const host = document.createElement("div");
-    await drawEventChart(host, curve(20), row(), { chart: "total", medianIn: 0.36 });
-    await drawEventChart(host, curve(20), row(), { chart: "rate", medianIn: 0.36 });
+    await drawEventChart(host, curve(20), row(), { medianIn: 0.36 });
     return react.mock.calls.map((call) => {
       const [, data, layout] = call as unknown as [
         unknown,
@@ -119,7 +119,7 @@ describe("the event charts", () => {
     expect(dot.cliponaxis).toBe(false);
   });
 
-  it("draws Total against the median event's total, dashed and labelled", async () => {
+  it("draws the total against the median event's total, dashed and labelled", async () => {
     const [acc] = await draw();
     const median = acc!.data.find(
       (t) => (t.line as Record<string, unknown> | undefined)?.dash === "dash",
@@ -127,23 +127,97 @@ describe("the event charts", () => {
     const notes = acc!.layout.annotations as Record<string, unknown>[];
 
     expect(median.y).toEqual([0.36, 0.36]);
+    expect(median.yaxis).toBe("y2");
     expect(notes.map((n) => n.text)).toContain("median 0.36 in");
   });
 
-  it("draws Total and Rate at one height, so the switch keeps the row still", async () => {
-    const [acc, rate] = await draw();
+  it("draws the rate as columns under the total's line, on one time axis", async () => {
+    const [chart] = await draw();
+    const bars = chart!.data.filter((t) => t.type === "bar");
+    const columns = bars.find((t) => t.hovertemplate)!;
+    const line = chart!.data.find((t) => t.mode === "lines" && t.hovertemplate)!;
 
-    expect(acc!.layout.height).toBe(rate!.layout.height);
+    // The line on the total's axis, the columns on their own.
+    expect(line.yaxis).toBe("y2");
+    expect(columns.yaxis ?? "y").toBe("y");
+    // 20 hours at the desktop fallback: 10-minute columns, each still the
+    // rain per 5 minutes (0.01 in) after the first (its one reading), each
+    // narrower than its bin, so the columns stand apart.
+    expect(new Set((columns.y as number[]).slice(1))).toEqual(new Set([0.01]));
+    for (const w of columns.width as number[]) expect(w).toBeLessThan(600_000);
+    expect(chart!.layout.barmode).toBe("overlay");
+    const notes = (chart!.layout.annotations as Record<string, unknown>[]).map((n) => n.text);
+    expect(notes).toContain("rain per 5 min, 10-min average");
+    expect(notes).toContain("2.40 in total");
   });
 
-  it("gives both charts the same plain-time ticks", async () => {
-    const [acc, rate] = await draw();
-    const xa = acc!.layout.xaxis as Record<string, unknown>;
-    const xr = rate!.layout.xaxis as Record<string, unknown>;
+  it("keeps the two axes at 10:1, tick for tick", async () => {
+    const [chart] = await draw();
+    const left = chart!.layout.yaxis as { range: number[]; tickvals: number[]; ticktext: string[] };
+    const right = chart!.layout.yaxis2 as {
+      range: number[];
+      tickvals: number[];
+      ticktext: string[];
+      side: string;
+    };
 
-    expect(xr.tickmode).toBe("array");
-    expect(xr.ticktext).toEqual(xa.ticktext);
-    expect(xr.tickvals).toEqual(xa.tickvals);
+    expect(right.side).toBe("right");
+    expect(right.range[1]).toBeCloseTo(left.range[1]! * 10);
+    expect(right.tickvals).toEqual(left.tickvals.map((v) => Number((v * 10).toPrecision(6))));
+    // Both in inches, the unit on the top tick.
+    expect(left.ticktext.at(-1)).toMatch(/ in$/);
+    expect(right.ticktext.at(-1)).toMatch(/ in$/);
+  });
+
+  it("says a live event's total so far, in the now colour", async () => {
+    const host = document.createElement("div");
+    await drawEventChart(host, curve(2), row({ live: true }), { medianIn: null });
+    const [, , layout] = react.mock.calls.at(-1) as unknown as [
+      unknown,
+      unknown,
+      { annotations: Record<string, unknown>[] },
+    ];
+
+    expect(layout.annotations.map((n) => n.text)).toContain("0.24 in so far");
+  });
+});
+
+describe("the event chart's columns", () => {
+  it("bins the rain between readings into the finest columns that stay apart", () => {
+    const span = 3 * HOUR;
+    // Three hours on a wide plot: 5-minute columns.
+    const fine = rainColumns(curve(3), span, 600);
+    expect(fine.minutes).toBe(5);
+    expect(fine.y[1]).toBeCloseTo(0.01);
+    expect(columnWords(fine.minutes)).toBe("rain every 5 min");
+    // On a narrow plot: wider bins, each its rain per 5 minutes, so the
+    // column axis reads the same at every width.
+    const narrow = rainColumns(curve(3), span, 100);
+    expect(narrow.minutes).toBe(10);
+    expect(Math.max(...narrow.y)).toBeCloseTo(0.01);
+    expect(narrow.text[1]).toContain("10 min: 0.02 in (0.12 in/hr)");
+    expect(columnWords(narrow.minutes)).toBe("rain per 5 min, 10-min average");
+  });
+
+  it("draws no column for the reading after a gap", () => {
+    const c = curve(1);
+    c.rate_in_hr = c.rate_in_hr.map((r, i) => (i === 6 ? null : r));
+    const columns = rainColumns(c, HOUR, 600);
+
+    expect(columns.y).toHaveLength(c.t_ms.length - 1);
+  });
+
+  it("names hourly and longer columns", () => {
+    expect(columnWords(60)).toBe("rain per 5 min, hourly average");
+    expect(columnWords(180)).toBe("rain per 5 min, 3-h average");
+  });
+});
+
+describe("the dual scale", () => {
+  it("tops both axes on the larger of the total and ten times the tallest column", () => {
+    expect(dualScale(0.31, 0.02)).toMatchObject({ totalTop: 0.4, columnTop: 0.04 });
+    // A cloudburst: the column sets the scale, the line rescales with it.
+    expect(dualScale(0.2, 0.09)).toMatchObject({ totalTop: 1, columnTop: 0.1 });
   });
 });
 
@@ -667,8 +741,8 @@ describe("an event chart's redraws", () => {
 
   const yTicks = () =>
     react.mock.calls.map((call) => {
-      const layout = (call as unknown[])[2] as { yaxis: { nticks?: number } };
-      return layout.yaxis.nticks;
+      const layout = (call as unknown[])[2] as { yaxis: { tickvals: number[] } };
+      return layout.yaxis.tickvals.length;
     });
 
   it("redraws with phone ticks once a chart drawn hidden gets its width", async () => {
@@ -676,25 +750,20 @@ describe("an event chart's redraws", () => {
     layOut(0);
     const host = document.createElement("div");
     document.body.append(host);
-    await drawEventChart(host, curve(20), row(), { chart: "total", medianIn: 0.36 });
-    // Drawn hidden: the fallback's desktop width, Plotly's own ticks.
-    expect(yTicks()).toEqual([0]);
+    await drawEventChart(host, curve(20), row(), { medianIn: 0.36 });
+    // Drawn hidden: the fallback's desktop width, its four ticks.
+    expect(yTicks()).toEqual([4]);
 
     layOut(PHONE);
     fire.resize();
     await vi.waitFor(() => expect(react.mock.calls.length).toBe(2));
-    expect(yTicks()).toEqual([0, 3]);
+    expect(yTicks()).toEqual([4, 3]);
   });
 
   it("draws every word at 12px or more", async () => {
     fakes();
     layOut(PHONE);
-    for (const chart of ["total", "rate"] as const) {
-      await drawEventChart(document.createElement("div"), curve(20), row(), {
-        chart,
-        medianIn: 0.36,
-      });
-    }
+    await drawEventChart(document.createElement("div"), curve(20), row(), { medianIn: 0.36 });
     const sizes: number[] = [];
     const walk = (value: unknown, key = ""): void => {
       if (value && typeof value === "object") {
@@ -703,7 +772,7 @@ describe("an event chart's redraws", () => {
     };
     for (const call of react.mock.calls) {
       const layout = (call as unknown[])[2] as Record<string, unknown>;
-      for (const part of ["font", "xaxis", "yaxis", "annotations", "hoverlabel"])
+      for (const part of ["font", "xaxis", "yaxis", "yaxis2", "annotations", "hoverlabel"])
         walk(layout[part]);
     }
 
@@ -714,11 +783,11 @@ describe("an event chart's redraws", () => {
   it("redraws every chart in the page when the colour scheme changes", async () => {
     const fire = fakes();
     layOut(PHONE);
-    const total = document.createElement("div");
-    const rate = document.createElement("div");
-    document.body.append(total, rate);
-    await drawEventChart(total, curve(20), row(), { chart: "total", medianIn: 0.36 });
-    await drawEventChart(rate, curve(20), row(), { chart: "rate", medianIn: 0.36 });
+    const one = document.createElement("div");
+    const two = document.createElement("div");
+    document.body.append(one, two);
+    await drawEventChart(one, curve(20), row(), { medianIn: 0.36 });
+    await drawEventChart(two, curve(20), row(), { medianIn: 0.36 });
     react.mockClear();
 
     fire.scheme();
