@@ -23,10 +23,10 @@
 import { DUAL_RATIO, dualScale, dualTickText } from "../charts/dual.js";
 import { LABEL_CHAR_PX, drawSized, runs, scale, yTickSteps } from "../charts/svg.js";
 import { make, svgEl } from "../dom.js";
-import { inches, timeParts } from "../format.js";
+import { inches, localDay, timeParts } from "../format.js";
 import { svgHatch } from "../gaps.js";
 import type { RainNow, RainSlots } from "../snapshot.js";
-import { stoppedAgo } from "./feature.js";
+import { sinceWords, stoppedAgo } from "./feature.js";
 
 const MINUTE_MS = 60_000;
 /** The last-hour bracket's span: the rate's own hour. */
@@ -204,7 +204,8 @@ function draw(rain: RainNow, slots: RainSlots, nowMs: number, width: number): SV
     const text = `${inches(total, { digits: 2 })} ${rain.raining ? "so far" : "total"}`;
     const w = textWidth(text, true);
     const y = Math.max(14, cy - 9);
-    const before = cx - 8 - w >= 0;
+    // Before the dot when it clears the left axis's labels, else after it.
+    const before = cx - 8 - w >= left;
     svg.append(
       svgEl(
         "text",
@@ -284,9 +285,10 @@ function draw(rain: RainNow, slots: RainSlots, nowMs: number, width: number): SV
  * The chart's legend: the two marks and their axes, in words.
  *
  * @param rain - The snapshot's now story.
+ * @param nowMs - The build time: an event from an earlier day names its day.
  * @returns The legend, hidden from screen readers.
  */
-function legend(rain: RainNow): HTMLElement {
+function legend(rain: RainNow, nowMs: number): HTMLElement {
   const node = make("div", "rain-lead-legend");
   node.setAttribute("aria-hidden", "true");
   const item = (swatch: string, words: string) => {
@@ -296,7 +298,9 @@ function legend(rain: RainNow): HTMLElement {
   };
   node.append(item("rain-lead-swatch-col", "rain every 5 min (left)"));
   if (rain.event_start_ms !== null) {
-    const since = timeParts(rain.event_start_ms).clock;
+    const start = rain.event_start_ms;
+    const since =
+      localDay(start) === localDay(nowMs) ? timeParts(start).clock : sinceWords(start, nowMs);
     node.append(item("rain-lead-swatch-line", `total since ${since} (right)`));
   }
   return node;
@@ -320,7 +324,7 @@ export function storyChart(
   block.dataset.part = "chart";
   block.dataset.ratio = String(DUAL_RATIO);
   const plot = make("div", "rain-lead-plot");
-  block.append(plot, legend(rain));
+  block.append(plot, legend(rain, nowMs));
   return {
     block,
     start: () => {

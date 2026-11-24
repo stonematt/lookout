@@ -188,6 +188,13 @@ function rainSince(snapshot: DashboardSnapshot): HTMLElement {
   return block;
 }
 
+/**
+ * Fill the rain tile: the now link (label, story, chart), then the season
+ * foot's link (bars, Rain since Oct 1).
+ *
+ * @param host - The tile, its kicker already drawn.
+ * @param snapshot - The dashboard snapshot.
+ */
 function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   const rain = storyOf(snapshot);
   if (!rain) return;
