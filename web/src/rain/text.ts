@@ -13,6 +13,7 @@ import {
   WATER_YEAR_START_MONTH,
   dayText,
   formatDayCount,
+  formatDays,
   formatDaysSpoken,
   formatStamp,
   formatTime,
@@ -22,7 +23,7 @@ import {
 } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
-import { rainNow } from "../snapshot.js";
+import { WHOLE_DRY_DAYS_VERSION, rainNow } from "../snapshot.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
@@ -162,12 +163,54 @@ export function drySpellNow(snapshot: DashboardSnapshot): DrySpellNow {
  */
 export function dryHeadline(snapshot: DashboardSnapshot): string {
   const spell = drySpellNow(snapshot);
-  if (spell.days_since_rain === null) return "Dry spells in the record";
+  const shown = drySpellShown(snapshot);
+  if (shown === null) return "Dry spells in the record";
   const usual =
     spell.usual_days === null
       ? ""
       : `, against a usual dry spell of ${formatDayCount(spell.usual_days)}`;
-  return `${formatDaysSpoken(spell.days_since_rain)} since it last rained${usual}`;
+  return `${shown.spoken} since it last rained${usual}`;
+}
+
+/** The dry spell now as it is shown: the number, its unit and its words. */
+export interface DrySpellShown {
+  /** "9" in whole dry days; "1 d 14 h" before them, the unit in the words. */
+  number: string;
+  /** "days" or "day" in whole dry days; null when the number carries it. */
+  unit: string | null;
+  /** The number for a sentence: "9 dry days"; "about 39 hours" before. */
+  spoken: string;
+}
+
+/**
+ * How the days since it last rained read, by the snapshot's version: whole
+ * dry days from `WHOLE_DRY_DAYS_VERSION` (GLOSSARY dry spell, #667), so a
+ * pause between showers never reads as a dry spell; before it, the time
+ * since the last tip as a duration. The Dry spell tile, the feature, the
+ * Rain tab and the dry spell zoom all show this one reading.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The reading; null when the days since it last rained are unknown.
+ */
+export function drySpellShown(snapshot: DashboardSnapshot): DrySpellShown | null {
+  const days = drySpellNow(snapshot).days_since_rain;
+  if (days === null) return null;
+  if (snapshot.schema_version >= WHOLE_DRY_DAYS_VERSION) {
+    const whole = Math.round(days);
+    const unit = whole === 1 ? "day" : "days";
+    return { number: String(whole), unit, spoken: `${whole} dry ${unit}` };
+  }
+  return { number: formatDays(days), unit: null, spoken: formatDaysSpoken(days) };
+}
+
+/**
+ * A dry spell reading as one string, for a stat: "9 days", "1 d 14 h".
+ *
+ * @param shown - The reading.
+ * @returns The number and its unit.
+ */
+export function drySpellText(shown: DrySpellShown): string {
+  return shown.unit === null ? shown.number : `${shown.number} ${shown.unit}`;
 }
 
 /** The current water year's curve: the newest one. */
@@ -331,44 +374,29 @@ export function usualWetWords(wet: WetHoursToDate): string {
 }
 
 /**
- * The heatmap's finding: how many hours it rained, and the wettest hour.
- * The hour count is a window value: ≈ when the window is prorated. Once
- * the snapshot carries wet hours to date (#663), the hour count is the
- * water year's, beside the water-year curves, and the heatmap names only
- * the wettest hour: the prorated count is not read.
+ * The heatmap's finding: the wettest hour. It counts no hours: wet hours
+ * come from the one wet-hour helper (`wet_hours`, `wet_hours_to_date`) in
+ * the Rain tab's head, and the Rain tab's prorated hour count is never read
+ * (#667). A snapshot without wet hours to date reads the same: its wet
+ * hours read as absent.
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "Rain fell in 18 hours of the last 90 days, the heaviest
- *   0.25 in at 10 am on Jan 9", or with wet hours to date "Rain by the
- *   hour over the last 90 days, the heaviest 0.25 in at 10 am on Jan 9".
+ * @returns E.g. "Rain by the hour over the last 90 days, the heaviest
+ *   0.25 in at 10 am on Jan 9".
  */
 export function hoursHeadline(snapshot: DashboardSnapshot): string {
   const { recent } = snapshot.rain_tab;
   const span = `the last ${recent.rain_in.length} days`;
-  if (snapshot.rain_tab.wet_hours_to_date) {
-    const heaviest = recent.wettest_hour;
-    if (heaviest) {
-      return (
-        `Rain by the hour over ${span}, the heaviest ` +
-        `${inches(heaviest.rain_in)} at ${hourText(heaviest.hour)} on ${dayText(heaviest.day)}`
-      );
-    }
-    return rainStatus(snapshot, recent.window).status === "invalid"
-      ? `Rain by the hour over ${span}`
-      : `No rain fell in ${span}`;
+  const heaviest = recent.wettest_hour;
+  if (heaviest) {
+    return (
+      `Rain by the hour over ${span}, the heaviest ` +
+      `${inches(heaviest.rain_in)} at ${hourText(heaviest.hour)} on ${dayText(heaviest.day)}`
+    );
   }
-  const { wet_hours: wet, wettest_hour: wettest } = recent;
-  if (wet === null) return `Rain by the hour over ${span}`;
-  if (wet === 0 || !wettest) return `No rain fell in ${span}`;
-  const count = Math.round(wet);
-  const hours = gapValue(
-    rainStatus(snapshot, recent.window),
-    `${count} ${count === 1 ? "hour" : "hours"}`,
-  );
-  return (
-    `Rain fell in ${hours} of ${span}, the heaviest ` +
-    `${inches(wettest.rain_in)} at ${hourText(wettest.hour)} on ${dayText(wettest.day)}`
-  );
+  return rainStatus(snapshot, recent.window).status === "invalid"
+    ? `Rain by the hour over ${span}`
+    : `No rain fell in ${span}`;
 }
 
 /**

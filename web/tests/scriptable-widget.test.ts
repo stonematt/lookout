@@ -5,7 +5,7 @@
  */
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { FIXTURE_MAC, SALMON_MAC, golden } from "./golden.js";
+import { FIXTURE_MAC, SALMON_MAC, golden, goldenNext } from "./golden.js";
 
 interface Station {
   mac: string;
@@ -178,6 +178,26 @@ describe("widgetModel", () => {
     expect(model.view).toBe("dry_spell");
     expect(model.daysDry).toBe(9);
     expect(model.usualDays).toBe(4);
+  });
+
+  it("draws a v5 snapshot's whole dry days as they are (#667)", () => {
+    const doc = goldenNext("dry", "dashboard", 9) as Record<string, unknown>;
+    doc.widget_view = "dry_spell";
+    (doc.dry_spell as { usual_days: number }).usual_days = 4;
+
+    const model = widget.widgetModel(doc);
+
+    expect(model.view).toBe("dry_spell");
+    expect(model.daysDry).toBe(9);
+    expect(model.sentence).toBe("Dry for 9 days, longer than the usual 4");
+  });
+
+  it("cuts a v4 snapshot's time since last rain to whole days, never rounding up", () => {
+    const doc = dashboard("dry");
+    doc.widget_view = "dry_spell";
+    doc.dry_spell = { days_since_rain: 9.8, usual_days: 4 };
+
+    expect(widget.widgetModel(doc).daysDry).toBe(9);
   });
 
   it("falls back to temperature_ranges when the usual dry spell is unknown", () => {

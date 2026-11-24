@@ -22,7 +22,7 @@
  */
 import "./rain.css";
 
-import { dayText, formatDayCount, formatDays, formatStamp, inches, WET_DAY_IN } from "../format.js";
+import { dayText, formatDayCount, formatStamp, inches, WET_DAY_IN } from "../format.js";
 import { beyondRecord, gapElement, gapValue, hatchGap } from "../gaps.js";
 import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDays } from "../charts/days-switch.js";
@@ -40,6 +40,8 @@ import {
   daysText,
   dryHeadline,
   drySpellNow,
+  drySpellShown,
+  drySpellText,
   hoursHeadline,
   rainStatus,
   windowStatus,
@@ -149,11 +151,8 @@ export function renderDry(
   const lastRain = snapshot.current.last_rain_ms;
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   const spell = drySpellNow(snapshot);
-  stat(
-    strip,
-    "Since it last rained",
-    spell.days_since_rain === null ? null : formatDays(spell.days_since_rain),
-  );
+  const since = drySpellShown(snapshot);
+  stat(strip, "Since it last rained", since === null ? null : drySpellText(since));
   const usualDd = stat(
     strip,
     "Usual dry spell",

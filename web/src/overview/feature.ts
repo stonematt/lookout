@@ -32,8 +32,6 @@ import "./feature.css";
 import { spoken, spokenRunOn } from "../dom.js";
 import {
   degrees,
-  formatDays,
-  formatDaysSpoken,
   formatDayCount,
   formatDuration,
   formatDurationSpoken,
@@ -46,6 +44,7 @@ import {
   mph,
   percent,
 } from "../format.js";
+import { drySpellShown } from "../rain/text.js";
 import { rainNow } from "../snapshot.js";
 import type { DashboardSnapshot, Feature, FeatureReading, RainNow } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
@@ -330,11 +329,11 @@ function unusualView(snapshot: DashboardSnapshot, feature: Feature): FeatureView
 }
 
 function drySpellView(snapshot: DashboardSnapshot): FeatureView {
-  const days = snapshot.dry_spell?.days_since_rain ?? null;
+  const since = drySpellShown(snapshot);
   const usualDays = snapshot.dry_spell?.usual_days ?? null;
   const usual =
     usualDays === null ? "" : `, against a usual dry spell of ${formatDayCount(usualDays)}`;
-  if (days === null) {
+  if (since === null) {
     const finding = "No last rain on record";
     return {
       kind: "dry_spell",
@@ -346,15 +345,16 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
       target: DRY_SPELL,
     };
   }
-  // The value and the name say it as the Rain tab does: its stat ("1 d 14 h")
-  // and its finding ("about 39 hours since it last rained").
+  // The value and the name say it as the Rain tab does: its stat ("9 days",
+  // "1 d 14 h" before version 5) and its finding ("9 dry days since it last
+  // rained", "about 39 hours since it last rained").
   const finding = `since it last rained${usual}`;
   return {
     kind: "dry_spell",
     kicker: "Dry spell",
-    value: [formatDays(days), null],
+    value: [since.number, since.unit],
     finding,
-    spoken: { before: `${upperFirst(formatDaysSpoken(days))} `, after: "" },
+    spoken: { before: `${upperFirst(since.spoken)} `, after: "" },
     live: false,
     target: DRY_SPELL,
   };
