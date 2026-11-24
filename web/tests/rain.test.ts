@@ -44,6 +44,16 @@ function withTab(snapshot: DashboardSnapshot, change: Partial<RainTab>): Dashboa
   return copy;
 }
 
+/**
+ * A copy of a snapshot written before the window strip (#640): the Rain
+ * tab then draws its number strip, which these tests hold.
+ */
+function numberStrip(snapshot: DashboardSnapshot): DashboardSnapshot {
+  const copy = structuredClone(snapshot);
+  delete copy.rain_tab.window_strip;
+  return copy;
+}
+
 /** A water year whose value at `place` is `value`. */
 function year(
   water_year: number,
@@ -228,7 +238,7 @@ describe("the Rain tab", () => {
       shown: true,
     });
     window.total_in = null;
-    renderRain(panel, week);
+    renderRain(panel, numberStrip(week));
 
     const dds = [...section("years").querySelectorAll(".rain-windows dd")];
     expect(text(dds[2]!.querySelector(".gap-label"))).toBe("n/a");
@@ -268,7 +278,9 @@ describe("the Rain tab", () => {
     const place = seasoned.rain_tab.day_index;
     renderRain(
       panel,
-      withTab(seasoned, { water_years: [year(2025, place, 3.1), year(2026, place, 4.2)] }),
+      withTab(numberStrip(seasoned), {
+        water_years: [year(2025, place, 3.1), year(2026, place, 4.2)],
+      }),
     );
     const years = section("years");
     const chart = years.querySelector(".rain-chart")!;
@@ -289,7 +301,7 @@ describe("the Rain tab", () => {
 
   it("hides a window the record does not cover, instead of n/a", () => {
     // Raining: 7 days to the water year start before the archive began.
-    renderRain(panel, raining);
+    renderRain(panel, numberStrip(raining));
     const names = [...section("years").querySelectorAll(".rain-windows dt")].map((dt) => text(dt));
 
     expect(names).toEqual(["Today", "Yesterday"]);
@@ -316,7 +328,7 @@ describe("the Rain tab", () => {
   it("hatches each window the record covers but cannot compare, with its reason", () => {
     // Seasoned: 365 days is covered, with a gap in it; the rest are whole
     // since the fixture spans water years 2025 and 2026 (#539).
-    renderRain(panel, seasoned);
+    renderRain(panel, numberStrip(seasoned));
     const cells = [...section("years").querySelectorAll(".rain-windows dd")];
 
     expect(cells.map((dd) => dd.classList.contains("gap-hatch"))).toEqual([
@@ -336,7 +348,7 @@ describe("the Rain tab", () => {
     // A live reading from today, the archive not caught up.
     const live = structuredClone(dry);
     live.current.rain_today_in = 0;
-    renderRain(panel, live);
+    renderRain(panel, numberStrip(live));
     const today = section("years").querySelector(".rain-windows dd")!;
 
     expect(text(today.querySelector(".gap-label"))).toBe("n/a");
@@ -448,7 +460,7 @@ describe("the Rain tab", () => {
   it("draws no chart, not a hatched block, when every water year is before the archive (#606)", () => {
     renderRain(panel, raining);
 
-    expect(section("years").querySelector(".rain-chart, svg, .gap-block, .gap-hatch")).toBeNull();
+    expect(section("years").querySelector(".rain-chart, .gap-block, .rain-years-gap")).toBeNull();
     expect(text(section("years").querySelector("[data-part=source]"))).toContain(
       "Water year 2026 is left out",
     );

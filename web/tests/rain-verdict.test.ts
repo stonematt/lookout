@@ -23,7 +23,8 @@ beforeEach(() => {
 });
 
 const text = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/g, " ").trim();
-const finding = () => text(panel.querySelector("[data-section=years] [data-part=finding]"));
+// Under now and the season on Rain tab C (#664), the verdict leads the water year.
+const finding = () => text(panel.querySelector("[data-section=years] [data-part=verdict]"));
 
 /** The seasoned snapshot with its usual to date changed. */
 function withUsual(usual: UsualToDate | null | undefined): DashboardSnapshot {
