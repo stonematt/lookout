@@ -195,8 +195,8 @@ class TestAResetHiddenInAGap:
     The station is offline from 16:00 to 12:00 the next day while 0.4 in
     falls after the reset, more than the 0.1 in the counter held before:
     the counter rises across the gap, and only the gap's span tells the
-    reset (#654 review). Lookout Post's reset, 00:05, is learned from its
-    drops.
+    reset (#654 review). With fewer than three drops to learn the reset
+    time from, local midnight stands.
     """
 
     def archive(self) -> pd.DataFrame:
@@ -221,13 +221,16 @@ class TestAResetHiddenInAGap:
         assert hours[(date(2026, 1, 6), 12)] == approx(0.4)
 
     def test_a_gap_over_midnight_but_not_the_reset_holds_none(self):
-        # Salmon Run resets at 21:00: offline 22:00 to 06:00, it does not
-        # reset at midnight, so the rise across the gap is the rain.
+        # Salmon Run resets at 21:00, learned from three drops: offline
+        # 22:00 to 06:00, it does not reset at midnight, so the rise across
+        # the gap is the rain.
         archive = build_archive(
             "2026-01-03T08:00:00Z",
             "2026-01-07T08:00:00Z",
             rain=[
+                RainSpell("2026-01-03T18:00:00Z", 1, 0.1),  # Jan 3, 10:00
                 RainSpell("2026-01-04T18:00:00Z", 1, 0.1),  # Jan 4, 10:00
+                RainSpell("2026-01-05T18:00:00Z", 1, 0.1),  # Jan 5, 10:00
                 RainSpell("2026-01-06T05:00:00Z", 1, 0.1),  # Jan 5, 21:00
                 RainSpell("2026-01-06T10:00:00Z", 1, 0.1),  # Jan 6, 02:00
             ],
@@ -237,8 +240,39 @@ class TestAResetHiddenInAGap:
 
         totals = extract_daily_rainfall(archive).set_index("date")["rainfall"]
 
-        assert totals[date(2026, 1, 5)] == approx(0.1)
+        assert totals[date(2026, 1, 5)] == approx(0.2)
         assert totals[date(2026, 1, 6)] == approx(0.1)
+
+    def test_a_reset_time_that_moves_is_followed(self):
+        # Six resets at 21:00 in early December, then the console's zone is
+        # set (#651) and three resets fall at 00:05 in January. Offline
+        # 20:00 to 23:00 on Jan 15, the counter no longer resets at 21:00,
+        # so the rise across the gap is the rain: 0.05 + 0.1 in that day.
+        before = build_archive(
+            "2025-12-01T08:00:00Z",
+            "2025-12-20T08:00:00Z",
+            rain=[RainSpell(f"2025-12-0{d}T18:00:00Z", 1, 0.05) for d in range(2, 8)],
+            daily_reset=EASTERN,
+        )
+        after = build_archive(
+            "2025-12-20T08:00:00Z",
+            "2026-01-17T08:00:00Z",
+            rain=[
+                RainSpell("2026-01-10T18:00:00Z", 1, 0.05),  # Jan 10, 10:00
+                RainSpell("2026-01-11T18:00:00Z", 1, 0.05),
+                RainSpell("2026-01-12T18:00:00Z", 1, 0.05),
+                RainSpell("2026-01-15T18:00:00Z", 1, 0.05),  # Jan 15, 10:00
+                RainSpell("2026-01-16T05:30:00Z", 1, 0.1),  # Jan 15, 21:30
+            ],
+            gaps=[Gap("2026-01-16T04:00:00Z", "2026-01-16T07:00:00Z")],
+            daily_reset=LATE,
+        )
+        archive = pd.concat([after, before], ignore_index=True)
+
+        totals = extract_daily_rainfall(archive).set_index("date")["rainfall"]
+
+        assert totals[date(2025, 12, 2)] == approx(0.05)
+        assert totals[date(2026, 1, 15)] == approx(0.15)
 
 
 class TestRainSoFar:

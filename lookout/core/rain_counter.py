@@ -11,21 +11,27 @@ rain since the reset.
 
 A reset can hide in a gap: when more rain fell after the reset than the
 counter held before it, the counter after the gap is higher, not lower.
-Given the readings' times, a gap that spans the station's usual reset
-time (learned from its drops) holds a reset too.
+Given the readings' times, a gap that spans the station's usual reset time
+holds a reset too. That time is learned, for each gap, from the drops in
+the 30 days before it, so a reset that moves (a console's time zone set,
+#651) is followed within a month.
 
 Every reader of the counter's rain takes it from here: hourly rain, daily
 totals, rain so far today, the condition ribbon, event curves, event
-quality and carryover detection (#654).
+quality and carryover detection (#654). Only hourly rain, daily totals and
+rain so far pass the readings' times: the ribbon, event curves and event
+quality give no rate across a gap, and carryover detection asks whether
+the counter itself reset across one.
 
 A drop that is a glitch, not a reset, is read as a reset too (spec #647).
 
 Functions:
 - rain_increments(counter, dateutc, tz): The rain each reading adds.
-- usual_reset(counter, dateutc, tz): The station's usual reset time of day.
+- usual_reset(counter, dateutc, tz, before_ms): The station's usual reset
+  time of day.
 """
 
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -41,6 +47,12 @@ this much to spare on both sides, so a reset a few minutes off its usual
 time is never misread.
 """
 
+LEARN_MS = 30 * 24 * 60 * 60 * 1000
+"""The usual reset time is learned from the drops in this span before a gap."""
+
+MIN_DROPS = 3
+"""Fewer drops than this in the span teach nothing: local midnight stands."""
+
 _ROUND = "5min"
 
 
@@ -49,57 +61,83 @@ def _last_known(counter: pd.Series) -> pd.Series:
     return counter.ffill().shift()
 
 
+def _known_at(counter: pd.Series, dateutc: pd.Series) -> pd.Series:
+    """Each reading's previous counter reading's time, NaN before the first."""
+    return dateutc.where(counter.notna()).ffill().shift()
+
+
+def _drop_times(counter: pd.Series, dateutc: pd.Series) -> pd.Series:
+    """The times of the drops after a steady step, epoch ms, oldest first."""
+    steady = (dateutc - _known_at(counter, dateutc)) <= STEADY_STEP_MS
+    drops = (counter < _last_known(counter)) & steady
+    return dateutc[drops]
+
+
 def usual_reset(
-    counter: pd.Series, dateutc: pd.Series, tz: str
+    counter: pd.Series,
+    dateutc: pd.Series,
+    tz: str,
+    before_ms: Optional[int] = None,
 ) -> Optional[pd.Timedelta]:
     """
     The station-local time of day its counter usually resets.
 
-    The most common time of day, to five minutes, of drops after a steady
-    step.
+    The most common time of day, to five minutes, of the drops after a
+    steady step in the `LEARN_MS` before `before_ms`.
 
     :param counter: The daily counter, oldest first.
     :param dateutc: The readings' times, epoch ms, aligned with `counter`.
     :param tz: The station-local zone.
-    :return: The time after local midnight; None when no drop is seen.
+    :param before_ms: The end of the span learned from; the newest reading
+        when None.
+    :return: The time after local midnight; None with fewer than
+        `MIN_DROPS` drops in the span.
     """
     daily = pd.to_numeric(counter, errors="coerce").astype(float)
-    known_at = dateutc.where(daily.notna()).ffill().shift()
-    steady = (dateutc - known_at) <= STEADY_STEP_MS
-    drops = (daily < _last_known(daily)) & steady
-    if not drops.any():
+    return _mode(_drop_times(daily, dateutc), tz, before_ms)
+
+
+def _mode(
+    drops: pd.Series, tz: str, before_ms: Optional[int]
+) -> Optional[pd.Timedelta]:
+    """The most common time of day of `drops` in the span before `before_ms`."""
+    end = drops.max() if before_ms is None else before_ms
+    recent = drops[(drops <= end) & (drops > end - LEARN_MS)]
+    if len(recent) < MIN_DROPS:
         return None
-    local = to_local(dateutc[drops], tz).dt.tz_localize(None)
+    local = to_local(recent, tz).dt.tz_localize(None)
     times = (local - local.dt.normalize()).dt.floor(_ROUND)
     return pd.Timedelta(times.mode().iloc[0])
 
 
-def _hidden_resets(
-    daily: pd.Series, dateutc: pd.Series, tz: str, reset: pd.Timedelta
-) -> pd.Series:
+def _hidden_resets(daily: pd.Series, dateutc: pd.Series, tz: str) -> pd.Series:
     """
     Readings after a gap that spans the usual reset time.
 
     :param daily: The daily counter, oldest first.
     :param dateutc: The readings' times, epoch ms.
     :param tz: The station-local zone.
-    :param reset: The usual reset time after local midnight.
     :return: True for each such reading, aligned with `daily`.
     """
-    known_at = dateutc.where(daily.notna()).ffill().shift()
+    known_at = _known_at(daily, dateutc)
     gap = daily.notna() & ((dateutc - known_at) > STEADY_STEP_MS)
     hidden = pd.Series(False, index=daily.index)
     if not gap.any():
         return hidden
-    after = to_local(dateutc[gap], tz).dt.tz_localize(None)
-    before = to_local(known_at[gap].astype("int64"), tz).dt.tz_localize(None)
-    flags: List[bool] = []
-    for start, end in zip(before + HIDDEN_RESET_MARGIN, after - HIDDEN_RESET_MARGIN):
+    drops = _drop_times(daily, dateutc)
+    for i in gap[gap].index:
+        start_ms = int(known_at[i])
+        reset = _mode(drops, tz, start_ms) or pd.Timedelta(0)
+        start, end = (
+            to_local(pd.Series([start_ms, int(dateutc[i])]), tz)
+            .dt.tz_localize(None)
+            .tolist()
+        )
+        start, end = start + HIDDEN_RESET_MARGIN, end - HIDDEN_RESET_MARGIN
         at = start.normalize() + reset
         if at < start:
             at += pd.Timedelta(days=1)
-        flags.append(bool(at <= end))
-    hidden[gap] = flags
+        hidden[i] = at <= end
     return hidden
 
 
@@ -115,9 +153,10 @@ def rain_increments(
     counter, so one missing reading does not void the next. A rise is the
     rain since that reading; a drop is the reset, and the new value is all
     new rain. Given the readings' times and zone, a reading after a gap
-    that spans the station's usual reset time (`usual_reset`, local
-    midnight when no drop is seen) holds a reset too: its value is all new
-    rain even when it is higher than the one before the gap.
+    that spans the station's usual reset time (`usual_reset` over the 30
+    days before the gap; local midnight when it has too few drops) holds a
+    reset too: its value is all new rain even when it is higher than the
+    one before the gap.
 
     :param counter: The daily counter (`dailyrainin`), oldest first; NaN or
         missing values for readings without it.
@@ -134,7 +173,6 @@ def rain_increments(
     increment = step.where(step.isna() | (step >= 0), daily)
     if dateutc is not None and tz is not None:
         times = pd.Series(dateutc.to_numpy(dtype="int64"), index=daily.index)
-        reset = usual_reset(daily, times, tz) or pd.Timedelta(0)
-        hidden = _hidden_resets(daily, times, tz, reset) & step.notna()
+        hidden = _hidden_resets(daily, times, tz) & step.notna()
         increment = increment.mask(hidden, daily)
     return increment.clip(lower=0)
