@@ -44,6 +44,19 @@ export function sinceWords(startMs: number, builtMs: number): string {
   return localDay(startMs) === localDay(builtMs) ? formatTime(startMs) : formatStamp(startMs);
 }
 
+/**
+ * Last rain (GLOSSARY): the snapshot's `rain_now.last_rain_ms`, which
+ * replaces Ambient's `lastRain` for every rain measure (spec #647); on a
+ * document without `rain_now` (N−1, ADR-0008), Ambient's as before.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns Epoch ms, or null with no rain in the record.
+ */
+export function lastRainMs(snapshot: DashboardSnapshot): number | null {
+  const rain = rainNow(snapshot);
+  return rain ? rain.last_rain_ms : snapshot.current.last_rain_ms;
+}
+
 /** `rain_now` while Python tells the now story: it carries a rate. */
 export type ToldStory = RainNow & { rate_in_hr: number };
 

@@ -576,12 +576,30 @@ describe("the Rain tab", () => {
       text(item.querySelector("dd")),
     ]);
 
-    expect(stats[0]).toEqual(["Last rain", "Nov 17, 9:03 am"]);
+    // The gauge's last tip (rain_now), not Ambient's lastRain at 9:03 am.
+    expect(stats[0]).toEqual(["Last rain", "Nov 17, 8:55 am"]);
     expect(stats[1]).toEqual(["Since it last rained", "1 d 14 h"]);
     expect(stats[2]?.[0]).toBe("Usual dry spell");
     expect(
       text(section("dry").querySelectorAll(".rain-dry-stats dd")[2]?.querySelector(".gap-label")),
     ).toBe("not archived yet");
+  });
+
+  it("stamps last rain from the snapshot's last rain, not Ambient's lastRain (#694)", () => {
+    // One last rain on the tab: the head's now part and this stat read the same field.
+    const copy = structuredClone(dry);
+    const lastRain = copy.current.last_rain_ms! - 3 * 3_600_000;
+    copy.rain_now = { ...copy.rain_now!, last_rain_ms: lastRain };
+    renderRain(panel, copy);
+    const stamp = text(section("dry").querySelector(".rain-dry-stats dd"));
+    expect(stamp).toBe("Nov 17, 6:03 am");
+  });
+
+  it("falls back to Ambient's lastRain on a document without rain_now (N−1)", () => {
+    const copy = structuredClone(dry);
+    delete copy.rain_now;
+    renderRain(panel, copy);
+    expect(text(section("dry").querySelector(".rain-dry-stats dd"))).toBe("Nov 17, 9:03 am");
   });
 });
 

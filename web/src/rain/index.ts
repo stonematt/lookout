@@ -28,6 +28,7 @@ import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDays } from "../charts/days-switch.js";
 import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
+import { lastRainMs } from "../now-story.js";
 import { isShown } from "../overview/history.js";
 import type { SectionOptions, TileSection } from "../tiles.js";
 import { gapReasons, hatchedCount, renderTiles, sectionSource, tileFinding } from "../tiles.js";
@@ -148,7 +149,7 @@ export function renderDry(
   const spells = snapshot.rain_tab.dry_spells;
   host.append(tileFinding(dryHeadline(snapshot), options));
   const strip = make("dl", "rain-stats rain-dry-stats");
-  const lastRain = snapshot.current.last_rain_ms;
+  const lastRain = lastRainMs(snapshot);
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   const spell = drySpellNow(snapshot);
   const since = drySpellShown(snapshot);
