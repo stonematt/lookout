@@ -9,9 +9,20 @@
  * window's value is never shown, a prorated one carries ≈), and the One
  * Format Rule (station time, imperial units).
  */
-import { dayText, formatDayCount, formatDaysSpoken, hourText, inches } from "../format.js";
+import {
+  WATER_YEAR_START_MONTH,
+  dayText,
+  formatDayCount,
+  formatDaysSpoken,
+  formatStamp,
+  formatTime,
+  hourText,
+  inches,
+  localDay,
+} from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
+import { rainNow } from "../snapshot.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
@@ -19,6 +30,7 @@ import type {
   GapStatus,
   RainTab,
   RainWindow,
+  StripWindow,
   Verdict,
   WaterYearCurve,
   WetHoursToDate,
@@ -392,4 +404,104 @@ export function windowsNote(snapshot: DashboardSnapshot): string | null {
  */
 export function yearLeftOut(curve: WaterYearCurve): string {
   return `Water year ${curve.water_year} is left out: it ${notCompared(curve.status.reason)}.`;
+}
+
+/**
+ * How long ago, as the now part says it: minutes under an hour, whole hours
+ * under two days, whole days after.
+ *
+ * @param ms - The time since, in milliseconds.
+ * @returns E.g. "40 min", "9 h", "3 d".
+ */
+export function agoText(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
+}
+
+/**
+ * The Rain tab head's now part (ADR-0011, #664): while the snapshot tells
+ * the now story, "Raining · 0.08 in/h" or "Rain stopped 40 min ago", then
+ * the event's rain since it started; outside it, last rain alone. Raining,
+ * the rate and the event are Python's (`rain_now`); the site only words
+ * them.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "Raining · 0.12 in/h · 0.30 in since 2:40 pm", "Last rain
+ *   9 h ago"; null for a snapshot without `rain_now` (before #659), which
+ *   draws no now part.
+ */
+export function nowLine(snapshot: DashboardSnapshot): string | null {
+  const rain = rainNow(snapshot);
+  if (!rain) return null;
+  if (rain.last_rain_ms === null) return "No rain in the record yet";
+  const built = snapshot.built_at_ms;
+  const ago = agoText(built - rain.last_rain_ms);
+  if (rain.rate_in_hr === null) return `Last rain ${ago} ago`;
+  const lead = rain.raining
+    ? `Raining · ${inches(rain.rate_in_hr, { digits: 2 })}/h`
+    : `Rain stopped ${ago} ago`;
+  if (rain.event_start_ms === null || rain.event_total_in === null) return lead;
+  const start = rain.event_start_ms;
+  const since = localDay(start) === localDay(built) ? formatTime(start) : formatStamp(start);
+  return `${lead} · ${inches(rain.event_total_in, { digits: 2 })} since ${since}`;
+}
+
+/** "1 wet hour", "1,292 wet hours". */
+const wetHourCount = (n: number) => `${hourCount(n)} wet hour${n === 1 ? "" : "s"}`;
+
+/**
+ * The Rain tab head's season part in words (#664): the wet hours of the
+ * last 7 and 30 days (the Overview meter's `wet_hours`), else the water
+ * year's since Oct 1.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns E.g. "19 wet hours in the last 7 days, 112 in the last 30", "113
+ *   wet hours since Oct 1"; null when the snapshot has neither (written
+ *   before #657 and #663), which draws no season part.
+ */
+export function seasonLead(snapshot: DashboardSnapshot): string | null {
+  const wet = snapshot.wet_hours;
+  if (wet) {
+    return (
+      `${wetHourCount(wet.last_7_days.wet_hours)} in the last 7 days, ` +
+      `${hourCount(wet.last_30_days.wet_hours)} in the last 30`
+    );
+  }
+  const toDate = snapshot.rain_tab.wet_hours_to_date;
+  return toDate ? `${wetHourCount(toDate.wet_hours)} since Oct 1` : null;
+}
+
+/**
+ * A window strip row's usual in words (#664), for its label under the track
+ * and its accessible name: the span the snapshot sends, called what its
+ * band says it is.
+ *
+ * @param window - The strip window.
+ * @returns E.g. "usual 0.30–0.50 in, range of 3 earlier years", "usual 0.30
+ *   in, from 2025", "usual 0.00–0.12 in, 2 earlier years", "no earlier
+ *   year". One earlier year is named: the water year for the water-year
+ *   window, else the year its window ended in.
+ */
+export function stripUsualWords(window: StripWindow): string {
+  const { low_in: low, high_in: high, years } = window;
+  if (years === 0 || low === null || high === null) return "no earlier year";
+  const span = low === high ? inches(low) : `${inches(low, { unit: false })}–${inches(high)}`;
+  const of =
+    window.band === "percentile"
+      ? `25th–75th percentile of ${years} earlier years`
+      : window.band === "range"
+        ? `range of ${years} earlier years`
+        : years === 1 && window.earlier[0]
+          ? `from ${yearOf(window.key, window.earlier[0].last_day)}`
+          : `${years} earlier years`;
+  return `usual ${span}, ${of}`;
+}
+
+/** The year an earlier window is named by: its water year, or the year it ended in. */
+function yearOf(key: string, lastDay: string): number {
+  const year = Number(lastDay.slice(0, 4));
+  const month = Number(lastDay.slice(5, 7));
+  return key === "water_year" && month >= WATER_YEAR_START_MONTH ? year + 1 : year;
 }

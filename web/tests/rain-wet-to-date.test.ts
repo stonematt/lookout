@@ -120,18 +120,16 @@ describe("wet hours since Oct 1", () => {
 });
 
 describe("the Rain tab's wet hours since Oct 1", () => {
-  it("draws the golden snapshot's wet hours under the window strip", () => {
+  it("draws the golden snapshot's wet hours since Oct 1 in the head's season part", () => {
     renderRain(panel, seasoned);
     const wet = seasoned.rain_tab.wet_hours_to_date!;
-    const [label, value, note] = [...part()!.querySelectorAll("dt, dd")].map(text);
-    expect([label, value, note]).toEqual([
-      "Wet hours since Oct 1",
-      wetToDateValue(wet),
-      usualWetWords(wet),
-    ]);
+    const name = text(part()!.querySelector(".rain-wet-name"));
+    const count = text(part()!.querySelector("[data-part=count]"));
+    const note = text(part()!.querySelector("[data-part=usual-words]"));
+    expect([name, count, note]).toEqual(["Since Oct 1", wetToDateValue(wet), usualWetWords(wet)]);
     expect(note).toBe("usual to date 3 h, from 2025 · 1 h missing, not dry");
-    // Under the window strip, in the water-year tile.
-    expect(part()!.previousElementSibling?.getAttribute("data-part")).toBe("windows");
+    // The last of the season's bars, before the water year.
+    expect(part()!.parentElement?.getAttribute("data-part")).toBe("wet-bars");
   });
 
   it("draws nothing for a snapshot written before it (N−1)", () => {
