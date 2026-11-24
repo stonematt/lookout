@@ -187,6 +187,6 @@ describe("the rain gauge on other goldens", () => {
 
   it("keeps the window strip on the Rain tab", async () => {
     await boot("#rain", parsed("seasoned"));
-    expect(document.querySelector("#panel-rain .rain-windows")).not.toBeNull();
+    expect(document.querySelector("#panel-rain [data-part=windows]")).not.toBeNull();
   });
 });
