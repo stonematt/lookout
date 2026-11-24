@@ -204,7 +204,10 @@ describe("the meter's marks", () => {
   it("draw the wet fill and the track's edge 3:1 on the now surface, in both themes", () => {
     expect(onNow(token(".wet-meter-wet", "background"))).toBe(true);
     expect(onNow(token(".wet-meter-bar", "border"))).toBe(true);
-    expect(onNow(token(".wet-meter", "border-top"))).toBe(true);
+  });
+
+  it("rules the bars off with a `rule` hairline, as every divider is (#703)", () => {
+    expect(token(".wet-meter", "border-top")).toBe("rule");
   });
 
   it("hatch in ink-3 on the now tile, which holds 3:1 there in both themes", () => {

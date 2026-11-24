@@ -34,6 +34,11 @@
   margin: 0;
 }
 
+/* a title with how-to-read words runs as one line of text that wraps (#703) */
+.mosaic-title-how {
+  display: block;
+}
+
 .mosaic-value {
   margin: var(--s-1) 0 0;
   font-size: var(--type-fact);

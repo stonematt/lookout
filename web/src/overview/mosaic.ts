@@ -84,6 +84,12 @@ export interface MosaicTile {
    * fixed `title` when it gives none (N−1, ADR-0008).
    */
   titleFrom?(snapshot: DashboardSnapshot): string | null | undefined;
+  /**
+   * Words after the title in a lighter weight, how to read the chart: the
+   * wet-hour bars' " · each bar is every hour; dark is wet" (#647, #703).
+   * The zoom heading and the sources footer keep the title alone.
+   */
+  how?(): HTMLElement;
   /** The zoom's name, in the link's "Open the <zoomName> view": "temperature". */
   zoomName: string;
   /** The number and the delta. */
@@ -253,6 +259,10 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const title = host.querySelector<HTMLElement>(":scope > [data-part=kicker]");
   if (title) {
     title.classList.add("mosaic-title");
+    if (tile.how) {
+      title.classList.add("mosaic-title-how");
+      title.append(tile.how());
+    }
     link.append(title);
   }
 

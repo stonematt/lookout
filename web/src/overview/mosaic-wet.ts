@@ -1,7 +1,9 @@
 /**
  * The wet-or-dry tile in wet mode (#658, spec #647; Call 4 on #647, #661):
- * titled from the snapshot ("Wet hours"), its number the last 7 days' wet
- * hours of their countable hours, its mini chart the two wet-hour bars, the
+ * titled from the snapshot ("Wet hours"), with the bars' how-to-read words
+ * after it (" · each bar is every hour; dark is wet", #703), its number
+ * the last 7 days' wet hours of their countable hours, its mini chart the
+ * two wet-hour bars, the
  * last 7 days and the last 30, each a tally of every hour in its window
  * ("7 days", "19 h of 168"). The 30-day strip, a column a day, moved to the
  * tile's zoom (`stripChart`, `zooms/wet-hours.ts`). In dry mode the slot
@@ -18,6 +20,7 @@ import { LABEL_CHAR_PX } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, WetHoursWindow } from "../snapshot.js";
+import { howToRead } from "../wet-bars.js";
 import type { MosaicTile } from "./mosaic.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
 
@@ -162,6 +165,8 @@ export const wetHoursTile: MosaicTile = {
   depth: "wet_hours",
   title: "Wet hours",
   titleFrom: (snapshot) => snapshot.tile_titles?.wet_or_dry,
+  // The bars' header word for word, as everywhere they appear (#647, #703).
+  how: howToRead,
   zoomName: "wet hours",
   shown: (snapshot) => Boolean(snapshot.wet_hours),
   read(snapshot) {

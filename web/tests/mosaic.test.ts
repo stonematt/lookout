@@ -201,7 +201,10 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
     const tiles = overviewMosaic(parsed(scenario));
     const titles = tiles.map((t) => tile(t.slug).querySelector("a > h2"));
 
-    expect(titles.map(words)).toEqual(tiles.map((t) => tileTitle(t, parsed(scenario))));
+    // The title first; Wet hours sets its how-to-read words after it (#703).
+    expect(titles.map((h) => words(h?.firstChild as Element | null))).toEqual(
+      tiles.map((t) => tileTitle(t, parsed(scenario))),
+    );
   });
 });
 
@@ -673,7 +676,8 @@ describe("the wet-or-dry tile (#658)", () => {
     renderOverview(panel, parsed("dry"));
     const host = tile("wet-hours");
 
-    expect(words(host.querySelector("h2"))).toBe("Wet hours");
+    // The bars' header, word for word (#647, Overview C approval; #703).
+    expect(words(host.querySelector("h2"))).toBe("Wet hours · each bar is every hour; dark is wet");
     expect(words(host.querySelector("[data-part=value]"))).toBe("8 h");
     expect(words(host.querySelector("[data-part=delta]"))).toBe("of 43 in the last 7 days");
     expect(tile("dry-spell")).toBeNull();
@@ -735,7 +739,9 @@ describe("the wet-or-dry tile (#658)", () => {
     d.tile_titles.wet_or_dry = "Wet time";
     renderOverview(panel, parseDashboard(d));
 
-    expect(words(tile("wet-hours").querySelector("h2"))).toBe("Wet time");
+    expect(words(tile("wet-hours").querySelector("h2"))).toBe(
+      "Wet time · each bar is every hour; dark is wet",
+    );
   });
 
   it("is the Dry spell tile in dry mode, titled by the snapshot (seasoned)", () => {

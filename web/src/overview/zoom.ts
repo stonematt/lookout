@@ -69,8 +69,11 @@ import { ZOOMS } from "./zooms/index.js";
 export interface ZoomPanel {
   /** Unique in its zoom: the panel's `data-panel`. */
   id: string;
-  /** Its heading, an `h3`: "Now against this date". */
-  title: string;
+  /**
+   * Its heading, an `h3`: "Now against this date"; or read from the
+   * snapshot, as the Rain tab head's kicker is (#703).
+   */
+  title: string | ((snapshot: DashboardSnapshot) => string);
   /**
    * Fill the panel under its heading. The panel is in the page when this
    * runs, so a chart can measure its width.
@@ -382,7 +385,7 @@ function fill(el: HTMLElement, zoom: ZoomDefinition, snapshot: DashboardSnapshot
     if (spec.wide) host.dataset.wide = "true";
     const title = document.createElement("h3");
     title.className = "zoom-panel-title";
-    title.textContent = spec.title;
+    title.textContent = typeof spec.title === "function" ? spec.title(snapshot) : spec.title;
     host.append(title);
     panels.append(host);
     spec.render(host, snapshot);

@@ -147,6 +147,8 @@ export function renderDry(
   options: SectionOptions = {},
 ): void {
   const spells = snapshot.rain_tab.dry_spells;
+  // In a zoom a gap's reason reads without "n/a" (DESIGN.md, #470, #703).
+  const hatch = { plain: Boolean(options.zoom) };
   host.append(tileFinding(dryHeadline(snapshot), options));
   const strip = make("dl", "rain-stats rain-dry-stats");
   const lastRain = lastRainMs(snapshot);
@@ -164,7 +166,7 @@ export function renderDry(
     "Usual dry spell",
     spell.usual_days === null ? null : formatDayCount(spell.usual_days),
   );
-  if (spell.usual_days === null) hatchGap(usualDd, windowStatus(snapshot, "365d"));
+  if (spell.usual_days === null) hatchGap(usualDd, windowStatus(snapshot, "365d"), hatch);
   const longest = spells.longest;
   stat(
     strip,
@@ -179,7 +181,7 @@ export function renderDry(
     "Rain days this water year",
     rainDays === null ? null : gapValue(wyStatus, String(Math.round(rainDays))),
   );
-  hatchGap(daysDd, wyStatus);
+  hatchGap(daysDd, wyStatus, hatch);
   const wettest = spells.water_year_wettest;
   const wetDd = stat(
     strip,
@@ -187,7 +189,7 @@ export function renderDry(
     wettest ? inches(wettest.rain_in) : wyStatus.status === "invalid" ? null : "none",
     wettest ? dayText(wettest.day, true) : undefined,
   );
-  hatchGap(wetDd, wyStatus);
+  hatchGap(wetDd, wyStatus, hatch);
   for (const dd of strip.querySelectorAll("dd:not(.gap-hatch)")) {
     if (!dd.textContent) dd.textContent = "not known";
   }
@@ -223,12 +225,14 @@ function allParts(snapshot: DashboardSnapshot): HeadPart[] {
 }
 
 /**
- * The head tile's kicker: its first part's label ("Now" on Rain tab C).
+ * The head tile's kicker: its first part's label ("Now" on Rain tab C;
+ * "The water year" on a snapshot without now or the season). The rain
+ * zoom's head panel takes it as its title (#703).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The kicker.
  */
-function headKicker(snapshot: DashboardSnapshot): string {
+export function headKicker(snapshot: DashboardSnapshot): string {
   return allParts(snapshot)[0]!.label;
 }
 
@@ -254,12 +258,11 @@ export function renderYears(
   const parts = allParts(snapshot);
   const has = (id: string) => parts.some((p) => p.id === id);
   // The first part's lead is the tile's finding, under the kicker that is
-  // its label; each later part has its label, then its lead, a finding at
-  // the same heading level. A zoom panel has no kicker, so a head of more
-  // than one part labels its first part too.
+  // its label (in the rain zoom, the panel's title, `headKicker`); each
+  // later part has its label, then its lead, a finding at the same heading
+  // level.
   parts.forEach((part, i) => {
     if (i > 0) host.append(partLabel(part.label, false, part.how));
-    else if (options.zoom && parts.length > 1) host.append(partLabel(part.label, true, part.how));
     const lead = tileFinding(part.lead, { ...options, lead: i === 0 && part.id === "now" });
     if (i > 0) {
       lead.classList.add("rain-lead");
@@ -274,7 +277,7 @@ export function renderYears(
   if (!tab.water_years.every((c) => beyondRecord(c.status))) {
     if (current && tab.water_years.every((c) => c.cumulative_in.every((v) => v === null))) {
       // No year can be compared: the hatch in place of an empty chart.
-      const block = gapElement(current.status);
+      const block = gapElement(current.status, { plain: Boolean(options.zoom) });
       block.classList.add("rain-years-gap");
       host.append(block);
     } else {
