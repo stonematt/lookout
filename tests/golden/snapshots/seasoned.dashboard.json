@@ -20062,5 +20062,176 @@
       65.0
     ]
   },
+  "wet_hours": {
+    "through_ms": 1779314400000,
+    "last_7_days": {
+      "days": 7,
+      "hours": 168,
+      "wet_hours": 2,
+      "countable_hours": 168,
+      "missing_hours": 0,
+      "missing_days": 0
+    },
+    "last_30_days": {
+      "days": 30,
+      "hours": 720,
+      "wet_hours": 6,
+      "countable_hours": 720,
+      "missing_hours": 0,
+      "missing_days": 0
+    },
+    "days": [
+      {
+        "day": "2026-04-21",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-22",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-23",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-24",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-25",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-26",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-27",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-28",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-29",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-04-30",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-01",
+        "wet_hours": 4,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-02",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-03",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-04",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-05",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-06",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-07",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-08",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-09",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-10",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-11",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-12",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-13",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-14",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-15",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-16",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-17",
+        "wet_hours": 2,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-18",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-19",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-05-20",
+        "wet_hours": 0,
+        "countable_hours": 15
+      }
+    ]
+  },
   "stale_catalogs": []
 }
