@@ -29,7 +29,7 @@ function qualityLine(row: RainEventRow): string {
 /**
  * The note over the open row's finding when the event the URL named is not
  * in the catalog. One neutral sentence fits a followed link and an event
- * the visitor had open alike (owner decision on #239, #707).
+ * the visitor had open alike (#707).
  */
 const MISSING_NOTE = "That event is no longer in the catalog; showing the newest one instead.";
 
