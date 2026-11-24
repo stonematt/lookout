@@ -20,6 +20,7 @@ import { daylightZoom, moonSentence } from "../src/overview/zooms/daylight.js";
 import { isZoomRoute } from "../src/overview/zoom.js";
 import { ZOOMS } from "../src/overview/zooms/index.js";
 import { MOSAIC_TILES } from "../src/overview/mosaic-tiles.js";
+import { wetHoursTile } from "../src/overview/mosaic-wet.js";
 import { featureView } from "../src/overview/feature.js";
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
@@ -89,7 +90,9 @@ const MINE = [
 
 describe("every tile of #477 opens a zoom", () => {
   it("registers the zooms in the mosaic's order", () => {
-    const order = MOSAIC_TILES.map((t) => t.slug);
+    // Wet hours (#658) is the wet-or-dry tile in wet mode; it follows the
+    // ten of the order without a mode.
+    const order = [...MOSAIC_TILES.map((t) => t.slug), wetHoursTile.slug];
     const slugs = ZOOMS.map((z) => z.slug);
     expect(slugs).toEqual(order.filter((slug) => slugs.includes(slug)));
   });

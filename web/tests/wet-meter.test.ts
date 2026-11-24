@@ -6,7 +6,8 @@
  * missing hours are hatched at the bar's end and named under it, "N h
  * missing, not dry", with the missing days ("5 d missing"). Every mark draws
  * in a token whose 3:1 pair on the now surface the Contrast table holds, in
- * both themes. A snapshot without `wet_hours` (N−1) draws no meter.
+ * both themes. A snapshot without `wet_hours` (N−1) draws no meter; in dry
+ * mode (#658) the meter is hidden, and without a mode it is drawn as before.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -25,6 +26,15 @@ import type { Scenario } from "./golden.js";
 const parsed = (scenario: Scenario): DashboardSnapshot =>
   parseDashboard(structuredClone(golden(scenario, "dashboard")));
 
+/**
+ * A golden in wet mode: the seasoned golden is dry mode, where the meter is
+ * hidden (#658), so its every-hour-counted windows are read in wet mode.
+ */
+const wet = (scenario: Scenario): DashboardSnapshot => ({
+  ...parsed(scenario),
+  wet_mode: { mode: "wet", decided_by: "weather" },
+});
+
 let panel: HTMLElement;
 
 beforeEach(() => {
@@ -40,7 +50,7 @@ const all = (part: string) => [...(meter()?.querySelectorAll(`[data-part=${part}
 
 describe("the wet-hour meter", () => {
   it("reads wet hours of countable hours for 7 and 30 days, never a percent", () => {
-    renderOverview(panel, parsed("seasoned"));
+    renderOverview(panel, wet("seasoned"));
     expect(all("count").map(words)).toEqual(["2 h of 168", "6 h of 720"]);
     expect(nameFrom(meter()!)).toBe(
       "Wet hours 7 days 2 h of 168 30 days 6 h of 720 Open the rain view",
@@ -49,13 +59,13 @@ describe("the wet-hour meter", () => {
   });
 
   it("is one link to the Rain tab, at the now tile's foot", () => {
-    renderOverview(panel, parsed("seasoned"));
+    renderOverview(panel, wet("seasoned"));
     expect(meter()!.getAttribute("href")).toBe("#rain");
     expect(hero().lastElementChild).toBe(meter());
   });
 
   it("names nothing missing when every hour counts", () => {
-    renderOverview(panel, parsed("seasoned"));
+    renderOverview(panel, wet("seasoned"));
     expect(all("missing")).toHaveLength(0);
     expect(meter()!.querySelectorAll(".wet-meter-missing")).toHaveLength(0);
   });
@@ -89,11 +99,34 @@ describe("the wet-hour meter", () => {
   });
 
   it("draws no wet fill when no hour was wet", () => {
-    const snapshot = parsed("seasoned");
+    const snapshot = wet("seasoned");
     snapshot.wet_hours!.last_7_days.wet_hours = 0;
     renderOverview(panel, snapshot);
     expect(all("bar")[0]!.querySelector(".wet-meter-wet")).toBeNull();
     expect(words(all("count")[0])).toBe("0 h of 168");
+  });
+
+  it("is hidden in dry mode, where it would read 0 h for months (seasoned)", () => {
+    const snapshot = parsed("seasoned");
+    expect(snapshot.wet_mode?.mode).toBe("dry");
+    renderOverview(panel, snapshot);
+    expect(meter()).toBeNull();
+    expect(hero().querySelector("[data-part=temperature]")).not.toBeNull();
+    const sources = words(panel.querySelector("footer.ov-sources"));
+    expect(sources).not.toContain("wet-hour bars");
+  });
+
+  it("is drawn in wet mode (raining, wet by the calendar)", () => {
+    renderOverview(panel, parsed("raining"));
+    expect(meter()).not.toBeNull();
+  });
+
+  it("is drawn from a version 4 snapshot without the mode, as before it", () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, unknown>;
+    delete doc.wet_mode;
+    delete doc.tile_titles;
+    renderOverview(panel, parseDashboard(doc));
+    expect(meter()).not.toBeNull();
   });
 
   it("is not drawn from a snapshot without wet hours", () => {

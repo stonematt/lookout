@@ -20289,5 +20289,12 @@
       }
     ]
   },
+  "wet_mode": {
+    "mode": "dry",
+    "decided_by": "weather"
+  },
+  "tile_titles": {
+    "wet_or_dry": "Dry spell"
+  },
   "stale_catalogs": []
 }

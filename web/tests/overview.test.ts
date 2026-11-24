@@ -111,10 +111,11 @@ describe("the Overview's sources footer (prototype decision 22, #604)", () => {
   const NAMES = [
     "Right now",
     "The feature",
+    // The raining golden is wet mode (#658): Wet hours beside Temperature.
     "Temperature",
+    "Wet hours",
     "Rain since Oct 1",
     "Last 10 days",
-    "Dry spell",
     "Wind",
     "Pressure",
     "Humidity",
