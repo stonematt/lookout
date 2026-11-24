@@ -34,6 +34,7 @@ from lookout.snapshot.indoor import battery_flags, indoor_sensors
 from lookout.snapshot.depth import record_depth
 from lookout.snapshot.dry_spell import completed_dry_spells, dry_spell
 from lookout.snapshot.model import Feature, Snapshot, Station
+from lookout.snapshot.rain_now import rain_now
 from lookout.snapshot.rain_tab import rain_tab
 from lookout.snapshot.ribbon import condition_ribbon
 from lookout.snapshot.solar import solar_tab
@@ -89,9 +90,9 @@ def build_snapshot(
     active = active_rain_event(event_catalog, current, observed_at_ms)
     days = count_days(archive, current, clock)
     dry = dry_spell(current, observed_at_ms, completed_dry_spells(days))
+    rain = rain_now(stitched, event_catalog, active, clock)
     picked = feature(
-        event_catalog,
-        active,
+        rain,
         stitched,
         current,
         observed_at_ms,
@@ -121,6 +122,7 @@ def build_snapshot(
             days.rain.water_year_status,
         ),
         dry_spell=dry,
+        rain_now=rain,
         rain_tab=rain_tab(stitched, days),
         temperature_context=temperature_context(
             stitched, current, observed_at_ms, days.coverage

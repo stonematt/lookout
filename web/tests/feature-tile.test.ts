@@ -142,19 +142,83 @@ describe("the feature tile", () => {
     },
   );
 
-  it("draws a live rain event: its total so far against the usual event", () => {
-    const raining = parseDashboard(golden("raining", "dashboard"));
-    draw(raining);
+  describe("tells the now story (ADR-0011, #659)", () => {
+    const kicker = () => words(tile()!.querySelector("[data-part=kicker]"));
+    const value = () => words(tile()!.querySelector("[data-part=value]"));
+    /** The raining golden with its `rain_now` changed. */
+    function story(patch: Doc): DashboardSnapshot {
+      const base = doc("raining");
+      return edited("raining", { rain_now: { ...(base.rain_now as Doc), ...patch } });
+    }
+    const built = () => doc("raining").built_at_ms as number;
 
-    expect(raining.feature?.kind).toBe("rain");
-    expect(tile()!.dataset.kind).toBe("rain");
-    expect(words(tile()!.querySelector("[data-part=kicker]"))).toBe("Raining now · 2 h 25 m");
-    expect(words(tile()!.querySelector("[data-part=value]"))).toBe("0.30 in");
-    expect(linkName()).toBe(
-      "Raining now: 0.30 in so far, against 0.42 in for a usual event. Open the Rain Events tab.",
-    );
-    expect(link().getAttribute("href")).toBe("#events");
-    expect(tile()!.querySelector("[data-part=live]")).not.toBeNull();
+    it("draws raining: the last hour's rate, then the event's total since its start", () => {
+      const raining = parseDashboard(golden("raining", "dashboard"));
+      draw(raining);
+
+      expect(raining.feature?.kind).toBe("rain");
+      expect(raining.rain_now?.raining).toBe(true);
+      expect(tile()!.dataset.kind).toBe("rain");
+      expect(kicker()).toBe("Raining · 0.12 in/h");
+      expect(value()).toBe("0.30 in");
+      expect(findingWords()).toBe("since 2:00 pm");
+      expect(linkName()).toBe(
+        "Raining, 0.12 in/h: 0.30 in since 2:00 pm. Open the Rain Events tab.",
+      );
+      expect(link().getAttribute("href")).toBe("#events");
+      expect(tile()!.querySelector("[data-part=live]")).not.toBeNull();
+    });
+
+    it("draws rain stopped: how long ago the gauge last tipped, no rate, no rain dot", () => {
+      draw(story({ raining: false, last_rain_ms: built() - 40 * 60_000, rate_in_hr: 0.03 }));
+
+      expect(kicker()).toBe("Rain stopped 40 min ago");
+      expect(value()).toBe("0.30 in");
+      expect(findingWords()).toBe("since 2:00 pm");
+      expect(linkName()).toBe(
+        "Rain stopped 40 minutes ago: 0.30 in since 2:00 pm. Open the Rain Events tab.",
+      );
+      expect(tile()!.querySelector("[data-part=live]")).toBeNull();
+    });
+
+    it("words a stop over an hour ago in hours and minutes", () => {
+      draw(story({ raining: false, last_rain_ms: built() - 130 * 60_000, rate_in_hr: 0 }));
+
+      expect(kicker()).toBe("Rain stopped 2 h 10 m ago");
+    });
+
+    it("names the day of an event that started on an earlier day", () => {
+      draw(story({ event_start_ms: built() - 30 * 3_600_000 }));
+
+      expect(findingWords()).toMatch(/^since [A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2} [ap]m$/);
+    });
+
+    it("draws the last hour's rain when no event holds last rain", () => {
+      draw(story({ event_start_ms: null, event_total_in: null }));
+
+      expect(kicker()).toBe("Raining · 0.12 in/h");
+      expect(value()).toBe("0.12 in");
+      expect(findingWords()).toBe("in the last hour");
+    });
+
+    it("draws today's rain view from a snapshot without rain_now (version 4 before #659)", () => {
+      const base = doc("raining");
+      delete base.rain_now;
+      draw(parseDashboard(base));
+
+      expect(kicker()).toBe("Raining now · 2 h 25 m");
+      expect(value()).toBe("0.30 in");
+      expect(linkName()).toBe(
+        "Raining now: 0.30 in so far, against 0.42 in for a usual event. Open the Rain Events tab.",
+      );
+    });
+
+    it("refuses a rain_now whose raining is not a flag", () => {
+      const base = doc("raining");
+      const rain_now = { ...(base.rain_now as Doc), raining: "yes" };
+
+      expect(() => parseDashboard({ ...base, rain_now })).toThrow(SnapshotContractError);
+    });
   });
 
   it("draws rain that ended: the newest event's total and how long ago it ended", () => {
@@ -162,9 +226,11 @@ describe("the feature tile", () => {
     const events = structuredClone(base.rain_events) as { events: Doc[] };
     for (const row of events.events) row.live = false;
     const newest = events.events[0]!;
+    // A snapshot before #659: no now story, so today's ended-event view.
     const snapshot = edited("raining", {
       active_rain_event: null,
       rain_events: { ...events, open_curve: null },
+      rain_now: undefined,
       built_at_ms: (newest.end_ms as number) + 3 * 3_600_000,
     });
     draw(snapshot);
@@ -192,6 +258,7 @@ describe("the feature tile", () => {
       const snapshot = edited("raining", {
         active_rain_event: null,
         rain_events: { ...events, open_curve: null },
+        rain_now: undefined,
         feature,
         built_at_ms: (events.events[1]!.end_ms as number) + 3_600_000,
       });
