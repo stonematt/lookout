@@ -39,6 +39,8 @@
  *   carry no lag chip (#458); the Rain, Solar and Rain events tabs keep it.
  * - `hatchedCount`, `gapReasons`: how many statuses are hatched as not
  *   compared, and the chip's short reason naming those counts.
+ * - `statCell`: one stat-strip cell as markup, for the Rain Events tab's
+ *   catalog tile and open event row.
  *
  * Every value here comes from the snapshot: the archive time, the reading
  * time and the gap statuses Python decided. A tile states findings in the
@@ -47,10 +49,22 @@
  */
 import "./styles/tiles.css";
 
-import { make, spoken } from "./dom.js";
+import { html, make, spoken } from "./dom.js";
+import type { Html } from "./dom.js";
 import { STALE_AFTER_MS, formatDuration, formatStamp } from "./format.js";
 import { currentLayout } from "./layout.js";
 import type { DashboardSnapshot, GapStatus } from "./snapshot.js";
+
+/**
+ * A one-row stat strip cell.
+ *
+ * @param value - The figure.
+ * @param label - What it counts.
+ * @returns The cell's markup.
+ */
+export function statCell(value: string, label: string): Html {
+  return html`<div><dt>${label}</dt><dd>${value}</dd></div>`;
+}
 
 /** How many of the four-column grid's columns a tile spans. */
 export type TileSpan = 1 | 2 | 3 | 4;

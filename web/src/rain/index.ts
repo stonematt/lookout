@@ -28,6 +28,7 @@ import type { DashboardSnapshot, RainTab } from "../snapshot.js";
 import { drawDays } from "../charts/days-switch.js";
 import { drawSized, missingDay } from "../charts/svg.js";
 import { make } from "../dom.js";
+import { lastRainMs } from "../now-story.js";
 import { isShown } from "../overview/history.js";
 import type { SectionOptions, TileSection } from "../tiles.js";
 import { gapReasons, hatchedCount, renderTiles, sectionSource, tileFinding } from "../tiles.js";
@@ -148,11 +149,16 @@ export function renderDry(
   const spells = snapshot.rain_tab.dry_spells;
   host.append(tileFinding(dryHeadline(snapshot), options));
   const strip = make("dl", "rain-stats rain-dry-stats");
-  const lastRain = snapshot.current.last_rain_ms;
+  const lastRain = lastRainMs(snapshot);
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   const spell = drySpellNow(snapshot);
   const since = drySpellShown(snapshot);
-  stat(strip, "Since it last rained", since === null ? null : drySpellText(since));
+  stat(
+    strip,
+    "Since it last rained",
+    since === null ? null : drySpellText(since),
+    since?.under ?? undefined,
+  );
   const usualDd = stat(
     strip,
     "Usual dry spell",
@@ -252,8 +258,8 @@ export function renderYears(
   // the same heading level. A zoom panel has no kicker, so a head of more
   // than one part labels its first part too.
   parts.forEach((part, i) => {
-    if (i > 0) host.append(partLabel(part.label));
-    else if (options.zoom && parts.length > 1) host.append(partLabel(part.label, true));
+    if (i > 0) host.append(partLabel(part.label, false, part.how));
+    else if (options.zoom && parts.length > 1) host.append(partLabel(part.label, true, part.how));
     const lead = tileFinding(part.lead, { ...options, lead: i === 0 && part.id === "now" });
     if (i > 0) {
       lead.classList.add("rain-lead");
@@ -303,7 +309,7 @@ export function renderYears(
         ? "Each wet-hour bar is every hour of its span; the dark fill is its wet hours, and the hours the record cannot count are hatched at its end, never counted as dry."
         : null,
       dots
-        ? "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, each window's rain ending today as a dot on its own scale, over the same window in earlier years: their middle half (25th–75th percentile) from 4 years, their range from 3, the span of their values below. A dot outside it is marked above or below its usual range."
+        ? "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, each window's rain ending today as a dot on its own scale, over the same window in earlier years: their middle half (25th–75th percentile) from 4 years, their range from 3, the span of their values below. A dot outside it is marked above or below its usual range, but for the water year, which only the verdict judges."
         : "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, the rain over each window ending today.",
       "The station archive's daily totals, with today's live total.",
       liveNote,

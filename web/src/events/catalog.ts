@@ -22,8 +22,7 @@ import { inches } from "../format.js";
 import { isComparable } from "../gaps.js";
 import type { DashboardSnapshot, EventCounts, RainEventRow } from "../snapshot.js";
 import { staleCatalogNote } from "../stale.js";
-import { gapReasons, sourceNote, tileFolds } from "../tiles.js";
-import { stat } from "./detail.js";
+import { gapReasons, sourceNote, statCell, tileFolds } from "../tiles.js";
 import type { Season } from "./model.js";
 import { listFinding, minutes, statsFor } from "./model.js";
 import { drawScatter, scatterInput, scatterMarkup } from "./scatter.js";
@@ -108,10 +107,13 @@ export function renderCatalogHead(
     : "No rain events in the catalog yet";
   const strip = panel.querySelector<HTMLElement>(".ev-stats")!;
   const cells = [
-    stat(String(stats.count), "events"),
-    stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
-    stat(stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }), "median event"),
-    stat(
+    statCell(String(stats.count), "events"),
+    statCell(inches(stats.total_in, { digits: 2 }), "rain in events"),
+    statCell(
+      stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }),
+      "median event",
+    ),
+    statCell(
       stats.mean_duration_minutes === null ? "n/a" : minutes(stats.mean_duration_minutes),
       "mean length",
     ),

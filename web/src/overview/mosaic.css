@@ -57,6 +57,15 @@
   }
 }
 
+/* a value that is words, not a number ("No dry spell yet", #694): one type
+   step down, to Stat at the unit's weight, so it keeps to a half-width tile */
+.mosaic-value.mosaic-value-words {
+  font-size: var(--type-stat);
+  font-weight: 400;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
 .mosaic-unit {
   font-size: var(--type-stat);
   font-weight: 400;

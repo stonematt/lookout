@@ -41,7 +41,13 @@ from lookout.snapshot.model import (
     WetHoursToDate,
     WetHoursWindow,
 )
-from lookout.utils.dateutc import HOUR_MS, day_span, from_local_date, local_time
+from lookout.utils.dateutc import (
+    HOUR_MS,
+    day_span,
+    from_local_date,
+    local_time,
+    years_back,
+)
 
 WINDOW_DAYS = (7, 30)
 """The windows' lengths in days; the longest sets the hours judged."""
@@ -169,13 +175,12 @@ def _same_time(end: pd.Timestamp, year: int, tz: str) -> int:
     :param end: This year's end, station-local.
     :param year: The earlier water year.
     :param tz: The station-local zone.
-    :return: The same month, day and hour in that year; Feb 29 is Feb 28.
+    :return: The same month, day and hour in that year; Feb 29 is Feb 28
+        (`years_back`, the window strip's rule too).
     """
     calendar_year = year - 1 if end.month >= water_year_start(year).month else year
-    day = end.day
-    if (end.month, day) == (2, 29):
-        day = 28
-    when = pd.Timestamp(calendar_year, end.month, day, end.hour).tz_localize(
+    day = years_back(end.date(), end.year - calendar_year)
+    when = pd.Timestamp(day.year, day.month, day.day, end.hour).tz_localize(
         tz, ambiguous=True, nonexistent="shift_forward"
     )
     return int(when.value // 10**6)

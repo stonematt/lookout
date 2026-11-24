@@ -27,8 +27,8 @@
  * (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
- * carries a feature), `featureTile` (the Overview section), and `stoppedAgo`
- * and `sinceWords` (the rain tile's story, #661).
+ * carries a feature) and `featureTile` (the Overview section). The rain
+ * tile's now story is worded in `now-story.ts` (#694).
  */
 import "./feature.css";
 
@@ -38,16 +38,13 @@ import {
   formatDayCount,
   formatDuration,
   formatDurationSpoken,
-  formatStamp,
-  formatTime,
   hourName,
   inches,
   inHg,
-  localDay,
   mph,
   percent,
 } from "../format.js";
-import { drySpellShown } from "../rain/text.js";
+import { dryHeadline, drySpellShown } from "../rain/text.js";
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -154,17 +151,6 @@ function readingValue(feature: Feature, value: number): [string, string | null] 
 function againstUsualEvent(snapshot: DashboardSnapshot): string {
   const median = snapshot.rain_events.all_time.median_in;
   return median === null ? "" : `, against ${inches(median, { digits: 2 })} for a usual event`;
-}
-
-/** How long ago rain stopped: `40 min` under an hour, then `2 h 10 m`. */
-export function stoppedAgo(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  return minutes < 60 ? `${minutes} min` : formatDuration(ms);
-}
-
-/** When the event started: `2:40 pm`, or `Nov 22, 9:05 pm` on an earlier day. */
-export function sinceWords(startMs: number, builtMs: number): string {
-  return localDay(startMs) === localDay(builtMs) ? formatTime(startMs) : formatStamp(startMs);
 }
 
 /**
@@ -290,8 +276,9 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
   const usualDays = snapshot.dry_spell?.usual_days ?? null;
   const usual =
     usualDays === null ? "" : `, against a usual dry spell of ${formatDayCount(usualDays)}`;
-  if (since === null) {
-    const finding = "No last rain on record";
+  if (since === null || since.under !== null) {
+    // No dry spell yet (0 whole dry days, #694) reads as the Rain tab's finding.
+    const finding = since === null ? "No last rain on record" : dryHeadline(snapshot);
     return {
       kind: "dry_spell",
       kicker: "Dry spell",

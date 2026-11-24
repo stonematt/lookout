@@ -15,15 +15,14 @@ import {
   formatDayCount,
   formatDays,
   formatDaysSpoken,
-  formatStamp,
-  formatTime,
   hourText,
   inches,
-  localDay,
 } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
-import { WHOLE_DRY_DAYS_VERSION, rainNow } from "../snapshot.js";
+import { agoWords, lastRainMs, nowStory, storyLine } from "../now-story.js";
+import { WHOLE_DRY_DAYS_VERSION } from "../snapshot.js";
+import { meterShown } from "../wet-bars.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
@@ -159,12 +158,14 @@ export function drySpellNow(snapshot: DashboardSnapshot): DrySpellNow {
  *
  * @param snapshot - The dashboard snapshot.
  * @returns E.g. "1 d 22 h since it last rained, against a usual dry spell
- *   of 2 days".
+ *   of 2 days"; "No dry spell yet, last rain 9 h ago" before a whole dry
+ *   day has passed.
  */
 export function dryHeadline(snapshot: DashboardSnapshot): string {
   const spell = drySpellNow(snapshot);
   const shown = drySpellShown(snapshot);
   if (shown === null) return "Dry spells in the record";
+  if (shown.under !== null) return `${shown.spoken}, ${shown.under}`;
   const usual =
     spell.usual_days === null
       ? ""
@@ -180,13 +181,24 @@ export interface DrySpellShown {
   unit: string | null;
   /** The number for a sentence: "9 dry days"; "about 39 hours" before. */
   spoken: string;
+  /**
+   * Words under the reading when there is no dry spell yet (version 5, 0
+   * whole dry days): "last rain 9 h ago"; null otherwise, or with no last
+   * rain to name.
+   */
+  under: string | null;
 }
+
+/** The reading at 0 whole dry days: no whole dry day has passed since the last rain. */
+const NO_DRY_SPELL_YET = "No dry spell yet";
 
 /**
  * How the days since it last rained read, by the snapshot's version: whole
  * dry days from `WHOLE_DRY_DAYS_VERSION` (GLOSSARY dry spell, #667), so a
  * pause between showers never reads as a dry spell; before it, the time
- * since the last tip as a duration. The Dry spell tile, the feature, the
+ * since the last tip as a duration. At 0 whole dry days there is no dry
+ * spell yet: "No dry spell yet", with last rain under it (#694, product
+ * lead on #647), never "0 dry days". The Dry spell tile, the feature, the
  * Rain tab and the dry spell zoom all show this one reading.
  *
  * @param snapshot - The dashboard snapshot.
@@ -197,10 +209,15 @@ export function drySpellShown(snapshot: DashboardSnapshot): DrySpellShown | null
   if (days === null) return null;
   if (snapshot.schema_version >= WHOLE_DRY_DAYS_VERSION) {
     const whole = Math.round(days);
+    if (whole === 0) {
+      const last = lastRainMs(snapshot);
+      const under = last === null ? null : `last rain ${agoWords(snapshot.built_at_ms - last)} ago`;
+      return { value: NO_DRY_SPELL_YET, unit: null, spoken: NO_DRY_SPELL_YET, under };
+    }
     const unit = whole === 1 ? "day" : "days";
-    return { value: String(whole), unit, spoken: `${whole} dry ${unit}` };
+    return { value: String(whole), unit, spoken: `${whole} dry ${unit}`, under: null };
   }
-  return { value: formatDays(days), unit: null, spoken: formatDaysSpoken(days) };
+  return { value: formatDays(days), unit: null, spoken: formatDaysSpoken(days), under: null };
 }
 
 /**
@@ -331,17 +348,6 @@ function hourCount(hours: number): string {
 }
 
 /**
- * This water year's wet hours since Oct 1, as wet hours of countable hours,
- * as the Overview's meter reads its windows (#663).
- *
- * @param wet - The Rain tab's wet hours to date.
- * @returns E.g. "113 h of 1,292".
- */
-export function wetToDateValue(wet: WetHoursToDate): string {
-  return `${hourCount(wet.wet_hours)} h of ${hourCount(wet.countable_hours)}`;
-}
-
-/**
  * Usual wet hours to date, with the earlier years it rests on (#663): a
  * band from 3 years, called a range below 4; the plain values below 3;
  * none without an earlier year. Then the hours missing, never dry.
@@ -435,45 +441,18 @@ export function yearLeftOut(curve: WaterYearCurve): string {
 }
 
 /**
- * How long ago, as the now part says it: minutes under an hour, whole hours
- * under two days, whole days after.
- *
- * @param ms - The time since, in milliseconds.
- * @returns E.g. "40 min", "9 h", "3 d".
- */
-export function agoText(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
-}
-
-/**
- * The Rain tab head's now part (ADR-0011, #664): while the snapshot tells
- * the now story, "Raining · 0.08 in/h" or "Rain stopped 40 min ago", then
- * the event's rain since it started; outside it, last rain alone. Raining,
- * the rate and the event are Python's (`rain_now`); the site only words
- * them.
+ * The Rain tab head's now part (ADR-0011, #664): the now story in one line,
+ * worded by the one now-story helper (`now-story.ts`) the Overview's rain
+ * tile uses too, so the two never disagree (#694).
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "Raining · 0.12 in/h · 0.30 in since 2:40 pm", "Last rain
+ * @returns E.g. "Raining · 0.12 in/hr · 0.30 in since 2:40 pm", "Last rain
  *   9 h ago"; null for a snapshot without `rain_now` (before #659), which
  *   draws no now part.
  */
 export function nowLine(snapshot: DashboardSnapshot): string | null {
-  const rain = rainNow(snapshot);
-  if (!rain) return null;
-  if (rain.last_rain_ms === null) return "No rain in the record yet";
-  const built = snapshot.built_at_ms;
-  const ago = agoText(built - rain.last_rain_ms);
-  if (rain.rate_in_hr === null) return `Last rain ${ago} ago`;
-  const lead = rain.raining
-    ? `Raining · ${inches(rain.rate_in_hr, { digits: 2 })}/h`
-    : `Rain stopped ${ago} ago`;
-  if (rain.event_start_ms === null || rain.event_total_in === null) return lead;
-  const start = rain.event_start_ms;
-  const since = localDay(start) === localDay(built) ? formatTime(start) : formatStamp(start);
-  return `${lead} · ${inches(rain.event_total_in, { digits: 2 })} since ${since}`;
+  const story = nowStory(snapshot);
+  return story ? storyLine(story) : null;
 }
 
 /** "1 wet hour", "1,292 wet hours". */
@@ -481,7 +460,8 @@ const wetHourCount = (n: number) => `${hourCount(n)} wet hour${n === 1 ? "" : "s
 
 /**
  * The Rain tab head's season part in words (#664): the wet hours of the
- * last 7 and 30 days (the Overview meter's `wet_hours`), else the water
+ * last 7 and 30 days (the Overview's `wet_hours`) while their bars are
+ * drawn (`meterShown`: not in dry mode, #647 call 3), else the water
  * year's since Oct 1.
  *
  * @param snapshot - The dashboard snapshot.
@@ -491,7 +471,7 @@ const wetHourCount = (n: number) => `${hourCount(n)} wet hour${n === 1 ? "" : "s
  */
 export function seasonLead(snapshot: DashboardSnapshot): string | null {
   const wet = snapshot.wet_hours;
-  if (wet) {
+  if (wet && meterShown(snapshot)) {
     return (
       `${wetHourCount(wet.last_7_days.wet_hours)} in the last 7 days, ` +
       `${hourCount(wet.last_30_days.wet_hours)} in the last 30`

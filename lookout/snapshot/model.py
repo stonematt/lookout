@@ -1348,9 +1348,8 @@ class StripWindow:
     :param high_in: The range's high end; None with no earlier year.
     :param band: What the site calls the range: "percentile" from 4 years,
         "range" (of N earlier years) at 3; None below 3, the plain values.
-    :param mark: "above usual range" or "below usual range" when the rain
-        is outside the range, words distinct from the verdict's. The "today"
-        window is never "below": its rain can still grow.
+    :param mark: "above usual range", "below usual range" or None, by
+        GLOSSARY "usual range": words distinct from the verdict's.
     """
 
     key: str

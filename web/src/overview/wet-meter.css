@@ -97,22 +97,3 @@
   font-weight: 600;
   color: var(--ink);
 }
-
-.wet-meter-how {
-  font-weight: 400;
-}
-
-/* the hatch key under the bars: the swatch, then its words */
-.wet-meter-key {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
-  margin-top: var(--s-2);
-  font-size: var(--type-label);
-  line-height: 1.4;
-  color: var(--ink-3);
-}
-
-.wet-meter-key .hatch-swatch {
-  border: 1px solid var(--hatch);
-}

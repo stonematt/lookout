@@ -101,7 +101,8 @@ describe("the window strip's contract", () => {
       years: 1,
       low_in: 0.304,
       high_in: 0.304,
-      mark: "above usual range",
+      // Above its range, but only the verdict judges the water year (#647 call 2).
+      mark: null,
     });
     expect(strip.find((w) => w.key === "365d")).toMatchObject({ years: 0, low_in: null });
   });

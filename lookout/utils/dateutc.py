@@ -222,6 +222,22 @@ def day_span(first: _dt.date, last: _dt.date) -> List[_dt.date]:
     return [first + _dt.timedelta(days=i) for i in range((last - first).days + 1)]
 
 
+def years_back(day: _dt.date, years: int) -> _dt.date:
+    """
+    The same date a whole number of years back; Feb 29 as Feb 28.
+
+    The one rule for "this date in an earlier year": the Rain tab's window
+    strip and usual wet hours to date both compare against it.
+
+    :param day: The date.
+    :param years: How many years back.
+    :return: That date.
+    """
+    if (day.month, day.day) == (2, 29):
+        day = day.replace(day=28)
+    return day.replace(year=day.year - years)
+
+
 def from_local_date(
     date: Union[_dt.date, _dt.datetime, pd.Timestamp, str],
     tz: str = DEFAULT_TZ,

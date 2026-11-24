@@ -4,7 +4,6 @@
  * (`tab.ts`) decides which curve to draw and when; this module says what the
  * body reads. Markup goes through `html` (`web/src/dom.ts`).
  *
- * - `stat`: one stat-strip cell, shared with the catalog tile.
  * - `eventBody`: the body's markup around the empty chart host, with the
  *   note for a missing event (`MissingEvent`).
  * - `eventSource`: the source fold's what, method and gaps for the event
@@ -15,18 +14,8 @@ import { html } from "../dom.js";
 import type { Html } from "../dom.js";
 import { inches, inchesPerHour } from "../format.js";
 import type { RainEventRow } from "../snapshot.js";
+import { statCell } from "../tiles.js";
 import { eventFinding, minutes, peakText } from "./model.js";
-
-/**
- * A one-row stat strip cell.
- *
- * @param value - The figure.
- * @param label - What it counts.
- * @returns The cell's markup.
- */
-export function stat(value: string, label: string): Html {
-  return html`<div><dt>${label}</dt><dd>${value}</dd></div>`;
-}
 
 /** The open event's quality line. */
 function qualityLine(row: RainEventRow): string {
@@ -73,9 +62,9 @@ export function eventBody(
 ${note}
 ${announce ? html`<p class="ev-finding" aria-live="polite">${finding}</p>` : html`<p class="ev-finding">${finding}</p>`}
 <dl class="ev-facts">
-  ${stat(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
-  ${stat(minutes(row.duration_minutes), "length")}
-  ${stat(peak, "peak rate")}
+  ${statCell(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
+  ${statCell(minutes(row.duration_minutes), "length")}
+  ${statCell(peak, "peak rate")}
 </dl>
 <div class="ev-charts"></div>
 <p class="ev-quality">${qualityLine(row)}</p>`;

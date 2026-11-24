@@ -25,8 +25,9 @@ import { LABEL_CHAR_PX, drawSized, runs, scale, yTickSteps } from "../charts/svg
 import { make, svgEl } from "../dom.js";
 import { inches, localDay, timeParts } from "../format.js";
 import { svgHatch } from "../gaps.js";
-import type { RainNow, RainSlots } from "../snapshot.js";
-import { sinceWords, stoppedAgo } from "./feature.js";
+import type { RainSlots } from "../snapshot.js";
+import { agoWords, sinceWords } from "../now-story.js";
+import type { ToldStory } from "../now-story.js";
 
 const MINUTE_MS = 60_000;
 /** The last-hour bracket's span: the rate's own hour. */
@@ -92,7 +93,7 @@ function fitTimes(wanted: TimeLabel[], width: number): TimeLabel[] {
  * @param width - Pixels.
  * @returns The SVG.
  */
-function draw(rain: RainNow, slots: RainSlots, nowMs: number, width: number): SVGSVGElement {
+function draw(rain: ToldStory, slots: RainSlots, nowMs: number, width: number): SVGSVGElement {
   const n = slots.rain_in.length;
   const slotMs = slots.slot_minutes * MINUTE_MS;
   const end = slots.start_ms + n * slotMs;
@@ -225,8 +226,8 @@ function draw(rain: RainNow, slots: RainSlots, nowMs: number, width: number): SV
     ? Math.max(slots.start_ms, nowMs - HOUR_MS)
     : Math.max(slots.start_ms, Math.min(nowMs, rain.last_rain_ms ?? nowMs));
   const words = rain.raining
-    ? `last hour ${inches(rain.rate_in_hr ?? 0, { digits: 2 })}`
-    : `dry ${stoppedAgo(nowMs - (rain.last_rain_ms ?? nowMs))}`;
+    ? `last hour ${inches(rain.rate_in_hr, { digits: 2 })}`
+    : `dry ${agoWords(nowMs - (rain.last_rain_ms ?? nowMs))}`;
   const bx0 = x(fromMs);
   const bx1 = x(Math.min(end, nowMs));
   svg.append(
@@ -288,7 +289,7 @@ function draw(rain: RainNow, slots: RainSlots, nowMs: number, width: number): SV
  * @param nowMs - The build time: an event from an earlier day names its day.
  * @returns The legend, hidden from screen readers.
  */
-function legend(rain: RainNow, nowMs: number): HTMLElement {
+function legend(rain: ToldStory, nowMs: number): HTMLElement {
   const node = make("div", "rain-lead-legend");
   node.setAttribute("aria-hidden", "true");
   const item = (swatch: string, words: string) => {
@@ -316,7 +317,7 @@ function legend(rain: RainNow, nowMs: number): HTMLElement {
  * @returns The block and a start function to call once it is in the page.
  */
 export function storyChart(
-  rain: RainNow,
+  rain: ToldStory,
   slots: RainSlots,
   nowMs: number,
 ): { block: HTMLElement; start: () => void } {

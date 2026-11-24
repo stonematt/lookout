@@ -157,6 +157,14 @@
   color: var(--ink);
 }
 
+/* a value that is words, not a number ("No dry spell yet", #694): Fact, not Display */
+.zoom-value.zoom-value-words {
+  font-size: var(--type-fact);
+  line-height: 1.15;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
 .zoom-unit {
   font-size: var(--type-stat);
   font-weight: 400;

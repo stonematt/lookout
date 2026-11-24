@@ -189,14 +189,25 @@ describe("the rain tile, stopped (the raining golden, rain stopped 40 minutes ag
     expect(svgText().some((t) => t?.startsWith("last hour"))).toBe(false);
   });
 
-  it("words a stop over an hour ago in hours and minutes", () => {
+  it("words a stop over an hour ago in whole hours, as the boards do", () => {
     renderOverview(panel, stopped(130));
-    expect(words(now().querySelector("[data-part=finding]"))).toMatch(/^Rain stopped 2 h 10 m ago/);
-    expect(svgText()).toContain("dry 2 h 10 m");
+    expect(words(now().querySelector("[data-part=finding]"))).toMatch(/^Rain stopped 2 h ago/);
+    expect(svgText()).toContain("dry 2 h");
   });
 });
 
 describe("the rain tile's edges", () => {
+  it("lets an event from yesterday break before its time, so 320px never scrolls sideways", () => {
+    const d = doc();
+    // Started 26 hours before the build: its start names its day.
+    d.rain_now = { ...d.rain_now, event_start_ms: d.built_at_ms - 26 * 3_600_000 };
+    renderOverview(panel, parseDashboard(d));
+    const runs = [...now().querySelectorAll("[data-part=finding] .rain-lead-run")].map(words);
+    expect(runs).toHaveLength(2);
+    expect(runs[0]).toMatch(/^0\.30 in since [A-Z][a-z]{2} \d+,$/);
+    expect(runs[1]).toMatch(/^\d+:\d\d [ap]m$/);
+  });
+
   it("tells the rate alone when no event holds last rain: no line", () => {
     const d = doc();
     d.rain_now = { ...d.rain_now, event_start_ms: null, event_total_in: null };

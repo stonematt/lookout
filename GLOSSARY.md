@@ -305,7 +305,9 @@ A run of dry days with a rain day (at least 0.01 in, one tip of the gauge)
 on each side. A day the archive cannot count breaks the run, so a gap never
 reads as dry. The **usual dry spell** is the median completed dry spell over
 the last 365 days. One definition serves the Rain tab, the feature and the
-widget view (`lookout.core.rainfall_analysis.dry_spells`).
+widget view (`lookout.core.rainfall_analysis.dry_spells`). Until a whole dry
+day has passed since the **last rain** there is no dry spell yet: it reads
+"No dry spell yet" with last rain under it, never "0 dry days" (#694).
 _Avoid_: drought, days without rain (for the spell itself).
 
 ### last rain
@@ -380,8 +382,10 @@ From three such years it is their 25th to 75th percentile, as usual wet
 hours' band is; with one or two, the span of their plain values; with none,
 there is no range and the window carries its rain alone. A window outside
 it is marked "above usual range" or "below usual range", words kept apart
-from the water year's verdict; only the "today" window is never "below",
-its rain still growing (#640, #690).
+from the water year's verdict; the "today" window is never "below", its
+rain still growing (#640, #690), and the water-year window carries its dot
+and range with no mark, as only the verdict judges the water year
+(#647 call 2).
 _Avoid_: normal range, usual band (for an hour-of-day band).
 
 ### usual wet hours to date

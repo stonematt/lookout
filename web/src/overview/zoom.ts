@@ -336,7 +336,7 @@ function head(zoom: ZoomDefinition, snapshot: DashboardSnapshot): HTMLElement {
   const reading = zoom.lead?.(snapshot);
   if (reading?.value != null) {
     const value = document.createElement("p");
-    value.className = "zoom-value";
+    value.className = reading.words ? "zoom-value zoom-value-words" : "zoom-value";
     value.dataset.part = "value";
     value.append(reading.value);
     if (reading.unit) {

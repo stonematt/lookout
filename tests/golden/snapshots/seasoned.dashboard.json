@@ -6898,7 +6898,7 @@
         "low_in": 0.304,
         "high_in": 0.304,
         "band": null,
-        "mark": "above usual range"
+        "mark": null
       }
     ]
   },

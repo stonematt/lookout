@@ -45,7 +45,7 @@ import { spoken, svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
-import { HATCH_KEY } from "./wet-meter.js";
+import { HATCH_KEY } from "../wet-bars.js";
 
 /** A mini chart's height, the same on every tile so a row lines up. */
 export const MINI_HEIGHT = 64;
@@ -54,6 +54,8 @@ export const MINI_HEIGHT = 64;
 export interface TileReading {
   /** The number, formatted ("72.0°", "1 d 14 h"); null when there is none. */
   value: string | null;
+  /** Whether the value is words, not a number ("No dry spell yet"), set a step smaller. */
+  words?: boolean;
   /** A word unit set smaller after the number ("in"); none by default. */
   unit?: string | null;
   /** The short delta under the number; null for none. */
@@ -264,7 +266,7 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const reading = tile.read(snapshot);
   if (reading.value !== null) {
     const value = document.createElement("p");
-    value.className = "mosaic-value";
+    value.className = reading.words ? "mosaic-value mosaic-value-words" : "mosaic-value";
     value.dataset.part = "value";
     value.append(reading.value);
     if (reading.unit) {

@@ -18,7 +18,6 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { renderOverview } from "../src/overview/index.js";
-import { missingWords } from "../src/overview/wet-meter.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
@@ -29,10 +28,6 @@ import type { Scenario } from "./golden.js";
 const parsed = (scenario: Scenario): DashboardSnapshot =>
   parseDashboard(structuredClone(golden(scenario, "dashboard")));
 
-/**
- * A golden in wet mode: the seasoned golden is dry mode, where the meter is
- * hidden (#658), so its every-hour-counted windows are read in wet mode.
- */
 /**
  * A golden without a mode (N−1): the one case the bars sit at the now
  * tile's foot. With a mode, the Wet hours tile carries them in wet mode and
@@ -73,6 +68,17 @@ describe("the wet-hour meter", () => {
       "Wet hours · each bar is every hour; dark is wet 7 days 2 h of 168 30 days 6 h of 720 Open the rain view",
     );
     expect(words(meter())).not.toContain("%");
+  });
+
+  it("is titled by the snapshot's tile title, the literal only without one (#694)", () => {
+    const doc = structuredClone(golden("raining", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    doc.tile_titles = { ...doc.tile_titles, wet_or_dry: "Wet time" };
+    renderOverview(panel, parseDashboard(doc));
+    const title = () => panel.querySelector("[data-section=rain] .wet-meter-title");
+    expect(words(title())).toBe("Wet time · each bar is every hour; dark is wet");
+    delete doc.tile_titles;
+    renderOverview(panel, parseDashboard(doc));
+    expect(words(title())).toBe("Wet hours · each bar is every hour; dark is wet");
   });
 
   it("is one link to the Rain tab, at the now tile's foot, without a mode", () => {
@@ -156,21 +162,6 @@ describe("the wet-hour meter", () => {
       expect(meter()).toBeNull();
       expect(hero().querySelector("[data-part=temperature]")).not.toBeNull();
     }
-  });
-});
-
-describe("the missing words", () => {
-  const window = { days: 7, hours: 168, wet_hours: 19, countable_hours: 150 };
-
-  it("name the hours, then the whole days, missing", () => {
-    expect(missingWords({ ...window, missing_hours: 18, missing_days: 0 })).toEqual([
-      "18 h missing, not dry",
-    ]);
-    expect(missingWords({ ...window, missing_hours: 120, missing_days: 5 })).toEqual([
-      "120 h missing, not dry",
-      "5 d missing",
-    ]);
-    expect(missingWords({ ...window, missing_hours: 0, missing_days: 0 })).toEqual([]);
   });
 });
 

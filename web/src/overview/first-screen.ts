@@ -27,7 +27,8 @@ import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 import { bandBasisWords, nowDeltaText, todayChart } from "./today-hero.js";
 import { rainLeads } from "./rain-lead.js";
-import { meterShown, wetMeter } from "./wet-meter.js";
+import { meterShown } from "../wet-bars.js";
+import { wetMeter } from "./wet-meter.js";
 
 /**
  * Whether the now tile's foot draws the wet-hour bars: only where no other

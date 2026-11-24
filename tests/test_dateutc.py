@@ -18,6 +18,7 @@ from lookout.utils.dateutc import (
     normalize,
     to_local,
     to_utc,
+    years_back,
 )
 
 
@@ -340,3 +341,15 @@ def test_normalize_fast_path_respects_min_ms():
     df = _frame([100, 200, 300])
     assert normalize(df, min_ms=0) is df
     assert normalize(df).empty
+
+
+# ---------- years_back ----------
+
+
+def test_years_back_keeps_the_month_and_day():
+    assert years_back(dt.date(2026, 11, 23), 2) == dt.date(2024, 11, 23)
+
+
+def test_years_back_reads_feb_29_as_feb_28():
+    assert years_back(dt.date(2028, 2, 29), 1) == dt.date(2027, 2, 28)
+    assert years_back(dt.date(2028, 2, 29), 4) == dt.date(2024, 2, 28)
