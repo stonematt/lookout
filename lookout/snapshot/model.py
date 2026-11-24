@@ -700,10 +700,15 @@ class TenDayHighs:
         never -0.
     :param days: How many days it is over: those with both a high and a
         usual high, 1 to 10.
+    :param gap: Whether a day the record covers has no low or high (the
+        days the tile's chart hatches). The tile then reads "Gap in record"
+        and shows no number, so a gap never reads as level (#665). Added in
+        version 4 (ADR-0008).
     """
 
     delta_f: int
     days: int
+    gap: bool
 
 
 @dataclass(frozen=True)

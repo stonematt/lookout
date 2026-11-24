@@ -185,9 +185,11 @@ describe("the Last 10 days zoom", () => {
   it("is headed by the tile's title from the snapshot, the window under its number", async () => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     doc.tile_titles.ten_days = "Gap in record";
+    doc.temperature_context.ten_day_highs.gap = true;
     await boot("#overview/last-10-days", parseDashboard(doc));
     const el = zoom()!;
     expect(words(el.querySelector(".zoom-heading"))).toBe("Gap in record");
+    expect(el.querySelector(".zoom-value")).toBeNull();
     expect(words(el.querySelector("[data-part=delta]"))).toBe("last 10 days");
   });
 

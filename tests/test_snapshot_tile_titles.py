@@ -5,7 +5,8 @@ GLOSSARY tile title: a title names what its number counts where the old one
 named a window. The ten-day tile's number is the last ten days' highs
 against their usual highs, so its title reads "Highs over usual", "Highs
 under usual" or "Highs at usual"; a window with a gap reads "Gap in record",
-never a level reading. With nothing to compare yet the tile keeps its fixed
+never a level reading, and the tile shows no number then
+(`ten_day_highs.gap`). With nothing to compare yet the tile keeps its fixed
 name, "Last 10 days". The snapshot carries the text in
 `tile_titles.ten_days`, an addition in version 4.
 
@@ -46,6 +47,7 @@ class TestTheTitleNamesTheNumber:
         snapshot = snapshot_of(shift_f=5.0)
 
         assert snapshot.temperature_context.ten_day_highs.delta_f == 5
+        assert snapshot.temperature_context.ten_day_highs.gap is False
         assert snapshot.tile_titles.ten_days == "Highs over usual"
 
     def test_a_cool_ten_days_is_highs_under_usual(self):
@@ -70,6 +72,7 @@ class TestAGapIsNeverLevel:
 
         assert snapshot.temperature_context.ten_day_highs.days == 9
         assert snapshot.temperature_context.ten_day_highs.delta_f == 0
+        assert snapshot.temperature_context.ten_day_highs.gap is True
         assert snapshot.tile_titles.ten_days == "Gap in record"
 
     def test_a_gap_reads_so_when_over_usual_too(self):
@@ -93,4 +96,5 @@ def test_the_dashboard_document_carries_the_title():
     document = snapshot_of(shift_f=5.0).dashboard()
 
     assert document["tile_titles"]["ten_days"] == "Highs over usual"
+    assert document["temperature_context"]["ten_day_highs"]["gap"] is False
     assert document["schema_version"] == 4

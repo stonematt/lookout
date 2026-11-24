@@ -475,6 +475,11 @@ export interface TenDayHighs {
   delta_f: number;
   /** How many days it is over: 1 to 10. */
   days: number;
+  /**
+   * Whether a day the record covers has no low or high. The tile then
+   * shows no number (#665). Absent from an earlier version 4 document.
+   */
+  gap?: boolean;
 }
 
 /** One window's range bar: low, middle half and high of its readings. */
@@ -1521,7 +1526,12 @@ function checkTemperature(context: unknown): void {
   if (
     highs !== undefined &&
     highs !== null &&
-    !(isRecord(highs) && typeof highs.delta_f === "number" && typeof highs.days === "number")
+    !(
+      isRecord(highs) &&
+      typeof highs.delta_f === "number" &&
+      typeof highs.days === "number" &&
+      (highs.gap === undefined || typeof highs.gap === "boolean")
+    )
   ) {
     throw new SnapshotContractError("dashboard: temperature_context.ten_day_highs malformed");
   }

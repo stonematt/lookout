@@ -140,5 +140,5 @@ def build_snapshot(
         outdoor_trace=outdoor_trace(stitched),
         wet_hours=wet_hours(stitched, clock),
         wet_mode=mode,
-        tile_titles=tile_titles(mode, temperature),
+        tile_titles=tile_titles(mode, temperature.ten_day_highs),
     )

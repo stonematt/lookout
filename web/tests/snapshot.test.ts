@@ -170,6 +170,11 @@ describe("parseDashboard", () => {
       "dashboard: tile_titles malformed",
     ],
     [
+      "a ten-day gap that is not a flag",
+      (d) => (d.temperature_context.ten_day_highs.gap = "yes"),
+      "dashboard: temperature_context.ten_day_highs malformed",
+    ],
+    [
       "a ten-day tile title that is not text",
       (d) => (d.tile_titles.ten_days = 5),
       "dashboard: tile_titles malformed",
@@ -184,7 +189,7 @@ describe("parseDashboard", () => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
     const read = parseDashboard(doc);
     expect(read.rain_tab.usual_to_date).toEqual({ usual_in: 0.304, years: 1, percent: 145 });
-    expect(read.temperature_context.ten_day_highs).toEqual({ delta_f: 2, days: 10 });
+    expect(read.temperature_context.ten_day_highs).toEqual({ delta_f: 2, days: 10, gap: false });
     expect(read.outdoor_trace?.pressure_inhg).toHaveLength(24);
 
     delete doc.rain_tab.usual_to_date;

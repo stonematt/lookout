@@ -68,6 +68,7 @@ const ROW_LABEL_PX = 46;
 
 /** The delta naming a number as the 7-day window's, when nothing compares (#605). */
 const LAST_7_DAYS = "last 7 days";
+/** The ten-day tile's window, under its number when the title names it. */
 const LAST_10_DAYS = "last 10 days";
 
 // ---------- Temperature ----------
@@ -347,7 +348,11 @@ function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   return svg;
 }
 
-/** The ten-day highs' side of usual, in words: "highs over usual". */
+/**
+ * The ten-day highs' side of usual, in words: "highs over usual". Only for
+ * a document without `tile_titles.ten_days`, whose title Python words by
+ * the same sign (`lookout/snapshot/titles.py`).
+ */
 function highsWords(deltaF: number): string {
   return `highs ${deltaF > 0 ? "over" : deltaF < 0 ? "under" : "at"} usual`;
 }
@@ -380,7 +385,9 @@ export const tenDaysTile: MosaicTile = {
       };
     }
     // The snapshot's title names the highs' side of usual (#665), so the
-    // window goes under the number; without one, today's words.
+    // window goes under the number; without one, today's words. A gap is
+    // the title alone, never a number.
+    if (highs.gap) return { value: null, delta: LAST_10_DAYS };
     return {
       value: `${signed(highs.delta_f, 0, { plus: true })}°`,
       delta: snapshot.tile_titles?.ten_days ? LAST_10_DAYS : highsWords(highs.delta_f),

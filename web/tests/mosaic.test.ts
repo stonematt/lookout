@@ -371,9 +371,24 @@ describe("the Last 10 days tile", () => {
     },
   );
 
+  it("reads a gap as its title alone, never a number (+0° or any)", () => {
+    const d = doc("seasoned");
+    d.tile_titles.ten_days = "Gap in record";
+    d.temperature_context.ten_day_highs = { delta_f: 0, days: 9, gap: true };
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("last-10-days").querySelector("h2"))).toBe("Gap in record");
+    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("last-10-days")).toBe("last 10 days");
+    expect(words(tile("last-10-days"))).not.toMatch(/0°/);
+  });
+
   it("keeps today's title and words from a snapshot without the field (v4, N−1)", () => {
     for (const drop of [
-      (d: Doc) => delete d.tile_titles.ten_days,
+      (d: Doc) => {
+        delete d.tile_titles.ten_days;
+        delete d.temperature_context.ten_day_highs.gap;
+      },
       (d: Doc) => delete d.tile_titles,
     ]) {
       const d = doc("seasoned");
