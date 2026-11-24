@@ -3,8 +3,8 @@
  * tally of its window's hours. On the now surface every mark a reader needs
  * meets 3:1 (DESIGN.md Contrast): the track's edge and the hatch draw in
  * `ink-3` (the now tile sets `--hatch` to it), the wet fill in
- * `ribbon-rain`. The missing hours carry the hatch, a non-colour cue, and a
- * note in words under their bar.
+ * `ribbon-rain`. The missing hours carry the hatch, a non-colour cue, and
+ * the key under the bars says what it means (#661).
  */
 .wet-meter {
   display: block;
@@ -98,18 +98,21 @@
   color: var(--ink);
 }
 
-.wet-meter-note {
-  grid-column: 2 / -1;
+.wet-meter-how {
+  font-weight: 400;
+}
+
+/* the hatch key under the bars: the swatch, then its words */
+.wet-meter-key {
   display: flex;
   align-items: center;
   gap: var(--s-1);
-  margin-bottom: var(--s-1);
+  margin-top: var(--s-2);
   font-size: var(--type-label);
   line-height: 1.4;
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
-/* a phrase stays whole when the note wraps */
-.wet-meter-phrase {
-  white-space: nowrap;
+.wet-meter-key .hatch-swatch {
+  border: 1px solid var(--hatch);
 }

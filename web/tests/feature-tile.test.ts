@@ -66,13 +66,18 @@ describe("the feature tile", () => {
       (t) => t.dataset.section,
     );
 
-    expect(ids.slice(0, 3)).toEqual(["first-screen", "feature", "temperature"]);
+    // While rain leads the rain tile takes the feature's place (#661).
+    const second = s === "raining" ? "rain" : "feature";
+    expect(ids.slice(0, 3)).toEqual(["first-screen", second, "temperature"]);
     expect(panel.querySelector("[data-section=hero-lead]")).toBeNull();
     expect(panel.querySelector("details[data-part=why]")).toBeNull();
     expect(panel.textContent).not.toMatch(/What leads|Why this leads|Leading:/);
   });
 
-  it.each(SCENARIOS)("is one link on the %s golden, named by its finding", (s) => {
+  // On the raining golden rain leads: the rain tile (`overview-c.test.ts`).
+  const featured = SCENARIOS.filter((s) => s !== "raining");
+
+  it.each(featured)("is one link on the %s golden, named by its finding", (s) => {
     draw(parseDashboard(golden(s, "dashboard")));
     const links = tile()!.querySelectorAll("a");
 
@@ -142,64 +147,11 @@ describe("the feature tile", () => {
     },
   );
 
-  describe("tells the now story (ADR-0011, #659)", () => {
+  describe("a rain feature without the now story (before #659)", () => {
+    // With the now story, rain leads and the rain tile tells it (Overview C,
+    // #661, `overview-c.test.ts`); the feature tile is not drawn.
     const kicker = () => words(tile()!.querySelector("[data-part=kicker]"));
     const value = () => words(tile()!.querySelector("[data-part=value]"));
-    /** The raining golden with its `rain_now` changed. */
-    function story(patch: Doc): DashboardSnapshot {
-      const base = doc("raining");
-      return edited("raining", { rain_now: { ...(base.rain_now as Doc), ...patch } });
-    }
-    const built = () => doc("raining").built_at_ms as number;
-
-    it("draws raining: the last hour's rate, then the event's total since its start", () => {
-      const raining = parseDashboard(golden("raining", "dashboard"));
-      draw(raining);
-
-      expect(raining.feature?.kind).toBe("rain");
-      expect(raining.rain_now?.raining).toBe(true);
-      expect(tile()!.dataset.kind).toBe("rain");
-      expect(kicker()).toBe("Raining · 0.12 in/h");
-      expect(value()).toBe("0.30 in");
-      expect(findingWords()).toBe("since 2:00 pm");
-      expect(linkName()).toBe(
-        "Raining, 0.12 in/h: 0.30 in since 2:00 pm. Open the Rain Events tab.",
-      );
-      expect(link().getAttribute("href")).toBe("#events");
-      expect(tile()!.querySelector("[data-part=live]")).not.toBeNull();
-    });
-
-    it("draws rain stopped: how long ago the gauge last tipped, no rate, no rain dot", () => {
-      draw(story({ raining: false, last_rain_ms: built() - 40 * 60_000, rate_in_hr: 0.03 }));
-
-      expect(kicker()).toBe("Rain stopped 40 min ago");
-      expect(value()).toBe("0.30 in");
-      expect(findingWords()).toBe("since 2:00 pm");
-      expect(linkName()).toBe(
-        "Rain stopped 40 minutes ago: 0.30 in since 2:00 pm. Open the Rain Events tab.",
-      );
-      expect(tile()!.querySelector("[data-part=live]")).toBeNull();
-    });
-
-    it("words a stop over an hour ago in hours and minutes", () => {
-      draw(story({ raining: false, last_rain_ms: built() - 130 * 60_000, rate_in_hr: 0 }));
-
-      expect(kicker()).toBe("Rain stopped 2 h 10 m ago");
-    });
-
-    it("names the day of an event that started on an earlier day", () => {
-      draw(story({ event_start_ms: built() - 30 * 3_600_000 }));
-
-      expect(findingWords()).toMatch(/^since [A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2} [ap]m$/);
-    });
-
-    it("draws the last hour's rain when no event holds last rain", () => {
-      draw(story({ event_start_ms: null, event_total_in: null }));
-
-      expect(kicker()).toBe("Raining · 0.12 in/h");
-      expect(value()).toBe("0.12 in");
-      expect(findingWords()).toBe("in the last hour");
-    });
 
     it("draws today's rain view from a snapshot without rain_now (version 4 before #659)", () => {
       const base = doc("raining");
@@ -528,7 +480,7 @@ describe("the feature tile", () => {
 
   it("is in the phone's fixed top, an open tile, never a finding row", () => {
     setLayout("phone");
-    draw(parseDashboard(golden("raining", "dashboard")));
+    draw(parseDashboard(golden("seasoned", "dashboard")));
 
     expect(tile()!.tagName).toBe("SECTION");
     expect(tile()!.dataset.phoneTop).toBe("true");

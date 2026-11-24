@@ -1,0 +1,290 @@
+/*
+ * Overview C, the rain tile (#661): the now link over the season foot, two
+ * links at least 44px tall. One rain colour (DESIGN.md Rain): the columns in
+ * `rain-bar`, the running total and the wet fill in `rain-line`, both 3:1 on
+ * the tile in each theme. The label's live dot is `rain-bar`, never `now`;
+ * stopped, a hollow ring in `ink-3`. On the four-column grid the story sits
+ * beside the chart and the bars beside Rain since Oct 1 (boards Desktop,
+ * DesktopStopped).
+ */
+
+.tile[data-section="rain"]:not([data-mosaic]) {
+  display: flex;
+  flex-direction: column;
+}
+
+.rain-lead-now {
+  min-height: 44px;
+}
+
+.rain-lead-ring {
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 50%;
+}
+
+.rain-lead-now .tile-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rain-lead-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+}
+
+.rain-lead-rate {
+  margin: 0;
+  font-size: var(--type-fact);
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rain-lead-unit {
+  margin-left: 0.25em;
+  font-size: var(--type-stat);
+  font-weight: 400;
+}
+
+.rain-lead-finding {
+  margin: 0;
+}
+
+.rain-lead-finding b {
+  font-weight: 600;
+}
+
+/* a phrase stays whole: the stopped line wraps after its dot */
+.rain-lead-run {
+  white-space: nowrap;
+}
+
+.rain-lead-chart {
+  min-width: 0;
+}
+
+.rain-lead-plot {
+  width: 100%;
+  min-width: 0;
+}
+
+.rain-lead-svg {
+  display: block;
+  overflow: visible;
+}
+
+.rain-lead-grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.rain-lead-axis {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.rain-lead-tick,
+.rain-lead-time {
+  font-size: var(--type-label);
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rain-lead-col {
+  fill: var(--rain-bar);
+}
+
+.rain-lead-halo {
+  fill: none;
+  stroke: var(--tile);
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+
+.rain-lead-line {
+  fill: none;
+  stroke: var(--rain-line);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.rain-lead-dot {
+  fill: var(--rain-line);
+}
+
+.rain-lead-label {
+  font-size: var(--type-label);
+  font-weight: 600;
+  fill: var(--rain-line);
+  paint-order: stroke;
+  stroke: var(--tile);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.rain-lead-bracket {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+
+.rain-lead-bracket-text {
+  font-size: var(--type-label);
+  font-weight: 600;
+  fill: var(--ink-2);
+}
+
+.rain-lead-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.rain-lead-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rain-lead-swatch-col {
+  width: 6px;
+  height: 10px;
+  border-radius: 1.5px;
+  background: var(--rain-bar);
+}
+
+.rain-lead-swatch-line {
+  width: 14px;
+  height: 2px;
+  background: var(--rain-line);
+}
+
+/* the season foot: its own link under a hairline */
+.rain-lead-season {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-height: 44px;
+  margin: var(--s-3) calc(-1 * var(--s-1)) calc(-1 * var(--s-1));
+  padding: var(--s-3) var(--s-1) var(--s-1);
+  border-top: 1px solid var(--rule);
+  border-radius: 0 0 var(--r-row) var(--r-row);
+  color: inherit;
+  text-decoration: none;
+}
+
+.rain-lead-season:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.rain-lead-season:hover .wet-meter-title,
+.rain-lead-season:hover .rain-lead-year-name {
+  color: var(--ink-2);
+}
+
+/* the bars on the tile, not the now surface: no rule of their own, the
+   wet fill in rain-line, the edge and hatch in their tile tokens */
+.wet-meter.rain-lead-bars {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rain-lead-bars .wet-meter-wet {
+  background: var(--rain-line);
+}
+
+.rain-lead-bars .wet-meter-bar,
+.rain-lead-bars .wet-meter-missing {
+  border-color: var(--rule-strong);
+}
+
+.rain-lead-bars .wet-meter-name,
+.rain-lead-bars .wet-meter-count {
+  color: var(--ink-2);
+}
+
+.rain-lead-year {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-3);
+}
+
+.rain-lead-year-number,
+.rain-lead-year-verdict {
+  display: flex;
+  flex-direction: column;
+}
+
+.rain-lead-year-verdict {
+  text-align: right;
+}
+
+.rain-lead-year-name {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.rain-lead-year-value {
+  font-size: var(--type-stat);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.rain-lead-year-unit {
+  font-size: var(--type-annotation);
+}
+
+.rain-lead-verdict {
+  font-size: var(--type-annotation);
+  color: var(--ink-2);
+}
+
+.rain-lead-verdict b {
+  font-weight: 500;
+}
+
+.rain-lead-usual {
+  font-size: var(--type-label);
+  color: var(--ink-3);
+}
+
+/* four columns: the story beside the chart, the bars beside the year */
+:root[data-layout="four"] .rain-lead-now {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: var(--s-6);
+}
+
+:root[data-layout="four"] .rain-lead-now > .feature-top,
+:root[data-layout="four"] .rain-lead-now > .rain-lead-body,
+:root[data-layout="four"] .rain-lead-now > .rain-lead-finding {
+  grid-column: 1;
+}
+
+:root[data-layout="four"] .rain-lead-now > .rain-lead-chart {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+
+:root[data-layout="four"] .rain-lead-season {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  align-items: end;
+  column-gap: var(--s-6);
+}

@@ -3,7 +3,9 @@
  * temperature large, then today hour by hour against the usual band for this
  * date (`today-hero.ts`), and rain today and yesterday when either is above
  * 0 (`rain/hero-rain.ts`, #619), and at its foot the wet-hour meter, the
- * last 7 and 30 days (`wet-meter.ts`, #657), hidden in dry mode (#658).
+ * last 7 and 30 days (`wet-meter.ts`, #657), only for a snapshot without a
+ * wet mode: with one, the Wet hours tile or the rain tile's season foot
+ * carries the bars (#661, Call 4 on #647), and dry mode hides them (#658).
  * It is the one tile on
  * `now-surface`, in the
  * phone's fixed top, and the full width of the grid. The 48-hour ribbon,
@@ -24,7 +26,19 @@ import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
 import { bandBasisWords, nowDeltaText, todayChart } from "./today-hero.js";
+import { rainLeads } from "./rain-lead.js";
 import { meterShown, wetMeter } from "./wet-meter.js";
+
+/**
+ * Whether the now tile's foot draws the wet-hour bars: only where no other
+ * tile carries them, a snapshot without a wet mode while rain does not lead.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns True to draw them.
+ */
+function footMeter(snapshot: DashboardSnapshot): boolean {
+  return meterShown(snapshot) && !snapshot.wet_mode && !rainLeads(snapshot);
+}
 
 function temperature(snapshot: DashboardSnapshot): HTMLElement {
   const node = document.createElement("p");
@@ -54,7 +68,7 @@ function firstScreenSource(snapshot: DashboardSnapshot): TileSource {
     ? ` The band is the usual for each hour of the day: ${bandBasisWords(band)}, and the delta is the live reading against its own hour's median.`
     : "";
   const slots = snapshot.condition_ribbon?.slot_minutes ?? 15;
-  const wet = meterShown(snapshot)
+  const wet = footMeter(snapshot)
     ? " The wet-hour bars count the station-local clock hours of the last 7 and 30 days, to the last whole hour: an hour with at least one tip of the gauge (0.01 in) is wet, of the hours the record can count. An hour with no reading or a gap over 30 minutes is missing, hatched at the bar's end, never dry."
     : "";
   return {
@@ -101,9 +115,9 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
     host.append(column.box);
     column.start();
   }
-  // The wet-hour meter (#657) at the tile's foot, the full width of it;
-  // hidden in dry mode (#658), where it would read 0 h for months.
-  const meter = wetMeter(snapshot);
+  // The wet-hour meter (#657) at the tile's foot, the full width of it, only
+  // where no other tile carries the bars (#661).
+  const meter = footMeter(snapshot) ? wetMeter(snapshot) : null;
   if (meter) host.append(meter);
 }
 
