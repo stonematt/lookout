@@ -345,6 +345,70 @@ class DrySpellNow:
     usual_days: Optional[float]
 
 
+@dataclass(frozen=True)
+class WetHoursWindow:
+    """
+    One window's wet hours of its countable hours (GLOSSARY wet hour,
+    countable hour), and what it is missing.
+
+    :param days: The window's length in days: 7 or 30.
+    :param hours: Every hour in it: 168 or 720.
+    :param wet_hours: Its countable hours with at least one tip.
+    :param countable_hours: Its hours with readings and no gap over 30
+        minutes; the label reads wet hours of these ("19 h of 168").
+    :param missing_hours: Its hours that are not countable: never wet,
+        never dry; `hours` less `countable_hours`.
+    :param missing_days: The station-local days it touches with no
+        countable hour in it ("5 d missing").
+    """
+
+    days: int
+    hours: int
+    wet_hours: int
+    countable_hours: int
+    missing_hours: int
+    missing_days: int
+
+
+@dataclass(frozen=True)
+class WetHoursDay:
+    """
+    One station-local day of the wet-hour strip.
+
+    :param day: The day, "YYYY-MM-DD".
+    :param wet_hours: Its wet hours, 0-24 (25 on a fall-back day); null
+        with no countable hour.
+    :param countable_hours: Its countable hours, today's so far; null with
+        none.
+    """
+
+    day: str
+    wet_hours: Optional[int]
+    countable_hours: Optional[int]
+
+
+@dataclass(frozen=True)
+class WetHours:
+    """
+    The wet hours over the last 7 and 30 days, and the 30-day strip (#657).
+
+    Each window ends with the last whole hour before the build, in the
+    station zone; the hour in progress is in neither. Every hour is judged
+    by the one wet-hour helper (`lookout.core.wet_hours`).
+
+    :param through_ms: The windows' end, exclusive: the start of the hour
+        in progress.
+    :param last_7_days: The 168 hours before it.
+    :param last_30_days: The 720 hours before it.
+    :param days: Today and the 29 days before it, oldest first.
+    """
+
+    through_ms: int
+    last_7_days: WetHoursWindow
+    last_30_days: WetHoursWindow
+    days: Tuple[WetHoursDay, ...]
+
+
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
 FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
 FeatureDirection = Literal["above", "below"]
@@ -1668,6 +1732,8 @@ class Snapshot:
     :param outdoor_trace: The outdoor pressure and humidity over the last 24
         hours, hourly, for their tiles' mini charts; None without an
         observation (`lookout.snapshot.trace`).
+    :param wet_hours: The wet hours over the last 7 and 30 days and the
+        30-day strip (`lookout.snapshot.wet_hours`).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1695,6 +1761,7 @@ class Snapshot:
     indoor: Tuple[IndoorSensor, ...]
     battery_flags: Tuple[BatteryFlag, ...]
     outdoor_trace: Optional[OutdoorTrace]
+    wet_hours: WetHours
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

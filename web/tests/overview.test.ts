@@ -36,7 +36,8 @@ describe("the Overview", () => {
     const order = [...first.querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    // The raining golden had rain today: the hero's rain line and column (#619).
+    // The raining golden had rain today: the hero's rain line and column
+    // (#619); the wet-hour meter at its foot, each bar missing hours (#657).
     expect(order).toEqual([
       "kicker",
       "finding",
@@ -45,6 +46,9 @@ describe("the Overview", () => {
       "rain-line",
       "today-chart",
       "rain-column",
+      "wet-meter",
+      ...["bar", "count", "missing"],
+      ...["bar", "count", "missing"],
     ]);
   });
 
