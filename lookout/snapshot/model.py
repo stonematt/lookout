@@ -1212,6 +1212,12 @@ class WaterYearCurve:
     :param to_date_in: The value at `RainTab.day_index`, the place of today,
         so years compare to the same date; None when it is invalid or the
         year has not reached it.
+    :param reason: Why each place's day is not in the record for rain, the
+        rain day kind's reason as `RecentRain.reason` gives it ("gap",
+        "before_archive", ...); None for a counted day (#662). Feb 29 folds
+        into Feb 28's place, missing when either day is. A version 4
+        addition (ADR-0008): the site reads it as absent from an older
+        snapshot.
     """
 
     water_year: int
@@ -1221,6 +1227,7 @@ class WaterYearCurve:
     status: GapStatus
     total_in: Optional[float]
     to_date_in: Optional[float]
+    reason: Tuple[Optional[GapReason], ...]
 
 
 @dataclass(frozen=True)

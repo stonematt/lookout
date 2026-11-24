@@ -38,7 +38,7 @@ Overview's rolling-window tables) reads the same `CountedDays` and calls
 everywhere (the One Number Rule).
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 from statistics import median
 from typing import List, Optional, Tuple
 
@@ -53,7 +53,7 @@ from lookout.core.rainfall_analysis import (
     water_year_start,
 )
 from lookout.snapshot.days import CountedDays
-from lookout.snapshot.gaps import PRORATED, comparable, prorate
+from lookout.snapshot.gaps import PRORATED, ArchiveCoverage, comparable, prorate
 from lookout.snapshot.model import (
     DrySpell,
     DrySpells,
@@ -142,10 +142,10 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
         # A counted day with nothing archived yet (just after midnight) is
         # 0, as `rain_total` sums it. Its hours are not: an hour with no
         # counter reading is unknown (None), never dry (#147).
-        if coverage.day_kind(d) != "ok":
-            reason = coverage.window(d, d).reason
+        reason = _day_reason(coverage, d)
+        if reason is not None:
             rain_in.append(None)
-            reasons.append(reason or "gap")
+            reasons.append(reason)
             hourly.append((None,) * HOURS)
             continue
         rain_in.append(number(totals.get(d, 0.0)))
@@ -260,6 +260,7 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
         end = min(water_year_start(year + 1) - timedelta(days=1), today)
         cumulative: List[Optional[float]] = [None] * PLACES
         prorated = [False] * PLACES
+        reasons: List[Optional[str]] = [None] * PLACES
         last_place = 0
         running = 0.0
         status = coverage.window(start, start)
@@ -273,6 +274,8 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
                 status, lambda: number(prorate(status, running))
             )
             prorated[place] = status.status == PRORATED
+            # Feb 29 shares Feb 28's place: missing when either day is.
+            reasons[place] = reasons[place] or _day_reason(coverage, day)
             last_place = place
             day += timedelta(days=1)
         reached = last_place + 1
@@ -285,9 +288,24 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
                 status=status,
                 total_in=cumulative[last_place],
                 to_date_in=(cumulative[today_place] if today_place < reached else None),
+                reason=tuple(reasons[:reached]),
             )
         )
     return tuple(curves)
+
+
+def _day_reason(coverage: ArchiveCoverage, day: date) -> Optional[str]:
+    """
+    Why a day is not in the record for rain, as the rain day kind judges it.
+
+    :param coverage: The rain day kind (`CountedDays.rain`).
+    :param day: The station-local day.
+    :return: Its gap reason ("gap", "before_archive", ...); None for a
+        counted day.
+    """
+    if coverage.day_kind(day) == "ok":
+        return None
+    return coverage.window(day, day).reason or "gap"
 
 
 def _usual_to_date(curves: Tuple[WaterYearCurve, ...]) -> Optional[UsualToDate]:

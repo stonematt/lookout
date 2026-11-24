@@ -13,7 +13,8 @@
  *   and today rows of the window range chart, with the now rule.
  * - Rain since Oct 1: this water year's rain to date as a percent of the
  *   usual by this date (`rain_tab.usual_to_date`, #539); its mini chart is
- *   the water-year curves, cropped to the season so far.
+ *   the water-year curves, cropped to the season so far, this season's days
+ *   the record cannot count hatched behind them (#662).
  * - Last 10 days: the ten days' highs against their usual highs, a mean
  *   (`temperature_context.ten_day_highs`, #540); its mini chart is each
  *   day's low to high over the usual for its date.
@@ -30,7 +31,7 @@
  */
 import { lastDays } from "../rain/charts.js";
 import { currentYear, drySpellNow } from "../rain/text.js";
-import { missingDay, scale } from "../charts/svg.js";
+import { missingDay, runs, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import {
   WET_DAY_IN,
@@ -42,7 +43,7 @@ import {
   signed,
 } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
-import type { DashboardSnapshot, TemperatureDay } from "../snapshot.js";
+import type { DashboardSnapshot, GapReason, TemperatureDay } from "../snapshot.js";
 import { isShown } from "./history.js";
 import type { MosaicTile } from "./mosaic.js";
 import {
@@ -174,6 +175,45 @@ function cropEnd(dayIndex: number): number {
   return Math.min(364, Math.max(91, dayIndex + 30));
 }
 
+/** The narrowest hatched column, so a lone missing day still shows a stripe. */
+const MIN_GAP_PX = 4;
+
+/**
+ * Hatch this season's days the record cannot count (#662) as columns the
+ * plot's height, behind the curves, so a missing day never reads as a dry
+ * one. A day before the archive is left blank (`missingDay`).
+ *
+ * @param svg - The mini chart.
+ * @param reasons - This season's reason per place (`WaterYearCurve.reason`).
+ * @param x - Place to its x.
+ * @param bottom - The plot's baseline.
+ */
+function hatchSeasonGaps(
+  svg: SVGSVGElement,
+  reasons: (GapReason | null)[],
+  x: (i: number) => number,
+  bottom: number,
+): void {
+  const spans = runs(reasons.length, (i) => missingDay(reasons[i] ?? null));
+  if (!spans.length) return;
+  const hatch = svgHatch(svg);
+  const half = (x(1) - x(0)) / 2;
+  for (const [a, b] of spans) {
+    const middle = (x(a) + x(b)) / 2;
+    const width = Math.max(MIN_GAP_PX, x(b) - x(a) + 2 * half);
+    svg.append(
+      svgEl("rect", {
+        x: middle - width / 2,
+        y: 0,
+        width,
+        height: bottom,
+        class: "mosaic-gap",
+        fill: hatch,
+      }),
+    );
+  }
+}
+
 /** The water-year curves from Oct 1 to the crop's end, this year bold. */
 function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const tab = snapshot.rain_tab;
@@ -203,6 +243,7 @@ function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
       endMonth,
     ),
   );
+  if (current?.reason) hatchSeasonGaps(svg, current.reason, x, plotBottom);
   // Earlier years first, thin, so this year's line sits over them.
   for (const curve of [
     ...shown.filter((c) => c !== current),
@@ -277,7 +318,8 @@ export const rainTile: MosaicTile = {
       "Rain since Oct 1, one line per water year, this year bold. The percent is this year's " +
       "total as a percent of the usual rain by this date: the median, over the earlier water " +
       "years that reach this date, of their rain since Oct 1. Feb 29 is folded into Feb 28 so " +
-      "the years line up; ≈ marks a total scaled up over a few missing days.",
+      "the years line up; ≈ marks a total scaled up over a few missing days, and a day " +
+      "missing from the record this season is hatched, never read as dry.",
   }),
 };
 

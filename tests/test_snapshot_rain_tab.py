@@ -364,6 +364,40 @@ class TestWaterYears:
         assert wy2026.prorated[9] and not wy2026.prorated[1]
         assert wy2026.status.status == "prorated"
 
+    def test_each_place_says_why_its_day_is_not_in_the_record(self):
+        # #662: the Overview hatches a missing day, never draws it dry.
+        archive = build_archive(
+            "2025-09-20T07:00:00Z",
+            "2026-01-10T08:00:00Z",
+            rain=self.RAIN[2:],
+            gaps=[Gap("2025-10-03T07:00:00Z", "2025-10-04T07:00:00Z")],
+        )
+
+        wy2026 = curve(build(archive, "2026-01-10T07:59:00Z"), 2026)
+
+        assert len(wy2026.reason) == len(wy2026.cumulative_in)
+        assert wy2026.reason[2] == "gap"
+        assert set(wy2026.reason[:2] + wy2026.reason[3:]) == {None}
+
+    def test_a_day_with_rows_but_no_rain_counter_is_missing_for_rain(self):
+        archive = build_archive(
+            "2025-09-20T07:00:00Z", "2026-01-10T08:00:00Z", rain=self.RAIN[2:]
+        )
+        oct_5 = (archive["dateutc"] >= ms("2025-10-05T07:00:00Z")) & (
+            archive["dateutc"] < ms("2025-10-06T07:00:00Z")
+        )
+        archive.loc[oct_5, "dailyrainin"] = float("nan")
+
+        wy2026 = curve(build(archive, "2026-01-10T07:59:00Z"), 2026)
+
+        assert wy2026.reason[4] == "gap"
+
+    def test_days_before_the_archive_say_so(self, snapshot):
+        wy2024 = curve(snapshot, 2024)
+
+        assert set(wy2024.reason[:-11]) == {"before_archive"}
+        assert set(wy2024.reason[-11:]) == {None}  # Sep 20 on
+
 
 class TestRainToDateAgainstUsual:
     """
