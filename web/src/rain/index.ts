@@ -1,7 +1,8 @@
 /**
- * The Rain tab (#83): the water year with its window strip, daily rain, dry
- * spells and the accumulation heatmap, everything read from the snapshot's
- * `rain_tab` (built by `lookout/snapshot/rain_tab.py`).
+ * The Rain tab (#83): its head (now, then the season, then the water year
+ * against usual with its window strip, #664), daily rain, dry spells and the
+ * accumulation heatmap, everything read from the snapshot (`rain_tab`,
+ * built by `lookout/snapshot/rain_tab.py`, with `rain_now` and `wet_hours`).
  *
  * Each section is a tile (`web/src/tiles.ts`, spec #332): kicker, finding,
  * chart or stats, then the folded source note, whose chip names what the
@@ -31,6 +32,8 @@ import { isShown } from "../overview/history.js";
 import type { SectionOptions, TileSection } from "../tiles.js";
 import { gapReasons, hatchedCount, renderTiles, sectionSource, tileFinding } from "../tiles.js";
 import { drawDailyBars, drawHourGrid, drawYearCurves, lastDays } from "./charts.js";
+import type { HeadPart } from "./head.js";
+import { headParts, markRaining, partLabel, windowDots } from "./head.js";
 import {
   WINDOW_NAMES,
   dailyHeadline,
@@ -39,8 +42,6 @@ import {
   drySpellNow,
   hoursHeadline,
   rainStatus,
-  usualWetWords,
-  wetToDateValue,
   windowStatus,
   windowsNote,
   windowValue,
@@ -103,22 +104,6 @@ function windowStrip(snapshot: DashboardSnapshot): HTMLElement | null {
     hatchGap(dd, window.status, { compact: true });
   }
   return strip;
-}
-
-/**
- * Wet hours since Oct 1 against usual wet hours to date (#663), under the
- * window strip; #664 redraws the tab's head around it.
- *
- * @param tab - The Rain tab's data.
- * @returns The stat, or null when the snapshot predates it.
- */
-function wetHoursToDate(tab: RainTab): HTMLElement | null {
-  const wet = tab.wet_hours_to_date ?? null;
-  if (!wet) return null;
-  const list = make("dl", "rain-stats rain-wet-to-date");
-  list.dataset.part = "wet-to-date";
-  stat(list, "Wet hours since Oct 1", wetToDateValue(wet), usualWetWords(wet));
-  return list;
 }
 
 /** The daily tile: each day of the last 90 as a bar. */
@@ -218,9 +203,38 @@ export function renderDry(
 }
 
 /**
- * The water-year section: one curve per water year, then the window strip
- * under the chart. The Rain tab's top tile and the rain zoom both draw it;
- * the zoom leaves the strip to its rain gauge panel (#619).
+ * The head's parts in order (#664): now and the season when the snapshot
+ * carries them, then the water year's verdict. One without the first two
+ * (written before #657, #659 and #663) draws today's head, the water year
+ * alone.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The parts, the water year's last.
+ */
+function allParts(snapshot: DashboardSnapshot): HeadPart[] {
+  const parts = headParts(snapshot);
+  const label = parts.length ? "The water year against usual" : "The water year";
+  return [...parts, { id: "verdict", label, lead: yearsHeadline(snapshot.rain_tab), body: [] }];
+}
+
+/**
+ * The head tile's kicker: its first part's label ("Now" on Rain tab C).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The kicker.
+ */
+function headKicker(snapshot: DashboardSnapshot): string {
+  return allParts(snapshot)[0]!.label;
+}
+
+/**
+ * The Rain tab's head, Rain tab C (#664): now, then the season (wet hours),
+ * then usual: the water year's verdict over one curve per water year, then
+ * the window strip, each window's rain as a dot on its usual range
+ * (`head.ts`). The Rain tab's top tile and the rain zoom both draw it, so
+ * the two stay one drawing (Mosaic decision 25); the zoom leaves the
+ * windows to its rain gauge panel (#619). A snapshot without the head's
+ * fields draws today's head: the water year with its number strip.
  *
  * @param host - The tile, or the zoom's panel.
  * @param snapshot - The dashboard snapshot.
@@ -232,7 +246,23 @@ export function renderYears(
   options: SectionOptions = {},
 ): void {
   const tab: RainTab = snapshot.rain_tab;
-  host.append(tileFinding(yearsHeadline(tab), options));
+  const parts = allParts(snapshot);
+  const has = (id: string) => parts.some((p) => p.id === id);
+  // The first part's lead is the tile's finding, under the kicker that is
+  // its label; each later part has its label, then its lead, a finding at
+  // the same heading level. A zoom panel has no kicker, so a head of more
+  // than one part labels its first part too.
+  parts.forEach((part, i) => {
+    if (i > 0) host.append(partLabel(part.label));
+    else if (options.zoom && parts.length > 1) host.append(partLabel(part.label, true));
+    const lead = tileFinding(part.lead, { ...options, lead: i === 0 && part.id === "now" });
+    if (i > 0) {
+      lead.classList.add("rain-lead");
+      lead.dataset.part = part.id;
+    }
+    if (part.id === "now") markRaining(lead, snapshot);
+    host.append(lead, ...part.body);
+  });
   const current = tab.water_years[tab.water_years.length - 1];
   // When the archive holds none of any water year there is no chart, not a
   // hatched block (#606).
@@ -250,10 +280,10 @@ export function renderYears(
     }
   }
   // In the zoom the rain gauge, its own panel, draws the windows (#619).
-  const strip = options.zoom ? null : windowStrip(snapshot);
+  const dots = options.zoom ? null : windowDots(snapshot);
+  const strip = options.zoom || dots ? null : windowStrip(snapshot);
+  if (dots) host.append(dots);
   if (strip) host.append(strip);
-  const wetToDate = options.zoom ? null : wetHoursToDate(tab);
-  if (wetToDate) host.append(wetToDate);
   const left = tab.water_years.filter((c) => c.cumulative_in.every((v) => v === null));
   const live = snapshot.current.rain_today_in;
   const liveNote =
@@ -267,7 +297,15 @@ export function renderYears(
     options,
     "daily totals with today's live total",
     [
-      "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, the rain over each window ending today.",
+      has("now")
+        ? "Last rain is the gauge's last tip. While it rains, and for 3 hours after, the rate is the rain of the last 60 minutes and the event is the station's own."
+        : null,
+      has("season")
+        ? "Each wet-hour bar is every hour of its span; the dark fill is its wet hours, and the hours the record cannot count are hatched at its end, never counted as dry."
+        : null,
+      dots
+        ? "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, each window's rain ending today as a dot on its own scale, over the same window in earlier years: their middle half (25th–75th percentile) from 4 years, their range from 3, the span of their values below. A dot outside it is marked above or below its usual range."
+        : "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, the rain over each window ending today.",
       "The station archive's daily totals, with today's live total.",
       liveNote,
       "Feb 29 is folded into Feb 28 so the years line up by date; ≈ marks a total scaled up over a few missing days.",
@@ -276,7 +314,7 @@ export function renderYears(
         ? `Not compared by this date, so left out of the headline: ${yearsSkipped(tab).join(", ")}.`
         : null,
       windowsNote(snapshot),
-      wetToDate
+      tab.wet_hours_to_date
         ? "A wet hour is a whole hour with at least one tip (0.01 in) among the hours the archive can count; usual wet hours to date is the earlier water years' share of wet hours from Oct 1 to this date, times this year's countable hours."
         : null,
     ],
@@ -338,7 +376,7 @@ export const SECTIONS: readonly RainSection[] = [
   {
     id: "years",
     label: "Rain since Oct 1, each water year, and over each window",
-    kicker: "The water year",
+    kicker: headKicker,
     span: 4,
     phoneTop: true,
     render: (host, snapshot) => renderYears(host, snapshot),

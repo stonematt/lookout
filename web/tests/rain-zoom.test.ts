@@ -133,23 +133,30 @@ describe.each([1440, 390])("the rain zoom at %ipx", (width) => {
 });
 
 describe("the rain zoom", () => {
-  it("draws the Rain tab's water-year section, with no source note, its strip left to the gauge", async () => {
+  it("draws the Rain tab's head, with no source note, its strip left to the gauge", async () => {
     const snapshot = withYears();
     const tab = await rainSection("years", snapshot);
+    const leads = (host: Element) =>
+      [...host.querySelectorAll(".tile-finding")].map((lead) => words(lead));
     const onTab = {
-      finding: words(tab.querySelector("[data-part=finding]")),
+      leads: leads(tab),
       chart: tab.querySelector(".rain-chart svg")?.getAttribute("aria-label"),
-      strip: words(tab.querySelector(".rain-windows")),
+      strip: words(tab.querySelector("[data-part=windows]")),
     };
     page!.stop();
 
     await boot("#overview/rain", snapshot);
     const years = panels()[0]!;
-    expect(words(years.querySelector("[data-part=finding]"))).toBe(onTab.finding);
-    expect(onTab.finding).toMatch(/^Water year 2026 is wetter than usual: 4\.20 in since Oct 1/);
+    // The same head (Mosaic decision 25): now, the season, then the verdict.
+    expect(leads(years)).toEqual(onTab.leads);
+    expect(onTab.leads).toHaveLength(3);
+    expect(words(years.querySelector("[data-part=finding]"))).toMatch(/^Last rain /);
+    expect(words(years.querySelector("[data-part=verdict]"))).toMatch(
+      /^Water year 2026 is wetter than usual: 4\.20 in since Oct 1/,
+    );
     expect(years.querySelector(".rain-chart svg")?.getAttribute("aria-label")).toBe(onTab.chart);
     expect(onTab.strip).toBeTruthy();
-    expect(years.querySelector(".rain-windows")).toBeNull();
+    expect(years.querySelector("[data-part=windows], .rain-windows")).toBeNull();
     expect(tab.querySelector("[data-part=source-note]")).not.toBeNull();
   });
 
