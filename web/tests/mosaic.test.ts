@@ -647,9 +647,9 @@ describe("the Dry spell tile", () => {
     );
   });
 
-  it.each(SCENARIOS)("orders a v5 snapshot's mosaic as the v4 golden's (%s)", (scenario) => {
+  it.each(SCENARIOS)("orders a v5 snapshot's Overview as the v4 golden's (%s)", (scenario) => {
     renderOverview(panel, parseDashboard(goldenNext(scenario, "dashboard")));
-    expect(mosaicIds()).toEqual(ORDER[scenario]);
+    expect(ids()).toEqual(["first-screen", SECOND[scenario], ...ORDER[scenario]]);
   });
 
   it("draws the last 30 days, today outlined", () => {
