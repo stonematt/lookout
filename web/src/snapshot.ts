@@ -409,6 +409,11 @@ export interface RainTab {
    * written before it (ADR-0008): the tab then reads `recent.wet_hours`.
    */
   wet_hours_to_date?: WetHoursToDate | null;
+  /**
+   * Each window's rain against its usual range, in `windows` order (#640).
+   * Absent from a snapshot written before R1 of #647 (ADR-0008).
+   */
+  window_strip?: StripWindow[] | null;
 }
 
 /** One earlier water year that covers this date, for usual wet hours. */
@@ -467,6 +472,55 @@ export interface UsualToDate {
   years: number;
   /** This year's rain to date as a whole percent of the usual; null when unknown. */
   percent: number | null;
+  /**
+   * The water year's verdict (#640): "about the same" within 15% of the
+   * usual, read from `percent`. Null when this year's rain is unknown;
+   * absent from a snapshot written before R1 of #647 (ADR-0008).
+   */
+  verdict?: Verdict | null;
+  /** The earlier water years the usual rests on, oldest first; absent before R1. */
+  water_years?: number[];
+}
+
+/** The water year's verdict against the usual rain to date (#640). */
+export const VERDICTS = ["wetter", "drier", "about the same"] as const;
+export type Verdict = (typeof VERDICTS)[number];
+
+/** A window strip mark: words kept distinct from the verdict's (#647). */
+export const STRIP_MARKS = ["above usual range", "below usual range"] as const;
+export type StripMark = (typeof STRIP_MARKS)[number];
+
+/** What the site calls a strip window's range (`StripBand`). */
+export const STRIP_BANDS = ["percentile", "range"] as const;
+export type StripBand = (typeof STRIP_BANDS)[number];
+
+/** One earlier year's rain over the same window (`EarlierWindowRain`). */
+export interface EarlierWindowRain {
+  /** That window's last day, a whole number of years back. */
+  last_day: string;
+  rain_in: number;
+}
+
+/**
+ * One window of the Rain tab's window strip (`StripWindow`, #640): its
+ * rain against its usual range from the same window in earlier years.
+ */
+export interface StripWindow {
+  /** As `RainTab.windows` names it. */
+  key: string;
+  /** `RainWindow.total_in`; null when invalid. */
+  rain_in: number | null;
+  /** N, the earlier years the range rests on; 0 means no range. */
+  years: number;
+  /** Oldest first. */
+  earlier: EarlierWindowRain[];
+  /** The 25th–75th percentile from 3 years, the plain values' span below. */
+  low_in: number | null;
+  high_in: number | null;
+  /** "percentile" from 4 years, "range" (of N earlier years) at 3; null below. */
+  band: StripBand | null;
+  /** Null inside the range, with no range, or below while the window runs. */
+  mark: StripMark | null;
 }
 
 /** The last ten days' highs against their usual highs (`TenDayHighs`, #540). */
@@ -1421,12 +1475,49 @@ function checkRainTab(tab: unknown): void {
       isRecord(usual) &&
       typeof usual.usual_in === "number" &&
       typeof usual.years === "number" &&
-      (usual.percent === null || typeof usual.percent === "number")
+      (usual.percent === null || typeof usual.percent === "number") &&
+      // R1's verdict (#640) may be absent (N−1) or null.
+      (usual.verdict === undefined ||
+        usual.verdict === null ||
+        (VERDICTS as readonly unknown[]).includes(usual.verdict)) &&
+      (usual.water_years === undefined ||
+        (Array.isArray(usual.water_years) && usual.water_years.every(Number.isInteger)))
     )
   ) {
     throw new SnapshotContractError("dashboard: rain_tab.usual_to_date malformed");
   }
   checkWetHoursToDate(tab.wet_hours_to_date);
+  checkWindowStrip(tab.window_strip);
+}
+
+/**
+ * `rain_tab.window_strip` (#640) may be absent (N−1) or null; present, each
+ * window lists as many earlier years as it rests on, and marks only with
+ * the strip's own words.
+ *
+ * @param strip - The field as read.
+ */
+function checkWindowStrip(strip: unknown): void {
+  if (strip === undefined || strip === null) return;
+  const amount = (v: unknown) => v === null || typeof v === "number";
+  const ok =
+    Array.isArray(strip) &&
+    strip.every(
+      (w) =>
+        isRecord(w) &&
+        typeof w.key === "string" &&
+        amount(w.rain_in) &&
+        amount(w.low_in) &&
+        amount(w.high_in) &&
+        Array.isArray(w.earlier) &&
+        w.earlier.length === w.years &&
+        w.earlier.every(
+          (e) => isRecord(e) && typeof e.last_day === "string" && typeof e.rain_in === "number",
+        ) &&
+        (w.band === null || (STRIP_BANDS as readonly unknown[]).includes(w.band)) &&
+        (w.mark === null || (STRIP_MARKS as readonly unknown[]).includes(w.mark)),
+    );
+  if (!ok) throw new SnapshotContractError("dashboard: rain_tab.window_strip malformed");
 }
 
 /**

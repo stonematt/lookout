@@ -146,7 +146,7 @@ describe("the rain zoom", () => {
     await boot("#overview/rain", snapshot);
     const years = panels()[0]!;
     expect(words(years.querySelector("[data-part=finding]"))).toBe(onTab.finding);
-    expect(onTab.finding).toMatch(/^Water year 2026 has 4\.20 in of rain since Oct 1/);
+    expect(onTab.finding).toMatch(/^Water year 2026 is wetter than usual: 4\.20 in since Oct 1/);
     expect(years.querySelector(".rain-chart svg")?.getAttribute("aria-label")).toBe(onTab.chart);
     expect(onTab.strip).toBeTruthy();
     expect(years.querySelector(".rain-windows")).toBeNull();
