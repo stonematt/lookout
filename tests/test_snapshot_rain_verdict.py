@@ -171,7 +171,26 @@ class TestWindowStrip:
         assert yesterday.rain_in == 0.0
         assert yesterday.mark == "below usual range"
 
-    def test_a_window_still_running_is_never_marked_below(self, snapshot):
+    def test_a_window_running_to_today_is_marked_below_unless_it_is_today(self):
+        # 0.5 in against an earlier 1.00 in, in every window that reaches
+        # back to October: only the one-day "today" withholds the mark.
+        archive = build_archive(
+            "2024-09-01T07:00:00Z",
+            "2025-10-21T07:00:00Z",
+            rain=[
+                RainSpell("2025-10-10T18:00:00Z", 1, 0.5),
+                RainSpell("2024-10-10T18:00:00Z", 1, 1.0),
+            ],
+            gaps=[Gap("2024-11-01T07:00:00Z", "2025-09-01T07:00:00Z")],
+        )
+        snapshot = build(archive, "2025-10-21T06:59:00Z")
+        marks = {w.key: w.mark for w in snapshot.rain_tab.window_strip}
+
+        assert marks["30d"] == "below usual range"
+        assert marks["water_year"] == "below usual range"
+        assert marks["today"] is None
+
+    def test_today_under_its_range_is_not_marked(self, snapshot):
         # Today has had no rain yet; earlier Oct 20s had 0.1 in by midnight.
         today = strip(snapshot)["today"]
 
@@ -210,5 +229,5 @@ class TestWindowStrip:
         assert water_year.years == 1
         assert water_year.band is None
         assert (water_year.low_in, water_year.high_in) == (approx(1.0), approx(1.0))
-        assert water_year.mark is None  # still running: never "below"
+        assert water_year.mark == "below usual range"
         assert water_year.earlier[0].last_day == "2024-10-20"

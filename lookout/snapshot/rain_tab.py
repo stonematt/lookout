@@ -38,7 +38,8 @@ the new site's rules:
   rules, as a range: from 3 years the band usual wet hours use
   (`lookout.snapshot.wet_hours.usual_band`), below that the plain values.
   A window outside it is marked "above usual range" or "below usual
-  range"; one still running is never below.
+  range"; only "today" is never below, as its rain can still grow
+  (#690).
 
 Functions:
 - rain_tab(history, days): the `RainTab` section.
@@ -452,8 +453,7 @@ def _window_strip(
             ]
         else:
             earlier = _earlier_windows(window.status, days)
-        running = iso_day(window.status.last_day) == today
-        strip.append(_strip_window(window, earlier, running))
+        strip.append(_strip_window(window, earlier))
     return tuple(strip)
 
 
@@ -483,14 +483,13 @@ def _earlier_windows(status: GapStatus, days: CountedDays) -> List[EarlierWindow
 
 
 def _strip_window(
-    window: RainWindow, earlier: Sequence[EarlierWindowRain], running: bool
+    window: RainWindow, earlier: Sequence[EarlierWindowRain]
 ) -> StripWindow:
     """
     One window against its usual range.
 
     :param window: The window and its rain.
     :param earlier: The earlier years' rain over it, oldest first.
-    :param running: Whether the window ends today, so its rain can grow.
     :return: The `StripWindow`.
     """
     values = [e.rain_in for e in earlier]
@@ -505,7 +504,7 @@ def _strip_window(
     if rain is not None and low is not None and high is not None:
         if rain > high:
             mark = "above usual range"
-        elif rain < low and not running:
+        elif rain < low and window.key != "today":
             mark = "below usual range"
     return StripWindow(
         key=window.key,
