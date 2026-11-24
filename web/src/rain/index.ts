@@ -309,7 +309,7 @@ export function renderYears(
         ? "Each wet-hour bar is every hour of its span; the dark fill is its wet hours, and the hours the record cannot count are hatched at its end, never counted as dry."
         : null,
       dots
-        ? "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, each window's rain ending today as a dot on its own scale, over the same window in earlier years: their middle half (25th–75th percentile) from 4 years, their range from 3, the span of their values below. A dot outside it is marked above or below its usual range."
+        ? "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, each window's rain ending today as a dot on its own scale, over the same window in earlier years: their middle half (25th–75th percentile) from 4 years, their range from 3, the span of their values below. A dot outside it is marked above or below its usual range, but for the water year, which only the verdict judges."
         : "Rain since Oct 1, one line per water year, named by the year it ends in; the bold line is this year. Under it, the rain over each window ending today.",
       "The station archive's daily totals, with today's live total.",
       liveNote,
