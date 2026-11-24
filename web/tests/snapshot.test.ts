@@ -154,6 +154,21 @@ describe("parseDashboard", () => {
       (d) => d.outdoor_trace.pressure_inhg.pop(),
       "dashboard: outdoor_trace malformed",
     ],
+    [
+      "a wet mode the site does not know",
+      (d) => (d.wet_mode.mode = "damp"),
+      "dashboard: wet_mode malformed",
+    ],
+    [
+      "a wet mode without what decided it",
+      (d) => delete d.wet_mode.decided_by,
+      "dashboard: wet_mode malformed",
+    ],
+    [
+      "a tile title that is not text",
+      (d) => (d.tile_titles.wet_or_dry = null),
+      "dashboard: tile_titles malformed",
+    ],
   ])("refuses %s", (_case, spoil, message) => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
     spoil(doc);

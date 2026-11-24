@@ -32,8 +32,11 @@
  * `aria-hidden` line. A tile whose own `shown` says the snapshot holds
  * nothing for it is not drawn either.
  *
+ * A tile whose title follows its mode or data (`titleFrom`) reads it from
+ * the snapshot's `tile_titles`, through `tileTitle`.
+ *
  * Offers `MosaicTile`, `MosaicRow`, `TileReading`, `mosaicSection`,
- * `miniChart` (the mini chart's SVG root) and `ROW_LINE_HEIGHT`.
+ * `tileTitle`, `miniChart` (the mini chart's SVG root) and `ROW_LINE_HEIGHT`.
  */
 import "./mosaic.css";
 
@@ -72,6 +75,12 @@ export interface MosaicTile {
   depth: string;
   /** The tile's title, its heading: "Rain since Oct 1". */
   title: string;
+  /**
+   * The title the snapshot decided for this tile, when its title follows
+   * its mode or its data (`tile_titles`, GLOSSARY tile title, #658); the
+   * fixed `title` when it gives none (N−1, ADR-0008).
+   */
+  titleFrom?(snapshot: DashboardSnapshot): string | null | undefined;
   /** The zoom's name, in the link's "Open the <zoomName> view": "temperature". */
   zoomName: string;
   /** The number and the delta. */
@@ -283,6 +292,19 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
 }
 
 /**
+ * A tile's title for a snapshot: the snapshot's text when it decides one,
+ * else the fixed name. The tile, its zoom heading and the sources footer
+ * all read this.
+ *
+ * @param tile - The tile's definition.
+ * @param snapshot - The dashboard snapshot.
+ * @returns The title.
+ */
+export function tileTitle(tile: MosaicTile, snapshot: DashboardSnapshot): string {
+  return tile.titleFrom?.(snapshot) || tile.title;
+}
+
+/**
  * A mosaic tile as an Overview section: one column on the grids, half the
  * width on a phone, drawn only when the record covers it.
  *
@@ -293,7 +315,7 @@ export function mosaicSection(tile: MosaicTile): OverviewSection {
   return {
     id: tile.slug,
     label: tile.title,
-    kicker: tile.title,
+    kicker: (snapshot) => tileTitle(tile, snapshot),
     mosaic: true,
     shown: (snapshot) =>
       depthShown(snapshot, tile.depth) && (tile.shown ? tile.shown(snapshot) : true),

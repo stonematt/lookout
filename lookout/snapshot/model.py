@@ -441,6 +441,42 @@ class WetHours:
     days: Tuple[WetHoursDay, ...]
 
 
+WetModeName = Literal["wet", "dry"]
+WetModeDecider = Literal["weather", "calendar"]
+
+
+@dataclass(frozen=True)
+class WetMode:
+    """
+    Today's wet mode or dry mode (GLOSSARY wet mode, #658): the rain
+    surfaces tell how much of the time it has rained, or how long it has
+    been dry. Replayed over the archive alone (`lookout.core.wet_mode`), so
+    a rebuild gives the same mode; the site orders the mosaic by it.
+
+    :param mode: "wet" or "dry".
+    :param decided_by: "weather" (the wet share of the days before today)
+        or "calendar" (fewer than half the last 14 days' hours countable:
+        Nov 1 to Apr 30 is wet).
+    """
+
+    mode: WetModeName
+    decided_by: WetModeDecider
+
+
+@dataclass(frozen=True)
+class TileTitles:
+    """
+    The title text of each tile whose title follows its mode or its data
+    (GLOSSARY tile title, #647). The tile, its zoom heading and the sources
+    footer read the same text. A tile not named here keeps its fixed name.
+
+    :param wet_or_dry: The wet-or-dry tile: "Wet hours" in wet mode, "Dry
+        spell" in dry mode.
+    """
+
+    wet_or_dry: str
+
+
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
 FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
 FeatureDirection = Literal["above", "below"]
@@ -1769,6 +1805,11 @@ class Snapshot:
         observation (`lookout.snapshot.trace`).
     :param wet_hours: The wet hours over the last 7 and 30 days and the
         30-day strip (`lookout.snapshot.wet_hours`).
+    :param wet_mode: Today's wet or dry mode and what decided it
+        (`lookout.snapshot.wet_mode`).
+    :param tile_titles: The title text of the tiles whose title follows
+        their mode or data (`lookout.snapshot.wet_mode` for the wet-or-dry
+        tile).
     :param stale_catalogs: The catalogs this run could not update and built
         from as last stored; empty on a normal run. `build_snapshot` never
         sets it: the refresh run does, after a caught catalog failure.
@@ -1798,6 +1839,8 @@ class Snapshot:
     battery_flags: Tuple[BatteryFlag, ...]
     outdoor_trace: Optional[OutdoorTrace]
     wet_hours: WetHours
+    wet_mode: WetMode
+    tile_titles: TileTitles
     stale_catalogs: Tuple[StaleCatalog, ...] = ()
 
     def dashboard(self) -> Dict[str, Any]:

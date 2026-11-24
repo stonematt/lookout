@@ -86,8 +86,11 @@ export interface ZoomPanel {
 export interface ZoomDefinition {
   /** The mosaic tile's slug: the zoom opens at `#overview/<slug>`. */
   slug: string;
-  /** The zoom's heading, an `h2`: "Temperature". */
-  title: string;
+  /**
+   * The zoom's heading, an `h2`: "Temperature"; or read from the snapshot,
+   * as its tile's title is when it follows a mode (#658).
+   */
+  title: string | ((snapshot: DashboardSnapshot) => string);
   /** The number and delta under the heading; the tile's `read` fits. */
   lead?(snapshot: DashboardSnapshot): TileReading;
   /** The panels, in reading order: two by two on the grids. */
@@ -328,7 +331,7 @@ function head(zoom: ZoomDefinition, snapshot: DashboardSnapshot): HTMLElement {
   heading.className = "zoom-heading";
   heading.id = `zoom-${zoom.slug}-heading`;
   heading.tabIndex = -1;
-  heading.textContent = zoom.title;
+  heading.textContent = typeof zoom.title === "function" ? zoom.title(snapshot) : zoom.title;
   el.append(heading);
   const reading = zoom.lead?.(snapshot);
   if (reading?.value != null) {
