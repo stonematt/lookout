@@ -896,7 +896,29 @@
         null,
         30.0
       ]
-    }
+    },
+    "counts": {
+      "water_year": 2026,
+      "events": 3,
+      "last_7_days": 3
+    },
+    "scatter": [
+      {
+        "water_year": 2026,
+        "start_ms": [
+          1767758400000,
+          1767549600000
+        ],
+        "total_in": [
+          0.48,
+          0.36
+        ],
+        "category": [
+          "shower",
+          "shower"
+        ]
+      }
+    ]
   },
   "dry_spell": {
     "days_since_rain": 0.0,

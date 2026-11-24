@@ -749,7 +749,26 @@
         }
       }
     ],
-    "open_curve": null
+    "open_curve": null,
+    "counts": {
+      "water_year": 2026,
+      "events": 1,
+      "last_7_days": 1
+    },
+    "scatter": [
+      {
+        "water_year": 2026,
+        "start_ms": [
+          1763366400000
+        ],
+        "total_in": [
+          0.67
+        ],
+        "category": [
+          "rain"
+        ]
+      }
+    ]
   },
   "dry_spell": {
     "days_since_rain": 1.62,

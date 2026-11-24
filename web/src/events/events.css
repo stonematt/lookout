@@ -25,6 +25,182 @@
   white-space: nowrap;
 }
 
+/* ---------- the headline and the scatter (#666, board EventsBC) ---------- */
+/* The headline: the water year's count in Fact type beside its words. */
+.ev-headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  max-width: none;
+}
+
+.ev-headline-n {
+  font-size: var(--type-fact);
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-headline-words {
+  display: flex;
+  flex-direction: column;
+}
+
+.ev-scatter {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--rule);
+}
+
+.ev-sc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.ev-sc-title {
+  margin: 0;
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.ev-sc-years {
+  font-size: var(--type-kicker);
+  color: var(--ink-3);
+}
+
+.ev-sc-chart {
+  margin-top: var(--s-3);
+}
+
+.ev-sc-svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  font-family: var(--sans);
+}
+
+.ev-sc-svg .ev-sc-axis {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.ev-sc-svg .ev-sc-usual {
+  stroke: var(--ink);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+}
+
+.ev-sc-svg .ev-sc-tick {
+  font-size: var(--type-axis);
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-sc-svg .ev-sc-year,
+.ev-sc-svg .ev-sc-label {
+  font-size: var(--type-label);
+  fill: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-sc-svg .ev-sc-label {
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+/* a dot: its category's ramp step, haloed in the tile so touching dots part */
+.ev-sc-svg .ev-sc-dot {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.ev-sc-sprinkle {
+  fill: var(--rain-0);
+  background: var(--rain-0);
+}
+
+.ev-sc-shower {
+  fill: var(--rain-1);
+  background: var(--rain-1);
+}
+
+.ev-sc-rain {
+  fill: var(--rain-3);
+  background: var(--rain-3);
+}
+
+.ev-sc-storm {
+  fill: var(--rain-4);
+  background: var(--rain-4);
+}
+
+/* the live event: the page's one now mark, a ring */
+.ev-sc-svg .ev-sc-now {
+  fill: var(--surface);
+  stroke: var(--now);
+  stroke-width: 2;
+}
+
+.ev-sc-svg .ev-sc-now-label {
+  font-size: var(--type-annotation);
+  font-weight: 600;
+  fill: var(--now);
+}
+
+/* the size key, in place under the chart */
+.ev-sc-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  margin: var(--s-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-label);
+  color: var(--ink-3);
+}
+
+.ev-sc-key li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.ev-sc-swatch {
+  flex: none;
+  border-radius: 50%;
+}
+
+.ev-sc-swatch.ev-sc-sprinkle {
+  width: 4px;
+  height: 4px;
+}
+
+.ev-sc-swatch.ev-sc-shower {
+  width: 7px;
+  height: 7px;
+}
+
+.ev-sc-swatch.ev-sc-rain {
+  width: 10px;
+  height: 10px;
+}
+
+.ev-sc-swatch.ev-sc-storm {
+  width: 14px;
+  height: 14px;
+}
+
+.ev-tile > .ev-pick {
+  margin-top: var(--s-5);
+}
+
 /* ---------- the list tile ---------- */
 /* On a phone the rows are the tiles, on the ground; on both grids the list
    is one tile under the catalog tile, and its rows sit on it. */
