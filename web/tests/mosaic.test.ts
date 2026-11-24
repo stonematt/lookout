@@ -337,6 +337,87 @@ describe("the Rain tile", () => {
     expect(delta("rain")).toBe("not compared yet");
   });
 
+  describe("a day the record cannot count (#662)", () => {
+    const gaps = () => [...tile("rain").querySelectorAll<SVGRectElement>("svg rect.mosaic-gap")];
+    /** The seasoned golden with this season's places from `first` to `last` missing. */
+    const missing = (first: number, last: number, reason = "gap"): Doc => {
+      const d = doc("seasoned");
+      const now = d.rain_tab.water_years.at(-1);
+      for (let i = first; i <= last; i++) now.reason[i] = reason;
+      return d;
+    };
+
+    it("draws no hatch when every day this season is counted (seasoned)", () => {
+      const d = doc("seasoned");
+      expect(new Set(d.rain_tab.water_years.at(-1).reason)).toEqual(new Set([null]));
+      renderOverview(panel, parseDashboard(d));
+
+      expect(gaps()).toHaveLength(0);
+    });
+
+    it("hatches a missing October day as a column, never a dry day", () => {
+      renderOverview(panel, parseDashboard(missing(5, 5))); // Oct 6
+      const [gap] = gaps();
+
+      expect(gaps()).toHaveLength(1);
+      expect(gap!.getAttribute("fill")).toMatch(/^url\(#gap-hatch-\d+\)$/);
+      // Near the Oct end of the crop, the plot's height, wide enough for a stripe.
+      const x = Number(gap!.getAttribute("x"));
+      const width = Number(gap!.getAttribute("width"));
+      expect(x).toBeLessThan(20);
+      expect(width).toBeGreaterThanOrEqual(4);
+      expect(Number(gap!.getAttribute("height"))).toBeGreaterThan(30);
+      // Behind the curves, so this year's line reads over it.
+      const svg = tile("rain").querySelector("svg")!;
+      const order = [...svg.children];
+      expect(order.indexOf(gap!)).toBeLessThan(order.indexOf(svg.querySelector(".mosaic-curve")!));
+    });
+
+    it("hatches a run of missing days as one column, later days too", () => {
+      renderOverview(panel, parseDashboard(missing(40, 49))); // Nov 10 to 19
+      expect(gaps()).toHaveLength(1);
+      renderOverview(panel, parseDashboard(missing(3, 3)));
+      expect(gaps()).toHaveLength(1);
+    });
+
+    it("leaves a day before the archive blank", () => {
+      renderOverview(panel, parseDashboard(missing(0, 9, "before_archive")));
+
+      expect(gaps()).toHaveLength(0);
+    });
+
+    it("hatches only this season, not an earlier year's gaps", () => {
+      const d = doc("seasoned");
+      expect(d.rain_tab.water_years.at(-2).reason).toContain("gap");
+      renderOverview(panel, parseDashboard(d));
+
+      expect(gaps()).toHaveLength(0);
+    });
+
+    it("draws today's curves without a hatch from a snapshot without reasons", () => {
+      const d = doc("seasoned");
+      for (const curve of d.rain_tab.water_years) delete curve.reason;
+      renderOverview(panel, parseDashboard(d));
+
+      expect(gaps()).toHaveLength(0);
+      expect(tile("rain").querySelectorAll(".mosaic-curve-now")).toHaveLength(1);
+    });
+
+    it("says in its method that a missing day is hatched, never dry", () => {
+      renderOverview(panel, parsed("seasoned"));
+
+      const rain = words(panel.querySelector('.ov-sources-how [data-source="Rain since Oct 1"]'));
+      expect(rain).toContain("a day missing from the record this season is hatched");
+    });
+
+    it("refuses reasons that do not run with the curve", () => {
+      const d = doc("seasoned");
+      d.rain_tab.water_years.at(-1).reason.pop();
+
+      expect(() => parseDashboard(d)).toThrow(/reason not parallel/);
+    });
+  });
+
   it("names the new field in its sources footer method", () => {
     renderOverview(panel, parsed("seasoned"));
 
