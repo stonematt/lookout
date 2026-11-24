@@ -198,10 +198,6 @@
   height: 14px;
 }
 
-.ev-tile > .ev-pick {
-  margin-top: var(--s-5);
-}
-
 /* ---------- the list tile ---------- */
 /* On a phone the rows are the tiles, on the ground; on both grids the list
    is one tile under the catalog tile, and its rows sit on it. */

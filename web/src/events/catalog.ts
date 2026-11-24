@@ -5,16 +5,16 @@
  * The page opens with a picture (#666, board EventsBC): the headline, "10
  * events this water year · 3 in the last 7 days" (`RainEvents.counts`), is
  * the tile's finding, then the scatter of four water years' events by size
- * (`scatter.ts`). Under them, the finding for the list's pick, the
- * stale-catalog note, the stat strip and the folded source; the water
- * year's missing days are the list's (`list.ts`). A snapshot written before
- * the counts (N−1) opens as before:
- * the pick's finding as the tile's finding, then the standfirst.
+ * (`scatter.ts`), the stale-catalog note and the folded source. The filter
+ * line drives only the list (#239, board EventsBC), so nothing here follows
+ * the pick; the water year's missing days are the list's (`list.ts`). A
+ * snapshot written before the counts (N−1) opens as before: the pick's
+ * finding as the tile's finding, the standfirst, and the stat strip.
  *
  * - `renderCatalogTile`: the tile's markup, scatter and source fold, once
  *   per mount.
- * - `renderCatalogHead`: the pick's finding and stats for the
- *   water year shown, after every pick.
+ * - `renderCatalogHead`: on an N−1 snapshot, the pick's finding and stats
+ *   for the water year shown, after every pick.
  */
 import { html } from "../dom.js";
 import type { Html } from "../dom.js";
@@ -41,8 +41,9 @@ export function headline(counts: EventCounts): Html {
 }
 
 /**
- * Fill the catalog tile: the finding and stats it renders later, the
- * standfirst, the stale-catalog note, and the source fold.
+ * Fill the catalog tile: the headline and scatter (or, N−1, the finding and
+ * stats it renders later and the standfirst), the stale-catalog note, and
+ * the source fold.
  *
  * @param host - The tile's body.
  * @param snapshot - The dashboard snapshot.
@@ -55,16 +56,12 @@ export function renderCatalogTile(host: HTMLElement, snapshot: DashboardSnapshot
   const scatter = scatterInput(section);
   const head = section.counts
     ? html`${headline(section.counts)}${scatter ? scatterMarkup(scatter) : ""}
-<h3 class="tile-finding ev-title ev-pick" data-part="pick"></h3>`
+<p class="ev-note ev-stale" role="status" hidden></p>`
     : html`<h2 class="tile-finding ev-title" data-part="finding"></h2>
-<p class="standfirst" data-part="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>`;
-  host.insertAdjacentHTML(
-    "beforeend",
-    html`
-${head}
+<p class="standfirst" data-part="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>
 <p class="ev-note ev-stale" role="status" hidden></p>
-<dl class="ev-stats"></dl>`,
-  );
+<dl class="ev-stats"></dl>`;
+  host.insertAdjacentHTML("beforeend", html`${head}`);
   const chart = host.querySelector<HTMLElement>(".ev-sc-chart");
   if (chart && scatter) drawScatter(chart, scatter);
   const uncovered = section.seasons.filter((s) => !isComparable(s.status)).length;
@@ -86,8 +83,9 @@ ${head}
 }
 
 /**
- * The catalog tile's finding and stat strip for the water year
- * shown.
+ * The catalog tile's finding and stat strip for the water year shown, on a
+ * snapshot written before the counts (N−1); a tile with the headline has
+ * neither, and this does nothing.
  *
  * @param panel - The tab's panel.
  * @param section - The snapshot's Rain Events section.
@@ -100,10 +98,12 @@ export function renderCatalogHead(
   season: Season,
   rows: RainEventRow[],
 ): void {
+  const title = panel.querySelector(".ev-title");
+  if (!title) return;
   const all = section.events;
   const stats = statsFor(section, season);
   const oldest = all.length ? all[all.length - 1]!.start_ms : null;
-  panel.querySelector(".ev-title")!.textContent = all.length
+  title.textContent = all.length
     ? listFinding(stats, season, oldest, rows)
     : "No rain events in the catalog yet";
   const strip = panel.querySelector<HTMLElement>(".ev-stats")!;

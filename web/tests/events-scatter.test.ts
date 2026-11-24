@@ -58,15 +58,24 @@ describe("the headline", () => {
     expect(text("[data-section=catalog] h2.ev-headline")).toBe(words);
   });
 
-  it("opens the page: the headline, then the scatter, then the pick's finding", () => {
+  it("opens the page: the headline, then the scatter, and nothing the filter drives", () => {
     mount(snapshot("seasoned"));
 
     const parts = [...panel.querySelectorAll("[data-section=catalog] [data-part]")].map(
       (el) => (el as HTMLElement).dataset.part,
     );
     expect(parts.indexOf("finding")).toBeLessThan(parts.indexOf("scatter"));
-    expect(parts.indexOf("scatter")).toBeLessThan(parts.indexOf("pick"));
     expect(panel.querySelector("[data-part=standfirst]")).toBeNull();
+    // Board EventsBC: the filter line drives only the list, so the top tile
+    // holds no finding or stat strip for the list's pick.
+    expect(parts).not.toContain("pick");
+    expect(panel.querySelector("[data-section=catalog] .ev-title")).toBeNull();
+    expect(panel.querySelector("[data-section=catalog] .ev-stats")).toBeNull();
+    const select = panel.querySelector<HTMLSelectElement>(".ev-year-select")!;
+    const before = panel.querySelector("[data-section=catalog]")!.innerHTML;
+    select.value = "all";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(panel.querySelector("[data-section=catalog]")!.innerHTML).toBe(before);
   });
 
   it("opens as before on a snapshot written before the counts", () => {
