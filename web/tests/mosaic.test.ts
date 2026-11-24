@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 /**
  * The mosaic (#472, #473, spec #460 stories 18–28, 52, 56), rendered from
- * the goldens: the ten tiles in their fixed order, a tile the record does
+ * the goldens: the ten tiles in the order the snapshot's wet mode sets
+ * (#658, Mosaic decision 24; the fixed order without one), a tile the record does
  * not cover left out with the later ones moving up, each tile one link to
  * `#overview/<slug>` named by its own text (the finding once, no
  * `aria-label`), its mini chart hidden from screen readers, and every number
@@ -13,7 +14,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setLayout } from "../src/layout.js";
 import { renderOverview } from "../src/overview/index.js";
-import { MOSAIC_TILES } from "../src/overview/mosaic-tiles.js";
+import { tileTitle } from "../src/overview/mosaic.js";
+import { MOSAIC_TILES, mosaicTiles } from "../src/overview/mosaic-tiles.js";
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
 import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
@@ -27,18 +29,28 @@ type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 const doc = (scenario: Scenario): Doc => structuredClone(golden(scenario, "dashboard")) as Doc;
 const parsed = (scenario: Scenario): DashboardSnapshot => parseDashboard(doc(scenario));
 
-const MOSAIC = [
-  "temperature",
-  "rain",
-  "last-10-days",
-  "dry-spell",
-  "wind",
-  "pressure",
-  "humidity",
-  "sun",
-  "daylight",
-  "inside",
-];
+const CONDITIONS = ["wind", "pressure", "humidity", "sun", "daylight", "inside"];
+
+/** The order without a mode (N−1): Dry spell fourth, no Wet hours. */
+const MOSAIC = ["temperature", "rain", "last-10-days", "dry-spell", ...CONDITIONS];
+
+/** Wet mode (Mosaic decision 24, #658): Wet hours beside Temperature. */
+const WET_MOSAIC = ["temperature", "wet-hours", "rain", "last-10-days", ...CONDITIONS];
+
+/** Dry mode: Dry spell beside Temperature, Rain since Oct 1 after Last 10 days. */
+const DRY_MOSAIC = ["temperature", "dry-spell", "last-10-days", "rain", ...CONDITIONS];
+
+/**
+ * Each golden's order: dry and raining are wet mode by the calendar (too
+ * few countable hours, Nov and Jan), seasoned dry mode by the weather.
+ */
+const ORDER: Record<Scenario, string[]> = {
+  dry: WET_MOSAIC,
+  raining: WET_MOSAIC,
+  seasoned: DRY_MOSAIC,
+};
+
+const ALL_SLUGS = [...MOSAIC, "wet-hours"];
 
 let panel: HTMLElement;
 
@@ -52,25 +64,68 @@ const words = (el: Element | null | undefined) => el?.textContent?.replace(/\s+/
 const tile = (slug: string) => panel.querySelector<HTMLElement>(`[data-section="${slug}"]`)!;
 const ids = () =>
   [...panel.querySelectorAll<HTMLElement>(".tile-grid > .tile")].map((t) => t.dataset.section);
-const mosaicIds = () => ids().filter((id) => MOSAIC.includes(id!));
+const mosaicIds = () => ids().filter((id) => ALL_SLUGS.includes(id!));
+
+/** A golden with its mode set, so a test can pick the state it draws. */
+const inMode = (scenario: Scenario, mode: "wet" | "dry" | null): Doc => {
+  const d = doc(scenario);
+  if (mode === null) {
+    delete d.wet_mode;
+    delete d.tile_titles;
+  } else {
+    d.wet_mode = { mode, decided_by: "weather" };
+    d.tile_titles = { wet_or_dry: mode === "wet" ? "Wet hours" : "Dry spell" };
+  }
+  return d;
+};
 
 describe("the mosaic's order", () => {
-  it.each(SCENARIOS)("follows the feature on the %s golden: all ten tiles, Inside last", (s) => {
+  it.each(SCENARIOS)("follows the feature on the %s golden: ten tiles in its mode's order", (s) => {
     renderOverview(panel, parsed(s));
 
-    expect(ids()).toEqual(["first-screen", "feature", ...MOSAIC]);
+    expect(ids()).toEqual(["first-screen", "feature", ...ORDER[s]]);
     expect(MOSAIC_TILES.map((t) => t.slug)).toEqual(MOSAIC);
   });
 
-  it.each(["phone", "two", "four"] as const)("keeps the phone's order at %s", (layout) => {
-    setLayout(layout);
-    renderOverview(panel, parsed("seasoned"));
+  it("sets Wet hours beside Temperature in wet mode, Rain since Oct 1 in row 2", () => {
+    renderOverview(panel, parseDashboard(inMode("seasoned", "wet")));
+
+    expect(mosaicIds()).toEqual(WET_MOSAIC);
+  });
+
+  it("sets Dry spell beside Temperature in dry mode, Rain since Oct 1 last of row 2", () => {
+    renderOverview(panel, parseDashboard(inMode("dry", "dry")));
+
+    expect(mosaicIds()).toEqual(DRY_MOSAIC);
+  });
+
+  it("keeps the order before wet mode for a snapshot without the mode (v4, N−1)", () => {
+    renderOverview(panel, parseDashboard(inMode("seasoned", null)));
 
     expect(mosaicIds()).toEqual(MOSAIC);
   });
 
+  it("follows the mode field alone, never the calendar or the rain", () => {
+    // The seasoned golden is a dry May; told it is wet, the site draws wet.
+    const d = inMode("seasoned", "wet");
+    d.wet_mode.decided_by = "calendar";
+    renderOverview(panel, parseDashboard(d));
+
+    expect(mosaicIds()).toEqual(WET_MOSAIC);
+  });
+
+  it.each(["phone", "two", "four"] as const)("keeps the phone's order at %s", (layout) => {
+    setLayout(layout);
+    for (const mode of ["wet", "dry", null] as const) {
+      renderOverview(panel, parseDashboard(inMode("seasoned", mode)));
+      expect(mosaicIds()).toEqual(
+        mode === "wet" ? WET_MOSAIC : mode === "dry" ? DRY_MOSAIC : MOSAIC,
+      );
+    }
+  });
+
   it("leaves out a tile the record does not cover, and the later tiles move up", () => {
-    const d = doc("raining");
+    const d = inMode("raining", null);
     for (const t of d.record_depth.tiles)
       if (t.key === "rain" || t.key === "dry_spell") t.shown = false;
     renderOverview(panel, parseDashboard(d));
@@ -85,14 +140,14 @@ describe("the mosaic's order", () => {
     delete d.record_depth;
     renderOverview(panel, parseDashboard(d));
 
-    expect(mosaicIds()).toEqual(MOSAIC);
+    expect(mosaicIds()).toEqual(ORDER.dry);
   });
 });
 
 describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
   beforeEach(() => renderOverview(panel, parsed(scenario)));
 
-  it.each(MOSAIC_TILES.map((t) => [t.slug, t] as const))(
+  it.each(mosaicTiles(parsed(scenario)).map((t) => [t.slug, t] as const))(
     "%s is one link to its zoom, named by its own text, once",
     (slug, def) => {
       const host = tile(slug);
@@ -110,7 +165,7 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
       const name = nameFrom(link);
       const value = words(link.querySelector("[data-part=value]"));
       const delta = words(link.querySelector("[data-part=delta]"));
-      expect(name.startsWith(`${def.title} `)).toBe(true);
+      expect(name.startsWith(`${tileTitle(def, parsed(scenario))} `)).toBe(true);
       expect(name.endsWith(`Open the ${def.zoomName} view`)).toBe(true);
       if (value) expect(name).toContain(value);
       if (delta) expect(name).toContain(delta);
@@ -132,9 +187,10 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
   );
 
   it("titles each tile with a heading inside its link", () => {
-    const titles = MOSAIC.map((slug) => tile(slug).querySelector("a > h2"));
+    const tiles = mosaicTiles(parsed(scenario));
+    const titles = tiles.map((t) => tile(t.slug).querySelector("a > h2"));
 
-    expect(titles.map(words)).toEqual(MOSAIC_TILES.map((t) => t.title));
+    expect(titles.map(words)).toEqual(tiles.map((t) => tileTitle(t, parsed(scenario))));
   });
 });
 
@@ -400,7 +456,7 @@ describe("the Last 10 days tile", () => {
 
 describe("the Dry spell tile", () => {
   it("prints the snapshot's dry spell as the Rain tab and the feature do", () => {
-    const d = doc("dry");
+    const d = inMode("dry", "dry");
     d.dry_spell = { days_since_rain: 9.4, usual_days: 3 };
     renderOverview(panel, parseDashboard(d));
 
@@ -439,6 +495,100 @@ describe("the Dry spell tile", () => {
     expect(days).toHaveLength(30);
     expect(svg.querySelectorAll(".mosaic-today")).toHaveLength(1);
     expect(svg.querySelectorAll(".mosaic-wet").length).toBe(2);
+  });
+});
+
+describe("the wet-or-dry tile (#658)", () => {
+  const strip = (d: Doc) =>
+    (d.wet_hours.days as { wet_hours: number | null }[]).map((day) => day.wet_hours);
+
+  it("prints the last 7 days' wet hours of their countable hours in wet mode (raining)", () => {
+    renderOverview(panel, parsed("raining"));
+    const host = tile("wet-hours");
+
+    expect(words(host.querySelector("h2"))).toBe("Wet hours");
+    expect(words(host.querySelector("[data-part=value]"))).toBe("12 h");
+    expect(words(host.querySelector("[data-part=delta]"))).toBe("of 111 in the last 7 days");
+    expect(tile("dry-spell")).toBeNull();
+  });
+
+  it("draws the 30-day strip, a day it cannot count hatched, never dry (dry)", () => {
+    const d = doc("dry");
+    renderOverview(panel, parseDashboard(d));
+    const svg = tile("wet-hours").querySelector("svg")!;
+    const days = strip(d);
+
+    expect(svg.querySelectorAll("rect.mosaic-gap")).toHaveLength(
+      days.filter((h) => h === null).length,
+    );
+    expect(svg.querySelectorAll("rect.mosaic-wet")).toHaveLength(
+      days.filter((h) => h !== null && h > 0).length,
+    );
+    expect(svg.querySelectorAll("rect.mosaic-dry")).toHaveLength(
+      days.filter((h) => h === 0).length,
+    );
+  });
+
+  it("reads its title from the snapshot, never its own", () => {
+    const d = inMode("raining", "wet");
+    d.tile_titles.wet_or_dry = "Wet time";
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("wet-hours").querySelector("h2"))).toBe("Wet time");
+  });
+
+  it("is the Dry spell tile in dry mode, titled by the snapshot (seasoned)", () => {
+    renderOverview(panel, parsed("seasoned"));
+
+    expect(words(tile("dry-spell").querySelector("h2"))).toBe("Dry spell");
+    expect(tile("wet-hours")).toBeNull();
+  });
+
+  it("opens the wet hours zoom, headed by the snapshot's title", () => {
+    const d = inMode("raining", "wet");
+    d.tile_titles.wet_or_dry = "Wet time";
+    history.replaceState(null, "", "/#overview/wet-hours");
+    try {
+      renderOverview(panel, parseDashboard(d));
+      expect(tile("wet-hours").querySelector("a")!.getAttribute("href")).toBe(
+        "#overview/wet-hours",
+      );
+      const zoom = panel.querySelector('.zoom[data-zoom="wet-hours"]')!;
+      expect(words(zoom.querySelector(".zoom-heading"))).toBe("Wet time");
+      expect(zoom.querySelector("[data-part=wet-meter]")).not.toBeNull();
+    } finally {
+      history.replaceState(null, "", "/");
+    }
+  });
+
+  it("names the Dry spell zoom by the snapshot's title in dry mode", () => {
+    const d = inMode("seasoned", "dry");
+    d.tile_titles.wet_or_dry = "Dry days";
+    history.replaceState(null, "", "/#overview/dry-spell");
+    try {
+      renderOverview(panel, parseDashboard(d));
+      const zoom = panel.querySelector('.zoom[data-zoom="dry-spell"]')!;
+      expect(words(zoom.querySelector(".zoom-heading"))).toBe("Dry days");
+    } finally {
+      history.replaceState(null, "", "/");
+    }
+  });
+
+  it("names the sources footer's line by the same title", () => {
+    const d = inMode("raining", "wet");
+    d.tile_titles.wet_or_dry = "Wet time";
+    renderOverview(panel, parseDashboard(d));
+    const names = [...panel.querySelectorAll(".ov-sources-list dt")].map(words);
+
+    expect(names).toContain("Wet time");
+    expect(names).not.toContain("Dry spell");
+  });
+
+  it("names how the mode was decided in the sources footer's method", () => {
+    renderOverview(panel, parsed("raining"));
+    const method = words(panel.querySelector('.ov-sources-how [data-source="Wet hours"]'));
+
+    expect(method).toContain("the calendar decides");
   });
 });
 
@@ -681,7 +831,7 @@ describe("the Inside tile", () => {
     else d.indoor = indoor;
     renderOverview(panel, parseDashboard(d));
 
-    expect(mosaicIds()).toEqual(MOSAIC.filter((slug) => slug !== "inside"));
+    expect(mosaicIds()).toEqual(ORDER.seasoned.filter((slug) => slug !== "inside"));
     expect(panel.querySelector('[href="#overview/inside"]')).toBeNull();
   });
 });

@@ -1,8 +1,11 @@
 /**
- * The mosaic's tile definitions (#472), in its fixed order (spec #460 story
- * 19): Temperature, Rain, Last 10 days, Dry spell, then the six from
- * `mosaic-conditions.ts` (#473): Wind, Pressure, Humidity, Sun, Daylight,
- * Inside.
+ * The mosaic's tile definitions (#472), in the order the snapshot's wet mode
+ * sets (`mosaicTiles`, Mosaic decision 24, #658): Temperature and the
+ * wet-or-dry tile (Wet hours, `mosaic-wet.ts`, or Dry spell), then Rain and
+ * Last 10 days, then the six from `mosaic-conditions.ts` (#473): Wind,
+ * Pressure, Humidity, Sun, Daylight, Inside. A snapshot without a mode
+ * keeps the order before it (`MOSAIC_TILES`, spec #460 story 19):
+ * Temperature, Rain, Last 10 days, Dry spell.
  *
  * - Temperature: the live reading (the hero's), today's high, and the
  *   hero's own delta on usual (`nowDeltaWords`, the one snapshot value
@@ -23,7 +26,7 @@
  *
  * Every value is the snapshot's; these only word, format and draw.
  *
- * Offers `MOSAIC_TILES` and each tile's definition.
+ * Offers `mosaicTiles`, `MOSAIC_TILES` and each tile's definition.
  */
 import { lastDays } from "../rain/charts.js";
 import { currentYear, drySpellNow } from "../rain/text.js";
@@ -51,6 +54,7 @@ import {
   windTile,
 } from "./mosaic-conditions.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
+import { wetHoursTile } from "./mosaic-wet.js";
 import { rampColour, shownDays, todayInList, todayPeriod } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
 
@@ -448,6 +452,9 @@ export const drySpellTile: MosaicTile = {
   slug: "dry-spell",
   depth: "dry_spell",
   title: "Dry spell",
+  // In dry mode the wet-or-dry tile is this one, titled by the snapshot.
+  titleFrom: (snapshot) =>
+    snapshot.wet_mode?.mode === "dry" ? snapshot.tile_titles?.wet_or_dry : null,
   zoomName: "dry spell",
   read(snapshot) {
     // The Rain tab's numbers: the dashboard's dry spell.
@@ -468,12 +475,8 @@ export const drySpellTile: MosaicTile = {
   }),
 };
 
-/** The mosaic's tiles, in its fixed order. */
-export const MOSAIC_TILES: readonly MosaicTile[] = [
-  temperatureTile,
-  rainTile,
-  tenDaysTile,
-  drySpellTile,
+/** The six condition tiles, after the first four in every order. */
+const CONDITION_TILES: readonly MosaicTile[] = [
   windTile,
   pressureTile,
   humidityTile,
@@ -481,3 +484,37 @@ export const MOSAIC_TILES: readonly MosaicTile[] = [
   daylightTile,
   insideTile,
 ];
+
+/**
+ * The mosaic's tiles for a snapshot without a mode (N−1, ADR-0008): the
+ * order before wet mode, Dry spell fourth and no Wet hours tile.
+ */
+export const MOSAIC_TILES: readonly MosaicTile[] = [
+  temperatureTile,
+  rainTile,
+  tenDaysTile,
+  drySpellTile,
+  ...CONDITION_TILES,
+];
+
+/**
+ * The mosaic's tiles in the order the snapshot's mode sets (Mosaic decision
+ * 24): row 1 is Temperature and the wet-or-dry tile, row 2 has Rain since
+ * Oct 1. In wet mode the wet-or-dry tile is Wet hours and row 2 is Rain
+ * since Oct 1 then Last 10 days; in dry mode it is Dry spell, and Rain since
+ * Oct 1 goes after Last 10 days (board DryDay). The site never decides the
+ * mode: without one it keeps `MOSAIC_TILES`.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The tiles, in order.
+ */
+export function mosaicTiles(snapshot: DashboardSnapshot): readonly MosaicTile[] {
+  switch (snapshot.wet_mode?.mode) {
+    case "wet":
+      return [temperatureTile, wetHoursTile, rainTile, tenDaysTile, ...CONDITION_TILES];
+    case "dry":
+      return [temperatureTile, drySpellTile, tenDaysTile, rainTile, ...CONDITION_TILES];
+    default:
+      return MOSAIC_TILES;
+  }
+}

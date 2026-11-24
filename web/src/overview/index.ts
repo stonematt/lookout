@@ -1,6 +1,7 @@
 /**
  * The Overview tab (spec #460): the now tile, the feature tile, then the
- * mosaic's ten tiles (#472, #473).
+ * mosaic's ten tiles (#472, #473), in the order the snapshot's wet mode
+ * sets (#658, `overviewSections`).
  *
  * Layout, the same order on every width (DESIGN.md "Layout", README
  * decision 10): on a phone the now tile and the feature take the full
@@ -43,19 +44,31 @@ import { renderTiles } from "../tiles.js";
 import { featureTile } from "./feature.js";
 import { firstScreen } from "./first-screen.js";
 import { mosaicSection } from "./mosaic.js";
-import { MOSAIC_TILES } from "./mosaic-tiles.js";
+import { MOSAIC_TILES, mosaicTiles } from "./mosaic-tiles.js";
 import { sourcesFooter } from "./sources.js";
 import { drawZoom } from "./zoom.js";
 
 /** One tile of the Overview. */
 export type OverviewSection = TileSection;
 
-/** The Overview's sections, in the mosaic's fixed order. */
+/** The Overview's sections for a snapshot without a mode (N−1). */
 export const SECTIONS: readonly OverviewSection[] = [
   firstScreen, // #468 the now tile
   featureTile, // #469 the feature tile
   ...MOSAIC_TILES.map(mosaicSection), // #472, #473 the ten tiles
 ];
+
+/**
+ * The Overview's sections for a snapshot: the now tile, the feature, then
+ * the mosaic in the order its wet mode sets (#658, Mosaic decision 24).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The sections, in order.
+ */
+export function overviewSections(snapshot: DashboardSnapshot): readonly OverviewSection[] {
+  if (!snapshot.wet_mode) return SECTIONS;
+  return [firstScreen, featureTile, ...mosaicTiles(snapshot).map(mosaicSection)];
+}
 
 /**
  * Render the Overview into its tab panel, replacing what was there.
@@ -67,7 +80,7 @@ export const SECTIONS: readonly OverviewSection[] = [
 export function renderOverview(
   panel: HTMLElement,
   snapshot: DashboardSnapshot,
-  sections: readonly OverviewSection[] = SECTIONS,
+  sections: readonly OverviewSection[] = overviewSections(snapshot),
 ): void {
   const grid = renderTiles(panel, snapshot, sections, { unnamed: true });
   grid.classList.add("mosaic-grid");

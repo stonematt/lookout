@@ -23,7 +23,7 @@ import "./sources.css";
 
 import { releaseLine } from "../release.js";
 import type { DashboardSnapshot } from "../snapshot.js";
-import { fold, type TileSection } from "../tiles.js";
+import { fold, kickerText, type TileSection } from "../tiles.js";
 
 /** One tile's entry: its short line, and its method or null for none. */
 interface Entry {
@@ -32,13 +32,22 @@ interface Entry {
   method: string | null;
 }
 
+/**
+ * A section's name in the footer: a mosaic tile's title as the tile shows
+ * it (a title may follow its mode, #658), any other section's label.
+ */
+function nameOf(snapshot: DashboardSnapshot, section: TileSection): string {
+  return section.mosaic ? kickerText(section, snapshot) : section.label;
+}
+
 /** A section's entry, or null for none. */
 function entryOf(snapshot: DashboardSnapshot, section: TileSection): Entry | null {
+  const name = nameOf(snapshot, section);
   if (section.shown && !section.shown(snapshot)) {
     const why = section.absent?.(snapshot) ?? null;
-    return why === null ? null : { name: section.label, line: why, method: null };
+    return why === null ? null : { name, line: why, method: null };
   }
-  return section.source ? { name: section.label, ...section.source(snapshot) } : null;
+  return section.source ? { name, ...section.source(snapshot) } : null;
 }
 
 /** A `dl` row: the tile's name as `dt`, the words as `dd`. */

@@ -19,7 +19,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { archiveLagMs, gapReasons, lagCaveat, sourceLine } from "../src/tiles.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden, twoStations } from "./golden.js";
+import { MOSAIC_ORDER, SCENARIOS, golden, twoStations } from "./golden.js";
 
 let page: Page | null = null;
 
@@ -100,17 +100,8 @@ describe.each(SCENARIOS)("the %s golden's Overview", (scenario) => {
     expect(tiles.map((t) => t.dataset.section)).toEqual([
       "first-screen",
       "feature",
-      // The mosaic (#472), in its fixed order.
-      "temperature",
-      "rain",
-      "last-10-days",
-      "dry-spell",
-      "wind",
-      "pressure",
-      "humidity",
-      "sun",
-      "daylight",
-      "inside",
+      // The mosaic (#472), in the order its wet mode sets (#658).
+      ...MOSAIC_ORDER[scenario],
     ]);
     for (const tile of tiles) {
       if (tile.dataset.section === "feature") {

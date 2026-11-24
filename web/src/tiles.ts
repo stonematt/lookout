@@ -161,7 +161,7 @@ export interface SectionOptions {
  * @param snapshot - The dashboard snapshot.
  * @returns The kicker text.
  */
-function kickerText(section: TileSection, snapshot: DashboardSnapshot): string {
+export function kickerText(section: TileSection, snapshot: DashboardSnapshot): string {
   return typeof section.kicker === "function" ? section.kicker(snapshot) : section.kicker;
 }
 

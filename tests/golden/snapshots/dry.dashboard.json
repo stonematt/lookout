@@ -14611,5 +14611,12 @@
       }
     ]
   },
+  "wet_mode": {
+    "mode": "wet",
+    "decided_by": "calendar"
+  },
+  "tile_titles": {
+    "wet_or_dry": "Wet hours"
+  },
   "stale_catalogs": []
 }

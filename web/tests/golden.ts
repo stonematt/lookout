@@ -19,6 +19,21 @@ export const SCENARIOS = ["dry", "raining", "seasoned"] as const;
 /** One golden scenario. */
 export type Scenario = (typeof SCENARIOS)[number];
 
+const CONDITIONS = ["wind", "pressure", "humidity", "sun", "daylight", "inside"];
+
+/**
+ * Each golden's mosaic, in the order its wet mode sets (#658, Mosaic
+ * decision 24): `dry` and `raining` are wet mode by the calendar (too few
+ * countable hours, in November and January), Wet hours beside Temperature;
+ * `seasoned` is dry mode by the weather (a dry May), Dry spell beside
+ * Temperature and Rain since Oct 1 after Last 10 days.
+ */
+export const MOSAIC_ORDER: Record<Scenario, readonly string[]> = {
+  dry: ["temperature", "wet-hours", "rain", "last-10-days", ...CONDITIONS],
+  raining: ["temperature", "wet-hours", "rain", "last-10-days", ...CONDITIONS],
+  seasoned: ["temperature", "dry-spell", "last-10-days", "rain", ...CONDITIONS],
+};
+
 /**
  * The documents a refresh run publishes per station: the snapshot's two, and
  * its status document (`tests/test_status.py` writes those goldens).
