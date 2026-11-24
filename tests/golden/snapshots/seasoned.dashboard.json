@@ -6275,7 +6275,8 @@
     ],
     "ten_day_highs": {
       "delta_f": 2,
-      "days": 10
+      "days": 10,
+      "gap": false
     },
     "strips": [
       {
@@ -20435,7 +20436,8 @@
     "decided_by": "weather"
   },
   "tile_titles": {
-    "wet_or_dry": "Dry spell"
+    "wet_or_dry": "Dry spell",
+    "ten_days": "Highs over usual"
   },
   "stale_catalogs": []
 }

@@ -529,6 +529,11 @@ export interface TenDayHighs {
   delta_f: number;
   /** How many days it is over: 1 to 10. */
   days: number;
+  /**
+   * Whether a day the record covers has no low or high. The tile then
+   * shows no number (#665). Absent from an earlier version 4 document.
+   */
+  gap?: boolean;
 }
 
 /** One window's range bar: low, middle half and high of its readings. */
@@ -927,6 +932,13 @@ export interface WetMode {
 export interface TileTitles {
   /** The wet-or-dry tile: "Wet hours" in wet mode, "Dry spell" in dry mode. */
   wet_or_dry: string;
+  /**
+   * The ten-day temperature tile, named by its number: "Highs over usual",
+   * "Highs under usual", "Highs at usual", "Gap in record" or, with nothing
+   * to compare, "Last 10 days". Absent from an earlier version 4 document
+   * (#665), when the tile keeps its fixed name.
+   */
+  ten_days?: string | null;
 }
 
 /**
@@ -1332,11 +1344,19 @@ function checkWetMode(mode: unknown): void {
 
 /**
  * `tile_titles` may be absent (N−1) or null; present, each title it holds
- * is text.
+ * is text, and `ten_days` may be absent or null (an earlier version 4).
  */
 function checkTileTitles(titles: unknown): void {
   if (titles === undefined || titles === null) return;
-  if (!isRecord(titles) || typeof titles.wet_or_dry !== "string") {
+  if (
+    !isRecord(titles) ||
+    typeof titles.wet_or_dry !== "string" ||
+    !(
+      titles.ten_days === undefined ||
+      titles.ten_days === null ||
+      typeof titles.ten_days === "string"
+    )
+  ) {
     throw new SnapshotContractError("dashboard: tile_titles malformed");
   }
 }
@@ -1597,7 +1617,12 @@ function checkTemperature(context: unknown): void {
   if (
     highs !== undefined &&
     highs !== null &&
-    !(isRecord(highs) && typeof highs.delta_f === "number" && typeof highs.days === "number")
+    !(
+      isRecord(highs) &&
+      typeof highs.delta_f === "number" &&
+      typeof highs.days === "number" &&
+      (highs.gap === undefined || typeof highs.gap === "boolean")
+    )
   ) {
     throw new SnapshotContractError("dashboard: temperature_context.ten_day_highs malformed");
   }
