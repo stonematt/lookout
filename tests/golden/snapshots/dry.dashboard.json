@@ -3543,7 +3543,17 @@
         "to_date_in": null
       }
     ],
-    "usual_to_date": null
+    "usual_to_date": null,
+    "wet_hours_to_date": {
+      "water_year": 2026,
+      "first_day": "2025-10-01",
+      "through_ms": 1763539200000,
+      "hours": 1177,
+      "wet_hours": 8,
+      "countable_hours": 43,
+      "missing_hours": 1134,
+      "usual": null
+    }
   },
   "temperature_context": {
     "now": 39.4,

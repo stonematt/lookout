@@ -441,6 +441,89 @@ class WetHours:
     days: Tuple[WetHoursDay, ...]
 
 
+UsualWetBand = Literal["percentile", "range"]
+
+
+@dataclass(frozen=True)
+class EarlierWetYear:
+    """
+    One earlier water year that covers this date, for usual wet hours.
+
+    :param water_year: Named by the year it ends in.
+    :param wet_hours: Its own wet hours from Oct 1 to this date.
+    :param countable_hours: Its own countable hours over the same span: at
+        least half the span's hours, or the year would not count.
+    :param usual_hours: Its wet share (`wet_hours` of `countable_hours`)
+        times this year's countable hours, in whole hours: the wet hours
+        this year would have if it were as wet as that year.
+    """
+
+    water_year: int
+    wet_hours: int
+    countable_hours: int
+    usual_hours: int
+
+
+@dataclass(frozen=True)
+class UsualWetHours:
+    """
+    Usual wet hours to date (GLOSSARY): earlier water years' wet share from
+    Oct 1 to this date, times this year's countable hours (#663).
+
+    An earlier year counts only if at least half its hours from Oct 1 to
+    this date are countable. With 3 or more such years the usual is the
+    25th to 75th percentile band of their shares; with 1 or 2, the plain
+    values and no band. With none there is no `UsualWetHours`.
+
+    :param years: N, the earlier water years it rests on; at least 1.
+    :param earlier: Each of those years, oldest first.
+    :param low_hours: The band's low end, the 25th percentile, in whole
+        hours; None below 3 years.
+    :param high_hours: The band's high end, the 75th percentile; None below
+        3 years.
+    :param band: What the site calls the band: "percentile" from 4 years,
+        "range" (of N earlier years, not a percentile) at 3; None below 3.
+    """
+
+    years: int
+    earlier: Tuple[EarlierWetYear, ...]
+    low_hours: Optional[int]
+    high_hours: Optional[int]
+    band: Optional[UsualWetBand]
+
+
+@dataclass(frozen=True)
+class WetHoursToDate:
+    """
+    This water year's wet hours since Oct 1 against usual wet hours to
+    date (#663). Every hour is judged by the one wet-hour helper
+    (`lookout.core.wet_hours`), over whole station-local hours ending, as
+    the Overview's windows do (`WetHours.through_ms`), at the start of the
+    hour in progress.
+
+    :param water_year: This water year, named by the year it ends in.
+    :param first_day: Its Oct 1, "YYYY-MM-DD".
+    :param through_ms: The span's end, exclusive: the start of the hour in
+        progress.
+    :param hours: Every hour from Oct 1 to `through_ms`.
+    :param wet_hours: Its countable hours with at least one tip.
+    :param countable_hours: Its countable hours.
+    :param missing_hours: `hours` less `countable_hours`: never wet, never
+        dry.
+    :param usual: Usual wet hours to date; None when no earlier water year
+        covers this date.
+    """
+
+    water_year: int
+    first_day: str
+    through_ms: int
+    hours: int
+    wet_hours: int
+    countable_hours: int
+    missing_hours: int
+    usual: Optional[UsualWetHours]
+
+
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
 FeatureReading = Literal["temperature", "humidity", "pressure", "solar"]
 FeatureDirection = Literal["above", "below"]
@@ -1140,6 +1223,9 @@ class RainTab:
     :param water_years: Every water year the archive reaches, oldest first.
     :param usual_to_date: This water year's rain to date against the usual;
         None when no earlier water year has a value at `day_index`.
+    :param wet_hours_to_date: Wet hours since Oct 1 against usual wet hours
+        to date (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663); the
+        Rain tab reads it in place of `recent.wet_hours`.
     """
 
     windows: Tuple[RainWindow, ...]
@@ -1148,6 +1234,7 @@ class RainTab:
     day_index: int
     water_years: Tuple[WaterYearCurve, ...]
     usual_to_date: Optional[UsualToDate]
+    wet_hours_to_date: Optional[WetHoursToDate] = None
 
 
 @dataclass(frozen=True)

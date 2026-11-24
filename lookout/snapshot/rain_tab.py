@@ -24,6 +24,10 @@ the new site's rules:
   the earlier water years' rain by this date, each read at the same place
   the year-over-year finding compares (`WaterYearCurve.to_date_in`), so a
   year counts exactly when the finding can name it.
+- Wet hours since Oct 1 against usual wet hours to date come from the one
+  wet-hour helper (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663),
+  so they agree with the Overview's meter; the prorated
+  `RecentRain.wet_hours` stays in the snapshot until R2 (#667).
 
 Functions:
 - rain_tab(history, days): the `RainTab` section.
@@ -63,6 +67,7 @@ from lookout.snapshot.model import (
     WaterYearCurve,
 )
 from lookout.snapshot.values import iso_day, number
+from lookout.snapshot.wet_hours import wet_hours_to_date
 from lookout.utils.dateutc import day_span, from_local_date
 
 RECENT_WINDOW = "90d"
@@ -101,6 +106,7 @@ def rain_tab(history: pd.DataFrame, days: CountedDays) -> RainTab:
         day_index=water_year_day_index(days.clock.today),
         water_years=water_years,
         usual_to_date=_usual_to_date(water_years),
+        wet_hours_to_date=wet_hours_to_date(history, days.clock),
     )
 
 

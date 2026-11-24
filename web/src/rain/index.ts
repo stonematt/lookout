@@ -39,6 +39,8 @@ import {
   drySpellNow,
   hoursHeadline,
   rainStatus,
+  usualWetWords,
+  wetToDateValue,
   windowStatus,
   windowsNote,
   windowValue,
@@ -101,6 +103,22 @@ function windowStrip(snapshot: DashboardSnapshot): HTMLElement | null {
     hatchGap(dd, window.status, { compact: true });
   }
   return strip;
+}
+
+/**
+ * Wet hours since Oct 1 against usual wet hours to date (#663), under the
+ * window strip; #664 redraws the tab's head around it.
+ *
+ * @param tab - The Rain tab's data.
+ * @returns The stat, or null when the snapshot predates it.
+ */
+function wetHoursToDate(tab: RainTab): HTMLElement | null {
+  const wet = tab.wet_hours_to_date ?? null;
+  if (!wet) return null;
+  const list = make("dl", "rain-stats rain-wet-to-date");
+  list.dataset.part = "wet-to-date";
+  stat(list, "Wet hours since Oct 1", wetToDateValue(wet), usualWetWords(wet));
+  return list;
 }
 
 /** The daily tile: each day of the last 90 as a bar. */
@@ -234,6 +252,8 @@ export function renderYears(
   // In the zoom the rain gauge, its own panel, draws the windows (#619).
   const strip = options.zoom ? null : windowStrip(snapshot);
   if (strip) host.append(strip);
+  const wetToDate = options.zoom ? null : wetHoursToDate(tab);
+  if (wetToDate) host.append(wetToDate);
   const left = tab.water_years.filter((c) => c.cumulative_in.every((v) => v === null));
   const live = snapshot.current.rain_today_in;
   const liveNote =
@@ -256,6 +276,9 @@ export function renderYears(
         ? `Not compared by this date, so left out of the headline: ${yearsSkipped(tab).join(", ")}.`
         : null,
       windowsNote(snapshot),
+      wetToDate
+        ? "A wet hour is a whole hour with at least one tip (0.01 in) among the hours the archive can count; usual wet hours to date is the earlier water years' share of wet hours from Oct 1 to this date, times this year's countable hours."
+        : null,
     ],
     gapReasons([
       [left.length, "water year", "water years"],

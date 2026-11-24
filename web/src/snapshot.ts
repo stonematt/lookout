@@ -403,6 +403,60 @@ export interface RainTab {
    * a snapshot written before Release A3 (ADR-0008).
    */
   usual_to_date?: UsualToDate | null;
+  /**
+   * Wet hours since Oct 1 against usual wet hours to date (#663), from the
+   * one wet-hour helper the Overview's meter reads. Absent from a snapshot
+   * written before it (ADR-0008): the tab then reads `recent.wet_hours`.
+   */
+  wet_hours_to_date?: WetHoursToDate | null;
+}
+
+/** One earlier water year that covers this date, for usual wet hours. */
+export interface EarlierWetYear {
+  water_year: number;
+  /** Its own wet hours from Oct 1 to this date. */
+  wet_hours: number;
+  /** Its own countable hours over that span: at least half of them. */
+  countable_hours: number;
+  /** Its wet share times this year's countable hours, whole hours. */
+  usual_hours: number;
+}
+
+/**
+ * Usual wet hours to date (GLOSSARY): N earlier water years' wet share from
+ * Oct 1 to this date, times this year's countable hours.
+ */
+export interface UsualWetHours {
+  /** N, at least 1. */
+  years: number;
+  /** Each earlier year, oldest first. */
+  earlier: EarlierWetYear[];
+  /** The 25th percentile; null below 3 years. */
+  low_hours: number | null;
+  /** The 75th percentile; null below 3 years. */
+  high_hours: number | null;
+  /**
+   * "percentile" from 4 years; "range" at 3, which the site calls "range of
+   * N earlier years", not a percentile; null below 3 (plain values).
+   */
+  band: "percentile" | "range" | null;
+}
+
+/** This water year's wet hours since Oct 1 (#663), to the last whole hour. */
+export interface WetHoursToDate {
+  water_year: number;
+  /** Its Oct 1. */
+  first_day: string;
+  /** The span's end, exclusive: the start of the hour in progress. */
+  through_ms: number;
+  /** Every hour since Oct 1. */
+  hours: number;
+  wet_hours: number;
+  countable_hours: number;
+  /** Not countable: missing, never dry. */
+  missing_hours: number;
+  /** Null when no earlier water year covers this date. */
+  usual: UsualWetHours | null;
 }
 
 /** This water year's rain to date against the usual (`UsualToDate`, #539). */
@@ -1310,6 +1364,40 @@ function checkRainTab(tab: unknown): void {
     )
   ) {
     throw new SnapshotContractError("dashboard: rain_tab.usual_to_date malformed");
+  }
+  checkWetHoursToDate(tab.wet_hours_to_date);
+}
+
+/**
+ * `rain_tab.wet_hours_to_date` (#663) may be absent (N−1) or null; present,
+ * its counts are whole hours and its usual, when there is one, rests on as
+ * many earlier years as it lists.
+ */
+function checkWetHoursToDate(wet: unknown): void {
+  if (wet === undefined || wet === null) return;
+  const count = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+  const year = (y: unknown) =>
+    isRecord(y) && [y.water_year, y.wet_hours, y.countable_hours, y.usual_hours].every(count);
+  const usual = (u: unknown) =>
+    u === null ||
+    (isRecord(u) &&
+      count(u.years) &&
+      Array.isArray(u.earlier) &&
+      u.earlier.length === u.years &&
+      u.earlier.every(year) &&
+      (u.low_hours === null || count(u.low_hours)) &&
+      (u.high_hours === null || count(u.high_hours)) &&
+      (u.band === null || u.band === "percentile" || u.band === "range"));
+  if (
+    !isRecord(wet) ||
+    !isTime(wet.through_ms) ||
+    typeof wet.first_day !== "string" ||
+    ![wet.water_year, wet.hours, wet.wet_hours, wet.countable_hours, wet.missing_hours].every(
+      count,
+    ) ||
+    !usual(wet.usual)
+  ) {
+    throw new SnapshotContractError("dashboard: rain_tab.wet_hours_to_date malformed");
   }
 }
 
