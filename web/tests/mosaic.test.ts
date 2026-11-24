@@ -641,14 +641,43 @@ describe("the Dry spell tile", () => {
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 3 days");
   });
 
-  it("says one dry day in the singular, and no last rain as before, for a v5 snapshot", () => {
+  it("says one dry day in the singular for a v5 snapshot", () => {
     renderOverview(panel, parseDashboard(goldenDays("seasoned", 1)));
     expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("1 day");
+  });
 
-    renderOverview(panel, parseDashboard(goldenDays("seasoned", null)));
-    expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe(
-      "no last rain on record",
+  /** The seasoned golden with unknown whole dry days and last rain `lastMs`. */
+  const unknownSpell = (doc: Doc, lastMs: (built: number) => number | null) => {
+    const rainNow = doc.rain_now as Doc;
+    doc.rain_now = { ...rainNow, last_rain_ms: lastMs(doc.built_at_ms as number) };
+    return parseDashboard(doc);
+  };
+  const delta = () => words(tile("dry-spell").querySelector("[data-part=delta]"));
+
+  it("names the last rain when a v5 snapshot's whole dry days are unknown (#668)", () => {
+    const doc = goldenDays("seasoned", null) as Doc;
+    renderOverview(
+      panel,
+      unknownSpell(doc, (built) => built - 40 * 3_600_000),
     );
+    expect(delta()).toBe("last rain 40 h ago");
+  });
+
+  it("has no last rain on record when a v5 snapshot has neither number", () => {
+    renderOverview(
+      panel,
+      unknownSpell(goldenDays("seasoned", null) as Doc, () => null),
+    );
+    expect(delta()).toBe("no last rain on record");
+  });
+
+  it("keeps no last rain on record for a v4 snapshot with no time since rain", () => {
+    const doc = goldenPrevious("seasoned", "dashboard", null) as Doc;
+    renderOverview(
+      panel,
+      unknownSpell(doc, (built) => built - 40 * 3_600_000),
+    );
+    expect(delta()).toBe("no last rain on record");
   });
 
   it.each(SCENARIOS)("orders a v5 snapshot's Overview as the v4 golden's (%s)", (scenario) => {

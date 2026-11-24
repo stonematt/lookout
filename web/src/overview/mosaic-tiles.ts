@@ -38,7 +38,9 @@ import { hatchMissingDays, missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { WET_DAY_IN, degrees, formatDayCount, inches, percent, signed } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
+import { agoWords } from "../now-story.js";
 import type { DashboardSnapshot, GapReason, TemperatureDay } from "../snapshot.js";
+import { WHOLE_DRY_DAYS_VERSION } from "../snapshot.js";
 import { isShown } from "./history.js";
 import type { MosaicTile } from "./mosaic.js";
 import {
@@ -485,6 +487,26 @@ function dryChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | n
   return svg;
 }
 
+/** The Dry spell tile's words with no last rain to name. */
+const NO_LAST_RAIN = "no last rain on record";
+
+/**
+ * The Dry spell tile's delta when the days since it last rained are unknown.
+ * On version 5 a null whole-dry-day count means a day the archive cannot
+ * count, not that it never rained: the delta names the last rain from
+ * `rain_now.last_rain_ms`, in the words "No dry spell yet" uses (#668,
+ * product lead on #647). A version 4 document, or one with no last rain,
+ * keeps "no last rain on record".
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns "last rain 9 h ago", or "no last rain on record".
+ */
+function unknownSpellDelta(snapshot: DashboardSnapshot): string {
+  const last = snapshot.rain_now?.last_rain_ms ?? null;
+  if (snapshot.schema_version < WHOLE_DRY_DAYS_VERSION || last === null) return NO_LAST_RAIN;
+  return `last rain ${agoWords(snapshot.built_at_ms - last)} ago`;
+}
+
 /** Dry spell: the days since it last rained, against the usual dry spell. */
 export const drySpellTile: MosaicTile = {
   slug: "dry-spell",
@@ -499,7 +521,7 @@ export const drySpellTile: MosaicTile = {
     // Whole dry days from version 5 (#667), a duration before it.
     const usual = drySpellNow(snapshot).usual_days;
     const since = drySpellShown(snapshot);
-    if (since === null) return { value: null, delta: "no last rain on record" };
+    if (since === null) return { value: null, delta: unknownSpellDelta(snapshot) };
     // No dry spell yet (0 whole dry days, #694): the words, last rain under them.
     if (since.under !== null) return { value: since.value, words: true, delta: since.under };
     return {
