@@ -2,7 +2,8 @@
  * The Rain Events tab's top tile, the Event Catalog: its finding, the
  * standfirst, the stale-catalog note, the stat strip, the water year's gap
  * note and the folded source. On a phone it is the fixed top. Markup goes
- * through `html` (`web/src/dom.ts`).
+ * through `html` (`web/src/dom.ts`). The page's headline and the scatter
+ * (#666) open this tile, so they belong here or in a module it calls.
  *
  * - `renderCatalogTile`: the tile's markup and source fold, once per mount.
  * - `renderCatalogHead`: its finding, stats and gap note for the water year

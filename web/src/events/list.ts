@@ -10,12 +10,12 @@
  * - `renderListTile`: the tile's markup, once per mount.
  * - `syncFilterBar`: the bar's pressed buttons, the select and the list's
  *   heading for assistive tech, after every pick.
- * - `eventRows`, `listFoot`, `emptyList`: the rows, the foot and the empty
- *   list's line, for `innerHTML`.
+ * - `eventRows` (drawn against a `RowContext`), `listFoot`, `emptyListLine`:
+ *   the rows, the foot and the empty list's line, for `innerHTML`.
  */
 import { html } from "../dom.js";
 import type { Html } from "../dom.js";
-import { inches, inchesPerHour, waterYearSpan } from "../format.js";
+import { inches, waterYearSpan } from "../format.js";
 import { gapLabel, isComparable } from "../gaps.js";
 import type { DashboardSnapshot, EventCategory, EventSeason, RainEventRow } from "../snapshot.js";
 import type { EventSort, Season } from "./model.js";
@@ -24,10 +24,11 @@ import {
   DEFAULT_CATEGORIES,
   SORTS,
   categoryLabel,
-  emptyList as emptyListText,
+  emptyList,
   listHeading,
   lowQuality,
   minutes,
+  peakText,
   qualityLabel,
   sizeShare,
   startLabel,
@@ -164,20 +165,14 @@ export interface RowContext {
 }
 
 /** A closed row's header: the button that opens and closes it. */
-function rowHead(
-  e: RainEventRow,
-  open: boolean,
-  now: number,
-  most: number,
-  latest: number | null,
-): Html {
+function rowHead(e: RainEventRow, open: boolean, context: RowContext): Html {
+  const { latest, now, most } = context;
   const mark = e.live
     ? html`<span class="ev-live">Live</span>`
     : e.start_ms === latest
       ? html`<span class="ev-latest">latest</span>`
       : "";
-  const peak =
-    e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : inchesPerHour(e.peak_rate_in_hr);
+  const peak = peakText(e);
   const chip = html`<span class="ev-chip${lowQuality(e) ? " low" : ""}">${qualityLabel(e)}</span>`;
   const share = (sizeShare(e, most) * 100).toFixed(1);
   const kind = categoryLabel(e);
@@ -198,11 +193,11 @@ function rowHead(
  * @returns The rows' markup.
  */
 export function eventRows(rows: readonly RainEventRow[], context: RowContext): Html {
-  const { openStart, latest, now, most } = context;
+  const { openStart, now } = context;
   return html`${rows.map((e) => {
     const open = openStart === e.start_ms;
     return html`<article class="ev-row"${open ? html` data-open` : ""}${e.live ? html` data-live` : ""} data-start="${e.start_ms}">
-${rowHead(e, open, now, most, latest)}
+${rowHead(e, open, context)}
 ${open ? html`<div class="ev-body" id="ev-body-${e.start_ms}" role="region" aria-label="${`The event of ${startLabel(e.start_ms, now)}`}"></div>` : ""}
 </article>`;
   })}`;
@@ -228,6 +223,6 @@ export function listFoot(more: number, most: number): Html {
  * @param hidden - Events the category pick hides.
  * @returns Its markup.
  */
-export function emptyList(season: Season, hidden: number): Html {
-  return html`<p class="ev-empty" role="status">${emptyListText(season, hidden)}</p>`;
+export function emptyListLine(season: Season, hidden: number): Html {
+  return html`<p class="ev-empty" role="status">${emptyList(season, hidden)}</p>`;
 }

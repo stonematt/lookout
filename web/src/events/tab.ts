@@ -50,7 +50,7 @@ import type { EventChart, EventChartOptions } from "./charts.js";
 import { chartLabel, eventBody, eventSource } from "./detail.js";
 import {
   PAGE,
-  emptyList,
+  emptyListLine,
   eventRows,
   listFoot,
   renderListTile,
@@ -253,18 +253,21 @@ export function mountEvents(
   function renderList(): void {
     const rows = visibleEvents(section, view.season, view.sort, view.categories);
     // The catalog's largest event total, the size bars' full track.
+    const now = deps.nowMs();
     const most = Math.max(0, ...all.map((e) => e.total_in));
     const list = $(".ev-list");
     if (!rows.length) {
       const hidden = visibleEvents(section, view.season, view.sort).length;
-      list.innerHTML = html`${emptyList(all.length ? view.season : "all", hidden)}`;
+      // Markup from the list module is already `html`; the outer tag is
+      // what the no-unsanitized rule can see, and passes it as is.
+      list.innerHTML = html`${emptyListLine(all.length ? view.season : "all", hidden)}`;
       $(".ev-foot").replaceChildren();
       return;
     }
     const context = {
       openStart: selected?.start_ms ?? null,
       latest,
-      now: deps.nowMs(),
+      now,
       most,
     };
     list.innerHTML = html`${eventRows(rows.slice(0, view.limit), context)}`;

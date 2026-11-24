@@ -6,7 +6,8 @@
  *
  * - `stat`: one stat-strip cell, shared with the catalog tile.
  * - `eventBody`: the body's markup around the empty chart host.
- * - `eventSource`: the source fold's what, method and gaps for the event.
+ * - `eventSource`: the source fold's what, method and gaps for the event
+ *   (`EventSourceParts`).
  * - `chartLabel`: the chart's accessible name, Total or Rate.
  */
 import { html } from "../dom.js";
@@ -14,7 +15,7 @@ import type { Html } from "../dom.js";
 import { inches, inchesPerHour } from "../format.js";
 import type { RainEventRow } from "../snapshot.js";
 import type { EventChart } from "./charts.js";
-import { eventFinding, minutes } from "./model.js";
+import { eventFinding, minutes, peakText } from "./model.js";
 
 /**
  * A one-row stat strip cell.
@@ -24,10 +25,7 @@ import { eventFinding, minutes } from "./model.js";
  * @returns The cell's markup.
  */
 export function stat(value: string, label: string): Html {
-  return html`<div>
-    <dt>${label}</dt>
-    <dd>${value}</dd>
-  </div>`;
+  return html`<div><dt>${label}</dt><dd>${value}</dd></div>`;
 }
 
 /** The open event's quality line. */
@@ -63,8 +61,7 @@ export function eventBody(
   <button type="button" data-chart="rate" aria-pressed="${chart === "rate"}">Rate</button>
 </div>`
     : "";
-  const peak =
-    row.peak_rate_in_hr === null || !row.has_curve ? "n/a" : inchesPerHour(row.peak_rate_in_hr);
+  const peak = peakText(row);
   return html`
 ${note}
 <p class="ev-finding" aria-live="polite">${eventFinding(row, count)}</p>
