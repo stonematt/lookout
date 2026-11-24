@@ -1,18 +1,20 @@
 /**
  * The wet-or-dry tile in wet mode (#658, spec #647; Call 4 on #647, #661):
- * titled from the snapshot ("Wet hours"), with the bars' how-to-read words
- * after it (" · each bar is every hour; dark is wet", #703), its number
- * the last 7 days' wet hours of their countable hours, its mini chart the
- * two wet-hour bars, the
- * last 7 days and the last 30, each a tally of every hour in its window
- * ("7 days", "19 h of 168"). The 30-day strip, a column a day, moved to the
- * tile's zoom (`stripChart`, `zooms/wet-hours.ts`). In dry mode the slot
+ * titled from the snapshot ("Wet hours") on one line, its number the last 7
+ * days' wet hours of their countable hours, its mini chart the two wet-hour
+ * bars, the last 7 days and the last 30, each a tally of every hour in its
+ * window ("7 days", "19 h of 168"), and under them the bars' how-to-read
+ * words in caption type ("each bar is every hour; dark is wet", #706), the
+ * words the full-width bars set after their name. The 30-day strip, a
+ * column a day, moved to the tile's zoom (`stripChart`,
+ * `zooms/wet-hours.ts`). In dry mode the slot
  * holds the Dry spell tile (`mosaic-tiles.ts`) instead; while rain leads the
  * tile leaves the mosaic and its bars sit in the rain tile's foot (#661).
  *
  * Every number is the snapshot's `wet_hours` (GLOSSARY wet hour, countable
  * hour): an hour or a day the record cannot count is hatched, never drawn as
- * dry, and the tile then carries the hatch key.
+ * dry, and the tile then carries the hatch key under the bars, beside the
+ * caption.
  *
  * Offers `wetHoursTile` and `stripChart`.
  */
@@ -20,7 +22,7 @@ import { LABEL_CHAR_PX } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { svgHatch } from "../gaps.js";
 import type { DashboardSnapshot, WetHoursWindow } from "../snapshot.js";
-import { howToRead } from "../wet-bars.js";
+import { HOW_TO_READ } from "../wet-bars.js";
 import type { MosaicTile } from "./mosaic.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
 
@@ -165,8 +167,8 @@ export const wetHoursTile: MosaicTile = {
   depth: "wet_hours",
   title: "Wet hours",
   titleFrom: (snapshot) => snapshot.tile_titles?.wet_or_dry,
-  // The bars' header word for word, as everywhere they appear (#647, #703).
-  how: howToRead,
+  // The bars' how-to-read words, word for word, under them (#647, #706).
+  caption: HOW_TO_READ,
   zoomName: "wet hours",
   shown: (snapshot) => Boolean(snapshot.wet_hours),
   read(snapshot) {
