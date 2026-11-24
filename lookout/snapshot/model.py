@@ -346,6 +346,38 @@ class DrySpellNow:
 
 
 @dataclass(frozen=True)
+class RainNow:
+    """
+    Last rain and the now story (ADR-0011, `lookout.snapshot.rain_now`).
+
+    The now story (`raining`, the rate and the event) is told while last
+    rain is within 3 hours of the build time, exactly while the Feature
+    Rule picks rain; outside it `raining` is False and the rest is None.
+
+    :param last_rain_ms: **Last rain**: the newest reading the daily
+        counter rose on, after carryover corrections (not Ambient's
+        `lastRain`); None when no reading shows a tip.
+    :param raining: Whether last rain is within 30 minutes of the build
+        time.
+    :param rate_in_hr: The rain in the 60 minutes up to the build time, in
+        inches, which is the rate in inches per hour; None outside the now
+        story.
+    :param event_start_ms: The current rain event's start (Ambient's event
+        bounds, the key of its `rain_events` row): the live event, else the
+        newest ended event that holds last rain; None outside the now story
+        or when no event holds it.
+    :param event_total_in: That event's rain: the live `eventrainin`, or
+        the ended event's total; None when `event_start_ms` is.
+    """
+
+    last_rain_ms: Optional[int]
+    raining: bool
+    rate_in_hr: Optional[float]
+    event_start_ms: Optional[int]
+    event_total_in: Optional[float]
+
+
+@dataclass(frozen=True)
 class WetHoursWindow:
     """
     One window's wet hours of its countable hours (GLOSSARY wet hour,
@@ -1708,6 +1740,8 @@ class Snapshot:
     :param rain_events: The Rain Events tab's list and summaries.
     :param dry_spell: Days since it last rained and the usual dry spell; the
         one value the feature, the widget view and the Rain tab read.
+    :param rain_now: Last rain and the now story (ADR-0011): the one value
+        the Feature Rule's rain clause reads.
     :param rain_tab: The Rain tab's data.
     :param temperature_context: The Overview's temperature across periods,
         ten-day list and "now against normal" strips.
@@ -1716,7 +1750,8 @@ class Snapshot:
         catalog.
     :param sun_moon: The sun and moon today, or None when the station has
         no coordinates.
-    :param feature: The feature, by the Feature Rule (ADR-0009).
+    :param feature: The feature, by the Feature Rule (ADR-0009, its rain
+        clause per ADR-0011).
     :param widget_view: Which view a widget shows now: "rain_event",
         "dry_spell" or "temperature_ranges", the feature mapped
         (`lookout.snapshot.widget`).
@@ -1749,6 +1784,7 @@ class Snapshot:
     condition_ribbon: Optional[ConditionRibbon]
     rain_events: RainEvents
     dry_spell: DrySpellNow
+    rain_now: RainNow
     rain_tab: RainTab
     temperature_context: TemperatureContext
     almanac: Almanac

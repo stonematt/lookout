@@ -15,8 +15,8 @@ Functions:
 - completed_curves(event_catalog, archive, skip, limit): Curves of completed
   events, newest first, for the refresh run to write once each.
 - newest_event(event_catalog, observed_at_ms): The catalog event that ended
-  last, up to a time: the feature's rain rule reads it against
-  `RAIN_HOURS`.
+  last, up to a time: the now story's event when none is live
+  (`lookout.snapshot.rain_now`).
 """
 
 from typing import (
@@ -58,11 +58,6 @@ from lookout.snapshot.values import number
 from lookout.utils.log_util import app_logger
 
 logger = app_logger(__name__)
-
-RAIN_HOURS = 12.0
-"""An event live or ended at most this many hours ago is rain now: the rain
-rule of the feature, counted to the build time."""
-
 
 # A reading more than this many minutes after the one before follows a gap
 # (the Event Catalog's quality rule and the Streamlit rate chart's).
@@ -423,7 +418,7 @@ def newest_event(
 
     :param event_catalog: The Event Catalog, or None.
     :param observed_at_ms: The time to look back from: the build time for
-        the feature.
+        the now story.
     :return: The event's catalog row, or None when none has ended.
     """
     if event_catalog is None or event_catalog.empty or observed_at_ms is None:
