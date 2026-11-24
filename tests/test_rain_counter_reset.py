@@ -21,9 +21,12 @@ from typing import Optional
 import pandas as pd
 import pytest
 
+from lookout.core.rain_corrections import detect_carryovers
+from lookout.core.rain_counter import rain_increments
+from lookout.core.rainfall_analysis import extract_daily_rainfall, hourly_rain
 from lookout.snapshot import Snapshot
 from lookout.snapshot.events import completed_curves
-from tests.fixtures.archive import RainSpell, build_archive
+from tests.fixtures.archive import Gap, RainSpell, build_archive
 from tests.snapshot_helpers import build, event_catalog, live_row, ms
 
 LATE = pd.Timedelta(minutes=5)  # Lookout Post's reset, 00:05 local
@@ -185,3 +188,103 @@ class TestTheRibbon:
         # 01:00-01:15 local holds three readings, the reset's among them.
         i = (ms("2026-01-06T09:00:00Z") - ribbon.start_ms) // (15 * 60 * 1000)
         assert ribbon.rain_in[i] == approx(0.03)
+
+
+class TestAResetHiddenInAGap:
+    """
+    The station is offline from 16:00 to 12:00 the next day while 0.4 in
+    falls after the reset, more than the 0.1 in the counter held before:
+    the counter rises across the gap, and only the gap's span tells the
+    reset (#654 review). Lookout Post's reset, 00:05, is learned from its
+    drops.
+    """
+
+    def archive(self) -> pd.DataFrame:
+        return build_archive(
+            "2026-01-04T08:00:00Z",
+            "2026-01-08T08:00:00Z",
+            rain=[
+                RainSpell("2026-01-04T18:00:00Z", 1, 0.1),  # Jan 4, 10:00
+                RainSpell("2026-01-05T18:00:00Z", 1, 0.1),  # Jan 5, 10:00
+                RainSpell("2026-01-06T10:00:00Z", 4, 0.1),  # Jan 6, 02:00
+            ],
+            gaps=[Gap("2026-01-06T00:00:00Z", "2026-01-06T20:00:00Z")],
+            daily_reset=LATE,
+        )
+
+    def test_the_day_after_the_gap_keeps_all_its_rain(self):
+        totals = extract_daily_rainfall(self.archive()).set_index("date")
+        hours = hourly_rain(self.archive()).set_index(["date", "hour"])["rain_in"]
+
+        assert totals.loc[date(2026, 1, 5), "rainfall"] == approx(0.1)
+        assert totals.loc[date(2026, 1, 6), "rainfall"] == approx(0.4)
+        assert hours[(date(2026, 1, 6), 12)] == approx(0.4)
+
+    def test_a_gap_over_midnight_but_not_the_reset_holds_none(self):
+        # Salmon Run resets at 21:00: offline 22:00 to 06:00, it does not
+        # reset at midnight, so the rise across the gap is the rain.
+        archive = build_archive(
+            "2026-01-03T08:00:00Z",
+            "2026-01-07T08:00:00Z",
+            rain=[
+                RainSpell("2026-01-04T18:00:00Z", 1, 0.1),  # Jan 4, 10:00
+                RainSpell("2026-01-06T05:00:00Z", 1, 0.1),  # Jan 5, 21:00
+                RainSpell("2026-01-06T10:00:00Z", 1, 0.1),  # Jan 6, 02:00
+            ],
+            gaps=[Gap("2026-01-06T06:00:00Z", "2026-01-06T14:00:00Z")],
+            daily_reset=EASTERN,
+        )
+
+        totals = extract_daily_rainfall(archive).set_index("date")["rainfall"]
+
+        assert totals[date(2026, 1, 5)] == approx(0.1)
+        assert totals[date(2026, 1, 6)] == approx(0.1)
+
+
+class TestRainSoFar:
+    def test_a_late_reset_never_counts_the_day_befores_rain(self):
+        # 0.3 in on Jan 4 2025 at 10:00; Jan 5 is dry. At noon on Jan 5 the
+        # rain so far is 0, though its 00:00 reading still held 0.3.
+        archive = build_archive(
+            "2024-12-01T08:00:00Z",
+            "2026-01-06T20:00:00Z",
+            rain=[RainSpell("2025-01-04T18:00:00Z", 1, 0.3)],
+            daily_reset=LATE,
+        )
+
+        snapshot = snapshot_of(archive, "2026-01-06T20:02:00Z")
+        (strip,) = [s for s in snapshot.temperature_context.strips if s.kind == "rain"]
+
+        assert [v for v in strip.values if v > 0] == [approx(0.3)]
+
+
+class TestCarryoverDetection:
+    def archive(self) -> pd.DataFrame:
+        # 0.3 in on Jan 5; offline over midnight, the counter keeps it.
+        return build_archive(
+            "2026-01-04T08:00:00Z",
+            "2026-01-07T08:00:00Z",
+            rain=[RainSpell("2026-01-05T18:00:00Z", 1, 0.3)],
+            gaps=[Gap("2026-01-06T07:00:00Z", "2026-01-06T09:00:00Z", True)],
+        )
+
+    def test_a_kept_total_is_a_carryover(self):
+        (carryover,) = detect_carryovers(self.archive())
+
+        assert carryover["affected_date"] == "2026-01-06"
+        assert carryover["carryover_amount"] == approx(0.3)
+
+    def test_a_small_drop_is_a_reset_not_a_carryover(self):
+        archive = self.archive()
+        first = archive["dateutc"] == ms("2026-01-06T09:00:00Z")
+        archive.loc[first, "dailyrainin"] = 0.28
+
+        assert detect_carryovers(archive) == []
+
+
+class TestIncrements:
+    def test_an_increment_is_never_negative(self):
+        # A negative counter (a bad reading) is a drop: its value, clamped.
+        counter = pd.Series([0.2, -0.01])
+
+        assert rain_increments(counter).tolist()[1:] == [0.0]

@@ -5,9 +5,10 @@ The Streamlit Rain tab's data prep, moved behind `build_snapshot` and set to
 the new site's rules:
 
 - Every rain total is an archive sum with today's live total stitched in
-  (spec #66, decided 2026-10-30): a day's total is its highest `dailyrainin`,
-  and today's is the live reading's (`SnapshotConditions.rain_today_in`), so
-  the Rain tab, the Overview and `/current` show one number for today.
+  (spec #66, decided 2026-10-30): a day's total is what its readings add
+  to `dailyrainin`, a counter drop being the reset (#654), and today's is
+  the live reading's (`SnapshotConditions.rain_today_in`), so the Rain tab,
+  the Overview and `/current` show one number for today.
 - Every value over a window goes through the gap rules
   (`lookout.snapshot.gaps`): a total is summed over the window's counted days
   and prorated; an invalid window's value is None and never computed.

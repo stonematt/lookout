@@ -8,8 +8,9 @@ the same day two ways:
 - The counted days (`ArchiveCoverage`): each station-local day's verdict
   from the archive's readings (GLOSSARY.md, "counted day"). Temperature,
   solar and the gaps section judge their windows by it.
-- The daily rain series: each day's highest `dailyrainin`, NaN for a day
-  with rows but no counter reading; today's is the live reading's daily
+- The daily rain series: each day's rain, what its readings add to
+  `dailyrainin` (a counter drop is the reset, #654), NaN for a day with
+  rows but no counter reading; today's is the live reading's daily
   counter when that reading is today's (`SnapshotConditions.rain_today_in`).
 - The rain day kind: a view over the two in which a counted day with no
   counter value is a gap. The Rain tab, the almanac, rain events and the
@@ -126,7 +127,7 @@ def _daily_rain(
     archive: pd.DataFrame, current: SnapshotConditions, clock: StationClock
 ) -> Dict[date, float]:
     """
-    The daily rain series: each day's highest counter; today's live.
+    The daily rain series: each day's rain from the counter; today's live.
 
     :param archive: The station's archive as stored.
     :param current: Current conditions: today's live rain, or None.

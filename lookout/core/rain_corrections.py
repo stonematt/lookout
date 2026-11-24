@@ -59,16 +59,19 @@ CARRYOVER_TOLERANCE_IN = 0.05
 
 def _kept_total(last_val: float, first_val: float) -> bool:
     """
-    Whether a reading kept the counter's previous total: no reset between.
+    Whether a reading kept the counter's previous, non-zero total.
 
-    :param last_val: The previous day's last `dailyrainin`.
+    The counter kept it when it did not reset: by `rain_increments`, a
+    reset reading's rain is its whole value. A small drop is a reset too,
+    so it is never a carryover.
+
+    :param last_val: The previous day's last `dailyrainin`, above zero.
     :param first_val: The day's first `dailyrainin`, after the gap.
-    :return: True when the counter did not drop (a drop is the reset) and
-        the reading added under `CARRYOVER_TOLERANCE_IN`.
+    :return: True when the counter did not reset and the reading added
+        under `CARRYOVER_TOLERANCE_IN`.
     """
     added = float(rain_increments(pd.Series([last_val, first_val])).iloc[1])
-    kept = first_val - added
-    return abs(kept - last_val) < 1e-9 and added < CARRYOVER_TOLERANCE_IN
+    return added != first_val and added < CARRYOVER_TOLERANCE_IN
 
 
 def detect_carryovers(archive_df: pd.DataFrame) -> List[Dict]:
@@ -113,7 +116,7 @@ def detect_carryovers(archive_df: pd.DataFrame) -> List[Dict]:
             # Carryover if the counter did not reset (no drop: the day's
             # first reading still holds the previous total) and the total
             # is non-trivial.
-            if _kept_total(last_val, first_val) and last_val > 0.01:
+            if last_val > 0.01 and _kept_total(last_val, first_val):
                 carryovers.append(
                     {
                         "affected_date": str(day),

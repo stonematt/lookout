@@ -10,6 +10,7 @@ The Rain tab's prep (#83), read by `lookout.snapshot.rain_tab`:
   (GLOSSARY.md), Oct 1 to Sep 30, named by the year it ends in.
 - dry_spells: completed dry spells in a series of daily totals.
 - hourly_rain: the rain that fell in each station-local hour.
+- reading_rain: the rain each reading adds to the daily counter.
 """
 
 from datetime import date
@@ -55,7 +56,7 @@ def extract_daily_rainfall(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFra
     days = sorted(to_local(df["dateutc"], tz).dt.date.unique())
     totals = pd.Series(np.nan, index=days, dtype=float)
     if "dailyrainin" in df:
-        readings = _reading_rain(df, tz)
+        readings = reading_rain(df, tz)
         summed = readings.groupby(readings["local"].dt.date)["rain_in"].sum()
         totals = summed.round(3).reindex(days)
 
@@ -697,24 +698,32 @@ def dry_spells(daily: pd.Series, wet_in: float = WET_DAY_IN) -> pd.DataFrame:
     return pd.DataFrame(spells, columns=["first_day", "last_day", "days"])
 
 
-def _reading_rain(df: pd.DataFrame, tz: str) -> pd.DataFrame:
+def reading_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     """
     The rain each reading with a daily counter adds, oldest first.
 
-    From `rain_counter.rain_increments`: a counter drop is the reset. The
-    first reading adds nothing: nothing before it says how much of its
-    counter is new (at 00:00 it may still hold yesterday's total).
+    From `rain_counter.rain_increments`, given the readings' times: a
+    counter drop is the reset, and so is a gap that spans the station's
+    usual reset time. The first reading adds nothing: nothing before it says
+    how much of its counter is new (at 00:00 it may still hold yesterday's
+    total).
 
     :param df: Readings with `dateutc` (epoch ms) and `dailyrainin`.
     :param tz: The station-local zone.
-    :return: `local` (station-local time) and `rain_in`, one row per
-        reading whose counter is present.
+    :return: `dateutc`, `local` (station-local time) and `rain_in`, one row
+        per reading whose counter is present.
     """
     rows = df[["dateutc", "dailyrainin"]].dropna(subset=["dailyrainin"])
     rows = rows.sort_values("dateutc")
     counter = rows["dailyrainin"].astype(float)
-    rain = rain_increments(counter).fillna(0.0)
-    return pd.DataFrame({"local": to_local(rows["dateutc"], tz), "rain_in": rain})
+    rain = rain_increments(counter, rows["dateutc"], tz).fillna(0.0)
+    return pd.DataFrame(
+        {
+            "dateutc": rows["dateutc"],
+            "local": to_local(rows["dateutc"], tz),
+            "rain_in": rain,
+        }
+    )
 
 
 def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
@@ -738,7 +747,7 @@ def hourly_rain(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> pd.DataFrame:
     columns = ["date", "hour", "rain_in"]
     if df.empty or "dailyrainin" not in df:
         return pd.DataFrame(columns=columns)
-    readings = _reading_rain(df, tz)
+    readings = reading_rain(df, tz)
     if readings.empty:
         return pd.DataFrame(columns=columns)
     local = readings["local"]
