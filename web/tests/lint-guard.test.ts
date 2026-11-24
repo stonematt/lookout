@@ -1,7 +1,8 @@
 /**
  * The lint guard on HTML built from snapshot values (#148, #260): an
  * unescaped value assigned to innerHTML fails `npm run lint`, and one passed
- * through `esc` or `escapeHtml` does not.
+ * through `esc` or `escapeHtml`, or built with the `html` tag (#261), does
+ * not.
  */
 
 import { ESLint } from "eslint";
@@ -36,6 +37,20 @@ describe("the innerHTML lint guard", () => {
         "declare function escapeHtml(v: unknown): string;",
         "export function f(el: HTMLElement, name: string): void {",
         "  el.innerHTML = `<b>${esc(name)}</b><i>${escapeHtml(name)}</i>`;",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    expect(rules).toEqual([]);
+  });
+
+  it("passes markup built with the html tagged template (#261)", async () => {
+    const rules = await lint(
+      [
+        "declare function html(s: TemplateStringsArray, ...v: unknown[]): string;",
+        "export function f(el: HTMLElement, name: string): void {",
+        "  el.innerHTML = html`<b>${name}</b>`;",
+        '  el.insertAdjacentHTML("beforeend", html`<i>${name}</i>`);',
         "}",
         "",
       ].join("\n"),

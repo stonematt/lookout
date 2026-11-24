@@ -1,7 +1,8 @@
 /**
  * The element helpers the views build with: `make` for HTML, `spoken` and
- * `spokenRunOn` for screen-reader-only text, `svgEl` for SVG, and
- * `escapeHtml` for any value written into an HTML template.
+ * `spokenRunOn` for screen-reader-only text, `svgEl` for SVG, `escapeHtml`
+ * for any value written into an HTML template, and `html`, the tagged
+ * template that escapes each value for you.
  */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -92,4 +93,50 @@ export function svgEl<K extends keyof SVGElementTagNameMap>(
  */
 export function escapeHtml(value: string | number): string {
   return String(value).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+declare const HTML_FRAGMENT: unique symbol;
+
+/**
+ * Markup built by `html`. It is a string to the type checker, so it goes
+ * straight into `innerHTML` or `insertAdjacentHTML`; at runtime it is a
+ * `String` object `html` remembers, which a snapshot's plain strings and
+ * numbers can never be, so only `html`'s own output passes unescaped.
+ */
+export type Html = string & { readonly [HTML_FRAGMENT]: true };
+
+/** What a `html` template takes: text and numbers (escaped), or fragments. */
+export type HtmlValue = string | number | boolean | Html | readonly Html[];
+
+/** Every fragment `html` built. */
+const fragments = new WeakSet<object>();
+
+/** One interpolation as markup: a fragment as is, anything else escaped. */
+function htmlPart(value: HtmlValue): string {
+  if (Array.isArray(value)) return value.map(htmlPart).join("");
+  if (typeof value === "object" && fragments.has(value)) return String(value);
+  return escapeHtml(String(value));
+}
+
+/**
+ * The tagged template every `innerHTML` block is built with (#261): each
+ * `${value}` is escaped as `escapeHtml` does, unless it is a fragment
+ * `html` built, or a list of them, which is markup already. ESLint's
+ * `no-unsanitized` knows the tag (`escape.taggedTemplates`), so a block
+ * built through it needs no `eslint-disable`. Prettier would format an
+ * `html` template as HTML and change its whitespace, which is text, so
+ * `.prettierrc.json` turns embedded formatting off.
+ *
+ * @param strings - The template's literal markup.
+ * @param values - Its interpolations.
+ * @returns The markup, as a fragment another `html` template takes as is.
+ */
+export function html(strings: TemplateStringsArray, ...values: readonly HtmlValue[]): Html {
+  let markup = strings[0]!;
+  values.forEach((value, i) => {
+    markup += htmlPart(value) + strings[i + 1]!;
+  });
+  const fragment = new String(markup);
+  fragments.add(fragment);
+  return fragment as unknown as Html;
 }
