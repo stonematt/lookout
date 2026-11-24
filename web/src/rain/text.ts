@@ -15,15 +15,13 @@ import {
   formatDayCount,
   formatDays,
   formatDaysSpoken,
-  formatStamp,
-  formatTime,
   hourText,
   inches,
-  localDay,
 } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
-import { WHOLE_DRY_DAYS_VERSION, rainNow } from "../snapshot.js";
+import { nowStory, storyLine } from "../now-story.js";
+import { WHOLE_DRY_DAYS_VERSION } from "../snapshot.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
@@ -435,45 +433,18 @@ export function yearLeftOut(curve: WaterYearCurve): string {
 }
 
 /**
- * How long ago, as the now part says it: minutes under an hour, whole hours
- * under two days, whole days after.
- *
- * @param ms - The time since, in milliseconds.
- * @returns E.g. "40 min", "9 h", "3 d".
- */
-export function agoText(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
-}
-
-/**
- * The Rain tab head's now part (ADR-0011, #664): while the snapshot tells
- * the now story, "Raining · 0.08 in/h" or "Rain stopped 40 min ago", then
- * the event's rain since it started; outside it, last rain alone. Raining,
- * the rate and the event are Python's (`rain_now`); the site only words
- * them.
+ * The Rain tab head's now part (ADR-0011, #664): the now story in one line,
+ * worded by the one now-story helper (`now-story.ts`) the Overview's rain
+ * tile uses too, so the two never disagree (#694).
  *
  * @param snapshot - The dashboard snapshot.
- * @returns E.g. "Raining · 0.12 in/h · 0.30 in since 2:40 pm", "Last rain
+ * @returns E.g. "Raining · 0.12 in/hr · 0.30 in since 2:40 pm", "Last rain
  *   9 h ago"; null for a snapshot without `rain_now` (before #659), which
  *   draws no now part.
  */
 export function nowLine(snapshot: DashboardSnapshot): string | null {
-  const rain = rainNow(snapshot);
-  if (!rain) return null;
-  if (rain.last_rain_ms === null) return "No rain in the record yet";
-  const built = snapshot.built_at_ms;
-  const ago = agoText(built - rain.last_rain_ms);
-  if (rain.rate_in_hr === null) return `Last rain ${ago} ago`;
-  const lead = rain.raining
-    ? `Raining · ${inches(rain.rate_in_hr, { digits: 2 })}/h`
-    : `Rain stopped ${ago} ago`;
-  if (rain.event_start_ms === null || rain.event_total_in === null) return lead;
-  const start = rain.event_start_ms;
-  const since = localDay(start) === localDay(built) ? formatTime(start) : formatStamp(start);
-  return `${lead} · ${inches(rain.event_total_in, { digits: 2 })} since ${since}`;
+  const story = nowStory(snapshot);
+  return story ? storyLine(story) : null;
 }
 
 /** "1 wet hour", "1,292 wet hours". */

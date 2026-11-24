@@ -33,11 +33,11 @@ import "./rain-lead.css";
 
 import { make, spoken } from "../dom.js";
 import { inches, inchesPerHour } from "../format.js";
-import { rainNow } from "../snapshot.js";
-import type { DashboardSnapshot, RainNow, Verdict } from "../snapshot.js";
+import { nowStory, toldStory } from "../now-story.js";
+import type { ToldStory } from "../now-story.js";
+import type { DashboardSnapshot, Verdict } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
 import { rainTile } from "./mosaic-tiles.js";
-import { sinceWords, stoppedAgo } from "./feature.js";
 import { storyChart } from "./rain-lead-chart.js";
 import { meterParts, meterShown } from "./wet-meter.js";
 
@@ -66,19 +66,14 @@ export function followSeason(panel: HTMLElement): void {
   panel.querySelector<HTMLElement>("[data-part=season]")?.scrollIntoView?.({ block: "start" });
 }
 
-/** The now story, when the snapshot tells it. */
-type Story = RainNow & { rate_in_hr: number };
-
 /**
  * The now story while rain leads, or null.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The story.
  */
-function storyOf(snapshot: DashboardSnapshot): Story | null {
-  const rain = rainNow(snapshot);
-  if (snapshot.feature?.kind !== "rain" || rain === null || rain.rate_in_hr === null) return null;
-  return { ...rain, rate_in_hr: rain.rate_in_hr };
+function storyOf(snapshot: DashboardSnapshot): ToldStory | null {
+  return snapshot.feature?.kind === "rain" ? toldStory(snapshot) : null;
 }
 
 /**
@@ -93,15 +88,6 @@ export function rainLeads(snapshot: DashboardSnapshot): boolean {
   return storyOf(snapshot) !== null;
 }
 
-/** The event's part of the story, "0.31 in since 2:40 pm"; null without an event. */
-function eventWords(snapshot: DashboardSnapshot, rain: Story): [string, string] | null {
-  if (rain.event_start_ms === null || rain.event_total_in === null) return null;
-  return [
-    inches(rain.event_total_in, { digits: 2 }),
-    ` since ${sinceWords(rain.event_start_ms, snapshot.built_at_ms)}`,
-  ];
-}
-
 /** A run of words that never wraps inside itself. */
 function run(...parts: (string | Node)[]): HTMLElement {
   const node = make("span", "rain-lead-run");
@@ -110,15 +96,18 @@ function run(...parts: (string | Node)[]): HTMLElement {
 }
 
 /**
- * The story's finding: raining, the rate in Fact type over the event's
- * rain; stopped, one line in two runs that wrap after the dot.
+ * The story's finding, in the one now story's words (`now-story.ts`, #694):
+ * raining, the rate in Fact type over the event's rain; stopped, one line in
+ * two runs that wrap after the dot.
  *
  * @param snapshot - The dashboard snapshot.
  * @param rain - The story.
  * @returns The story's elements.
  */
-function story(snapshot: DashboardSnapshot, rain: Story): HTMLElement[] {
-  const event = eventWords(snapshot, rain);
+function story(snapshot: DashboardSnapshot, rain: ToldStory): HTMLElement[] {
+  const told = nowStory(snapshot);
+  const event = told?.event ?? null;
+  const eventRun = (words: [string, string]) => run(make("b", "", words[0]), ` ${words[1]}`);
   const finding = make("h2", "tile-finding tile-finding-lead rain-lead-finding");
   finding.dataset.part = "finding";
   if (rain.raining) {
@@ -127,14 +116,13 @@ function story(snapshot: DashboardSnapshot, rain: Story): HTMLElement[] {
     rate.setAttribute("aria-hidden", "true");
     const unit = make("span", "rain-lead-unit", "in/hr");
     rate.append(inchesPerHour(rain.rate_in_hr).replace(/ in\/hr$/, ""), unit);
-    finding.append(event ? run(make("b", "", event[0]), event[1]) : "in the last hour");
+    finding.append(event ? eventRun(event) : "in the last hour");
     const body = make("div", "rain-lead-body");
     body.append(rate, spoken(`Raining, ${inchesPerHour(rain.rate_in_hr)}: `), finding);
     return [body];
   }
-  const ago = Math.max(0, snapshot.built_at_ms - (rain.last_rain_ms ?? snapshot.built_at_ms));
-  const stopped = `Rain stopped ${stoppedAgo(ago)} ago`;
-  if (event) finding.append(run(`${stopped} ·`), " ", run(make("b", "", event[0]), event[1]));
+  const stopped = told?.lead ?? "";
+  if (event) finding.append(run(`${stopped} ·`), " ", eventRun(event));
   else finding.append(run(stopped));
   return [finding];
 }

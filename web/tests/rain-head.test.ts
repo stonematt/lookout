@@ -10,9 +10,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { LABEL_CHAR_PX } from "../src/charts/svg.js";
 import { drawYearCurves } from "../src/rain/charts.js";
 import { bandLabels } from "../src/rain/head.js";
+import { agoWords } from "../src/now-story.js";
 import { renderRain } from "../src/rain/index.js";
 import {
-  agoText,
   nowLine,
   seasonLead,
   stripUsualWords,
@@ -77,7 +77,7 @@ describe("the head's now part", () => {
 
   it("tells the now story while it rains: the rate, then the event since its start", () => {
     // The raining golden: the event started at 2 pm the same day.
-    expect(nowLine(raining)).toBe("Raining · 0.12 in/h · 0.30 in since 2:00 pm");
+    expect(nowLine(raining)).toBe("Raining · 0.12 in/hr · 0.30 in since 2:00 pm");
   });
 
   it("says rain stopped while the story is still told, and the rate alone with no event", () => {
@@ -89,7 +89,7 @@ describe("the head's now part", () => {
       event_total_in: null,
     });
     expect(nowLine(stopped)).toBe("Rain stopped 40 min ago");
-    expect(nowLine(withNow({ raining: true, rate_in_hr: 0.08 }))).toBe("Raining · 0.08 in/h");
+    expect(nowLine(withNow({ raining: true, rate_in_hr: 0.08 }))).toBe("Raining · 0.08 in/hr");
   });
 
   it("draws no now part for a snapshot without rain_now (N−1)", () => {
@@ -98,7 +98,7 @@ describe("the head's now part", () => {
   });
 
   it("words how long ago in minutes, hours, then days", () => {
-    expect([40 * MINUTE, 9 * HOUR, 47 * HOUR, 73 * HOUR].map(agoText)).toEqual([
+    expect([40 * MINUTE, 9 * HOUR, 47 * HOUR, 73 * HOUR].map(agoWords)).toEqual([
       "40 min",
       "9 h",
       "47 h",

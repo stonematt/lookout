@@ -189,10 +189,10 @@ describe("the rain tile, stopped (the raining golden, rain stopped 40 minutes ag
     expect(svgText().some((t) => t?.startsWith("last hour"))).toBe(false);
   });
 
-  it("words a stop over an hour ago in hours and minutes", () => {
+  it("words a stop over an hour ago in whole hours, as the boards do", () => {
     renderOverview(panel, stopped(130));
-    expect(words(now().querySelector("[data-part=finding]"))).toMatch(/^Rain stopped 2 h 10 m ago/);
-    expect(svgText()).toContain("dry 2 h 10 m");
+    expect(words(now().querySelector("[data-part=finding]"))).toMatch(/^Rain stopped 2 h ago/);
+    expect(svgText()).toContain("dry 2 h");
   });
 });
 

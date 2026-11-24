@@ -27,8 +27,8 @@
  * (`readingDayWords`, the hero's).
  *
  * Offers `featureView` (the tile's words and link, for a snapshot that
- * carries a feature), `featureTile` (the Overview section), and `stoppedAgo`
- * and `sinceWords` (the rain tile's story, #661).
+ * carries a feature) and `featureTile` (the Overview section). The rain
+ * tile's now story is worded in `now-story.ts` (#694).
  */
 import "./feature.css";
 
@@ -38,12 +38,9 @@ import {
   formatDayCount,
   formatDuration,
   formatDurationSpoken,
-  formatStamp,
-  formatTime,
   hourName,
   inches,
   inHg,
-  localDay,
   mph,
   percent,
 } from "../format.js";
@@ -154,17 +151,6 @@ function readingValue(feature: Feature, value: number): [string, string | null] 
 function againstUsualEvent(snapshot: DashboardSnapshot): string {
   const median = snapshot.rain_events.all_time.median_in;
   return median === null ? "" : `, against ${inches(median, { digits: 2 })} for a usual event`;
-}
-
-/** How long ago rain stopped: `40 min` under an hour, then `2 h 10 m`. */
-export function stoppedAgo(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  return minutes < 60 ? `${minutes} min` : formatDuration(ms);
-}
-
-/** When the event started: `2:40 pm`, or `Nov 22, 9:05 pm` on an earlier day. */
-export function sinceWords(startMs: number, builtMs: number): string {
-  return localDay(startMs) === localDay(builtMs) ? formatTime(startMs) : formatStamp(startMs);
 }
 
 /**
