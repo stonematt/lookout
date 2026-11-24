@@ -371,6 +371,18 @@ percent of it, as in "74% of usual", with the count of years it rests on
 none before an earlier year covers the date, and no percent of a usual of 0.
 _Avoid_: normal rainfall, average to date.
 
+### usual range
+
+A window's usual rain on the Rain tab's window strip: the same window, a
+whole number of years back, in each earlier year whose window is valid or
+prorated (the water year's rests on the years **usual rain to date** does).
+From three such years it is their 25th to 75th percentile, as usual wet
+hours' band is; with one or two, the span of their plain values; with none,
+there is no range and the window carries its rain alone. A window outside
+it is marked "above usual range" or "below usual range", words kept apart
+from the water year's verdict; one still running is never "below" (#640).
+_Avoid_: normal range, usual band (for an hour-of-day band).
+
 ### usual wet hours to date
 
 The range of wet hours this water year would have to date if it were as wet

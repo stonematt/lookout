@@ -220,7 +220,7 @@ export function yearsHeadline(tab: RainTab): string {
   return `${lead}, against ${listText(named)} by this date`;
 }
 
-/** The verdict's sentence words: the snapshot's word, then its preposition. */
+/** Each verdict word as the headline's phrase against the usual. */
 const VERDICT_WORDS: Record<Verdict, string> = {
   wetter: "wetter than usual",
   drier: "drier than usual",

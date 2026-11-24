@@ -35,9 +35,10 @@ the new site's rules:
   `ABOUT_THE_SAME` of 100, else "wetter" or "drier".
 - The window strip (#640) sets each window's rain against the same window
   a whole number of years back, each earlier window judged by the gap
-  rules, as a range: from `BAND_YEARS` years the band usual wet hours use,
-  below that the plain values. A window outside it is marked "above usual
-  range" or "below usual range"; one still running is never below.
+  rules, as a range: from 3 years the band usual wet hours use
+  (`lookout.snapshot.wet_hours.usual_band`), below that the plain values.
+  A window outside it is marked "above usual range" or "below usual
+  range"; one still running is never below.
 
 Functions:
 - rain_tab(history, days): the `RainTab` section.
@@ -82,12 +83,7 @@ from lookout.snapshot.model import (
     WetHoursToDate,
 )
 from lookout.snapshot.values import iso_day, number
-from lookout.snapshot.wet_hours import (
-    BAND,
-    BAND_YEARS,
-    PERCENTILE_YEARS,
-    wet_hours_to_date,
-)
+from lookout.snapshot.wet_hours import usual_band, wet_hours_to_date
 from lookout.utils.dateutc import day_span, from_local_date
 
 RECENT_WINDOW = "90d"
@@ -131,7 +127,9 @@ def rain_tab(history: pd.DataFrame, days: CountedDays) -> RainTab:
         dry_spells=_dry_spells(water_year_status, days),
         day_index=water_year_day_index(days.clock.today),
         water_years=water_years,
-        usual_to_date=_usual_to_date(water_years, to_date),
+        usual_to_date=_usual_to_date(
+            water_years[-1].to_date_in if water_years else None, to_date
+        ),
         wet_hours_to_date=wet_to_date,
         window_strip=_window_strip(rain_windows, to_date, days),
     )
@@ -346,19 +344,18 @@ def _to_date_years(
 
 
 def _usual_to_date(
-    curves: Tuple[WaterYearCurve, ...], earlier: Tuple[WaterYearCurve, ...]
+    current: Optional[float], earlier: Tuple[WaterYearCurve, ...]
 ) -> Optional[UsualToDate]:
     """
     This water year's rain to date against the usual rain by this date.
 
-    :param curves: The water-year curves, oldest first; the last is this one.
+    :param current: This water year's rain to date; None when unknown.
     :param earlier: The earlier years the usual rests on (`_to_date_years`).
     :return: The usual, this year's percent of it and the verdict; None
         when no earlier year counts.
     """
-    if not curves or not earlier:
+    if not earlier:
         return None
-    current = curves[-1].to_date_in
     # The percent is of the published values, so it reads from them exactly;
     # Python's round (half to even), as the feature's percentile is.
     usual_in = round(median(c.to_date_in for c in earlier), 3)  # as `number`
@@ -477,13 +474,13 @@ def _strip_window(
     :param running: Whether the window ends today, so its rain can grow.
     :return: The `StripWindow`.
     """
-    values = pd.Series([e.rain_in for e in earlier], dtype=float)
+    values = [e.rain_in for e in earlier]
     low = high = band = None
-    if len(values) >= BAND_YEARS:
-        low, high = (number(values.quantile(q)) for q in BAND)
-        band = "percentile" if len(values) >= PERCENTILE_YEARS else "range"
-    elif len(values):
-        low, high = number(values.min()), number(values.max())
+    usual = usual_band(values)
+    if usual is not None:
+        low, high, band = number(usual[0]), number(usual[1]), usual[2]
+    elif values:
+        low, high = min(values), max(values)
     mark: Optional[StripMark] = None
     rain = window.total_in
     if rain is not None and low is not None and high is not None:

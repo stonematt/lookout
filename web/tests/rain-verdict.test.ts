@@ -118,6 +118,11 @@ describe("the window strip's contract", () => {
     ["a verdict word as a mark", (w: Record<string, unknown>) => (w.mark = "wetter")],
     ["fewer earlier years than it rests on", (w: Record<string, unknown>) => (w.years = 5)],
     ["a range that is not a number", (w: Record<string, unknown>) => (w.low_in = "0.3")],
+    ["an unknown band", (w: Record<string, unknown>) => (w.band = "quartile")],
+    [
+      "an earlier year with no rain",
+      (w: Record<string, unknown>) => ((w.earlier as Record<string, unknown>[])[0]!.rain_in = null),
+    ],
   ])("refuses %s", (_case, spoil) => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as {
       rain_tab: { window_strip: Record<string, unknown>[] };

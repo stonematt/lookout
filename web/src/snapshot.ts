@@ -490,6 +490,10 @@ export type Verdict = (typeof VERDICTS)[number];
 export const STRIP_MARKS = ["above usual range", "below usual range"] as const;
 export type StripMark = (typeof STRIP_MARKS)[number];
 
+/** What the site calls a strip window's range (`StripBand`). */
+export const STRIP_BANDS = ["percentile", "range"] as const;
+export type StripBand = (typeof STRIP_BANDS)[number];
+
 /** One earlier year's rain over the same window (`EarlierWindowRain`). */
 export interface EarlierWindowRain {
   /** That window's last day, a whole number of years back. */
@@ -514,7 +518,7 @@ export interface StripWindow {
   low_in: number | null;
   high_in: number | null;
   /** "percentile" from 4 years, "range" (of N earlier years) at 3; null below. */
-  band: "percentile" | "range" | null;
+  band: StripBand | null;
   /** Null inside the range, with no range, or below while the window runs. */
   mark: StripMark | null;
 }
@@ -1507,6 +1511,10 @@ function checkWindowStrip(strip: unknown): void {
         amount(w.high_in) &&
         Array.isArray(w.earlier) &&
         w.earlier.length === w.years &&
+        w.earlier.every(
+          (e) => isRecord(e) && typeof e.last_day === "string" && typeof e.rain_in === "number",
+        ) &&
+        (w.band === null || (STRIP_BANDS as readonly unknown[]).includes(w.band)) &&
         (w.mark === null || (STRIP_MARKS as readonly unknown[]).includes(w.mark)),
     );
   if (!ok) throw new SnapshotContractError("dashboard: rain_tab.window_strip malformed");

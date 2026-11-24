@@ -9,8 +9,7 @@ rain against its usual range from the same window in earlier years, marked
 `build_snapshot` on a simulated archive.
 """
 
-from datetime import date
-from typing import Dict, Optional
+from typing import Dict
 
 import pandas as pd
 import pytest
@@ -45,34 +44,37 @@ def approx(value: float):
     return pytest.approx(value, abs=1e-3)
 
 
+def one_october(
+    inches: float, earlier: float = 1.0, start: str = "2024-09-25T07:00:00Z"
+) -> Snapshot:
+    """
+    One earlier October in the record and this one: the archive holds
+    Sep 25 - Oct 31 2024 and Sep 25 2025 on, so WY2025 covers Oct 1 - Oct
+    20. It rains `earlier` in on Oct 10 2024 and `inches` on Oct 10 2025;
+    the build is Mon Oct 20 2025, 23:59 PDT.
+    """
+    rain = [RainSpell("2025-10-10T18:00:00Z", 1, inches)]
+    if earlier:
+        rain.append(RainSpell("2024-10-10T18:00:00Z", 1, earlier))
+    archive = build_archive(
+        start,
+        "2025-10-21T07:00:00Z",
+        rain=rain,
+        gaps=[Gap("2024-11-01T07:00:00Z", "2025-09-25T07:00:00Z")],
+    )
+    return build(archive, "2025-10-21T06:59:00Z")
+
+
 class TestVerdict:
-    """
-    One earlier October in the record (WY2025, 1.00 in by Oct 20) and this
-    one: the archive holds Sep 25 - Oct 31 2024 and Sep 25 2025 on, so the
-    earlier year covers Oct 1 - Oct 20 and the usual is 1.00 in.
-    """
-
-    START = "2024-09-25T07:00:00Z"
-    END = "2025-10-21T07:00:00Z"
-    NOW = "2025-10-21T06:59:00Z"  # Mon Oct 20, 23:59 PDT
-    BETWEEN = Gap("2024-11-01T07:00:00Z", "2025-09-25T07:00:00Z")
-    EARLIER = RainSpell("2024-10-10T18:00:00Z", 1, 1.0)
-
-    def build(self, inches: float, start: Optional[str] = None) -> Snapshot:
-        """This station with `inches` of rain on Oct 10 2025."""
-        archive = build_archive(
-            start or self.START,
-            self.END,
-            rain=[self.EARLIER, RainSpell("2025-10-10T18:00:00Z", 1, inches)],
-            gaps=[self.BETWEEN],
-        )
-        return build(archive, self.NOW)
+    """The verdict against one earlier year's 1.00 in by Oct 20."""
 
     @pytest.mark.parametrize(
         "inches, percent, verdict",
         [
             (1.16, 116, "wetter"),
             (1.15, 115, "about the same"),
+            # Read from the published whole percent: 115.4% shows as 115.
+            (1.154, 115, "about the same"),
             (1.0, 100, "about the same"),
             (0.85, 85, "about the same"),
             (0.84, 84, "drier"),
@@ -81,16 +83,24 @@ class TestVerdict:
     def test_within_15_percent_of_usual_is_about_the_same(
         self, inches, percent, verdict
     ):
-        usual = self.build(inches).rain_tab.usual_to_date
+        usual = one_october(inches).rain_tab.usual_to_date
 
         assert usual.years == 1
+        assert usual.water_years == (2025,)
         assert usual.usual_in == approx(1.0)
         assert usual.percent == percent
         assert usual.verdict == verdict
 
+    def test_any_rain_against_a_usual_of_nothing_is_wetter(self):
+        usual = one_october(0.2, earlier=0).rain_tab.usual_to_date
+
+        assert usual.usual_in == 0.0
+        assert usual.percent is None
+        assert usual.verdict == "wetter"
+
     def test_no_verdict_before_an_earlier_year_covers_the_date(self):
         # The record begins Oct 10 2024: WY2025 does not reach back to Oct 1.
-        snapshot = self.build(1.5, start="2024-10-10T07:00:00Z")
+        snapshot = one_october(1.5, start="2024-10-10T07:00:00Z")
 
         assert snapshot.rain_tab.usual_to_date is None
 
@@ -194,11 +204,11 @@ class TestWindowStrip:
             assert window.low_in is None and window.mark is None
 
     def test_one_earlier_year_is_its_plain_value(self):
-        snapshot = TestVerdict().build(0.5)
+        snapshot = one_october(0.5)
         water_year = strip(snapshot)["water_year"]
 
         assert water_year.years == 1
         assert water_year.band is None
         assert (water_year.low_in, water_year.high_in) == (approx(1.0), approx(1.0))
         assert water_year.mark is None  # still running: never "below"
-        assert water_year.earlier[0].last_day == date(2024, 10, 20).isoformat()
+        assert water_year.earlier[0].last_day == "2024-10-20"

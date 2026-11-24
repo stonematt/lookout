@@ -21,10 +21,11 @@ date countable) gives its wet share, times this year's countable hours.
 Functions:
 - wet_hours(stitched, clock): The `WetHours` field.
 - wet_hours_to_date(stitched, clock): The Rain tab's `WetHoursToDate`.
+- usual_band(values): The usual band of earlier years' values.
 """
 
 from datetime import timedelta
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -33,6 +34,7 @@ from lookout.core.wet_hours import daily_wet_hours, hour_start, judge_hours
 from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import (
     EarlierWetYear,
+    UsualWetBand,
     UsualWetHours,
     WetHours,
     WetHoursDay,
@@ -237,10 +239,10 @@ def _usual(earlier: List[EarlierWetYear], countable: int) -> Optional[UsualWetHo
     if not earlier:
         return None
     low = high = band = None
-    if len(earlier) >= BAND_YEARS:
-        shares = pd.Series([y.wet_hours / y.countable_hours for y in earlier])
-        low, high = (_as_hours(float(shares.quantile(q)), countable) for q in BAND)
-        band = "percentile" if len(earlier) >= PERCENTILE_YEARS else "range"
+    shares = usual_band([y.wet_hours / y.countable_hours for y in earlier])
+    if shares is not None:
+        low, high = (_as_hours(share, countable) for share in shares[:2])
+        band = shares[2]
     return UsualWetHours(
         years=len(earlier),
         earlier=tuple(earlier),
@@ -248,3 +250,20 @@ def _usual(earlier: List[EarlierWetYear], countable: int) -> Optional[UsualWetHo
         high_hours=high,
         band=band,
     )
+
+
+def usual_band(values: Sequence[float]) -> Optional[Tuple[float, float, UsualWetBand]]:
+    """
+    The usual band of earlier years' values: the one band rule usual wet
+    hours and the Rain tab's window strip (#640) share.
+
+    :param values: One value per earlier year.
+    :return: The `BAND` percentiles and what the site calls them,
+        "percentile" from `PERCENTILE_YEARS` years, "range" below; None
+        under `BAND_YEARS` years, where the plain values stand instead.
+    """
+    if len(values) < BAND_YEARS:
+        return None
+    series = pd.Series(values, dtype=float)
+    low, high = (float(series.quantile(q)) for q in BAND)
+    return low, high, "percentile" if len(values) >= PERCENTILE_YEARS else "range"
