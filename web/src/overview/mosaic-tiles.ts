@@ -34,7 +34,7 @@
  */
 import { lastDays } from "../rain/charts.js";
 import { currentYear, drySpellNow, drySpellShown } from "../rain/text.js";
-import { missingDay, runs, scale } from "../charts/svg.js";
+import { hatchMissingDays, missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
 import { WET_DAY_IN, degrees, formatDayCount, inches, percent, signed } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
@@ -178,7 +178,8 @@ const MIN_GAP_PX = 4;
 /**
  * Hatch this season's days the record cannot count (#662) as columns the
  * plot's height, behind the curves, so a missing day never reads as a dry
- * one. A day before the archive is left blank (`missingDay`).
+ * one: the charts' one hatch (`hatchMissingDays`), each place's column
+ * centred on it. A day before the archive is left blank (`missingDay`).
  *
  * @param svg - The mini chart.
  * @param reasons - This season's reason per place (`WaterYearCurve.reason`).
@@ -191,25 +192,12 @@ function hatchSeasonGaps(
   x: (i: number) => number,
   bottom: number,
 ): void {
-  const spans = runs(reasons.length, (i) => missingDay(reasons[i] ?? null));
-  if (!spans.length) return;
-  const hatch = svgHatch(svg);
+  if (!reasons.some((reason) => missingDay(reason))) return;
   const pitch = x(1) - x(0);
-  for (const [a, b] of spans) {
-    const middle = (x(a) + x(b)) / 2;
-    const width = Math.max(MIN_GAP_PX, x(b) - x(a) + pitch);
-    svg.append(
-      svgEl("rect", {
-        // Never left of the chart's edge, where the first places sit.
-        x: Math.max(0, middle - width / 2),
-        y: 0,
-        width,
-        height: bottom,
-        class: "mosaic-gap",
-        fill: hatch,
-      }),
-    );
-  }
+  hatchMissingDays(svg, reasons, svgHatch(svg), (i) => x(i) - pitch / 2, pitch, 0, bottom, null, {
+    minWidth: MIN_GAP_PX,
+    cls: "mosaic-gap",
+  });
 }
 
 /** The water-year curves from Oct 1 to the crop's end, this year bold. */
