@@ -10,8 +10,8 @@
  *
  * - The tab is two tiles (`web/src/tiles.ts`, spec #332): the catalog
  *   (kicker, headline, scatter, folded source; #666), the phone's fixed
- *   top; under it, the event list, which the filter line alone drives (DESIGN.md "Event list", #254): one
- *   filter line pinned under any sticky header while the list scrolls
+ *   top; under it, the event list, which the filter line alone drives
+ *   (DESIGN.md "Event list", #254): one filter line pinned under any sticky header while the list scrolls
  *   (water year, sort and size, three selects: "2026–27", "Newest",
  *   "Showers and up"; the size kept in the browser), a count line with the
  *   days missing, the rows, "Show N more" and the folded method.
@@ -174,9 +174,10 @@ const FOCUS_NAMES = ["ev-year-select", "ev-sort-select", "ev-size-select", "ev-m
 /**
  * Where keyboard focus sits in the panel, as something the next mount can
  * find again: a row's header by its event, a control by its class, any
- * other element by its place among the panel's elements of its tag.
+ * other element by its place among the elements of its tag in its own row
+ * (`scope`, the row's event), or in the panel outside the rows.
  */
-type FocusMark = { selector: string } | { tag: string; index: number };
+type FocusMark = { selector: string } | { scope: string | null; tag: string; index: number };
 
 /** The panel's focused element as a mark, or null when focus is elsewhere. */
 function focusMark(panel: HTMLElement): FocusMark | null {
@@ -187,16 +188,26 @@ function focusMark(panel: HTMLElement): FocusMark | null {
   const name = FOCUS_NAMES.find((n) => el.classList.contains(n));
   if (name) return { selector: `.${name}` };
   const tag = el.tagName.toLowerCase();
-  return { tag, index: [...panel.querySelectorAll(tag)].indexOf(el) };
+  const row = el.closest<HTMLElement>(".ev-row");
+  const scope = row ? `.ev-row[data-start='${row.dataset.start}']` : null;
+  return { scope, tag, index: ofTag(row ?? panel, tag, !row).indexOf(el) };
+}
+
+/** The elements of a tag in a row, or in the panel outside its rows. */
+function ofTag(scope: HTMLElement, tag: string, outsideRows: boolean): HTMLElement[] {
+  const all = [...scope.querySelectorAll<HTMLElement>(tag)];
+  return outsideRows ? all.filter((e) => !e.closest(".ev-row")) : all;
 }
 
 /** Put focus back on the marked element, if the new markup still has it. */
 function refocus(panel: HTMLElement, mark: FocusMark | null): void {
   if (!mark) return;
-  const el =
-    "selector" in mark
-      ? panel.querySelector<HTMLElement>(mark.selector)
-      : panel.querySelectorAll<HTMLElement>(mark.tag)[mark.index];
+  let el: HTMLElement | null | undefined;
+  if ("selector" in mark) el = panel.querySelector<HTMLElement>(mark.selector);
+  else {
+    const scope = mark.scope ? panel.querySelector<HTMLElement>(mark.scope) : panel;
+    el = scope ? ofTag(scope, mark.tag, !mark.scope)[mark.index] : null;
+  }
   el?.focus({ preventScroll: true });
 }
 

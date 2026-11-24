@@ -834,6 +834,25 @@ describe("a newer snapshot mounted over the tab", () => {
     expect(document.activeElement).toBe(panel.querySelector(".ev-sort-select"));
   });
 
+  it("keeps keyboard focus on Show more", () => {
+    mountEvents(panel, longer(30, 1), deps);
+    panel.querySelector<HTMLElement>(".ev-more")!.focus();
+
+    mountEvents(panel, longer(30, 2), deps);
+
+    expect(document.activeElement).toBe(panel.querySelector(".ev-more"));
+  });
+
+  it("keeps keyboard focus on the open row's source fold, in that row", () => {
+    mountEvents(panel, raining(), deps);
+    const fold = () => panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-body summary")!;
+    fold().focus();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(document.activeElement).toBe(fold());
+  });
+
   it("does not announce an unchanged open event again", () => {
     mountEvents(panel, raining(), deps);
     const live = () =>
@@ -941,6 +960,18 @@ describe("each water year's gap status", () => {
     expect(missing().textContent).toBe(" · not archived yet");
     expect(missing().querySelector(".hatch-chip")).toBeNull();
     expect(method()).toContain("Water year 2024–25 is not archived yet");
+  });
+
+  it("keeps the events-only sum, unhatched and without a ≈, on a snapshot before the counts", () => {
+    mountEvents(
+      panel,
+      beforeCounts(twoYears(status({ missing_days: 40, status: "invalid", reason: "gap" }))),
+      deps,
+    );
+    pick("2025");
+
+    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.36 in");
+    expect(panel.querySelector(".ev-stats")!.textContent).not.toContain("≈");
   });
 
   it("notes a prorated year's days without a hatch or a ≈ on the events-only sum", () => {
