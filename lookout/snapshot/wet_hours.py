@@ -27,6 +27,9 @@ from lookout.snapshot.clock import StationClock
 from lookout.snapshot.model import WetHours, WetHoursDay, WetHoursWindow
 from lookout.utils.dateutc import HOUR_MS, day_span, from_local_date
 
+WINDOW_DAYS = (7, 30)
+"""The windows' lengths in days; the longest sets the hours judged."""
+
 STRIP_DAYS = 30
 """The strip's days: today and the 29 before it."""
 
@@ -40,11 +43,16 @@ def wet_hours(stitched: pd.DataFrame, clock: StationClock) -> WetHours:
     :return: The `WetHours`.
     """
     end_ms = hour_start(clock.now_ms, clock.tz)
-    hours = judge_hours(stitched, clock.tz, end_ms - 30 * 24 * HOUR_MS, end_ms)
+    first_ms = min(
+        end_ms - max(WINDOW_DAYS) * 24 * HOUR_MS,
+        from_local_date(clock.today - timedelta(days=STRIP_DAYS - 1), clock.tz),
+    )
+    hours = judge_hours(stitched, clock.tz, first_ms, end_ms)
+    week, month = WINDOW_DAYS
     return WetHours(
         through_ms=end_ms,
-        last_7_days=_window(hours, 7, end_ms),
-        last_30_days=_window(hours, 30, end_ms),
+        last_7_days=_window(hours, week, end_ms),
+        last_30_days=_window(hours, month, end_ms),
         days=_strip(hours, clock),
     )
 

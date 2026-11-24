@@ -14658,16 +14658,16 @@
       "days": 7,
       "hours": 168,
       "wet_hours": 12,
-      "countable_hours": 112,
-      "missing_hours": 56,
+      "countable_hours": 111,
+      "missing_hours": 57,
       "missing_days": 3
     },
     "last_30_days": {
       "days": 30,
       "hours": 720,
       "wet_hours": 12,
-      "countable_hours": 112,
-      "missing_hours": 608,
+      "countable_hours": 111,
+      "missing_hours": 609,
       "missing_days": 26
     },
     "days": [
@@ -14799,7 +14799,7 @@
       {
         "day": "2026-01-04",
         "wet_hours": 3,
-        "countable_hours": 24
+        "countable_hours": 23
       },
       {
         "day": "2026-01-05",

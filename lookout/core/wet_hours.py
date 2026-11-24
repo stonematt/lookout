@@ -124,8 +124,10 @@ def _judged_readings(
     frame = pd.DataFrame(
         {
             "hour_ms": dateutc - _local_ms(dateutc, tz) % HOUR_MS,
-            # The first reading read has nothing before it: no gap to judge.
-            "gap_ms": dateutc.diff().fillna(0),
+            # Nothing read says when the reading before the first one was
+            # (an archive's first, or the end of an outage longer than the
+            # lead): its hour is never countable.
+            "gap_ms": dateutc.diff().fillna(float("inf")),
             "rain_in": readings["rain_in"],
         }
     )

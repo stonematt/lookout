@@ -14427,16 +14427,16 @@
       "days": 7,
       "hours": 168,
       "wet_hours": 8,
-      "countable_hours": 44,
-      "missing_hours": 124,
+      "countable_hours": 43,
+      "missing_hours": 125,
       "missing_days": 5
     },
     "last_30_days": {
       "days": 30,
       "hours": 720,
       "wet_hours": 8,
-      "countable_hours": 44,
-      "missing_hours": 676,
+      "countable_hours": 43,
+      "missing_hours": 677,
       "missing_days": 28
     },
     "days": [
@@ -14578,7 +14578,7 @@
       {
         "day": "2025-11-17",
         "wet_hours": 8,
-        "countable_hours": 24
+        "countable_hours": 23
       },
       {
         "day": "2025-11-18",

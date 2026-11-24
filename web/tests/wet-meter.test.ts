@@ -62,10 +62,10 @@ describe("the wet-hour meter", () => {
 
   it("hatches the missing hours at each bar's end and names them, not dry", () => {
     renderOverview(panel, parsed("raining"));
-    expect(all("count").map(words)).toEqual(["12 h of 112", "12 h of 112"]);
+    expect(all("count").map(words)).toEqual(["12 h of 111", "12 h of 111"]);
     expect(all("missing").map(words)).toEqual([
-      "56 h missing, not dry · 3 d missing",
-      "608 h missing, not dry · 26 d missing",
+      "57 h missing, not dry · 3 d missing",
+      "609 h missing, not dry · 26 d missing",
     ]);
     for (const bar of all("bar")) {
       const hatch = bar.lastElementChild!;
@@ -85,7 +85,7 @@ describe("the wet-hour meter", () => {
     const share = (cls: string) =>
       week.querySelector<HTMLElement>(`.${cls}`)!.style.getPropertyValue("--share");
     expect(share("wet-meter-wet")).toBe(`${(100 * 12) / 168}%`);
-    expect(share("wet-meter-missing")).toBe(`${(100 * 56) / 168}%`);
+    expect(share("wet-meter-missing")).toBe(`${(100 * 57) / 168}%`);
   });
 
   it("draws no wet fill when no hour was wet", () => {
@@ -113,13 +113,14 @@ describe("the missing words", () => {
   const window = { days: 7, hours: 168, wet_hours: 19, countable_hours: 150 };
 
   it("name the hours, then the whole days, missing", () => {
-    expect(missingWords({ ...window, missing_hours: 18, missing_days: 0 })).toBe(
+    expect(missingWords({ ...window, missing_hours: 18, missing_days: 0 })).toEqual([
       "18 h missing, not dry",
-    );
-    expect(missingWords({ ...window, missing_hours: 120, missing_days: 5 })).toBe(
-      "120 h missing, not dry · 5 d missing",
-    );
-    expect(missingWords({ ...window, missing_hours: 0, missing_days: 0 })).toBeNull();
+    ]);
+    expect(missingWords({ ...window, missing_hours: 120, missing_days: 5 })).toEqual([
+      "120 h missing, not dry",
+      "5 d missing",
+    ]);
+    expect(missingWords({ ...window, missing_hours: 0, missing_days: 0 })).toEqual([]);
   });
 });
 
@@ -162,6 +163,7 @@ describe("the meter's marks", () => {
   it("draw the wet fill and the track's edge 3:1 on the now surface, in both themes", () => {
     expect(onNow(token(".wet-meter-wet", "background"))).toBe(true);
     expect(onNow(token(".wet-meter-bar", "border"))).toBe(true);
+    expect(onNow(token(".wet-meter", "border-top"))).toBe(true);
   });
 
   it("hatch in ink-3 on the now tile, which holds 3:1 there in both themes", () => {

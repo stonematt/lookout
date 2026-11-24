@@ -3,7 +3,8 @@
  * temperature large, then today hour by hour against the usual band for this
  * date (`today-hero.ts`), and rain today and yesterday when either is above
  * 0 (`rain/hero-rain.ts`, #619), and at its foot the wet-hour meter, the
- * last 7 and 30 days (`wet-meter.ts`, #657). It is the one tile on `now-surface`, in the
+ * last 7 and 30 days (`wet-meter.ts`, #657). It is the one tile on
+ * `now-surface`, in the
  * phone's fixed top, and the full width of the grid. The 48-hour ribbon,
  * the condition sentence and the Right-now strip it once held are gone.
  *

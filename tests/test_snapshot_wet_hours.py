@@ -162,6 +162,15 @@ class TestCountableHours:
         assert snapshot.wet_hours.last_7_days.missing_days == 1
         assert snapshot.wet_hours.last_30_days.missing_days == 1
 
+    def test_the_first_hour_back_from_a_long_outage_is_not_countable(self):
+        # Offline 48 days, back at 10:00 local on Jan 8: nothing read says
+        # how long the gap before 10:00's first reading was.
+        gap = Gap(START, "2026-01-08T18:00:00Z")
+
+        snapshot = snapshot_of(gaps=[gap])
+
+        assert strip_day(snapshot, "2026-01-08").countable_hours == 13
+
     def test_hours_since_the_newest_reading_are_missing(self):
         # The station stops at 08:00 local; the build is at 12:10.
         gap = Gap("2026-01-10T16:00:00Z", NOW)

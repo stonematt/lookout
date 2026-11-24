@@ -19,16 +19,16 @@ import { make, spoken } from "../dom.js";
 import type { DashboardSnapshot, WetHoursWindow } from "../snapshot.js";
 
 /**
- * What a window is missing, in words; null when it misses nothing.
+ * What a window is missing, phrase by phrase; none when it misses nothing.
  *
  * @param window - The window.
- * @returns "24 h missing, not dry · 1 d missing", or without the days when
- *   no whole day is missing.
+ * @returns ["24 h missing, not dry", "1 d missing"], without the days when
+ *   no whole day is missing; read together with " · ".
  */
-export function missingWords(window: WetHoursWindow): string | null {
-  if (window.missing_hours === 0) return null;
+export function missingWords(window: WetHoursWindow): string[] {
+  if (window.missing_hours === 0) return [];
   const hours = `${window.missing_hours} h missing, not dry`;
-  return window.missing_days > 0 ? `${hours} · ${window.missing_days} d missing` : hours;
+  return window.missing_days > 0 ? [hours, `${window.missing_days} d missing`] : [hours];
 }
 
 /**
@@ -67,12 +67,12 @@ function row(name: string, window: WetHoursWindow): HTMLElement[] {
   count.append(make("b", "", `${window.wet_hours} h`), ` of ${window.countable_hours}`);
   const cells = [label, bar, count];
   const words = missingWords(window);
-  if (words) {
+  if (words.length) {
     const note = make("span", "wet-meter-note");
     note.dataset.part = "missing";
     // Each phrase stays whole when the note wraps on a narrow phone.
     const phrases = make("span", "wet-meter-words");
-    words.split(" · ").forEach((phrase, i) => {
+    words.forEach((phrase, i) => {
       if (i > 0) phrases.append(" · ");
       phrases.append(make("span", "wet-meter-phrase", phrase));
     });
