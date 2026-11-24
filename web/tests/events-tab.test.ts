@@ -29,6 +29,13 @@ function raining(): DashboardSnapshot {
   return parseDashboard(structuredClone(golden("raining", "dashboard")));
 }
 
+/** The raining golden as a snapshot written before the counts (N−1). */
+function beforeCounts(snapshot = raining()): DashboardSnapshot {
+  delete snapshot.rain_events.counts;
+  delete snapshot.rain_events.scatter;
+  return snapshot;
+}
+
 function curveOf(start: number): EventCurve {
   return parseEventCurve(goldenCurve("raining", start));
 }
@@ -112,7 +119,7 @@ describe("the event list", () => {
   });
 
   it("heads the list with the summary the snapshot computed", () => {
-    mountEvents(panel, raining(), deps);
+    mountEvents(panel, beforeCounts(), deps);
     pick("all");
 
     expect(panel.querySelector(".ev-title")!.textContent).toBe(
@@ -203,9 +210,7 @@ describe("the event list", () => {
     pick("2025");
 
     expect(starts()).toEqual([EVENT_1]);
-    expect(panel.querySelector(".ev-title")!.textContent).toBe(
-      "The one rain event in 2024–25 brought 0.36 in",
-    );
+    expect(panel.querySelector(".ev-list-finding")!.textContent).toBe("Every event, newest first");
   });
 
   it("draws each size bar as its total over the catalog's largest, hidden from assistive tech", () => {
@@ -505,6 +510,10 @@ describe("the open row", () => {
 
     expect(openRows()[0]!.textContent).toContain("The linked event is not in the catalog");
     expect(finding()).toContain("still raining");
+    // The stale link is cleared, so the next snapshot does not say it again.
+    expect(location.search).toBe("");
+    mountEvents(panel, raining(), deps);
+    expect(openRows()[0]!.textContent).not.toContain("not in the catalog");
   });
 
   it("shows totals only, with the gap note and no chart, for an event with no archive data", async () => {
@@ -637,7 +646,6 @@ describe("the open row", () => {
     await flush();
 
     expect(drawnLast()[3].medianIn).toBe(0.5);
-    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.50 in");
   });
 
   it("follows the default rule within a water year the open row is not in", async () => {
@@ -798,7 +806,45 @@ describe("a newer snapshot mounted over the tab", () => {
     await flush();
 
     expect(openStart()).toBe(EVENT_3);
-    expect(openRows()[0]!.textContent).toContain("The linked event is not in the catalog");
+    // The visitor opened it here, so it is not "linked": it has gone.
+    expect(openRows()[0]!.textContent).toContain(
+      "The event you had open is no longer in the catalog; showing the newest one instead.",
+    );
+    expect(location.search).not.toContain("event=");
+
+    mountEvents(panel, next, deps);
+    expect(openRows()[0]!.textContent).not.toContain("no longer in the catalog");
+  });
+
+  it("keeps keyboard focus on the row that had it", () => {
+    mountEvents(panel, raining(), deps);
+    panel.querySelector<HTMLElement>(row(EVENT_2))!.focus();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(document.activeElement).toBe(panel.querySelector(row(EVENT_2)));
+  });
+
+  it("keeps keyboard focus on the filter that had it", () => {
+    mountEvents(panel, raining(), deps);
+    panel.querySelector<HTMLElement>(".ev-sort-select")!.focus();
+
+    mountEvents(panel, raining(), deps);
+
+    expect(document.activeElement).toBe(panel.querySelector(".ev-sort-select"));
+  });
+
+  it("does not announce an unchanged open event again", () => {
+    mountEvents(panel, raining(), deps);
+    const live = () =>
+      panel.querySelector(".ev-row[data-open] .ev-finding")!.getAttribute("aria-live");
+    expect(live()).toBe("polite");
+
+    mountEvents(panel, raining(), deps);
+    expect(live()).toBeNull();
+
+    click(row(EVENT_2));
+    expect(live()).toBe("polite");
   });
 });
 
@@ -879,7 +925,6 @@ describe("each water year's gap status", () => {
       "How events are found",
     );
     // The events-only sum is still shown beside it, never hatched away.
-    expect(panel.querySelector(".ev-stats")!.textContent).toContain("0.36 in");
 
     pick("2026");
     expect(missing().hidden).toBe(true);
@@ -913,7 +958,6 @@ describe("each water year's gap status", () => {
     expect(method()).toBe(
       "3 of 365 days of water year 2024–25 are missing from the record, so the list can miss events in them.",
     );
-    expect(panel.querySelector(".ev-stats")!.textContent).not.toContain("≈");
   });
 
   it("adds up the days missing under All, and words them as for one year", () => {

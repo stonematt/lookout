@@ -9,8 +9,8 @@
  * with the escaping `html` template (`web/src/dom.ts`).
  *
  * - The tab is two tiles (`web/src/tiles.ts`, spec #332): the catalog
- *   (kicker, finding, standfirst, stats, folded source), the phone's fixed
- *   top; under it, the event list (DESIGN.md "Event list", #254): one
+ *   (kicker, headline, scatter, folded source; #666), the phone's fixed
+ *   top; under it, the event list, which the filter line alone drives (DESIGN.md "Event list", #254): one
  *   filter line pinned under any sticky header while the list scrolls
  *   (water year, sort and size, three selects: "2026–27", "Newest",
  *   "Showers and up"; the size kept in the browser), a count line with the
@@ -44,7 +44,12 @@
  * - A newer snapshot mounts the tab again over the same panel; it keeps the
  *   water year, the order, the rows "Show more" opened and a row closed by
  *   hand, and redraws a completed event from the curve it already read (the
- *   per-panel `Kept` record).
+ *   per-panel `Kept` record). Keyboard focus goes back to the element that
+ *   had it, and an open event already shown is not announced again (#239).
+ * - A `?event=` the catalog does not hold opens the default row with a note
+ *   saying why: the link names no event in the catalog, or the event the
+ *   visitor had open here has left it. The stale `?event=` is cleared, so
+ *   the note shows once.
  */
 import "./events.css";
 
@@ -54,6 +59,7 @@ import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js
 import { renderTiles, sourceNote } from "../tiles.js";
 import { renderCatalogHead, renderCatalogTile } from "./catalog.js";
 import type { EventChartOptions } from "./charts.js";
+import type { MissingEvent } from "./detail.js";
 import { chartLabel, eventBody, eventSource } from "./detail.js";
 import {
   PAGE,
@@ -128,6 +134,12 @@ interface Kept {
   curves: Map<number, EventCurve>;
   /** The visitor closed the open row, and the URL names none: keep it shut. */
   shut: boolean;
+  /**
+   * The event whose row body was last shown, or null: a newer snapshot
+   * does not announce it again, and if it has left the catalog the note
+   * says it has gone rather than that a link was wrong.
+   */
+  shown: number | null;
 }
 
 /**
@@ -154,6 +166,38 @@ function keptView(last: View | undefined, section: DashboardSnapshot["rain_event
 /** The page address that opens an event on this tab (#370). */
 function eventHref(startMs: number): string {
   return `${location.pathname}${withEvent(location.search, startMs)}#events`;
+}
+
+/** The controls a newer snapshot can find again by name, to keep focus on. */
+const FOCUS_NAMES = ["ev-year-select", "ev-sort-select", "ev-size-select", "ev-more", "ev-retry"];
+
+/**
+ * Where keyboard focus sits in the panel, as something the next mount can
+ * find again: a row's header by its event, a control by its class, any
+ * other element by its place among the panel's elements of its tag.
+ */
+type FocusMark = { selector: string } | { tag: string; index: number };
+
+/** The panel's focused element as a mark, or null when focus is elsewhere. */
+function focusMark(panel: HTMLElement): FocusMark | null {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLElement) || el === panel || !panel.contains(el)) return null;
+  const start = el.closest<HTMLElement>(".ev-open")?.dataset.start;
+  if (start) return { selector: `.ev-open[data-start='${start}']` };
+  const name = FOCUS_NAMES.find((n) => el.classList.contains(n));
+  if (name) return { selector: `.${name}` };
+  const tag = el.tagName.toLowerCase();
+  return { tag, index: [...panel.querySelectorAll(tag)].indexOf(el) };
+}
+
+/** Put focus back on the marked element, if the new markup still has it. */
+function refocus(panel: HTMLElement, mark: FocusMark | null): void {
+  if (!mark) return;
+  const el =
+    "selector" in mark
+      ? panel.querySelector<HTMLElement>(mark.selector)
+      : panel.querySelectorAll<HTMLElement>(mark.tag)[mark.index];
+  el?.focus({ preventScroll: true });
 }
 
 /** Whether a click asks the browser to open the link elsewhere. */
@@ -217,6 +261,8 @@ export function mountEvents(
 ): void {
   const before = panels.get(panel);
   before?.listening.abort();
+  // The markup is rebuilt below; keyboard focus goes back where it was.
+  const focused = focusMark(panel);
   // Two stations can share an event start; a curve is one station's.
   const last = before?.station === snapshot.station.mac ? before : undefined;
   const section = snapshot.rain_events;
@@ -228,6 +274,7 @@ export function mountEvents(
     view: keptView(last?.view, section),
     curves: last?.curves ?? new Map(),
     shut: asked === null && (last?.shut ?? false),
+    shown: last?.shown ?? null,
   };
   panels.set(panel, kept);
   const { listening, view } = kept;
@@ -246,7 +293,12 @@ export function mountEvents(
   let selected: RainEventRow | null = kept.shut
     ? null
     : (linked ?? defaultOpen(section, view.season, view.size));
-  let missing = asked !== null && linked === null;
+  // The URL names an event the catalog does not hold: the one the visitor
+  // had open here has gone, or the link was never good. Say so once, and
+  // clear the stale `?event=` so the next snapshot does not say it again.
+  let missing: MissingEvent =
+    asked === null || linked !== null ? null : last?.shown === asked ? "vanished" : "linked";
+  if (missing) writeUrl(null);
   const latest = latestStart(section);
   let drawn = 0;
 
@@ -316,9 +368,14 @@ export function mountEvents(
   function renderBody(): void {
     const row = selected;
     const host = row ? panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-body") : null;
-    if (!row || !host) return;
+    if (!row || !host) {
+      kept.shown = null;
+      return;
+    }
     const ticket = ++drawn;
-    host.innerHTML = html`${eventBody(row, all.length, missing)}`;
+    const announce = kept.shown !== row.start_ms;
+    kept.shown = row.start_ms;
+    host.innerHTML = html`${eventBody(row, all.length, missing, announce)}`;
     const charts = host.querySelector<HTMLElement>(".ev-charts")!;
     host.append(sourceNote(snapshot, eventSource(row)));
 
@@ -422,7 +479,7 @@ export function mountEvents(
       selected = all.find((e) => e.start_ms === startMs) ?? null;
       if (!selected) return;
       kept.shut = false;
-      missing = false;
+      missing = null;
       writeUrl(startMs);
     }
     renderList();
@@ -474,7 +531,7 @@ export function mountEvents(
         // An open row the size hides gives way to the default rule.
         if (selected && !inSize(selected, view.size)) {
           selected = kept.shut ? null : defaultOpen(section, view.season, view.size);
-          missing = false;
+          missing = null;
           writeUrl(null);
         }
       } else {
@@ -484,7 +541,7 @@ export function mountEvents(
         // closed.
         if (!kept.shut) {
           selected = defaultOpen(section, view.season, view.size);
-          missing = false;
+          missing = null;
           writeUrl(null);
         }
       }
@@ -498,4 +555,5 @@ export function mountEvents(
   reach();
   renderHead();
   renderList();
+  refocus(panel, focused);
 }
