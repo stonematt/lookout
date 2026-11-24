@@ -424,17 +424,79 @@ describe("the Rain tile", () => {
     const rain = words(panel.querySelector('.ov-sources-how [data-source="Rain since Oct 1"]'));
     expect(rain).toContain("a percent of the usual rain by this date");
     expect(rain).not.toContain("newest earlier year");
-    const tenDays = words(panel.querySelector('.ov-sources-how [data-source="Last 10 days"]'));
+    const tenDays = words(panel.querySelector('.ov-sources-how [data-source="Highs over usual"]'));
     expect(tenDays).toContain("the mean of the last ten days' highs against their usual highs");
   });
 });
 
 describe("the Last 10 days tile", () => {
+  it.each(["Highs under usual", "Highs at usual", "Gap in record"])(
+    "reads its title, %s, from the snapshot on the tile, its zoom and the sources footer",
+    (title) => {
+      const d = doc("seasoned");
+      d.tile_titles.ten_days = title;
+      history.replaceState(null, "", "/#overview/last-10-days");
+      try {
+        renderOverview(panel, parseDashboard(d));
+        expect(words(tile("last-10-days").querySelector("h2"))).toBe(title);
+        expect(delta("last-10-days")).toBe("last 10 days");
+        const zoom = panel.querySelector('.zoom[data-zoom="last-10-days"]')!;
+        expect(words(zoom.querySelector(".zoom-heading"))).toBe(title);
+        const names = [...panel.querySelectorAll(".ov-sources-list dt")].map(words);
+        expect(names).toContain(title);
+        expect(names).not.toContain("Last 10 days");
+        expect(panel.querySelector(`.ov-sources-how [data-source="${title}"]`)).not.toBeNull();
+      } finally {
+        history.replaceState(null, "", "/");
+      }
+    },
+  );
+
+  it("reads a gap as its title alone, never a number (+0° or any)", () => {
+    const d = doc("seasoned");
+    d.tile_titles.ten_days = "Gap in record";
+    d.temperature_context.ten_day_highs = { delta_f: 0, days: 9, gap: true };
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("last-10-days").querySelector("h2"))).toBe("Gap in record");
+    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
+    expect(delta("last-10-days")).toBe("last 10 days");
+    expect(words(tile("last-10-days"))).not.toMatch(/0°/);
+  });
+
+  it("keeps today's title and words from a snapshot without the field (v4, N−1)", () => {
+    for (const drop of [
+      (d: Doc) => {
+        delete d.tile_titles.ten_days;
+        delete d.temperature_context.ten_day_highs.gap;
+      },
+      (d: Doc) => delete d.tile_titles,
+    ]) {
+      const d = doc("seasoned");
+      drop(d);
+      renderOverview(panel, parseDashboard(d));
+
+      expect(words(tile("last-10-days").querySelector("h2"))).toBe("Last 10 days");
+      expect(value("last-10-days")).toBe("+2°");
+      expect(delta("last-10-days")).toBe("highs over usual");
+      const names = [...panel.querySelectorAll(".ov-sources-list dt")].map(words);
+      expect(names).toContain("Last 10 days");
+    }
+  });
+
+  it("keeps its fixed name with nothing to compare (dry golden)", () => {
+    renderOverview(panel, parsed("dry"));
+
+    expect(words(tile("last-10-days").querySelector("h2"))).toBe("Last 10 days");
+  });
+
   it("prints the ten days' highs against usual, signed (seasoned)", () => {
     renderOverview(panel, parsed("seasoned"));
 
     expect(value("last-10-days")).toBe("+2°");
-    expect(delta("last-10-days")).toBe("highs over usual");
+    // Titled by its number (#665); the window goes under it.
+    expect(words(tile("last-10-days").querySelector("h2"))).toBe("Highs over usual");
+    expect(delta("last-10-days")).toBe("last 10 days");
     // One bar a day the record covers.
     expect(tile("last-10-days").querySelectorAll("svg .mosaic-day")).toHaveLength(10);
     // The band under the bars is named by a legend swatch, not in the plot.
@@ -444,8 +506,9 @@ describe("the Last 10 days tile", () => {
     expect(tile("last-10-days").querySelector("svg text")).toBeNull();
   });
 
-  it("prints a cooler spell with the true minus, and a level one as at usual", () => {
+  it("prints a cooler spell with the true minus, and a level one as at usual (N−1)", () => {
     const d = doc("seasoned");
+    delete d.tile_titles.ten_days;
     d.temperature_context.ten_day_highs = { delta_f: -3, days: 10 };
     renderOverview(panel, parseDashboard(d));
     expect(value("last-10-days")).toBe("\u22123°");
@@ -463,7 +526,7 @@ describe("the Last 10 days tile", () => {
     renderOverview(panel, parseDashboard(d));
 
     expect(value("last-10-days")).toBe("+4°");
-    expect(delta("last-10-days")).toBe("highs over usual");
+    expect(delta("last-10-days")).toBe("last 10 days");
   });
 
   it("prints no delta when the field is null (dry golden)", () => {
@@ -924,7 +987,8 @@ describe("the sources footer", () => {
     renderOverview(panel, parsed("seasoned"));
     const names = [...panel.querySelectorAll("[data-part=sources] dt")].map(words);
 
-    for (const t of MOSAIC_TILES) expect(names).toContain(t.title);
+    const snapshot = parsed("seasoned");
+    for (const t of MOSAIC_TILES) expect(names).toContain(tileTitle(t, snapshot));
   });
 });
 
@@ -958,7 +1022,7 @@ describe("the Overview's landmarks and headings, through the page", () => {
     expect(h1).toHaveLength(1);
     expect(words(h1[0])).toBe(snapshot.station.name);
     const headings = [...overview.querySelectorAll("h2")].map(words);
-    for (const t of MOSAIC_TILES) expect(headings).toContain(t.title);
+    for (const t of MOSAIC_TILES) expect(headings).toContain(tileTitle(t, snapshot));
   });
 
   it("keeps the Overview open on a zoom link with no zoom yet", async () => {
