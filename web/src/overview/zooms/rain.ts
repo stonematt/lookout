@@ -2,10 +2,10 @@
  * The rain zoom (#475, spec #460 story 36; board `RainZoom`), titled "Now
  * and this season" (#647 call 5): under the Rain tile's number and delta,
  * the Rain tab's top section (now, the season and the water year, without
- * the tab's window strip), titled as the tab titles it, by its first part
- * ("Now"), the rain gauge in its place (rain over
- * each window, `rain/gauge.ts`, #619), then the rain almanac and
- * rolling-window rain, and "More in Rain". No source fold (prototype
+ * the tab's window strip) under its first part's label ("Now"), as the tab
+ * titles it; the rain gauge in the strip's place (rain over each window,
+ * `rain/gauge.ts`, #619), then the rain almanac and rolling-window rain,
+ * and "More in Rain". No source fold (prototype
  * decision 22): the Overview's sources footer carries the tile's line.
  *
  * One home per chart: the water year is `rain/index.ts`'s `renderYears`,
