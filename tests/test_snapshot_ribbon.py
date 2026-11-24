@@ -181,14 +181,15 @@ class TestCounter:
         archive["dailyrainin"] = values
         return archive
 
-    def test_a_fall_in_the_counter_is_new_rain_only_at_local_midnight(self):
-        # A mid-day fall (a correction) is not a reset: no phantom rain.
-        archive = self.counter_archive([0.50, 0.50, 0.50, 0.45, 0.45, 0.45])
+    def test_a_fall_in_the_counter_is_the_reset_whenever_it_falls(self):
+        # Noon local: a fall is the reset, not a correction (#654, spec
+        # #647): the reading after it holds only new rain.
+        archive = self.counter_archive([0.50, 0.50, 0.50, 0.02, 0.03, 0.03])
 
         ribbon = build(archive, None, "2026-01-06T21:00:00Z").condition_ribbon
 
-        assert ribbon.rain_in[-1] == 0.0
-        assert ribbon.rain_hours == 0.0
+        # 20:45Z-21:00Z: 0.02 (the reset, from 0.50) -> 0.03 -> 0.03.
+        assert ribbon.rain_in[-1] == 0.03
 
     def test_one_missing_counter_reading_does_not_void_the_next(self):
         archive = self.counter_archive([0.10, 0.10, None, 0.12, 0.13, 0.13])
