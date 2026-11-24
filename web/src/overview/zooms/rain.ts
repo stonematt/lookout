@@ -2,7 +2,8 @@
  * The rain zoom (#475, spec #460 story 36; board `RainZoom`), titled "Now
  * and this season" (#647 call 5): under the Rain tile's number and delta,
  * the Rain tab's top section (now, the season and the water year, without
- * the tab's window strip), the rain gauge in its place (rain over
+ * the tab's window strip), titled as the tab titles it, by its first part
+ * ("Now"), the rain gauge in its place (rain over
  * each window, `rain/gauge.ts`, #619), then the rain almanac and
  * rolling-window rain, and "More in Rain". No source fold (prototype
  * decision 22): the Overview's sources footer carries the tile's line.
@@ -13,7 +14,7 @@
  * Offers `rainZoom`, and `RAIN_TAB`, the tab both rain zooms end in a link to.
  */
 import { gaugeShown, renderGauge } from "../../rain/gauge.js";
-import { renderYears } from "../../rain/index.js";
+import { headKicker, renderYears } from "../../rain/index.js";
 import { renderGrid, renderRolling, rollingHasRows } from "../almanac.js";
 import { rainTile } from "../mosaic-tiles.js";
 import type { ZoomDefinition } from "../zoom.js";
@@ -32,7 +33,8 @@ export const rainZoom: ZoomDefinition = {
   panels: [
     {
       id: "water-year",
-      title: "The water year",
+      // The Rain tab head's kicker, its first part's label: "Now" (#703).
+      title: headKicker,
       wide: true,
       render: (host, snapshot) => renderYears(host, snapshot, { zoom: true }),
     },

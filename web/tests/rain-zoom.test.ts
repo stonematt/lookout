@@ -161,6 +161,40 @@ describe("the rain zoom", () => {
     expect(tab.querySelector("[data-part=source-note]")).not.toBeNull();
   });
 
+  it("titles its first panel with the Rain tab head's kicker, not the water year (#703)", async () => {
+    const snapshot = withYears();
+    const tab = await rainSection("years", snapshot);
+    const kicker = words(tab.querySelector("[data-part=kicker]"));
+    const labels = (host: Element) =>
+      [...host.querySelectorAll("[data-part=label]")].map((label) => words(label));
+    const onTab = labels(tab);
+    page!.stop();
+
+    await boot("#overview/rain", snapshot);
+    const head = panels()[0]!;
+    expect(kicker).toBe("Now");
+    expect(words(head.querySelector(".zoom-panel-title"))).toBe(kicker);
+    // The title is the first part's label, as the kicker is on the tab: no
+    // second "Now" under it. The later parts keep the tab's labels; the
+    // window strip's is the tab's alone, the gauge panel drawing the windows.
+    const later = [
+      "Wet hours · each bar is every hour; dark is wet",
+      "The water year against usual",
+    ];
+    expect(labels(head)).toEqual(later);
+    expect(onTab).toEqual([...later, "Each window against its usual"]);
+  });
+
+  it("keeps the water year's title on a snapshot without now or the season", async () => {
+    const snapshot = withYears();
+    snapshot.rain_now = null;
+    snapshot.wet_hours = null;
+    snapshot.rain_tab.wet_hours_to_date = null;
+    await boot("#overview/rain", snapshot);
+
+    expect(words(panels()[0]!.querySelector(".zoom-panel-title"))).toBe("The water year");
+  });
+
   it("carries no source note or method fold (prototype decision 22)", async () => {
     await boot("#overview/rain");
     expect(zoom()!.querySelector("details, .tile-folds, [data-part=source]")).toBeNull();
@@ -183,7 +217,12 @@ describe("the dry spell zoom", () => {
     await boot("#overview/dry-spell", snapshot);
     expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Dry spell");
     expect(panels().map((p) => p.dataset.panel)).toEqual(["dry-spells", "more"]);
-    expect(words(panels()[0]!.querySelector(".rain-dry-stats"))).toBe(onTab);
+    // A gap reads without "n/a" in a zoom (DESIGN.md, The Overview grid; #703).
+    expect(onTab).toContain("n/a: gap in record");
+    expect(words(panels()[0]!.querySelector(".rain-dry-stats"))).toBe(
+      onTab!.replaceAll("n/a: ", ""),
+    );
+    expect(zoom()!.textContent).not.toContain("n/a");
     expect(zoom()!.querySelector("details, .tile-folds")).toBeNull();
     expect(panels()[1]!.querySelector("a")?.getAttribute("href")).toBe("#rain");
   });
