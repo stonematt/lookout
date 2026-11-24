@@ -769,6 +769,14 @@ describe("the wet-or-dry tile (#658)", () => {
     expect(words(tile("wet-hours").querySelector("h2"))).toBe("Wet time");
   });
 
+  it("titles itself Wet hours, alone, on a document without tile titles", () => {
+    const d = inMode("dry", "wet");
+    delete d.tile_titles;
+    renderOverview(panel, parseDashboard(d));
+
+    expect(words(tile("wet-hours").querySelector("h2"))).toBe("Wet hours");
+  });
+
   it("is the Dry spell tile in dry mode, titled by the snapshot (seasoned)", () => {
     renderOverview(panel, parsed("seasoned"));
 

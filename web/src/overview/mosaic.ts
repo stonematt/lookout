@@ -15,9 +15,11 @@
  *   accessible name of its own;
  * - inside it one link, `a.mosaic-link[href="#overview/<slug>"]`, holding the
  *   title (`h2`, the tile's heading), the number and its unit, the delta, the
- *   mini chart (`aria-hidden`, with its "usual range" legend swatch when it
- *   draws a band under bars) and, for screen readers only, "Open the …
- *   view". The link's name is its own text, so a screen reader hears the
+ *   mini chart (`aria-hidden`, with its "usual range" legend swatch above it
+ *   when it draws a band under bars, or its hatch key under it when it
+ *   hatches), the caption under the chart when the tile has one
+ *   (`p.mosaic-caption[data-part=caption]`, #706) and, for screen readers
+ *   only, "Open the … view". The link's name is its own text, so a screen reader hears the
  *   finding once and no `aria-label` repeats it.
  *
  * A tile whose record-depth entry (`record_depth.tiles`, #463) says it is not
