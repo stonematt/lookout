@@ -429,11 +429,11 @@ describe("the open row", () => {
     expect(rows()[0]!.hasAttribute("data-live")).toBe(false);
   });
 
-  it("draws Total against the catalog's median event", async () => {
+  it("draws the chart against the catalog's median event", async () => {
     mountEvents(panel, raining(), deps);
     await flush();
 
-    expect(drawnLast()[3]).toEqual({ chart: "total", medianIn: 0.42 });
+    expect(drawnLast()[3]).toEqual({ medianIn: 0.42 });
     expect(drawnLast()[0]).toBe(charts().querySelector(".ev-chart"));
   });
 
@@ -507,7 +507,7 @@ describe("the open row", () => {
     expect(finding()).toContain("still raining");
   });
 
-  it("shows totals only, with the gap note and no switch, for an event with no archive data", async () => {
+  it("shows totals only, with the gap note and no chart, for an event with no archive data", async () => {
     const snapshot = raining();
     const event = snapshot.rain_events.events[2]!;
     Object.assign(event, { has_curve: false, quality: "invalid" });
@@ -521,7 +521,7 @@ describe("the open row", () => {
     const open = openRows()[0]!;
     expect(open.querySelector(".ev-gap.gap-hatch")!.textContent).toContain("n/a: gap in record");
     expect(open.querySelector(".ev-facts")!.textContent).toContain("0.36 in");
-    expect(open.querySelector("[data-chart]")).toBeNull();
+    expect(open.querySelector(".ev-chart")).toBeNull();
     expect(open.textContent).not.toMatch(/error/i);
     expect(rows()[2]!.querySelector(".ev-chip.low")!.textContent).toBe("no data");
   });
@@ -568,42 +568,58 @@ describe("the open row", () => {
     expect(deps.draw).toHaveBeenCalledOnce();
   });
 
-  it("switches the open row's chart between Total and Rate in place", async () => {
+  it("draws the total and the rate on one chart, with no switch between them", async () => {
     mountEvents(panel, raining(), deps);
     click(row(EVENT_2));
     await flush();
-    const head = panel.querySelector(row(EVENT_2));
 
-    click("[data-chart=rate]");
-    await flush();
-
-    expect(drawnLast()[3]).toEqual({ chart: "rate", medianIn: 0.42 });
-    expect(drawnLast()[1]).toEqual(curveOf(EVENT_2));
-    expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
-    expect(panel.querySelector(row(EVENT_2))).toBe(head);
-    expect(panel.querySelector("[data-chart=rate]")!.getAttribute("aria-pressed")).toBe("true");
-    expect(charts().querySelector<HTMLElement>(".ev-chart")!.dataset.chart).toBe("rate");
-
-    click("[data-chart=total]");
-    expect(drawnLast()[3].chart).toBe("total");
+    const open = openRows()[0]!;
+    expect(open.querySelectorAll(".ev-chart")).toHaveLength(1);
+    expect(open.querySelector("button[aria-pressed]")).toBeNull();
+    expect(open.textContent).not.toMatch(/\bRate\b/);
+    const label = charts().querySelector(".ev-chart")!.getAttribute("aria-label")!;
+    expect(label).toContain("Rain so far in this event, rising to 0.48 in");
+    expect(label).toContain("columns of the rain between readings");
+    expect(label).toContain("peaking at 0.12 in/hr");
+    // The source note says what the one chart draws.
+    const method = open.querySelector("details[data-part=source-note]")!.textContent!;
+    expect(method).toContain("the columns are the rain per 5 minutes");
+    expect(method).toContain("ten times the left");
   });
 
-  it("keeps the rest of the open row as it is when the chart switches", async () => {
-    history.replaceState(null, "", "/?event=1600000000000#events");
+  it("keeps the loading note over the chart until the chart is drawn", async () => {
+    let drawn: () => void = () => {};
+    deps.draw.mockReturnValue(new Promise<void>((resolve) => (drawn = resolve)));
     mountEvents(panel, raining(), deps);
+    click(row(EVENT_2));
     await flush();
-    const open = openRows()[0]!;
-    const words = open.querySelector(".ev-finding");
-    const fold = open.querySelector<HTMLDetailsElement>("details[data-part=source-note]")!;
-    fold.open = true;
-    const rate = open.querySelector<HTMLButtonElement>("[data-chart=rate]")!;
 
-    click("[data-chart=rate]");
+    // The readings are in; the chart is not drawn yet: never an empty chart.
+    expect(charts().querySelector(".ev-chart")).not.toBeNull();
+    expect(charts().textContent).toBe("Loading the curve…");
+    expect(charts().getAttribute("aria-busy")).toBe("true");
+    drawn();
+    await flush();
 
-    expect(open.querySelector(".ev-finding")).toBe(words);
-    expect(open.querySelector("[data-chart=rate]")).toBe(rate);
-    expect(fold.isConnected && fold.open).toBe(true);
-    expect(open.textContent).toContain("The linked event is not in the catalog");
+    expect(charts().textContent).not.toContain("Loading");
+    expect(charts().hasAttribute("aria-busy")).toBe(false);
+  });
+
+  it("says the live event's chart is loading until it is drawn, its curve at hand", async () => {
+    let drawn: () => void = () => {};
+    deps.draw.mockReturnValue(new Promise<void>((resolve) => (drawn = resolve)));
+    mountEvents(panel, raining(), deps);
+
+    expect(openStart()).toBe(EVENT_3);
+    expect(deps.fetchCurve).not.toHaveBeenCalled();
+    // Shown only if the drawing takes a moment, and not announced.
+    const note = charts().querySelector(".ev-loading.ev-later")!;
+    expect(note.textContent).toBe("Loading the curve…");
+    expect(note.getAttribute("role")).toBeNull();
+    drawn();
+    await flush();
+
+    expect(note.isConnected).toBe(false);
   });
 
   it("draws the curve against the median event of the water year shown", async () => {
@@ -725,27 +741,26 @@ describe("a newer snapshot mounted over the tab", () => {
 
     mountEvents(panel, raining(), deps);
 
-    expect(charts().textContent).not.toContain("Loading");
+    // No read, so nothing announced: only the drawing's quiet note.
+    expect(charts().querySelector("[role=status]")).toBeNull();
     await flush();
+    expect(charts().textContent).not.toContain("Loading");
     expect(deps.fetchCurve).toHaveBeenCalledTimes(1);
     expect(deps.draw).toHaveBeenCalledTimes(3); // the live event, event 2, event 2 again
     expect(drawnLast()[1]).toEqual(curveOf(EVENT_2));
   });
 
-  it("keeps the water year, the order and the chart picked", async () => {
+  it("keeps the water year and the order picked", async () => {
     const year = raining().rain_events.seasons[0]!.water_year;
     mountEvents(panel, raining(), deps);
     sortBy("longest");
     pick(String(year));
-    click("[data-chart=rate]");
 
     mountEvents(panel, raining(), deps);
     await flush();
 
     expect(panel.querySelector<HTMLSelectElement>(".ev-sort-select")!.value).toBe("longest");
     expect(panel.querySelector<HTMLSelectElement>(".ev-year-select")!.value).toBe(String(year));
-    expect(panel.querySelector("[data-chart=rate]")!.getAttribute("aria-pressed")).toBe("true");
-    expect(drawnLast()[3].chart).toBe("rate");
   });
 
   it("keeps a row closed by hand closed", () => {
