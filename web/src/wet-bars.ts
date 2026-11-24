@@ -6,7 +6,10 @@
  *
  * - the header, "Wet hours · each bar is every hour; dark is wet", its
  *   name the snapshot's tile title (`tile_titles.wet_or_dry`, GLOSSARY tile
- *   title) where the bars stand for the Wet hours tile;
+ *   title) where the bars stand for the Wet hours tile (the Overview); on
+ *   the Rain tab head the season's label is always "Wet hours", as the
+ *   since-Oct-1 bar is drawn in dry mode too, when the tile title is "Dry
+ *   spell";
  * - each bar a tally of every hour in its span: the dark fill its wet
  *   hours, the hours the record cannot count hatched at its end, never
  *   drawn as dry, each part its share of the span's hours;
@@ -18,8 +21,8 @@
  * The 7-day and 30-day bars are drawn only outside dry mode (#658, #647
  * call 3), where they would read 0 h for months (`meterShown`).
  *
- * Offers `METER_TITLE`, `METER_HOW`, `HATCH_KEY`, `meterTitle`,
- * `meterShown`, `howToRead`, `barShare`, `barCount` and `hatchKey`.
+ * Offers `METER_TITLE`, `HATCH_KEY`, `meterTitle`, `meterShown`,
+ * `howToRead`, `barShare`, `barCount` and `hatchKey`.
  */
 import "./wet-bars.css";
 
@@ -29,7 +32,7 @@ import type { DashboardSnapshot } from "./snapshot.js";
 /** The bars' name where no tile title names them (N−1, the Rain tab's season). */
 export const METER_TITLE = "Wet hours";
 /** How to read the bars, after their name (the C boards). */
-export const METER_HOW = " · each bar is every hour; dark is wet";
+const METER_HOW = " · each bar is every hour; dark is wet";
 /** The key under the bars when any hour is hatched (the C boards). */
 export const HATCH_KEY = "hatched: missing, not dry";
 
@@ -56,7 +59,11 @@ export function meterShown(snapshot: DashboardSnapshot): boolean {
   return Boolean(snapshot.wet_hours) && snapshot.wet_mode?.mode !== "dry";
 }
 
-/** How to read the bars, set after their name in a lighter weight. */
+/**
+ * How to read the bars, set after their name in a lighter weight.
+ *
+ * @returns " · each bar is every hour; dark is wet", as a span.
+ */
 export function howToRead(): HTMLElement {
   return make("span", "wet-meter-how", METER_HOW);
 }
@@ -93,7 +100,11 @@ export function barCount(className: string, wet: number, countable: number): HTM
   return count;
 }
 
-/** The key under the bars: the hatch swatch, then "hatched: missing, not dry". */
+/**
+ * The key under the bars.
+ *
+ * @returns The hatch swatch, then "hatched: missing, not dry".
+ */
 export function hatchKey(): HTMLElement {
   const key = make("span", "wet-meter-key");
   key.dataset.part = "hatch-key";

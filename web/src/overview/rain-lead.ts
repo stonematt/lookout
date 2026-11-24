@@ -32,7 +32,7 @@
 import "./rain-lead.css";
 
 import { make, spoken } from "../dom.js";
-import { inches, inchesPerHour } from "../format.js";
+import { RATE_UNIT, inches, inchesPerHour } from "../format.js";
 import { nowStory, toldStory } from "../now-story.js";
 import type { ToldStory } from "../now-story.js";
 import type { DashboardSnapshot, Verdict } from "../snapshot.js";
@@ -115,8 +115,8 @@ function story(snapshot: DashboardSnapshot, rain: ToldStory): HTMLElement[] {
     const rate = make("p", "rain-lead-rate");
     rate.dataset.part = "value";
     rate.setAttribute("aria-hidden", "true");
-    const unit = make("span", "rain-lead-unit", "in/hr");
-    rate.append(inchesPerHour(rain.rate_in_hr).replace(/ in\/hr$/, ""), unit);
+    const unit = make("span", "rain-lead-unit", RATE_UNIT);
+    rate.append(rain.rate_in_hr.toFixed(2), unit);
     finding.append(event ? eventRun(event) : "in the last hour");
     const body = make("div", "rain-lead-body");
     body.append(rate, spoken(`Raining, ${inchesPerHour(rain.rate_in_hr)}: `), finding);

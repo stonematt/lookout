@@ -305,7 +305,9 @@ A run of dry days with a rain day (at least 0.01 in, one tip of the gauge)
 on each side. A day the archive cannot count breaks the run, so a gap never
 reads as dry. The **usual dry spell** is the median completed dry spell over
 the last 365 days. One definition serves the Rain tab, the feature and the
-widget view (`lookout.core.rainfall_analysis.dry_spells`).
+widget view (`lookout.core.rainfall_analysis.dry_spells`). Until a whole dry
+day has passed since the **last rain** there is no dry spell yet: it reads
+"No dry spell yet" with last rain under it, never "0 dry days" (#694).
 _Avoid_: drought, days without rain (for the spell itself).
 
 ### last rain

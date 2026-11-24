@@ -14,7 +14,7 @@ import { html } from "../dom.js";
 import type { Html } from "../dom.js";
 import { inches, inchesPerHour } from "../format.js";
 import type { RainEventRow } from "../snapshot.js";
-import { statCell as stat } from "../tiles.js";
+import { statCell } from "../tiles.js";
 import { eventFinding, minutes, peakText } from "./model.js";
 
 /** The open event's quality line. */
@@ -62,9 +62,9 @@ export function eventBody(
 ${note}
 ${announce ? html`<p class="ev-finding" aria-live="polite">${finding}</p>` : html`<p class="ev-finding">${finding}</p>`}
 <dl class="ev-facts">
-  ${stat(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
-  ${stat(minutes(row.duration_minutes), "length")}
-  ${stat(peak, "peak rate")}
+  ${statCell(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
+  ${statCell(minutes(row.duration_minutes), "length")}
+  ${statCell(peak, "peak rate")}
 </dl>
 <div class="ev-charts"></div>
 <p class="ev-quality">${qualityLine(row)}</p>`;
