@@ -365,9 +365,13 @@ def _ten_day_highs(rows: Sequence[TemperatureDay]) -> Optional[TenDayHighs]:
     taken in decimal, as `_whole_degrees` does, so a one-decimal half rounds
     half away from zero and never off by float error.
 
+    A day is a gap when the record covers it (its status is shown) and it
+    has no low or high, the days the tile's chart hatches; days before the
+    archive are not.
+
     :param rows: The ten-day list.
-    :return: The whole-degree delta and its day count, or None when no day
-        has both.
+    :return: The whole-degree delta, its day count and whether the window
+        has a gap, or None when no day has both.
     """
     differences = [
         Decimal(str(row.high)) - Decimal(str(row.usual_high))
@@ -380,6 +384,9 @@ def _ten_day_highs(rows: Sequence[TemperatureDay]) -> Optional[TenDayHighs]:
     return TenDayHighs(
         delta_f=_whole(mean),
         days=len(differences),
+        gap=any(
+            row.status.shown and (row.low is None or row.high is None) for row in rows
+        ),
     )
 
 

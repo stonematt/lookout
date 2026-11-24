@@ -555,9 +555,16 @@ class TileTitles:
 
     :param wet_or_dry: The wet-or-dry tile: "Wet hours" in wet mode, "Dry
         spell" in dry mode.
+    :param ten_days: The ten-day temperature tile, named by its number
+        (`TemperatureContext.ten_day_highs`): "Highs over usual", "Highs
+        under usual" or "Highs at usual"; "Gap in record" when a day the
+        record covers is missing from the window, so a gap never reads as
+        level; "Last 10 days" when there is nothing to compare. Added in
+        version 4 (#665, ADR-0008).
     """
 
     wet_or_dry: str
+    ten_days: str
 
 
 FeatureKind = Literal["rain", "unusual", "dry_spell", "quiet"]
@@ -693,10 +700,15 @@ class TenDayHighs:
         never -0.
     :param days: How many days it is over: those with both a high and a
         usual high, 1 to 10.
+    :param gap: Whether a day the record covers has no low or high (the
+        days the tile's chart hatches). The tile then reads "Gap in record"
+        and shows no number, so a gap never reads as level (#665). Added in
+        version 4 (ADR-0008).
     """
 
     delta_f: int
     days: int
+    gap: bool
 
 
 @dataclass(frozen=True)

@@ -341,7 +341,8 @@
   ],
   "ten_day_highs": {
     "delta_f": 5,
-    "days": 10
+    "days": 10,
+    "gap": false
   },
   "strips": [
     {
