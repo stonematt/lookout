@@ -85,11 +85,11 @@ export interface MosaicTile {
    */
   titleFrom?(snapshot: DashboardSnapshot): string | null | undefined;
   /**
-   * Words after the title in a lighter weight, how to read the chart: the
-   * wet-hour bars' " · each bar is every hour; dark is wet" (#647, #703).
-   * The zoom heading and the sources footer keep the title alone.
+   * How to read the chart, in caption type under it, the tile's last part:
+   * the wet-hour bars' "each bar is every hour; dark is wet" (#647, #706).
+   * The title stays one line on a half-width tile.
    */
-  how?(): HTMLElement;
+  caption?: string;
   /** The zoom's name, in the link's "Open the <zoomName> view": "temperature". */
   zoomName: string;
   /** The number and the delta. */
@@ -108,7 +108,8 @@ export interface MosaicTile {
   bandUnderBars?(snapshot: DashboardSnapshot): boolean;
   /**
    * Whether the chart hatches a part it cannot count: it then carries the
-   * hatch key above the chart, "hatched: missing, not dry" (#661).
+   * hatch key under the chart, "hatched: missing, not dry" (#661), beside
+   * the tile's caption (#706).
    */
   hatched?(snapshot: DashboardSnapshot): boolean;
   /**
@@ -192,10 +193,10 @@ function bandLegend(): HTMLElement {
   return legend;
 }
 
-/** The hatch key: the hatch's swatch, then what it means (#661). */
+/** The hatch key under the chart: the hatch's swatch, then what it means (#661). */
 function hatchLegend(): HTMLElement {
   const legend = document.createElement("p");
-  legend.className = "mosaic-legend";
+  legend.className = "mosaic-legend mosaic-legend-under";
   legend.dataset.part = "legend";
   const swatch = document.createElement("span");
   swatch.className = "hatch-swatch mosaic-hatch-swatch";
@@ -259,10 +260,6 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const title = host.querySelector<HTMLElement>(":scope > [data-part=kicker]");
   if (title) {
     title.classList.add("mosaic-title");
-    if (tile.how) {
-      title.classList.add("mosaic-title-how");
-      title.append(tile.how());
-    }
     link.append(title);
   }
 
@@ -300,7 +297,15 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   chart.className = "mosaic-chart";
   chart.dataset.part = "mini-chart";
   chart.setAttribute("aria-hidden", "true");
-  link.append(chart, spoken(`Open the ${tile.zoomName} view`));
+  link.append(chart);
+  if (tile.caption) {
+    const caption = document.createElement("p");
+    caption.className = "mosaic-caption";
+    caption.dataset.part = "caption";
+    caption.textContent = tile.caption;
+    link.append(caption);
+  }
+  link.append(spoken(`Open the ${tile.zoomName} view`));
   host.replaceChildren(link);
   drawRows();
   const draw = tile.chart;
@@ -313,11 +318,12 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
     const svg = draw(snapshot, width);
     plot.replaceChildren(...(svg ? [svg] : []));
     // A band under bars carries its legend, never a label inside the plot.
-    // The legend goes above the chart, so the chart keeps the tile's foot,
-    // the baseline its row's charts share.
+    // The band's legend goes above the chart, so the chart keeps the tile's
+    // foot, the baseline its row's charts share; the hatch key goes under
+    // the bars, beside the caption that says how to read them (#706).
     const legend = chart.querySelector("[data-part=legend]");
     if (svg && band && !legend) chart.prepend(bandLegend());
-    else if (svg && hatched && !legend) chart.prepend(hatchLegend());
+    else if (svg && hatched && !legend) chart.append(hatchLegend());
     if (!svg) legend?.remove();
   });
 }

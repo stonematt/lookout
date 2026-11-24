@@ -10,6 +10,9 @@
  * and moon's cards are gone, their content in Humidity, Sun and Daylight;
  * Inside draws a row per indoor sensor and hides on a station with none.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setLayout } from "../src/layout.js";
@@ -201,10 +204,8 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
     const tiles = overviewMosaic(parsed(scenario));
     const titles = tiles.map((t) => tile(t.slug).querySelector("a > h2"));
 
-    // The title first; Wet hours sets its how-to-read words after it (#703).
-    expect(titles.map((h) => words(h?.firstChild as Element | null))).toEqual(
-      tiles.map((t) => tileTitle(t, parsed(scenario))),
-    );
+    // The title alone; Wet hours says how to read its bars under them (#706).
+    expect(titles.map((h) => words(h))).toEqual(tiles.map((t) => tileTitle(t, parsed(scenario))));
   });
 });
 
@@ -676,8 +677,8 @@ describe("the wet-or-dry tile (#658)", () => {
     renderOverview(panel, parsed("dry"));
     const host = tile("wet-hours");
 
-    // The bars' header, word for word (#647, Overview C approval; #703).
-    expect(words(host.querySelector("h2"))).toBe("Wet hours · each bar is every hour; dark is wet");
+    // The mode title alone on the half-width tile, as the boards draw it (#706).
+    expect(words(host.querySelector("h2"))).toBe("Wet hours");
     expect(words(host.querySelector("[data-part=value]"))).toBe("8 h");
     expect(words(host.querySelector("[data-part=delta]"))).toBe("of 43 in the last 7 days");
     expect(tile("dry-spell")).toBeNull();
@@ -697,18 +698,44 @@ describe("the wet-or-dry tile (#658)", () => {
     expect(svg.querySelectorAll("rect.mosaic-wet, rect.mosaic-dry")).toHaveLength(0);
   });
 
-  it("carries the hatch key in the board's words when an hour is hatched", () => {
+  it("says how to read the bars under them, the hatch key beside the words (#706)", () => {
     renderOverview(panel, parsed("dry"));
-    const key = tile("wet-hours").querySelector("[data-part=legend]")!;
+    const link = tile("wet-hours").querySelector("a")!;
+    const svg = link.querySelector("[data-part=mini-chart] svg")!;
+    const key = link.querySelector("[data-part=legend]")!;
+    const caption = link.querySelector("[data-part=caption]")!;
 
+    // The bars' how-to-read words, word for word as in their full header.
+    expect(words(caption)).toBe("each bar is every hour; dark is wet");
+    expect(caption.classList.contains("mosaic-caption")).toBe(true);
     expect(words(key)).toBe("hatched: missing, not dry");
     expect(key.querySelector(".hatch-swatch")).not.toBeNull();
+    // Under the bars: the bars, the key, then the caption, the tile's last part.
+    expect(svg.compareDocumentPosition(key) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(key.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.querySelector("[data-part=mini-chart]")!.nextElementSibling).toBe(caption);
   });
 
-  it("carries no hatch key when every hour counts", () => {
+  it("sets its caption in the label type, as the hatch key is", () => {
+    const css = readFileSync(resolve(import.meta.dirname, "../src/overview/mosaic.css"), "utf8");
+    const rule = /\.mosaic-caption\s*\{([^}]*)\}/.exec(css)![1]!;
+
+    expect(rule).toContain("font-size: var(--type-label)");
+  });
+
+  it("carries no hatch key when every hour counts, the caption still", () => {
     renderOverview(panel, parseDashboard(inMode("seasoned", "wet")));
 
     expect(tile("wet-hours").querySelector("[data-part=legend]")).toBeNull();
+    expect(words(tile("wet-hours").querySelector("[data-part=caption]"))).toBe(
+      "each bar is every hour; dark is wet",
+    );
+  });
+
+  it("captions no other tile", () => {
+    renderOverview(panel, parsed("dry"));
+
+    expect(panel.querySelectorAll("[data-part=caption]")).toHaveLength(1);
   });
 
   it("draws the 30-day strip in its zoom, a day it cannot count hatched, never dry", () => {
@@ -739,9 +766,7 @@ describe("the wet-or-dry tile (#658)", () => {
     d.tile_titles.wet_or_dry = "Wet time";
     renderOverview(panel, parseDashboard(d));
 
-    expect(words(tile("wet-hours").querySelector("h2"))).toBe(
-      "Wet time · each bar is every hour; dark is wet",
-    );
+    expect(words(tile("wet-hours").querySelector("h2"))).toBe("Wet time");
   });
 
   it("is the Dry spell tile in dry mode, titled by the snapshot (seasoned)", () => {
