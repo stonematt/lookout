@@ -6,25 +6,26 @@
  * events this water year · 3 in the last 7 days" (`RainEvents.counts`), is
  * the tile's finding, then the scatter of four water years' events by size
  * (`scatter.ts`). Under them, the finding for the list's pick, the
- * stale-catalog note, the stat strip, the water year's gap note and the
- * folded source. A snapshot written before the counts (N−1) opens as before:
+ * stale-catalog note, the stat strip and the folded source; the water
+ * year's missing days are the list's (`list.ts`). A snapshot written before
+ * the counts (N−1) opens as before:
  * the pick's finding as the tile's finding, then the standfirst.
  *
  * - `renderCatalogTile`: the tile's markup, scatter and source fold, once
  *   per mount.
- * - `renderCatalogHead`: the pick's finding, stats and gap note for the
+ * - `renderCatalogHead`: the pick's finding and stats for the
  *   water year shown, after every pick.
  */
 import { html } from "../dom.js";
 import type { Html } from "../dom.js";
 import { inches } from "../format.js";
-import { gapElement, isComparable } from "../gaps.js";
+import { isComparable } from "../gaps.js";
 import type { DashboardSnapshot, EventCounts, RainEventRow } from "../snapshot.js";
 import { staleCatalogNote } from "../stale.js";
 import { gapReasons, sourceNote, tileFolds } from "../tiles.js";
 import { stat } from "./detail.js";
 import type { Season } from "./model.js";
-import { listFinding, minutes, seasonNote, statsFor } from "./model.js";
+import { listFinding, minutes, statsFor } from "./model.js";
 import { drawScatter, scatterInput, scatterMarkup } from "./scatter.js";
 
 /**
@@ -62,8 +63,7 @@ export function renderCatalogTile(host: HTMLElement, snapshot: DashboardSnapshot
     html`
 ${head}
 <p class="ev-note ev-stale" role="status" hidden></p>
-<dl class="ev-stats"></dl>
-<p class="ev-note ev-season-gap" role="note" hidden></p>`,
+<dl class="ev-stats"></dl>`,
   );
   const chart = host.querySelector<HTMLElement>(".ev-sc-chart");
   if (chart && scatter) drawScatter(chart, scatter);
@@ -86,7 +86,7 @@ ${head}
 }
 
 /**
- * The catalog tile's finding, stat strip and gap note for the water year
+ * The catalog tile's finding and stat strip for the water year
  * shown.
  *
  * @param panel - The tab's panel.
@@ -118,12 +118,4 @@ export function renderCatalogHead(
   ];
   strip.innerHTML = html`${all.length ? cells : ""}`;
   strip.hidden = !all.length;
-  const note = panel.querySelector<HTMLElement>(".ev-season-gap")!;
-  const text = seasonNote(section, season);
-  note.hidden = text === null;
-  note.replaceChildren();
-  const year = season === "all" ? undefined : section.seasons.find((s) => s.water_year === season);
-  const status = year?.status;
-  if (status && !isComparable(status)) note.append(gapElement(status), " ");
-  if (text !== null) note.append(text);
 }

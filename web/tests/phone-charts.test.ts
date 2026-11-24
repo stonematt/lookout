@@ -292,24 +292,24 @@ describe("the event list's headline", () => {
 
   it("says the same for one water year", () => {
     expect(listFinding(stats, 2026, null, events)).toBe(
-      "The wettest of 3 events in water year 2026 brought 0.48 in, against 0.36 in for the median event",
+      "The wettest of 3 events in 2025–26 brought 0.48 in, against 0.36 in for the median event",
     );
   });
 
   it("names a lone event and an empty water year plainly", () => {
     const one = { count: 1, total_in: 0.36, median_in: 0.36, mean_duration_minutes: 530 };
     expect(listFinding(one, 2025, null, [events[2]!])).toBe(
-      "The one rain event in water year 2025 brought 0.36 in",
+      "The one rain event in 2024–25 brought 0.36 in",
     );
     const none = { count: 0, total_in: 0, median_in: null, mean_duration_minutes: null };
-    expect(listFinding(none, 2024, null, [])).toBe("No rain events in water year 2024");
+    expect(listFinding(none, 2024, null, [])).toBe("No rain events in 2023–24");
   });
 
   it("says so far when the wettest event is still raining", () => {
     const live = [row({ total_in: 0.9, live: true }), ...events];
     const four = { ...stats, count: 4 };
     expect(listFinding(four, 2026, null, live)).toBe(
-      "The wettest of 4 events in water year 2026 brought 0.90 in so far, against 0.36 in for the median event",
+      "The wettest of 4 events in 2025–26 brought 0.90 in so far, against 0.36 in for the median event",
     );
   });
 });
