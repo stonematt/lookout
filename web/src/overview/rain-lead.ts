@@ -108,7 +108,17 @@ function run(...parts: (string | Node)[]): HTMLElement {
 function story(snapshot: DashboardSnapshot, rain: ToldStory): HTMLElement[] {
   const told = nowStory(snapshot);
   const event = told?.event ?? null;
-  const eventRun = (words: [string, string]) => run(make("b", "", words[0]), ` ${words[1]}`);
+  // "0.30 in since 2:40 pm" never wraps; a start on an earlier day ("since
+  // Nov 23, 9:45 pm") may break before its time, so 320px never scrolls.
+  const eventRun = ([total, since]: [string, string]): (string | Node)[] => {
+    const cut = since.lastIndexOf(", ");
+    if (cut < 0) return [run(make("b", "", total), ` ${since}`)];
+    return [
+      run(make("b", "", total), ` ${since.slice(0, cut + 1)}`),
+      " ",
+      run(since.slice(cut + 2)),
+    ];
+  };
   const finding = make("h2", "tile-finding tile-finding-lead rain-lead-finding");
   finding.dataset.part = "finding";
   if (rain.raining) {
@@ -117,13 +127,13 @@ function story(snapshot: DashboardSnapshot, rain: ToldStory): HTMLElement[] {
     rate.setAttribute("aria-hidden", "true");
     const unit = make("span", "rain-lead-unit", RATE_UNIT);
     rate.append(rain.rate_in_hr.toFixed(2), unit);
-    finding.append(event ? eventRun(event) : "in the last hour");
+    finding.append(...(event ? eventRun(event) : ["in the last hour"]));
     const body = make("div", "rain-lead-body");
     body.append(rate, spoken(`Raining, ${inchesPerHour(rain.rate_in_hr)}: `), finding);
     return [body];
   }
   const stopped = told?.lead ?? "";
-  if (event) finding.append(run(`${stopped} ·`), " ", eventRun(event));
+  if (event) finding.append(run(`${stopped} ·`), " ", ...eventRun(event));
   else finding.append(run(stopped));
   return [finding];
 }
