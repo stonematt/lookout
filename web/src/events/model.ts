@@ -14,7 +14,7 @@ import {
   ordinal,
   stationFormat,
 } from "../format.js";
-import { isComparable, notCompared } from "../gaps.js";
+import { beyondRecord, isComparable, notCompared } from "../gaps.js";
 import { listText } from "../rain/text.js";
 import type {
   EventCategory,
@@ -40,40 +40,99 @@ export const SORTS: readonly { sort: EventSort; label: string }[] = [
   { sort: "longest", label: "Longest" },
 ];
 
-/** The categories, in the filter's order (largest first), with their words. */
+/** The categories, smallest first: a category's step on the glyph is its place. */
 export const CATEGORIES: readonly { category: EventCategory; label: string }[] = [
-  { category: "storm", label: "Storm" },
-  { category: "rain", label: "Rain" },
-  { category: "shower", label: "Shower" },
-  { category: "sprinkle", label: "Sprinkle" },
+  { category: "sprinkle", label: "sprinkle" },
+  { category: "shower", label: "shower" },
+  { category: "rain", label: "rain" },
+  { category: "storm", label: "storm" },
 ];
 
-/** Which categories the list shows; sprinkles are hidden by default. */
-export type Categories = ReadonlySet<EventCategory>;
+/**
+ * The size filter: the smallest category the list shows, or every event.
+ * Python decides each event's category; the browser only compares it.
+ */
+export type EventSize = "all" | "shower" | "rain" | "storm";
 
-/** The categories a first visit shows: all but sprinkles. */
-export const DEFAULT_CATEGORIES: Categories = new Set<EventCategory>(["shower", "rain", "storm"]);
+/** The sizes, in the filter's order, with their words and what they hide. */
+export const SIZES: readonly { size: EventSize; label: string; hides: string | null }[] = [
+  { size: "all", label: "All sizes", hides: null },
+  { size: "shower", label: "Showers and up", hides: "sprinkles" },
+  { size: "rain", label: "Rain and up", hides: "showers and sprinkles" },
+  { size: "storm", label: "Storms only", hides: "smaller events" },
+];
+
+/** The size a first visit shows: showers and up, sprinkles hidden (#644). */
+export const DEFAULT_SIZE: EventSize = "shower";
 
 /**
- * Whether the category filter lets a row through. The live event always
- * shows, and so does a row with no category (a snapshot written before it).
+ * A category's step on the four-step glyph: 1 for a sprinkle to 4 for a
+ * storm.
  *
- * @param row - The event.
- * @param categories - The categories picked.
- * @returns True to list it.
+ * @param category - The event's category.
+ * @returns The step.
  */
-export function inCategories(row: RainEventRow, categories: Categories): boolean {
-  return row.live || row.category == null || categories.has(row.category);
+export function categoryStep(category: EventCategory): number {
+  return CATEGORIES.findIndex((c) => c.category === category) + 1;
 }
 
 /**
- * A row's category word, e.g. "Storm", or null when the snapshot has none.
+ * Whether the size filter lets a row through. The live event always shows,
+ * and so does a row with no category (a snapshot written before it).
+ *
+ * @param row - The event.
+ * @param size - The size picked.
+ * @returns True to list it.
+ */
+export function inSize(row: RainEventRow, size: EventSize): boolean {
+  if (size === "all" || row.live || row.category == null) return true;
+  return categoryStep(row.category) >= categoryStep(size);
+}
+
+/**
+ * The size that lists an event of this category and as few smaller ones
+ * as it can.
+ *
+ * @param category - The event's category.
+ * @returns "all" for a sprinkle, the category itself otherwise.
+ */
+export function sizeFor(category: EventCategory): EventSize {
+  return category === "sprinkle" ? "all" : category;
+}
+
+/**
+ * A row's category word, e.g. "shower", or null when the snapshot has none.
  *
  * @param row - The event.
  * @returns The word.
  */
 export function categoryLabel(row: RainEventRow): string | null {
   return CATEGORIES.find((c) => c.category === row.category)?.label ?? null;
+}
+
+/**
+ * A water year as the filter names it: water year 2027 is "2026–27".
+ *
+ * @param waterYear - The water year, named by the year it ends in.
+ * @returns The span.
+ */
+export function seasonLabel(waterYear: number): string {
+  // Anything but a year (a snapshot this version cannot read) as it is.
+  if (!Number.isInteger(waterYear)) return String(waterYear);
+  return `${waterYear - 1}–${String(waterYear % 100).padStart(2, "0")}`;
+}
+
+/**
+ * The water year a list opens on: the newest the snapshot holds, or all
+ * when it holds none.
+ *
+ * @param section - The snapshot's `rain_events`.
+ * @returns The water year, or "all".
+ */
+export function currentSeason(section: RainEvents): Season {
+  const [first, ...rest] = section.seasons;
+  if (!first) return "all";
+  return rest.reduce((a, s) => (s.water_year > a ? s.water_year : a), first.water_year);
 }
 
 /**
@@ -104,23 +163,23 @@ export function withEvent(search: string, startMs: number | null): string {
 }
 
 /**
- * The events the list shows: one water year's or all, in the categories
+ * The events the list shows: one water year's or all, of the size
  * picked, sorted, with the live event pinned on top whatever the sort.
  *
  * @param section - The snapshot's `rain_events`.
  * @param season - A water year, or "all".
  * @param sort - "newest" by start, "wettest" by total (Python's rank) or
  *   "longest" by the duration each row carries; ties go newest first.
- * @param categories - The categories picked; every category when omitted.
+ * @param size - The size picked; every event when omitted.
  * @returns The rows to list.
  */
 export function visibleEvents(
   section: RainEvents,
   season: Season,
   sort: EventSort,
-  categories?: Categories,
+  size: EventSize = "all",
 ): RainEventRow[] {
-  const rows = inSeason(section, season, categories);
+  const rows = inSeason(section, season, size);
   const key: Record<EventSort, (a: RainEventRow, b: RainEventRow) => number> = {
     newest: () => 0,
     wettest: (a, b) => a.rank - b.rank,
@@ -132,30 +191,28 @@ export function visibleEvents(
   );
 }
 
-/** One water year's events, or all of them, in the snapshot's order. */
-function inSeason(section: RainEvents, season: Season, categories?: Categories): RainEventRow[] {
+/** One water year's events, or all of them, of the size picked, in the snapshot's order. */
+function inSeason(section: RainEvents, season: Season, size: EventSize): RainEventRow[] {
   return section.events.filter(
-    (e) =>
-      (season === "all" || e.water_year === season) &&
-      (categories === undefined || inCategories(e, categories)),
+    (e) => (season === "all" || e.water_year === season) && inSize(e, size),
   );
 }
 
 /**
  * The event open by default in a water year or in all: the live one, or
- * with none live, the newest by start, among the categories picked.
+ * with none live, the newest by start, of the size picked.
  *
  * @param section - The snapshot's `rain_events`.
  * @param season - A water year, or "all".
- * @param categories - The categories picked; every category when omitted.
+ * @param size - The size picked; every event when omitted.
  * @returns The event, or null when the filter leaves none.
  */
 export function defaultOpen(
   section: RainEvents,
   season: Season,
-  categories?: Categories,
+  size: EventSize = "all",
 ): RainEventRow | null {
-  const rows = inSeason(section, season, categories);
+  const rows = inSeason(section, season, size);
   return (
     rows.find((e) => e.live) ??
     rows.reduce<RainEventRow | null>(
@@ -192,32 +249,77 @@ export function sizeShare(row: RainEventRow, most: number): number {
  * What the list's empty state says when a filter leaves no events.
  *
  * @param season - A water year, or "all".
- * @param hidden - Events the category filter hides there.
+ * @param hidden - Events the size filter hides there.
  * @returns The sentence (DESIGN.md "Event list").
  */
 export function emptyList(season: Season, hidden = 0): string {
+  const scope = season === "all" ? "" : ` in ${seasonLabel(season)}`;
   if (hidden > 0) {
-    const scope = season === "all" ? "" : ` in water year ${season}`;
-    return `No events${scope} in the categories picked; ${hidden} other${hidden === 1 ? " is" : "s are"} hidden.`;
+    return `No events this size${scope}; ${hidden} smaller ${hidden === 1 ? "one is" : "ones are"} hidden.`;
   }
-  return season === "all"
-    ? "No rain events on record yet."
-    : `No rain events in water year ${season} yet.`;
+  return season === "all" ? "No rain events on record yet." : `No rain events${scope} yet.`;
 }
 
 /**
- * The list tile's finding: how many events it lists, for which water year,
- * in which order.
+ * The list tile's heading: every event of the pick, in its order.
  *
- * @param count - Events listed.
- * @param season - A water year, or "all".
  * @param sort - The order.
- * @returns E.g. "3 events, newest first".
+ * @returns E.g. "Every event, newest first".
  */
-export function listHeading(count: number, season: Season, sort: EventSort): string {
-  const scope = season === "all" ? "" : ` in water year ${season}`;
-  if (count === 0) return `No rain events${scope}`;
-  return `${count} event${count === 1 ? "" : "s"}${scope}, ${sort} first`;
+export function listHeading(sort: EventSort): string {
+  return `Every event, ${sort} first`;
+}
+
+/**
+ * The line under the filter: how many events the pick lists, and which
+ * sizes it hides when it hides any.
+ *
+ * @param shown - Events listed.
+ * @param hidden - Events of the water year the size filter hides.
+ * @param size - The size picked.
+ * @returns E.g. "8 events, sprinkles hidden".
+ */
+export function listCount(shown: number, hidden: number, size: EventSize): string {
+  const count = `${shown} event${shown === 1 ? "" : "s"}`;
+  const hides = SIZES.find((s) => s.size === size)?.hides ?? null;
+  return hidden > 0 && hides ? `${count}, ${hides} hidden` : count;
+}
+
+/** The missing-days note: one line, hatched when the year is not compared. */
+export interface MissingNote {
+  /** E.g. "4 days missing", or "not archived yet". */
+  text: string;
+  /** The record does not cover the water year (or one of those shown). */
+  hatched: boolean;
+}
+
+/**
+ * The one-line note for the days the record misses in the water year
+ * shown, or in all of them (#647: "4 days missing"). The sentence saying
+ * what that does to the list is `seasonNote`, in the fold.
+ *
+ * @param section - The snapshot's `rain_events`.
+ * @param season - A water year, or "all".
+ * @returns The note, or null when every year shown is whole.
+ */
+export function missingNote(section: RainEvents, season: Season): MissingNote | null {
+  const shown = section.seasons.filter(
+    (s) => (season === "all" || s.water_year === season) && s.status.status !== "valid",
+  );
+  // Days inside the record that it misses: counted, and hatched when they
+  // stop a year being compared.
+  const inRecord = shown.filter((s) => !beyondRecord(s.status) && s.status.missing_days > 0);
+  const days = inRecord.reduce((n, s) => n + s.status.missing_days, 0);
+  if (days > 0) {
+    const hatched = inRecord.some((s) => !isComparable(s.status));
+    return { text: `${days} day${days === 1 ? "" : "s"} missing`, hatched };
+  }
+  // A year the record does not reach is named, as its option is, not
+  // hatched (#470); the fold says why.
+  const beyond = shown.filter((s) => beyondRecord(s.status));
+  if (!beyond.length) return null;
+  const archived = beyond.every((s) => s.status.reason === "not_archived");
+  return { text: archived ? "not archived yet" : "partial year", hatched: false };
 }
 
 /**
@@ -244,10 +346,10 @@ export function statsFor(section: RainEvents, season: Season): EventStats {
  * year's note and under All.
  *
  * @param season - A ≈ water year's summary.
- * @returns E.g. "3 of 365 days of water year 2025".
+ * @returns E.g. "3 of 365 days of water year 2024–25".
  */
 function missingDays(season: EventSeason): string {
-  return `${season.status.missing_days} of ${season.status.days} days of water year ${season.water_year}`;
+  return `${season.status.missing_days} of ${season.status.days} days of water year ${seasonLabel(season.water_year)}`;
 }
 
 /**
@@ -264,7 +366,7 @@ function missingDays(season: EventSeason): string {
 export function seasonNote(section: RainEvents, season: Season): string | null {
   if (season === "all") {
     const shown = section.seasons.filter((s) => s.status.status !== "valid");
-    const lost = shown.filter((s) => !isComparable(s.status)).map((s) => String(s.water_year));
+    const lost = shown.filter((s) => !isComparable(s.status)).map((s) => seasonLabel(s.water_year));
     const prorated = shown.filter((s) => isComparable(s.status)).map(missingDays);
     if (!lost.length && !prorated.length) return null;
     const many = lost.length > 1;
@@ -283,7 +385,7 @@ export function seasonNote(section: RainEvents, season: Season): string | null {
   if (isComparable(status)) {
     return `${missingDays(found)} are missing from the record, so the list can miss events in them.`;
   }
-  return `Water year ${season} ${notCompared(status.reason)}, so the list can miss its events and their total is not the year's rain.`;
+  return `Water year ${seasonLabel(season)} ${notCompared(status.reason)}, so the list can miss its events and their total is not the year's rain.`;
 }
 
 /** A duration given in minutes, in the One Format Rule's words. */
@@ -365,7 +467,7 @@ export function listFinding(
   const n = stats.count;
   const scope =
     season !== "all"
-      ? ` in water year ${season}`
+      ? ` in ${seasonLabel(season)}`
       : oldestMs === null
         ? ""
         : ` since ${formatStamp(oldestMs).split(",")[0]}, ${yearOf().format(oldestMs)},`;

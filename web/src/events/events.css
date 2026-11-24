@@ -8,7 +8,7 @@
  * text when poor; the "latest" chip outlined in `now`; segments are pills,
  * the pressed one `ink` with `ground` text; `now` only for the live event.
  */
-.ev-tile > :is(.ev-stale, .ev-stats, .ev-season-gap) {
+.ev-tile > :is(.ev-stale, .ev-stats) {
   margin-top: var(--s-5);
 }
 
@@ -215,31 +215,67 @@
   background: none;
 }
 
-/* ---------- the filter bar ---------- */
+/* ---------- the filter line (#254): water year, sort, size ---------- */
 .ev-bar {
   position: sticky;
   top: var(--ev-bar-top);
   z-index: 5;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--s-2);
+  gap: 6px;
   margin: 0 0 var(--s-1);
   padding: var(--s-2) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
   background: var(--surface);
   border-bottom: 1px solid var(--rule);
 }
 
-.ev-year {
+/* one line; on the narrowest phones it scrolls in place, never the page */
+.ev-pill {
   display: flex;
+  flex: none;
 }
 
-/* the water-year filter: a native select styled as a pill */
+/* the count line under the filter, with the days missing on it */
+.ev-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--s-1);
+  margin: 0;
+  font-size: var(--type-source);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.ev-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  white-space: nowrap;
+}
+
+.ev-missing[hidden] {
+  display: none;
+}
+
+/* the list's heading: a label over the rows, not a finding */
+.ev-list-tile > .ev-list-finding {
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-source);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* each filter is a native select styled as a pill */
 .ev-select {
   appearance: none;
   min-height: 44px;
   max-width: 100%;
-  padding: 0 28px 0 12px;
+  padding: 0 25px 0 10px;
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-pill);
   background-color: var(--tile);
@@ -247,8 +283,8 @@
     linear-gradient(45deg, transparent 50%, var(--ink) 50%),
     linear-gradient(135deg, var(--ink) 50%, transparent 50%);
   background-position:
-    calc(100% - 17px) 50%,
-    calc(100% - 12px) 50%;
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
   background-size: 5px 5px;
   background-repeat: no-repeat;
   color: var(--ink);
@@ -401,6 +437,7 @@
   color: var(--ink);
   font: inherit;
   text-align: start;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -449,6 +486,26 @@
   line-height: 1.5;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
+}
+
+/* the category: the four-step glyph, then its word */
+.ev-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* four bars rising, filled to the category in `rain-line`; the bars above
+   it in `rule-strong`, which meets 3:1 on the tile */
+.ev-glyph {
+  flex: none;
+  fill: var(--rule-strong);
+}
+
+.ev-glyph .on {
+  fill: var(--rain-line);
 }
 
 /* the size bar: a `rain-bar` pill on a full-width `rule` track */
@@ -549,15 +606,6 @@
   margin: 0;
 }
 
-/* The water year's gap, in place before the note that explains it. */
-.ev-season-gap .gap-block {
-  display: inline-flex;
-  min-height: 0;
-  /* Enough hatch round the haloed reason for the stripes to read. */
-  padding: 3px var(--s-2);
-  vertical-align: baseline;
-}
-
 /* the empty filter: one row-shaped tile under the bar */
 .ev-empty {
   margin: 0;
@@ -644,10 +692,4 @@
 .ev-chip.low {
   border-style: dashed;
   color: var(--ink-3);
-}
-
-/* the category toggles: several can be pressed, so they sit apart */
-.ev-kinds {
-  gap: 2px;
-  padding: 1px;
 }
