@@ -153,7 +153,12 @@ export function renderDry(
   stat(strip, "Last rain", lastRain === null ? null : formatStamp(lastRain));
   const spell = drySpellNow(snapshot);
   const since = drySpellShown(snapshot);
-  stat(strip, "Since it last rained", since === null ? null : drySpellText(since));
+  stat(
+    strip,
+    "Since it last rained",
+    since === null ? null : drySpellText(since),
+    since?.under ?? undefined,
+  );
   const usualDd = stat(
     strip,
     "Usual dry spell",

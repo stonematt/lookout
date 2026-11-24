@@ -144,7 +144,8 @@ describe("the Rain tab's words", () => {
     );
     expect(dryHeadline(v5(1, null))).toBe("1 dry day since it last rained");
     expect(dryHeadline(v5(0, 2.5))).toBe(
-      "0 dry days since it last rained, against a usual dry spell of 2.5 days",
+      // Never "0 dry days": no dry spell yet, with last rain (#694).
+      "No dry spell yet, last rain 39 h ago",
     );
     expect(dryHeadline(v5(null, 4))).toBe("Dry spells in the record");
   });

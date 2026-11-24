@@ -20,7 +20,7 @@ import {
 } from "../format.js";
 import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
-import { nowStory, storyLine } from "../now-story.js";
+import { agoWords, lastRainMs, nowStory, storyLine } from "../now-story.js";
 import { WHOLE_DRY_DAYS_VERSION } from "../snapshot.js";
 import { meterShown } from "../wet-bars.js";
 import type {
@@ -158,12 +158,14 @@ export function drySpellNow(snapshot: DashboardSnapshot): DrySpellNow {
  *
  * @param snapshot - The dashboard snapshot.
  * @returns E.g. "1 d 22 h since it last rained, against a usual dry spell
- *   of 2 days".
+ *   of 2 days"; "No dry spell yet, last rain 9 h ago" before a whole dry
+ *   day has passed.
  */
 export function dryHeadline(snapshot: DashboardSnapshot): string {
   const spell = drySpellNow(snapshot);
   const shown = drySpellShown(snapshot);
   if (shown === null) return "Dry spells in the record";
+  if (shown.under !== null) return `${shown.spoken}, ${shown.under}`;
   const usual =
     spell.usual_days === null
       ? ""
@@ -179,13 +181,24 @@ export interface DrySpellShown {
   unit: string | null;
   /** The number for a sentence: "9 dry days"; "about 39 hours" before. */
   spoken: string;
+  /**
+   * Words under the reading when there is no dry spell yet (version 5, 0
+   * whole dry days): "last rain 9 h ago"; null otherwise, or with no last
+   * rain to name.
+   */
+  under: string | null;
 }
+
+/** The reading at 0 whole dry days: no whole dry day has passed since the last rain. */
+const NO_DRY_SPELL_YET = "No dry spell yet";
 
 /**
  * How the days since it last rained read, by the snapshot's version: whole
  * dry days from `WHOLE_DRY_DAYS_VERSION` (GLOSSARY dry spell, #667), so a
  * pause between showers never reads as a dry spell; before it, the time
- * since the last tip as a duration. The Dry spell tile, the feature, the
+ * since the last tip as a duration. At 0 whole dry days there is no dry
+ * spell yet: "No dry spell yet", with last rain under it (#694, product
+ * lead on #647), never "0 dry days". The Dry spell tile, the feature, the
  * Rain tab and the dry spell zoom all show this one reading.
  *
  * @param snapshot - The dashboard snapshot.
@@ -196,10 +209,15 @@ export function drySpellShown(snapshot: DashboardSnapshot): DrySpellShown | null
   if (days === null) return null;
   if (snapshot.schema_version >= WHOLE_DRY_DAYS_VERSION) {
     const whole = Math.round(days);
+    if (whole === 0) {
+      const last = lastRainMs(snapshot);
+      const under = last === null ? null : `last rain ${agoWords(snapshot.built_at_ms - last)} ago`;
+      return { value: NO_DRY_SPELL_YET, unit: null, spoken: NO_DRY_SPELL_YET, under };
+    }
     const unit = whole === 1 ? "day" : "days";
-    return { value: String(whole), unit, spoken: `${whole} dry ${unit}` };
+    return { value: String(whole), unit, spoken: `${whole} dry ${unit}`, under: null };
   }
-  return { value: formatDays(days), unit: null, spoken: formatDaysSpoken(days) };
+  return { value: formatDays(days), unit: null, spoken: formatDaysSpoken(days), under: null };
 }
 
 /**

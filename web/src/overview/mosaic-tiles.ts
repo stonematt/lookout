@@ -500,6 +500,8 @@ export const drySpellTile: MosaicTile = {
     const usual = drySpellNow(snapshot).usual_days;
     const since = drySpellShown(snapshot);
     if (since === null) return { value: null, delta: "no last rain on record" };
+    // No dry spell yet (0 whole dry days, #694): the words, last rain under them.
+    if (since.under !== null) return { value: since.value, words: true, delta: since.under };
     return {
       value: since.value,
       unit: since.unit,

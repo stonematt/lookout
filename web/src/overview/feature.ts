@@ -44,7 +44,7 @@ import {
   mph,
   percent,
 } from "../format.js";
-import { drySpellShown } from "../rain/text.js";
+import { dryHeadline, drySpellShown } from "../rain/text.js";
 import type { DashboardSnapshot, Feature, FeatureReading } from "../snapshot.js";
 import { tileFinding } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
@@ -276,8 +276,9 @@ function drySpellView(snapshot: DashboardSnapshot): FeatureView {
   const usualDays = snapshot.dry_spell?.usual_days ?? null;
   const usual =
     usualDays === null ? "" : `, against a usual dry spell of ${formatDayCount(usualDays)}`;
-  if (since === null) {
-    const finding = "No last rain on record";
+  if (since === null || since.under !== null) {
+    // No dry spell yet (0 whole dry days, #694) reads as the Rain tab's finding.
+    const finding = since === null ? "No last rain on record" : dryHeadline(snapshot);
     return {
       kind: "dry_spell",
       kicker: "Dry spell",

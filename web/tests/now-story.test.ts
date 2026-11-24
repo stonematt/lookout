@@ -7,9 +7,12 @@
  * stopped 40 min ago", "Last rain 9 h ago"); the rate in "in/hr" (#647
  * call 1).
  */
+import { createRequire } from "node:module";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { setLayout } from "../src/layout.js";
+import { agoWords } from "../src/now-story.js";
 import { renderOverview } from "../src/overview/index.js";
 import { renderRain } from "../src/rain/index.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
@@ -71,5 +74,14 @@ describe("the now story on the Overview and the Rain tab", () => {
 
   it("gives the rate in in/hr on the Rain tab, as on the Overview", () => {
     expect(rainTabStory(raining())).toBe("Raining · 0.12 in/hr · 0.30 in since 2:00 pm");
+  });
+
+  it("words how long ago as the Scriptable widget does (it cannot import it)", () => {
+    const widget = createRequire(import.meta.url)("../../widgets/scriptable/Lookout.js") as {
+      agoWords(ms: number): string;
+    };
+    for (const minutes of [0, 40, 59, 60, 130, 47 * 60 + 59, 48 * 60, 73 * 60]) {
+      expect(widget.agoWords(minutes * 60_000)).toBe(agoWords(minutes * 60_000));
+    }
   });
 });
