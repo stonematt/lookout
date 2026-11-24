@@ -188,7 +188,13 @@ describe("parseDashboard", () => {
   it("reads Release A3's fields, and a snapshot without them (N−1)", () => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
     const read = parseDashboard(doc);
-    expect(read.rain_tab.usual_to_date).toEqual({ usual_in: 0.304, years: 1, percent: 145 });
+    expect(read.rain_tab.usual_to_date).toEqual({
+      usual_in: 0.304,
+      years: 1,
+      percent: 145,
+      verdict: "wetter",
+      water_years: [2025],
+    });
     expect(read.temperature_context.ten_day_highs).toEqual({ delta_f: 2, days: 10, gap: false });
     expect(read.outdoor_trace?.pressure_inhg).toHaveLength(24);
 
