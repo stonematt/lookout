@@ -1230,6 +1230,9 @@ class WaterYearCurve:
     reason: Tuple[Optional[GapReason], ...]
 
 
+Verdict = Literal["wetter", "drier", "about the same"]
+
+
 @dataclass(frozen=True)
 class UsualToDate:
     """
@@ -1237,19 +1240,84 @@ class UsualToDate:
 
     The usual is the median, over the earlier water years whose curve has a
     value at `RainTab.day_index` (`WaterYearCurve.to_date_in`: the window
-    from Oct 1 to this date is valid or prorated), of that value. An even
-    count of years takes the mean of the middle two.
+    from Oct 1 to this date is valid or prorated) and that cover this date
+    (`UsualWetHours.earlier`: at least half their hours from Oct 1 to this
+    date countable, #647), of that value. An even count of years takes the
+    mean of the middle two.
 
     :param usual_in: The usual rain by this date.
     :param years: How many earlier water years the usual rests on; at least 1.
     :param percent: This year's `to_date_in` as a percent of `usual_in`,
         rounded to a whole percent; None when this year's value is None or
         the usual is 0.
+    :param verdict: The water year's verdict (#640): "about the same" when
+        `percent` is within 15 of 100, else "wetter" or "drier"; read from
+        the published percent, so the two never disagree. Against a usual
+        of 0, any rain is "wetter" and none "about the same". None when this
+        year's value is None. Absent (None) from a snapshot written before
+        R1 of #647.
+    :param water_years: The earlier water years the usual rests on, oldest
+        first, so a finding can name them; `years` of them. Empty in a
+        snapshot written before R1 of #647.
     """
 
     usual_in: float
     years: int
     percent: Optional[int]
+    verdict: Optional[Verdict] = None
+    water_years: Tuple[int, ...] = ()
+
+
+StripMark = Literal["above usual range", "below usual range"]
+StripBand = Literal["percentile", "range"]
+
+
+@dataclass(frozen=True)
+class EarlierWindowRain:
+    """
+    One earlier year's rain over the same window (#640).
+
+    :param last_day: That window's last day, "YYYY-MM-DD": this window's,
+        a whole number of years back (Feb 29 as Feb 28).
+    :param rain_in: Its rain; prorated when its window is.
+    """
+
+    last_day: str
+    rain_in: float
+
+
+@dataclass(frozen=True)
+class StripWindow:
+    """
+    One window of the Rain tab's window strip (#640, spec #647): its rain
+    against its usual range from the same window in earlier years.
+
+    An earlier year counts when its window is valid or prorated by the gap
+    rules; the water year's counts exactly when `UsualToDate` does. With 3
+    or more such years the range is their 25th to 75th percentile; with 1
+    or 2 it spans their plain values.
+
+    :param key: The window, as `RainTab.windows` names it.
+    :param rain_in: Its rain, `RainWindow.total_in`; None when invalid.
+    :param years: N, the earlier years the range rests on.
+    :param earlier: Each of those years' rain, oldest first.
+    :param low_in: The range's low end; None with no earlier year.
+    :param high_in: The range's high end; None with no earlier year.
+    :param band: What the site calls the range: "percentile" from 4 years,
+        "range" (of N earlier years) at 3; None below 3, the plain values.
+    :param mark: "above usual range" or "below usual range" when the rain
+        is outside the range, words distinct from the verdict's. A window
+        that ends today is never "below": its rain can still grow.
+    """
+
+    key: str
+    rain_in: Optional[float]
+    years: int
+    earlier: Tuple[EarlierWindowRain, ...]
+    low_in: Optional[float]
+    high_in: Optional[float]
+    band: Optional[StripBand]
+    mark: Optional[StripMark]
 
 
 @dataclass(frozen=True)
@@ -1264,11 +1332,14 @@ class RainTab:
     :param dry_spells: The current dry spell against the record.
     :param day_index: Today's place in the water-year curves.
     :param water_years: Every water year the archive reaches, oldest first.
-    :param usual_to_date: This water year's rain to date against the usual;
-        None when no earlier water year has a value at `day_index`.
+    :param usual_to_date: This water year's rain to date against the usual,
+        with its verdict; None when no earlier water year both has a value
+        at `day_index` and covers this date.
     :param wet_hours_to_date: Wet hours since Oct 1 against usual wet hours
         to date (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663); the
         Rain tab reads it in place of `recent.wet_hours`.
+    :param window_strip: Each window's rain against its usual range, in
+        `windows` order (#640); empty in a snapshot written before R1.
     """
 
     windows: Tuple[RainWindow, ...]
@@ -1278,6 +1349,7 @@ class RainTab:
     water_years: Tuple[WaterYearCurve, ...]
     usual_to_date: Optional[UsualToDate]
     wet_hours_to_date: Optional[WetHoursToDate] = None
+    window_strip: Tuple[StripWindow, ...] = ()
 
 
 @dataclass(frozen=True)

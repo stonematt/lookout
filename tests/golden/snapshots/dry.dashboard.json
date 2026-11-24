@@ -3605,7 +3605,79 @@
       "countable_hours": 43,
       "missing_hours": 1134,
       "usual": null
-    }
+    },
+    "window_strip": [
+      {
+        "key": "today",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "yesterday",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "7d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "30d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "90d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "365d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "water_year",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      }
+    ]
   },
   "temperature_context": {
     "now": 39.4,

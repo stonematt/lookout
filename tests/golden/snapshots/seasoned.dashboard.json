@@ -6757,7 +6757,11 @@
     "usual_to_date": {
       "usual_in": 0.304,
       "years": 1,
-      "percent": 145
+      "percent": 145,
+      "verdict": "wetter",
+      "water_years": [
+        2025
+      ]
     },
     "wet_hours_to_date": {
       "water_year": 2026,
@@ -6781,7 +6785,121 @@
         "high_hours": null,
         "band": null
       }
-    }
+    },
+    "window_strip": [
+      {
+        "key": "today",
+        "rain_in": 0.0,
+        "years": 2,
+        "earlier": [
+          {
+            "last_day": "2024-05-20",
+            "rain_in": 0.0
+          },
+          {
+            "last_day": "2025-05-20",
+            "rain_in": 0.0
+          }
+        ],
+        "low_in": 0.0,
+        "high_in": 0.0,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "yesterday",
+        "rain_in": 0.0,
+        "years": 2,
+        "earlier": [
+          {
+            "last_day": "2024-05-19",
+            "rain_in": 0.0
+          },
+          {
+            "last_day": "2025-05-19",
+            "rain_in": 0.0
+          }
+        ],
+        "low_in": 0.0,
+        "high_in": 0.0,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "7d",
+        "rain_in": 0.24,
+        "years": 2,
+        "earlier": [
+          {
+            "last_day": "2024-05-20",
+            "rain_in": 0.0
+          },
+          {
+            "last_day": "2025-05-20",
+            "rain_in": 0.0
+          }
+        ],
+        "low_in": 0.0,
+        "high_in": 0.0,
+        "band": null,
+        "mark": "above usual range"
+      },
+      {
+        "key": "30d",
+        "rain_in": 0.44,
+        "years": 1,
+        "earlier": [
+          {
+            "last_day": "2025-05-20",
+            "rain_in": 0.0
+          }
+        ],
+        "low_in": 0.0,
+        "high_in": 0.0,
+        "band": null,
+        "mark": "above usual range"
+      },
+      {
+        "key": "90d",
+        "rain_in": 0.44,
+        "years": 1,
+        "earlier": [
+          {
+            "last_day": "2025-05-20",
+            "rain_in": 0.0
+          }
+        ],
+        "low_in": 0.0,
+        "high_in": 0.0,
+        "band": null,
+        "mark": "above usual range"
+      },
+      {
+        "key": "365d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "water_year",
+        "rain_in": 0.44,
+        "years": 1,
+        "earlier": [
+          {
+            "last_day": "2025-05-20",
+            "rain_in": 0.304
+          }
+        ],
+        "low_in": 0.304,
+        "high_in": 0.304,
+        "band": null,
+        "mark": "above usual range"
+      }
+    ]
   },
   "temperature_context": {
     "now": 72.0,
