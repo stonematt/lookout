@@ -65,6 +65,11 @@ const sortBy = (value: string) => choose(".ev-sort-select", value);
 /** Pick a size. */
 const sizeOf = (value: string) => choose(".ev-size-select", value);
 const drawnLast = () => deps.draw.mock.calls.at(-1)!;
+/** The owner's sentence for an event the URL names and the catalog lacks (#707). */
+const MISSING_NOTE = "That event is no longer in the catalog; showing the newest one instead.";
+/** The open row's missing-event note, or null when it has none. */
+const missingNote = () =>
+  panel.querySelector(".ev-row[data-open] .ev-body > .ev-note")?.textContent ?? null;
 
 beforeEach(() => {
   localStorage.clear();
@@ -503,17 +508,44 @@ describe("the open row", () => {
   });
 
   it("says so when a linked event is not in the catalog", async () => {
-    history.replaceState(null, "", "/?event=1600000000000#events");
+    history.replaceState(null, "", "/?fixture=raining&event=1600000000000#events");
 
     mountEvents(panel, raining(), deps);
     await flush();
 
-    expect(openRows()[0]!.textContent).toContain("The linked event is not in the catalog");
+    expect(missingNote()).toBe(MISSING_NOTE);
     expect(finding()).toContain("still raining");
     // The stale link is cleared, so the next snapshot does not say it again.
-    expect(location.search).toBe("");
+    expect(location.search).toBe("?fixture=raining");
     mountEvents(panel, raining(), deps);
-    expect(openRows()[0]!.textContent).not.toContain("not in the catalog");
+    expect(missingNote()).toBeNull();
+  });
+
+  it("drops a stale ?event= with a history replace, so a refresh shows no note", async () => {
+    history.replaceState(null, "", "/?fixture=raining&event=1600000000000#events");
+    const length = history.length;
+    const push = vi.spyOn(history, "pushState");
+    const replace = vi.spyOn(history, "replaceState");
+
+    mountEvents(panel, raining(), deps);
+    await flush();
+
+    expect(missingNote()).toBe(MISSING_NOTE);
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(history.length).toBe(length);
+    expect(`${location.search}${location.hash}`).toBe("?fixture=raining#events");
+    push.mockRestore();
+    replace.mockRestore();
+
+    // A refresh loads the page again: a new panel, from the URL left behind.
+    document.body.innerHTML = "<section id=panel></section>";
+    panel = document.getElementById("panel")!;
+    mountEvents(panel, raining(), deps);
+    await flush();
+
+    expect(openStart()).toBe(EVENT_3);
+    expect(missingNote()).toBeNull();
   });
 
   it("shows totals only, with the gap note and no chart, for an event with no archive data", async () => {
@@ -806,14 +838,12 @@ describe("a newer snapshot mounted over the tab", () => {
     await flush();
 
     expect(openStart()).toBe(EVENT_3);
-    // The visitor opened it here, so it is not "linked": it has gone.
-    expect(openRows()[0]!.textContent).toContain(
-      "The event you had open is no longer in the catalog; showing the newest one instead.",
-    );
+    // The same neutral note as for a followed link (#707).
+    expect(missingNote()).toBe(MISSING_NOTE);
     expect(location.search).not.toContain("event=");
 
     mountEvents(panel, next, deps);
-    expect(openRows()[0]!.textContent).not.toContain("no longer in the catalog");
+    expect(missingNote()).toBeNull();
   });
 
   it("keeps keyboard focus on the row that had it", () => {

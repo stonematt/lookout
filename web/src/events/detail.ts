@@ -5,7 +5,7 @@
  * body reads. Markup goes through `html` (`web/src/dom.ts`).
  *
  * - `eventBody`: the body's markup around the empty chart host, with the
- *   note for a missing event (`MissingEvent`).
+ *   note when the event the URL named is not in the catalog.
  * - `eventSource`: the source fold's what, method and gaps for the event
  *   (`EventSourceParts`).
  * - `chartLabel`: the chart's accessible name.
@@ -27,24 +27,18 @@ function qualityLine(row: RainEventRow): string {
 }
 
 /**
- * Why the open event is not the one the URL named: the link names an event
- * the catalog never held for this visitor ("linked"), or the event the
- * visitor had open here has left the catalog since ("vanished").
+ * The note over the open row's finding when the event the URL named is not
+ * in the catalog. One neutral sentence fits a followed link and an event
+ * the visitor had open alike (#707).
  */
-export type MissingEvent = "linked" | "vanished" | null;
-
-/** The note over the open row's finding, one per kind of missing event. */
-const MISSING_NOTES: Record<"linked" | "vanished", string> = {
-  linked: "The linked event is not in the catalog; showing the newest one instead.",
-  vanished: "The event you had open is no longer in the catalog; showing the newest one instead.",
-};
+const MISSING_NOTE = "That event is no longer in the catalog; showing the newest one instead.";
 
 /**
  * The open row's body, around an empty `.ev-charts` the tab draws into.
  *
  * @param row - The open event.
  * @param count - Events in the catalog, for its finding.
- * @param missing - The event the URL named is not in the catalog: say why.
+ * @param missing - The event the URL named is not in the catalog: say so.
  * @param announce - The row is newly shown, so its finding is a live region;
  *   a newer snapshot redrawing the same row does not announce it again.
  * @returns The body's markup.
@@ -52,10 +46,10 @@ const MISSING_NOTES: Record<"linked" | "vanished", string> = {
 export function eventBody(
   row: RainEventRow,
   count: number,
-  missing: MissingEvent,
+  missing: boolean,
   announce: boolean,
 ): Html {
-  const note = missing ? html`<p class="ev-note">${MISSING_NOTES[missing]}</p>` : "";
+  const note = missing ? html`<p class="ev-note">${MISSING_NOTE}</p>` : "";
   const peak = peakText(row);
   const finding = eventFinding(row, count);
   return html`
