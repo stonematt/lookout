@@ -41,6 +41,7 @@ from lookout.snapshot.solar import solar_tab
 from lookout.snapshot.sun_moon import sun_moon
 from lookout.snapshot.temperature import temperature_context
 from lookout.snapshot.trace import outdoor_trace
+from lookout.snapshot.wet_hours import wet_hours
 from lookout.snapshot.widget import widget_view
 from lookout.snapshot.wind import wind_rose
 
@@ -135,4 +136,5 @@ def build_snapshot(
         indoor=indoor,
         battery_flags=battery_flags(stitched),
         outdoor_trace=outdoor_trace(stitched),
+        wet_hours=wet_hours(stitched, clock),
     )
