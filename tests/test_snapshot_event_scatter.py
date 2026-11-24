@@ -110,6 +110,17 @@ class TestScatter:
         by_start = dict(zip(year.start_ms, zip(year.total_in, year.category)))
         assert by_start[EVENT_1] == (2.4, "storm")
 
+    def test_an_event_with_no_total_is_no_point(self):
+        archive = scenario_until("2026-01-11T08:00:00Z")
+        catalog = event_catalog(archive)
+        catalog.loc[0, "total_rainfall"] = float("nan")
+
+        snapshot = build(archive, None, "2026-01-11T08:00:00Z", catalog)
+        (year,) = snapshot.rain_events.scatter
+
+        assert EVENT_1 not in year.start_ms
+        assert len(year.start_ms) == len(year.total_in) == len(year.category) == 2
+
     def test_it_holds_this_water_year_and_the_three_before(self):
         archive = scenario_until("2026-01-11T08:00:00Z")
         catalog = with_past_years(event_catalog(archive), range(1, 6))

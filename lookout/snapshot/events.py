@@ -337,9 +337,10 @@ def _scatter(
     }
     for _, event in events.iterrows():
         row = points.get(int(event["water_year"]))
-        if row is None or is_event_ongoing(event):
+        total_in = number(event.get("total_rainfall"))
+        # An event with no total has no place on the axis: it is no point.
+        if row is None or total_in is None or is_event_ongoing(event):
             continue
-        total_in = float(event["total_rainfall"])
         peak = number(event.get("max_hourly_rate"))
         row[0].append(_ms(event["start_time"]))
         row[1].append(round(total_in, 2))

@@ -17,6 +17,7 @@
  * - `drawScatter`: draw the chart into its host at the host's width.
  */
 import {
+  LABEL_CHAR_PX,
   NOTE_SIZE,
   canvas,
   chartLabel,
@@ -280,8 +281,8 @@ function scatterLabel(input: ScatterInput): string {
 export function scatterMarkup(input: ScatterInput): Html {
   const years = input.rows.length;
   const key = KEY.map((c) => html`<li><span class="ev-sc-swatch ev-sc-${c}"></span>${c}</li>`);
-  return html`<section class="ev-scatter" data-part="scatter" aria-labelledby="ev-sc-title">
-<div class="ev-sc-head"><h3 class="ev-sc-title" id="ev-sc-title">By size</h3><span class="ev-sc-years">${years} water year${years === 1 ? "" : "s"}</span></div>
+  return html`<section class="ev-scatter" data-part="scatter">
+<div class="ev-sc-head"><h3 class="ev-sc-title">By size</h3><span class="ev-sc-years">${years} water year${years === 1 ? "" : "s"}</span></div>
 <div class="ev-sc-chart"></div>
 <ul class="ev-sc-key" aria-label="Dot size: the event's category">${key}</ul>
 </section>`;
@@ -306,7 +307,7 @@ function scatterSvg(layout: ScatterLayout, input: ScatterInput): SVGSVGElement {
     const { x, valueIn } = layout.usual;
     svg.append(svgEl("line", { class: "ev-sc-usual", x1: x, x2: x, y1: TOP - 6, y2: baseline }));
     const text = `usual event ${inches(valueIn, { digits: 2 })}`;
-    const fits = x + 4 + text.length * 6.8 <= layout.width;
+    const fits = x + 4 + text.length * LABEL_CHAR_PX <= layout.width;
     svg.append(
       chartLabel(fits ? x + 4 : x - 4, TOP - 10, text, "ev-sc-label", fits ? "start" : "end"),
     );
