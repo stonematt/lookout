@@ -249,7 +249,7 @@ describe("one number wherever it appears (story 53)", () => {
     await boot(snapshot, "events");
     const wettest = Math.max(...snapshot.rain_events.events.map((e) => e.total_in)).toFixed(2);
 
-    expect(words(panel("events").querySelector("[data-section=catalog] h2"))).toContain(
+    expect(words(panel("events").querySelector("[data-section=catalog] .ev-title"))).toContain(
       `${wettest} in`,
     );
   });

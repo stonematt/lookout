@@ -37,6 +37,13 @@ export interface Tabs {
   current(): TabId;
 }
 
+/**
+ * Other names a link may give a tab: `#rain-events` opens Rain Events, and
+ * the URL then reads its own hash, `#events` (#666: every Rain Events link
+ * opens the one page).
+ */
+const ALIASES: Readonly<Record<string, TabId>> = { "rain-events": "events" };
+
 /** Whether a URL hash names one of the tabs. */
 function isTabId(id: string): id is TabId {
   return TABS.some((tab) => tab.id === id);
@@ -121,7 +128,8 @@ export function mountTabs(
 
   /** Open a tab: selection, tab stop, panel, hash, then the caller. */
   function select(id: string, focus = false): void {
-    const tab = id.split("/")[0]!;
+    const named = id.split("/")[0]!;
+    const tab = Object.hasOwn(ALIASES, named) ? ALIASES[named]! : named;
     open = isTabId(tab) ? tab : "overview";
     const hash = tab === open && id !== tab && options.keeps?.(id) ? id : open;
     for (const { id: tab } of TABS) {
