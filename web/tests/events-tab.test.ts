@@ -583,7 +583,7 @@ describe("the open row", () => {
     expect(label).toContain("peaking at 0.12 in/hr");
     // The source note says what the one chart draws.
     const method = open.querySelector("details[data-part=source-note]")!.textContent!;
-    expect(method).toContain("the columns are the rain between readings");
+    expect(method).toContain("the columns are the rain per 5 minutes");
     expect(method).toContain("ten times the left");
   });
 

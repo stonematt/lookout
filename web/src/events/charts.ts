@@ -4,10 +4,10 @@
  * (`drawEventChart`, #419): the dual form of spec #647, the rain as columns
  * and the running total as a line on one time axis.
  *
- * - The columns: the rain between readings gathered into the finest bins
- *   (5 minutes up) that keep the columns apart at the chart's width, in
- *   `rain-bar`, on the left axis (`rainColumns`), named over that axis
- *   ("rain every 15 min").
+ * - The columns: the rain per 5 minutes, in the finest bins (5 minutes up)
+ *   that keep the columns apart at the chart's width, a wider bin its
+ *   average, in `rain-bar`, on the left axis (`rainColumns`), named over
+ *   that axis ("rain every 5 min", "rain per 5 min, 30-min average").
  * - The line: the event rain so far as a bold stepped line in `rain-line` on
  *   a halo of the tile's surface (a running total is a line, never a filled
  *   area), on the right axis, against the median event's total, dashed. It
@@ -341,17 +341,25 @@ export interface RainColumns {
   minutes: number;
   /** Each column's middle, as station wall-clock strings. */
   x: string[];
-  /** The rain in each bin, in inches. */
+  /** Each bin's rain per 5 minutes, in inches: its rain over its 5-minute slots. */
   y: number[];
   /** Each column's hover: its start, its rain and its rate. */
   text: string[];
 }
 
+/** The readings' step, and the column axis's unit: rain per 5 minutes. */
+const READING_MS = 300_000;
+
+/** An hour, in ms. */
+const HOUR_MS = 3_600_000;
+
 /**
  * The event's rain as columns: the rain between readings (the rate times
- * the time since the reading before; none after a gap) summed into the
+ * the time since the reading before; none after a gap) gathered into the
  * finest bins of station time that draw at least `COLUMN_PX` wide, so the
- * columns stay apart on a long event and a phone.
+ * columns stay apart on a long event and a phone. Each column is its bin's
+ * rain per 5 minutes, so the column axis means one thing at every width
+ * and its fixed ratio to the total's axis holds its meaning.
  *
  * @param curve - The curve.
  * @param spanMs - The time axis's span.
@@ -368,27 +376,31 @@ export function rainColumns(curve: EventCurve, spanMs: number, plotPx: number): 
     const rate = curve.rate_in_hr[i];
     if (rate === null || rate === undefined) return;
     // The first reading's rate runs from the reading before the event.
-    const since = i === 0 ? t - 300_000 : curve.t_ms[i - 1]!;
+    const since = i === 0 ? t - READING_MS : curve.t_ms[i - 1]!;
     const start = Math.floor((wallMs(t) - 1) / bin) * bin;
-    sums.set(start, (sums.get(start) ?? 0) + (rate * (t - since)) / 3_600_000);
+    sums.set(start, (sums.get(start) ?? 0) + (rate * (t - since)) / HOUR_MS);
   });
   const starts = [...sums.keys()].sort((a, b) => a - b);
-  const y = starts.map((s) => Math.round(sums.get(s)! * 1e4) / 1e4);
+  const rain = starts.map((s) => sums.get(s)!);
   return {
     minutes,
     x: starts.map((s) => wallText(s + bin / 2)),
-    y,
+    y: rain.map((r) => Math.round(((r * READING_MS) / bin) * 1e4) / 1e4),
     text: starts.map((s, i) => {
-      const rate = inchesPerHour(y[i]! / (minutes / 60));
-      return `${dayText(wallText(s).slice(0, 10))}, ${clockText(s)}, ${minutes} min: ${inches(y[i]!)} (${rate})`;
+      const rate = inchesPerHour((rain[i]! * HOUR_MS) / bin);
+      return `${dayText(wallText(s).slice(0, 10))}, ${clockText(s)}, ${minutes} min: ${inches(rain[i]!)} (${rate})`;
     }),
   };
 }
 
-/** The columns' in-place name: "rain every 15 min", "rain each hour". */
+/**
+ * The columns' name over their axis: "rain every 5 min", or for wider bins
+ * "rain per 5 min, 30-min average", "rain per 5 min, hourly average".
+ */
 export function columnWords(minutes: number): string {
-  if (minutes < 60) return `rain every ${minutes} min`;
-  return minutes === 60 ? "rain each hour" : `rain every ${minutes / 60} h`;
+  if (minutes === READING_MS / 60_000) return `rain every ${minutes} min`;
+  const span = minutes < 60 ? `${minutes}-min` : minutes === 60 ? "hourly" : `${minutes / 60}-h`;
+  return `rain per 5 min, ${span} average`;
 }
 
 /**
@@ -415,7 +427,7 @@ export async function drawEventChart(
   const config: Partial<Plotly.Config> = { displayModeBar: false, responsive: true };
   // One time range, from the reading before the first; the plot is the host
   // less the side margins.
-  const [fromMs, toMs] = [curve.t_ms[0]! - 300_000, endMs + 60_000];
+  const [fromMs, toMs] = [curve.t_ms[0]! - READING_MS, endMs + 60_000];
   const xRange: [string, string] = [stationWallClock(fromMs), stationWallClock(toMs)];
   const width = host.clientWidth || FALLBACK_WIDTH;
   const plotPx = width - MARGIN.l - MARGIN.r;

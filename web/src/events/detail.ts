@@ -88,14 +88,14 @@ export function eventSource(row: RainEventRow): EventSourceParts {
     return {
       what: "live station and archive, 5-minute readings",
       method:
-        "The live station for the newest reading and the total; the station archive for the rest. 5-minute readings, station time. One chart: the columns are the rain between readings (the rise in daily rain), summed over 5 minutes or more so they stay apart, on the left axis; the line is the event's rain as it built up, on the right axis at ten times the left, against the median event's total, dashed.",
+        "The live station for the newest reading and the total; the station archive for the rest. 5-minute readings, station time. One chart: the columns are the rain per 5 minutes (the rise in daily rain between readings), averaged over wider spans where 5-minute columns would run together, on the left axis; the line is the event's rain as it built up, on the right axis at ten times the left, against the median event's total, dashed.",
       gaps: null,
     };
   }
   return {
     what: "station archive, 5-minute readings",
     method:
-      "The station archive, 5-minute readings, station time. One chart: the columns are the rain between readings (the rise in daily rain), summed over 5 minutes or more so they stay apart, on the left axis; the line is the event's rain as it built up, on the right axis at ten times the left, against the median event's total, dashed.",
+      "The station archive, 5-minute readings, station time. One chart: the columns are the rain per 5 minutes (the rise in daily rain between readings), averaged over wider spans where 5-minute columns would run together, on the left axis; the line is the event's rain as it built up, on the right axis at ten times the left, against the median event's total, dashed.",
     gaps: null,
   };
 }

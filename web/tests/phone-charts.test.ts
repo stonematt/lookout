@@ -140,14 +140,14 @@ describe("the event charts", () => {
     // The line on the total's axis, the columns on their own.
     expect(line.yaxis).toBe("y2");
     expect(columns.yaxis ?? "y").toBe("y");
-    // 20 hours at the desktop fallback: 10-minute columns, 0.02 in each
-    // after the first (its one reading), each narrower than its bin, so the
-    // columns stand apart.
-    expect(new Set((columns.y as number[]).slice(1))).toEqual(new Set([0.02]));
+    // 20 hours at the desktop fallback: 10-minute columns, each still the
+    // rain per 5 minutes (0.01 in) after the first (its one reading), each
+    // narrower than its bin, so the columns stand apart.
+    expect(new Set((columns.y as number[]).slice(1))).toEqual(new Set([0.01]));
     for (const w of columns.width as number[]) expect(w).toBeLessThan(600_000);
     expect(chart!.layout.barmode).toBe("overlay");
     const notes = (chart!.layout.annotations as Record<string, unknown>[]).map((n) => n.text);
-    expect(notes).toContain("rain every 10 min");
+    expect(notes).toContain("rain per 5 min, 10-min average");
     expect(notes).toContain("2.40 in total");
   });
 
@@ -189,11 +189,14 @@ describe("the event chart's columns", () => {
     const fine = rainColumns(curve(3), span, 600);
     expect(fine.minutes).toBe(5);
     expect(fine.y[1]).toBeCloseTo(0.01);
-    // On a narrow plot: wider bins, the rain in each summed.
+    expect(columnWords(fine.minutes)).toBe("rain every 5 min");
+    // On a narrow plot: wider bins, each its rain per 5 minutes, so the
+    // column axis reads the same at every width.
     const narrow = rainColumns(curve(3), span, 100);
     expect(narrow.minutes).toBe(10);
-    expect(Math.max(...narrow.y)).toBeCloseTo(0.02);
-    expect(columnWords(narrow.minutes)).toBe("rain every 10 min");
+    expect(Math.max(...narrow.y)).toBeCloseTo(0.01);
+    expect(narrow.text[1]).toContain("10 min: 0.02 in (0.12 in/hr)");
+    expect(columnWords(narrow.minutes)).toBe("rain per 5 min, 10-min average");
   });
 
   it("draws no column for the reading after a gap", () => {
@@ -205,8 +208,8 @@ describe("the event chart's columns", () => {
   });
 
   it("names hourly and longer columns", () => {
-    expect(columnWords(60)).toBe("rain each hour");
-    expect(columnWords(180)).toBe("rain every 3 h");
+    expect(columnWords(60)).toBe("rain per 5 min, hourly average");
+    expect(columnWords(180)).toBe("rain per 5 min, 3-h average");
   });
 });
 
