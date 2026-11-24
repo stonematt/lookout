@@ -1,7 +1,9 @@
 /**
  * The Overview tab (spec #460): the now tile, the feature tile, then the
  * mosaic's tiles (#472, #473), in the order the snapshot's wet mode
- * sets (#658, `overviewSections`).
+ * sets (#658, `overviewSections`). While rain leads (Overview C, #661) the
+ * rain tile (`rain-lead.ts`) takes the feature's place, and Wet hours and
+ * Rain since Oct 1 leave the mosaic for its season foot.
  *
  * Layout, the same order on every width (DESIGN.md "Layout", README
  * decision 10): on a phone the now tile and the feature take the full
@@ -45,7 +47,9 @@ import { featureTile } from "./feature.js";
 import { firstScreen } from "./first-screen.js";
 import type { MosaicTile } from "./mosaic.js";
 import { mosaicSection } from "./mosaic.js";
-import { MOSAIC_TILES, mosaicTiles } from "./mosaic-tiles.js";
+import { MOSAIC_TILES, mosaicTiles, rainTile } from "./mosaic-tiles.js";
+import { wetHoursTile } from "./mosaic-wet.js";
+import { rainLeadTile, rainLeads } from "./rain-lead.js";
 import { sourcesFooter } from "./sources.js";
 import { drawZoom } from "./zoom.js";
 
@@ -63,13 +67,31 @@ const sectionsOf = (tiles: readonly MosaicTile[]): readonly OverviewSection[] =>
 export const SECTIONS: readonly OverviewSection[] = sectionsOf(MOSAIC_TILES);
 
 /**
- * The Overview's sections for a snapshot: the now tile, the feature, then
- * the mosaic in the order its wet mode sets (#658, Mosaic decision 24).
+ * The mosaic's tiles the Overview draws for a snapshot, in order: the
+ * mode's (`mosaicTiles`), less Wet hours and Rain since Oct 1 while rain
+ * leads, as the rain tile's season foot carries them (Overview C, #661), so
+ * no count shows twice.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The tiles, in order.
+ */
+export function overviewMosaic(snapshot: DashboardSnapshot): readonly MosaicTile[] {
+  const tiles = mosaicTiles(snapshot);
+  return rainLeads(snapshot) ? tiles.filter((t) => t !== wetHoursTile && t !== rainTile) : tiles;
+}
+
+/**
+ * The Overview's sections for a snapshot: the now tile, the feature (the
+ * rain tile while rain leads, #661), then the mosaic in the order its wet
+ * mode sets (#658, Mosaic decision 24).
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The sections, in order.
  */
 export function overviewSections(snapshot: DashboardSnapshot): readonly OverviewSection[] {
+  if (rainLeads(snapshot)) {
+    return [firstScreen, rainLeadTile, ...overviewMosaic(snapshot).map(mosaicSection)];
+  }
   return snapshot.wet_mode ? sectionsOf(mosaicTiles(snapshot)) : SECTIONS;
 }
 

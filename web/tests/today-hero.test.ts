@@ -75,7 +75,7 @@ describe("the usual band hero", () => {
       el.getAttribute("data-part"),
     );
     // The raining golden had rain today: the hero's rain line and column
-    // (#619); the wet-hour meter at its foot, each bar missing hours (#657).
+    // (#619). Rain leads, so the wet-hour bars are the rain tile's (#661).
     expect(parts).toEqual([
       "kicker",
       "finding",
@@ -84,9 +84,6 @@ describe("the usual band hero", () => {
       "rain-line",
       "today-chart",
       "rain-column",
-      "wet-meter",
-      ...["bar", "count", "missing"],
-      ...["bar", "count", "missing"],
     ]);
     // No folded source either: its line is in the Overview's footer.
     expect(hero().querySelector("details")).toBeNull();

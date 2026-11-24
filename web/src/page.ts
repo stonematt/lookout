@@ -31,7 +31,9 @@
  *
  * The tab shell keeps a zoom's route (`#overview/<slug>`, #474) in the URL,
  * and each time a tab opens the Overview's zoom shell follows the route
- * (`overview/zoom.ts`), opening or closing a zoom.
+ * (`overview/zoom.ts`), opening or closing a zoom. It keeps the Rain tab's
+ * season route (`#rain/season`, #661) too, which opens the Rain tab at its
+ * season part.
  */
 import { mountEvents } from "./events/tab.js";
 import { setStationZone } from "./format.js";
@@ -39,6 +41,7 @@ import { mountHeader } from "./header.js";
 import { mountLayout } from "./layout.js";
 import { ReadError } from "./load.js";
 import { renderOverview } from "./overview/index.js";
+import { followSeason, isSeasonRoute } from "./overview/rain-lead.js";
 import { drawZoom, followZoom, isZoomRoute } from "./overview/zoom.js";
 import { renderRain } from "./rain/index.js";
 import type { CurrentReading, DashboardSnapshot } from "./snapshot.js";
@@ -167,8 +170,10 @@ export function startPage(masthead: HTMLElement, sections: HTMLElement, reads: P
       // Every hash change opens a tab: the Overview's zoom follows the route.
       const overview = sections.querySelector<HTMLElement>("#panel-overview");
       if (overview) followZoom(overview);
+      // The rain tile's season foot opens the Rain tab at its season (#661).
+      if (id === "rain") followSeason(panel);
     },
-    { barBeforeHost: true, keeps: isZoomRoute },
+    { barBeforeHost: true, keeps: (hash) => isZoomRoute(hash) || isSeasonRoute(hash) },
   );
 
   /** The index's entry for the station shown, when the index is known. */

@@ -22,7 +22,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import type { StationIndex } from "../src/stations.js";
 import type { Scenario } from "./golden.js";
-import { MOSAIC_ORDER, SCENARIOS, golden, twoStations } from "./golden.js";
+import { LEAD_TILE, MOSAIC_ORDER, SCENARIOS, golden, twoStations } from "./golden.js";
 import type { Viewport } from "./viewport.js";
 import { viewport } from "./viewport.js";
 
@@ -86,7 +86,7 @@ const rows = (tab: string) => [
 const PHONE = {
   // The Overview has no rows (#472): the mosaic's ten tiles (#473), two to
   // a row, in the order the golden's wet mode sets (#658).
-  overview: ["first-screen", "feature", "<mosaic>"],
+  overview: ["first-screen", "<lead>", "<mosaic>"],
   rain: ["years", "rows: daily dry hours"],
   solar: ["now", "rows: daily day heatmaps"],
   // The event list is itself an accordion (#339): open, never a row.
@@ -100,7 +100,11 @@ describe.each(SCENARIOS)("the %s golden on a phone", (scenario) => {
       await boot(parsed(scenario), tab);
       expect(document.documentElement.dataset.layout).toBe("phone");
       const expected = PHONE[tab].flatMap((part) =>
-        part === "<mosaic>" ? MOSAIC_ORDER[scenario] : [part],
+        part === "<mosaic>"
+          ? MOSAIC_ORDER[scenario]
+          : part === "<lead>"
+            ? [LEAD_TILE[scenario]]
+            : [part],
       );
       expect(shape(tab)).toEqual(expected);
       for (const top of panel(tab).querySelectorAll("[data-phone-top]")) {

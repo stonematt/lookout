@@ -103,7 +103,10 @@ describe("no percentile and no ordinal on the Overview or a zoom", () => {
 });
 
 describe("the method, stated once in the sources footer", () => {
-  it.each(SCENARIOS)("in the feature's line on the %s golden", async (scenario) => {
+  // Rain leads on the raining golden: the rain tile, not the feature (#661).
+  const featured = SCENARIOS.filter((s) => s !== "raining");
+
+  it.each(featured)("in the feature's line on the %s golden", async (scenario) => {
     await boot("#overview", parseDashboard(structuredClone(golden(scenario, "dashboard"))), 1440);
     const footer = document.querySelector<HTMLElement>("footer.ov-sources")!;
     const line = footer.querySelector(

@@ -167,6 +167,34 @@
   background: var(--temp-band);
 }
 
+/* the hatch key's swatch (#661), outlined as the hatched bar ends are */
+.mosaic-hatch-swatch {
+  border: 1px solid var(--hatch);
+}
+
+/* Wet hours: two tallies, the wet fill in rain-line on a track edged in
+   rule-strong, the hours not counted hatched at the end (#661) */
+.mosaic-track {
+  fill: var(--tile);
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.mosaic-hatch-end {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.mosaic-wet-fill {
+  fill: var(--rain-line);
+}
+
+.mosaic-count {
+  font-size: var(--type-label);
+  fill: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Dry spell: a square a day, dry in `rule-strong` (a mark the reader must
    see, so 3:1 on the tile, #606), a rain day in the rain bars' colour, a day
    not in the record hatched, today outlined */

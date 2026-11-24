@@ -26,12 +26,24 @@ const CONDITIONS = ["wind", "pressure", "humidity", "sun", "daylight", "inside"]
  * decision 24): `dry` and `raining` are wet mode by the calendar (too few
  * countable hours, in November and January), Wet hours beside Temperature;
  * `seasoned` is dry mode by the weather (a dry May), Dry spell beside
- * Temperature and Rain since Oct 1 after Last 10 days.
+ * Temperature and Rain since Oct 1 after Last 10 days. Rain leads on
+ * `raining` (Overview C, #661): Wet hours and Rain since Oct 1 leave the
+ * mosaic for the rain tile's season foot.
  */
 export const MOSAIC_ORDER: Record<Scenario, readonly string[]> = {
   dry: ["temperature", "wet-hours", "rain", "last-10-days", ...CONDITIONS],
-  raining: ["temperature", "wet-hours", "rain", "last-10-days", ...CONDITIONS],
+  raining: ["temperature", "last-10-days", ...CONDITIONS],
   seasoned: ["temperature", "dry-spell", "last-10-days", "rain", ...CONDITIONS],
+};
+
+/**
+ * Each golden's tile under the now tile: the feature, or the rain tile
+ * (section `rain`) while rain leads (#661).
+ */
+export const LEAD_TILE: Record<Scenario, string> = {
+  dry: "feature",
+  raining: "rain",
+  seasoned: "feature",
 };
 
 /**

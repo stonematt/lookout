@@ -45,6 +45,7 @@ import { spoken, svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
+import { HATCH_KEY } from "./wet-meter.js";
 
 /** A mini chart's height, the same on every tile so a row lines up. */
 export const MINI_HEIGHT = 64;
@@ -97,6 +98,11 @@ export interface MosaicTile {
    * #460 Legends), and none when no day has a band to draw.
    */
   bandUnderBars?(snapshot: DashboardSnapshot): boolean;
+  /**
+   * Whether the chart hatches a part it cannot count: it then carries the
+   * hatch key above the chart, "hatched: missing, not dry" (#661).
+   */
+  hatched?(snapshot: DashboardSnapshot): boolean;
   /**
    * The tile's entry in the Overview's sources footer (`sources.ts`): its
    * short line (source and comparison, at most 12 words) and its method
@@ -175,6 +181,17 @@ function bandLegend(): HTMLElement {
   const swatch = document.createElement("span");
   swatch.className = "mosaic-swatch";
   legend.append(swatch, "usual range");
+  return legend;
+}
+
+/** The hatch key: the hatch's swatch, then what it means (#661). */
+function hatchLegend(): HTMLElement {
+  const legend = document.createElement("p");
+  legend.className = "mosaic-legend";
+  legend.dataset.part = "legend";
+  const swatch = document.createElement("span");
+  swatch.className = "hatch-swatch mosaic-hatch-swatch";
+  legend.append(swatch, HATCH_KEY);
   return legend;
 }
 
@@ -279,6 +296,7 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const plot = document.createElement("div");
   chart.append(plot);
   const band = tile.bandUnderBars?.(snapshot) ?? false;
+  const hatched = tile.hatched?.(snapshot) ?? false;
   drawSized(plot, (width) => {
     const svg = draw(snapshot, width);
     plot.replaceChildren(...(svg ? [svg] : []));
@@ -287,6 +305,7 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
     // the baseline its row's charts share.
     const legend = chart.querySelector("[data-part=legend]");
     if (svg && band && !legend) chart.prepend(bandLegend());
+    else if (svg && hatched && !legend) chart.prepend(hatchLegend());
     if (!svg) legend?.remove();
   });
 }
