@@ -3,6 +3,11 @@
  * exclusive accordion, each row opening its own curve, and the open event in
  * the URL (`?event=<start_ms>`), so a link opens the same row (#339).
  *
+ * The tab holds the state and the wiring; each part's markup is its own
+ * module (#261): `catalog.ts` the top tile, `list.ts` the list tile with its
+ * filter bar and rows, `detail.ts` the open row's body. All of it is built
+ * with the escaping `html` template (`web/src/dom.ts`).
+ *
  * - The tab is two tiles (`web/src/tiles.ts`, spec #332): the catalog
  *   (kicker, finding, standfirst, stats, folded source), the phone's fixed
  *   top; under it, the event list (DESIGN.md "Event list"): a filter bar
@@ -36,76 +41,33 @@
  */
 import "./events.css";
 
-import { inches, inchesPerHour, waterYearSpan } from "../format.js";
+import { html } from "../dom.js";
 import { ReadError, fetchEventCurve } from "../load.js";
-import { escapeHtml as esc } from "../dom.js";
-import { gapElement, gapLabel, isComparable } from "../gaps.js";
-import { staleCatalogNote } from "../stale.js";
-import { gapReasons, renderTiles, sourceNote, tileFolds } from "../tiles.js";
-import type {
-  DashboardSnapshot,
-  EventCategory,
-  EventCurve,
-  EventSeason,
-  RainEventRow,
-} from "../snapshot.js";
+import type { DashboardSnapshot, EventCategory, EventCurve, RainEventRow } from "../snapshot.js";
+import { renderTiles, sourceNote } from "../tiles.js";
+import { renderCatalogHead, renderCatalogTile } from "./catalog.js";
 import type { EventChart, EventChartOptions } from "./charts.js";
+import { chartLabel, eventBody, eventSource } from "./detail.js";
+import {
+  PAGE,
+  emptyListLine,
+  eventRows,
+  listFoot,
+  renderListTile,
+  storeCategories,
+  storedCategories,
+  syncFilterBar,
+} from "./list.js";
 import type { EventSort, Season } from "./model.js";
 import {
-  CATEGORIES,
-  DEFAULT_CATEGORIES,
-  SORTS,
-  categoryLabel,
   defaultOpen,
-  emptyList,
-  eventFinding,
   inCategories,
   latestStart,
-  listFinding,
-  listHeading,
-  lowQuality,
-  minutes,
-  qualityLabel,
-  seasonNote,
   selectedStart,
-  sizeShare,
-  startLabel,
   statsFor,
   visibleEvents,
   withEvent,
 } from "./model.js";
-
-/** Rows shown before "Show more". */
-const PAGE = 20;
-
-/** Where the browser keeps the categories picked, across visits. */
-const CATEGORIES_KEY = "lookout.events.categories";
-
-/** The categories picked on an earlier visit, or the default. */
-function storedCategories(): Set<EventCategory> {
-  try {
-    const raw = localStorage.getItem(CATEGORIES_KEY);
-    if (raw !== null) {
-      const known = new Set<string>(CATEGORIES.map((c) => c.category));
-      const picked = (JSON.parse(raw) as unknown[]).filter(
-        (c): c is EventCategory => typeof c === "string" && known.has(c),
-      );
-      return new Set(picked);
-    }
-  } catch {
-    // No storage, or a value this version cannot read: the default.
-  }
-  return new Set(DEFAULT_CATEGORIES);
-}
-
-/** Keep the categories picked for the next visit, where the browser lets it. */
-function storeCategories(categories: ReadonlySet<EventCategory>): void {
-  try {
-    localStorage.setItem(CATEGORIES_KEY, JSON.stringify([...categories]));
-  } catch {
-    // Storage blocked: the pick lasts this page only.
-  }
-}
 
 /** What the tab reads and draws with; tests replace these. */
 export interface EventsDeps {
@@ -132,38 +94,6 @@ export function browserDeps(): EventsDeps {
     },
     nowMs: () => Date.now(),
   };
-}
-
-/**
- * An event's start as two unbreakable parts, date and time, so a narrow
- * row breaks it between them: `Jan 8, 2025,` and `2:00 pm`.
- */
-function when(label: string): string {
-  const cut = label.lastIndexOf(", ") + 1;
-  if (cut === 0) return `<span class="ev-when">${esc(label)}</span>`;
-  return `<span><span class="ev-when">${esc(label.slice(0, cut))}</span> <span class="ev-when">${esc(label.slice(cut + 1))}</span></span>`;
-}
-
-/** A one-row stat strip cell. */
-function stat(value: string, label: string): string {
-  return `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
-}
-
-/**
- * A water year's option in the select. A year the record does not cover
- * reads "<year>, partial" ("not archived" for one the archive does not
- * reach yet), short so the select stays beside the sort on a
- * phone, with its reason in the title; a ≈ one is the year alone (a ≈ is
- * never marked as a gap). The catalog tile's note says why once picked.
- */
-function yearOption(season: EventSeason): string {
-  const { status } = season;
-  const year = esc(season.water_year);
-  const span = esc(waterYearSpan(season.water_year));
-  if (isComparable(status)) return `<option value="${year}" title="${span}">${year}</option>`;
-  const reason = gapLabel(status)!;
-  const word = status.reason === "not_archived" ? "not archived" : "partial";
-  return `<option value="${year}" title="${esc(`${waterYearSpan(season.water_year)}: ${reason}`)}" data-gap="${esc(status.reason ?? "gap")}">${year}, ${word}</option>`;
 }
 
 /** The list's shape the visitor picked. */
@@ -294,28 +224,7 @@ export function mountEvents(
       kicker: "The Event Catalog",
       span: 4,
       phoneTop: true,
-      render: (host) => {
-        host.classList.add("ev-tile");
-        host.insertAdjacentHTML(
-          "beforeend",
-          `
-<h2 class="tile-finding ev-title" data-part="finding"></h2>
-<p class="standfirst" data-part="standfirst">Each storm the station recorded, from the Event Catalog. Open one to see how its rain built up and how hard it fell.</p>
-<p class="ev-note ev-stale" role="status" hidden></p>
-<dl class="ev-stats"></dl>
-<p class="ev-note ev-season-gap" role="note" hidden></p>`,
-        );
-        const uncovered = section.seasons.filter((s) => !isComparable(s.status)).length;
-        host.append(
-          tileFolds(
-            sourceNote(snapshot, {
-              what: `Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}`,
-              method: `The Event Catalog, ${all.length} event${all.length === 1 ? "" : "s"}, each storm the station recorded. Peak is the highest rate between 5-minute readings. A dashed quality chip marks a poor event or one with no archive data.`,
-              gaps: gapReasons([[uncovered, "water year", "water years"]]),
-            }),
-          ),
-        );
-      },
+      render: (host) => renderCatalogTile(host, snapshot),
     },
     {
       id: "events",
@@ -324,218 +233,72 @@ export function mountEvents(
       span: 4,
       // The event list is itself an accordion: open on a phone, not a row.
       phoneOpen: true,
-      render: (host) => {
-        host.classList.add("ev-tile", "ev-list-tile");
-        // The filter bar heads the list; the kicker and finding are named
-        // for assistive tech, the catalog tile above says it on screen.
-        host.querySelector("[data-part=kicker]")!.classList.add("ov-sr");
-        const sorts = SORTS.map(
-          ({ sort, label }) => `<button type="button" data-sort="${sort}">${label}</button>`,
-        ).join("");
-        const kinds = CATEGORIES.map(
-          ({ category, label }) =>
-            `<button type="button" data-category="${category}">${label}</button>`,
-        ).join("");
-        // Literal markup; the select's options are escaped in yearOption.
-        // eslint-disable-next-line no-unsanitized/method
-        host.insertAdjacentHTML(
-          "beforeend",
-          `
-<h2 class="tile-finding ev-list-finding ov-sr" data-part="finding"></h2>
-<div class="ev-bar" role="group" aria-label="Filter and sort the events">
-  <label class="ev-year"><span class="ov-sr">Water year</span><select class="ev-select">
-    <option value="all">All years</option>${section.seasons.map(yearOption).join("")}
-  </select></label>
-  <div class="ev-seg ev-sort" role="group" aria-label="Order">${sorts}</div>
-  <div class="ev-seg ev-kinds" role="group" aria-label="Categories">${kinds}</div>
-</div>
-<div class="ev-list"></div>
-<div class="ev-foot"></div>`,
-        );
-      },
+      render: (host) => renderListTile(host, section),
     },
   ]);
   const $ = <T extends HTMLElement>(selector: string) => panel.querySelector<T>(selector)!;
-  const stale = staleCatalogNote(snapshot, "events");
-  if (stale) {
-    $(".ev-stale").textContent = stale;
-    $(".ev-stale").hidden = false;
-  }
   const listTile = $("[data-section=events]");
   const pin = () => listTile.style.setProperty("--ev-bar-top", `${stickyTop()}px`);
   pin();
   window.addEventListener("resize", pin, { signal: listening.signal, passive: true });
 
+  /** The catalog tile's finding and stats, and the filter bar, for the pick. */
   function renderHead(): void {
-    const stats = statsFor(section, view.season);
-    const oldest = all.length ? all[all.length - 1]!.start_ms : null;
     const rows = visibleEvents(section, view.season, view.sort, view.categories);
-    $(".ev-title").textContent = all.length
-      ? listFinding(stats, view.season, oldest, rows)
-      : "No rain events in the catalog yet";
-    $(".ev-list-finding").textContent = listHeading(rows.length, view.season, view.sort);
-    // Each cell is escaped in stat; the linter cannot follow it (#261).
-    // eslint-disable-next-line no-unsanitized/property
-    $(".ev-stats").innerHTML = all.length
-      ? [
-          stat(String(stats.count), "events"),
-          stat(inches(stats.total_in, { digits: 2 }), "rain in events"),
-          stat(
-            stats.median_in === null ? "n/a" : inches(stats.median_in, { digits: 2 }),
-            "median event",
-          ),
-          stat(
-            stats.mean_duration_minutes === null ? "n/a" : minutes(stats.mean_duration_minutes),
-            "mean length",
-          ),
-        ].join("")
-      : "";
-    $(".ev-stats").hidden = !all.length;
-    const note = $(".ev-season-gap");
-    const text = seasonNote(section, view.season);
-    note.hidden = text === null;
-    note.replaceChildren();
-    const year =
-      view.season === "all" ? undefined : section.seasons.find((s) => s.water_year === view.season);
-    const status = year?.status;
-    if (status && !isComparable(status)) note.append(gapElement(status), " ");
-    if (text !== null) note.append(text);
-    $<HTMLSelectElement>(".ev-select").value = String(view.season);
-    for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-sort]")) {
-      b.setAttribute("aria-pressed", String(b.dataset.sort === view.sort));
-    }
-    for (const b of panel.querySelectorAll<HTMLButtonElement>("[data-category]")) {
-      const on = view.categories.has(b.dataset.category as EventCategory);
-      b.setAttribute("aria-pressed", String(on));
-    }
+    renderCatalogHead(panel, section, view.season, rows);
+    syncFilterBar(panel, view, rows.length);
   }
 
-  /** The catalog's largest event total, the size bars' full track. */
-  function largest(): number {
-    return Math.max(0, ...all.map((e) => e.total_in));
-  }
-
-  /** A closed row's header: the button that opens and closes it. */
-  function rowHead(e: RainEventRow, open: boolean, now: number, most: number): string {
-    const mark = e.live
-      ? '<span class="ev-live">Live</span>'
-      : e.start_ms === latest
-        ? '<span class="ev-latest">latest</span>'
-        : "";
-    const peak =
-      e.peak_rate_in_hr === null || !e.has_curve ? "n/a" : inchesPerHour(e.peak_rate_in_hr);
-    const chip = `<span class="ev-chip${lowQuality(e) ? " low" : ""}">${esc(qualityLabel(e))}</span>`;
-    const share = (sizeShare(e, most) * 100).toFixed(1);
-    const kind = categoryLabel(e);
-    return `<h3 class="ev-row-head"><button type="button" class="ev-open" data-start="${esc(e.start_ms)}" aria-expanded="${open}" aria-controls="ev-body-${esc(e.start_ms)}">
-  <span class="ev-date">${when(startLabel(e.start_ms, now))}${mark}</span>
-  <span class="ev-total">${e.total_in.toFixed(2)}<small> in</small></span>
-  <span class="ev-meta">${kind ? `${esc(kind)} · ` : ""}${esc(minutes(e.duration_minutes))} · peak ${esc(peak)} ${chip}</span>
-  <span class="ev-size" aria-hidden="true"><span style="width: ${share}%"></span></span>
-</button></h3>`;
-  }
-
+  /** The rows shown and the foot under them, then the open row's body. */
   function renderList(): void {
     const rows = visibleEvents(section, view.season, view.sort, view.categories);
-    const shown = rows.slice(0, view.limit);
+    // The catalog's largest event total, the size bars' full track.
     const now = deps.nowMs();
-    const most = largest();
+    const most = Math.max(0, ...all.map((e) => e.total_in));
     const list = $(".ev-list");
     if (!rows.length) {
       const hidden = visibleEvents(section, view.season, view.sort).length;
-      list.innerHTML = `<p class="ev-empty" role="status">${esc(emptyList(all.length ? view.season : "all", hidden))}</p>`;
+      // Markup from the list module is already `html`; the outer tag is
+      // what the no-unsanitized rule can see, and passes it as is.
+      list.innerHTML = html`${emptyListLine(all.length ? view.season : "all", hidden)}`;
       $(".ev-foot").replaceChildren();
       return;
     }
-    const body = shown
-      .map((e) => {
-        const open = selected?.start_ms === e.start_ms;
-        return `<article class="ev-row"${open ? " data-open" : ""}${e.live ? " data-live" : ""} data-start="${esc(e.start_ms)}">
-${rowHead(e, open, now, most)}
-${open ? `<div class="ev-body" id="ev-body-${esc(e.start_ms)}" role="region" aria-label="${esc(`The event of ${startLabel(e.start_ms, now)}`)}"></div>` : ""}
-</article>`;
-      })
-      .join("");
-    // Rows escape their text with esc and when; the rest is numbers (#261).
-    // eslint-disable-next-line no-unsanitized/property
-    list.innerHTML = body;
-    const more = rows.length - view.limit;
-    // The button and the key are literals and numbers (#261).
-    // eslint-disable-next-line no-unsanitized/property
-    $(".ev-foot").innerHTML =
-      `${more > 0 ? `<button type="button" class="ev-more">Show ${Math.min(PAGE * 2, more)} more</button>` : ""}
-<p class="ev-key">Each bar under a row is that event's total against the wettest on record, ${esc(inches(most, { digits: 2 }))}. From the Event Catalog.</p>`;
+    const context = {
+      openStart: selected?.start_ms ?? null,
+      latest,
+      now,
+      most,
+    };
+    list.innerHTML = html`${eventRows(rows.slice(0, view.limit), context)}`;
+    $(".ev-foot").innerHTML = html`${listFoot(rows.length - view.limit, most)}`;
     renderBody();
   }
 
+  /** The open row's body, then its chart: drawn, read, or waiting. */
   function renderBody(): void {
     const row = selected;
     const host = row ? panel.querySelector<HTMLElement>(".ev-row[data-open] .ev-body") : null;
     if (!row || !host) return;
     const ticket = ++drawn;
-    const quality =
-      row.quality === "invalid"
-        ? "No archive readings."
-        : `Quality ${row.quality}${row.completeness_pct === null ? "" : `, ${Math.round(row.completeness_pct)}% of readings`}${row.max_gap_minutes ? `, longest gap ${minutes(row.max_gap_minutes)}` : ""}.`;
-    const note = missing
-      ? '<p class="ev-note">The linked event is not in the catalog; showing the newest one instead.</p>'
-      : "";
-    const switcher = row.has_curve
-      ? `<div class="ev-seg ev-mode" role="group" aria-label="Chart">
-  <button type="button" data-chart="total" aria-pressed="${view.chart === "total"}">Total</button>
-  <button type="button" data-chart="rate" aria-pressed="${view.chart === "rate"}">Rate</button>
-</div>`
-      : "";
-    // Snapshot text goes through esc; the note is a literal (#261).
-    // eslint-disable-next-line no-unsanitized/property
-    host.innerHTML = `
-${note}
-<p class="ev-finding" aria-live="polite">${esc(eventFinding(row, all.length))}</p>
-<dl class="ev-facts">
-  ${stat(inches(row.total_in, { digits: 2 }), row.live ? "so far (live)" : "total")}
-  ${stat(minutes(row.duration_minutes), "length")}
-  ${stat(row.peak_rate_in_hr === null || !row.has_curve ? "n/a" : inchesPerHour(row.peak_rate_in_hr), "peak rate")}
-</dl>
-${switcher}
-<div class="ev-charts"></div>
-<p class="ev-quality">${esc(quality)}</p>`;
+    host.innerHTML = html`${eventBody(row, all.length, view.chart, missing)}`;
     const charts = host.querySelector<HTMLElement>(".ev-charts")!;
-    const source = (what: string, method: string, gaps: string | null = null) =>
-      host.append(sourceNote(snapshot, { what, method, gaps }));
+    host.append(sourceNote(snapshot, eventSource(row)));
 
     if (!row.has_curve) {
-      charts.innerHTML =
-        '<p class="ev-gap gap-hatch" role="note">n/a: gap in record<span class="sr-only">. The archive has no readings for this event, so only its catalog totals are shown.</span></p>';
-      source(
-        "Event Catalog",
-        "The Event Catalog. The archive holds no readings in this event's time range.",
-        "no archive readings",
-      );
+      charts.innerHTML = html`<p class="ev-gap gap-hatch" role="note">n/a: gap in record<span class="sr-only">. The archive has no readings for this event, so only its catalog totals are shown.</span></p>`;
       return;
     }
-    if (row.live) {
-      source(
-        "live station and archive, 5-minute readings",
-        "The live station for the newest reading and the total; the station archive for the rest. 5-minute readings, station time. Total is the event's rain as it built up, against the median event's total, dashed. Rate is the rise in daily rain between readings.",
-      );
-    } else {
-      source(
-        "station archive, 5-minute readings",
-        "The station archive, 5-minute readings, station time. Total is the event's rain as it built up, against the median event's total, dashed. Rate is the rise in daily rain between readings.",
-      );
-    }
-
     const curve = curveOf(row);
     if (curve) {
       show(charts, curve, row, ticket);
       return;
     }
     if (row.live) {
-      charts.innerHTML =
-        '<p class="ev-note ev-wait">This event\'s readings are not in the snapshot yet.</p>';
+      charts.innerHTML = html`<p class="ev-note ev-wait">This event's readings are not in the snapshot yet.</p>`;
       return;
     }
-    charts.innerHTML = '<p class="ev-wait" role="status">Loading the curve…</p>';
+    charts.innerHTML = html`<p class="ev-wait" role="status">Loading the curve…</p>`;
     deps.fetchCurve(row.start_ms).then(
       (curve) => {
         kept.curves.set(row.start_ms, curve);
@@ -544,13 +307,11 @@ ${switcher}
       (error: unknown) => {
         if (ticket !== drawn) return;
         if (error instanceof ReadError && error.status === 404) {
-          charts.innerHTML =
-            '<p class="ev-note ev-wait">This event\'s readings are not published yet. The refresh run adds them within the hour.</p>';
+          charts.innerHTML = html`<p class="ev-note ev-wait">This event's readings are not published yet. The refresh run adds them within the hour.</p>`;
           return;
         }
         console.error("Lookout: event curve could not be read", error);
-        charts.innerHTML =
-          '<div class="ev-wait ev-failed" role="alert"><p>Couldn\'t load this event\'s curve.</p><button type="button" class="ev-retry">Try again</button></div>';
+        charts.innerHTML = html`<div class="ev-wait ev-failed" role="alert"><p>Couldn't load this event's curve.</p><button type="button" class="ev-retry">Try again</button></div>`;
       },
     );
   }
@@ -569,24 +330,18 @@ ${switcher}
   function show(charts: HTMLElement, curve: EventCurve, row: RainEventRow, ticket: number): void {
     if (ticket !== drawn) return;
     const median = statsFor(section, view.season).median_in;
-    const label =
-      view.chart === "total"
-        ? `Rain so far in this event, rising to ${inches(row.total_in, { digits: 2 })}${median === null ? "" : `, against ${inches(median, { digits: 2 })} for the median event`}`
-        : row.peak_rate_in_hr === null
-          ? "Rain rate between readings"
-          : `Rain rate between readings, peaking at ${inchesPerHour(row.peak_rate_in_hr)}`;
     const chart = document.createElement("div");
     chart.className = "ev-chart";
     chart.dataset.chart = view.chart;
     chart.setAttribute("role", "img");
-    chart.setAttribute("aria-label", label);
+    chart.setAttribute("aria-label", chartLabel(row, view.chart, median));
     charts.replaceChildren(chart);
     deps
       .draw(chart, curve, row, { chart: view.chart, medianIn: median })
       .catch((error: unknown) => {
         if (ticket !== drawn) return;
         console.error("Lookout: event chart failed", error);
-        charts.innerHTML = '<p class="ev-note ev-wait">The chart could not be drawn.</p>';
+        charts.innerHTML = html`<p class="ev-note ev-wait">The chart could not be drawn.</p>`;
       });
   }
 
