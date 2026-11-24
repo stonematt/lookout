@@ -259,7 +259,10 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const title = host.querySelector<HTMLElement>(":scope > [data-part=kicker]");
   if (title) {
     title.classList.add("mosaic-title");
-    if (tile.how) title.append(tile.how());
+    if (tile.how) {
+      title.classList.add("mosaic-title-how");
+      title.append(tile.how());
+    }
     link.append(title);
   }
 
