@@ -30,7 +30,7 @@ import { LABEL_CHAR_PX, drawSized } from "../charts/svg.js";
 import { make, spoken, svgEl } from "../dom.js";
 import { missingWords } from "../overview/wet-meter.js";
 import { isShown } from "../overview/history.js";
-import type { DashboardSnapshot, StripWindow, WetHoursToDate } from "../snapshot.js";
+import type { DashboardSnapshot, RainWindow, StripWindow, WetHoursToDate } from "../snapshot.js";
 import {
   WINDOW_NAMES,
   nowLine,
@@ -114,21 +114,28 @@ interface WetRow {
   missing: number;
   /** The words under the bar, read together with " · ". */
   note: string[];
-  /** Usual wet hours to date, as a span of hours on the bar. */
-  usual?: [number, number] | null;
+  /** Usual wet hours to date on the bar: each mark a span of hours, a tick when both ends agree. */
+  usual?: [number, number][] | null;
   key: string;
 }
 
-/** Usual wet hours to date as a span of this year's hours: the band, else the plain values' span. */
-function usualSpan(wet: WetHoursToDate): [number, number] | null {
+/**
+ * Usual wet hours to date as marks on this year's hours: the snapshot's band
+ * from 3 earlier years, else each earlier year's plain value as a tick. The
+ * site never makes a band Python did not send.
+ */
+function usualMarks(wet: WetHoursToDate): [number, number][] | null {
   const usual = wet.usual;
   if (!usual) return null;
   if (usual.low_hours !== null && usual.high_hours !== null) {
-    return [usual.low_hours, usual.high_hours];
+    return [[usual.low_hours, usual.high_hours]];
   }
-  const values = usual.earlier.map((y) => y.usual_hours);
-  return values.length ? [Math.min(...values), Math.max(...values)] : null;
+  return usual.earlier.map((y): [number, number] => [y.usual_hours, y.usual_hours]);
 }
+
+/** A share of a span's hours as a percent, held to the bar. */
+const percentOf = (hours: number, total: number) =>
+  `${Math.min(100, Math.max(0, (100 * hours) / total))}%`;
 
 /** One wet-hour row: name, bar, count, then its note, laid on the rows' shared grid. */
 function wetRow(row: WetRow): HTMLElement {
@@ -141,13 +148,14 @@ function wetRow(row: WetRow): HTMLElement {
   if (wet) track.append(wet);
   if (missing) track.append(missing);
   bar.append(track);
-  if (row.usual) {
-    const [low, high] = row.usual;
-    const band = make("span", "rain-wet-usual");
-    band.dataset.part = "usual";
-    band.style.setProperty("--from", `${(100 * low) / row.hours}%`);
-    band.style.setProperty("--to", `${(100 * high) / row.hours}%`);
-    bar.append(band);
+  if (row.usual && row.hours > 0) {
+    for (const [low, high] of row.usual) {
+      const band = make("span", "rain-wet-usual");
+      band.dataset.part = "usual";
+      band.style.setProperty("--from", percentOf(low, row.hours));
+      band.style.setProperty("--to", percentOf(high, row.hours));
+      bar.append(band);
+    }
   }
   const count = make("span", "rain-wet-count");
   count.dataset.part = "count";
@@ -215,7 +223,7 @@ function wetBars(snapshot: DashboardSnapshot): HTMLElement {
       countable: toDate.countable_hours,
       missing: toDate.missing_hours,
       note: [usualWetWords(toDate)],
-      usual: usualSpan(toDate),
+      usual: usualMarks(toDate),
     });
     row.dataset.part = "wet-to-date";
     rows.append(row);
@@ -234,7 +242,7 @@ const PAD = 7;
 const LABEL_GAP = 4;
 
 /** A label to place: its words and where it may sit. */
-interface Placed {
+export interface Placed {
   text: string;
   x: number;
   anchor: "start" | "end" | "middle";
@@ -364,14 +372,16 @@ export function windowDots(snapshot: DashboardSnapshot): HTMLElement | null {
   if (!strip) return null;
   const rows = strip
     .map((item) => ({ item, window: snapshot.rain_tab.windows.find((w) => w.key === item.key) }))
-    .filter(({ window }) => window && isShown(window.status));
+    .filter((row): row is { item: StripWindow; window: RainWindow } =>
+      Boolean(row.window && isShown(row.window.status)),
+    );
   if (!rows.length) return null;
   const part = make("div", "rain-strip-part");
   part.dataset.part = "windows";
   part.append(partLabel("Each window against its usual", true));
   const list = make("ul", "rain-strip");
   for (const { item, window } of rows) {
-    const value = windowValue(window!);
+    const value = windowValue(window);
     const row = make("li", "rain-strip-row");
     row.dataset.key = item.key;
     if (item.mark) row.dataset.mark = item.mark;
@@ -381,7 +391,7 @@ export function windowDots(snapshot: DashboardSnapshot): HTMLElement | null {
     head.append(name, figure);
     row.append(head);
     if (value === null || item.rain_in === null) {
-      hatchGap(figure, window!.status, { compact: true });
+      hatchGap(figure, window.status, { compact: true });
       list.append(row);
       continue;
     }

@@ -209,6 +209,35 @@ describe("the season part", () => {
   });
 });
 
+describe("usual wet hours below 3 earlier years", () => {
+  it("ticks each earlier year's plain value, never a band the snapshot did not send", () => {
+    const two = structuredClone(seasoned);
+    const wet = two.rain_tab.wet_hours_to_date!;
+    const earlier = (water_year: number, usual_hours: number) => ({
+      water_year,
+      wet_hours: usual_hours,
+      countable_hours: 5000,
+      usual_hours,
+    });
+    wet.usual = {
+      years: 2,
+      earlier: [earlier(2024, 150), earlier(2025, 170)],
+      low_hours: null,
+      high_hours: null,
+      band: null,
+    };
+    renderRain(panel, two);
+    const marks = [
+      ...head().querySelectorAll<HTMLElement>("[data-part=wet-to-date] [data-part=usual]"),
+    ].map((m) => [m.style.getPropertyValue("--from"), m.style.getPropertyValue("--to")]);
+
+    expect(marks).toEqual([
+      [`${(100 * 150) / wet.hours}%`, `${(100 * 150) / wet.hours}%`],
+      [`${(100 * 170) / wet.hours}%`, `${(100 * 170) / wet.hours}%`],
+    ]);
+  });
+});
+
 describe("the window strip", () => {
   const rows = () => [...head().querySelectorAll(".rain-strip-row")];
 
