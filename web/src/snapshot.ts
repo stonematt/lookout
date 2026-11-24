@@ -385,6 +385,13 @@ export interface WaterYearCurve {
   total_in: number | null;
   /** The value at `RainTab.day_index`: the same date as today. */
   to_date_in: number | null;
+  /**
+   * Why each place's day is not in the record for rain, as
+   * `RecentRain.reason` (#662); null for a counted day. Parallel to
+   * `cumulative_in`. Absent from a snapshot written before it (ADR-0008),
+   * which draws no hatch.
+   */
+  reason?: (GapReason | null)[];
 }
 
 /** Everything the Rain tab shows. */
@@ -1485,6 +1492,17 @@ function checkRainTab(tab: unknown): void {
   const toCome = recent.first_hour_to_come;
   if (!Number.isInteger(toCome) || (toCome as number) < 0 || (toCome as number) > 24) {
     throw new SnapshotContractError("dashboard: rain_tab.recent.first_hour_to_come not an hour");
+  }
+  // Each curve's day reasons (#662) may be absent; present, parallel.
+  for (const curve of tab.water_years as unknown[]) {
+    if (!isRecord(curve) || curve.reason === undefined) continue;
+    if (
+      !Array.isArray(curve.reason) ||
+      !Array.isArray(curve.cumulative_in) ||
+      curve.reason.length !== curve.cumulative_in.length
+    ) {
+      throw new SnapshotContractError("dashboard: rain_tab.water_years reason not parallel");
+    }
   }
   // Release A3's usual to date (#539) may be absent (N−1) or null.
   const usual = tab.usual_to_date;
