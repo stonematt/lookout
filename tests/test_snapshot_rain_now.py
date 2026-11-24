@@ -14,7 +14,6 @@ The SCENARIO station's event 3 rains 0.12 in/h from 22:00Z on 8 Jan to
 tip, and 0.48 in in all.
 """
 
-
 from lookout.core.rain_corrections import correct_counters, detect_carryovers
 from lookout.snapshot.model import Snapshot
 from tests.fixtures.archive import RainSpell, build_archive
@@ -211,9 +210,80 @@ class TestFeatureRule:
         assert snapshot.feature.kind == "dry_spell"
 
 
+class TestLastThreeHours:
+    """The story's chart (#661): 5-minute rain and the event's running total."""
+
+    def test_it_is_36_slots_of_5_minutes_ending_at_the_build(self):
+        slots = after_tip(30).rain_now.last_3_hours
+
+        assert slots.slot_minutes == 5
+        assert slots.start_ms == LAST_TIP + 30 * MINUTE_MS - 3 * 60 * MINUTE_MS
+        assert len(slots.rain_in) == 36
+        assert len(slots.total_in) == 36
+
+    def test_each_slot_holds_its_readings_rain(self):
+        # Built at 02:25Z: slots from 23:25Z, a tip of 0.01 in at every
+        # reading to 01:55Z, none after; the archive stops before 02:25Z.
+        rain = after_tip(30).rain_now.last_3_hours.rain_in
+
+        assert rain[0] == 0.01
+        assert rain[29] == 0.01
+        assert rain[30:35] == (0.0,) * 5
+        assert rain[35] is None
+        assert round(sum(r or 0.0 for r in rain), 3) == 0.30
+
+    def test_the_line_runs_up_to_the_events_total(self):
+        # The event's 0.48 in, 0.29 of it after 23:30Z, the first slot's end.
+        total = after_tip(30).rain_now.last_3_hours.total_in
+
+        assert total[0] == 0.19
+        assert total[29] == 0.48
+        assert total[-1] == 0.48
+
+    def test_slots_ending_before_the_event_start_have_no_total(self):
+        # Built at 00:27Z: slots from 21:27Z; event 3 starts at 22:00Z, so
+        # slot 6, (21:57Z, 22:02Z], is the first to end in it.
+        total = raining_station().rain_now.last_3_hours.total_in
+
+        assert total[:6] == (None,) * 6
+        assert total[6] is not None
+
+    def test_a_slot_with_no_reading_is_missing_not_dry(self):
+        # The archive ends at 23:55Z; the live reading at 00:25Z holds the
+        # rain since then.
+        rain = raining_station().rain_now.last_3_hours.rain_in
+
+        assert rain[-2] is None
+        assert rain[-1] > 0.01
+
+    def test_without_an_event_there_is_no_line(self):
+        archive = scenario_until("2026-01-09T02:25:00Z")
+
+        snapshot = build(archive, None, "2026-01-09T02:25:00Z")
+        slots = snapshot.rain_now.last_3_hours
+
+        assert slots.total_in == (None,) * 36
+        assert round(sum(r or 0.0 for r in slots.rain_in), 3) == 0.30
+
+    def test_a_counter_reset_is_never_rain_or_a_loss(self):
+        # Local midnight is 08:00Z: the counter resets inside the window.
+        spell = RainSpell("2026-01-09T07:00:00Z", 2, 0.12)
+        archive = build_archive(
+            "2026-01-07T08:00:00Z", "2026-01-09T09:00:00Z", rain=(spell,)
+        )
+
+        slots = build(archive, None, "2026-01-09T09:00:00Z").rain_now.last_3_hours
+
+        assert all(r is None or 0 <= r <= 0.011 for r in slots.rain_in)
+
+    def test_none_outside_the_story(self):
+        assert after_tip(180, extra_ms=1).rain_now.last_3_hours is None
+
+
 class TestPublished:
     def test_the_dashboard_carries_rain_now(self):
         dashboard = after_tip(30).dashboard()
+        slots = dashboard["rain_now"].pop("last_3_hours")
 
         assert dashboard["rain_now"] == {
             "last_rain_ms": LAST_TIP,
@@ -222,6 +292,12 @@ class TestPublished:
             "event_start_ms": EVENT_3,
             "event_total_in": 0.48,
         }
+        assert set(slots) == {"start_ms", "slot_minutes", "rain_in", "total_in"}
+
+    def test_outside_the_story_it_carries_no_chart(self):
+        dashboard = after_tip(180, extra_ms=1).dashboard()
+
+        assert dashboard["rain_now"]["last_3_hours"] is None
 
     def test_the_context_block_does_not(self):
         assert "rain_now" not in after_tip(30).context()

@@ -18,7 +18,10 @@ picks rain (`lookout.snapshot.feature`):
   time add, so inches per hour;
 - **the event**: its start and total, by Ambient's event bounds: the live
   event (`ActiveRainEvent`) when one is live, else the newest Event Catalog
-  event that ended at or after last rain and started at or before it.
+  event that ended at or after last rain and started at or before it;
+- **the chart** (#661): the `STORY_HOURS` up to the build time in
+  `SLOT_MINUTES` slots of rain, from the same readings' rain, with the
+  event's running total (`RainSlots`).
 
 The thresholds are Lookout Post's (ADR-0011): unchecked on Salmon Run.
 
@@ -29,7 +32,7 @@ Functions:
   Feature Rule's rain clause.
 """
 
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pandas as pd
 
@@ -37,7 +40,7 @@ from lookout.core.rainfall_analysis import reading_rain
 from lookout.snapshot.clock import StationClock
 from lookout.snapshot.current import to_ms
 from lookout.snapshot.events import newest_event
-from lookout.snapshot.model import ActiveRainEvent, RainNow
+from lookout.snapshot.model import ActiveRainEvent, RainNow, RainSlots
 from lookout.snapshot.values import number
 
 RAINING_MINUTES = 30
@@ -49,6 +52,9 @@ many hours old."""
 
 RATE_MINUTES = 60
 """The rate is the rain in this many minutes up to the build time."""
+
+SLOT_MINUTES = 5
+"""The story's chart counts rain in slots this many minutes long (#661)."""
 
 _MINUTE_MS = 60_000
 
@@ -158,4 +164,52 @@ def rain_now(
         rate_in_hr=rate,
         event_start_ms=start_ms,
         event_total_in=total_in,
+        last_3_hours=_slots(readings, start_ms, total_in, clock),
+    )
+
+
+def _slots(
+    readings: pd.DataFrame,
+    event_start_ms: Optional[int],
+    event_total_in: Optional[float],
+    clock: StationClock,
+) -> RainSlots:
+    """
+    The story's chart: `STORY_HOURS` of rain in `SLOT_MINUTES` slots up to
+    the build time, with the event's running total.
+
+    The total runs back from the event's total, less the rain of the slots
+    after each one, so the line ends on the number the story tells; a
+    counter that read more than Ambient's total clamps at 0.
+
+    :param readings: `reading_rain` output: each reading's rain.
+    :param event_start_ms: The event's start, or None.
+    :param event_total_in: The event's total, or None.
+    :param clock: The build's clock.
+    :return: The slots, oldest first.
+    """
+    slot_ms = SLOT_MINUTES * _MINUTE_MS
+    count = STORY_HOURS * 60 // SLOT_MINUTES
+    start_ms = clock.now_ms - count * slot_ms
+    inside = (readings["dateutc"] > start_ms) & (readings["dateutc"] <= clock.now_ms)
+    rows = readings.loc[inside]
+    # A reading on a slot's end belongs to that slot: (start, end].
+    index = ((rows["dateutc"] - start_ms - 1) // slot_ms).astype(int)
+    sums = rows.groupby(index)["rain_in"].sum()
+    rain: List[Optional[float]] = [
+        number(sums[i]) if i in sums.index else None for i in range(count)
+    ]
+    totals: List[Optional[float]] = [None] * count
+    if event_start_ms is not None and event_total_in is not None:
+        after = 0.0
+        for i in reversed(range(count)):
+            if start_ms + (i + 1) * slot_ms < event_start_ms:
+                break
+            totals[i] = number(max(0.0, event_total_in - after))
+            after += rain[i] or 0.0
+    return RainSlots(
+        start_ms=start_ms,
+        slot_minutes=SLOT_MINUTES,
+        rain_in=tuple(rain),
+        total_in=tuple(totals),
     )
