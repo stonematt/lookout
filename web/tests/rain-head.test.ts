@@ -114,13 +114,12 @@ describe("the head on the golden snapshots", () => {
     expect(text(head().querySelector("[data-part=kicker]"))).toBe("Now");
     expect(text(head().querySelector("[data-part=finding]"))).toBe("Last rain 3 d ago");
     expect(all("[data-part=label]")).toEqual([
-      "Wet hours",
+      "Wet hours · each bar is every hour; dark is wet",
       "The water year against usual",
       "Each window against its usual",
     ]);
-    expect(text(head().querySelector("[data-part=season]"))).toBe(
-      "2 wet hours in the last 7 days, 6 in the last 30",
-    );
+    // Seasoned is in dry mode: the season is wet hours since Oct 1 alone.
+    expect(text(head().querySelector("[data-part=season]"))).toBe("6 wet hours since Oct 1");
     expect(text(head().querySelector("[data-part=verdict]"))).toBe(
       verdictHeadline(seasoned.rain_tab),
     );
@@ -158,6 +157,7 @@ describe("the season part", () => {
   it("counts one wet hour, and the water year's alone without the meter's windows", () => {
     const one = structuredClone(seasoned);
     one.wet_hours!.last_7_days.wet_hours = 1;
+    delete one.wet_mode;
     expect(seasonLead(one)).toBe("1 wet hour in the last 7 days, 6 in the last 30");
     delete one.wet_hours;
     expect(seasonLead(one)).toBe("6 wet hours since Oct 1");
@@ -175,11 +175,51 @@ describe("the season part", () => {
       "12 h of 111",
       "12 h of 111",
     ]);
-    // Missing hours are hatched at the bar's end and said, never dry.
+    expect(rows.map((r) => text(r.querySelector(".rain-wet-name")))).toEqual([
+      "7 days",
+      "30 days",
+      "Since Oct 1",
+    ]);
+    // Missing hours are hatched at the bar's end, and the key under the
+    // bars says so in the C boards' words, as on the Overview (#694).
     expect(rows[0]!.querySelector(".rain-wet-missing.gap-hatch")).not.toBeNull();
-    expect(text(rows[0]!.querySelector("[data-part=missing]"))).toBe(
-      "57 h missing, not dry · 3 d missing",
-    );
+    expect(rows[0]!.querySelector("[data-part=missing]")).toBeNull();
+    const key = head().querySelector("[data-part=wet-bars] [data-part=hatch-key]");
+    expect(text(key)).toBe("hatched: missing, not dry");
+    expect(key!.firstElementChild!.classList.contains("hatch-swatch")).toBe(true);
+  });
+
+  it("heads the bars as the C boards do: the name, then how to read them (#694)", () => {
+    renderRain(panel, raining);
+    const label = head().querySelector("[data-part=label]")!;
+    expect(text(label)).toBe("Wet hours · each bar is every hour; dark is wet");
+    expect(label.querySelector(".wet-meter-how")).not.toBeNull();
+  });
+
+  it("hides the 7 and 30 day bars in dry mode, keeping since Oct 1 against usual (#647 call 3)", () => {
+    expect(seasoned.wet_mode?.mode).toBe("dry");
+    renderRain(panel, seasoned);
+    const rows = [...head().querySelectorAll(".rain-wet-row")];
+
+    expect(rows.map((r) => r.getAttribute("data-key"))).toEqual(["water_year"]);
+    expect(head().querySelector("[data-part=wet-to-date] [data-part=usual-words]")).not.toBeNull();
+  });
+
+  it("draws the 7 and 30 day bars from a document without a mode (N−1)", () => {
+    const old = structuredClone(seasoned);
+    delete old.wet_mode;
+    renderRain(panel, old);
+    expect(head().querySelectorAll(".rain-wet-row")).toHaveLength(3);
+  });
+
+  it("carries no hatch key when every hour counts", () => {
+    const whole = structuredClone(seasoned);
+    delete whole.wet_mode;
+    const toDate = whole.rain_tab.wet_hours_to_date!;
+    toDate.missing_hours = 0;
+    toDate.hours = toDate.countable_hours;
+    renderRain(panel, whole);
+    expect(head().querySelector("[data-part=hatch-key]")).toBeNull();
   });
 
   it("draws usual wet hours to date as a band on the since-Oct-1 bar", () => {

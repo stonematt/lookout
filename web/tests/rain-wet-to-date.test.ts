@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { renderRain } from "../src/rain/index.js";
-import { usualWetWords, wetToDateValue } from "../src/rain/text.js";
+import { usualWetWords } from "../src/rain/text.js";
 import type {
   DashboardSnapshot,
   EarlierWetYear,
@@ -74,10 +74,6 @@ function withToDate(snapshot: DashboardSnapshot, wet: unknown): DashboardSnapsho
 }
 
 describe("wet hours since Oct 1", () => {
-  it("reads wet hours of countable hours, as the Overview's meter does", () => {
-    expect(wetToDateValue(toDate(null))).toBe("113 h of 1,292");
-  });
-
   it("has no usual with no earlier year (N = 0)", () => {
     expect(usualWetWords(toDate(null))).toBe("no earlier year to compare yet");
   });
@@ -126,7 +122,7 @@ describe("the Rain tab's wet hours since Oct 1", () => {
     const name = text(part()!.querySelector(".rain-wet-name"));
     const count = text(part()!.querySelector("[data-part=count]"));
     const note = text(part()!.querySelector("[data-part=usual-words]"));
-    expect([name, count, note]).toEqual(["Since Oct 1", wetToDateValue(wet), usualWetWords(wet)]);
+    expect([name, count, note]).toEqual(["Since Oct 1", "6 h of 5,558", usualWetWords(wet)]);
     expect(note).toBe("usual to date 3 h, from 2025 · 1 h missing, not dry");
     // The last of the season's bars, before the water year.
     expect(part()!.parentElement?.getAttribute("data-part")).toBe("wet-bars");

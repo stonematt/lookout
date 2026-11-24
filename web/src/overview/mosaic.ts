@@ -45,7 +45,7 @@ import { spoken, svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
-import { HATCH_KEY } from "./wet-meter.js";
+import { HATCH_KEY } from "../wet-bars.js";
 
 /** A mini chart's height, the same on every tile so a row lines up. */
 export const MINI_HEIGHT = 64;

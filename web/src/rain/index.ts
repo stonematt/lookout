@@ -253,8 +253,8 @@ export function renderYears(
   // the same heading level. A zoom panel has no kicker, so a head of more
   // than one part labels its first part too.
   parts.forEach((part, i) => {
-    if (i > 0) host.append(partLabel(part.label));
-    else if (options.zoom && parts.length > 1) host.append(partLabel(part.label, true));
+    if (i > 0) host.append(partLabel(part.label, false, part.how));
+    else if (options.zoom && parts.length > 1) host.append(partLabel(part.label, true, part.how));
     const lead = tileFinding(part.lead, { ...options, lead: i === 0 && part.id === "now" });
     if (i > 0) {
       lead.classList.add("rain-lead");

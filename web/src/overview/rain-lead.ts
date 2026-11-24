@@ -39,7 +39,8 @@ import type { DashboardSnapshot, Verdict } from "../snapshot.js";
 import type { OverviewSection } from "./index.js";
 import { rainTile } from "./mosaic-tiles.js";
 import { storyChart } from "./rain-lead-chart.js";
-import { meterParts, meterShown } from "./wet-meter.js";
+import { meterShown } from "../wet-bars.js";
+import { meterParts } from "./wet-meter.js";
 
 /** The Rain tab's season section, which the season foot opens. */
 export const SEASON_ROUTE = "rain/season";
@@ -218,7 +219,7 @@ function render(host: HTMLElement, snapshot: DashboardSnapshot): void {
   if (wet && meterShown(snapshot)) {
     const bars = make("div", "wet-meter rain-lead-bars");
     bars.dataset.part = "wet-meter";
-    bars.append(...meterParts(wet));
+    bars.append(...meterParts(snapshot, wet));
     season.append(bars);
   }
   season.append(rainSince(snapshot), spoken("Open the Rain tab at the season."));

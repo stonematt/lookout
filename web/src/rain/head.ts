@@ -7,11 +7,14 @@
  *
  * - The now part: last rain, or the now story while Python tells it
  *   (`nowLine`). With rain not leading it reads "Last rain 9 h ago" alone.
- * - The season part: wet hours over the last 7 and 30 days (the Overview
- *   meter's `wet_hours`) and since Oct 1 (`wet_hours_to_date`), each a bar
- *   of every hour in its span, the dark fill its wet hours, the hours the
- *   record cannot count hatched at the end, never drawn as dry. Since Oct 1
- *   carries usual wet hours to date as a dashed band on its bar.
+ * - The season part, under the C boards' header "Wet hours · each bar is
+ *   every hour; dark is wet": wet hours over the last 7 and 30 days (the
+ *   Overview's `wet_hours`, hidden in dry mode as there, #647 call 3) and
+ *   since Oct 1 (`wet_hours_to_date`), each one of the shared wet-hour bars
+ *   (`wet-bars.ts`): the dark fill its wet hours, the hours the record
+ *   cannot count hatched at the end, never drawn as dry, with the hatch key
+ *   under the bars. Since Oct 1 carries usual wet hours to date as a dashed
+ *   band on its bar, and its words under it.
  * - The window strip: each window's rain as a dot on its own usual range,
  *   the band's end values labelled, the snapshot's mark ("above usual
  *   range", "below usual range") in words beside the value; a window with
@@ -28,9 +31,9 @@ import { inches } from "../format.js";
 import { hatchGap } from "../gaps.js";
 import { LABEL_CHAR_PX, drawSized } from "../charts/svg.js";
 import { make, spoken, svgEl } from "../dom.js";
-import { missingWords } from "../overview/wet-meter.js";
 import { isShown } from "../overview/history.js";
 import type { DashboardSnapshot, RainWindow, StripWindow, WetHoursToDate } from "../snapshot.js";
+import { METER_TITLE, barCount, barShare, hatchKey, howToRead, meterShown } from "../wet-bars.js";
 import {
   WINDOW_NAMES,
   nowLine,
@@ -46,6 +49,8 @@ export interface HeadPart {
   id: string;
   /** The boards' small label over the lead: "Now", "Wet hours". */
   label: string;
+  /** Words after the label in a lighter weight: how to read the bars. */
+  how?: () => HTMLElement;
   lead: string;
   /** Drawn under the lead. */
   body: HTMLElement[];
@@ -56,11 +61,13 @@ export interface HeadPart {
  *
  * @param text - The label.
  * @param first - Whether it opens the head, with no part above to rule off.
+ * @param how - Words after the label, in a lighter weight.
  * @returns The label.
  */
-export function partLabel(text: string, first = false): HTMLElement {
+export function partLabel(text: string, first = false, how?: () => HTMLElement): HTMLElement {
   const label = make("p", first ? "rain-part-label" : "rain-part-label rain-part-next", text);
   label.dataset.part = "label";
+  if (how) label.append(how());
   return label;
 }
 
@@ -81,7 +88,13 @@ export function headParts(snapshot: DashboardSnapshot): HeadPart[] {
   if (now !== null) parts.push({ id: "now", label: "Now", lead: now, body: [] });
   const season = seasonLead(snapshot);
   if (season !== null) {
-    parts.push({ id: "season", label: "Wet hours", lead: season, body: [wetBars(snapshot)] });
+    parts.push({
+      id: "season",
+      label: METER_TITLE,
+      how: howToRead,
+      lead: season,
+      body: [wetBars(snapshot)],
+    });
   }
   return parts;
 }
@@ -97,14 +110,6 @@ export function markRaining(lead: HTMLElement, snapshot: DashboardSnapshot): voi
   if (snapshot.rain_now?.raining) lead.prepend(make("span", "rain-now-mark"));
 }
 
-/** One bar's part, sized as a share of its span's hours (at least 3px when it holds one). */
-function share(className: string, hours: number, total: number): HTMLElement | null {
-  if (hours <= 0 || total <= 0) return null;
-  const node = make("span", className);
-  node.style.setProperty("--share", `${(100 * hours) / total}%`);
-  return node;
-}
-
 /** What one wet-hour bar draws. */
 interface WetRow {
   name: string;
@@ -112,7 +117,7 @@ interface WetRow {
   wet: number;
   countable: number;
   missing: number;
-  /** The words under the bar, read together with " · ". */
+  /** The words under the bar, read together with " · "; none for 7 and 30 days. */
   note: string[];
   /** Usual wet hours to date on the bar: each mark a span of hours, a tick when both ends agree. */
   usual?: [number, number][] | null;
@@ -143,8 +148,8 @@ function wetRow(row: WetRow): HTMLElement {
   const bar = make("span", "rain-wet-bar");
   bar.dataset.part = "bar";
   const track = make("span", "rain-wet-track");
-  const wet = share("rain-wet-fill", row.wet, row.hours);
-  const missing = share("rain-wet-missing gap-hatch", row.missing, row.hours);
+  const wet = barShare("rain-wet-fill", row.wet, row.hours);
+  const missing = barShare("rain-wet-missing gap-hatch", row.missing, row.hours);
   if (wet) track.append(wet);
   if (missing) track.append(missing);
   bar.append(track);
@@ -157,16 +162,11 @@ function wetRow(row: WetRow): HTMLElement {
       bar.append(band);
     }
   }
-  const count = make("span", "rain-wet-count");
-  count.dataset.part = "count";
-  count.append(make("b", "", `${row.wet.toLocaleString("en-US")} h`));
-  count.append(` of ${row.countable.toLocaleString("en-US")}`);
-  const cells = [name, bar, count];
+  const cells = [name, bar, barCount("rain-wet-count", row.wet, row.countable)];
   if (row.note.length) {
     const note = make("span", "rain-wet-note");
-    note.dataset.part = row.usual === undefined ? "missing" : "usual-words";
+    note.dataset.part = "usual-words";
     if (row.usual) note.append(make("span", "rain-usual-swatch"));
-    else if (row.missing > 0) note.append(make("span", "hatch-swatch"));
     const words = make("span", "");
     // A short phrase stays whole when the note wraps on a narrow phone.
     row.note
@@ -185,8 +185,9 @@ function wetRow(row: WetRow): HTMLElement {
 }
 
 /**
- * The season part's bars: one for each span the snapshot counts, 7 days,
- * 30 days and since Oct 1, the last with usual wet hours to date.
+ * The season part's bars: one for each span the snapshot counts, 7 days
+ * and 30 days outside dry mode (`meterShown`), and since Oct 1 with usual
+ * wet hours to date; then the hatch key when any bar is hatched.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns The bars.
@@ -194,12 +195,14 @@ function wetRow(row: WetRow): HTMLElement {
 function wetBars(snapshot: DashboardSnapshot): HTMLElement {
   const rows = make("div", "rain-wet-rows");
   rows.dataset.part = "wet-bars";
+  let hatched = false;
   const wet = snapshot.wet_hours;
-  if (wet) {
+  if (wet && meterShown(snapshot)) {
     for (const [name, window, key] of [
       ["7 days", wet.last_7_days, "7d"],
       ["30 days", wet.last_30_days, "30d"],
     ] as const) {
+      hatched ||= window.missing_hours > 0;
       rows.append(
         wetRow({
           name,
@@ -208,13 +211,14 @@ function wetBars(snapshot: DashboardSnapshot): HTMLElement {
           wet: window.wet_hours,
           countable: window.countable_hours,
           missing: window.missing_hours,
-          note: missingWords(window),
+          note: [],
         }),
       );
     }
   }
   const toDate = snapshot.rain_tab.wet_hours_to_date;
   if (toDate) {
+    hatched ||= toDate.missing_hours > 0;
     const row = wetRow({
       name: "Since Oct 1",
       key: "water_year",
@@ -228,6 +232,7 @@ function wetBars(snapshot: DashboardSnapshot): HTMLElement {
     row.dataset.part = "wet-to-date";
     rows.append(row);
   }
+  if (hatched) rows.append(hatchKey());
   return rows;
 }
 

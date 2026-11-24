@@ -22,6 +22,7 @@ import { gapValue, notCompared } from "../gaps.js";
 import { isShown } from "../overview/history.js";
 import { nowStory, storyLine } from "../now-story.js";
 import { WHOLE_DRY_DAYS_VERSION } from "../snapshot.js";
+import { meterShown } from "../wet-bars.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
@@ -329,17 +330,6 @@ function hourCount(hours: number): string {
 }
 
 /**
- * This water year's wet hours since Oct 1, as wet hours of countable hours,
- * as the Overview's meter reads its windows (#663).
- *
- * @param wet - The Rain tab's wet hours to date.
- * @returns E.g. "113 h of 1,292".
- */
-export function wetToDateValue(wet: WetHoursToDate): string {
-  return `${hourCount(wet.wet_hours)} h of ${hourCount(wet.countable_hours)}`;
-}
-
-/**
  * Usual wet hours to date, with the earlier years it rests on (#663): a
  * band from 3 years, called a range below 4; the plain values below 3;
  * none without an earlier year. Then the hours missing, never dry.
@@ -452,7 +442,8 @@ const wetHourCount = (n: number) => `${hourCount(n)} wet hour${n === 1 ? "" : "s
 
 /**
  * The Rain tab head's season part in words (#664): the wet hours of the
- * last 7 and 30 days (the Overview meter's `wet_hours`), else the water
+ * last 7 and 30 days (the Overview's `wet_hours`) while their bars are
+ * drawn (`meterShown`: not in dry mode, #647 call 3), else the water
  * year's since Oct 1.
  *
  * @param snapshot - The dashboard snapshot.
@@ -462,7 +453,7 @@ const wetHourCount = (n: number) => `${hourCount(n)} wet hour${n === 1 ? "" : "s
  */
 export function seasonLead(snapshot: DashboardSnapshot): string | null {
   const wet = snapshot.wet_hours;
-  if (wet) {
+  if (wet && meterShown(snapshot)) {
     return (
       `${wetHourCount(wet.last_7_days.wet_hours)} in the last 7 days, ` +
       `${hourCount(wet.last_30_days.wet_hours)} in the last 30`
