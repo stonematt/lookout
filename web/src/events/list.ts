@@ -10,7 +10,7 @@
  * - `storedSize`, `storeSize`: the size picked, kept in the browser across
  *   visits.
  * - `renderListTile`: the tile's markup, once per mount.
- * - `syncFilterBar`: the three selects, the count line, the missing-days
+ * - `syncListHead`: the three selects, the count line, the missing-days
  *   note, the heading and the fold's sentence, after every pick.
  * - `eventRows` (drawn against a `RowContext`), `listFoot`, `emptyListLine`:
  *   the rows, the foot and the empty list's line, for `innerHTML`.
@@ -85,25 +85,33 @@ function yearOption(season: EventSeason): Html {
   return html`<option value="${year}" title="${`${span}: ${reason}`}" data-gap="${status.reason ?? "gap"}">${label}</option>`;
 }
 
-/** The filter line's sort: a select of the three orders. */
-function sortSelect(): Html {
-  const options = SORTS.map(({ sort, label }) => html`<option value="${sort}">${label}</option>`);
-  return html`<label class="ev-pill"><span class="sr-only">Sort</span><select class="ev-select ev-sort-select">${options}</select></label>`;
+/**
+ * One of the filter line's selects, styled as a pill, named for assistive
+ * tech by its hidden label.
+ *
+ * @param name - The label, e.g. "Sort".
+ * @param kind - Its class, `ev-<kind>-select`, which the tab listens on.
+ * @param options - Its options' markup.
+ * @returns The labelled select.
+ */
+function filterSelect(name: string, kind: string, options: readonly Html[]): Html {
+  return html`<label class="ev-pill"><span class="ov-sr">${name}</span><select class="ev-select ev-${kind}-select">${options}</select></label>`;
 }
 
-/** The filter line's size: a select of the four sizes. */
-function sizeSelect(): Html {
-  const options = SIZES.map(({ size, label }) => html`<option value="${size}">${label}</option>`);
-  return html`<label class="ev-pill"><span class="sr-only">Size</span><select class="ev-select ev-size-select">${options}</select></label>`;
-}
+/** A plain option: its value and its words. */
+const option = (value: string, label: string): Html =>
+  html`<option value="${value}">${label}</option>`;
 
-/** What the fold under the list says about how events are found and sized. */
+/**
+ * What the fold under the list says about how events are found and sized.
+ * The category cutoffs are Python's and stay there: the fold names the
+ * categories, not their numbers.
+ */
 const METHOD =
-  "An event is a run of rain the station recorded, from the Event Catalog. Its size is " +
-  "Python's: a sprinkle is under 0.05 in, a rain 0.5 in or a peak of 0.5 in/hr, a storm " +
-  "2.0 in or a peak of 1.0 in/hr, and a shower anything between. Peak is the highest rate " +
-  "between 5-minute readings. A dashed quality chip marks a poor event or one with no " +
-  "archive data.";
+  "An event is a run of rain the station recorded, from the Event Catalog. Its size is the " +
+  "category the refresh run gives it from its total and its peak rate: sprinkle, shower, " +
+  "rain or storm. Peak is the highest rate between 5-minute readings. A dashed quality " +
+  "chip marks a poor event or one with no archive data.";
 
 /**
  * The list tile's markup under its kicker: the filter line, the count
@@ -124,11 +132,17 @@ export function renderListTile(host: HTMLElement, section: DashboardSnapshot["ra
     html`
 <h2 class="tile-finding ev-list-finding" data-part="finding"></h2>
 <div class="ev-bar" role="group" aria-label="Filter the events">
-  <label class="ev-pill"><span class="sr-only">Water year</span><select class="ev-select ev-year-select">
-    ${section.seasons.map(yearOption)}<option value="all">All years</option>
-  </select></label>
-  ${sortSelect()}
-  ${sizeSelect()}
+  ${filterSelect("Water year", "year", [...section.seasons.map(yearOption), option("all", "All years")])}
+  ${filterSelect(
+    "Sort",
+    "sort",
+    SORTS.map((s) => option(s.sort, s.label)),
+  )}
+  ${filterSelect(
+    "Size",
+    "size",
+    SIZES.map((s) => option(s.size, s.label)),
+  )}
 </div>
 <p class="ev-count" role="status"><span class="ev-count-words"></span><span class="ev-missing" hidden></span></p>
 <div class="ev-list"></div>
@@ -159,7 +173,7 @@ export interface FilterPick {
  * @param pick - The water year, order and size picked.
  * @param counts - Events listed, and those of the water year the size hides.
  */
-export function syncFilterBar(
+export function syncListHead(
   panel: HTMLElement,
   section: DashboardSnapshot["rain_events"],
   pick: FilterPick,

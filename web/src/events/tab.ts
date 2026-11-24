@@ -61,7 +61,7 @@ import {
   renderListTile,
   storeSize,
   storedSize,
-  syncFilterBar,
+  syncListHead,
 } from "./list.js";
 import type { EventSize, EventSort, Season } from "./model.js";
 import {
@@ -270,7 +270,7 @@ export function mountEvents(
     const rows = visibleEvents(section, view.season, view.sort, view.size);
     const hidden = visibleEvents(section, view.season, view.sort).length - rows.length;
     renderCatalogHead(panel, section, view.season, rows);
-    syncFilterBar(panel, section, view, { shown: rows.length, hidden });
+    syncListHead(panel, section, view, { shown: rows.length, hidden });
   }
 
   /** The rows shown and the foot under them, then the open row's body. */

@@ -1,12 +1,13 @@
 /*
  * The Rain Events tab, as two tiles (`tiles.css` holds the tile, its kicker,
  * finding and folded source): the catalog, then the event list (DESIGN.md
- * "Event list"). The list's filter bar pins under any sticky header while
- * the list scrolls; each event is a row on its own tile, 16px corners,
- * 64px tall closed, opening in place. The size bar is a `rain-bar` pill on a
- * `rule` track; the quality chip a `rule-strong` pill, dashed with `ink-3`
- * text when poor; the "latest" chip outlined in `now`; segments are pills,
- * the pressed one `ink` with `ground` text; `now` only for the live event.
+ * "Event list"). The list's filter line (three selects as pills) pins under
+ * any sticky header while the list scrolls; each event is a row on its own
+ * tile, 16px corners, 64px tall closed, opening in place. The size bar is a
+ * `rain-bar` pill on a `rule` track; the quality chip a `rule-strong` pill,
+ * dashed with `ink-3` text when poor; the "latest" chip outlined in `now`;
+ * the open row's Total / Rate segment is pills, the pressed one `ink` with
+ * `ground` text; `now` only for the live event.
  */
 .ev-tile > :is(.ev-stale, .ev-stats) {
   margin-top: var(--s-5);

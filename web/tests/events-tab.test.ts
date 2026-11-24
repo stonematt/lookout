@@ -168,7 +168,7 @@ describe("the event list", () => {
     mountEvents(panel, raining(), deps);
 
     const selects = [...panel.querySelectorAll<HTMLSelectElement>(".ev-bar select")];
-    expect(selects.map((s) => s.closest("label")!.querySelector(".sr-only")!.textContent)).toEqual([
+    expect(selects.map((s) => s.closest("label")!.querySelector(".ov-sr")!.textContent)).toEqual([
       "Water year",
       "Sort",
       "Size",
