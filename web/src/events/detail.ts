@@ -1,6 +1,6 @@
 /**
- * The open event row's body: its finding, its stats, the Total / Rate
- * switch, the chart's host, its quality and its source fold. The tab
+ * The open event row's body: its finding, its stats, the chart's host, its
+ * quality and its source fold. The tab
  * (`tab.ts`) decides which curve to draw and when; this module says what the
  * body reads. Markup goes through `html` (`web/src/dom.ts`).
  *
@@ -8,13 +8,12 @@
  * - `eventBody`: the body's markup around the empty chart host.
  * - `eventSource`: the source fold's what, method and gaps for the event
  *   (`EventSourceParts`).
- * - `chartLabel`: the chart's accessible name, Total or Rate.
+ * - `chartLabel`: the chart's accessible name.
  */
 import { html } from "../dom.js";
 import type { Html } from "../dom.js";
 import { inches, inchesPerHour } from "../format.js";
 import type { RainEventRow } from "../snapshot.js";
-import type { EventChart } from "./charts.js";
 import { eventFinding, minutes, peakText } from "./model.js";
 
 /**
@@ -42,24 +41,12 @@ function qualityLine(row: RainEventRow): string {
  *
  * @param row - The open event.
  * @param count - Events in the catalog, for its finding.
- * @param chart - The chart picked, Total or Rate.
  * @param missing - The linked event is not in the catalog: say so.
  * @returns The body's markup.
  */
-export function eventBody(
-  row: RainEventRow,
-  count: number,
-  chart: EventChart,
-  missing: boolean,
-): Html {
+export function eventBody(row: RainEventRow, count: number, missing: boolean): Html {
   const note = missing
     ? html`<p class="ev-note">The linked event is not in the catalog; showing the newest one instead.</p>`
-    : "";
-  const switcher = row.has_curve
-    ? html`<div class="ev-seg ev-mode" role="group" aria-label="Chart">
-  <button type="button" data-chart="total" aria-pressed="${chart === "total"}">Total</button>
-  <button type="button" data-chart="rate" aria-pressed="${chart === "rate"}">Rate</button>
-</div>`
     : "";
   const peak = peakText(row);
   return html`
@@ -70,7 +57,6 @@ ${note}
   ${stat(minutes(row.duration_minutes), "length")}
   ${stat(peak, "peak rate")}
 </dl>
-${switcher}
 <div class="ev-charts"></div>
 <p class="ev-quality">${qualityLine(row)}</p>`;
 }
@@ -102,33 +88,30 @@ export function eventSource(row: RainEventRow): EventSourceParts {
     return {
       what: "live station and archive, 5-minute readings",
       method:
-        "The live station for the newest reading and the total; the station archive for the rest. 5-minute readings, station time. Total is the event's rain as it built up, against the median event's total, dashed. Rate is the rise in daily rain between readings.",
+        "The live station for the newest reading and the total; the station archive for the rest. 5-minute readings, station time. One chart: the columns are the rain between readings (the rise in daily rain), summed over 5 minutes or more so they stay apart, on the left axis; the line is the event's rain as it built up, on the right axis at ten times the left, against the median event's total, dashed.",
       gaps: null,
     };
   }
   return {
     what: "station archive, 5-minute readings",
     method:
-      "The station archive, 5-minute readings, station time. Total is the event's rain as it built up, against the median event's total, dashed. Rate is the rise in daily rain between readings.",
+      "The station archive, 5-minute readings, station time. One chart: the columns are the rain between readings (the rise in daily rain), summed over 5 minutes or more so they stay apart, on the left axis; the line is the event's rain as it built up, on the right axis at ten times the left, against the median event's total, dashed.",
     gaps: null,
   };
 }
 
 /**
- * The open row's chart's accessible name.
+ * The open row's chart's accessible name: the running total against the
+ * median event, then the columns and their peak rate.
  *
  * @param row - The open event.
- * @param chart - Total or Rate.
  * @param medianIn - The median event's total in the water year shown.
  * @returns The label.
  */
-export function chartLabel(row: RainEventRow, chart: EventChart, medianIn: number | null): string {
-  if (chart === "total") {
-    const against =
-      medianIn === null ? "" : `, against ${inches(medianIn, { digits: 2 })} for the median event`;
-    return `Rain so far in this event, rising to ${inches(row.total_in, { digits: 2 })}${against}`;
-  }
-  return row.peak_rate_in_hr === null
-    ? "Rain rate between readings"
-    : `Rain rate between readings, peaking at ${inchesPerHour(row.peak_rate_in_hr)}`;
+export function chartLabel(row: RainEventRow, medianIn: number | null): string {
+  const against =
+    medianIn === null ? "" : `, against ${inches(medianIn, { digits: 2 })} for the median event`;
+  const peak =
+    row.peak_rate_in_hr === null ? "" : `, peaking at ${inchesPerHour(row.peak_rate_in_hr)}`;
+  return `Rain so far in this event, rising to ${inches(row.total_in, { digits: 2 })}${against}; columns of the rain between readings under it${peak}`;
 }

@@ -6,8 +6,8 @@
  * tile, 16px corners, 64px tall closed, opening in place. The size bar is a
  * `rain-bar` pill on a `rule` track; the quality chip a `rule-strong` pill,
  * dashed with `ink-3` text when poor; the "latest" chip outlined in `now`;
- * the open row's Total / Rate segment is pills, the pressed one `ink` with
- * `ground` text; `now` only for the live event.
+ * `now` only for the live event. The open row's chart area keeps the
+ * chart's height, its loading note over the chart until it is drawn.
  */
 .ev-tile > :is(.ev-stale, .ev-stats) {
   margin-top: var(--s-5);
@@ -295,44 +295,8 @@
   cursor: pointer;
 }
 
-.ev-seg {
-  display: inline-flex;
-  flex: none;
-  max-width: 100%;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--r-pill);
-}
-
-/* segments are pills in the control's border; the pressed one `ink` */
-.ev-seg button {
-  flex: none;
-  min-height: 44px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ink-2);
-  font-size: var(--type-standfirst);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-:root:is([data-layout="two"], [data-layout="four"]) :is(.ev-seg button, .ev-select) {
+:root:is([data-layout="two"], [data-layout="four"]) .ev-select {
   min-height: 40px;
-}
-
-:root:is([data-layout="two"], [data-layout="four"]) .ev-seg button {
-  padding: 0 14px;
-}
-
-.ev-seg button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--ground);
-  font-weight: 600;
-}
-
-.ev-seg button:focus-visible {
-  outline-offset: -3px;
 }
 
 /* ---------- stat strips ---------- */
@@ -543,18 +507,35 @@
   text-wrap: pretty;
 }
 
-.ev-mode {
-  align-self: flex-start;
-}
-
-/* the chart area keeps the curve's height while it loads or fails */
+/*
+ * the chart area keeps the curve's height while it loads or fails; the
+ * loading note sits over the chart in one cell until the chart is drawn
+ */
 .ev-charts {
   display: grid;
   min-height: 240px;
 }
 
+.ev-charts > * {
+  grid-area: 1 / 1;
+}
+
 .ev-chart {
   min-height: 240px;
+}
+
+/* the drawing's note waits a moment, so a quick redraw never flashes it */
+.ev-later {
+  animation: ev-later 0s linear 0.2s both;
+}
+
+@keyframes ev-later {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
 }
 
 .ev-wait {
