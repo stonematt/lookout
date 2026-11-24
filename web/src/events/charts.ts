@@ -6,8 +6,8 @@
  *
  * - The columns: the rain between readings gathered into the finest bins
  *   (5 minutes up) that keep the columns apart at the chart's width, in
- *   `rain-bar`, on the left axis (`rainColumns`), labelled in place ("rain
- *   every 15 min").
+ *   `rain-bar`, on the left axis (`rainColumns`), named over that axis
+ *   ("rain every 15 min").
  * - The line: the event rain so far as a bold stepped line in `rain-line` on
  *   a halo of the tile's surface (a running total is a line, never a filled
  *   area), on the right axis, against the median event's total, dashed. It
@@ -224,7 +224,8 @@ function dualLayout(
   const y = { zeroline: false, fixedrange: true, tickfont: tick, tickmode: "array" as const };
   return {
     height: CHART_HEIGHT,
-    margin: { ...MARGIN, t: 8, b: 44 },
+    // Room on top for the columns' name over their axis.
+    margin: { ...MARGIN, t: 32, b: 44 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { family: token("--sans"), size: 12, color: token("--ink-2") },
@@ -528,22 +529,21 @@ export async function drawEventChart(
       ...pill(surface),
     },
   ];
-  if (tallest > 0) {
-    // The columns named in place, over the tallest, toward the middle.
-    const at = columns.y.indexOf(tallest);
-    const right = at > columns.y.length / 2;
-    layout.annotations.push({
-      x: columns.x[at],
-      xanchor: right ? "right" : "left",
-      y: tallest,
-      yanchor: "bottom",
-      yshift: 4,
-      text: columnWords(columns.minutes),
-      showarrow: false,
-      font: { size: 12, color: token("--ink-2") },
-      ...pill(surface),
-    });
-  }
+  // The columns named over their own axis, above the plot, where no mark or
+  // other label can run into the name or under it.
+  layout.annotations.push({
+    xref: "paper",
+    x: 0,
+    xanchor: "left",
+    yref: "paper",
+    y: 1,
+    yanchor: "bottom",
+    yshift: 10,
+    text: columnWords(columns.minutes),
+    showarrow: false,
+    font: { size: 12, color: token("--ink-2") },
+    ...pill(surface),
+  });
   if (median !== null) {
     layout.annotations.push({
       yref: "y2",
