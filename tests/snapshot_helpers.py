@@ -8,7 +8,7 @@ rewrites its file instead of comparing.
 """
 
 import os
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Sequence
 
 import pandas as pd
 
@@ -73,15 +73,18 @@ def scenario_until(end: str) -> pd.DataFrame:
     return build_archive(SCENARIO.start, end, rain=SCENARIO.rain, gaps=SCENARIO.gaps)
 
 
-def rain_every_fifth_day(end: str) -> pd.DataFrame:
+def rain_every_fifth_day(end: str, also: Sequence[RainSpell] = ()) -> pd.DataFrame:
     """
     A year of rain for an hour every fifth day, the last on Sat 2026-01-03,
     running dry to `end`: every completed dry spell is four days long, and
     2025 covers early January, so the usual band has an earlier year.
+
+    :param end: Time after the last row, exclusive.
+    :param also: More rain spells, before the last rain day.
     """
     days = pd.date_range(end="2026-01-03", periods=73, freq="5D")
     spells = tuple(RainSpell(f"{day.date()}T18:00:00Z", 1, 0.12) for day in days)
-    return build_archive("2025-01-01T08:00:00Z", end, rain=spells)
+    return build_archive("2025-01-01T08:00:00Z", end, rain=spells + tuple(also))
 
 
 def event_catalog(archive: pd.DataFrame) -> pd.DataFrame:

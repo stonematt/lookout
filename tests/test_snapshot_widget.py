@@ -79,10 +79,10 @@ def test_a_live_event_past_3_hours_without_a_tip_does_not():
 
 
 def test_a_dry_spell_longer_than_usual_shows_the_dry_spell_in_any_month():
-    # Thu Jan 8, 10:30 pm local: five and a half days dry against a usual
-    # four. Mid-hour, so no reading is at its hour's edge and none is unusual
-    # against 2025's same dates.
-    end = "2026-01-09T06:35:00Z"
+    # Fri Jan 9, 10:30 pm local: five whole dry days (Jan 4 to 8) against a
+    # usual four. Mid-hour, so no reading is at its hour's edge and none is
+    # unusual against 2025's same dates.
+    end = "2026-01-10T06:35:00Z"
     snapshot = build(rain_every_fifth_day(end), None, end)
 
     assert spell(snapshot).days_since_rain > spell(snapshot).usual_days == 4.0
@@ -92,11 +92,11 @@ def test_a_dry_spell_longer_than_usual_shows_the_dry_spell_in_any_month():
 
 def test_an_unusual_reading_in_a_long_dry_spell_shows_temperature_ranges():
     # The same dry spell, the live temperature far above 2025's same hour.
-    end = "2026-01-09T06:35:00Z"
+    end = "2026-01-10T06:35:00Z"
     full = rain_every_fifth_day(end)
-    live = live_row(full, "2026-01-09T06:30:00Z")
+    live = live_row(full, "2026-01-10T06:30:00Z")
     live["tempf"] = 99.0
-    archive = full[full["dateutc"] < ms("2026-01-09T06:30:00Z")]
+    archive = full[full["dateutc"] < ms("2026-01-10T06:30:00Z")]
 
     snapshot = build(archive, live, end)
 
@@ -106,7 +106,7 @@ def test_an_unusual_reading_in_a_long_dry_spell_shows_temperature_ranges():
 
 
 def test_a_dry_spell_shorter_than_usual_shows_temperature_ranges():
-    # Mon Jan 5, 11 pm local: two and a half days dry against a usual four.
+    # Mon Jan 5, 11 pm local: one whole dry day (Jan 4) against a usual four.
     end = "2026-01-06T07:00:00Z"
     snapshot = build(rain_every_fifth_day(end), None, end)
 
@@ -124,7 +124,7 @@ def test_without_a_usual_dry_spell_a_long_dry_run_shows_temperature_ranges():
 
     snapshot = build(archive, None, NOW)
 
-    assert spell(snapshot).days_since_rain > 7
+    assert spell(snapshot).days_since_rain == 7  # Jan 3 to Jan 9
     assert spell(snapshot).usual_days is None
     assert snapshot.widget_view == "temperature_ranges"
 

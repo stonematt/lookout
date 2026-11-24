@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "kind": "dashboard",
   "station": {
     "mac": "00:11:22:33:44:55",
@@ -921,7 +921,7 @@
     ]
   },
   "dry_spell": {
-    "days_since_rain": 0.0,
+    "days_since_rain": 0,
     "usual_days": null
   },
   "rain_now": {
@@ -3642,7 +3642,6 @@
         ]
       ],
       "first_hour_to_come": 17,
-      "wet_hours": null,
       "wettest_hour": null
     },
     "dry_spells": {

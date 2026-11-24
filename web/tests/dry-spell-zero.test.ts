@@ -6,8 +6,8 @@
  * the feature, the Rain tab, the Scriptable widget) reads "No dry spell yet"
  * with "last rain 9 h ago" under it, from the snapshot's last rain
  * (`rain_now.last_rain_ms`), never "0 dry days"; at 1 it reads "1 dry day".
- * Documents are version 5, built from the goldens (`goldenNext`); the goldens
- * stay version 4.
+ * Documents are the version 5 goldens with their whole dry days set
+ * (`goldenDays`).
  */
 import { createRequire } from "node:module";
 
@@ -21,7 +21,7 @@ import { renderRain } from "../src/rain/index.js";
 import { dryHeadline, drySpellShown } from "../src/rain/text.js";
 import type { DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
-import { goldenNext } from "./golden.js";
+import { goldenDays } from "./golden.js";
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -33,7 +33,7 @@ const HOUR = 3_600_000;
  * the build.
  */
 function v5Doc(days: number, hoursAgo: number): Doc {
-  const doc = goldenNext("seasoned", "dashboard", days) as Doc;
+  const doc = goldenDays("seasoned", days) as Doc;
   doc.dry_spell.usual_days = 2;
   doc.rain_now = { ...doc.rain_now, last_rain_ms: doc.built_at_ms - hoursAgo * HOUR };
   return doc;

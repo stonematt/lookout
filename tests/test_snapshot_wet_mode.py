@@ -147,4 +147,4 @@ def test_the_dashboard_document_carries_the_mode_and_the_title():
 
     assert document["wet_mode"] == {"mode": "wet", "decided_by": "weather"}
     assert document["tile_titles"]["wet_or_dry"] == "Wet hours"
-    assert document["schema_version"] == 4
+    assert document["schema_version"] == 5

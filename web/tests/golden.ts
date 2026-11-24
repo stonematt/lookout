@@ -130,40 +130,53 @@ export function oneStation(): StationIndex {
 }
 
 /**
- * The schema version after the goldens' version, which the site reads before
- * the refresh run writes it (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`, #667): a
- * v5 document counts `days_since_rain` in whole dry days and drops the Rain
- * tab's prorated `recent.wet_hours`. Once the refresh run writes 5 (#668) the
- * goldens are v5 and this builder goes.
+ * The schema version before the goldens' version, which the site still reads
+ * while a document at it may be live (ADR-0008, `SNAPSHOT_SCHEMA_VERSIONS`):
+ * a v4 document carries `days_since_rain` as the time since Ambient's
+ * `lastRain` in fractional days, and the Rain tab's prorated
+ * `recent.wet_hours`; v5 changed both (#668). Once the site drops v4, this
+ * and `goldenPrevious` go.
  */
-export const NEXT_SCHEMA_VERSION = 5;
+export const PREVIOUS_SCHEMA_VERSION = 4;
 
 /**
- * One golden document as the refresh run will write it at
- * `NEXT_SCHEMA_VERSION`: the golden with `schema_version` set forward and, on
- * a dashboard, `days_since_rain` in whole days (`wholeDays`, or the golden's
- * own value cut to whole days) and no prorated `recent.wet_hours`. Built
- * here, never by editing a golden file (#351).
+ * One golden dashboard with `days_since_rain` set, in whole dry days as the
+ * goldens' version counts them. Built here, never by editing a golden file
+ * (#351).
+ *
+ * @param scenario - One of `SCENARIOS`.
+ * @param wholeDays - The whole dry days to carry, or null.
+ * @returns The parsed JSON, untyped.
+ */
+export function goldenDays(scenario: Scenario, wholeDays: number | null): unknown {
+  const doc = structuredClone(golden(scenario, "dashboard")) as Record<string, unknown>;
+  (doc.dry_spell as { days_since_rain: number | null }).days_since_rain = wholeDays;
+  return doc;
+}
+
+/**
+ * One golden document as a version 4 refresh run wrote it: the golden with
+ * `schema_version` set back and, on a dashboard, `days_since_rain` as
+ * fractional days since `lastRain` (`days`; the golden's own when omitted)
+ * and a prorated `recent.wet_hours`. Built here, never by editing a golden
+ * file (#351).
  *
  * @param scenario - One of `SCENARIOS`.
  * @param kind - "dashboard" or "context".
- * @param wholeDays - The whole dry days to carry; the golden's, floored, when
- *   omitted.
+ * @param days - The fractional days since rain to carry.
  * @returns The parsed JSON, untyped.
  */
-export function goldenNext(
+export function goldenPrevious(
   scenario: Scenario,
   kind: "dashboard" | "context",
-  wholeDays?: number | null,
+  days?: number | null,
 ): unknown {
   const doc = structuredClone(golden(scenario, kind)) as Record<string, unknown>;
-  doc.schema_version = NEXT_SCHEMA_VERSION;
+  doc.schema_version = PREVIOUS_SCHEMA_VERSION;
   if (kind === "context") return doc;
-  const dry = doc.dry_spell as { days_since_rain: number | null; usual_days: number | null };
-  const since = dry.days_since_rain;
-  dry.days_since_rain =
-    wholeDays !== undefined ? wholeDays : since === null ? null : Math.floor(since);
-  const tab = doc.rain_tab as { recent: Record<string, unknown> };
-  delete tab.recent.wet_hours;
+  if (days !== undefined) {
+    (doc.dry_spell as { days_since_rain: number | null }).days_since_rain = days;
+  }
+  (doc.rain_tab as { recent: Record<string, unknown> }).recent.wet_hours = null;
   return doc;
 }

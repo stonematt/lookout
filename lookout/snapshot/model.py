@@ -45,7 +45,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, Literal, Optional, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # The dashboard fields the context block carries, in order.
 CONTEXT_FIELDS: Tuple[str, ...] = (
@@ -334,14 +334,17 @@ class DrySpellNow:
     The widget view, the Feature Rule and the Rain tab all read this one
     value, so they never disagree.
 
-    :param days_since_rain: Days since `lastRain`, to the newest observation,
-        rounded to 0.01; None without a reading or a last rain.
+    :param days_since_rain: Whole dry days since the last rain day
+        (GLOSSARY dry spell; version 5, #668): completed station-local
+        days under one tip, back from yesterday. 0 with rain today or
+        yesterday (no dry spell yet); a day not counted for rain stops the
+        count, and None when no known dry day lies before it.
     :param usual_days: The usual dry spell: the median completed dry spell
         over the last 365 days; None when that window is not comparable
         (a young station). `days_since_rain` is still present then.
     """
 
-    days_since_rain: Optional[float]
+    days_since_rain: Optional[int]
     usual_days: Optional[float]
 
 
@@ -1182,8 +1185,6 @@ class RecentRain:
         last day (today), a null hour from this one on is still to come,
         after the build hour; 24 when none is. Every other null hour of a
         counted day has no readings in the record (#156).
-    :param wet_hours: Known hours with any rain over the window; prorated
-        when the window is; None when it is invalid.
     :param wettest_hour: The hour with the most rain; None when the window is
         invalid or dry.
     """
@@ -1194,7 +1195,6 @@ class RecentRain:
     reason: Tuple[Optional[GapReason], ...]
     hourly_in: Tuple[Tuple[Optional[float], ...], ...]
     first_hour_to_come: int
-    wet_hours: Optional[float]
     wettest_hour: Optional[RainHour]
 
 
@@ -1378,8 +1378,7 @@ class RainTab:
         with its verdict; None when no earlier water year both has a value
         at `day_index` and covers this date.
     :param wet_hours_to_date: Wet hours since Oct 1 against usual wet hours
-        to date (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663); the
-        Rain tab reads it in place of `recent.wet_hours`.
+        to date (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663).
     :param window_strip: Each window's rain against its usual range, in
         `windows` order (#640); empty in a snapshot written before R1.
     """

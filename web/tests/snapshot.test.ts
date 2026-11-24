@@ -12,7 +12,7 @@ import {
   parseDashboard,
 } from "../src/snapshot.js";
 import { fetchCurrent } from "../src/load.js";
-import { NEXT_SCHEMA_VERSION, SCENARIOS, golden, goldenNext } from "./golden.js";
+import { PREVIOUS_SCHEMA_VERSION, SCENARIOS, golden, goldenPrevious } from "./golden.js";
 
 describe("the contract version", () => {
   it("is the version the Python builder writes (read from the goldens)", () => {
@@ -22,7 +22,7 @@ describe("the contract version", () => {
         expect(doc.schema_version).toBe(SCHEMA_VERSION);
       }
     }
-    expect(SCHEMA_VERSION).toBe(4);
+    expect(SCHEMA_VERSION).toBe(5);
   });
 });
 
@@ -230,9 +230,9 @@ describe("parseDashboard", () => {
     expect(() => parseDashboard(doc)).toThrow("schema_version 6");
   });
 
-  it("accepts a v5 dashboard without the Rain tab's prorated wet_hours", () => {
-    const doc = goldenNext("seasoned", "dashboard") as Record<string, unknown>;
-    expect(doc.schema_version).toBe(5);
+  it("accepts a v4 dashboard with the Rain tab's prorated wet_hours", () => {
+    const doc = goldenPrevious("seasoned", "dashboard") as Record<string, unknown>;
+    expect(doc.schema_version).toBe(4);
     expect(() => parseDashboard(doc)).not.toThrow();
   });
 
@@ -305,19 +305,19 @@ describe("parseCurrent", () => {
     expect(body.context).toBeNull();
   });
 
-  it("keeps a v4 context: the envelope is this site's, the context is the refresh run's", () => {
+  it("keeps a v5 context: the envelope is this site's, the context is the refresh run's", () => {
     const body = parseCurrent(current(golden("raining", "context")));
     expect(body.context?.schema_version).toBe(SCHEMA_VERSION);
   });
 
-  it("keeps a v5 context the refresh run writes after #668", () => {
-    const body = parseCurrent(current(goldenNext("raining", "context")));
-    expect(body.context?.schema_version).toBe(NEXT_SCHEMA_VERSION);
+  it("keeps a v4 context a refresh run wrote before #668", () => {
+    const body = parseCurrent(current(goldenPrevious("raining", "context")));
+    expect(body.context?.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
   });
 
-  it("refuses a body at schema_version 3: this site's own server writes 4", () => {
-    expect(() => parseCurrent({ ...current(null), schema_version: 3 })).toThrow(
-      "current: schema_version 3, this site reads 4",
+  it("refuses a body at schema_version 4: this site's own server writes 5", () => {
+    expect(() => parseCurrent({ ...current(null), schema_version: 4 })).toThrow(
+      "current: schema_version 4, this site reads 5",
     );
   });
 
@@ -337,42 +337,43 @@ describe("newestObservation", () => {
 });
 
 describe("the schema versions (ADR-0008)", () => {
-  // The site reads 5 before the refresh run writes it, so the two need not
-  // switch at the same moment (#351). R1 of #647 (#667) reads 4 and 5 while
-  // the refresh run writes 4; R2 (#668) makes it write 5, which counts
-  // days_since_rain in whole dry days and drops the prorated wet_hours.
-  // Version 3 is no longer live, so the site no longer reads it.
-  it("reads SCHEMA_VERSION and the version after it, and no other", () => {
-    expect(NEXT_SCHEMA_VERSION).toBe(SCHEMA_VERSION + 1);
-    expect(SNAPSHOT_SCHEMA_VERSIONS).toEqual([SCHEMA_VERSION, NEXT_SCHEMA_VERSION]);
-    expect(WHOLE_DRY_DAYS_VERSION).toBe(NEXT_SCHEMA_VERSION);
+  // The site read 5 before the refresh run wrote it (R1 of #647, #667), so
+  // the two need not switch at the same moment (#351). R2 (#668) makes the
+  // refresh run write 5, which counts days_since_rain in whole dry days and
+  // drops the prorated wet_hours. The site keeps reading 4 until no v4
+  // document is live; version 3 is no longer live.
+  it("reads SCHEMA_VERSION and the version before it, and no other", () => {
+    expect(PREVIOUS_SCHEMA_VERSION).toBe(SCHEMA_VERSION - 1);
+    expect(SNAPSHOT_SCHEMA_VERSIONS).toEqual([PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION]);
+    expect(WHOLE_DRY_DAYS_VERSION).toBe(SCHEMA_VERSION);
   });
 
-  it("reads a curve file at the version after SCHEMA_VERSION too", () => {
-    expect(CURVE_SCHEMA_VERSIONS).toContain(NEXT_SCHEMA_VERSION);
+  it("reads a curve file at SCHEMA_VERSION and before", () => {
+    expect(CURVE_SCHEMA_VERSIONS).toContain(SCHEMA_VERSION);
+    expect(CURVE_SCHEMA_VERSIONS).toContain(PREVIOUS_SCHEMA_VERSION);
   });
 
   it("reads a v4 dashboard without hero_lead", () => {
     for (const scenario of SCENARIOS) {
-      const snap = parseDashboard(golden(scenario, "dashboard"));
-      expect(snap.schema_version).toBe(4);
+      const snap = parseDashboard(goldenPrevious(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
       expect(snap).not.toHaveProperty("hero_lead");
     }
   });
 
   it("reads a v5 dashboard in whole dry days, without the prorated wet_hours", () => {
     for (const scenario of SCENARIOS) {
-      const snap = parseDashboard(goldenNext(scenario, "dashboard"));
-      expect(snap.schema_version).toBe(NEXT_SCHEMA_VERSION);
+      const snap = parseDashboard(golden(scenario, "dashboard"));
+      expect(snap.schema_version).toBe(SCHEMA_VERSION);
       expect(snap.rain_tab.recent).not.toHaveProperty("wet_hours");
       const since = snap.dry_spell?.days_since_rain ?? null;
       if (since !== null) expect(Number.isInteger(since)).toBe(true);
     }
   });
 
-  it("reads a v5 context", () => {
-    const block = parseContext(goldenNext("raining", "context"));
-    expect(block.schema_version).toBe(NEXT_SCHEMA_VERSION);
+  it("reads a v4 context", () => {
+    const block = parseContext(goldenPrevious("raining", "context"));
+    expect(block.schema_version).toBe(PREVIOUS_SCHEMA_VERSION);
     expect(block.kind).toBe("context");
   });
 
@@ -394,7 +395,7 @@ describe("the schema versions (ADR-0008)", () => {
   }
 
   it("still refuses a v5 dashboard without sun_moon", () => {
-    const doc = { ...(goldenNext("raining", "dashboard") as Record<string, unknown>) };
+    const doc = { ...(golden("raining", "dashboard") as Record<string, unknown>) };
     delete doc.sun_moon;
     expect(doc.schema_version).toBe(5);
     expect(() => parseDashboard(doc)).toThrow("dashboard: sun_moon malformed");
