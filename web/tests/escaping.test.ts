@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { escapeHtml } from "../src/dom.js";
+import { escapeHtml, html } from "../src/dom.js";
 import { mountEvents } from "../src/events/tab.js";
 import type { EventsDeps } from "../src/events/tab.js";
 import { mountHeader } from "../src/header.js";
@@ -48,6 +48,22 @@ describe("escaping", () => {
       "&#60;a href=&#34;x&#34;&#62;&#39;&#38;&#39;&#60;/a&#62;",
     );
     expect(escapeHtml(2026)).toBe("2026");
+  });
+
+  it("escapes every value interpolated into html, unless html built it", () => {
+    const name = HOSTILE;
+    const cell = html`<dd>${name}</dd>`;
+    const block = html`<dl title="${name}">${cell}${[cell, html`<b>${7}</b>`]}${name}</dl>`;
+    const escaped = escapeHtml(HOSTILE);
+
+    expect(String(block)).toBe(
+      `<dl title="${escaped}"><dd>${escaped}</dd><dd>${escaped}</dd><b>7</b>${escaped}</dl>`,
+    );
+    // Markup that only looks like a fragment, a plain string, is escaped.
+    expect(String(html`${String(cell)}`)).toBe(escapeHtml(`<dd>${escaped}</dd>`));
+    document.body.innerHTML = html`${block}`;
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector("dd")!.textContent).toBe(HOSTILE);
   });
 
   it("renders the Rain Events tab's snapshot values as text", () => {
