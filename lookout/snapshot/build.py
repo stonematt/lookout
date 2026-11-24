@@ -103,6 +103,7 @@ def build_snapshot(
     )
     indoor = indoor_sensors(stitched)
     mode = wet_mode(stitched, clock)
+    temperature = temperature_context(stitched, current, observed_at_ms, days.coverage)
 
     return Snapshot(
         station=station,
@@ -124,9 +125,7 @@ def build_snapshot(
         dry_spell=dry,
         rain_now=rain,
         rain_tab=rain_tab(stitched, days),
-        temperature_context=temperature_context(
-            stitched, current, observed_at_ms, days.coverage
-        ),
+        temperature_context=temperature,
         almanac=almanac(days),
         solar_tab=solar_tab(
             energy_catalog, archive, stitched, observed_at_ms, days.coverage
@@ -141,5 +140,5 @@ def build_snapshot(
         outdoor_trace=outdoor_trace(stitched),
         wet_hours=wet_hours(stitched, clock),
         wet_mode=mode,
-        tile_titles=tile_titles(mode),
+        tile_titles=tile_titles(mode, temperature),
     )

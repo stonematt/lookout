@@ -169,6 +169,11 @@ describe("parseDashboard", () => {
       (d) => (d.tile_titles.wet_or_dry = null),
       "dashboard: tile_titles malformed",
     ],
+    [
+      "a ten-day tile title that is not text",
+      (d) => (d.tile_titles.ten_days = 5),
+      "dashboard: tile_titles malformed",
+    ],
   ])("refuses %s", (_case, spoil, message) => {
     const doc = structuredClone(golden("seasoned", "dashboard")) as Raw;
     spoil(doc);

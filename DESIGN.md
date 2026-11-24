@@ -473,7 +473,7 @@ One link filling a full-width tile: the kicker with a chevron in a 32px `rule-st
 
 ### Mosaic tile
 A tile is one link, `#overview/<tile>`, to its zoom. Inside the link, in order:
-- the title, an `h2` in Kicker type ("Rain since Oct 1"). A tile title may follow its mode or its data: the snapshot then carries its text (`tile_titles`), and the tile, its zoom heading and the sources footer read it;
+- the title, an `h2` in Kicker type ("Rain since Oct 1"). A tile title may follow its mode or its data: the snapshot then carries its text (`tile_titles`), and the tile, its zoom heading and the sources footer read it. The wet-or-dry tile follows its mode ("Wet hours", "Dry spell"); the ten-day tile follows its number ("Highs over usual", under or at usual, with "last 10 days" under the number), reads "Gap in record" when a day the record covers is missing, never a level reading, and keeps "Last 10 days" with nothing to compare. A snapshot without the text keeps the fixed name;
 - the number in Fact type, a word unit after it in Stat type;
 - the short delta in Small type, `ink-2` ("−1° on usual", "steady over 3 hours");
 - the mini chart at the tile's foot, 64px tall on every tile so a row lines up, `aria-hidden`, a crop of its zoom's main chart; with its "usual range" legend swatch above it when it draws a band under bars, so the chart stays the tile's last part and keeps the row's baseline;
