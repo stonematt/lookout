@@ -742,6 +742,50 @@ export interface DashboardSnapshot extends SnapshotHead {
    * Release A3; the Pressure and Humidity tiles then draw no chart.
    */
   outdoor_trace?: OutdoorTrace | null;
+  /**
+   * The wet hours over the last 7 and 30 days and the 30-day strip (#657).
+   * Absent from snapshots published before it; the site then draws no
+   * wet-hour meter (ADR-0008).
+   */
+  wet_hours?: WetHours | null;
+}
+
+/**
+ * One window's wet hours of its countable hours (GLOSSARY wet hour,
+ * countable hour), and what it is missing (#657).
+ */
+export interface WetHoursWindow {
+  /** The window's length in days: 7 or 30. */
+  days: number;
+  /** Every hour in it: 168 or 720. */
+  hours: number;
+  /** Its countable hours with at least one tip. */
+  wet_hours: number;
+  /** Its hours with readings and no gap over 30 minutes. */
+  countable_hours: number;
+  /** Its hours that are not countable: missing, never dry. */
+  missing_hours: number;
+  /** The station-local days it touches with no countable hour. */
+  missing_days: number;
+}
+
+/** One station-local day of the wet-hour strip; null with no countable hour. */
+export interface WetHoursDay {
+  day: string;
+  wet_hours: number | null;
+  countable_hours: number | null;
+}
+
+/**
+ * The wet hours over the last 7 and 30 days, to the last whole hour, and
+ * the 30-day strip, oldest first (#657).
+ */
+export interface WetHours {
+  /** The windows' end, exclusive: the start of the hour in progress. */
+  through_ms: number;
+  last_7_days: WetHoursWindow;
+  last_30_days: WetHoursWindow;
+  days: WetHoursDay[];
 }
 
 /**
@@ -995,6 +1039,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkRecordDepth(head.record_depth);
   checkWindRose(head.wind_rose);
   checkOutdoorTrace(head.outdoor_trace);
+  checkWetHours(head.wet_hours);
   return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1056,6 +1101,33 @@ function checkOutdoorTrace(trace: unknown): void {
     trace.pressure_inhg.length !== trace.humidity_pct.length
   ) {
     throw new SnapshotContractError("dashboard: outdoor_trace malformed");
+  }
+}
+
+/**
+ * `wet_hours` may be absent (N−1) or null; present, it holds two windows
+ * of whole hour counts and a strip of days, each a count or null.
+ */
+function checkWetHours(wet: unknown): void {
+  if (wet === undefined || wet === null) return;
+  const count = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+  const window = (w: unknown) =>
+    isRecord(w) &&
+    [w.days, w.hours, w.wet_hours, w.countable_hours, w.missing_hours, w.missing_days].every(count);
+  const day = (d: unknown) =>
+    isRecord(d) &&
+    typeof d.day === "string" &&
+    (d.wet_hours === null || count(d.wet_hours)) &&
+    (d.countable_hours === null || count(d.countable_hours));
+  if (
+    !isRecord(wet) ||
+    !isTime(wet.through_ms) ||
+    !window(wet.last_7_days) ||
+    !window(wet.last_30_days) ||
+    !Array.isArray(wet.days) ||
+    !wet.days.every(day)
+  ) {
+    throw new SnapshotContractError("dashboard: wet_hours malformed");
   }
 }
 
