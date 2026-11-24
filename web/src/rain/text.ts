@@ -15,10 +15,12 @@ import { isShown } from "../overview/history.js";
 import type {
   DashboardSnapshot,
   DrySpellNow,
+  EarlierWetYear,
   GapStatus,
   RainTab,
   RainWindow,
   WaterYearCurve,
+  WetHoursToDate,
 } from "../snapshot.js";
 
 /** At most this many earlier years are named in the year-over-year headline. */
@@ -229,18 +231,82 @@ export function earlierToDate(tab: RainTab): { year: number; text: string }[] {
     .filter((item): item is { year: number; text: string } => item.text !== null);
 }
 
+/** A whole hour count, grouped: "1,292". */
+function hourCount(hours: number): string {
+  return hours.toLocaleString("en-US");
+}
+
+/**
+ * This water year's wet hours since Oct 1, as wet hours of countable hours,
+ * as the Overview's meter reads its windows (#663).
+ *
+ * @param wet - The Rain tab's wet hours to date.
+ * @returns E.g. "113 h of 1,292".
+ */
+export function wetToDateValue(wet: WetHoursToDate): string {
+  return `${hourCount(wet.wet_hours)} h of ${hourCount(wet.countable_hours)}`;
+}
+
+/**
+ * Usual wet hours to date, with the earlier years it rests on (#663): a
+ * band from 3 years, called a range below 4; the plain values below 3;
+ * none without an earlier year. Then the hours missing, never dry.
+ *
+ * @param wet - The Rain tab's wet hours to date.
+ * @returns E.g. "usual to date 147–186 h, range of 3 earlier years",
+ *   "usual to date 160 h, from 2025", "usual to date 150 h (2024), 170 h
+ *   (2025)" or "no earlier year to compare yet", each with " · 27 h
+ *   missing, not dry" when hours are missing.
+ */
+export function usualWetWords(wet: WetHoursToDate): string {
+  const usual = wet.usual;
+  let words = "no earlier year to compare yet";
+  if (usual && usual.band && usual.low_hours !== null && usual.high_hours !== null) {
+    const of =
+      usual.band === "percentile"
+        ? `25th–75th percentile of ${usual.years} earlier years`
+        : `range of ${usual.years} earlier years`;
+    words = `usual to date ${hourCount(usual.low_hours)}–${hourCount(usual.high_hours)} h, ${of}`;
+  } else if (usual && usual.earlier.length === 1) {
+    const [{ usual_hours, water_year }] = usual.earlier as [EarlierWetYear];
+    words = `usual to date ${hourCount(usual_hours)} h, from ${water_year}`;
+  } else if (usual) {
+    const values = usual.earlier.map((y) => `${hourCount(y.usual_hours)} h (${y.water_year})`);
+    words = `usual to date ${values.join(", ")}`;
+  }
+  return wet.missing_hours > 0
+    ? `${words} · ${hourCount(wet.missing_hours)} h missing, not dry`
+    : words;
+}
+
 /**
  * The heatmap's finding: how many hours it rained, and the wettest hour.
- * The hour count is a window value: ≈ when the window is prorated.
+ * The hour count is a window value: ≈ when the window is prorated. Once
+ * the snapshot carries wet hours to date (#663), the hour count is the
+ * water year's, beside the water-year curves, and the heatmap names only
+ * the wettest hour: the prorated count is not read.
  *
  * @param snapshot - The dashboard snapshot.
  * @returns E.g. "Rain fell in 18 hours of the last 90 days, the heaviest
- *   0.25 in at 10 am on Jan 9".
+ *   0.25 in at 10 am on Jan 9", or with wet hours to date "Rain by the
+ *   hour over the last 90 days, the heaviest 0.25 in at 10 am on Jan 9".
  */
 export function hoursHeadline(snapshot: DashboardSnapshot): string {
   const { recent } = snapshot.rain_tab;
-  const { wet_hours: wet, wettest_hour: wettest } = recent;
   const span = `the last ${recent.rain_in.length} days`;
+  if (snapshot.rain_tab.wet_hours_to_date) {
+    const heaviest = recent.wettest_hour;
+    if (heaviest) {
+      return (
+        `Rain by the hour over ${span}, the heaviest ` +
+        `${inches(heaviest.rain_in)} at ${hourText(heaviest.hour)} on ${dayText(heaviest.day)}`
+      );
+    }
+    return rainStatus(snapshot, recent.window).status === "invalid"
+      ? `Rain by the hour over ${span}`
+      : `No rain fell in ${span}`;
+  }
+  const { wet_hours: wet, wettest_hour: wettest } = recent;
   if (wet === null) return `Rain by the hour over ${span}`;
   if (wet === 0 || !wettest) return `No rain fell in ${span}`;
   const count = Math.round(wet);

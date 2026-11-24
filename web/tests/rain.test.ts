@@ -183,9 +183,26 @@ describe("the Rain tab's words", () => {
       status: "prorated",
       reason: "gap",
     });
+    // With wet hours to date (#663) the prorated count is not read.
     expect(hoursHeadline(wet)).toBe(
+      "Rain by the hour over the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
+    );
+    // A snapshot written before it (N−1) reads today's prorated count.
+    const before = withTab(wet, { wet_hours_to_date: undefined });
+    expect(hoursHeadline(before)).toBe(
       "Rain fell in ≈\u00a018 hours of the last 90 days, the heaviest 0.12 in at 3 pm on Jan 8",
     );
+  });
+
+  it("says no rain fell when the 90 days can be compared and hold none", () => {
+    const none = withTab(dry, {
+      recent: { ...dry.rain_tab.recent, wet_hours: 3.7, wettest_hour: null },
+    });
+    Object.assign(none.rain_tab.windows.find((w) => w.key === "90d")!.status, {
+      status: "valid",
+      reason: null,
+    });
+    expect(hoursHeadline(none)).toBe("No rain fell in the last 90 days");
   });
 
   it("picks round ticks above the largest value", () => {
