@@ -362,10 +362,13 @@ _Avoid_: median event (for a median that counts the live event).
 The median, over earlier **water years**, of each year's rain from Oct 1 to
 this date, read at the same place the Rain tab's year-over-year finding
 compares; an even count takes the mean of the middle two. A year counts when
-its window to this date is valid or prorated. This water year's rain to date
-is published as a whole percent of it, as in "74% of usual", with the count
-of years it rests on (`rain_tab.usual_to_date`, #539). There is none before
-an earlier year covers the date, and no percent of a usual of 0.
+its window to this date is valid or prorated and it covers the date: at
+least half its hours from Oct 1 to this date countable, the rule **usual wet
+hours to date** uses. This water year's rain to date is published as a whole
+percent of it, as in "74% of usual", with the count of years it rests on
+(`rain_tab.usual_to_date`, #539), and the verdict read from that percent:
+"about the same" within 15% of 100, else "wetter" or "drier" (#640). There is
+none before an earlier year covers the date, and no percent of a usual of 0.
 _Avoid_: normal rainfall, average to date.
 
 ### usual wet hours to date
