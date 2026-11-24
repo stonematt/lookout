@@ -195,8 +195,11 @@ function draw(rain: RainNow, slots: RainSlots, nowMs: number, width: number): SV
   const total = rain.event_total_in ?? finalTotal;
   if (finalTotal !== null && total !== null) {
     const lastMs = Math.min(end, Math.max(slots.start_ms, rain.last_rain_ms ?? nowMs));
-    const cx = x(lastMs);
-    const cy = yTotal(finalTotal);
+    // The dot sits on the line at last rain: the total at the end of its slot.
+    const slot = Math.min(n - 1, Math.max(0, Math.ceil((lastMs - slots.start_ms) / slotMs) - 1));
+    const atLast = slots.total_in[slot] ?? finalTotal;
+    const cx = x(Math.min(end, slots.start_ms + (slot + 1) * slotMs));
+    const cy = yTotal(atLast);
     svg.append(svgEl("circle", { class: "rain-lead-dot", cx, cy, r: 3.5 }));
     const text = `${inches(total, { digits: 2 })} ${rain.raining ? "so far" : "total"}`;
     const w = textWidth(text, true);
