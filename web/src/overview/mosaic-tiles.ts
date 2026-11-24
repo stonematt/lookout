@@ -185,8 +185,8 @@ const MIN_GAP_PX = 4;
  *
  * @param svg - The mini chart.
  * @param reasons - This season's reason per place (`WaterYearCurve.reason`).
- * @param x - Place to its x.
- * @param bottom - The plot's baseline.
+ * @param x - Place to its x, the places a pitch apart.
+ * @param bottom - The plot's baseline; the columns run from the chart's top.
  */
 function hatchSeasonGaps(
   svg: SVGSVGElement,
@@ -197,13 +197,14 @@ function hatchSeasonGaps(
   const spans = runs(reasons.length, (i) => missingDay(reasons[i] ?? null));
   if (!spans.length) return;
   const hatch = svgHatch(svg);
-  const half = (x(1) - x(0)) / 2;
+  const pitch = x(1) - x(0);
   for (const [a, b] of spans) {
     const middle = (x(a) + x(b)) / 2;
-    const width = Math.max(MIN_GAP_PX, x(b) - x(a) + 2 * half);
+    const width = Math.max(MIN_GAP_PX, x(b) - x(a) + pitch);
     svg.append(
       svgEl("rect", {
-        x: middle - width / 2,
+        // Never left of the chart's edge, where the first places sit.
+        x: Math.max(0, middle - width / 2),
         y: 0,
         width,
         height: bottom,

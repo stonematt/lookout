@@ -392,6 +392,20 @@ class TestWaterYears:
 
         assert wy2026.reason[4] == "gap"
 
+    def test_a_missing_feb_29_marks_the_place_it_folds_into(self):
+        archive = build_archive(
+            "2023-09-20T07:00:00Z",
+            "2024-03-10T08:00:00Z",
+            gaps=[Gap("2024-02-29T08:00:00Z", "2024-03-01T08:00:00Z")],
+        )
+
+        wy2024 = curve(build(archive, "2024-03-10T07:59:00Z"), 2024)
+        feb_28 = (date(2024, 2, 28) - date(2023, 10, 1)).days
+
+        assert wy2024.reason[feb_28] == "gap"
+        assert wy2024.reason[feb_28 - 1] is None
+        assert wy2024.reason[feb_28 + 1] is None
+
     def test_days_before_the_archive_say_so(self, snapshot):
         wy2024 = curve(snapshot, 2024)
 

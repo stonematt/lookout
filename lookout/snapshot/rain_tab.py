@@ -57,6 +57,7 @@ from lookout.snapshot.gaps import PRORATED, ArchiveCoverage, comparable, prorate
 from lookout.snapshot.model import (
     DrySpell,
     DrySpells,
+    GapReason,
     GapStatus,
     RainDay,
     RainHour,
@@ -260,7 +261,7 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
         end = min(water_year_start(year + 1) - timedelta(days=1), today)
         cumulative: List[Optional[float]] = [None] * PLACES
         prorated = [False] * PLACES
-        reasons: List[Optional[str]] = [None] * PLACES
+        reasons: List[Optional[GapReason]] = [None] * PLACES
         last_place = 0
         running = 0.0
         status = coverage.window(start, start)
@@ -294,7 +295,7 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
     return tuple(curves)
 
 
-def _day_reason(coverage: ArchiveCoverage, day: date) -> Optional[str]:
+def _day_reason(coverage: ArchiveCoverage, day: date) -> Optional[GapReason]:
     """
     Why a day is not in the record for rain, as the rain day kind judges it.
 
