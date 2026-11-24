@@ -61,8 +61,8 @@ const CASES = ZOOMS.flatMap((zoom) =>
 );
 
 describe("every zoom's headings nest", () => {
-  it("covers all ten zooms", () => {
-    expect(ZOOMS).toHaveLength(10);
+  it("covers all eleven zooms: the ten tiles and Wet hours (#658)", () => {
+    expect(ZOOMS).toHaveLength(11);
   });
 
   it.each(CASES)("%s on the %s golden at %ipx", async (slug, scenario, width) => {
@@ -74,9 +74,11 @@ describe("every zoom's headings nest", () => {
     const zoom = document.querySelector<HTMLElement>(`.zoom[data-zoom="${slug}"]`);
     if (!zoom) {
       // This golden does not draw the tile (Inside or Daylight on a station
-      // without them), so there is no zoom to walk. The seasoned golden
-      // draws every tile, so each zoom is walked there at least.
-      expect(scenario).not.toBe("seasoned");
+      // without them, Wet hours in dry mode), so there is no zoom to walk.
+      // The seasoned golden draws every tile but Wet hours, which the dry
+      // golden (wet mode, rain not leading) draws, so each zoom is walked
+      // once at least.
+      expect(scenario).not.toBe(slug === "wet-hours" ? "dry" : "seasoned");
       expect(document.querySelector(".zoom")).toBeNull();
       return;
     }

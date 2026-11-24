@@ -6,7 +6,8 @@
  * a tile, in the phone's order.
  *
  * A tile is one link: its title (an h2 in kicker type), the number in Fact
- * type, the delta in `ink-2`, then the mini chart at the tile's foot.
+ * type, the delta in `ink-2`, then the mini chart at the tile's foot; the
+ * Wet hours tile follows its bars with the hatch key and a caption (#706).
  */
 
 .mosaic-link {
@@ -55,6 +56,15 @@
   .mosaic-value .mosaic-unit {
     font-size: var(--type-standfirst);
   }
+}
+
+/* a value that is words, not a number ("No dry spell yet", #694): one type
+   step down, to Stat at the unit's weight, so it keeps to a half-width tile */
+.mosaic-value.mosaic-value-words {
+  font-size: var(--type-stat);
+  font-weight: 400;
+  line-height: 1.2;
+  text-wrap: balance;
 }
 
 .mosaic-unit {
@@ -158,6 +168,26 @@
   color: var(--ink-3);
 }
 
+/* the hatch key goes under the bars, beside the caption (#706); when its
+   words wrap in a 320px half-width tile, the swatch holds the first line */
+.mosaic-legend.mosaic-legend-under {
+  align-items: flex-start;
+  margin: var(--s-1) 0 0;
+}
+
+.mosaic-legend-under .hatch-swatch {
+  margin-top: calc((1.4em - 12px) / 2);
+}
+
+/* how to read the chart, in caption type under it, the tile's last part:
+   the Wet hours tile's "each bar is every hour; dark is wet" (#706) */
+.mosaic-caption {
+  margin: var(--s-1) 0 0;
+  font-size: var(--type-label);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
 .mosaic-swatch {
   flex: none;
   width: 14px;
@@ -165,6 +195,34 @@
   border: 1px dashed var(--temp-band-edge);
   border-radius: 2px;
   background: var(--temp-band);
+}
+
+/* the hatch key's swatch (#661), outlined as the hatched bar ends are */
+.mosaic-hatch-swatch {
+  border: 1px solid var(--hatch);
+}
+
+/* Wet hours: two tallies, the wet fill in rain-line on a track edged in
+   rule-strong, the hours not counted hatched at the end (#661) */
+.mosaic-track {
+  fill: var(--tile);
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.mosaic-hatch-end {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.mosaic-wet-fill {
+  fill: var(--rain-line);
+}
+
+.mosaic-count {
+  font-size: var(--type-label);
+  fill: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Dry spell: a square a day, dry in `rule-strong` (a mark the reader must

@@ -264,10 +264,11 @@ describe("a zoom on the four-column grid", () => {
     const rows: Record<string, [number, number]> = {
       "first-screen": [0, 200],
       feature: [216, 416],
+      // The seasoned golden is dry mode (#658): Dry spell beside Temperature.
       temperature: [432, 624],
-      rain: [432, 624],
-      "last-10-days": [432, 624],
       "dry-spell": [432, 624],
+      "last-10-days": [432, 624],
+      rain: [432, 624],
     };
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
       this: Element,
@@ -280,7 +281,7 @@ describe("a zoom on the four-column grid", () => {
     tileLink().click();
 
     const before = zoom()!.previousElementSibling as HTMLElement;
-    expect(before.dataset.section).toBe("dry-spell");
+    expect(before.dataset.section).toBe("rain");
     expect((zoom()!.nextElementSibling as HTMLElement).dataset.section).toBe("wind");
   });
 

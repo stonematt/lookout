@@ -205,7 +205,11 @@ export function missingDay(reason: GapReason | null): boolean {
  * @param step - A column's width.
  * @param top - The plot's top.
  * @param bottom - The plot's bottom.
- * @param labelCls - The reason's class, e.g. "rain-label".
+ * @param labelCls - The reason's class, e.g. "rain-label"; null for a mini
+ *   chart, which draws no reason.
+ * @param options - `minWidth`: the narrowest hatched run in px, centred on
+ *   its days, so a lone missing day still shows a stripe on a dense chart;
+ *   `cls`: a class for each hatched run.
  */
 export function hatchMissingDays(
   svg: SVGSVGElement,
@@ -215,15 +219,30 @@ export function hatchMissingDays(
   step: number,
   top: number,
   bottom: number,
-  labelCls: string,
+  labelCls: string | null,
+  options: { minWidth?: number; cls?: string } = {},
 ): void {
+  const { minWidth = 0, cls } = options;
   for (const [a, b] of runs(reasons.length, (i) => missingDay(reasons[i] ?? null))) {
-    const width = x(b) + step - x(a);
-    svg.append(svgEl("rect", { x: x(a), y: top, width, height: bottom - top, fill: hatch, rx: 2 }));
+    const span = x(b) + step - x(a);
+    const width = Math.max(minWidth, span);
+    // Widened about its days' middle, never left of the chart's edge.
+    const left = Math.max(0, x(a) + (span - width) / 2);
+    const attrs: Record<string, string | number> = {
+      x: left,
+      y: top,
+      width,
+      height: bottom - top,
+      fill: hatch,
+      rx: 2,
+    };
+    if (cls) attrs.class = cls;
+    svg.append(svgEl("rect", attrs));
+    if (labelCls === null) continue;
     const words = reasonLabel(reasons[a] as GapReason);
     // Room for the reason on its pill, with stripes showing either side.
     if (width >= words.length * LABEL_CHAR_PX + 4 * PILL_PAD) {
-      svg.append(pillLabel(x(a) + width / 2, top + 18, words, labelCls, "middle"));
+      svg.append(pillLabel(left + width / 2, top + 18, words, labelCls, "middle"));
     }
   }
 }

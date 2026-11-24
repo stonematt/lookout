@@ -20,6 +20,7 @@ import { daylightZoom, moonSentence } from "../src/overview/zooms/daylight.js";
 import { isZoomRoute } from "../src/overview/zoom.js";
 import { ZOOMS } from "../src/overview/zooms/index.js";
 import { MOSAIC_TILES } from "../src/overview/mosaic-tiles.js";
+import { wetHoursTile } from "../src/overview/mosaic-wet.js";
 import { featureView } from "../src/overview/feature.js";
 import type { Page } from "../src/page.js";
 import { startPage } from "../src/page.js";
@@ -79,7 +80,8 @@ const words = (el: Element | null | undefined) =>
   (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 
 const MINE = [
-  ["last-10-days", "Last 10 days"],
+  // Titled by its number, the snapshot's `tile_titles.ten_days` (#665).
+  ["last-10-days", "Highs over usual"],
   ["pressure", "Pressure"],
   ["humidity", "Humidity"],
   ["sun", "Sun today"],
@@ -89,7 +91,9 @@ const MINE = [
 
 describe("every tile of #477 opens a zoom", () => {
   it("registers the zooms in the mosaic's order", () => {
-    const order = MOSAIC_TILES.map((t) => t.slug);
+    // Wet hours (#658) is the wet-or-dry tile in wet mode; it follows the
+    // ten of the order without a mode.
+    const order = [...MOSAIC_TILES.map((t) => t.slug), wetHoursTile.slug];
     const slugs = ZOOMS.map((z) => z.slug);
     expect(slugs).toEqual(order.filter((slug) => slugs.includes(slug)));
   });
@@ -176,6 +180,26 @@ describe("the Last 10 days zoom", () => {
     expect(words(days.querySelector("[data-part=finding]"))).toMatch(/^The last ten days/);
     expect(days.querySelector("[data-part=days-chart] svg")).not.toBeNull();
     expect(days.querySelector("details")).toBeNull();
+  });
+
+  it("is headed by the tile's title from the snapshot, the window under its number", async () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    doc.tile_titles.ten_days = "Gap in record";
+    doc.temperature_context.ten_day_highs.gap = true;
+    await boot("#overview/last-10-days", parseDashboard(doc));
+    const el = zoom()!;
+    expect(words(el.querySelector(".zoom-heading"))).toBe("Gap in record");
+    expect(el.querySelector(".zoom-value")).toBeNull();
+    expect(words(el.querySelector("[data-part=delta]"))).toBe("last 10 days");
+  });
+
+  it("keeps its fixed name for a snapshot without the title (N−1)", async () => {
+    const doc = structuredClone(golden("seasoned", "dashboard")) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    delete doc.tile_titles.ten_days;
+    await boot("#overview/last-10-days", parseDashboard(doc));
+    const el = zoom()!;
+    expect(words(el.querySelector(".zoom-heading"))).toBe("Last 10 days");
+    expect(words(el.querySelector("[data-part=delta]"))).toBe("highs over usual");
   });
 });
 

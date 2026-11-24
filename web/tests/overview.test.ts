@@ -36,7 +36,9 @@ describe("the Overview", () => {
     const order = [...first.querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    // The raining golden had rain today: the hero's rain line and column (#619).
+    // The raining golden had rain today: the hero's rain line and column
+    // (#619). Rain leads, so the wet-hour bars sit in the rain tile's foot,
+    // not at this tile's (#661).
     expect(order).toEqual([
       "kicker",
       "finding",
@@ -106,11 +108,11 @@ describe("the Overview's sources footer (prototype decision 22, #604)", () => {
     );
   const NAMES = [
     "Right now",
-    "The feature",
+    // Rain leads on the raining golden (#661): the rain tile, whose foot
+    // carries Wet hours and Rain since Oct 1, so they leave the mosaic.
+    "Rain",
     "Temperature",
-    "Rain since Oct 1",
     "Last 10 days",
-    "Dry spell",
     "Wind",
     "Pressure",
     "Humidity",

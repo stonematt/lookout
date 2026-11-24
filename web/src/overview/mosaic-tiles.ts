@@ -1,8 +1,11 @@
 /**
- * The mosaic's tile definitions (#472), in its fixed order (spec #460 story
- * 19): Temperature, Rain, Last 10 days, Dry spell, then the six from
- * `mosaic-conditions.ts` (#473): Wind, Pressure, Humidity, Sun, Daylight,
- * Inside.
+ * The mosaic's tile definitions (#472), in the order the snapshot's wet mode
+ * sets (`mosaicTiles`, Mosaic decision 24, #658): Temperature and the
+ * wet-or-dry tile (Wet hours, `mosaic-wet.ts`, or Dry spell), then Rain and
+ * Last 10 days, then the six from `mosaic-conditions.ts` (#473): Wind,
+ * Pressure, Humidity, Sun, Daylight, Inside. A snapshot without a mode
+ * keeps the order before it (`MOSAIC_TILES`, spec #460 story 19):
+ * Temperature, Rain, Last 10 days, Dry spell.
  *
  * - Temperature: the live reading (the hero's), today's high, and the
  *   hero's own delta on usual (`nowDeltaWords`, the one snapshot value
@@ -10,10 +13,14 @@
  *   and today rows of the window range chart, with the now rule.
  * - Rain since Oct 1: this water year's rain to date as a percent of the
  *   usual by this date (`rain_tab.usual_to_date`, #539); its mini chart is
- *   the water-year curves, cropped to the season so far.
+ *   the water-year curves, cropped to the season so far, this season's days
+ *   the record cannot count hatched behind them (#662).
  * - Last 10 days: the ten days' highs against their usual highs, a mean
  *   (`temperature_context.ten_day_highs`, #540); its mini chart is each
- *   day's low to high over the usual for its date.
+ *   day's low to high over the usual for its date. Its title is the
+ *   snapshot's (`tile_titles.ten_days`, #665): "Highs over usual" with
+ *   "last 10 days" under the number, or "Gap in record"; a snapshot without
+ *   it keeps "Last 10 days" and "highs over usual" under the number.
  * - With nothing to compare yet (a new station), Rain and Last 10 days show
  *   the snapshot's 7-day window instead, named "last 7 days" (#605).
  * - Dry spell: the days since it last rained against the usual dry spell
@@ -23,23 +30,15 @@
  *
  * Every value is the snapshot's; these only word, format and draw.
  *
- * Offers `MOSAIC_TILES` and each tile's definition.
+ * Offers `mosaicTiles`, `MOSAIC_TILES` and each tile's definition.
  */
 import { lastDays } from "../rain/charts.js";
-import { currentYear, drySpellNow } from "../rain/text.js";
-import { missingDay, scale } from "../charts/svg.js";
+import { currentYear, drySpellNow, drySpellShown } from "../rain/text.js";
+import { hatchMissingDays, missingDay, scale } from "../charts/svg.js";
 import { svgEl } from "../dom.js";
-import {
-  WET_DAY_IN,
-  degrees,
-  formatDayCount,
-  formatDays,
-  inches,
-  percent,
-  signed,
-} from "../format.js";
+import { WET_DAY_IN, degrees, formatDayCount, inches, percent, signed } from "../format.js";
 import { gapValue, isComparable, svgHatch } from "../gaps.js";
-import type { DashboardSnapshot, TemperatureDay } from "../snapshot.js";
+import type { DashboardSnapshot, GapReason, TemperatureDay } from "../snapshot.js";
 import { isShown } from "./history.js";
 import type { MosaicTile } from "./mosaic.js";
 import {
@@ -51,6 +50,7 @@ import {
   windTile,
 } from "./mosaic-conditions.js";
 import { MINI_HEIGHT, miniChart } from "./mosaic.js";
+import { wetHoursTile } from "./mosaic-wet.js";
 import { rampColour, shownDays, todayInList, todayPeriod } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
 
@@ -61,6 +61,8 @@ const ROW_LABEL_PX = 46;
 
 /** The delta naming a number as the 7-day window's, when nothing compares (#605). */
 const LAST_7_DAYS = "last 7 days";
+/** The ten-day tile's window, under its number when the title names it. */
+const LAST_10_DAYS = "last 10 days";
 
 // ---------- Temperature ----------
 
@@ -170,6 +172,34 @@ function cropEnd(dayIndex: number): number {
   return Math.min(364, Math.max(91, dayIndex + 30));
 }
 
+/** The narrowest hatched column, so a lone missing day still shows a stripe. */
+const MIN_GAP_PX = 4;
+
+/**
+ * Hatch this season's days the record cannot count (#662) as columns the
+ * plot's height, behind the curves, so a missing day never reads as a dry
+ * one: the charts' one hatch (`hatchMissingDays`), each place's column
+ * centred on it. A day before the archive is left blank (`missingDay`).
+ *
+ * @param svg - The mini chart.
+ * @param reasons - This season's reason per place (`WaterYearCurve.reason`).
+ * @param x - Place to its x, the places a pitch apart.
+ * @param bottom - The plot's baseline; the columns run from the chart's top.
+ */
+function hatchSeasonGaps(
+  svg: SVGSVGElement,
+  reasons: (GapReason | null)[],
+  x: (i: number) => number,
+  bottom: number,
+): void {
+  if (!reasons.some((reason) => missingDay(reason))) return;
+  const pitch = x(1) - x(0);
+  hatchMissingDays(svg, reasons, svgHatch(svg), (i) => x(i) - pitch / 2, pitch, 0, bottom, null, {
+    minWidth: MIN_GAP_PX,
+    cls: "mosaic-gap",
+  });
+}
+
 /** The water-year curves from Oct 1 to the crop's end, this year bold. */
 function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | null {
   const tab = snapshot.rain_tab;
@@ -199,6 +229,7 @@ function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
       endMonth,
     ),
   );
+  if (current?.reason) hatchSeasonGaps(svg, current.reason, x, plotBottom);
   // Earlier years first, thin, so this year's line sits over them.
   for (const curve of [
     ...shown.filter((c) => c !== current),
@@ -273,7 +304,8 @@ export const rainTile: MosaicTile = {
       "Rain since Oct 1, one line per water year, this year bold. The percent is this year's " +
       "total as a percent of the usual rain by this date: the median, over the earlier water " +
       "years that reach this date, of their rain since Oct 1. Feb 29 is folded into Feb 28 so " +
-      "the years line up; ≈ marks a total scaled up over a few missing days.",
+      "the years line up; ≈ marks a total scaled up over a few missing days, and a day " +
+      "missing from the record this season is hatched, never read as dry.",
   }),
 };
 
@@ -339,7 +371,11 @@ function tenDaysChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement
   return svg;
 }
 
-/** The ten-day highs' side of usual, in words: "highs over usual". */
+/**
+ * The ten-day highs' side of usual, in words: "highs over usual". Only for
+ * a document without `tile_titles.ten_days`, whose title Python words by
+ * the same sign (`lookout/snapshot/titles.py`).
+ */
 function highsWords(deltaF: number): string {
   return `highs ${deltaF > 0 ? "over" : deltaF < 0 ? "under" : "at"} usual`;
 }
@@ -354,6 +390,8 @@ export const tenDaysTile: MosaicTile = {
   slug: "last-10-days",
   depth: "last_10_days",
   title: "Last 10 days",
+  // Named by its number, "Highs over usual", with the window under it.
+  titleFrom: (snapshot) => snapshot.tile_titles?.ten_days,
   zoomName: "last 10 days",
   read(snapshot) {
     const highs = snapshot.temperature_context.ten_day_highs ?? null;
@@ -369,9 +407,13 @@ export const tenDaysTile: MosaicTile = {
         delta: `low to high, ${LAST_7_DAYS}`,
       };
     }
+    // The snapshot's title names the highs' side of usual (#665), so the
+    // window goes under the number; without one, today's words. A gap is
+    // the title alone, never a number.
+    if (highs.gap) return { value: null, delta: LAST_10_DAYS };
     return {
       value: `${signed(highs.delta_f, 0, { plus: true })}°`,
-      delta: highsWords(highs.delta_f),
+      delta: snapshot.tile_titles?.ten_days ? LAST_10_DAYS : highsWords(highs.delta_f),
     };
   },
   chart: tenDaysChart,
@@ -448,13 +490,21 @@ export const drySpellTile: MosaicTile = {
   slug: "dry-spell",
   depth: "dry_spell",
   title: "Dry spell",
+  // In dry mode the wet-or-dry tile is this one, titled by the snapshot.
+  titleFrom: (snapshot) =>
+    snapshot.wet_mode?.mode === "dry" ? snapshot.tile_titles?.wet_or_dry : null,
   zoomName: "dry spell",
   read(snapshot) {
     // The Rain tab's numbers: the dashboard's dry spell.
-    const { days_since_rain: since, usual_days: usual } = drySpellNow(snapshot);
+    // Whole dry days from version 5 (#667), a duration before it.
+    const usual = drySpellNow(snapshot).usual_days;
+    const since = drySpellShown(snapshot);
     if (since === null) return { value: null, delta: "no last rain on record" };
+    // No dry spell yet (0 whole dry days, #694): the words, last rain under them.
+    if (since.under !== null) return { value: since.value, words: true, delta: since.under };
     return {
-      value: formatDays(since),
+      value: since.value,
+      unit: since.unit,
       delta: usual === null ? null : `usual is ${formatDayCount(usual)}`,
     };
   },
@@ -468,12 +518,8 @@ export const drySpellTile: MosaicTile = {
   }),
 };
 
-/** The mosaic's tiles, in its fixed order. */
-export const MOSAIC_TILES: readonly MosaicTile[] = [
-  temperatureTile,
-  rainTile,
-  tenDaysTile,
-  drySpellTile,
+/** The six condition tiles, after the first four in every order. */
+const CONDITION_TILES: readonly MosaicTile[] = [
   windTile,
   pressureTile,
   humidityTile,
@@ -481,3 +527,37 @@ export const MOSAIC_TILES: readonly MosaicTile[] = [
   daylightTile,
   insideTile,
 ];
+
+/**
+ * The mosaic's tiles for a snapshot without a mode (N−1, ADR-0008): the
+ * order before wet mode, Dry spell fourth and no Wet hours tile.
+ */
+export const MOSAIC_TILES: readonly MosaicTile[] = [
+  temperatureTile,
+  rainTile,
+  tenDaysTile,
+  drySpellTile,
+  ...CONDITION_TILES,
+];
+
+/**
+ * The mosaic's tiles in the order the snapshot's mode sets (Mosaic decision
+ * 24): row 1 is Temperature and the wet-or-dry tile, row 2 has Rain since
+ * Oct 1. In wet mode the wet-or-dry tile is Wet hours and row 2 is Rain
+ * since Oct 1 then Last 10 days; in dry mode it is Dry spell, and Rain since
+ * Oct 1 goes after Last 10 days (board DryDay). The site never decides the
+ * mode: without one it keeps `MOSAIC_TILES`.
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns The tiles, in order.
+ */
+export function mosaicTiles(snapshot: DashboardSnapshot): readonly MosaicTile[] {
+  switch (snapshot.wet_mode?.mode) {
+    case "wet":
+      return [temperatureTile, wetHoursTile, rainTile, tenDaysTile, ...CONDITION_TILES];
+    case "dry":
+      return [temperatureTile, drySpellTile, tenDaysTile, rainTile, ...CONDITION_TILES];
+    default:
+      return MOSAIC_TILES;
+  }
+}

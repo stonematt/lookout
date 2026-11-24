@@ -896,11 +896,120 @@
         null,
         30.0
       ]
-    }
+    },
+    "counts": {
+      "water_year": 2026,
+      "events": 3,
+      "last_7_days": 3
+    },
+    "scatter": [
+      {
+        "water_year": 2026,
+        "start_ms": [
+          1767758400000,
+          1767549600000
+        ],
+        "total_in": [
+          0.48,
+          0.36
+        ],
+        "category": [
+          "shower",
+          "shower"
+        ]
+      }
+    ]
   },
   "dry_spell": {
     "days_since_rain": 0.0,
     "usual_days": null
+  },
+  "rain_now": {
+    "last_rain_ms": 1767918300000,
+    "raining": true,
+    "rate_in_hr": 0.12,
+    "event_start_ms": 1767909600000,
+    "event_total_in": 0.3,
+    "last_3_hours": {
+      "start_ms": 1767907620000,
+      "slot_minutes": 5,
+      "rain_in": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        0.01,
+        null,
+        null,
+        null,
+        null,
+        null,
+        0.06
+      ],
+      "total_in": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+        0.09,
+        0.1,
+        0.11,
+        0.12,
+        0.13,
+        0.14,
+        0.15,
+        0.16,
+        0.17,
+        0.18,
+        0.19,
+        0.2,
+        0.21,
+        0.22,
+        0.23,
+        0.24,
+        0.24,
+        0.24,
+        0.24,
+        0.24,
+        0.24,
+        0.3
+      ]
+    }
   },
   "rain_tab": {
     "windows": [
@@ -3765,10 +3874,194 @@
           "shown": false
         },
         "total_in": null,
-        "to_date_in": null
+        "to_date_in": null,
+        "reason": [
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          "before_archive",
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
       }
     ],
-    "usual_to_date": null
+    "usual_to_date": null,
+    "wet_hours_to_date": {
+      "water_year": 2026,
+      "first_day": "2025-10-01",
+      "through_ms": 1767916800000,
+      "hours": 2393,
+      "wet_hours": 12,
+      "countable_hours": 111,
+      "missing_hours": 2282,
+      "usual": null
+    },
+    "window_strip": [
+      {
+        "key": "today",
+        "rain_in": 0.3,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "yesterday",
+        "rain_in": 0.24,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "7d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "30d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "90d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "365d",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      },
+      {
+        "key": "water_year",
+        "rain_in": null,
+        "years": 0,
+        "earlier": [],
+        "low_in": null,
+        "high_in": null,
+        "band": null,
+        "mark": null
+      }
+    ]
   },
   "temperature_context": {
     "now": 59.3,
@@ -14651,6 +14944,185 @@
       65.0,
       66.0
     ]
+  },
+  "wet_hours": {
+    "through_ms": 1767916800000,
+    "last_7_days": {
+      "days": 7,
+      "hours": 168,
+      "wet_hours": 12,
+      "countable_hours": 111,
+      "missing_hours": 57,
+      "missing_days": 3
+    },
+    "last_30_days": {
+      "days": 30,
+      "hours": 720,
+      "wet_hours": 12,
+      "countable_hours": 111,
+      "missing_hours": 609,
+      "missing_days": 26
+    },
+    "days": [
+      {
+        "day": "2025-12-10",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-11",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-12",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-13",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-14",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-15",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-16",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-17",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-18",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-19",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-20",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-21",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-22",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-23",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-24",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-25",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-26",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-27",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-28",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-29",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-30",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2025-12-31",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2026-01-01",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2026-01-02",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2026-01-03",
+        "wet_hours": null,
+        "countable_hours": null
+      },
+      {
+        "day": "2026-01-04",
+        "wet_hours": 3,
+        "countable_hours": 23
+      },
+      {
+        "day": "2026-01-05",
+        "wet_hours": 0,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-01-06",
+        "wet_hours": 4,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-01-07",
+        "wet_hours": 3,
+        "countable_hours": 24
+      },
+      {
+        "day": "2026-01-08",
+        "wet_hours": 2,
+        "countable_hours": 16
+      }
+    ]
+  },
+  "wet_mode": {
+    "mode": "wet",
+    "decided_by": "calendar"
+  },
+  "tile_titles": {
+    "wet_or_dry": "Wet hours",
+    "ten_days": "Last 10 days"
   },
   "stale_catalogs": []
 }

@@ -27,18 +27,28 @@ export const SCHEMA_VERSION = 4;
 /**
  * The versions a curve file may carry. Its shape has not changed since 2,
  * and stored curve files are never rewritten, so a version bump that leaves
- * the curve alone adds to this list rather than replacing it.
+ * the curve alone adds to this list rather than replacing it. Version 5
+ * (#667) leaves the curve alone.
  */
-export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4];
+export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4, 5];
 
 /**
- * The versions a dashboard or context document may carry (ADR-0008). The
- * site read version 4 before the refresh run wrote it (#479, #480), so the
- * two need not switch at the same moment (#351). Version 4 drops `hero_lead`,
- * which this site no longer reads; a v3 document that still carries it is
- * read with the key ignored. Version 2 is no longer live.
+ * The versions a dashboard or context document may carry (ADR-0008): N, the
+ * version the refresh run writes (`SCHEMA_VERSION`), and N+1, which this
+ * site reads before the refresh run writes it (#667, R1 of #647), so the two
+ * need not switch at the same moment (#351). Version 5 counts
+ * `days_since_rain` in whole dry days (`WHOLE_DRY_DAYS_VERSION`) and drops
+ * the Rain tab's prorated `recent.wet_hours`, which this site no longer
+ * reads. Version 3 is no longer live.
  */
-export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [3, 4];
+export const SNAPSHOT_SCHEMA_VERSIONS: readonly number[] = [4, 5];
+
+/**
+ * The first version whose `dry_spell.days_since_rain` counts whole dry days
+ * (GLOSSARY dry spell); before it the field is the time since Ambient's
+ * `lastRain` in fractional days, and the site shows it as a duration.
+ */
+export const WHOLE_DRY_DAYS_VERSION = 5;
 
 /** Which station a document is about. */
 export interface StationId {
@@ -252,6 +262,38 @@ export interface RainEvents {
    * still holds one open: that event's file follows its close.
    */
   open_curve: EventCurve | null;
+  /**
+   * The page's headline counts (#666). Absent from a snapshot written before
+   * them: the page then opens without the headline.
+   */
+  counts?: EventCounts | null;
+  /**
+   * The scatter's rows, newest first: this water year and up to three before
+   * it (#666). Absent from a snapshot written before it: no scatter is drawn.
+   */
+  scatter?: ScatterYear[] | null;
+}
+
+/** "10 events this water year · 3 in the last 7 days", counted in Python. */
+export interface EventCounts {
+  /** The build time's water year, named by the year it ends in. */
+  water_year: number;
+  /** The events that started in it, the live one too. */
+  events: number;
+  /** The events that started in the 7 days before the build. */
+  last_7_days: number;
+}
+
+/**
+ * One water year's row of the Rain Events scatter: its completed Event
+ * Catalog events, newest first, as parallel arrays. The live event is not a
+ * point; the category is Python's and sizes the dot.
+ */
+export interface ScatterYear {
+  water_year: number;
+  start_ms: number[];
+  total_in: number[];
+  category: EventCategory[];
 }
 
 /**
@@ -314,8 +356,9 @@ export interface RecentRain {
    * when none is. Every other null hour has no readings in the record.
    */
   first_hour_to_come: number;
-  /** Prorated when the window is; null when invalid. */
-  wet_hours: number | null;
+  // A version 4 document also carries a prorated `wet_hours`, which version 5
+  // drops (#667): it is not typed, so no site code reads it. Wet hours are
+  // the dashboard's `wet_hours` and `rain_tab.wet_hours_to_date`.
   wettest_hour: RainHour | null;
 }
 
@@ -353,6 +396,13 @@ export interface WaterYearCurve {
   total_in: number | null;
   /** The value at `RainTab.day_index`: the same date as today. */
   to_date_in: number | null;
+  /**
+   * Why each place's day is not in the record for rain, as
+   * `RecentRain.reason` (#662); null for a counted day. Parallel to
+   * `cumulative_in`. Absent from a snapshot written before it (ADR-0008),
+   * which draws no hatch.
+   */
+  reason?: (GapReason | null)[];
 }
 
 /** Everything the Rain tab shows. */
@@ -371,6 +421,65 @@ export interface RainTab {
    * a snapshot written before Release A3 (ADR-0008).
    */
   usual_to_date?: UsualToDate | null;
+  /**
+   * Wet hours since Oct 1 against usual wet hours to date (#663), from the
+   * one wet-hour helper the Overview's meter reads. Absent from a snapshot
+   * written before it (ADR-0008), which then shows no wet hours since Oct 1.
+   */
+  wet_hours_to_date?: WetHoursToDate | null;
+  /**
+   * Each window's rain against its usual range, in `windows` order (#640).
+   * Absent from a snapshot written before R1 of #647 (ADR-0008).
+   */
+  window_strip?: StripWindow[] | null;
+}
+
+/** One earlier water year that covers this date, for usual wet hours. */
+export interface EarlierWetYear {
+  water_year: number;
+  /** Its own wet hours from Oct 1 to this date. */
+  wet_hours: number;
+  /** Its own countable hours over that span: at least half of them. */
+  countable_hours: number;
+  /** Its wet share times this year's countable hours, whole hours. */
+  usual_hours: number;
+}
+
+/**
+ * Usual wet hours to date (GLOSSARY): N earlier water years' wet share from
+ * Oct 1 to this date, times this year's countable hours.
+ */
+export interface UsualWetHours {
+  /** N, at least 1. */
+  years: number;
+  /** Each earlier year, oldest first. */
+  earlier: EarlierWetYear[];
+  /** The 25th percentile; null below 3 years. */
+  low_hours: number | null;
+  /** The 75th percentile; null below 3 years. */
+  high_hours: number | null;
+  /**
+   * "percentile" from 4 years; "range" at 3, which the site calls "range of
+   * N earlier years", not a percentile; null below 3 (plain values).
+   */
+  band: "percentile" | "range" | null;
+}
+
+/** This water year's wet hours since Oct 1 (#663), to the last whole hour. */
+export interface WetHoursToDate {
+  water_year: number;
+  /** Its Oct 1. */
+  first_day: string;
+  /** The span's end, exclusive: the start of the hour in progress. */
+  through_ms: number;
+  /** Every hour since Oct 1. */
+  hours: number;
+  wet_hours: number;
+  countable_hours: number;
+  /** Not countable: missing, never dry. */
+  missing_hours: number;
+  /** Null when no earlier water year covers this date. */
+  usual: UsualWetHours | null;
 }
 
 /** This water year's rain to date against the usual (`UsualToDate`, #539). */
@@ -381,6 +490,55 @@ export interface UsualToDate {
   years: number;
   /** This year's rain to date as a whole percent of the usual; null when unknown. */
   percent: number | null;
+  /**
+   * The water year's verdict (#640): "about the same" within 15% of the
+   * usual, read from `percent`. Null when this year's rain is unknown;
+   * absent from a snapshot written before R1 of #647 (ADR-0008).
+   */
+  verdict?: Verdict | null;
+  /** The earlier water years the usual rests on, oldest first; absent before R1. */
+  water_years?: number[];
+}
+
+/** The water year's verdict against the usual rain to date (#640). */
+export const VERDICTS = ["wetter", "drier", "about the same"] as const;
+export type Verdict = (typeof VERDICTS)[number];
+
+/** A window strip mark: words kept distinct from the verdict's (#647). */
+export const STRIP_MARKS = ["above usual range", "below usual range"] as const;
+export type StripMark = (typeof STRIP_MARKS)[number];
+
+/** What the site calls a strip window's range (`StripBand`). */
+export const STRIP_BANDS = ["percentile", "range"] as const;
+export type StripBand = (typeof STRIP_BANDS)[number];
+
+/** One earlier year's rain over the same window (`EarlierWindowRain`). */
+export interface EarlierWindowRain {
+  /** That window's last day, a whole number of years back. */
+  last_day: string;
+  rain_in: number;
+}
+
+/**
+ * One window of the Rain tab's window strip (`StripWindow`, #640): its
+ * rain against its usual range from the same window in earlier years.
+ */
+export interface StripWindow {
+  /** As `RainTab.windows` names it. */
+  key: string;
+  /** `RainWindow.total_in`; null when invalid. */
+  rain_in: number | null;
+  /** N, the earlier years the range rests on; 0 means no range. */
+  years: number;
+  /** Oldest first. */
+  earlier: EarlierWindowRain[];
+  /** The 25th–75th percentile from 3 years, the plain values' span below. */
+  low_in: number | null;
+  high_in: number | null;
+  /** "percentile" from 4 years, "range" (of N earlier years) at 3; null below. */
+  band: StripBand | null;
+  /** Null inside the range, with no range, or below while the window runs. */
+  mark: StripMark | null;
 }
 
 /** The last ten days' highs against their usual highs (`TenDayHighs`, #540). */
@@ -389,6 +547,11 @@ export interface TenDayHighs {
   delta_f: number;
   /** How many days it is over: 1 to 10. */
   days: number;
+  /**
+   * Whether a day the record covers has no low or high. The tile then
+   * shows no number (#665). Absent from an earlier version 4 document.
+   */
+  gap?: boolean;
 }
 
 /** One window's range bar: low, middle half and high of its readings. */
@@ -719,6 +882,12 @@ export interface DashboardSnapshot extends SnapshotHead {
    */
   dry_spell?: DrySpellNow;
   /**
+   * Last rain and the now story (ADR-0011, #659), a version 4 addition.
+   * Absent from snapshots published before it: read it through
+   * {@link rainNow}, which gives null, and the site then draws today's view.
+   */
+  rain_now?: RainNow | null;
+  /**
    * How deep the station's record is: which comparisons it supports and
    * the one it unlocks next (#463). Absent from snapshots published before
    * Release A; the site then draws today's view.
@@ -742,6 +911,90 @@ export interface DashboardSnapshot extends SnapshotHead {
    * Release A3; the Pressure and Humidity tiles then draw no chart.
    */
   outdoor_trace?: OutdoorTrace | null;
+  /**
+   * The wet hours over the last 7 and 30 days and the 30-day strip (#657).
+   * Absent from snapshots published before it; the site then draws no
+   * wet-hour meter (ADR-0008).
+   */
+  wet_hours?: WetHours | null;
+  /**
+   * Today's wet mode or dry mode and what decided it (#658). Absent from
+   * snapshots published before it; the site then draws today's mosaic
+   * (ADR-0008).
+   */
+  wet_mode?: WetMode | null;
+  /**
+   * The title text of each tile whose title follows its mode or its data
+   * (#658, GLOSSARY tile title). Absent before it; each tile then keeps its
+   * fixed name.
+   */
+  tile_titles?: TileTitles | null;
+}
+
+/** Today's wet mode or dry mode (GLOSSARY wet mode), decided in Python. */
+export interface WetMode {
+  /** "wet" or "dry": the mosaic's order and the wet-or-dry tile follow it. */
+  mode: "wet" | "dry";
+  /**
+   * "weather" (the wet share of the days before today) or "calendar" (too
+   * few of the last 14 days' hours countable: Nov 1 to Apr 30 is wet).
+   */
+  decided_by: "weather" | "calendar";
+}
+
+/**
+ * The title text of the tiles whose title follows a mode or data; a tile
+ * not named keeps its fixed name. The tile, its zoom heading and the
+ * sources footer read the same text.
+ */
+export interface TileTitles {
+  /** The wet-or-dry tile: "Wet hours" in wet mode, "Dry spell" in dry mode. */
+  wet_or_dry: string;
+  /**
+   * The ten-day temperature tile, named by its number: "Highs over usual",
+   * "Highs under usual", "Highs at usual", "Gap in record" or, with nothing
+   * to compare, "Last 10 days". Absent from an earlier version 4 document
+   * (#665), when the tile keeps its fixed name.
+   */
+  ten_days?: string | null;
+}
+
+/**
+ * One window's wet hours of its countable hours (GLOSSARY wet hour,
+ * countable hour), and what it is missing (#657).
+ */
+export interface WetHoursWindow {
+  /** The window's length in days: 7 or 30. */
+  days: number;
+  /** Every hour in it: 168 or 720. */
+  hours: number;
+  /** Its countable hours with at least one tip. */
+  wet_hours: number;
+  /** Its hours with readings and no gap over 30 minutes. */
+  countable_hours: number;
+  /** Its hours that are not countable: missing, never dry. */
+  missing_hours: number;
+  /** The station-local days it touches with no countable hour. */
+  missing_days: number;
+}
+
+/** One station-local day of the wet-hour strip; null with no countable hour. */
+export interface WetHoursDay {
+  day: string;
+  wet_hours: number | null;
+  countable_hours: number | null;
+}
+
+/**
+ * The wet hours over the last 7 and 30 days, to the last whole hour, and
+ * the 30-day strip, oldest first (#657).
+ */
+export interface WetHours {
+  /** The windows' end, exclusive: the start of the hour in progress. */
+  through_ms: number;
+  last_7_days: WetHoursWindow;
+  last_30_days: WetHoursWindow;
+  days: WetHoursDay[];
 }
 
 /**
@@ -982,6 +1235,8 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   ) {
     throw new SnapshotContractError("dashboard: rain_events.seasons without a gap status");
   }
+  checkEventCounts(events.counts);
+  checkScatter(events.scatter);
   checkRainTab(head.rain_tab);
   checkTemperature(head.temperature_context);
   checkAlmanac(head.almanac);
@@ -992,9 +1247,13 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkIndoor(head.indoor);
   checkFeature(head.feature);
   checkDrySpell(head.dry_spell);
+  checkRainNow(head.rain_now);
   checkRecordDepth(head.record_depth);
   checkWindRose(head.wind_rose);
   checkOutdoorTrace(head.outdoor_trace);
+  checkWetHours(head.wet_hours);
+  checkWetMode(head.wet_mode);
+  checkTileTitles(head.tile_titles);
   return { ...head, stale_catalogs } as unknown as DashboardSnapshot;
 }
 
@@ -1056,6 +1315,67 @@ function checkOutdoorTrace(trace: unknown): void {
     trace.pressure_inhg.length !== trace.humidity_pct.length
   ) {
     throw new SnapshotContractError("dashboard: outdoor_trace malformed");
+  }
+}
+
+/**
+ * `wet_hours` may be absent (N−1) or null; present, it holds two windows
+ * of whole hour counts and a strip of days, each a count or null.
+ */
+function checkWetHours(wet: unknown): void {
+  if (wet === undefined || wet === null) return;
+  const count = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+  const window = (w: unknown) =>
+    isRecord(w) &&
+    [w.days, w.hours, w.wet_hours, w.countable_hours, w.missing_hours, w.missing_days].every(count);
+  const day = (d: unknown) =>
+    isRecord(d) &&
+    typeof d.day === "string" &&
+    (d.wet_hours === null || count(d.wet_hours)) &&
+    (d.countable_hours === null || count(d.countable_hours));
+  if (
+    !isRecord(wet) ||
+    !isTime(wet.through_ms) ||
+    !window(wet.last_7_days) ||
+    !window(wet.last_30_days) ||
+    !Array.isArray(wet.days) ||
+    !wet.days.every(day)
+  ) {
+    throw new SnapshotContractError("dashboard: wet_hours malformed");
+  }
+}
+
+/**
+ * `wet_mode` may be absent (N−1) or null; present, it names a mode and what
+ * decided it.
+ */
+function checkWetMode(mode: unknown): void {
+  if (mode === undefined || mode === null) return;
+  if (
+    !isRecord(mode) ||
+    (mode.mode !== "wet" && mode.mode !== "dry") ||
+    (mode.decided_by !== "weather" && mode.decided_by !== "calendar")
+  ) {
+    throw new SnapshotContractError("dashboard: wet_mode malformed");
+  }
+}
+
+/**
+ * `tile_titles` may be absent (N−1) or null; present, each title it holds
+ * is text, and `ten_days` may be absent or null (an earlier version 4).
+ */
+function checkTileTitles(titles: unknown): void {
+  if (titles === undefined || titles === null) return;
+  if (
+    !isRecord(titles) ||
+    typeof titles.wet_or_dry !== "string" ||
+    !(
+      titles.ten_days === undefined ||
+      titles.ten_days === null ||
+      typeof titles.ten_days === "string"
+    )
+  ) {
+    throw new SnapshotContractError("dashboard: tile_titles malformed");
   }
 }
 
@@ -1135,6 +1455,38 @@ function checkSolarTab(tab: unknown): void {
   }
 }
 
+/** `rain_events.counts` (#666) may be absent (N−1) or null; else three integers. */
+function checkEventCounts(counts: unknown): void {
+  if (counts === undefined || counts === null) return;
+  if (
+    !isRecord(counts) ||
+    ![counts.water_year, counts.events, counts.last_7_days].every(Number.isInteger)
+  ) {
+    throw new SnapshotContractError("dashboard: rain_events.counts malformed");
+  }
+}
+
+/**
+ * `rain_events.scatter` (#666) may be absent (N−1) or null; else rows of
+ * parallel arrays of one length.
+ */
+function checkScatter(scatter: unknown): void {
+  if (scatter === undefined || scatter === null) return;
+  const ok =
+    Array.isArray(scatter) &&
+    scatter.every(
+      (row) =>
+        isRecord(row) &&
+        Number.isInteger(row.water_year) &&
+        Array.isArray(row.start_ms) &&
+        Array.isArray(row.total_in) &&
+        Array.isArray(row.category) &&
+        row.total_in.length === row.start_ms.length &&
+        row.category.length === row.start_ms.length,
+    );
+  if (!ok) throw new SnapshotContractError("dashboard: rain_events.scatter not parallel");
+}
+
 function checkRainTab(tab: unknown): void {
   if (!isRecord(tab) || !Array.isArray(tab.windows) || !Array.isArray(tab.water_years)) {
     throw new SnapshotContractError("dashboard: rain_tab malformed");
@@ -1152,6 +1504,17 @@ function checkRainTab(tab: unknown): void {
   if (!Number.isInteger(toCome) || (toCome as number) < 0 || (toCome as number) > 24) {
     throw new SnapshotContractError("dashboard: rain_tab.recent.first_hour_to_come not an hour");
   }
+  // Each curve's day reasons (#662) may be absent; present, parallel.
+  for (const curve of tab.water_years as unknown[]) {
+    if (!isRecord(curve) || curve.reason === undefined) continue;
+    if (
+      !Array.isArray(curve.reason) ||
+      !Array.isArray(curve.cumulative_in) ||
+      curve.reason.length !== curve.cumulative_in.length
+    ) {
+      throw new SnapshotContractError("dashboard: rain_tab.water_years reason not parallel");
+    }
+  }
   // Release A3's usual to date (#539) may be absent (N−1) or null.
   const usual = tab.usual_to_date;
   if (
@@ -1161,10 +1524,83 @@ function checkRainTab(tab: unknown): void {
       isRecord(usual) &&
       typeof usual.usual_in === "number" &&
       typeof usual.years === "number" &&
-      (usual.percent === null || typeof usual.percent === "number")
+      (usual.percent === null || typeof usual.percent === "number") &&
+      // R1's verdict (#640) may be absent (N−1) or null.
+      (usual.verdict === undefined ||
+        usual.verdict === null ||
+        (VERDICTS as readonly unknown[]).includes(usual.verdict)) &&
+      (usual.water_years === undefined ||
+        (Array.isArray(usual.water_years) && usual.water_years.every(Number.isInteger)))
     )
   ) {
     throw new SnapshotContractError("dashboard: rain_tab.usual_to_date malformed");
+  }
+  checkWetHoursToDate(tab.wet_hours_to_date);
+  checkWindowStrip(tab.window_strip);
+}
+
+/**
+ * `rain_tab.window_strip` (#640) may be absent (N−1) or null; present, each
+ * window lists as many earlier years as it rests on, and marks only with
+ * the strip's own words.
+ *
+ * @param strip - The field as read.
+ */
+function checkWindowStrip(strip: unknown): void {
+  if (strip === undefined || strip === null) return;
+  const amount = (v: unknown) => v === null || typeof v === "number";
+  const ok =
+    Array.isArray(strip) &&
+    strip.every(
+      (w) =>
+        isRecord(w) &&
+        typeof w.key === "string" &&
+        amount(w.rain_in) &&
+        amount(w.low_in) &&
+        amount(w.high_in) &&
+        Array.isArray(w.earlier) &&
+        w.earlier.length === w.years &&
+        w.earlier.every(
+          (e) => isRecord(e) && typeof e.last_day === "string" && typeof e.rain_in === "number",
+        ) &&
+        (w.band === null || (STRIP_BANDS as readonly unknown[]).includes(w.band)) &&
+        (w.mark === null || (STRIP_MARKS as readonly unknown[]).includes(w.mark)),
+    );
+  if (!ok) throw new SnapshotContractError("dashboard: rain_tab.window_strip malformed");
+}
+
+/**
+ * `rain_tab.wet_hours_to_date` (#663) may be absent (N−1) or null; present,
+ * its counts are whole hours and its usual, when there is one, rests on as
+ * many earlier years as it lists.
+ *
+ * @param wet - The field as read.
+ */
+function checkWetHoursToDate(wet: unknown): void {
+  if (wet === undefined || wet === null) return;
+  const count = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+  const year = (y: unknown) =>
+    isRecord(y) && [y.water_year, y.wet_hours, y.countable_hours, y.usual_hours].every(count);
+  const usual = (u: unknown) =>
+    u === null ||
+    (isRecord(u) &&
+      count(u.years) &&
+      Array.isArray(u.earlier) &&
+      u.earlier.length === u.years &&
+      u.earlier.every(year) &&
+      (u.low_hours === null || count(u.low_hours)) &&
+      (u.high_hours === null || count(u.high_hours)) &&
+      (u.band === null || u.band === "percentile" || u.band === "range"));
+  if (
+    !isRecord(wet) ||
+    !isTime(wet.through_ms) ||
+    typeof wet.first_day !== "string" ||
+    ![wet.water_year, wet.hours, wet.wet_hours, wet.countable_hours, wet.missing_hours].every(
+      count,
+    ) ||
+    !usual(wet.usual)
+  ) {
+    throw new SnapshotContractError("dashboard: rain_tab.wet_hours_to_date malformed");
   }
 }
 
@@ -1210,7 +1646,12 @@ function checkTemperature(context: unknown): void {
   if (
     highs !== undefined &&
     highs !== null &&
-    !(isRecord(highs) && typeof highs.delta_f === "number" && typeof highs.days === "number")
+    !(
+      isRecord(highs) &&
+      typeof highs.delta_f === "number" &&
+      typeof highs.days === "number" &&
+      (highs.gap === undefined || typeof highs.gap === "boolean")
+    )
   ) {
     throw new SnapshotContractError("dashboard: temperature_context.ten_day_highs malformed");
   }
@@ -1354,10 +1795,71 @@ export interface Feature {
 
 /** The current dry spell against the usual dry spell (`DrySpellNow`). */
 export interface DrySpellNow {
-  /** Days since it last rained; null without a reading or a last rain. */
+  /**
+   * Days since it last rained: whole dry days from `WHOLE_DRY_DAYS_VERSION`
+   * (GLOSSARY dry spell), the time since `lastRain` in fractional days
+   * before it; null without a reading or a last rain.
+   */
   days_since_rain: number | null;
   /** The usual dry spell in days; null when the 365 days are not comparable. */
   usual_days: number | null;
+}
+
+/**
+ * Last rain and the now story (`RainNow`, ADR-0011). The now story (the
+ * rate and the event) is told while last rain is within 3 hours of the
+ * build, exactly while the feature is rain; outside it `raining` is false
+ * and the rest is null.
+ */
+export interface RainNow {
+  /**
+   * Last rain: the gauge's last tip, the newest reading the daily counter
+   * rose on (not Ambient's `lastRain`); null when no reading shows a tip.
+   */
+  last_rain_ms: number | null;
+  /** Whether last rain is within 30 minutes of the build. */
+  raining: boolean;
+  /** The rain in the 60 minutes to the build, so inches per hour; null outside the story. */
+  rate_in_hr: number | null;
+  /**
+   * The current rain event's start, Ambient's bounds: the key of its
+   * `rain_events` row; null outside the story or when no event holds last rain.
+   */
+  event_start_ms: number | null;
+  /** That event's rain in inches; null when `event_start_ms` is. */
+  event_total_in: number | null;
+  /**
+   * The rain of the now story's chart (#661); null outside the story, and
+   * absent from a snapshot written before it (ADR-0008).
+   */
+  last_3_hours?: RainSlots | null;
+}
+
+/**
+ * The 3 hours up to the build in slots (#661): slot `i` holds the readings
+ * after `start_ms + i * slot_minutes` minutes, up to the next slot's start.
+ */
+export interface RainSlots {
+  start_ms: number;
+  slot_minutes: number;
+  /** Each slot's rain; null for a slot with no reading (missing, never dry). */
+  rain_in: (number | null)[];
+  /**
+   * The event's running total at each slot's end, ending on its total; null
+   * before the event's start, and everywhere when no event holds last rain.
+   */
+  total_in: (number | null)[];
+}
+
+/**
+ * A snapshot's last rain and now story, null when it carries none (one
+ * published before #659, ADR-0008).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns Its `rain_now`, or null.
+ */
+export function rainNow(snapshot: DashboardSnapshot): RainNow | null {
+  return snapshot.rain_now ?? null;
 }
 
 const FEATURE_KINDS: readonly string[] = ["rain", "unusual", "dry_spell", "quiet"];
@@ -1399,6 +1901,44 @@ function checkFeature(feature: unknown): void {
       feature.outside_usual === null ||
       typeof feature.outside_usual === "boolean");
   if (!ok) throw new SnapshotContractError("dashboard: feature malformed");
+}
+
+/**
+ * `rain_now` may be absent or null (before #659); present, it holds a time or
+ * null, a flag, and numbers or nulls.
+ */
+function checkRainNow(rain: unknown): void {
+  if (rain === undefined || rain === null) return;
+  const timeOrNull = (v: unknown) => v === null || isTime(v);
+  if (
+    !isRecord(rain) ||
+    !timeOrNull(rain.last_rain_ms) ||
+    typeof rain.raining !== "boolean" ||
+    !isValueOrNull(rain.rate_in_hr) ||
+    !timeOrNull(rain.event_start_ms) ||
+    !isValueOrNull(rain.event_total_in) ||
+    !rainSlotsOk(rain.last_3_hours)
+  ) {
+    throw new SnapshotContractError("dashboard: rain_now malformed");
+  }
+}
+
+/**
+ * `rain_now.last_3_hours` may be absent (before #661) or null; present, it
+ * holds a start, a slot length and two series of one length.
+ */
+function rainSlotsOk(slots: unknown): boolean {
+  if (slots === undefined || slots === null) return true;
+  const series = (v: unknown): v is unknown[] => Array.isArray(v) && v.every(isValueOrNull);
+  return (
+    isRecord(slots) &&
+    isTime(slots.start_ms) &&
+    isTime(slots.slot_minutes) &&
+    (slots.slot_minutes as number) > 0 &&
+    series(slots.rain_in) &&
+    series(slots.total_in) &&
+    slots.rain_in.length === slots.total_in.length
+  );
 }
 
 /** `dry_spell` may be absent (N−1); present, it holds two numbers or nulls. */

@@ -109,7 +109,8 @@ describe.each([1440, 390])("the rain zoom at %ipx", (width) => {
   it("leads with the Rain tab's water-year section, then the almanac and rolling rain", async () => {
     await boot("#overview/rain", seasoned(), width);
 
-    expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Rain since Oct 1");
+    // A crop of the Rain tab head, which leads with now (#647 call 5).
+    expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Now and this season");
     expect(panels().map((p) => p.dataset.panel)).toEqual([
       "water-year",
       "rain-windows",
@@ -133,24 +134,65 @@ describe.each([1440, 390])("the rain zoom at %ipx", (width) => {
 });
 
 describe("the rain zoom", () => {
-  it("draws the Rain tab's water-year section, with no source note, its strip left to the gauge", async () => {
+  it("draws the Rain tab's head, with no source note, its strip left to the gauge", async () => {
     const snapshot = withYears();
     const tab = await rainSection("years", snapshot);
+    const leads = (host: Element) =>
+      [...host.querySelectorAll(".tile-finding")].map((lead) => words(lead));
     const onTab = {
-      finding: words(tab.querySelector("[data-part=finding]")),
+      leads: leads(tab),
       chart: tab.querySelector(".rain-chart svg")?.getAttribute("aria-label"),
-      strip: words(tab.querySelector(".rain-windows")),
+      strip: words(tab.querySelector("[data-part=windows]")),
     };
     page!.stop();
 
     await boot("#overview/rain", snapshot);
     const years = panels()[0]!;
-    expect(words(years.querySelector("[data-part=finding]"))).toBe(onTab.finding);
-    expect(onTab.finding).toMatch(/^Water year 2026 has 4\.20 in of rain since Oct 1/);
+    // The same head (Mosaic decision 25): now, the season, then the verdict.
+    expect(leads(years)).toEqual(onTab.leads);
+    expect(onTab.leads).toHaveLength(3);
+    expect(words(years.querySelector("[data-part=finding]"))).toMatch(/^Last rain /);
+    expect(words(years.querySelector("[data-part=verdict]"))).toMatch(
+      /^Water year 2026 is wetter than usual: 4\.20 in since Oct 1/,
+    );
     expect(years.querySelector(".rain-chart svg")?.getAttribute("aria-label")).toBe(onTab.chart);
     expect(onTab.strip).toBeTruthy();
-    expect(years.querySelector(".rain-windows")).toBeNull();
+    expect(years.querySelector("[data-part=windows], .rain-windows")).toBeNull();
     expect(tab.querySelector("[data-part=source-note]")).not.toBeNull();
+  });
+
+  it("titles its first panel with the Rain tab head's kicker, not the water year (#703)", async () => {
+    const snapshot = withYears();
+    const tab = await rainSection("years", snapshot);
+    const kicker = words(tab.querySelector("[data-part=kicker]"));
+    const labels = (host: Element) =>
+      [...host.querySelectorAll("[data-part=label]")].map((label) => words(label));
+    const onTab = labels(tab);
+    page!.stop();
+
+    await boot("#overview/rain", snapshot);
+    const head = panels()[0]!;
+    expect(kicker).toBe("Now");
+    expect(words(head.querySelector(".zoom-panel-title"))).toBe(kicker);
+    // The title is the first part's label, as the kicker is on the tab: no
+    // second "Now" under it. The later parts keep the tab's labels; the
+    // window strip's is the tab's alone, the gauge panel drawing the windows.
+    const later = [
+      "Wet hours · each bar is every hour; dark is wet",
+      "The water year against usual",
+    ];
+    expect(labels(head)).toEqual(later);
+    expect(onTab).toEqual([...later, "Each window against its usual"]);
+  });
+
+  it("keeps the water year's title on a snapshot without now or the season", async () => {
+    const snapshot = withYears();
+    snapshot.rain_now = null;
+    snapshot.wet_hours = null;
+    snapshot.rain_tab.wet_hours_to_date = null;
+    await boot("#overview/rain", snapshot);
+
+    expect(words(panels()[0]!.querySelector(".zoom-panel-title"))).toBe("The water year");
   });
 
   it("carries no source note or method fold (prototype decision 22)", async () => {
@@ -175,7 +217,12 @@ describe("the dry spell zoom", () => {
     await boot("#overview/dry-spell", snapshot);
     expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Dry spell");
     expect(panels().map((p) => p.dataset.panel)).toEqual(["dry-spells", "more"]);
-    expect(words(panels()[0]!.querySelector(".rain-dry-stats"))).toBe(onTab);
+    // A gap reads without "n/a" in a zoom (DESIGN.md, The Overview grid; #703).
+    expect(onTab).toContain("n/a: gap in record");
+    expect(words(panels()[0]!.querySelector(".rain-dry-stats"))).toBe(
+      onTab!.replaceAll("n/a: ", ""),
+    );
+    expect(zoom()!.textContent).not.toContain("n/a");
     expect(zoom()!.querySelector("details, .tile-folds")).toBeNull();
     expect(panels()[1]!.querySelector("a")?.getAttribute("href")).toBe("#rain");
   });

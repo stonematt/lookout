@@ -74,7 +74,8 @@ describe("the usual band hero", () => {
     const parts = [...hero().querySelectorAll("[data-part]")].map((el) =>
       el.getAttribute("data-part"),
     );
-    // The raining golden had rain today: the hero's rain line and column (#619).
+    // The raining golden had rain today: the hero's rain line and column
+    // (#619). Rain leads, so the wet-hour bars are the rain tile's (#661).
     expect(parts).toEqual([
       "kicker",
       "finding",

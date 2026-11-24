@@ -432,9 +432,12 @@ export function inches(value: number, options: InchOptions = {}): string {
   return options.unit === false ? text : `${text} in`;
 }
 
+/** The rain rate's unit, everywhere (#647 call 1). */
+export const RATE_UNIT = "in/hr";
+
 /** A rain rate, e.g. `0.12 in/hr`. */
 export function inchesPerHour(value: number): string {
-  return `${value.toFixed(2)} in/hr`;
+  return `${value.toFixed(2)} ${RATE_UNIT}`;
 }
 
 /**

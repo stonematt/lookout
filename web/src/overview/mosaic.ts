@@ -15,9 +15,11 @@
  *   accessible name of its own;
  * - inside it one link, `a.mosaic-link[href="#overview/<slug>"]`, holding the
  *   title (`h2`, the tile's heading), the number and its unit, the delta, the
- *   mini chart (`aria-hidden`, with its "usual range" legend swatch when it
- *   draws a band under bars) and, for screen readers only, "Open the …
- *   view". The link's name is its own text, so a screen reader hears the
+ *   mini chart (`aria-hidden`, with its "usual range" legend swatch above it
+ *   when it draws a band under bars, or its hatch key under it when it
+ *   hatches), the caption under the chart when the tile has one
+ *   (`p.mosaic-caption[data-part=caption]`, #706) and, for screen readers
+ *   only, "Open the … view". The link's name is its own text, so a screen reader hears the
  *   finding once and no `aria-label` repeats it.
  *
  * A tile whose record-depth entry (`record_depth.tiles`, #463) says it is not
@@ -32,8 +34,11 @@
  * `aria-hidden` line. A tile whose own `shown` says the snapshot holds
  * nothing for it is not drawn either.
  *
+ * A tile whose title follows its mode or data (`titleFrom`) reads it from
+ * the snapshot's `tile_titles`, through `tileTitle`.
+ *
  * Offers `MosaicTile`, `MosaicRow`, `TileReading`, `mosaicSection`,
- * `miniChart` (the mini chart's SVG root) and `ROW_LINE_HEIGHT`.
+ * `tileTitle`, `miniChart` (the mini chart's SVG root) and `ROW_LINE_HEIGHT`.
  */
 import "./mosaic.css";
 
@@ -42,6 +47,7 @@ import { spoken, svgEl } from "../dom.js";
 import type { DashboardSnapshot } from "../snapshot.js";
 import type { TileSource } from "../tiles.js";
 import type { OverviewSection } from "./index.js";
+import { HATCH_KEY } from "../wet-bars.js";
 
 /** A mini chart's height, the same on every tile so a row lines up. */
 export const MINI_HEIGHT = 64;
@@ -50,6 +56,8 @@ export const MINI_HEIGHT = 64;
 export interface TileReading {
   /** The number, formatted ("72.0°", "1 d 14 h"); null when there is none. */
   value: string | null;
+  /** Whether the value is words, not a number ("No dry spell yet"), set a step smaller. */
+  words?: boolean;
   /** A word unit set smaller after the number ("in"); none by default. */
   unit?: string | null;
   /** The short delta under the number; null for none. */
@@ -72,6 +80,18 @@ export interface MosaicTile {
   depth: string;
   /** The tile's title, its heading: "Rain since Oct 1". */
   title: string;
+  /**
+   * The title the snapshot decided for this tile, when its title follows
+   * its mode or its data (`tile_titles`, GLOSSARY tile title, #658); the
+   * fixed `title` when it gives none (N−1, ADR-0008).
+   */
+  titleFrom?(snapshot: DashboardSnapshot): string | null | undefined;
+  /**
+   * How to read the chart, in caption type under it, the tile's last part:
+   * the wet-hour bars' "each bar is every hour; dark is wet" (#647, #706).
+   * The title stays one line on a half-width tile.
+   */
+  caption?: string;
   /** The zoom's name, in the link's "Open the <zoomName> view": "temperature". */
   zoomName: string;
   /** The number and the delta. */
@@ -88,6 +108,12 @@ export interface MosaicTile {
    * #460 Legends), and none when no day has a band to draw.
    */
   bandUnderBars?(snapshot: DashboardSnapshot): boolean;
+  /**
+   * Whether the chart hatches a part it cannot count: it then carries the
+   * hatch key under the chart, "hatched: missing, not dry" (#661), beside
+   * the tile's caption (#706).
+   */
+  hatched?(snapshot: DashboardSnapshot): boolean;
   /**
    * The tile's entry in the Overview's sources footer (`sources.ts`): its
    * short line (source and comparison, at most 12 words) and its method
@@ -169,6 +195,17 @@ function bandLegend(): HTMLElement {
   return legend;
 }
 
+/** The hatch key under the chart: the hatch's swatch, then what it means (#661). */
+function hatchLegend(): HTMLElement {
+  const legend = document.createElement("p");
+  legend.className = "mosaic-legend mosaic-legend-under";
+  legend.dataset.part = "legend";
+  const swatch = document.createElement("span");
+  swatch.className = "hatch-swatch mosaic-hatch-swatch";
+  legend.append(swatch, HATCH_KEY);
+  return legend;
+}
+
 /**
  * A tile's rows: each its name, its reading and aside, then its line.
  *
@@ -238,7 +275,7 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const reading = tile.read(snapshot);
   if (reading.value !== null) {
     const value = document.createElement("p");
-    value.className = "mosaic-value";
+    value.className = reading.words ? "mosaic-value mosaic-value-words" : "mosaic-value";
     value.dataset.part = "value";
     value.append(reading.value);
     if (reading.unit) {
@@ -262,7 +299,15 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   chart.className = "mosaic-chart";
   chart.dataset.part = "mini-chart";
   chart.setAttribute("aria-hidden", "true");
-  link.append(chart, spoken(`Open the ${tile.zoomName} view`));
+  link.append(chart);
+  if (tile.caption) {
+    const caption = document.createElement("p");
+    caption.className = "mosaic-caption";
+    caption.dataset.part = "caption";
+    caption.textContent = tile.caption;
+    link.append(caption);
+  }
+  link.append(spoken(`Open the ${tile.zoomName} view`));
   host.replaceChildren(link);
   drawRows();
   const draw = tile.chart;
@@ -270,16 +315,32 @@ function render(tile: MosaicTile, host: HTMLElement, snapshot: DashboardSnapshot
   const plot = document.createElement("div");
   chart.append(plot);
   const band = tile.bandUnderBars?.(snapshot) ?? false;
+  const hatched = tile.hatched?.(snapshot) ?? false;
   drawSized(plot, (width) => {
     const svg = draw(snapshot, width);
     plot.replaceChildren(...(svg ? [svg] : []));
     // A band under bars carries its legend, never a label inside the plot.
-    // The legend goes above the chart, so the chart keeps the tile's foot,
-    // the baseline its row's charts share.
+    // The band's legend goes above the chart, so the chart keeps the tile's
+    // foot, the baseline its row's charts share; the hatch key goes under
+    // the bars, beside the caption that says how to read them (#706).
     const legend = chart.querySelector("[data-part=legend]");
     if (svg && band && !legend) chart.prepend(bandLegend());
+    else if (svg && hatched && !legend) chart.append(hatchLegend());
     if (!svg) legend?.remove();
   });
+}
+
+/**
+ * A tile's title for a snapshot: the snapshot's text when it decides one,
+ * else the fixed name. The tile, its zoom heading and the sources footer
+ * all read this.
+ *
+ * @param tile - The tile's definition.
+ * @param snapshot - The dashboard snapshot.
+ * @returns The title.
+ */
+export function tileTitle(tile: MosaicTile, snapshot: DashboardSnapshot): string {
+  return tile.titleFrom?.(snapshot) || tile.title;
 }
 
 /**
@@ -293,7 +354,7 @@ export function mosaicSection(tile: MosaicTile): OverviewSection {
   return {
     id: tile.slug,
     label: tile.title,
-    kicker: tile.title,
+    kicker: (snapshot) => tileTitle(tile, snapshot),
     mosaic: true,
     shown: (snapshot) =>
       depthShown(snapshot, tile.depth) && (tile.shown ? tile.shown(snapshot) : true),

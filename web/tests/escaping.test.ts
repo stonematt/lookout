@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { escapeHtml } from "../src/dom.js";
+import { escapeHtml, html } from "../src/dom.js";
 import { mountEvents } from "../src/events/tab.js";
 import type { EventsDeps } from "../src/events/tab.js";
 import { mountHeader } from "../src/header.js";
@@ -50,6 +50,22 @@ describe("escaping", () => {
     expect(escapeHtml(2026)).toBe("2026");
   });
 
+  it("escapes every value interpolated into html, unless html built it", () => {
+    const name = HOSTILE;
+    const cell = html`<dd>${name}</dd>`;
+    const block = html`<dl title="${name}">${cell}${[cell, html`<b>${7}</b>`]}${name}</dl>`;
+    const escaped = escapeHtml(HOSTILE);
+
+    expect(String(block)).toBe(
+      `<dl title="${escaped}"><dd>${escaped}</dd><dd>${escaped}</dd><b>7</b>${escaped}</dl>`,
+    );
+    // Markup that only looks like a fragment, a plain string, is escaped.
+    expect(String(html`${String(cell)}`)).toBe(escapeHtml(`<dd>${escaped}</dd>`));
+    document.body.innerHTML = html`${block}`;
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector("dd")!.textContent).toBe(HOSTILE);
+  });
+
   it("renders the Rain Events tab's snapshot values as text", () => {
     const deps: EventsDeps = {
       fetchCurve: vi.fn(),
@@ -61,9 +77,9 @@ describe("escaping", () => {
     expect(host.querySelector("img")).toBeNull();
     expect(host.querySelector("[onerror]")).toBeNull();
     expect(host.querySelector(".ev-chip")!.textContent).toBe(HOSTILE);
-    const season = host.querySelectorAll<HTMLOptionElement>(".ev-select option")[1]!;
+    const season = host.querySelectorAll<HTMLOptionElement>(".ev-year-select option")[0]!;
     // The golden's water year starts before the archive: partial, and why.
-    expect(season.textContent).toBe(`${HOSTILE}, partial`);
+    expect(season.textContent).toBe(HOSTILE);
     expect(season.title).toContain("n/a: before the archive");
     expect(season.value).toBe(HOSTILE);
     expect(season.title).toContain(HOSTILE);

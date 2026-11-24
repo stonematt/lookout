@@ -3,8 +3,8 @@ The widget view, through `build_snapshot`: which view a widget shows now.
 
 It is the feature (ADR-0009) mapped to a widget's three views:
 
-1. rain_event, when the feature is rain (an event is live, of any size, or
-   ended in the last 12 h);
+1. rain_event, when the feature is rain (last rain, the gauge's last tip,
+   within 3 h, ADR-0011);
 2. dry_spell, when the feature is dry_spell (the current dry spell is longer
    than the usual dry spell, the snapshot's `dry_spell` field, in any month,
    and no reading is unusual);
@@ -57,15 +57,25 @@ def test_a_live_event_of_four_hundredths_or_less_shows_it_too():
     assert snapshot.widget_view == "rain_event"
 
 
-def test_an_event_ended_within_12_hours_shows_the_rain_event():
-    # Event 3 ended Fri 2026-01-09 about 02:00Z; built eight hours later.
-    archive = scenario_until("2026-01-09T10:00:00Z")
+def test_rain_within_3_hours_shows_the_rain_event():
+    # Event 3 last tipped at 01:55Z on Fri 2026-01-09; built two hours later.
+    archive = scenario_until("2026-01-09T03:55:00Z")
 
-    snapshot = build(archive, None, "2026-01-09T10:00:00Z", event_catalog(archive))
+    snapshot = build(archive, None, "2026-01-09T03:55:00Z", event_catalog(archive))
 
-    assert snapshot.active_rain_event is None
+    assert snapshot.rain_now.raining is False
     assert snapshot.feature.kind == "rain"
     assert snapshot.widget_view == "rain_event"
+
+
+def test_a_live_event_past_3_hours_without_a_tip_does_not():
+    # Ambient's event 3 is still live five hours after its last tip.
+    archive = scenario_until("2026-01-09T06:55:00Z")
+
+    snapshot = build(archive, None, "2026-01-09T06:55:00Z", event_catalog(archive))
+
+    assert snapshot.active_rain_event is not None
+    assert snapshot.widget_view == "temperature_ranges"
 
 
 def test_a_dry_spell_longer_than_usual_shows_the_dry_spell_in_any_month():

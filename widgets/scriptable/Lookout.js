@@ -20,6 +20,9 @@ const REFRESH_MINUTES = 5;
 // All stations ranks stations the way Python ranks views.
 const VIEW_RANK = { rain_event: 0, dry_spell: 1, temperature_ranges: 2 };
 const DEFAULT_VIEW = "temperature_ranges";
+// The first snapshot version whose `days_since_rain` is whole dry days: the
+// site's `WHOLE_DRY_DAYS_VERSION` (web/src/snapshot.ts), held equal by a test.
+const WHOLE_DRY_DAYS_VERSION = 5;
 const RANGE_ROWS = [
   ["today", "Today"],
   ["7d", "7 days"],
@@ -168,18 +171,60 @@ function rainEventModel(dashboard) {
   };
 }
 
+/**
+ * The whole days it has been dry. From schema version 5 `days_since_rain`
+ * counts whole dry days (GLOSSARY dry spell, #667); a version 4 snapshot
+ * carries the time since `lastRain` in fractional days, cut to whole days.
+ */
+function wholeDaysDry(dashboard) {
+  const days = dashboard.dry_spell.days_since_rain;
+  return dashboard.schema_version >= WHOLE_DRY_DAYS_VERSION
+    ? Math.round(days)
+    : Math.floor(days);
+}
+
+/**
+ * How long ago, as the site's now story says it (`agoWords` in
+ * web/src/now-story.ts, held equal by a test): minutes under an hour, whole
+ * hours under two days, whole days after.
+ */
+function agoWords(ms) {
+  const minutes = Math.floor(Math.max(0, ms) / 60000);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
+}
+
+/**
+ * Before a whole dry day has passed (version 5, 0 whole dry days) there is
+ * no dry spell yet (#694): the site's "No dry spell yet" with last rain,
+ * from the snapshot's `rain_now.last_rain_ms`, never "0 days".
+ */
+function noDrySpellYet(dashboard) {
+  const last = dashboard.rain_now ? dashboard.rain_now.last_rain_ms : null;
+  return last == null
+    ? "No dry spell yet"
+    : `No dry spell yet, last rain ${agoWords(dashboard.built_at_ms - last)} ago`;
+}
+
 function drySpellModel(dashboard) {
   const spell = dashboard.dry_spell;
-  const daysDry = Math.floor(spell.days_since_rain);
+  const daysDry = wholeDaysDry(dashboard);
   const usual = spell.usual_days;
   const longest = dashboard.rain_tab.dry_spells.longest;
+  const days = `${daysDry} day${daysDry === 1 ? "" : "s"}`;
+  const noSpellYet =
+    daysDry === 0 && dashboard.schema_version >= WHOLE_DRY_DAYS_VERSION;
   return {
     view: "dry_spell",
     now: daysDry,
     daysDry,
+    noSpellYet,
     usualDays: usual,
     longestDays: longest ? longest.days : null,
-    sentence: `Dry for ${daysDry} days, longer than the usual ${dayCount(usual)}`,
+    sentence: noSpellYet
+      ? noDrySpellYet(dashboard)
+      : `Dry for ${days}, longer than the usual ${dayCount(usual)}`,
   };
 }
 
@@ -274,7 +319,8 @@ function addText(stack, text, font, color, lines = 1) {
 
 function headline(model) {
   if (model.view === "rain_event") return `${model.totalIn.toFixed(2)} in`;
-  if (model.view === "dry_spell") return `${model.daysDry} d`;
+  if (model.view === "dry_spell")
+    return model.noSpellYet ? "No dry spell yet" : `${model.daysDry} d`;
   return model.now === null ? "–" : `${Math.round(model.now)}°`;
 }
 
@@ -524,6 +570,8 @@ if (typeof Script === "undefined") {
     leadingDashboard,
     widgetModel,
     formatDuration,
+    agoWords,
+    WHOLE_DRY_DAYS_VERSION,
   };
 } else {
   main();

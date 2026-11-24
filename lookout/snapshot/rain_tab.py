@@ -24,6 +24,21 @@ the new site's rules:
   the earlier water years' rain by this date, each read at the same place
   the year-over-year finding compares (`WaterYearCurve.to_date_in`), so a
   year counts exactly when the finding can name it.
+- Wet hours since Oct 1 against usual wet hours to date come from the one
+  wet-hour helper (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663),
+  so they agree with the Overview's meter; the prorated
+  `RecentRain.wet_hours` stays in the snapshot until R2 (#667).
+- An earlier water year counts toward the usual rain to date only if it
+  also covers this date, the one rule usual wet hours apply
+  (`WetHoursToDate.usual.earlier`): no usual and no verdict before then.
+  The verdict (#640) reads the published percent: "about the same" within
+  `ABOUT_THE_SAME` of 100, else "wetter" or "drier".
+- The window strip (#640) sets each window's rain against the same window
+  a whole number of years back, each earlier window judged by the gap
+  rules, as a range: from 3 years the band usual wet hours use
+  (`lookout.snapshot.wet_hours.usual_band`), below that the plain values.
+  Which windows are marked, and how, is GLOSSARY "usual range"
+  (`GROWING_WINDOW`, `UNMARKED_WINDOW`).
 
 Functions:
 - rain_tab(history, days): the `RainTab` section.
@@ -34,9 +49,9 @@ Overview's rolling-window tables) reads the same `CountedDays` and calls
 everywhere (the One Number Rule).
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 from statistics import median
-from typing import List, Optional, Tuple
+from typing import FrozenSet, List, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -49,21 +64,28 @@ from lookout.core.rainfall_analysis import (
     water_year_start,
 )
 from lookout.snapshot.days import CountedDays
-from lookout.snapshot.gaps import PRORATED, comparable, prorate
+from lookout.snapshot.gaps import PRORATED, ArchiveCoverage, comparable, prorate
 from lookout.snapshot.model import (
     DrySpell,
     DrySpells,
+    EarlierWindowRain,
+    GapReason,
     GapStatus,
     RainDay,
     RainHour,
     RainTab,
     RainWindow,
     RecentRain,
+    StripMark,
+    StripWindow,
     UsualToDate,
+    Verdict,
     WaterYearCurve,
+    WetHoursToDate,
 )
 from lookout.snapshot.values import iso_day, number
-from lookout.utils.dateutc import day_span, from_local_date
+from lookout.snapshot.wet_hours import usual_band, wet_hours_to_date
+from lookout.utils.dateutc import day_span, from_local_date, years_back
 
 RECENT_WINDOW = "90d"
 """The standard window the daily bars and the heatmap cover."""
@@ -75,6 +97,18 @@ _DAY_MS = 24 * 60 * 60 * 1000
 
 PLACES = 365
 """Places in a water-year curve: Oct 1 to Sep 30, Feb 29 folded in."""
+
+GROWING_WINDOW = "today"
+"""The window strip's window whose rain can still grow: never marked below
+its usual range (GLOSSARY usual range)."""
+
+UNMARKED_WINDOW = "water_year"
+"""The window strip's window that carries no mark: only the verdict judges
+the water year (GLOSSARY usual range, #647 call 2)."""
+
+ABOUT_THE_SAME = 15
+"""The verdict is "about the same" while this water year's rain to date is
+within this many percent of the usual rain to date (#640)."""
 
 
 def rain_tab(history: pd.DataFrame, days: CountedDays) -> RainTab:
@@ -91,16 +125,22 @@ def rain_tab(history: pd.DataFrame, days: CountedDays) -> RainTab:
     recent_status = next(s for s in windows if s.key == RECENT_WINDOW)
     water_year_status = next(s for s in windows if s.key == "water_year")
     water_years = _water_years(days)
+    wet_to_date = wet_hours_to_date(history, days.clock)
+    to_date = _to_date_years(water_years, _covered(wet_to_date))
+    rain_windows = tuple(
+        RainWindow(key=s.key, status=s, total_in=days.rain_total(s)) for s in windows
+    )
     return RainTab(
-        windows=tuple(
-            RainWindow(key=s.key, status=s, total_in=days.rain_total(s))
-            for s in windows
-        ),
+        windows=rain_windows,
         recent=_recent(recent_status, history, days),
         dry_spells=_dry_spells(water_year_status, days),
         day_index=water_year_day_index(days.clock.today),
         water_years=water_years,
-        usual_to_date=_usual_to_date(water_years),
+        usual_to_date=_usual_to_date(
+            water_years[-1].to_date_in if water_years else None, to_date
+        ),
+        wet_hours_to_date=wet_to_date,
+        window_strip=_window_strip(rain_windows, to_date, days),
     )
 
 
@@ -136,10 +176,10 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
         # A counted day with nothing archived yet (just after midnight) is
         # 0, as `rain_total` sums it. Its hours are not: an hour with no
         # counter reading is unknown (None), never dry (#147).
-        if coverage.day_kind(d) != "ok":
-            reason = coverage.window(d, d).reason
+        reason = _day_reason(coverage, d)
+        if reason is not None:
             rain_in.append(None)
-            reasons.append(reason or "gap")
+            reasons.append(reason)
             hourly.append((None,) * HOURS)
             continue
         rain_in.append(number(totals.get(d, 0.0)))
@@ -254,6 +294,7 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
         end = min(water_year_start(year + 1) - timedelta(days=1), today)
         cumulative: List[Optional[float]] = [None] * PLACES
         prorated = [False] * PLACES
+        reasons: List[Optional[GapReason]] = [None] * PLACES
         last_place = 0
         running = 0.0
         status = coverage.window(start, start)
@@ -267,6 +308,8 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
                 status, lambda: number(prorate(status, running))
             )
             prorated[place] = status.status == PRORATED
+            # Feb 29 shares Feb 28's place: missing when either day is.
+            reasons[place] = reasons[place] or _day_reason(coverage, day)
             last_place = place
             day += timedelta(days=1)
         reached = last_place + 1
@@ -279,29 +322,192 @@ def _water_years(days: CountedDays) -> Tuple[WaterYearCurve, ...]:
                 status=status,
                 total_in=cumulative[last_place],
                 to_date_in=(cumulative[today_place] if today_place < reached else None),
+                reason=tuple(reasons[:reached]),
             )
         )
     return tuple(curves)
 
 
-def _usual_to_date(curves: Tuple[WaterYearCurve, ...]) -> Optional[UsualToDate]:
+def _day_reason(coverage: ArchiveCoverage, day: date) -> Optional[GapReason]:
+    """
+    Why a day is not in the record for rain, as the rain day kind judges it.
+
+    :param coverage: The rain day kind (`CountedDays.rain`).
+    :param day: The station-local day.
+    :return: Its gap reason ("gap", "before_archive", ...); None for a
+        counted day.
+    """
+    if coverage.day_kind(day) == "ok":
+        return None
+    return coverage.window(day, day).reason or "gap"
+
+
+def _covered(wet_to_date: WetHoursToDate) -> FrozenSet[int]:
+    """
+    The earlier water years that cover this date: usual wet hours' years,
+    so the rule lives in one place (`lookout.snapshot.wet_hours`).
+
+    :param wet_to_date: This water year's wet hours since Oct 1.
+    :return: Those water years.
+    """
+    usual = wet_to_date.usual
+    return frozenset(y.water_year for y in usual.earlier) if usual else frozenset()
+
+
+def _to_date_years(
+    curves: Tuple[WaterYearCurve, ...], covered: FrozenSet[int]
+) -> Tuple[WaterYearCurve, ...]:
+    """
+    The earlier water years the usual rain to date rests on.
+
+    :param curves: The water-year curves, oldest first; the last is this one.
+    :param covered: The earlier water years that cover this date.
+    :return: Those with a value by this date (`to_date_in`) that also cover
+        it, oldest first.
+    """
+    return tuple(
+        c for c in curves[:-1] if c.to_date_in is not None and c.water_year in covered
+    )
+
+
+def _usual_to_date(
+    current: Optional[float], earlier: Tuple[WaterYearCurve, ...]
+) -> Optional[UsualToDate]:
     """
     This water year's rain to date against the usual rain by this date.
 
-    :param curves: The water-year curves, oldest first; the last is this one.
-    :return: The usual and this year's percent of it; None when no earlier
-        year has a value by this date (`to_date_in`).
+    :param current: This water year's rain to date; None when unknown.
+    :param earlier: The earlier years the usual rests on (`_to_date_years`).
+    :return: The usual, this year's percent of it and the verdict; None
+        when no earlier year counts.
     """
-    if not curves:
-        return None
-    *earlier, current = curves
-    by_date = [c.to_date_in for c in earlier if c.to_date_in is not None]
-    if not by_date:
+    if not earlier:
         return None
     # The percent is of the published values, so it reads from them exactly;
     # Python's round (half to even), as the feature's percentile is.
-    usual_in = round(median(by_date), 3)  # as `number` rounds; never None here
+    usual_in = round(median(c.to_date_in for c in earlier), 3)  # as `number`
     percent = None
-    if current.to_date_in is not None and usual_in > 0:
-        percent = round(100 * current.to_date_in / usual_in)
-    return UsualToDate(usual_in=usual_in, years=len(by_date), percent=percent)
+    if current is not None and usual_in > 0:
+        percent = round(100 * current / usual_in)
+    return UsualToDate(
+        usual_in=usual_in,
+        years=len(earlier),
+        percent=percent,
+        verdict=_verdict(current, percent),
+        water_years=tuple(c.water_year for c in earlier),
+    )
+
+
+def _verdict(current: Optional[float], percent: Optional[int]) -> Optional[Verdict]:
+    """
+    Wetter, drier or about the same as the usual rain to date (#640).
+
+    :param current: This water year's rain to date; None when unknown.
+    :param percent: `current` as a whole percent of the usual; None when
+        the usual is 0 (or `current` is None).
+    :return: The verdict; None when this year's rain is unknown.
+    """
+    if current is None:
+        return None
+    if percent is None:  # a usual of 0
+        return "wetter" if current > 0 else "about the same"
+    if percent > 100 + ABOUT_THE_SAME:
+        return "wetter"
+    if percent < 100 - ABOUT_THE_SAME:
+        return "drier"
+    return "about the same"
+
+
+def _window_strip(
+    windows: Tuple[RainWindow, ...],
+    to_date: Tuple[WaterYearCurve, ...],
+    days: CountedDays,
+) -> Tuple[StripWindow, ...]:
+    """
+    Each window's rain against its usual range from earlier years.
+
+    :param windows: The Rain tab's windows.
+    :param to_date: The earlier water years the usual rain to date rests
+        on; the water year's window rests on the same.
+    :param days: The counted days and the daily rain series.
+    :return: One `StripWindow` per window, in order.
+    """
+    today = days.clock.today
+    strip = []
+    for window in windows:
+        if window.key == "water_year":
+            earlier = [
+                EarlierWindowRain(
+                    last_day=years_back(
+                        today, water_year(today) - c.water_year
+                    ).isoformat(),
+                    rain_in=c.to_date_in,
+                )
+                for c in to_date
+            ]
+        else:
+            earlier = _earlier_windows(window.status, days)
+        strip.append(_strip_window(window, earlier))
+    return tuple(strip)
+
+
+def _earlier_windows(status: GapStatus, days: CountedDays) -> List[EarlierWindowRain]:
+    """
+    The same window in each earlier year the record reaches, where its rain
+    can be read (valid or prorated).
+
+    :param status: This window's rain gap status.
+    :param days: The counted days and the daily rain series.
+    :return: Each readable earlier window's rain, oldest first.
+    """
+    earliest = days.rain.first_day
+    first, last = iso_day(status.first_day), iso_day(status.last_day)
+    length = last - first
+    earlier = []
+    back = 1
+    while earliest is not None:
+        end = years_back(last, back)
+        if end - length < earliest:
+            break
+        total = days.rain_total(days.rain.window(end - length, end))
+        if total is not None:
+            earlier.append(EarlierWindowRain(last_day=end.isoformat(), rain_in=total))
+        back += 1
+    return earlier[::-1]
+
+
+def _strip_window(
+    window: RainWindow, earlier: Sequence[EarlierWindowRain]
+) -> StripWindow:
+    """
+    One window against its usual range.
+
+    :param window: The window and its rain.
+    :param earlier: The earlier years' rain over it, oldest first.
+    :return: The `StripWindow`.
+    """
+    values = [e.rain_in for e in earlier]
+    low = high = band = None
+    usual = usual_band(values)
+    if usual is not None:
+        low, high, band = number(usual[0]), number(usual[1]), usual[2]
+    elif values:
+        low, high = min(values), max(values)
+    mark: Optional[StripMark] = None
+    rain = window.total_in
+    judged = window.key != UNMARKED_WINDOW
+    if judged and rain is not None and low is not None and high is not None:
+        if rain > high:
+            mark = "above usual range"
+        elif rain < low and window.key != GROWING_WINDOW:
+            mark = "below usual range"
+    return StripWindow(
+        key=window.key,
+        rain_in=rain,
+        years=len(earlier),
+        earlier=tuple(earlier),
+        low_in=low,
+        high_in=high,
+        band=band,
+        mark=mark,
+    )

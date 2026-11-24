@@ -1,14 +1,15 @@
 /*
  * The Rain Events tab, as two tiles (`tiles.css` holds the tile, its kicker,
  * finding and folded source): the catalog, then the event list (DESIGN.md
- * "Event list"). The list's filter bar pins under any sticky header while
- * the list scrolls; each event is a row on its own tile, 16px corners,
- * 64px tall closed, opening in place. The size bar is a `rain-bar` pill on a
- * `rule` track; the quality chip a `rule-strong` pill, dashed with `ink-3`
- * text when poor; the "latest" chip outlined in `now`; segments are pills,
- * the pressed one `ink` with `ground` text; `now` only for the live event.
+ * "Event list"). The list's filter line (three selects as pills) pins under
+ * any sticky header while the list scrolls; each event is a row on its own
+ * tile, 16px corners, 64px tall closed, opening in place. The size bar is a
+ * `rain-bar` pill on a `rule` track; the quality chip a `rule-strong` pill,
+ * dashed with `ink-3` text when poor; the "latest" chip outlined in `now`;
+ * `now` only for the live event. The open row's chart area keeps the
+ * chart's height, its loading note over the chart until it is drawn.
  */
-.ev-tile > :is(.ev-stale, .ev-stats, .ev-season-gap) {
+.ev-tile > :is(.ev-stale, .ev-stats) {
   margin-top: var(--s-5);
 }
 
@@ -25,6 +26,178 @@
   white-space: nowrap;
 }
 
+/* ---------- the headline and the scatter (#666, board EventsBC) ---------- */
+/* The headline: the water year's count in Fact type beside its words. */
+.ev-headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  max-width: none;
+}
+
+.ev-headline-n {
+  font-size: var(--type-fact);
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-headline-words {
+  display: flex;
+  flex-direction: column;
+}
+
+.ev-scatter {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--rule);
+}
+
+.ev-sc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.ev-sc-title {
+  margin: 0;
+  font-size: var(--type-kicker);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.ev-sc-years {
+  font-size: var(--type-kicker);
+  color: var(--ink-3);
+}
+
+.ev-sc-chart {
+  margin-top: var(--s-3);
+}
+
+.ev-sc-svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  font-family: var(--sans);
+}
+
+.ev-sc-svg .ev-sc-axis {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.ev-sc-svg .ev-sc-usual {
+  stroke: var(--ink);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+}
+
+.ev-sc-svg .ev-sc-tick {
+  font-size: var(--type-axis);
+  fill: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-sc-svg .ev-sc-year,
+.ev-sc-svg .ev-sc-label {
+  font-size: var(--type-label);
+  fill: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-sc-svg .ev-sc-label {
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+/* a dot: its category's ramp step, haloed in the tile so touching dots part */
+.ev-sc-svg .ev-sc-dot {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.ev-sc-sprinkle {
+  fill: var(--rain-0);
+  background: var(--rain-0);
+}
+
+.ev-sc-shower {
+  fill: var(--rain-1);
+  background: var(--rain-1);
+}
+
+.ev-sc-rain {
+  fill: var(--rain-3);
+  background: var(--rain-3);
+}
+
+.ev-sc-storm {
+  fill: var(--rain-4);
+  background: var(--rain-4);
+}
+
+/* the live event: the page's one now mark, a ring */
+.ev-sc-svg .ev-sc-now {
+  fill: var(--surface);
+  stroke: var(--now);
+  stroke-width: 2;
+}
+
+.ev-sc-svg .ev-sc-now-label {
+  font-size: var(--type-annotation);
+  font-weight: 600;
+  fill: var(--now);
+}
+
+/* the size key, in place under the chart */
+.ev-sc-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  margin: var(--s-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-label);
+  color: var(--ink-3);
+}
+
+.ev-sc-key li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.ev-sc-swatch {
+  flex: none;
+  border-radius: 50%;
+}
+
+.ev-sc-swatch.ev-sc-sprinkle {
+  width: 4px;
+  height: 4px;
+}
+
+.ev-sc-swatch.ev-sc-shower {
+  width: 7px;
+  height: 7px;
+}
+
+.ev-sc-swatch.ev-sc-rain {
+  width: 10px;
+  height: 10px;
+}
+
+.ev-sc-swatch.ev-sc-storm {
+  width: 14px;
+  height: 14px;
+}
+
 /* ---------- the list tile ---------- */
 /* On a phone the rows are the tiles, on the ground; on both grids the list
    is one tile under the catalog tile, and its rows sit on it. */
@@ -39,31 +212,67 @@
   background: none;
 }
 
-/* ---------- the filter bar ---------- */
+/* ---------- the filter line (#254): water year, sort, size ---------- */
 .ev-bar {
   position: sticky;
   top: var(--ev-bar-top);
   z-index: 5;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--s-2);
+  gap: 6px;
   margin: 0 0 var(--s-1);
   padding: var(--s-2) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
   background: var(--surface);
   border-bottom: 1px solid var(--rule);
 }
 
-.ev-year {
+/* one line; on the narrowest phones it scrolls in place, never the page */
+.ev-pill {
   display: flex;
+  flex: none;
 }
 
-/* the water-year filter: a native select styled as a pill */
+/* the count line under the filter, with the days missing on it */
+.ev-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--s-1);
+  margin: 0;
+  font-size: var(--type-source);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.ev-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  white-space: nowrap;
+}
+
+.ev-missing[hidden] {
+  display: none;
+}
+
+/* the list's heading: a label over the rows, not a finding */
+.ev-list-tile > .ev-list-finding {
+  margin: var(--s-2) 0 0;
+  font-size: var(--type-source);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* each filter is a native select styled as a pill */
 .ev-select {
   appearance: none;
   min-height: 44px;
   max-width: 100%;
-  padding: 0 28px 0 12px;
+  padding: 0 25px 0 10px;
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-pill);
   background-color: var(--tile);
@@ -71,8 +280,8 @@
     linear-gradient(45deg, transparent 50%, var(--ink) 50%),
     linear-gradient(135deg, var(--ink) 50%, transparent 50%);
   background-position:
-    calc(100% - 17px) 50%,
-    calc(100% - 12px) 50%;
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
   background-size: 5px 5px;
   background-repeat: no-repeat;
   color: var(--ink);
@@ -82,44 +291,8 @@
   cursor: pointer;
 }
 
-.ev-seg {
-  display: inline-flex;
-  flex: none;
-  max-width: 100%;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--r-pill);
-}
-
-/* segments are pills in the control's border; the pressed one `ink` */
-.ev-seg button {
-  flex: none;
-  min-height: 44px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ink-2);
-  font-size: var(--type-standfirst);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-:root:is([data-layout="two"], [data-layout="four"]) :is(.ev-seg button, .ev-select) {
+:root:is([data-layout="two"], [data-layout="four"]) .ev-select {
   min-height: 40px;
-}
-
-:root:is([data-layout="two"], [data-layout="four"]) .ev-seg button {
-  padding: 0 14px;
-}
-
-.ev-seg button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--ground);
-  font-weight: 600;
-}
-
-.ev-seg button:focus-visible {
-  outline-offset: -3px;
 }
 
 /* ---------- stat strips ---------- */
@@ -225,6 +398,7 @@
   color: var(--ink);
   font: inherit;
   text-align: start;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -275,6 +449,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* the category: the four-step glyph, then its word */
+.ev-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* four bars rising, filled to the category in `rain-line`; the bars above
+   it in `rule-strong`, which meets 3:1 on the tile */
+.ev-glyph {
+  flex: none;
+  fill: var(--rule-strong);
+}
+
+.ev-glyph .on {
+  fill: var(--rain-line);
+}
+
 /* the size bar: a `rain-bar` pill on a full-width `rule` track */
 .ev-size {
   grid-column: 1 / span 2;
@@ -309,18 +503,35 @@
   text-wrap: pretty;
 }
 
-.ev-mode {
-  align-self: flex-start;
-}
-
-/* the chart area keeps the curve's height while it loads or fails */
+/*
+ * the chart area keeps the curve's height while it loads or fails; the
+ * loading note sits over the chart in one cell until the chart is drawn
+ */
 .ev-charts {
   display: grid;
   min-height: 240px;
 }
 
+.ev-charts > * {
+  grid-area: 1 / 1;
+}
+
 .ev-chart {
   min-height: 240px;
+}
+
+/* the drawing's note waits a moment, so a quick redraw never flashes it */
+.ev-later {
+  animation: ev-later 0s linear 0.2s both;
+}
+
+@keyframes ev-later {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
 }
 
 .ev-wait {
@@ -371,15 +582,6 @@
 
 .ev-body > .ev-note {
   margin: 0;
-}
-
-/* The water year's gap, in place before the note that explains it. */
-.ev-season-gap .gap-block {
-  display: inline-flex;
-  min-height: 0;
-  /* Enough hatch round the haloed reason for the stripes to read. */
-  padding: 3px var(--s-2);
-  vertical-align: baseline;
 }
 
 /* the empty filter: one row-shaped tile under the bar */
@@ -468,10 +670,4 @@
 .ev-chip.low {
   border-style: dashed;
   color: var(--ink-3);
-}
-
-/* the category toggles: several can be pressed, so they sit apart */
-.ev-kinds {
-  gap: 2px;
-  padding: 1px;
 }
