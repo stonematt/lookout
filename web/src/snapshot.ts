@@ -22,7 +22,7 @@
  * `/current` body carries it and is checked strictly against it; dashboard
  * and context documents are checked against `SNAPSHOT_SCHEMA_VERSIONS`.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * The versions a curve file may carry. Its shape has not changed since 2,
@@ -34,9 +34,10 @@ export const CURVE_SCHEMA_VERSIONS: readonly number[] = [2, 3, 4, 5];
 
 /**
  * The versions a dashboard or context document may carry (ADR-0008): N, the
- * version the refresh run writes (`SCHEMA_VERSION`), and N+1, which this
- * site reads before the refresh run writes it (#667, R1 of #647), so the two
- * need not switch at the same moment (#351). Version 5 counts
+ * version the refresh run writes (`SCHEMA_VERSION`), and N-1, which stays
+ * readable until no N-1 document is live, so the site and the refresh run
+ * need not switch at the same moment (#351). The site read 5 first (#667,
+ * R1 of #647); the refresh run writes it from R2 (#668). Version 5 counts
  * `days_since_rain` in whole dry days (`WHOLE_DRY_DAYS_VERSION`) and drops
  * the Rain tab's prorated `recent.wet_hours`, which this site no longer
  * reads. Version 3 is no longer live.

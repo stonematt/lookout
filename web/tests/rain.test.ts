@@ -20,11 +20,15 @@ import {
 } from "../src/rain/text.js";
 import type { DashboardSnapshot, RainTab, WaterYearCurve } from "../src/snapshot.js";
 import { parseDashboard, SnapshotContractError } from "../src/snapshot.js";
-import { SCENARIOS, golden, goldenNext } from "./golden.js";
+import { SCENARIOS, golden, goldenDays, goldenPrevious } from "./golden.js";
 
 const raining = parseDashboard(golden("raining", "dashboard"));
 const dry = parseDashboard(golden("dry", "dashboard"));
 const seasoned = parseDashboard(golden("seasoned", "dashboard"));
+/** The dry golden's time since `lastRain` as a version 4 run wrote it: about 39 hours. */
+const DRY_V4_DAYS = 1.62;
+/** The dry golden as a version 4 document, its dry spell a duration. */
+const dryV4 = () => parseDashboard(goldenPrevious("dry", "dashboard", DRY_V4_DAYS));
 
 let panel: HTMLElement;
 
@@ -123,19 +127,25 @@ describe("the Rain tab's words", () => {
     );
   });
 
-  it("states the dry spell with the snapshot's dry_spell numbers", () => {
-    const calm = structuredClone(dry);
+  it("states a v4 snapshot's dry spell as the time since rain", () => {
+    const calm = dryV4();
     calm.dry_spell = { days_since_rain: 12.5, usual_days: 4 };
     expect(dryHeadline(calm)).toBe(
       "about 13 days since it last rained, against a usual dry spell of 4 days",
     );
     // The 365 days are not archived, so there is no usual spell to compare.
-    expect(dryHeadline(dry)).toBe("about 39 hours since it last rained");
+    expect(dryHeadline(dryV4())).toBe("about 39 hours since it last rained");
+  });
+
+  it("names the record alone when the whole dry days are unknown", () => {
+    // The dry golden's last day is not archived, so it cannot count as dry.
+    expect(dry.dry_spell?.days_since_rain).toBeNull();
+    expect(dryHeadline(dry)).toBe("Dry spells in the record");
   });
 
   it("states a v5 snapshot's dry spell in whole dry days (#667)", () => {
     const v5 = (days: number | null, usual: number | null) => {
-      const doc = goldenNext("dry", "dashboard", days) as { dry_spell: { usual_days: unknown } };
+      const doc = goldenDays("dry", days) as { dry_spell: { usual_days: unknown } };
       doc.dry_spell.usual_days = usual;
       return parseDashboard(doc);
     };
@@ -152,7 +162,7 @@ describe("the Rain tab's words", () => {
 
   it("puts a v5 snapshot's whole dry days in the Rain tab's dry-spell stat", () => {
     const panel = document.createElement("div");
-    renderRain(panel, parseDashboard(goldenNext("seasoned", "dashboard", 6)));
+    renderRain(panel, parseDashboard(goldenDays("seasoned", 6)));
     const stats = [...panel.querySelectorAll(".rain-dry-stats dt")];
     const since = stats.find((dt) => dt.textContent === "Since it last rained");
     expect(since?.nextElementSibling?.textContent).toBe("6 days");
@@ -345,7 +355,7 @@ describe("the Rain tab", () => {
 
   it("states days since rain as the same number as the Overview's dry spell feature", () => {
     // A golden copy whose feature is the dry spell (the dry golden's is quiet).
-    const doc = structuredClone(golden("dry", "dashboard")) as Record<string, unknown>;
+    const doc = goldenPrevious("dry", "dashboard", DRY_V4_DAYS) as Record<string, unknown>;
     doc.feature = { kind: "dry_spell", reading: null, value: null, unit: null, percentile: null };
     doc.dry_spell = { ...(doc.dry_spell as object), usual_days: 1 };
     const spell = parseDashboard(doc);
@@ -570,8 +580,8 @@ describe("the Rain tab", () => {
     expect(readout.textContent).toBe("Jan 8, 2026, 8 pm: still to come.");
   });
 
-  it("states the dry spell against the record", () => {
-    renderRain(panel, dry);
+  it("states a v4 dry spell against the record", () => {
+    renderRain(panel, dryV4());
     const stats = [...section("dry").querySelectorAll(".rain-dry-stats div")].map((item) => [
       text(item.querySelector("dt")),
       text(item.querySelector("dd")),

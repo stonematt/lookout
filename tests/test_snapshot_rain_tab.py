@@ -205,7 +205,7 @@ class TestRecentDays:
         assert recent.hourly_in[jan_7][2] is None
         assert recent.hourly_in[jan_7][3] == 0.0
 
-    def test_wet_hours_count_known_hours_only(self):
+    def test_a_missing_hour_reads_as_unknown(self):
         # Jan 5 rains 10 am to 1 pm local; the 11 am hour has no readings.
         # Its rain shows in the noon hour, the first reading after the gap.
         archive = build_archive(
@@ -221,27 +221,37 @@ class TestRecentDays:
         assert recent.hourly_in[jan_5][11] is None
         assert recent.hourly_in[jan_5][12] == approx(0.2)
         assert recent.rain_in[jan_5] == approx(0.3)
-        assert recent.wet_hours == 5  # 2 + 2 known + 1
 
-    def test_the_wettest_hour_and_wet_hours_cover_the_window(self):
+    def test_the_wettest_hour_covers_the_window(self):
         archive = build_archive(
             "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
         )
 
         recent = build(archive, "2026-01-10T07:59:00Z").rain_tab.recent
 
-        assert recent.wet_hours == 6  # 2 + 3 + 1
         assert (recent.wettest_hour.day, recent.wettest_hour.hour) == (
             "2026-01-09",
             10,
         )
         assert recent.wettest_hour.rain_in == approx(0.25)
 
-    def test_an_invalid_window_has_no_wet_hours(self):
+    def test_an_invalid_window_has_no_wettest_hour(self):
         recent = raining_station().rain_tab.recent
 
-        assert recent.wet_hours is None
         assert recent.wettest_hour is None
+
+    def test_the_prorated_wet_hours_are_gone(self):
+        # Version 5 (#668): wet hours come from the one wet-hour helper only,
+        # the dashboard's `wet_hours` and `rain_tab.wet_hours_to_date`.
+        archive = build_archive(
+            "2025-10-01T07:00:00Z", "2026-01-10T08:00:00Z", rain=JAN_RAIN
+        )
+
+        document = build(archive, "2026-01-10T07:59:00Z").dashboard()
+
+        assert "wet_hours" not in document["rain_tab"]["recent"]
+        assert document["wet_hours"] is not None
+        assert document["rain_tab"]["wet_hours_to_date"] is not None
 
 
 class TestDrySpells:

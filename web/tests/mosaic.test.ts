@@ -26,7 +26,7 @@ import type { CurrentReading, DashboardSnapshot } from "../src/snapshot.js";
 import { parseDashboard } from "../src/snapshot.js";
 import { nameFrom } from "./accessible-name.js";
 import type { Scenario } from "./golden.js";
-import { SCENARIOS, golden, goldenNext } from "./golden.js";
+import { SCENARIOS, golden, goldenDays, goldenPrevious } from "./golden.js";
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -616,16 +616,16 @@ describe("the Last 10 days tile", () => {
 describe("the Dry spell tile", () => {
   it("prints the snapshot's dry spell as the Rain tab and the feature do", () => {
     const d = inMode("dry", "dry");
-    d.dry_spell = { days_since_rain: 9.4, usual_days: 3 };
+    d.dry_spell = { days_since_rain: 9, usual_days: 3 };
     renderOverview(panel, parseDashboard(d));
 
-    expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("9 d 9 h");
+    expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("9 days");
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 3 days");
   });
 
   it("reads dry_spell in a v4 snapshot, with no hero_lead", () => {
-    const d = golden("seasoned", "dashboard") as Doc;
-    d.dry_spell = { days_since_rain: 3.05, usual_days: 2 };
+    const d = goldenPrevious("seasoned", "dashboard", 3.05) as Doc;
+    (d.dry_spell as Doc).usual_days = 2;
     renderOverview(panel, parseDashboard(d));
 
     expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("3 d 1 h");
@@ -633,7 +633,7 @@ describe("the Dry spell tile", () => {
   });
 
   it("prints whole dry days for a v5 snapshot (#667)", () => {
-    const d = goldenNext("seasoned", "dashboard", 9) as Doc;
+    const d = goldenDays("seasoned", 9) as Doc;
     (d.dry_spell as Doc).usual_days = 3;
     renderOverview(panel, parseDashboard(d));
 
@@ -641,18 +641,47 @@ describe("the Dry spell tile", () => {
     expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe("usual is 3 days");
   });
 
-  it("says one dry day in the singular, and no last rain as before, for a v5 snapshot", () => {
-    renderOverview(panel, parseDashboard(goldenNext("seasoned", "dashboard", 1)));
+  it("says one dry day in the singular for a v5 snapshot", () => {
+    renderOverview(panel, parseDashboard(goldenDays("seasoned", 1)));
     expect(words(tile("dry-spell").querySelector("[data-part=value]"))).toBe("1 day");
+  });
 
-    renderOverview(panel, parseDashboard(goldenNext("seasoned", "dashboard", null)));
-    expect(words(tile("dry-spell").querySelector("[data-part=delta]"))).toBe(
-      "no last rain on record",
+  /** The seasoned golden with unknown whole dry days and last rain `lastMs`. */
+  const unknownSpell = (doc: Doc, lastMs: (built: number) => number | null) => {
+    const rainNow = doc.rain_now as Doc;
+    doc.rain_now = { ...rainNow, last_rain_ms: lastMs(doc.built_at_ms as number) };
+    return parseDashboard(doc);
+  };
+  const delta = () => words(tile("dry-spell").querySelector("[data-part=delta]"));
+
+  it("names the last rain when a v5 snapshot's whole dry days are unknown (#668)", () => {
+    const doc = goldenDays("seasoned", null) as Doc;
+    renderOverview(
+      panel,
+      unknownSpell(doc, (built) => built - 40 * 3_600_000),
     );
+    expect(delta()).toBe("last rain 40 h ago");
+  });
+
+  it("has no last rain on record when a v5 snapshot has neither number", () => {
+    renderOverview(
+      panel,
+      unknownSpell(goldenDays("seasoned", null) as Doc, () => null),
+    );
+    expect(delta()).toBe("no last rain on record");
+  });
+
+  it("keeps no last rain on record for a v4 snapshot with no time since rain", () => {
+    const doc = goldenPrevious("seasoned", "dashboard", null) as Doc;
+    renderOverview(
+      panel,
+      unknownSpell(doc, (built) => built - 40 * 3_600_000),
+    );
+    expect(delta()).toBe("no last rain on record");
   });
 
   it.each(SCENARIOS)("orders a v5 snapshot's Overview as the v4 golden's (%s)", (scenario) => {
-    renderOverview(panel, parseDashboard(goldenNext(scenario, "dashboard")));
+    renderOverview(panel, parseDashboard(golden(scenario, "dashboard")));
     expect(ids()).toEqual(["first-screen", SECOND[scenario], ...ORDER[scenario]]);
   });
 

@@ -26,8 +26,8 @@ the new site's rules:
   year counts exactly when the finding can name it.
 - Wet hours since Oct 1 against usual wet hours to date come from the one
   wet-hour helper (`lookout.snapshot.wet_hours.wet_hours_to_date`, #663),
-  so they agree with the Overview's meter; the prorated
-  `RecentRain.wet_hours` stays in the snapshot until R2 (#667).
+  so they agree with the Overview's meter; version 5 dropped the Rain
+  tab's own prorated wet hours (#668).
 - An earlier water year counts toward the usual rain to date only if it
   also covers this date, the one rule usual wet hours apply
   (`WetHoursToDate.usual.earlier`): no usual and no verdict before then.
@@ -152,7 +152,7 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
     :param history: The stitched history, for the hours (today's included).
     :param days: The counted days; the clock's build hour says which hours
         today are still to come.
-    :return: The recent days, with wet hours prorated like any window value.
+    :return: The recent days and their wettest hour.
     """
     coverage, totals = days.rain, days.rain_in
     first, last = iso_day(status.first_day), iso_day(status.last_day)
@@ -199,13 +199,6 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
         if r is not None
     ]
 
-    def wet_hours() -> Optional[float]:
-        """
-        Hours with rain among the known ones, scaled over the window's
-        missing days; an unknown hour is neither wet nor dry.
-        """
-        return number(prorate(status, float(sum(1 for _, _, r in cells if r > 0))))
-
     def wettest() -> Optional[RainHour]:
         """The hour with the most rain; a maximum is not prorated."""
         wettest_cell = max(cells, key=lambda c: c[2], default=None)
@@ -221,7 +214,6 @@ def _recent(status: GapStatus, history: pd.DataFrame, days: CountedDays) -> Rece
         reason=tuple(reasons),
         hourly_in=tuple(hourly),
         first_hour_to_come=first_to_come,
-        wet_hours=comparable(status, wet_hours),
         wettest_hour=comparable(status, wettest),
     )
 

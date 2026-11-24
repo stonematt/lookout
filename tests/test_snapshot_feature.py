@@ -151,9 +151,18 @@ RECENT_RAIN = "2026-05-20T19:30:00Z"
 """An hour of rain on the seasoned station ending 2.5 h before its build."""
 
 
-# Thu Jan 8, 10:30 pm local: mid-hour, so no reading sits at its hour's edge.
-DRY_END = "2026-01-09T06:35:00Z"
-DRY_LAST = "2026-01-09T06:30:00Z"
+# Fri Jan 9, 10:30 pm local: mid-hour, so no reading sits at its hour's edge.
+# The last rain was Sat Jan 3: five whole dry days against a usual of four.
+DRY_END = "2026-01-10T06:35:00Z"
+DRY_LAST = "2026-01-10T06:30:00Z"
+# A day earlier: four whole dry days, the usual dry spell and not longer.
+FOUR_DRY_DAYS_END = "2026-01-09T06:35:00Z"
+# Four hours of rain a day, Sat Dec 27 to Fri Jan 2: wet mode that holds
+# through the dry week after it (the last 14 days' wet share stays over 2%).
+WET_WEEK = tuple(
+    RainSpell(f"{day.date()}T18:00:00Z", 4, 0.05)
+    for day in pd.date_range("2025-12-27", periods=7, freq="D")
+)
 
 
 class TestUnusual:
@@ -437,6 +446,25 @@ class TestDrySpell:
         assert snapshot.feature.kind == "dry_spell"
         assert snapshot.feature.reading is None
         assert snapshot.widget_view == "dry_spell"
+
+    def test_a_dry_spell_equal_to_the_usual_is_not_longer(self):
+        snapshot = build(
+            rain_every_fifth_day(FOUR_DRY_DAYS_END), None, FOUR_DRY_DAYS_END
+        )
+
+        assert snapshot.dry_spell.days_since_rain == 4
+        assert snapshot.dry_spell.usual_days == 4.0
+        assert snapshot.feature.kind == "quiet"
+
+    def test_the_dry_spell_is_independent_of_the_mode(self):
+        # The same dry week after the last rain, in dry mode and in wet mode.
+        dry = build(rain_every_fifth_day(DRY_END), None, DRY_END)
+        wet = build(rain_every_fifth_day(DRY_END, also=WET_WEEK), None, DRY_END)
+
+        assert (dry.wet_mode.mode, wet.wet_mode.mode) == ("dry", "wet")
+        assert wet.dry_spell == dry.dry_spell
+        assert dry.feature.kind == wet.feature.kind == "dry_spell"
+        assert dry.widget_view == wet.widget_view == "dry_spell"
 
     def test_without_a_usual_dry_spell_it_is_quiet(self):
         snapshot = seasoned()
