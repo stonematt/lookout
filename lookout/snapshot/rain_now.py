@@ -65,6 +65,19 @@ def _within(last_rain_ms: int, minutes: int, clock: StationClock) -> bool:
     return clock.now_ms - last_rain_ms <= minutes * _MINUTE_MS
 
 
+def _story_open(last_rain_ms: Optional[int], clock: StationClock) -> bool:
+    """
+    Whether last rain is within `STORY_HOURS` of the build time.
+
+    :param last_rain_ms: Last rain, or None.
+    :param clock: The build's clock.
+    :return: False without a last rain.
+    """
+    if last_rain_ms is None:
+        return False
+    return _within(last_rain_ms, STORY_HOURS * 60, clock)
+
+
 def _event(
     event_catalog: Optional[pd.DataFrame],
     active: Optional[ActiveRainEvent],
@@ -103,9 +116,7 @@ def rain_leads(rain: RainNow, clock: StationClock) -> bool:
     :param clock: The build's clock.
     :return: False without a last rain.
     """
-    if rain.last_rain_ms is None:
-        return False
-    return _within(rain.last_rain_ms, STORY_HOURS * 60, clock)
+    return _story_open(rain.last_rain_ms, clock)
 
 
 def rain_now(
@@ -129,7 +140,7 @@ def rain_now(
         readings = reading_rain(stitched, clock.tz)
     tipped = readings.loc[readings["rain_in"] > 0, "dateutc"]
     last_rain_ms = int(tipped.max()) if not tipped.empty else None
-    if last_rain_ms is None or not _within(last_rain_ms, STORY_HOURS * 60, clock):
+    if last_rain_ms is None or not _story_open(last_rain_ms, clock):
         return RainNow(
             last_rain_ms=last_rain_ms,
             raining=False,

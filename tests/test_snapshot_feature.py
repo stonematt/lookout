@@ -55,6 +55,8 @@ from tests.fixtures.archive import (
     seasoned_archive,
 )
 from tests.snapshot_helpers import (
+    EVENT_3_LAST_TIP,
+    at_ms,
     SEASONED_ARCHIVE_NEWEST,
     SEASONED_BUILT,
     SEASONED_STATION,
@@ -143,16 +145,10 @@ def usual_tempf(share: float) -> float:
     return float(np.quantile(values, share))
 
 
-LAST_TIP = ms("2026-01-09T01:55:00Z")
-"""The SCENARIO station's last tip of event 3 (22:00Z to 02:00Z)."""
+LAST_TIP = EVENT_3_LAST_TIP
 
 RECENT_RAIN = "2026-05-20T19:30:00Z"
 """An hour of rain on the seasoned station ending 2.5 h before its build."""
-
-
-def at_ms(milliseconds: int) -> str:
-    """An ISO time from epoch ms."""
-    return pd.Timestamp(milliseconds, unit="ms", tz="UTC").isoformat()
 
 
 # Thu Jan 8, 10:30 pm local: mid-hour, so no reading sits at its hour's edge.

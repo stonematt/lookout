@@ -14,12 +14,13 @@ The SCENARIO station's event 3 rains 0.12 in/h from 22:00Z on 8 Jan to
 tip, and 0.48 in in all.
 """
 
-import pandas as pd
 
 from lookout.core.rain_corrections import correct_counters, detect_carryovers
 from lookout.snapshot.model import Snapshot
 from tests.fixtures.archive import RainSpell, build_archive
 from tests.snapshot_helpers import (
+    EVENT_3_LAST_TIP,
+    at_ms,
     build,
     event_catalog,
     live_row,
@@ -29,18 +30,12 @@ from tests.snapshot_helpers import (
     scenario_until,
 )
 
-LAST_TIP = ms("2026-01-09T01:55:00Z")
-"""Event 3's last tip."""
+LAST_TIP = EVENT_3_LAST_TIP
 
 EVENT_3 = ms("2026-01-08T22:00:00Z")
 """Event 3's start, the key of its `rain_events` row."""
 
 MINUTE_MS = 60_000
-
-
-def at(milliseconds: int) -> str:
-    """An ISO time from epoch ms."""
-    return pd.Timestamp(milliseconds, unit="ms", tz="UTC").isoformat()
 
 
 def after_tip(minutes: float, extra_ms: int = 0) -> Snapshot:
@@ -49,8 +44,8 @@ def after_tip(minutes: float, extra_ms: int = 0) -> Snapshot:
     tip, its archive up to the build time and no live reading.
     """
     built = LAST_TIP + int(minutes * MINUTE_MS) + extra_ms
-    archive = scenario_until(at(built))
-    return build(archive, None, at(built), event_catalog(archive))
+    archive = scenario_until(at_ms(built))
+    return build(archive, None, at_ms(built), event_catalog(archive))
 
 
 class TestLastRain:

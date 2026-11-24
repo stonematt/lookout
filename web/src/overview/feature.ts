@@ -175,7 +175,11 @@ function sinceWords(startMs: number, builtMs: number): string {
  * rate are Python's, from the gauge's last tip; the event's start and total
  * are Ambient's bounds. Without an event, the value is the last hour's rain.
  */
-function nowStoryView(snapshot: DashboardSnapshot, rain: RainNow, rate: number): FeatureView {
+function nowStoryView(
+  snapshot: DashboardSnapshot,
+  rain: RainNow & { rate_in_hr: number },
+): FeatureView {
+  const rate = rain.rate_in_hr;
   // The story is told only with a last rain; a missing one reads as now.
   const ago = Math.max(0, snapshot.built_at_ms - (rain.last_rain_ms ?? snapshot.built_at_ms));
   const kicker = rain.raining
@@ -209,8 +213,9 @@ function nowStoryView(snapshot: DashboardSnapshot, rain: RainNow, rate: number):
 function rainView(snapshot: DashboardSnapshot): FeatureView {
   // A snapshot with the now story tells it; one before #659 reads as today.
   const rain = rainNow(snapshot);
+  // The rate is set exactly while the story is told (Python's 3 hours).
   if (rain !== null && rain.rate_in_hr !== null) {
-    return nowStoryView(snapshot, rain, rain.rate_in_hr);
+    return nowStoryView(snapshot, { ...rain, rate_in_hr: rain.rate_in_hr });
   }
   const usual = againstUsualEvent(snapshot);
   const active = snapshot.active_rain_event;
