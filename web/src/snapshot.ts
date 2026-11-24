@@ -751,6 +751,12 @@ export interface DashboardSnapshot extends SnapshotHead {
    */
   dry_spell?: DrySpellNow;
   /**
+   * Last rain and the now story (ADR-0011, #659), a version 4 addition.
+   * Absent from snapshots published before it: read it through
+   * {@link rainNow}, which gives null, and the site then draws today's view.
+   */
+  rain_now?: RainNow | null;
+  /**
    * How deep the station's record is: which comparisons it supports and
    * the one it unlocks next (#463). Absent from snapshots published before
    * Release A; the site then draws today's view.
@@ -1070,6 +1076,7 @@ export function parseDashboard(doc: unknown): DashboardSnapshot {
   checkIndoor(head.indoor);
   checkFeature(head.feature);
   checkDrySpell(head.dry_spell);
+  checkRainNow(head.rain_now);
   checkRecordDepth(head.record_depth);
   checkWindRose(head.wind_rose);
   checkOutdoorTrace(head.outdoor_trace);
@@ -1498,6 +1505,42 @@ export interface DrySpellNow {
   usual_days: number | null;
 }
 
+/**
+ * Last rain and the now story (`RainNow`, ADR-0011). The now story (the
+ * rate and the event) is told while last rain is within 3 hours of the
+ * build, exactly while the feature is rain; outside it `raining` is false
+ * and the rest is null.
+ */
+export interface RainNow {
+  /**
+   * Last rain: the gauge's last tip, the newest reading the daily counter
+   * rose on (not Ambient's `lastRain`); null when no reading shows a tip.
+   */
+  last_rain_ms: number | null;
+  /** Whether last rain is within 30 minutes of the build. */
+  raining: boolean;
+  /** The rain in the 60 minutes to the build, so inches per hour; null outside the story. */
+  rate_in_hr: number | null;
+  /**
+   * The current rain event's start, Ambient's bounds: the key of its
+   * `rain_events` row; null outside the story or when no event holds last rain.
+   */
+  event_start_ms: number | null;
+  /** That event's rain in inches; null when `event_start_ms` is. */
+  event_total_in: number | null;
+}
+
+/**
+ * A snapshot's last rain and now story, null when it carries none (one
+ * published before #659, ADR-0008).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns Its `rain_now`, or null.
+ */
+export function rainNow(snapshot: DashboardSnapshot): RainNow | null {
+  return snapshot.rain_now ?? null;
+}
+
 const FEATURE_KINDS: readonly string[] = ["rain", "unusual", "dry_spell", "quiet"];
 const FEATURE_READINGS: readonly string[] = [
   "temperature",
@@ -1537,6 +1580,25 @@ function checkFeature(feature: unknown): void {
       feature.outside_usual === null ||
       typeof feature.outside_usual === "boolean");
   if (!ok) throw new SnapshotContractError("dashboard: feature malformed");
+}
+
+/**
+ * `rain_now` may be absent or null (before #659); present, it holds a time or
+ * null, a flag, and numbers or nulls.
+ */
+function checkRainNow(rain: unknown): void {
+  if (rain === undefined || rain === null) return;
+  const timeOrNull = (v: unknown) => v === null || isTime(v);
+  if (
+    !isRecord(rain) ||
+    !timeOrNull(rain.last_rain_ms) ||
+    typeof rain.raining !== "boolean" ||
+    !isValueOrNull(rain.rate_in_hr) ||
+    !timeOrNull(rain.event_start_ms) ||
+    !isValueOrNull(rain.event_total_in)
+  ) {
+    throw new SnapshotContractError("dashboard: rain_now malformed");
+  }
 }
 
 /** `dry_spell` may be absent (N−1); present, it holds two numbers or nulls. */
