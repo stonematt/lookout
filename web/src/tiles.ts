@@ -399,7 +399,7 @@ export interface SourceNoteSpec {
  * @param reason - The short reason.
  * @returns The chip.
  */
-function hatchChip(reason: string): HTMLElement {
+export function hatchChip(reason: string): HTMLElement {
   const chip = document.createElement("span");
   chip.className = "hatch-chip";
   chip.dataset.part = "caveat";

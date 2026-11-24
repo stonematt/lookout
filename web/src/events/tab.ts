@@ -10,19 +10,24 @@
  *
  * - The tab is two tiles (`web/src/tiles.ts`, spec #332): the catalog
  *   (kicker, finding, standfirst, stats, folded source), the phone's fixed
- *   top; under it, the event list (DESIGN.md "Event list"): a filter bar
- *   pinned under any sticky header while the list scrolls (a water-year
- *   select, a Newest / Wettest / Longest sort and the Storm / Rain / Shower /
- *   Sprinkle category toggles, sprinkles off at first and the pick kept in
- *   the browser), the rows, "Show N more".
- * - A closed row is the event's start, category, length, peak and quality chip, its
- *   total, and a size bar (its total over the catalog's largest, hidden
- *   from assistive tech). The open row adds the event's finding, its stats,
- *   a Total / Rate switch over one chart, its quality and its folded source.
- *   Opening another row closes it; opening writes `?event=`.
+ *   top; under it, the event list (DESIGN.md "Event list", #254): one
+ *   filter line pinned under any sticky header while the list scrolls
+ *   (water year, sort and size, three selects: "2026–27", "Newest",
+ *   "Showers and up"; the size kept in the browser), a count line with the
+ *   days missing, the rows, "Show N more" and the folded method.
+ * - The list opens on the newest water year, every event of it of the size
+ *   picked (sprinkles hidden at first, #644).
+ * - A closed row is a link to its event (#370: ctrl-click opens a new
+ *   tab): its start, the four-step category glyph and word, length, peak
+ *   and quality chip, its total, and a size bar (its total over the
+ *   catalog's largest, hidden from assistive tech). The open row adds the
+ *   event's finding, its stats, a Total / Rate switch over one chart, its
+ *   quality and its folded source. Opening another row closes it; opening
+ *   writes `?event=`.
  * - With no `?event=`, the live event is open, or with none live, the newest
  *   event in the water year shown. With none live the newest row carries
- *   the "latest" chip.
+ *   the "latest" chip. A linked event shows in its own water year, the size
+ *   widened to list it.
  * - The live event's curve is the snapshot's `open_curve`, which the
  *   snapshot holds only for the live event (`active_rain_event`, the hero's
  *   decision); without one it says its readings are "not in the snapshot
@@ -43,7 +48,7 @@ import "./events.css";
 
 import { html } from "../dom.js";
 import { ReadError, fetchEventCurve } from "../load.js";
-import type { DashboardSnapshot, EventCategory, EventCurve, RainEventRow } from "../snapshot.js";
+import type { DashboardSnapshot, EventCurve, RainEventRow } from "../snapshot.js";
 import { renderTiles, sourceNote } from "../tiles.js";
 import { renderCatalogHead, renderCatalogTile } from "./catalog.js";
 import type { EventChart, EventChartOptions } from "./charts.js";
@@ -54,15 +59,19 @@ import {
   eventRows,
   listFoot,
   renderListTile,
-  storeCategories,
-  storedCategories,
-  syncFilterBar,
+  storeSize,
+  storedSize,
+  syncListHead,
 } from "./list.js";
-import type { EventSort, Season } from "./model.js";
+import type { EventSize, EventSort, Season } from "./model.js";
 import {
+  SIZES,
+  SORTS,
+  currentSeason,
   defaultOpen,
-  inCategories,
+  inSize,
   latestStart,
+  sizeFor,
   selectedStart,
   statsFor,
   visibleEvents,
@@ -100,8 +109,8 @@ export function browserDeps(): EventsDeps {
 interface View {
   season: Season;
   sort: EventSort;
-  /** The categories listed. */
-  categories: Set<EventCategory>;
+  /** The smallest category listed, or all; kept in the browser too. */
+  size: EventSize;
   limit: number;
   /** The open row's chart. */
   chart: EventChart;
@@ -129,22 +138,33 @@ const panels = new WeakMap<HTMLElement, Kept>();
 
 /**
  * The view a mount starts from: the panel's last one, or the first page of
- * every event, newest first, on Total. A water year the snapshot no longer
- * lists goes back to All, with the first page, the order and the chart kept.
+ * the newest water year, newest first, in the size kept in the browser, on
+ * Total. A water year the snapshot no longer lists goes to the newest, with
+ * the first page, the order, the size and the chart kept.
  */
 function keptView(last: View | undefined, section: DashboardSnapshot["rain_events"]): View {
   if (!last) {
     return {
-      season: "all",
+      season: currentSeason(section),
       sort: "newest",
-      categories: storedCategories(),
+      size: storedSize(),
       limit: PAGE,
       chart: "total",
     };
   }
   const { season } = last;
   if (season === "all" || section.seasons.some((s) => s.water_year === season)) return last;
-  return { ...last, season: "all", limit: PAGE };
+  return { ...last, season: currentSeason(section), limit: PAGE };
+}
+
+/** The page address that opens an event on this tab (#370). */
+function eventHref(startMs: number): string {
+  return `${location.pathname}${withEvent(location.search, startMs)}#events`;
+}
+
+/** Whether a click asks the browser to open the link elsewhere. */
+function opensElsewhere(event: MouseEvent): boolean {
+  return event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
 }
 
 /**
@@ -200,17 +220,20 @@ export function mountEvents(
   panels.set(panel, kept);
   const { listening, view } = kept;
   const linked = asked === null ? null : (all.find((e) => e.start_ms === asked) ?? null);
-  // A linked event outside the water year kept shows under All.
+  // A linked event outside the water year kept shows in its own (under All
+  // when the snapshot lists no such year).
   if (linked && view.season !== "all" && linked.water_year !== view.season) {
-    view.season = "all";
+    const own = section.seasons.some((s) => s.water_year === linked.water_year);
+    view.season = own ? linked.water_year : "all";
+    view.limit = PAGE;
   }
-  // So does a linked event in a category not picked: its category is added.
-  if (linked?.category && !inCategories(linked, view.categories)) {
-    view.categories.add(linked.category);
+  // A linked event smaller than the size kept widens the size to list it.
+  if (linked?.category && !inSize(linked, view.size)) {
+    view.size = sizeFor(linked.category);
   }
   let selected: RainEventRow | null = kept.shut
     ? null
-    : (linked ?? defaultOpen(section, view.season, view.categories));
+    : (linked ?? defaultOpen(section, view.season, view.size));
   let missing = asked !== null && linked === null;
   const latest = latestStart(section);
   let drawn = 0;
@@ -220,8 +243,8 @@ export function mountEvents(
   renderTiles(panel, snapshot, [
     {
       id: "catalog",
-      label: "The Event Catalog",
-      kicker: "The Event Catalog",
+      label: "Rain events",
+      kicker: "Rain events",
       span: 4,
       phoneTop: true,
       render: (host) => renderCatalogTile(host, snapshot),
@@ -229,7 +252,7 @@ export function mountEvents(
     {
       id: "events",
       label: "The list of rain events",
-      kicker: "Rain events",
+      kicker: "The event list",
       span: 4,
       // The event list is itself an accordion: open on a phone, not a row.
       phoneOpen: true,
@@ -242,16 +265,17 @@ export function mountEvents(
   pin();
   window.addEventListener("resize", pin, { signal: listening.signal, passive: true });
 
-  /** The catalog tile's finding and stats, and the filter bar, for the pick. */
+  /** The catalog tile's finding and stats, and the filter line, for the pick. */
   function renderHead(): void {
-    const rows = visibleEvents(section, view.season, view.sort, view.categories);
+    const rows = visibleEvents(section, view.season, view.sort, view.size);
+    const hidden = visibleEvents(section, view.season, view.sort).length - rows.length;
     renderCatalogHead(panel, section, view.season, rows);
-    syncFilterBar(panel, view, rows.length);
+    syncListHead(panel, section, view, { shown: rows.length, hidden });
   }
 
   /** The rows shown and the foot under them, then the open row's body. */
   function renderList(): void {
-    const rows = visibleEvents(section, view.season, view.sort, view.categories);
+    const rows = visibleEvents(section, view.season, view.sort, view.size);
     // The catalog's largest event total, the size bars' full track.
     const now = deps.nowMs();
     const most = Math.max(0, ...all.map((e) => e.total_in));
@@ -269,6 +293,7 @@ export function mountEvents(
       latest,
       now,
       most,
+      href: eventHref,
     };
     list.innerHTML = html`${eventRows(rows.slice(0, view.limit), context)}`;
     $(".ev-foot").innerHTML = html`${listFoot(rows.length - view.limit, most)}`;
@@ -348,7 +373,7 @@ export function mountEvents(
   /** Make sure the open row is on the rows shown. */
   function reach(): void {
     if (!selected) return;
-    const at = visibleEvents(section, view.season, view.sort, view.categories).indexOf(selected);
+    const at = visibleEvents(section, view.season, view.sort, view.size).indexOf(selected);
     if (at >= view.limit) view.limit = at + 1;
   }
 
@@ -392,6 +417,11 @@ export function mountEvents(
       const target = event.target as Element;
       const head = target.closest<HTMLElement>(".ev-open");
       if (head) {
+        // A row is a link (#370): ctrl-, cmd-, shift- or middle-click
+        // opens its event elsewhere, as the browser does; a plain click
+        // opens or closes it here.
+        if (opensElsewhere(event)) return;
+        event.preventDefault();
         toggle(Number(head.dataset.start));
         return;
       }
@@ -412,32 +442,6 @@ export function mountEvents(
         renderBody();
         return;
       }
-      const kindButton = target.closest<HTMLButtonElement>("[data-category]");
-      if (kindButton) {
-        const category = kindButton.dataset.category as EventCategory;
-        if (!view.categories.delete(category)) view.categories.add(category);
-        storeCategories(view.categories);
-        view.limit = PAGE;
-        // An open row the pick hides gives way to the default rule.
-        if (selected && !inCategories(selected, view.categories)) {
-          selected = kept.shut ? null : defaultOpen(section, view.season, view.categories);
-          missing = false;
-          writeUrl(null);
-        }
-        reach();
-        renderHead();
-        renderList();
-        return;
-      }
-      const sortButton = target.closest<HTMLButtonElement>("[data-sort]");
-      if (sortButton) {
-        view.sort = sortButton.dataset.sort as EventSort;
-        view.limit = PAGE;
-        reach();
-        renderHead();
-        renderList();
-        return;
-      }
       if (target.closest(".ev-more")) {
         view.limit += PAGE * 2;
         renderList();
@@ -451,14 +455,28 @@ export function mountEvents(
     (event) => {
       const select = (event.target as Element).closest<HTMLSelectElement>(".ev-select");
       if (!select) return;
-      view.season = select.value === "all" ? "all" : Number(select.value);
       view.limit = PAGE;
-      // The open row follows the default rule within the water year picked:
-      // the live event, or the newest. A row closed by hand stays closed.
-      if (!kept.shut) {
-        selected = defaultOpen(section, view.season, view.categories);
-        missing = false;
-        writeUrl(null);
+      if (select.classList.contains("ev-sort-select")) {
+        view.sort = SORTS.find((s) => s.sort === select.value)?.sort ?? view.sort;
+      } else if (select.classList.contains("ev-size-select")) {
+        view.size = SIZES.find((s) => s.size === select.value)?.size ?? view.size;
+        storeSize(view.size);
+        // An open row the size hides gives way to the default rule.
+        if (selected && !inSize(selected, view.size)) {
+          selected = kept.shut ? null : defaultOpen(section, view.season, view.size);
+          missing = false;
+          writeUrl(null);
+        }
+      } else {
+        view.season = select.value === "all" ? "all" : Number(select.value);
+        // The open row follows the default rule within the water year
+        // picked: the live event, or the newest. A row closed by hand stays
+        // closed.
+        if (!kept.shut) {
+          selected = defaultOpen(section, view.season, view.size);
+          missing = false;
+          writeUrl(null);
+        }
       }
       reach();
       renderHead();
