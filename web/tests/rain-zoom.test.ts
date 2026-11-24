@@ -109,7 +109,8 @@ describe.each([1440, 390])("the rain zoom at %ipx", (width) => {
   it("leads with the Rain tab's water-year section, then the almanac and rolling rain", async () => {
     await boot("#overview/rain", seasoned(), width);
 
-    expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Rain since Oct 1");
+    // A crop of the Rain tab head, which leads with now (#647 call 5).
+    expect(words(zoom()!.querySelector(".zoom-heading"))).toBe("Now and this season");
     expect(panels().map((p) => p.dataset.panel)).toEqual([
       "water-year",
       "rain-windows",

@@ -1,7 +1,8 @@
 /**
- * The rain zoom (#475, spec #460 story 36; board `RainZoom`): under the
- * Rain tile's number and delta, the Rain tab's top section (the water year,
- * without the tab's window strip), the rain gauge in its place (rain over
+ * The rain zoom (#475, spec #460 story 36; board `RainZoom`), titled "Now
+ * and this season" (#647 call 5): under the Rain tile's number and delta,
+ * the Rain tab's top section (now, the season and the water year, without
+ * the tab's window strip), the rain gauge in its place (rain over
  * each window, `rain/gauge.ts`, #619), then the rain almanac and
  * rolling-window rain, and "More in Rain". No source fold (prototype
  * decision 22): the Overview's sources footer carries the tile's line.
@@ -25,7 +26,8 @@ export const RAIN_TAB: MoreTab = { hash: "rain", name: "Rain" };
 /** The rain zoom. */
 export const rainZoom: ZoomDefinition = {
   slug: rainTile.slug,
-  title: rainTile.title,
+  // A crop of the Rain tab head, which leads with now (#647 call 5).
+  title: "Now and this season",
   lead: (snapshot) => rainTile.read(snapshot),
   panels: [
     {
