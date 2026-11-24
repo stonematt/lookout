@@ -18,16 +18,23 @@ Quality thresholds:
 - Fair: ≥75% complete, gaps ≤60min
 - Poor: Below fair thresholds
 
+Functions:
+- classify_event_quality(event, archive_df): One event's quality metrics.
+- recheck_events(catalog, archive_df): Stored events whose recomputed peak
+  rate, quality or category differ from the stored values (read-only).
+
 Usage:
     from lookout.core.event_quality import classify_event_quality
 
     quality_metrics = classify_event_quality(event_dict, archive_df)
 """
 
-from typing import Dict
+from typing import Dict, Optional
 
+import numpy as np
 import pandas as pd
 
+from lookout.core.event_category import event_category
 from lookout.core.rain_counter import rain_increments
 from lookout.utils.log_util import app_logger
 
@@ -170,3 +177,64 @@ def classify_event_quality(event: Dict, archive_df: pd.DataFrame) -> Dict:
             "ongoing": event.get("ongoing", False),
         },
     }
+
+
+RECHECK_COLUMNS = (
+    "start_ms",
+    "stored_peak",
+    "peak",
+    "stored_quality",
+    "quality",
+    "stored_category",
+    "category",
+)
+
+
+def _peak(value: object) -> Optional[float]:
+    """A stored or computed peak rate, rounded; None when absent or NaN."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return None if np.isnan(number) else round(number, 3)
+
+
+def recheck_events(catalog: pd.DataFrame, archive_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Stored events whose peak rate, quality or category the archive no longer gives.
+
+    Recomputes each event's quality and peak rate from the archive with
+    `classify_event_quality`, and its category from its stored total and the
+    peak (`event_category`), then compares them with the stored values. Reads
+    only: it neither changes `catalog` nor writes anywhere (#654).
+
+    :param catalog: The stored Event Catalog: `start_time`, `end_time`,
+        `total_rainfall`, `max_hourly_rate`, `quality_rating`.
+    :param archive_df: The archive, rain corrected as the refresh run reads it.
+    :return: One row per event that differs, oldest first, with
+        `RECHECK_COLUMNS`; `start_ms` is the event's start, epoch ms.
+    """
+    rows = []
+    for event in catalog.sort_values("start_time").to_dict("records"):
+        fresh = classify_event_quality(event, archive_df)
+        total = float(event["total_rainfall"])
+        stored_peak = _peak(event.get("max_hourly_rate"))
+        peak = _peak(fresh.get("max_hourly_rate"))
+        stored = (stored_peak, event.get("quality_rating"))
+        stored_category = event_category(total, stored_peak)
+        category = event_category(total, peak)
+        if stored == (peak, fresh["quality_rating"]) and stored_category == category:
+            continue
+        start = pd.Timestamp(pd.to_datetime(event["start_time"], utc=True))
+        rows.append(
+            (
+                int(start.value // 10**6),
+                stored_peak,
+                peak,
+                stored[1],
+                fresh["quality_rating"],
+                stored_category,
+                category,
+            )
+        )
+    return pd.DataFrame(rows, columns=list(RECHECK_COLUMNS))

@@ -31,6 +31,10 @@ Commands:
                     the events added or dropped. --save backs up the stored
                     object as it is (a corrupt catalog is kept), then writes;
                     it refuses to write when the backup fails.
+    event-recheck   Recompute each stored Event Catalog event's peak rate,
+                    quality and category from the rain-corrected archive and
+                    list the events whose values differ from the stored
+                    ones (#654). Reads only; it has no save flag.
 
 Every command takes --bucket and --station <MAC>, the station to work on; it
 defaults to the default station (the first in the station inventory). A MAC
@@ -54,8 +58,9 @@ import pandas as pd
 import lookout.api.awn_controller as awn
 from lookout.api.ambient_client import StationNotFoundError, get_station_device
 from lookout.config import DEFAULT_BUCKET
-from lookout.core import energy_catalog_func
+from lookout.core import energy_catalog_func, rain_corrections
 from lookout.core.energy_catalog import EnergyCatalog
+from lookout.core.event_quality import recheck_events
 from lookout.core.rain_events import RainEventCatalog
 from lookout.storage import archive_store
 from lookout.storage.storj import (
@@ -550,6 +555,44 @@ def cmd_event_catalog(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_event_recheck(args: argparse.Namespace) -> int:
+    """
+    List stored Event Catalog events whose recomputed values differ.
+
+    Reads the archive, applies the stored rain corrections in memory as the
+    refresh run does, reads the stored catalog, and compares each event's
+    peak rate, quality and category with `event_quality.recheck_events`.
+    Writes nothing: a difference is fixed by `event-catalog --save`.
+
+    :param args: Parsed arguments.
+    :return: The exit status; 1 when no catalog is stored.
+    """
+    device, archive = load_station(args.bucket, args.station)
+    mac = device["macAddress"]
+    archive = rain_corrections.apply_corrections(archive, mac, args.bucket)
+    stored = RainEventCatalog(mac, bucket=args.bucket).load_catalog()
+    if stored is None:
+        emit("Stored catalog: missing")
+        return 1
+    emit(f"Stored catalog: found, {len(stored)} events")
+    differ = recheck_events(stored, archive)
+    emit(f"Checked: {len(stored)} events, differ: {len(differ)}")
+    if differ.empty:
+        return 0
+    tz = station_tz(device)
+    emit("start_ms       start (local)     peak in/hr     quality          category")
+    for row in differ.itertuples(index=False):
+        start = to_utc(row.start_ms).tz_convert(tz).strftime(STAMP)
+        emit(
+            f"{row.start_ms}  {start}  "
+            f"{row.stored_peak} -> {row.peak}  "
+            f"{row.stored_quality} -> {row.quality}  "
+            f"{row.stored_category} -> {row.category}"
+        )
+    emit("Not saved: event-recheck reads only.")
+    return 0
+
+
 # ---------- the shell ----------
 
 
@@ -611,6 +654,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     events = command("event-catalog", cmd_event_catalog, "Rebuild the Event Catalog")
     events.add_argument("--save", action="store_true", help="Back up and save it")
+
+    command(
+        "event-recheck",
+        cmd_event_recheck,
+        "List catalog events whose recomputed values differ (reads only)",
+    )
     return parser
 
 

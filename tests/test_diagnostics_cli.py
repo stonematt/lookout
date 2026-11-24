@@ -26,6 +26,7 @@ from tests.fixtures.ambient import devices_body, to_ambient_records
 from tests.fixtures.archive import (
     FAKE_MAC,
     SCENARIO,
+    RainSpell,
     build_archive,
     scenario_archive,
 )
@@ -623,6 +624,77 @@ def test_importing_the_diagnostics_cli_loads_no_streamlit():
     assert out.stdout.strip() == "[]"
 
 
+class TestEventRecheck:
+    """
+    `event-recheck` (#654): a shower at 0.36 in/h across local midnight,
+    with a burst in the five minutes before 00:00. The reading right after
+    the counter's reset is the peak, 1.56 in/h, which the build before
+    #654 read as 0 (peak 0.36, a shower); the archive now makes it a storm.
+    """
+
+    def seed_reset_event(self, catchup_station, stored_peak: float):  # noqa: F811
+        archive = build_archive(
+            "2026-01-05T08:00:00Z",
+            "2026-01-07T08:00:00Z",
+            rain=[
+                RainSpell("2026-01-06T07:30:00Z", 1, 0.36),
+                RainSpell("2026-01-06T08:00:00Z", 1 / 12, 1.2),
+            ],
+        )
+        last = to_ambient_records(archive.head(1))[0]
+        station = catchup_station(
+            archive=archive, history=[], devices=devices_body(last), now=NOW
+        )
+        stored = RainEventCatalog(FAKE_MAC).detect_and_catalog_events(
+            archive, auto_save=False
+        )
+        stored["max_hourly_rate"] = stored_peak
+        storj.save_df_to_s3(stored, BUCKET, EVENT_KEY)
+        return station
+
+    def test_it_lists_an_event_whose_values_moved_and_writes_nothing(
+        self, catchup_station, capsys  # noqa: F811
+    ):
+        station = self.seed_reset_event(catchup_station, stored_peak=0.36)
+        keys = station.keys()
+        stored = storj.read_object(BUCKET, EVENT_KEY)
+
+        status, out = run(["event-recheck"], capsys)
+
+        assert status == 0
+        assert "Stored catalog: found, 1 events" in out
+        assert "Checked: 1 events, differ: 1" in out
+        start_ms = int(pd.Timestamp("2026-01-06T07:30:00Z").value // 10**6)
+        assert (
+            f"{start_ms}  2026-01-05 23:30  0.36 -> 1.56  "
+            "excellent -> excellent  shower -> storm"
+        ) in out
+        assert station.keys() == keys
+        assert storj.read_object(BUCKET, EVENT_KEY) == stored
+
+    def test_a_catalog_that_still_holds_lists_nothing(
+        self, catchup_station, capsys  # noqa: F811
+    ):
+        station = self.seed_reset_event(catchup_station, stored_peak=1.56)
+        keys = station.keys()
+
+        status, out = run(["event-recheck"], capsys)
+
+        assert status == 0
+        assert "Checked: 1 events, differ: 0" in out
+        assert station.keys() == keys
+
+    def test_no_stored_catalog_exits_1(self, seed, capsys):
+        station = seed()
+        keys = station.keys()
+
+        status, out = run(["event-recheck"], capsys)
+
+        assert status == 1
+        assert "Stored catalog: missing" in out
+        assert station.keys() == keys
+
+
 # ---------- the archive-writer lock (#244) ----------
 
 
@@ -640,6 +712,7 @@ READERS = [
     ["energy-catalog"],
     ["energy-catalog", "--save", "--dry-run"],
     ["event-catalog"],
+    ["event-recheck"],
 ]
 
 
