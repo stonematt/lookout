@@ -272,12 +272,13 @@ describe("later and dry: the mosaic of decision 24", () => {
     d.feature = { ...d.feature, kind: "quiet" };
     renderOverview(panel, parseDashboard(d));
     expect(tile()).toBeNull();
+    // Rain since Oct 1 has nothing to show on this young golden (#720).
     expect(ids().slice(0, 5)).toEqual([
       "first-screen",
       "feature",
       "temperature",
       "wet-hours",
-      "rain",
+      "wind",
     ]);
   });
 

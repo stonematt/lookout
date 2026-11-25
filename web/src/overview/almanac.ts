@@ -229,10 +229,7 @@ function wire(table: HTMLTableElement, readout: HTMLElement, almanac: Almanac): 
     ...tr.querySelectorAll<HTMLButtonElement>("button.alm-cell"),
   ]);
   const marks = rows.flat();
-  if (!marks.length) {
-    readout.textContent = "No month is in the record yet.";
-    return;
-  }
+  if (!marks.length) return;
   const years = new Map(almanac.years.map((y) => [String(y.water_year), y]));
   const soFar = seasonSoFar(almanac);
 
@@ -336,12 +333,24 @@ export function renderGrid(
   );
 }
 
+/**
+ * Whether the record holds any month to draw. The grid is not drawn
+ * without one: no words for a record too short to show (#720).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns True when at least one year has a month.
+ */
+export function almanacHasMonths(snapshot: DashboardSnapshot): boolean {
+  return snapshot.almanac.years.some((year) => year.months.some((month) => month !== null));
+}
+
 /** The almanac grid, as an Overview section. */
 export const almanacGrid: OverviewSection = {
   id: "almanac",
   label: "Rain by month, each water year",
   kicker: "Rain almanac",
   span: 3,
+  shown: almanacHasMonths,
   render: (host, snapshot) => renderGrid(host, snapshot),
 };
 

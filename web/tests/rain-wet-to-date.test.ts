@@ -75,7 +75,8 @@ function withToDate(snapshot: DashboardSnapshot, wet: unknown): DashboardSnapsho
 
 describe("wet hours since Oct 1", () => {
   it("has no usual with no earlier year (N = 0)", () => {
-    expect(usualWetWords(toDate(null))).toBe("no earlier year to compare yet");
+    // No usual yet: no words for it (#720).
+    expect(usualWetWords(toDate(null))).toBe("");
   });
 
   it("gives the plain value of one earlier year (N = 1)", () => {
@@ -109,9 +110,7 @@ describe("wet hours since Oct 1", () => {
   });
 
   it("says the hours missing are not dry", () => {
-    expect(usualWetWords(toDate(null, 27))).toBe(
-      "no earlier year to compare yet · 27 h missing, not dry",
-    );
+    expect(usualWetWords(toDate(null, 27))).toBe("27 h missing, not dry");
   });
 });
 

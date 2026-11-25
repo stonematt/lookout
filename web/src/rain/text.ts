@@ -282,7 +282,8 @@ export function yearsHeadline(tab: RainTab): string {
   if (!current) return "No water year in the record yet";
   const name = `Water year ${current.water_year}`;
   const value = toDate(tab, current);
-  if (value === null) return `${name} cannot be compared yet`;
+  // No total to date yet: the year's name alone, no words for it (#720).
+  if (value === null) return name;
   const verdict = verdictHeadline(tab);
   if (verdict) return verdict;
   const earlier = earlierToDate(tab);
@@ -360,7 +361,8 @@ function hourCount(hours: number): string {
  */
 export function usualWetWords(wet: WetHoursToDate): string {
   const usual = wet.usual;
-  let words = "no earlier year to compare yet";
+  // No earlier year yet: no usual words at all (#720).
+  let words = "";
   if (usual && usual.band && usual.low_hours !== null && usual.high_hours !== null) {
     const of =
       usual.band === "percentile"
@@ -374,9 +376,8 @@ export function usualWetWords(wet: WetHoursToDate): string {
     const values = usual.earlier.map((y) => `${hourCount(y.usual_hours)} h (${y.water_year})`);
     words = `usual to date ${values.join(", ")}`;
   }
-  return wet.missing_hours > 0
-    ? `${words} · ${hourCount(wet.missing_hours)} h missing, not dry`
-    : words;
+  const missing = wet.missing_hours > 0 ? `${hourCount(wet.missing_hours)} h missing, not dry` : "";
+  return [words, missing].filter(Boolean).join(" · ");
 }
 
 /**

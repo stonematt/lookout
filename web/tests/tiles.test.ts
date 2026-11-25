@@ -228,15 +228,13 @@ describe("the hatched chip on a tile's closed source line", () => {
     expect(lagCaveat(parsed("dry"))).toBe("archive 3 h behind");
   });
 
-  it("names a gap that hides part of a chart, on that tile alone", () => {
+  it("counts no window, day or strip the young raining golden leaves out", () => {
     // The raining golden, archive level with its reading: only gaps remain.
     const panel = zoom(level(parsed("raining")));
 
     // The windows and days before its record began are not drawn, so not
-    // counted (#470); the strips with no earlier year still are.
-    expect(chips(panel)).toEqual({
-      "against-normal": ["2 strips not compared"],
-    });
+    // counted (#470); nor are the strips with no earlier year (#720).
+    expect(chips(panel)).toEqual({});
   });
 
   it("shows nowhere when nothing lags and no gap hides any chart", async () => {

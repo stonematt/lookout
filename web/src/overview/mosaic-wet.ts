@@ -207,6 +207,6 @@ function modeWords(snapshot: DashboardSnapshot): string {
   if (!mode) return "";
   const name = mode.mode === "wet" ? "Wet mode" : "Dry mode";
   return mode.decided_by === "calendar"
-    ? `${name}, decided by the calendar: too few recent hours could be counted.`
+    ? `${name}, decided by the calendar.`
     : `${name}, decided by the weather: the share of recent hours that were wet.`;
 }

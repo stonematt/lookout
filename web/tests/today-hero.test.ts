@@ -212,7 +212,7 @@ describe("the hero just after midnight, before today's first reading (#563)", ()
   it("names the newest reading's time and day in the chart's accessible name", () => {
     renderOverview(panel, afterMidnight());
     expect(one("svg[role=img]")!.getAttribute("aria-label")).toMatch(
-      /^Today's temperature has no reading yet \(the newest is 39\.4° at 11:55 pm yesterday\), against the usual for each hour/,
+      /^Today's temperature, no reading today \(the newest is 39\.4° at 11:55 pm yesterday\), against the usual for each hour/,
     );
   });
 
@@ -368,7 +368,8 @@ describe("a snapshot without the usual band (N−1)", () => {
     expect(one(".today-band")).toBeNull();
     expect(one(".today-median")).toBeNull();
     expect(one(".today-basis")).toBeNull();
-    expect(one("svg[role=img]")!.getAttribute("aria-label")).toContain("no usual band");
+    // No band, no words for its absence (#720).
+    expect(one("svg[role=img]")!.getAttribute("aria-label")).not.toMatch(/band|yet/);
   });
 
   it("refuses a usual band that is there but malformed", () => {

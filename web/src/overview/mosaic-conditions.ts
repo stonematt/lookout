@@ -40,7 +40,7 @@ import { compassPoint, degrees, formatHours, formatTime, inHg, mph, percent } fr
 import type { DashboardSnapshot, IndoorSensor, SunMoon } from "../snapshot.js";
 import { windowEnergy } from "../solar/text.js";
 import type { MosaicRow, MosaicTile } from "./mosaic.js";
-import { MINI_HEIGHT, ROW_LINE_HEIGHT, miniChart } from "./mosaic.js";
+import { MINI_HEIGHT, ROW_LINE_HEIGHT, hasReading, miniChart } from "./mosaic.js";
 
 /** The strip under a mini chart that holds its end labels. */
 const AXIS = 16;
@@ -372,14 +372,13 @@ export const sunTile: MosaicTile = {
   depth: "sun",
   title: "Sun today",
   zoomName: "sun",
-  shown: (snapshot) => snapshot.solar_tab !== null,
+  // Not drawn with neither today's energy nor yesterday's (#720).
+  shown: (snapshot) => snapshot.solar_tab !== null && hasReading(sunTile.read(snapshot)),
   read(snapshot) {
     const today = windowEnergy(snapshot, "today");
     const yesterday = windowEnergy(snapshot, "yesterday");
     const delta = yesterday === null ? null : `all of yesterday ${yesterday} kWh/m²`;
-    return today === null
-      ? { value: null, delta: delta ?? "not compared yet" }
-      : { value: today, unit: "kWh/m²", delta };
+    return today === null ? { value: null, delta } : { value: today, unit: "kWh/m²", delta };
   },
   chart: sunChart,
   source: () => ({

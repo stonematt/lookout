@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /**
  * History grows (#470, spec #460 stories 28–32): a comparison the record
- * does not support is not drawn, one line names the next unlock, a gap
+ * does not support is not drawn and not explained (#720), a gap
  * inside a shown period stays visible, and Full history is a row in the
  * window range chart. Rendered from the goldens: the Overview, and the
  * sections that left it with the accordion (#472) for the zooms.
@@ -159,41 +159,12 @@ describe("Full history", () => {
   });
 });
 
-describe("the next-unlock line", () => {
-  it("names the comparison the snapshot says unlocks next (dry)", () => {
-    show(parsed(doc("dry")));
-
-    const lines = all("[data-part=next-unlock]");
-    expect(lines).toHaveLength(1);
-    expect(lines[0]!.textContent).toBe("Next to unlock: 7 days, on Nov 23, 2025.");
-    expect(lines[0]!.closest("[data-section]")?.getAttribute("data-section")).toBe(
-      "temperature-periods",
-    );
-  });
-
-  it("says nothing when the snapshot names no unlock (seasoned)", () => {
-    show(parsed(doc("seasoned")));
-
-    expect(all("[data-part=next-unlock], .ov-unlock")).toHaveLength(0);
-  });
-
-  it("says nothing for a null next_unlock, as live on Lookout Post", () => {
-    const d = doc("raining");
-    d.record_depth.next_unlock = null;
-    expect(() => show(parsed(d))).not.toThrow();
+describe("no next-unlock line (#720)", () => {
+  it.each(SCENARIOS)("%s: names no unlock, even when the snapshot names one", (scenario) => {
+    show(parsed(doc(scenario)));
 
     expect(all("[data-part=next-unlock], .ov-unlock")).toHaveLength(0);
     expect(panel.textContent).not.toMatch(/unlock/i);
-  });
-
-  it("words an unlock with an unknown key without the key", () => {
-    const d = doc("dry");
-    d.record_depth.next_unlock = { key: "fortnight", date: "2025-12-01" };
-    show(parsed(d));
-
-    expect(texts("[data-part=next-unlock]")).toEqual([
-      "More of the record unlocks on Dec 1, 2025.",
-    ]);
   });
 
   it("is a contract error when malformed", () => {

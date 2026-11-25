@@ -28,11 +28,14 @@ const CONDITIONS = ["wind", "pressure", "humidity", "sun", "daylight", "inside"]
  * `seasoned` is dry mode by the weather (a dry May), Dry spell beside
  * Temperature and Rain since Oct 1 after Last 10 days. Rain leads on
  * `raining` (Overview C, #661): Wet hours and Rain since Oct 1 leave the
- * mosaic for the rain tile's season foot.
+ * mosaic for the rain tile's season foot. `dry` and `raining` are young
+ * records: a tile with nothing to show is left out, not worded as too young
+ * (#720): Rain since Oct 1, Last 10 days and Sun today on `dry`, Last 10
+ * days on `raining`.
  */
 export const MOSAIC_ORDER: Record<Scenario, readonly string[]> = {
-  dry: ["temperature", "wet-hours", "rain", "last-10-days", ...CONDITIONS],
-  raining: ["temperature", "last-10-days", ...CONDITIONS],
+  dry: ["temperature", "wet-hours", ...CONDITIONS.filter((slug) => slug !== "sun")],
+  raining: ["temperature", ...CONDITIONS],
   seasoned: ["temperature", "dry-spell", "last-10-days", "rain", ...CONDITIONS],
 };
 

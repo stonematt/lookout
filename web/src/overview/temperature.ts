@@ -6,7 +6,7 @@
  * 1. temperature across periods: one range bar per window (today, yesterday,
  *    7, 30, 90, 365 days, Full history), a whisker from the lowest to the
  *    highest reading, a bar over the middle half, and one "now" rule across
- *    every row; under it, the one next-unlock line (#470);
+ *    every row;
  * 2. the ten-day high-low list, each day's low-to-high bar over the usual
  *    low-to-high for its date, in miniature;
  * 3. "now against normal" strips for temperature and for rain so far today.
@@ -41,7 +41,7 @@ import type {
 } from "../snapshot.js";
 import { gapReasons, hatchedCount, sourceNote, tileFinding, tileFolds } from "../tiles.js";
 import type { SectionOptions } from "../tiles.js";
-import { WINDOW_NAMES, isShown, nextUnlockLine } from "./history.js";
+import { WINDOW_NAMES, isShown } from "./history.js";
 import type { OverviewSection } from "./index.js";
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
@@ -147,7 +147,8 @@ function periodFinding(snapshot: DashboardSnapshot): string {
       p.status.key === "yesterday" ? "yesterday" : `the last ${WINDOW_NAMES[p.status.key]}`;
     return `${degrees(now)} now is ${p.position} the middle half of readings over ${name}`;
   }
-  return `${degrees(now)} now, with no window complete enough to compare`;
+  // No window to compare yet: the reading alone, no words for it (#720).
+  return `${degrees(now)} now`;
 }
 
 // ---------- chart plumbing ----------
@@ -447,7 +448,7 @@ export function daySentence(d: TemperatureDay): string {
   const usual =
     d.usual_low !== null && d.usual_high !== null
       ? ` Usual for the date: ${degrees(d.usual_low)} to ${degrees(d.usual_high)}, over ${d.usual_days} days in ${yearsText(d.usual_years)}.`
-      : " No earlier year to set it against.";
+      : "";
   return `${when}: low ${degrees(d.low)}, high ${degrees(d.high)}.${usual}`;
 }
 
@@ -689,7 +690,7 @@ export function daysHeadline(snapshot: DashboardSnapshot): string {
   const years = yearsText(snapshot.temperature_context.ten_day_years);
   return years
     ? `The last ten days, against the usual for their dates in ${years}`
-    : "The last ten days, with no earlier year to set them against";
+    : "The last ten days";
 }
 
 /**
@@ -704,7 +705,6 @@ function renderPeriods(
   const periods = periodRows(snapshot);
   host.dataset.block = "periods";
   const chart = chartHost("periods-chart");
-  const unlock = nextUnlockLine(snapshot);
   const usual = options.zoom ? usualSentence(snapshot) : null;
   // When the archive holds none of any row (and no Usual row leads them),
   // the chart is not drawn, not a stack of hatched rows (#606).
@@ -713,7 +713,6 @@ function renderPeriods(
   host.append(
     tileFinding(periodFinding(snapshot), options),
     ...(drawn ? [chart] : []),
-    ...(unlock ? [unlock] : []),
     spokenList([...(usual ? [usual] : []), ...periods.map(periodSentence)]),
   );
   if (drawn) mountChart(chart, (w) => periodsChart(snapshot, w, options.zoom));
@@ -784,13 +783,9 @@ function renderStrips(
     ),
   );
   const stripHosts: [NormalStrip, HTMLElement][] = [];
-  // Strips with no comparison share one sentence; say it once.
-  let saidNoComparison = false;
-  for (const strip of ctx.strips) {
-    if (strip.missing === "no_comparison") {
-      if (saidNoComparison) continue;
-      saidNoComparison = true;
-    }
+  // A strip with nothing to set today against is not drawn, and not
+  // explained (#720).
+  for (const strip of ctx.strips.filter(hasStrip)) {
     const figure = document.createElement("figure");
     figure.className = "tc-strip";
     figure.dataset.strip = strip.kind;
@@ -799,14 +794,10 @@ function renderStrips(
     claim.dataset.part = "claim";
     claim.textContent = stripClaim(strip);
     const chart = chartHost(`${strip.kind}-strip`);
-    figure.append(claim);
-    if (strip.missing === null) {
-      figure.append(chart);
-      stripHosts.push([strip, chart]);
-    }
+    figure.append(claim, chart);
+    stripHosts.push([strip, chart]);
     host.append(figure);
   }
-  const uncompared = ctx.strips.filter((strip) => strip.missing === "no_comparison").length;
   if (!options.zoom) {
     host.append(
       tileFolds(
@@ -815,7 +806,6 @@ function renderStrips(
           method:
             "Each dot is a past day within a week of this date; the rule is now. " +
             "Temperature dots are each past day's mean at this hour. Rain dots are each past day's rain by this time of day, on a square-root scale, so today's total so far is set among like totals.",
-          gaps: gapReasons([[uncompared, "strip", "strips"]]),
           lag: false,
         }),
       ),
@@ -851,11 +841,33 @@ export const temperaturePeriods: OverviewSection = {
   render: renderPeriods,
 };
 
+/**
+ * Whether a strip has today and past days to draw (#720).
+ *
+ * @param strip - The strip.
+ * @returns False when it is missing its reading or its comparison.
+ */
+function hasStrip(strip: NormalStrip): boolean {
+  return strip.missing === null;
+}
+
+/**
+ * Whether any strip can be drawn: the section and the zoom panel are not
+ * drawn without one (#720).
+ *
+ * @param snapshot - The dashboard snapshot.
+ * @returns True when at least one strip has a reading and a comparison.
+ */
+export function stripsShown(snapshot: DashboardSnapshot): boolean {
+  return snapshot.temperature_context.strips.some(hasStrip);
+}
+
 /** "Now against normal": today's temperature and rain among past days of this date. */
 export const againstNormal: OverviewSection = {
   id: "against-normal",
   label: "Now against this date",
   kicker: "Now against this date",
+  shown: stripsShown,
   // Half the four-column row each, with the ten-day list, under the
   // full-width now tile (#468), so the almanac row stays whole.
   span: 2,

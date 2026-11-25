@@ -171,7 +171,12 @@ describe("the rain gauge on other goldens", () => {
   });
 
   it("is left out when the record covers no window (dry)", async () => {
-    await boot("#overview/rain", parsed("dry"));
+    // A season total keeps the Rain tile drawn, so its zoom opens: without
+    // one the dry golden's tile has nothing to show and is left out (#720).
+    const snapshot = parsed("dry");
+    const season = snapshot.rain_tab.water_years.at(-1)!;
+    (season as { to_date_in: number | null }).to_date_in = 0;
+    await boot("#overview/rain", snapshot);
     expect(gauge()).toBeNull();
     expect(panelIds()[0]).toBe("water-year");
   });

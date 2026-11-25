@@ -260,12 +260,10 @@ export function todayChartName(snapshot: DashboardSnapshot): string {
   const slots = todaySlots(snapshot);
   const live = slots.find((s) => s.live && s.temperature !== null);
   const band = snapshot.temperature_context.usual_band ?? null;
-  const against = band
-    ? `against the usual for each hour, ${bandBasisWords(band)}.`
-    : "; no usual band in this snapshot yet.";
+  const against = band ? `against the usual for each hour, ${bandBasisWords(band)}.` : ".";
   const known = slots.some((s) => s.temperature !== null);
   const line = !known
-    ? `Today's temperature has no reading yet${newestReadingNote(snapshot)}`
+    ? `Today's temperature, no reading today${newestReadingNote(snapshot)}`
     : live && snapshot.observed_at_ms !== null
       ? `Today's temperature from midnight to ${degrees(live.temperature!)} at ${formatStamp(snapshot.observed_at_ms)}`
       : "Today's temperature from midnight";
