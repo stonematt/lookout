@@ -10,7 +10,7 @@
  * Offers `temperatureZoom`.
  */
 import { temperatureTile } from "../mosaic-tiles.js";
-import { renderPeriodsZoom, renderStripsZoom } from "../temperature.js";
+import { renderPeriodsZoom, renderStripsZoom, stripsShown } from "../temperature.js";
 import type { ZoomDefinition } from "../zoom.js";
 
 /** The temperature zoom. */
@@ -20,6 +20,11 @@ export const temperatureZoom: ZoomDefinition = {
   lead: (snapshot) => temperatureTile.read(snapshot),
   panels: [
     { id: "periods", title: "Temperature, in context", render: renderPeriodsZoom },
-    { id: "strips", title: "Now against this date", render: renderStripsZoom },
+    {
+      id: "strips",
+      title: "Now against this date",
+      shown: stripsShown,
+      render: renderStripsZoom,
+    },
   ],
 };

@@ -112,7 +112,7 @@ describe("the Overview's sources footer (prototype decision 22, #604)", () => {
     // carries Wet hours and Rain since Oct 1, so they leave the mosaic.
     "Rain",
     "Temperature",
-    "Last 10 days",
+    // Last 10 days has nothing to show on this young golden (#720).
     "Wind",
     "Pressure",
     "Humidity",

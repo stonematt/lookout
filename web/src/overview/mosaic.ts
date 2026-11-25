@@ -37,7 +37,7 @@
  * A tile whose title follows its mode or data (`titleFrom`) reads it from
  * the snapshot's `tile_titles`, through `tileTitle`.
  *
- * Offers `MosaicTile`, `MosaicRow`, `TileReading`, `mosaicSection`,
+ * Offers `MosaicTile`, `MosaicRow`, `TileReading`, `hasReading`, `mosaicSection`,
  * `tileTitle`, `miniChart` (the mini chart's SVG root) and `ROW_LINE_HEIGHT`.
  */
 import "./mosaic.css";
@@ -67,6 +67,18 @@ export interface TileReading {
    * shows that the number and delta do not ("sunrise 7:15 am, ...").
    */
   spoken?: string;
+}
+
+/**
+ * Whether a reading says anything: a number or a delta. A tile whose
+ * reading says nothing is not drawn (its `shown`), never worded as too
+ * young to show (#720).
+ *
+ * @param reading - The tile's reading.
+ * @returns False when it has neither a value nor a delta.
+ */
+export function hasReading(reading: TileReading): boolean {
+  return reading.value !== null || reading.delta !== null;
 }
 
 /** One mosaic tile, declared once; `mosaicSection` draws it. */

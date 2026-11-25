@@ -49,12 +49,14 @@ const all = (selector: string) => [...host.querySelectorAll(selector)];
 beforeEach(() => show(withYear()));
 
 describe("the temperature context", () => {
-  it("renders for both golden scenarios", () => {
+  it("renders for both golden scenarios, strips only with a comparison (#720)", () => {
     for (const snapshot of [dry, raining]) {
       show(snapshot);
-      for (const id of ["temperature-periods", "against-normal", "ten-days"]) {
+      for (const id of ["temperature-periods", "ten-days"]) {
         expect(host.querySelector(`[data-section=${id}]`)).not.toBeNull();
       }
+      // Neither young golden has an earlier year to set the strips against.
+      expect(host.querySelector("[data-section=against-normal]")).toBeNull();
     }
   });
 
@@ -153,10 +155,11 @@ describe("temperature across periods", () => {
     show(dry);
 
     // Today, yesterday and Full history are all not archived yet: no chart,
-    // not three hatched rows. The finding and the spoken rows still say so.
+    // not three hatched rows. The finding is the reading alone (#720); the
+    // spoken rows give the gap.
     expect(all("[data-part=periods-chart]")).toHaveLength(0);
     expect(all("[data-block=periods] .tc-hatch")).toHaveLength(0);
-    expect(text("[data-block=periods] [data-part=finding]")).toContain("no window complete");
+    expect(text("[data-block=periods] [data-part=finding]")).toBe("39.4° now");
     expect(text("[data-block=periods] .ov-sr")).toContain(
       "the archive does not reach this far yet",
     );
@@ -239,9 +242,7 @@ describe("the ten-day list", () => {
       Object.assign(d, { usual_low: null, usual_high: null, usual_years: [], usual_days: 0 });
     show(withYear(ctx));
 
-    expect(text("[data-block=ten-days] [data-part=finding]")).toBe(
-      "The last ten days, with no earlier year to set them against",
-    );
+    expect(text("[data-block=ten-days] [data-part=finding]")).toBe("The last ten days");
     expect(all("[data-part=days-chart] .tc-usual")).toHaveLength(0);
   });
 });
@@ -269,7 +270,7 @@ describe("now against normal", () => {
     );
   });
 
-  it("says why a strip cannot be drawn rather than drawing one", () => {
+  it("leaves out a strip it cannot draw, without saying why (#720)", () => {
     const strip = {
       ...year.strips[0]!,
       missing: "no_comparison" as const,
@@ -284,11 +285,12 @@ describe("now against normal", () => {
     ctx.strips = [strip, ctx.strips[1]!];
     show(withYear(ctx));
 
-    expect(all("[data-strip=temperature] .tc-dot")).toHaveLength(0);
-    expect(text("[data-strip=temperature] [data-part=claim]")).toBe(stripClaim(strip));
+    expect(all("[data-strip=temperature]")).toHaveLength(0);
+    expect(all("[data-strip=rain]")).toHaveLength(1);
+    expect(text("[data-block=strips]")).not.toContain(stripClaim(strip));
   });
 
-  it("says the no-comparison sentence once when both strips lack one", () => {
+  it("is not drawn when neither strip has a comparison (#720)", () => {
     const none = {
       missing: "no_comparison" as const,
       values: [],
@@ -304,7 +306,6 @@ describe("now against normal", () => {
     ];
     show(withYear(ctx));
 
-    const claims = all("[data-block=strips] [data-part=claim]").map((el) => el.textContent);
-    expect(claims).toEqual(["No earlier year is complete enough to set this against."]);
+    expect(all("[data-section=against-normal]")).toHaveLength(0);
   });
 });

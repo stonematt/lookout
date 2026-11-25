@@ -51,7 +51,7 @@ import {
   sunTile,
   windTile,
 } from "./mosaic-conditions.js";
-import { MINI_HEIGHT, miniChart } from "./mosaic.js";
+import { MINI_HEIGHT, hasReading, miniChart } from "./mosaic.js";
 import { wetHoursTile } from "./mosaic-wet.js";
 import { rampColour, shownDays, todayInList, todayPeriod } from "./temperature.js";
 import { nowDeltaWords } from "./today-hero.js";
@@ -270,13 +270,15 @@ function rainChart(snapshot: DashboardSnapshot, width: number): SVGSVGElement | 
  * by this date (`rain_tab.usual_to_date`, #539); the total alone when the
  * snapshot has no percent (null, or N−1). With no total to date (a new
  * station), the last 7 days' total (`rain_tab.windows` `7d`, #605), named
- * so; "not compared yet" when that is not shown either.
+ * so. With neither, the tile is not drawn: no words for a record too short
+ * to show (#720).
  */
 export const rainTile: MosaicTile = {
   slug: "rain",
   depth: "rain",
   title: "Rain since Oct 1",
   zoomName: "rain",
+  shown: (snapshot) => hasReading(rainTile.read(snapshot)),
   read(snapshot) {
     const tab = snapshot.rain_tab;
     const current = currentYear(tab);
@@ -288,7 +290,7 @@ export const rainTile: MosaicTile = {
           ? gapValue(week.status, inches(week.total_in, { unit: false }))
           : null;
       return total === null
-        ? { value: null, delta: "not compared yet" }
+        ? { value: null, delta: null }
         : { value: total, unit: "in", delta: LAST_7_DAYS };
     }
     const approx = current.prorated[tab.day_index] ? "≈ " : "";
@@ -386,7 +388,7 @@ function highsWords(deltaF: number): string {
  * Last 10 days: the last ten days' highs against their usual highs, a mean
  * (`temperature_context.ten_day_highs`, #540). When the snapshot has none
  * (null, or N−1), the last 7 days' low to high (`temperature_context.periods`
- * `7d`, #605), named so; "not compared yet" when that is not shown either.
+ * `7d`, #605), named so. With neither, the tile is not drawn (#720).
  */
 export const tenDaysTile: MosaicTile = {
   slug: "last-10-days",
@@ -395,6 +397,7 @@ export const tenDaysTile: MosaicTile = {
   // Named by its number, "Highs over usual", with the window under it.
   titleFrom: (snapshot) => snapshot.tile_titles?.ten_days,
   zoomName: "last 10 days",
+  shown: (snapshot) => hasReading(tenDaysTile.read(snapshot)),
   read(snapshot) {
     const highs = snapshot.temperature_context.ten_day_highs ?? null;
     if (highs === null) {
@@ -402,7 +405,7 @@ export const tenDaysTile: MosaicTile = {
       // high, the temperature window the snapshot already holds (#605).
       const week = snapshot.temperature_context.periods.find((p) => p.status.key === "7d");
       if (!week || !isShown(week.status) || week.low === null || week.high === null) {
-        return { value: null, delta: "not compared yet" };
+        return { value: null, delta: null };
       }
       return {
         value: `${degrees(week.low, 0)}–${degrees(week.high, 0)}`,

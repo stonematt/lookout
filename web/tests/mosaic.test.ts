@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 /**
  * The mosaic (#472, #473, spec #460 stories 18–28, 52, 56), rendered from
- * the goldens: the ten tiles in the order the snapshot's wet mode sets
+ * the goldens: the tiles in the order the snapshot's wet mode sets
  * (#658, Mosaic decision 24; the fixed order without one), a tile the record does
- * not cover left out with the later ones moving up, each tile one link to
+ * not cover, or one with nothing to show (#720), left out with the later ones moving up, each tile one link to
  * `#overview/<slug>` named by its own text (the finding once, no
  * `aria-label`), its mini chart hidden from screen readers, and every number
  * the snapshot's: the Temperature tile's delta is the hero's. Air's and Sun
@@ -61,6 +61,19 @@ const ORDER: Record<Scenario, string[]> = {
   seasoned: DRY_MOSAIC,
 };
 
+/**
+ * The tiles a young golden leaves out, having nothing to show: no number
+ * and no delta, so no words for a record too short (#720).
+ */
+const SILENT: Record<Scenario, string[]> = {
+  dry: ["rain", "last-10-days", "sun"],
+  raining: ["last-10-days"],
+  seasoned: [],
+};
+
+/** Each golden's order with its silent tiles left out. */
+const drawnOrder = (s: Scenario) => ORDER[s].filter((slug) => !SILENT[s].includes(slug));
+
 /** The tile after the now tile: the rain tile while rain leads, else the feature. */
 const SECOND: Record<Scenario, string> = { dry: "feature", raining: "rain", seasoned: "feature" };
 
@@ -94,10 +107,10 @@ const inMode = (scenario: Scenario, mode: "wet" | "dry" | null): Doc => {
 };
 
 describe("the mosaic's order", () => {
-  it.each(SCENARIOS)("follows the feature on the %s golden: ten tiles in its mode's order", (s) => {
+  it.each(SCENARIOS)("follows the feature on the %s golden: its tiles in its mode's order", (s) => {
     renderOverview(panel, parsed(s));
 
-    expect(ids()).toEqual(["first-screen", SECOND[s], ...ORDER[s]]);
+    expect(ids()).toEqual(["first-screen", SECOND[s], ...drawnOrder(s)]);
     expect(MOSAIC_TILES.map((t) => t.slug)).toEqual(MOSAIC);
   });
 
@@ -110,7 +123,7 @@ describe("the mosaic's order", () => {
   it("sets Dry spell beside Temperature in dry mode, Rain since Oct 1 last of row 2", () => {
     renderOverview(panel, parseDashboard(inMode("dry", "dry")));
 
-    expect(mosaicIds()).toEqual(DRY_MOSAIC);
+    expect(mosaicIds()).toEqual(DRY_MOSAIC.filter((slug) => !SILENT.dry.includes(slug)));
   });
 
   it("keeps the order before wet mode for a snapshot without the mode (v4, N−1)", () => {
@@ -139,7 +152,7 @@ describe("the mosaic's order", () => {
   });
 
   it("leaves out a tile the record does not cover, and the later tiles move up", () => {
-    const d = inMode("dry", null);
+    const d = inMode("seasoned", null);
     for (const t of d.record_depth.tiles)
       if (t.key === "rain" || t.key === "dry_spell") t.shown = false;
     renderOverview(panel, parseDashboard(d));
@@ -149,19 +162,23 @@ describe("the mosaic's order", () => {
     expect(panel.querySelector('[href="#overview/rain"]')).toBeNull();
   });
 
-  it("draws every tile for a snapshot without record depth (N−1)", () => {
+  it("draws every tile with something to show for a snapshot without record depth (N−1)", () => {
     const d = doc("dry");
     delete d.record_depth;
     renderOverview(panel, parseDashboard(d));
 
-    expect(mosaicIds()).toEqual(ORDER.dry);
+    expect(mosaicIds()).toEqual(drawnOrder("dry"));
   });
 });
+
+/** The golden's mosaic tiles that are drawn: a silent one is not (#720). */
+const drawnTiles = (scenario: Scenario) =>
+  overviewMosaic(parsed(scenario)).filter((t) => !SILENT[scenario].includes(t.slug));
 
 describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
   beforeEach(() => renderOverview(panel, parsed(scenario)));
 
-  it.each(overviewMosaic(parsed(scenario)).map((t) => [t.slug, t] as const))(
+  it.each(drawnTiles(scenario).map((t) => [t.slug, t] as const))(
     "%s is one link to its zoom, named by its own text, once",
     (slug, def) => {
       const host = tile(slug);
@@ -201,7 +218,7 @@ describe.each(SCENARIOS)("each mosaic tile on the %s golden", (scenario) => {
   );
 
   it("titles each tile with a heading inside its link", () => {
-    const tiles = overviewMosaic(parsed(scenario));
+    const tiles = drawnTiles(scenario);
     const titles = tiles.map((t) => tile(t.slug).querySelector("a > h2"));
 
     // The title alone; Wet hours says how to read its bars under them (#706).
@@ -332,24 +349,23 @@ describe("the Rain tile", () => {
     expect(delta("rain")).toBe("last 7 days");
   });
 
-  it("says not compared yet when the 7 days are not shown either (dry golden)", () => {
+  it("is not drawn when the 7 days are not shown either (dry golden, #720)", () => {
     const d = doc("dry");
     expect(d.rain_tab.windows.find((w: { key: string }) => w.key === "7d").status.shown).toBe(
       false,
     );
     renderOverview(panel, parseDashboard(d));
 
-    expect(tile("rain").querySelector("[data-part=value]")).toBeNull();
-    expect(delta("rain")).toBe("not compared yet");
+    expect(panel.querySelector('[data-section="rain"]')).toBeNull();
+    expect(panel.textContent).not.toMatch(/not compared yet/);
   });
 
-  it("says not compared yet when the 7-day window is shown with no total (#605)", () => {
+  it("is not drawn when the 7-day window is shown with no total (#605, #720)", () => {
     const d = doc("dry");
     d.rain_tab.windows.find((w: { key: string }) => w.key === "7d").status.shown = true;
     renderOverview(panel, parseDashboard(d));
 
-    expect(tile("rain").querySelector("[data-part=value]")).toBeNull();
-    expect(delta("rain")).toBe("not compared yet");
+    expect(panel.querySelector('[data-section="rain"]')).toBeNull();
   });
 
   describe("a day the record cannot count (#662)", () => {
@@ -499,10 +515,10 @@ describe("the Last 10 days tile", () => {
     }
   });
 
-  it("keeps its fixed name with nothing to compare (dry golden)", () => {
+  it("is not drawn with nothing to compare (dry golden, #720)", () => {
     renderOverview(panel, parsed("dry"));
 
-    expect(words(tile("last-10-days").querySelector("h2"))).toBe("Last 10 days");
+    expect(panel.querySelector('[data-section="last-10-days"]')).toBeNull();
   });
 
   it("prints the ten days' highs against usual, signed (seasoned)", () => {
@@ -544,13 +560,13 @@ describe("the Last 10 days tile", () => {
     expect(delta("last-10-days")).toBe("last 10 days");
   });
 
-  it("prints no delta when the field is null (dry golden)", () => {
+  it("is not drawn when the field is null and the 7 days are not shown (dry golden)", () => {
     const d = doc("dry");
     expect(d.temperature_context.ten_day_highs).toBeNull();
     renderOverview(panel, parseDashboard(d));
 
-    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
-    expect(delta("last-10-days")).toBe("not compared yet");
+    expect(panel.querySelector('[data-section="last-10-days"]')).toBeNull();
+    expect(panel.textContent).not.toMatch(/not compared yet/);
   });
 
   it("shows the last 7 days' low to high from a snapshot without the field (N−1, #605)", () => {
@@ -577,7 +593,7 @@ describe("the Last 10 days tile", () => {
     expect(delta("last-10-days")).toBe("low to high, last 7 days");
   });
 
-  it("says not compared yet when the 7 days have no low and high either (#605)", () => {
+  it("is not drawn when the 7 days have no low and high either (#605, #720)", () => {
     const d = doc("dry");
     const week = d.temperature_context.periods.find(
       (p: { status: { key: string } }) => p.status.key === "7d",
@@ -585,8 +601,7 @@ describe("the Last 10 days tile", () => {
     week.status.shown = true;
     renderOverview(panel, parseDashboard(d));
 
-    expect(tile("last-10-days").querySelector("[data-part=value]")).toBeNull();
-    expect(delta("last-10-days")).toBe("not compared yet");
+    expect(panel.querySelector('[data-section="last-10-days"]')).toBeNull();
   });
 
   it("sets the legend above the chart, so the chart keeps the row's baseline", () => {
@@ -682,7 +697,7 @@ describe("the Dry spell tile", () => {
 
   it.each(SCENARIOS)("orders a v5 snapshot's Overview as the v4 golden's (%s)", (scenario) => {
     renderOverview(panel, parseDashboard(golden(scenario, "dashboard")));
-    expect(ids()).toEqual(["first-screen", SECOND[scenario], ...ORDER[scenario]]);
+    expect(ids()).toEqual(["first-screen", SECOND[scenario], ...drawnOrder(scenario)]);
   });
 
   it("draws the last 30 days, today outlined", () => {
