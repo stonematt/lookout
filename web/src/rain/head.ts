@@ -226,7 +226,7 @@ function wetBars(snapshot: DashboardSnapshot): HTMLElement {
       wet: toDate.wet_hours,
       countable: toDate.countable_hours,
       missing: toDate.missing_hours,
-      note: [usualWetWords(toDate)],
+      note: [usualWetWords(toDate)].filter(Boolean),
       usual: usualMarks(toDate),
     });
     row.dataset.part = "wet-to-date";

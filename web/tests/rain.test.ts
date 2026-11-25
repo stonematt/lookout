@@ -205,7 +205,8 @@ describe("the Rain tab's words", () => {
   });
 
   it("does not compare a water year that cannot be", () => {
-    expect(yearsHeadline(raining.rain_tab)).toBe("Water year 2026 cannot be compared yet");
+    // Named alone: no words for a year too young to compare (#720).
+    expect(yearsHeadline(raining.rain_tab)).toBe("Water year 2026");
     expect(yearLeftOut(raining.rain_tab.water_years[0]!)).toBe(
       "Water year 2026 is left out: it starts before the archive began.",
     );

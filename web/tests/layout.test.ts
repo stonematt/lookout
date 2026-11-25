@@ -100,8 +100,11 @@ describe("the Overview's grid under each layout", () => {
     };
   }
 
-  /** The mosaic's eight tiles while rain leads: Wet hours and Rain since Oct 1 left it. */
-  const halves = Array<string>(8).fill("span 1");
+  /**
+   * The mosaic's tiles while rain leads: Wet hours and Rain since Oct 1 left
+   * it, and Last 10 days has nothing to show on this young golden (#720).
+   */
+  const halves = Array<string>(7).fill("span 1");
 
   it("is two columns on a phone: now and feature full width, the mosaic two to a row", () => {
     const { columns, spans } = grid("phone");

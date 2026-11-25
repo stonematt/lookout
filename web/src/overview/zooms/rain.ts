@@ -15,7 +15,7 @@
  */
 import { gaugeShown, renderGauge } from "../../rain/gauge.js";
 import { headKicker, renderYears } from "../../rain/index.js";
-import { renderGrid, renderRolling, rollingHasRows } from "../almanac.js";
+import { almanacHasMonths, renderGrid, renderRolling, rollingHasRows } from "../almanac.js";
 import { rainTile } from "../mosaic-tiles.js";
 import type { ZoomDefinition } from "../zoom.js";
 import type { MoreTab } from "./more.js";
@@ -48,6 +48,7 @@ export const rainZoom: ZoomDefinition = {
     {
       id: "almanac",
       title: "Rain almanac",
+      shown: almanacHasMonths,
       render: (host, snapshot) => renderGrid(host, snapshot, { zoom: true }),
     },
     {
