@@ -1544,11 +1544,24 @@ class SolarMonth:
     :param energy_kwh_m2: kWh per m², prorated when the month is; None when
         it is invalid (the month under way is).
     :param status: Its gap status for solar, as `SolarWindow.status`.
+    :param to_date_kwh_m2: For the month under way only: the energy measured
+        so far, today included, under the same counted-days and prorate
+        rules; None on every other month.
+    :param projected_kwh_m2: For the month under way only: the projected
+        full-month total from its completed days; None on every other month,
+        on the month's first day, and when it cannot be projected.
+    :param projection: How `projected_kwh_m2` was made: "past_years" (this
+        month's days so far scaled by past years' full-month to same-days
+        ratio) or "days_elapsed" (scaled by days in month over days so far);
+        None when there is no projection.
     """
 
     key: str
     energy_kwh_m2: Optional[float]
     status: GapStatus
+    to_date_kwh_m2: Optional[float] = None
+    projected_kwh_m2: Optional[float] = None
+    projection: Optional[str] = None
 
 
 @dataclass(frozen=True)

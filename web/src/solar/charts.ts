@@ -43,7 +43,7 @@ import {
   wattsPerM2,
 } from "../format.js";
 import { dayStatus, gapSentence } from "../gaps.js";
-import type { GapReason, SolarTab, SolarTrace } from "../snapshot.js";
+import type { GapReason, SolarMonth, SolarTab, SolarTrace } from "../snapshot.js";
 import type { SolarDay } from "./text.js";
 import { FIRST_SLOT, LAST_SLOT, lastDay, monthText, peakSlot, slotText, wh } from "./text.js";
 
@@ -510,6 +510,20 @@ export function drawDaySlots(
 }
 
 /**
+ * The month under way, in words: what is measured so far and where it is heading.
+ *
+ * @param month - The month under way, with a projection.
+ * @returns "Nov 2026 so far: 24.0 kWh/m², on course for about 30.0 kWh/m²."
+ */
+export function projectionSentence(month: SolarMonth): string {
+  const done = month.to_date_kwh_m2 ?? null;
+  const head =
+    done === null ? monthText(month.key) : `${monthText(month.key)} so far: ${kwhPerM2(done)}`;
+  const pace = month.projection === "days_elapsed" ? " at the pace so far" : "";
+  return `${head}, on course for about ${kwhPerM2(month.projected_kwh_m2 ?? 0)}${pace}.`;
+}
+
+/**
  * The year-by-month heatmap: years as rows (newest first), months across,
  * each cell shaded by its energy with the value in it where there is room.
  *
@@ -535,7 +549,13 @@ export function drawYearMonth(
   const rowH = Math.min(44, Math.max(24, cell));
   const top = 18;
   const height = top + years.length * (rowH + gap) + 4;
+  // The projection never raises the scale: it is clamped to the top shade.
   const max = Math.max(1, ...tab.months.map((m) => m.energy_kwh_m2 ?? 0));
+  const projected = new Map(
+    tab.months
+      .filter((m) => m.status.reason === "in_progress" && (m.projected_kwh_m2 ?? null) !== null)
+      .map((m) => [m.key, m]),
+  );
   const months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
   const { svg, hatch } = canvas(
@@ -572,6 +592,31 @@ export function drawYearMonth(
       const attrs = { x: cx, y: ry, width: cell, height: rowH, rx: 4 };
       if (status.reason === "before_archive") {
         svg.append(svgEl("rect", { ...attrs, class: "solar-before" }));
+      } else if (value === null && projected.has(key)) {
+        const month = projected.get(key)!;
+        const level = shade(month.projected_kwh_m2!, max);
+        const rect = svgEl("rect", {
+          ...attrs,
+          class: `${cellClass(level)} solar-current`,
+        });
+        rect.append(svgEl("title", {}, projectionSentence(month)));
+        svg.append(rect);
+        const done = month.to_date_kwh_m2 ?? null;
+        if (cell >= 30 && done !== null) {
+          svg.append(
+            svgEl(
+              "text",
+              {
+                x: cx + cell / 2,
+                y: ry + rowH / 2 + 4,
+                class: "solar-cell-text solar-cell-partial",
+                "data-step": level,
+                "text-anchor": "middle",
+              },
+              `${month.projection === "days_elapsed" ? "≈" : ""}${Math.round(done)}+`,
+            ),
+          );
+        }
       } else if (value === null) {
         svg.append(
           svgEl("rect", {
@@ -614,6 +659,8 @@ export function drawYearMonth(
       const status = byKey.get(key);
       const value = energy.get(key) ?? null;
       if (!status) return readout(`${monthText(key)}: not in the record.`);
+      const month = projected.get(key);
+      if (value === null && month) return readout(projectionSentence(month));
       if (value === null) return readout(gapSentence(status));
       readout(`${monthText(key)}: ${status.status === "prorated" ? "≈ " : ""}${kwhPerM2(value)}.`);
     },

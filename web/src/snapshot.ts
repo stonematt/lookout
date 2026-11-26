@@ -712,6 +712,18 @@ export interface SolarMonth {
   energy_kwh_m2: number | null;
   /** Its gap status for solar, as `SolarWindow.status`. */
   status: GapStatus;
+  /**
+   * The month under way only: the energy measured so far, today included.
+   * Null on every other month; absent on a snapshot from before it (read as null).
+   */
+  to_date_kwh_m2?: number | null;
+  /** The month under way only: its projected full-month total; null when none. */
+  projected_kwh_m2?: number | null;
+  /**
+   * How the projection was made: "past_years" (past years' ratio) or
+   * "days_elapsed" (the pace so far, shown as ≈); null with no projection.
+   */
+  projection?: "past_years" | "days_elapsed" | null;
 }
 
 /** The last 90 days, 15 minutes at a time, for picking a day. */
