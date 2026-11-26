@@ -462,3 +462,53 @@ class TestCatalogCoverage:
         assert day_value(snapshot, "2026-06-20") == 0.0
         assert day_reason(snapshot, "2026-06-20") is None
         assert windows(snapshot)["7d"] == pytest.approx(6 * 0.16)
+
+
+def month_of(snapshot: Snapshot, key: str):
+    """One month of the tab by its key."""
+    return next(m for m in snapshot.solar_tab.months if m.key == key)
+
+
+class TestMonthProjection:
+    """The month under way: to-date energy and a projected month (#727)."""
+
+    def test_past_years_scale_the_days_so_far_by_their_month_ratio(self):
+        # Jun 2025: days 1-10 hold 0.32 each, the other 20 hold 0.16, so
+        # the full month is 6.4 and days 1-19 are 4.64. Jun 2026 holds
+        # 0.16 a day, 19 completed days: 3.04 * 6.4 / 4.64.
+        archive = build_archive("2025-06-01T07:00:00Z", ARCHIVE_END)
+        energy = catalog("2025-06-01", ms(ARCHIVE_END) - FIVE_MIN_MS)
+        local = energy["period_start"].dt.tz_convert(TZ)
+        early = (local >= "2025-06-01") & (local < pd.Timestamp("2025-06-11", tz=TZ))
+        energy.loc[early, "energy_kwh"] *= 2
+        month = month_of(build(archive, energy), "2026-06")
+        assert month.projection == "past_years"
+        assert month.projected_kwh_m2 == pytest.approx(3.04 * 6.4 / 4.64, abs=1e-3)
+        assert month.to_date_kwh_m2 == pytest.approx(3.04 + 0.08)
+
+    def test_with_no_past_year_it_scales_by_days_elapsed(self, june_snapshot):
+        month = month_of(june_snapshot, "2026-06")
+        assert month.projection == "days_elapsed"
+        assert month.projected_kwh_m2 == pytest.approx(3.04 * 30 / 19)
+        assert month.to_date_kwh_m2 == pytest.approx(3.12)
+
+    def test_the_month_under_way_keeps_no_energy_and_its_status(self, june_snapshot):
+        month = month_of(june_snapshot, "2026-06")
+        assert month.energy_kwh_m2 is None
+        assert month.status.reason == "in_progress"
+
+    def test_the_first_of_the_month_has_no_projection(self):
+        now = "2026-06-01T19:07:00Z"
+        archive = build_archive(START, "2026-06-01T19:05:00Z")
+        energy = catalog("2026-05-01", ms("2026-06-01T19:05:00Z") - FIVE_MIN_MS)
+        month = month_of(build(archive, energy, now=now), "2026-06")
+        assert month.projected_kwh_m2 is None
+        assert month.projection is None
+        assert month.to_date_kwh_m2 == pytest.approx(0.08)
+
+    def test_every_other_month_has_no_projection_fields(self, june_snapshot):
+        for month in june_snapshot.solar_tab.months:
+            if month.key != "2026-06":
+                assert month.to_date_kwh_m2 is None
+                assert month.projected_kwh_m2 is None
+                assert month.projection is None

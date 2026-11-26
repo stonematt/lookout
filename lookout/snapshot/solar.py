@@ -31,6 +31,7 @@ Functions:
   `SolarTab` section, None without a catalog.
 """
 
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -114,14 +115,7 @@ def solar_tab(
             for s in windows
         ),
         days=_days(totals, coverage),
-        months=tuple(
-            SolarMonth(
-                key=s.key,
-                energy_kwh_m2=_window_total(s, totals, coverage),
-                status=s,
-            )
-            for s in coverage.months()
-        ),
+        months=tuple(_solar_month(s, totals, coverage) for s in coverage.months()),
         recent=_recent(recent_status, periods, totals),
         last_24h=_last_24h(
             archive,
@@ -244,6 +238,86 @@ def _window_total(
         return number(prorate(status, sum(totals[d] for d in days)))
 
     return comparable(status, total)
+
+
+def _solar_month(
+    status: GapStatus, totals: Dict[date, float], coverage: ArchiveCoverage
+) -> SolarMonth:
+    """
+    One month's solar energy; the month under way also carries its to-date
+    total and projection.
+
+    :param status: The month's gap status.
+    :param totals: `_daily_totals`.
+    :param coverage: The coverage `status` came from.
+    :return: The month.
+    """
+    month = SolarMonth(
+        key=status.key,
+        energy_kwh_m2=_window_total(status, totals, coverage),
+        status=status,
+    )
+    if status.reason != "in_progress":
+        return month
+    first = iso_day(status.first_day)
+    to_date = _window_total(coverage.window(first, coverage.today), totals, coverage)
+    projected, method = _projection(first, totals, coverage)
+    return replace(
+        month,
+        to_date_kwh_m2=to_date,
+        projected_kwh_m2=projected,
+        projection=method,
+    )
+
+
+def _projection(
+    first: date, totals: Dict[date, float], coverage: ArchiveCoverage
+) -> Tuple[Optional[float], Optional[str]]:
+    """
+    The month under way's projected full-month energy.
+
+    Uses completed days only (day 1 through yesterday, D of them). Where
+    past years of the same calendar month have both the full month and days
+    1..D comparable, this month's days 1..D are scaled by the sum of their
+    full months over the sum of their days 1..D (summing first, so one odd
+    year cannot swing it). With none, by days in the month over D.
+
+    :param first: The month's first day.
+    :param totals: `_daily_totals`.
+    :param coverage: The archive's coverage.
+    :return: (kWh per m², method "past_years" or "days_elapsed"); (None, None)
+        when D is 0, the days so far are invalid, or the ratio's
+        denominator is 0.
+    """
+    elapsed = coverage.today.day - 1
+    if elapsed == 0:
+        return None, None
+    so_far = _window_total(
+        coverage.window(first, first + timedelta(days=elapsed - 1)), totals, coverage
+    )
+    if so_far is None:
+        return None, None
+    full_sum = part_sum = 0.0
+    years = 0
+    for year in range(coverage.first_day.year, first.year):
+        start = date(year, first.month, 1)
+        month = coverage.month(year, first.month)
+        if elapsed > month.days:
+            continue
+        part = coverage.window(start, start + timedelta(days=elapsed - 1))
+        full = _window_total(month, totals, coverage)
+        head = _window_total(part, totals, coverage)
+        if full is None or head is None:
+            continue
+        full_sum += full
+        part_sum += head
+        years += 1
+    if years == 0:
+        days = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - first
+        return number(so_far * days.days / elapsed), "days_elapsed"
+    if part_sum <= 0:
+        return None, None
+    return number(so_far * full_sum / part_sum), "past_years"
 
 
 def _days(totals: Dict[date, float], coverage: ArchiveCoverage) -> SolarDays:
