@@ -4498,7 +4498,10 @@
           "status": "invalid",
           "reason": "in_progress",
           "shown": false
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       }
     ],
     "recent": {

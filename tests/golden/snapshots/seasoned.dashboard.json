@@ -9947,7 +9947,10 @@
           "status": "invalid",
           "reason": "before_archive",
           "shown": false
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-06",
@@ -9961,7 +9964,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-07",
@@ -9975,7 +9981,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-08",
@@ -9989,7 +9998,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-09",
@@ -10003,7 +10015,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-10",
@@ -10017,7 +10032,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-11",
@@ -10031,7 +10049,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2024-12",
@@ -10045,7 +10066,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-01",
@@ -10059,7 +10083,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-02",
@@ -10073,7 +10100,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-03",
@@ -10087,7 +10117,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-04",
@@ -10101,7 +10134,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-05",
@@ -10115,7 +10151,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-06",
@@ -10129,7 +10168,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-07",
@@ -10143,7 +10185,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-08",
@@ -10157,7 +10202,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-09",
@@ -10171,7 +10219,10 @@
           "status": "invalid",
           "reason": "gap",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-10",
@@ -10185,7 +10236,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-11",
@@ -10199,7 +10253,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2025-12",
@@ -10213,7 +10270,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2026-01",
@@ -10227,7 +10287,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2026-02",
@@ -10241,7 +10304,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2026-03",
@@ -10255,7 +10321,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2026-04",
@@ -10269,7 +10338,10 @@
           "status": "valid",
           "reason": null,
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": null,
+        "projected_kwh_m2": null,
+        "projection": null
       },
       {
         "key": "2026-05",
@@ -10283,7 +10355,10 @@
           "status": "invalid",
           "reason": "in_progress",
           "shown": true
-        }
+        },
+        "to_date_kwh_m2": 121.031,
+        "projected_kwh_m2": 189.451,
+        "projection": "days_elapsed"
       }
     ],
     "recent": {
